@@ -1499,7 +1499,6 @@ class ParallelEngine(Engine):
         return sol0, sol[1:, 0]
 
     def collect_all_ess_tdof(self, phys, ess_tdofs, M = None):
-        from petram.solver.mumps.hypre_to_mumps import get_HypreParMatrixRow
         from mpi4py import MPI
 
         gl_ess_tdofs = []
