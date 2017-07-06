@@ -1,0 +1,11 @@
+*.pyc
+*.so
+*.o
+*.a
+#*
+.#*
+*~
+build
+dist
+*.egg-info
+petram/trash
