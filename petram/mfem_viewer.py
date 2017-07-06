@@ -45,10 +45,13 @@ class MFEMViewer(BookViewer):
                  ("Rebuild", self.onRebuildNS, None),                 
                  ("!", None, None),                 
                  ("Edit Model...", self.onEditModel, None),
-                 ("+Solve", None, None),
-                 ("Serial",    self.onSerDriver, None),
-                 ("Parallel",  self.onParDriver, None),
-                 ("+Server", None, None),
+                 ("+Solve", None, None),]
+        from petram.helper.driver_path import serial, parallel
+        if os.path.exists(serial):
+            menus.append(("Serial",    self.onSerDriver, None),)
+        if os.path.exists(parallel):
+            menus.append(("Parallel",  self.onParDriver, None),)
+        menus.extend([("+Server", None, None),
                  ("Setting...", self.onServerSetting, None),
                  ("New WorkDir...", self.onServerNewDir, None),
                  ("Solve...", self.onServerSolve, None),
@@ -72,7 +75,7 @@ class MFEMViewer(BookViewer):
                  ("Script/Data Files...", self.onSaveModelS, None),
                  ("!", None, None),                                  
                  ("---", None, None),
-                 ("Reset Model", self.onResetModel, None),]
+                 ("Reset Model", self.onResetModel, None),])
 
         ret = BuildMenu(extra_menu, menus)
         self._solmenu = ret[ID_SOL_FOLDER]
