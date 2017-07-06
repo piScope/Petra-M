@@ -12,6 +12,8 @@ PDE, which could be solved by a solver.
  - Physics modeling interface on piScope 
 
 ### Build/Install
+   These steps are common to all PetraM module installation
+
    1) decide install destination and set enviromental variables, PetraM
    
       example)
