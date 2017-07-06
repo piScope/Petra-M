@@ -11,7 +11,7 @@ PDE, which could be solved by a solver.
  - NASTRAN file converter to MFEM mesh format.
  - Physics modeling interface on piScope 
 
-* Build/Install
+### Build/Install
    1) decide install destination and set enviromental variables, PetraM
    
       example)
