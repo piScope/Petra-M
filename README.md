@@ -15,14 +15,15 @@ PDE, which could be solved by a solver.
    1) decide install destination and set enviromental variables, PetraM
    
       example)
-          export PetraM=/usr/local/PetraM  (public place)
-          export PetraM=/Users/shiraiwa/sandbox_root/PetraM (user directory)
+         - export PetraM=/usr/local/PetraM  (public place)
+         - export PetraM=/Users/shiraiwa/sandbox_root/PetraM (user directory)
 
    2) add PYTHONPATH
-          export PYTHONPATH=$PetraM/lib/python2.7/site-packages:$PYTHONPATH
+
+      - export PYTHONPATH=$PetraM/lib/python2.7/site-packages:$PYTHONPATH
 
    3) build
-      make 
+      - make 
 
    4) install
-      make install
+      - make install
