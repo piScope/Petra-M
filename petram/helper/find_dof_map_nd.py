@@ -4,7 +4,7 @@ import scipy
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('find_dof_map_nd')
 
-from petram.solver.mumps.hypre_to_mumps import get_HypreParMatrixRow
+#from petram.solver.mumps.hypre_to_mumps import get_HypreParMatrixRow
 
 from petram.mfem_config import use_parallel
 if use_parallel:
