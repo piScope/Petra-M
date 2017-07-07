@@ -50,7 +50,8 @@ class PhysCoefficient(mfem.PyCoefficient):
         for n, v in self.variables:
            #self.l['v'] = v
            #self.l[n] = eval('v()', self.g, self.l)
-            self.l[n] = v()
+           #self.l[n] = eval('v()', self.g, {'v': v})                      
+           self.l[n] = v()
         return (eval_code(self.co, self.g, self.l))
              
 class VectorPhysCoefficient(mfem.VectorPyCoefficient):
@@ -95,7 +96,9 @@ class VectorPhysCoefficient(mfem.VectorPyCoefficient):
 
         for n, v in self.variables:
 #           self.l['v'] = v
-           self.l[n] = v()
+#           self.l[n] = eval('v()', self.g, {'v': v})           
+#           self.l[n] = eval('v()', self.g, self.l)
+            self.l[n] = v()           
         val = [eval_code(co, self.g, self.l) for co in self.co]
         return np.array(val, copy = False).flatten()
 
@@ -136,6 +139,7 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient):
         for n, v in self.variables:           
            #self.l['v'] = v
            #self.l[n] = eval('v()', self.g, self.l)
+           #self.l[n] = eval('v()', self.g, {'v': v})
            self.l[n] = v()
 
         val = [eval_code(co, self.g, self.l) for co in self.co]

@@ -185,7 +185,15 @@ class Model(RestorableOrderedDict):
     @property
     def parent(self):
         return self._parent
-
+    @property
+    def parents(self):
+        parents = []
+        p = self
+        while True:
+           p = p._parent
+           if p is None: break
+           parents.insert(0, p)
+        return parents
     
     def verify_setting(self):
         '''

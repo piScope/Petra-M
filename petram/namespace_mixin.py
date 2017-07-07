@@ -162,16 +162,33 @@ class NS_mixin(object):
                     g[k] = chain[-1]._global_ns[k]
                 #self._local_ns = {}
         else:
+           # step 1-1 evaluate NS chain except for self and store dataset to
+           # g including mine
            self._global_ns = g
-           for k in l.keys():
-               g[k] = l[k]
-           if len(chain) > 1:
-               for k in chain[-2]._global_ns.keys():
-                   g[k] = chain[-2]._global_ns[k]
+           for p in self.parents:
+               if not isinstance(p, NS_mixin): continue
+               if (p.ns_string == '' or p.ns_string is None): continue
+               l = p.get_default_ns()               
+               for k in l.keys():
+                   g[k] = l[k]
+               if p.ns_name is not None:
+                   try:
+                       if p.dataset is not None:
+                           for k in p.dataset.keys(): g[k] = p.dataset[k]
+                       for k in p.attribute_mirror_ns():
+                           g[k] = chain[-2]._global_ns[k]                   
+                       l = {}
+                       if (p.ns_string != '' and p.ns_string is not None):
+                           exec p.ns_string in g, l
+                           for k in l.keys(): g[k] = l[k]
+                           
+                   except:
+                       import traceback
+                       traceback.print_exc()
+                       raise AssertionError("namespace script cannot be executed")
            if self.dataset is not None:
-               for k in self.dataset.keys():
-                   g[k] = self.dataset[k]
-                   
+               for k in self.dataset.keys(): g[k] = self.dataset[k]
+
         # step2 eval attribute using upstream + non-expression
         result, invalid =  self.eval_attribute_expr()
         for k in result.keys():
