@@ -161,11 +161,11 @@ class NS_mixin(object):
                 for k in chain[-1].keys():
                     g[k] = chain[-1]._global_ns[k]
                 #self._local_ns = {}
-        else:
+        elif len(chain) > 1:
            # step 1-1 evaluate NS chain except for self and store dataset to
            # g including mine
            self._global_ns = g
-           for p in self.parents:
+           for p in chain[:-1]:#self.parents:
                if not isinstance(p, NS_mixin): continue
                if (p.ns_string == '' or p.ns_string is None): continue
                l = p.get_default_ns()               
@@ -188,7 +188,9 @@ class NS_mixin(object):
                        raise AssertionError("namespace script cannot be executed")
            if self.dataset is not None:
                for k in self.dataset.keys(): g[k] = self.dataset[k]
-
+        else:
+           if self.dataset is not None:
+               for k in self.dataset.keys(): g[k] = self.dataset[k]
         # step2 eval attribute using upstream + non-expression
         result, invalid =  self.eval_attribute_expr()
         for k in result.keys():
