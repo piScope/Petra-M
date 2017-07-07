@@ -21,11 +21,17 @@ PDE, which could be solved by a solver.
          - export PetraM=/Users/shiraiwa/sandbox_root/PetraM (user directory)
 
    2) add PYTHONPATH
+      - if you dont have, make python package directory 
+           mkdir -p $PetraM/lib/python2.7/site-packages
+      - set PYTHONPATH
+           export PYTHONPATH=$PetraM/lib/python2.7/site-packages:$PYTHONPATH
 
-      - export PYTHONPATH=$PetraM/lib/python2.7/site-packages:$PYTHONPATH
+   4) prepare Makefile
+       use a file in Makefile_templates.
+       Makefile_default may work well.
 
-   3) build
+   5) build
       - make 
 
-   4) install
+   6) install
       - make install
