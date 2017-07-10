@@ -307,8 +307,10 @@ class DlgPlotSol(DialogWithWindowList):
         evt.Skip()
 
     def onEL_Changed(self, evt):
-        v  = self.elps['Config'].GetValue()
+        model = self.GetParent().model
+
         
+        v  = self.elps['Config'].GetValue()
         #print str(v[0][0])
         #print v
         if str(v[0][0]) == 'Single':
@@ -317,6 +319,7 @@ class DlgPlotSol(DialogWithWindowList):
                 self.evaluators = {}                
             self.config['use_mp'] = False
             self.config['use_cs'] = False
+            model.variables.setvar('remote_soldir', None)            
         elif str(v[0][0]) == 'MP':
             if not self.config['use_mp']:
                 self.evaluators = {}
@@ -325,6 +328,7 @@ class DlgPlotSol(DialogWithWindowList):
             self.config['mp_worker'] = v[0][2][0]
             self.config['use_mp'] = True
             self.config['use_cs'] = False
+            model.variables.setvar('remote_soldir', None)
         elif str(v[0][0]) == 'C/S':
             if not self.config['use_cs']:
                 self.evaluators = {}
@@ -336,7 +340,7 @@ class DlgPlotSol(DialogWithWindowList):
             self.config['cs_soldir'] = str(v[0][3][2])                        
             self.config['use_mp'] = False
             self.config['use_cs'] = True
-            #raise NotImplementedError("this mode is not implemented")
+            model.variables.setvar('remote_soldir', self.config['cs_soldir'])
             
         #print('EL changed', self.config)
 
@@ -823,7 +827,7 @@ class DlgPlotSol(DialogWithWindowList):
         evaluate sol using boundary evaluator
         '''
         model = self.GetParent().model
-        solfiles = model.variables.getvar('solfiles')
+        solfiles = self.get_model_soldfiles()        
         mfem_model = model.param.getvar('mfem_model')
         
         if solfiles is None:
@@ -867,7 +871,7 @@ class DlgPlotSol(DialogWithWindowList):
         evaluate sol using boundary evaluator
         '''
         model = self.GetParent().model
-        solfiles = model.variables.getvar('solfiles')
+        solfiles = self.get_model_soldfiles()
         mfem_model = model.param.getvar('mfem_model')
         
         if solfiles is None:
@@ -912,7 +916,7 @@ class DlgPlotSol(DialogWithWindowList):
         evaluate sol using slice evaluator
         '''
         model = self.GetParent().model
-        solfiles = model.variables.getvar('solfiles')
+        solfiles = self.get_model_soldfiles()
         mfem_model = model.param.getvar('mfem_model')
         
         if solfiles is None:
@@ -963,4 +967,15 @@ class DlgPlotSol(DialogWithWindowList):
         app.shell.lvar[dataname] = data
         app.shell.SendShellEnterEvent()
         ret=dialog.message(app, dataname + ' is exported', 'Export', 0)
+        
+    def get_model_soldfiles(self):
+        model = self.GetParent().model
+        solfiles = model.variables.getvar('solfiles')
+        soldir = model.variables.getvar('remote_soldir')
 
+        if soldir is None:
+            return solfiles
+        else:
+            return soldir
+        
+        
