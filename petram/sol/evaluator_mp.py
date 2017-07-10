@@ -5,6 +5,8 @@ import weakref
 import traceback
 import six
 import os
+import sys
+import tempfile
 from weakref import WeakKeyDictionary as WKD
 from weakref import WeakValueDictionary as WVD
 
@@ -42,6 +44,10 @@ class BroadCastQueue(object):
    def join(self):         
        for i in range(self.num):
            self.queue[i].join()
+           
+   def close(self):         
+       for i in range(self.num):
+           self.queue[i].close()
 
    def __getitem__(self, idx):
        return self.queue[idx]
@@ -49,6 +55,7 @@ class BroadCastQueue(object):
    
 class EvaluatorMPChild(EvaluatorCommon, mp.Process):
     def __init__(self, task_queue, result_queue, myid, rank):
+
         mp.Process.__init__(self)
         EvaluatorCommon.__init__(self)
         self.task_queue = task_queue
@@ -111,7 +118,9 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     self.result_queue.put(value)
                 
         #end of while
-       
+        self.task_queue.close()
+        self.result_queue.close()
+        
     def set_solfiles(self, solfiles):
         st, et = data_partition(len(solfiles.set), self.rank, self.myid)
         s = solfiles[st:et]
@@ -161,7 +170,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         
 
 class EvaluatorMP(Evaluator):
-    def __init__(self, nproc = 2):
+    def __init__(self, nproc = 2, logfile = False):
         print("new evaluator MP", nproc)
         self.init_done = False        
         self.tasks = BroadCastQueue(nproc)
@@ -173,10 +182,12 @@ class EvaluatorMP(Evaluator):
             w = EvaluatorMPChild(self.tasks[i], self.results, i, nproc)
             self.workers[i] = w
             time.sleep(0.1)
-        for w in self.workers: w.start()
+        for w in self.workers:
+            w.daemon = True
+            w.start()
         
-    def __del__(self):
-        self.terminate_all()
+    #def __del__(self):
+    #    self.terminate_all()
 
     def set_model(self, model):
         import tempfile, shutil
@@ -223,6 +234,8 @@ class EvaluatorMP(Evaluator):
         self.tasks.put((7, expr, kwargs), join = True)
         print("waiting for answer'")
         res = [self.results.get() for x in range(len(self.workers))]
+        for x in range(len(self.workers)):
+            self.results.task_done() 
         results = [x[0] for x in res if x[0] is not None]
         attrs = [x[1] for x in res if x[0] is not None]
         attrs = attrs[0]
@@ -259,16 +272,16 @@ class EvaluatorMP(Evaluator):
                 
 
     def terminate_all(self):
-        print('terminating all')      
+        #print('terminating all')      
         #num_alive = 0
         #for w in self.workers:
         #    if w.is_alive(): num_alive = num_alive + 1
         #for x in range(num_alive):
         self.tasks.put([-1])
         self.tasks.join()
+        self.tasks.close()
+        self.results.close()
         print('joined')
 
-       
-   
-
+    
 

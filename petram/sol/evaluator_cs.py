@@ -1,11 +1,14 @@
+import sys
 import time
 import numpy as np
 import parser
 import weakref
 import traceback
+import subprocess as sp
+import cPickle
+import binascii
 from weakref import WeakKeyDictionary as WKD
 from weakref import WeakValueDictionary as WVD
-
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -17,119 +20,128 @@ import multiprocessing as mp
 from petram.sol.evaluators import Evaluator, EvaluatorCommon
 from petram.sol.evaluator_mp import EvaluatorMPChild, EvaluatorMP
 
-class EvaluatorServer(object):
+command = '$PetraM/bin/evalsvr'
+
+import thread
+from threading import Timer
+ON_POSIX = 'posix' in sys.builtin_module_names
+
+def run_with_timeout(timeout, default, f, *args, **kwargs):
+    if not timeout:
+        return f(*args, **kwargs)
+    try:
+        timeout_timer = Timer(timeout, thread.interrupt_main)
+        timeout_timer.start()
+        result = f(*args, **kwargs)
+        return result
+    except KeyboardInterrupt:
+        return default
+    finally:
+        timeout_timer.cancel()
+        
+def wait_for_prompt(p, prompt = '?', verbose = True):
+    output = []
+    alive = True
+    while('True'):
+        time.sleep(0.01)        
+        line = run_with_timeout(1.0, '', p.stdout.readline)
+        if p.poll() is not None:
+            alive = False
+            print('proces terminated')
+            break
+        if line.startswith(prompt): break
+        output.append(line)
+    if verbose:
+        for x in output:
+            print(x.strip())
+        print("process active :" + str(alive))
+    return output, alive        
+        
+def start_connection(host = 'localhost', num_proc = 2):
+    p = sp.Popen(['ssh', host, command], stdin = sp.PIPE,
+                 stdout=sp.PIPE, stderr=sp.STDOUT,
+                 close_fds = ON_POSIX,
+                 universal_newlines = True)
+
+    data, alive = wait_for_prompt(p, prompt = 'num_proc?')
+    p.stdin.write(str(num_proc)+'\n')
+    out, alive = wait_for_prompt(p)
+    return p
+
+def connection_test(host = 'localhost'):
     '''
-    this is an hold of EvaluatorMP 
+    note that the data after process is terminated may be lost.
     '''
-    def __init__(self, nproc = 2):
-        print("new evaluator server", nproc)
-        self.init_done = False        
-        self.tasks = BroadCastQueue(nproc)
-        self.results= mp.JoinableQueue() 
-        self.workers = [None]*nproc
-        self.solfiles = None
-        
-        for i in range(nproc):
-            w = EvaluatorMPChild(self.tasks[i], self.results, i, nproc)
-            self.workers[i] = w
-            time.sleep(0.1)
-        for w in self.workers: w.start()
-        
-    def __del__(self):
-        self.terminate_all()
+    p = start_connection(host = host, num_proc = 2)
+    for i in range(5):
+       p.stdin.write('test'+str(i)+'\n')
+       out, alive = wait_for_prompt(p)
+    p.stdin.write('e\n')
+    out, alive = wait_for_prompt(p)
 
-    def set_model(self, model):
-        import tempfile, shutil
-        tmpdir = tempfile.mkdtemp()
-        model_path = os.path.join(tmpdir, 'model.pmfm')
-        model.save_to_file(model_path,
-                           meshfile_relativepath = False)
-        self.tasks.put((3, model_path), join = True)
-        shutil.rmtree(tmpdir)
-        
-    def set_solfiles(self, solfiles):
-        self.solfiles = weakref.ref(solfiles)        
-        self.tasks.put((2, solfiles))
-
-    def make_agents(self, name, params, **kwargs):
-        super(EvaluatorMP, self).make_agents(name, params)
-        self.tasks.put((1, name, params, kwargs))
-        
-    def load_solfiles(self, mfem_mode = None):
-        self.tasks.put((4, ), join = True)
-        
-    def set_phys_path(self, phys_path):        
-        self.tasks.put((5, phys_path))
-        
-    def validate_evaluator(self, name, attr, solfiles, **kwargs):
-        redo_geom = False
-        if (self.solfiles is None or
-            self.solfiles() is not solfiles):
-            redo_geom = True
-        if not super(EvaluatorMP, self).validate_evaluator(name, attr, **kwargs):
-            redo_geom = True
-        if not self.init_done: redo_geom = True
-        if not redo_geom: return
-
-        self.make_agents(self._agent_params[0],
-                         attr, **kwargs)
-        self.tasks.put((6, attr, kwargs))        
-        self.init_done = True
-        
-    def eval(self, expr, merge_flag1, merge_flag2, **kwargs):
-        self.tasks.put((7, expr, kwargs), join = True)
-        print("waiting for answer'")
-        res = [self.results.get() for x in range(len(self.workers))]
-        results = [x[0] for x in res if x[0] is not None]
-        attrs = [x[1] for x in res if x[0] is not None]
-        attrs = attrs[0]
-        
-        data = [None]*len(attrs)
-
-        for kk, x in enumerate(results):
-            for k, y in enumerate(x):
-                if len(y) == 0: continue
-                if data[k] is None: data[k] = y
-                else: data[k].extend(y)
-
-        if merge_flag1:
-            data0 = [None]*len(attrs)
-            for k, x in enumerate(data):
-                vdata, cdata = zip(*x)
-                data0[k] = [(np.vstack(vdata), np.vstack(cdata))]
-            data = data0
-            
-        if merge_flag1 and not merge_flag2:
-            vdata = np.vstack([x[0][0] for x in data])
-            cdata = np.vstack([x[0][1] for x in data])
-            data = [(vdata, cdata)]
-        elif merge_flag1:
-            data0 = []
-            for x in data: data0.extend(x)
-            data = data0
-        else:
-            data0 = []
-            for x in data: data0.extend(x)
-            data = data0
-        return data, attrs                                  
-                
-
-    def terminate_all(self):
-        print('terminating all')      
-        #num_alive = 0
-        #for w in self.workers:
-        #    if w.is_alive(): num_alive = num_alive + 1
-        #for x in range(num_alive):
-        self.tasks.put([-1])
-        self.tasks.join()
-        print('joined')
-
-
+    
 class EvaluatorClient(Evaluator):
     def __init__(self, nproc = 2, host = 'localhost',
                        soldir = ''):
         self.init_done = False        
         self.soldir = soldir
         self.solfiles = None
+        self.nproc = nproc
+        self.p = start_connection(host =  host,
+                                  num_proc = nproc)
+
+    def __del__(self):
+        self.terminate_all()
+        self.p = None
+
+    def __call_server(self, name, *params, **kparams):
+        if self.p is None: return
+        
+        command = [name, params, kparams]
+        data = binascii.b2a_hex(cPickle.dumps(command))
+        print("Sending request", command)
+        self.p.stdin.write(data + '\n')
+        
+        output, alive = wait_for_prompt(self.p, verbose = False)
+        if not alive:
+           self.p = None
+           return
+        response = output[-1].strip()
+        try:
+            result = cPickle.loads(binascii.a2b_hex(response))
+        except:
+            print output
+        #print 'output is', result
+        if result[0] == 'ok':
+            return result[1]
+        elif result[0] == 'echo':
+            print result[1]
+        else:
+            assert False, result[1]
+        
+    def set_model(self,  *params, **kparams):
+        return self.__call_server('set_model', *params, **kparams)
+        
+    def set_solfiles(self,  *params, **kparams):
+        return self.__call_server('set_solfiles', *params, **kparams)
+        
+    def make_agents(self,  *params, **kparams):
+        return self.__call_server('make_agents', *params, **kparams)        
+        
+    def load_solfiles(self,  *params, **kparams):
+        return self.__call_server('load_solfiles', *params, **kparams)        
+
+    def set_phys_path(self,  *params, **kparams):
+        return self.__call_server('set_phys_path', *params, **kparams)        
+        
+    def validate_evaluator(self,  *params, **kparams):
+        return self.__call_server('validate_evaluator', *params, **kparams)        
+
+    def eval(self,  *params, **kparams):
+        return self.__call_server('eval', *params, **kparams)
+
+    def terminate_all(self):
+        return self.__call_server('terminate_all')
+        
     
 

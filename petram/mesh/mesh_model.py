@@ -2,6 +2,7 @@ import os
 import mfem
 
 PyMFEM_PATH =os.path.dirname(os.path.dirname(mfem.__file__))
+PetraM_PATH =os.getenv("PetraM")
 HOME = os.path.expanduser("~")
 
 from petram.model import Model
@@ -51,7 +52,7 @@ class MeshFile(Mesh):
         
     def panel1_param(self):
         return [["Path",   self.path,  200, {}],
-                ["", "replacement rule: {mfem} = PyMFEM, {home} = ~"  ,2, None],
+                ["", "replacement rule: {petram}=$PetraM, {mfem}=PyMFEM, {home}=~"  ,2, None],
                 ["Generate edges",    self.generate_edges == 1,  3, {"text":""}],
                 ["Refine",    self.refine==1 ,  3, {"text":""}],
                 ["FixOrientatijon",    self.fix_orientation ,  3, {"text":""}]]
@@ -78,6 +79,8 @@ class MeshFile(Mesh):
         path = str(self.path)
         if path.find('{mfem}') != -1:
             path = path.replace('{mfem}', PyMFEM_PATH)
+        if path.find('{petram}') != -1:
+            path = path.replace('{petram}', PetraM_PATH)
         if path.find('{home}') != -1:
             path = path.replace('{home}', HOME)
         return path

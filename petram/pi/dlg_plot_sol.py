@@ -336,9 +336,7 @@ class DlgPlotSol(DialogWithWindowList):
             self.config['cs_soldir'] = str(v[0][3][2])                        
             self.config['use_mp'] = False
             self.config['use_cs'] = True
-            raise NotImplementedError("this mode is not implemented")
-            self.config['use_mp'] = True
-            self.config['use_cs'] = False
+            #raise NotImplementedError("this mode is not implemented")
             
         #print('EL changed', self.config)
 
