@@ -38,6 +38,12 @@ class DlgPlotSol(DialogWithWindowList):
         '''
         from petram.sol.evaluators import def_config
         self.config = def_config
+        remote = parent.model.param.eval('remote')
+        if remote is not None:
+            self.config['cs_soldir'] = remote.param.getvar('rwdir')
+            self.config['cs_server'] = remote.param.eval('host').name
+        print remote
+        print self.config
         
         style = wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER
         super(DlgPlotSol, self).__init__(parent, id, title, style=style)
@@ -283,7 +289,9 @@ class DlgPlotSol(DialogWithWindowList):
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
             self.elps['Config'] = elp
-            elp.SetValue([['Single', [''], [2], ['localhost', 4, '']]])
+            elp.SetValue([['Single', [''], [2], [self.config['cs_server'],
+                                                 self.config['cs_worker'],
+                                                 self.config['cs_soldir']]],])
             
             
         self.Show()

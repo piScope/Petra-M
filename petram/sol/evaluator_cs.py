@@ -20,11 +20,45 @@ import multiprocessing as mp
 from petram.sol.evaluators import Evaluator, EvaluatorCommon
 from petram.sol.evaluator_mp import EvaluatorMPChild, EvaluatorMP
 
-command = '$PetraM/bin/evalsvr'
-
 import thread
-from threading import Timer
+from threading import Timer, Thread
+try:
+    from Queue import Queue, Empty
+except ImportError:
+    from queue import Queue, Empty  # python 3.x
+    
 ON_POSIX = 'posix' in sys.builtin_module_names
+
+def enqueue_output(out, queue, prompt):
+    while True:
+        line = out.readline()
+        if line ==  (prompt + '\n'): break
+        queue.put(line)
+    queue.put("??????")
+    
+def run_and_wait_for_prompt(p, prompt, verbose=True):    
+    q = Queue()
+    t = Thread(target=enqueue_output, args=(p.stdout, q, prompt))
+    t.daemon = True # thread dies with the program
+    t.start()
+
+    lines = [" "]
+    alive = True
+    while lines[-1] != "??????":
+        time.sleep(0.01)                
+        try:  line = q.get_nowait() # or q.get(timeout=.1)
+        except Empty:
+            pass
+            #print('no output yet' + str(p.poll()))
+        else: # got line
+            lines.append(line)
+        if p.poll() is not None:
+            alive = False
+            print('proces terminated')
+            break
+    if verbose:
+        print(lines)
+    return lines[:-1], alive
 
 def run_with_timeout(timeout, default, f, *args, **kwargs):
     if not timeout:
@@ -40,6 +74,7 @@ def run_with_timeout(timeout, default, f, *args, **kwargs):
         timeout_timer.cancel()
         
 def wait_for_prompt(p, prompt = '?', verbose = True):
+    print("waiting for prompt")
     output = []
     alive = True
     while('True'):
@@ -55,9 +90,16 @@ def wait_for_prompt(p, prompt = '?', verbose = True):
         for x in output:
             print(x.strip())
         print("process active :" + str(alive))
-    return output, alive        
+    print("got prompot")
+    return output, alive
+
+def wait_for_prompt(p, prompt = '?', verbose = True):
+    return run_and_wait_for_prompt(p, prompt, verbose=verbose)
         
 def start_connection(host = 'localhost', num_proc = 2):
+    p= sp.Popen("ssh " + host + " 'printf $PetraM'", shell=True, stdout=sp.PIPE)
+    ans = p.stdout.readlines()[0].strip()
+    command = ans+'/bin/evalsvr'
     p = sp.Popen(['ssh', host, command], stdin = sp.PIPE,
                  stdout=sp.PIPE, stderr=sp.STDOUT,
                  close_fds = ON_POSIX,
@@ -110,7 +152,9 @@ class EvaluatorClient(Evaluator):
         try:
             result = cPickle.loads(binascii.a2b_hex(response))
         except:
-            print output
+            traceback.print_exc()
+            print "response", response
+            print "output",  output
         #print 'output is', result
         if result[0] == 'ok':
             return result[1]
@@ -135,6 +179,8 @@ class EvaluatorClient(Evaluator):
         return self.__call_server('set_phys_path', *params, **kparams)        
         
     def validate_evaluator(self,  *params, **kparams):
+        print self.p
+        if self.p is None: return False
         return self.__call_server('validate_evaluator', *params, **kparams)        
 
     def eval(self,  *params, **kparams):

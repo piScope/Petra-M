@@ -54,7 +54,8 @@ class BroadCastQueue(object):
 
    
 class EvaluatorMPChild(EvaluatorCommon, mp.Process):
-    def __init__(self, task_queue, result_queue, myid, rank):
+    def __init__(self, task_queue, result_queue, myid, rank,
+                 logfile = False):
 
         mp.Process.__init__(self)
         EvaluatorCommon.__init__(self)
@@ -64,8 +65,15 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         self.rank = rank
         self.solvars = WKD()        
         self.agents = {}
-        
+        self.logfile = logfile
+
     def run(self, *args, **kargs):
+        if self.logfile == 'suppress':
+            sys.stdout = open(os.devnull, 'w')
+        elif self.logfile == 'log':
+            sys.stdout = open("/Users/shiraiwa/test.out", "w", 0)
+        else:
+            pass
         while True:
             time.sleep(0.01)
             try:
@@ -131,7 +139,6 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             self.solfiles = None
             
     def set_model(self, model_path):
-        print("running set model")
         from petram.engine import SerialEngine
         s = SerialEngine(modelfile = model_path)
         s.run_config()
@@ -179,7 +186,8 @@ class EvaluatorMP(Evaluator):
         self.solfiles = None
         
         for i in range(nproc):
-            w = EvaluatorMPChild(self.tasks[i], self.results, i, nproc)
+            w = EvaluatorMPChild(self.tasks[i], self.results, i, nproc,
+                                 logfile = logfile)
             self.workers[i] = w
             time.sleep(0.1)
         for w in self.workers:
