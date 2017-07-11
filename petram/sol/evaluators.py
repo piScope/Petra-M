@@ -158,7 +158,8 @@ def_config = {'use_mp': False,
               'mp_worker': 2,
               'cs_worker': 4,
               'cs_server': 'localhost',
-              'cs_soldir': ''}
+              'cs_soldir': '',
+              'cs_user':''}
 
 def build_evaluator(params,
                     mfem_model,

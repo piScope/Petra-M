@@ -96,9 +96,9 @@ def wait_for_prompt(p, prompt = '?', verbose = True):
 def wait_for_prompt(p, prompt = '?', verbose = True):
     return run_and_wait_for_prompt(p, prompt, verbose=verbose)
         
-def start_connection(host = 'localhost', num_proc = 2, user = '')
+def start_connection(host = 'localhost', num_proc = 2, user = ''):
     if user != '': user = user+'@'
-    p= sp.Popen("ssh " + user + hostname + " 'printf $PetraM'", shell=True,
+    p= sp.Popen("ssh " + user + host + " 'printf $PetraM'", shell=True,
                 stdout=sp.PIPE)
     ans = p.stdout.readlines()[0].strip()
     command = ans+'/bin/evalsvr'
