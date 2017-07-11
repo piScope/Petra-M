@@ -179,7 +179,8 @@ def build_evaluator(params,
     elif config['use_cs']:
        evaluator = EvaluatorClient(nproc = config['cs_worker'],
                                    host  = config['cs_server'],
-                                   soldir = config['cs_soldir'])                
+                                   soldir = config['cs_soldir'],
+                                   user = config['cs_user'])
     else:
         raise ValueError("Unknown evaluator mode")
     evaluator.set_model(mfem_model)

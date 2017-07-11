@@ -96,8 +96,10 @@ def wait_for_prompt(p, prompt = '?', verbose = True):
 def wait_for_prompt(p, prompt = '?', verbose = True):
     return run_and_wait_for_prompt(p, prompt, verbose=verbose)
         
-def start_connection(host = 'localhost', num_proc = 2):
-    p= sp.Popen("ssh " + host + " 'printf $PetraM'", shell=True, stdout=sp.PIPE)
+def start_connection(host = 'localhost', num_proc = 2, user = '')
+    if user != '': user = user+'@'
+    p= sp.Popen("ssh " + user + hostname + " 'printf $PetraM'", shell=True,
+                stdout=sp.PIPE)
     ans = p.stdout.readlines()[0].strip()
     command = ans+'/bin/evalsvr'
     p = sp.Popen(['ssh', host, command], stdin = sp.PIPE,
@@ -124,13 +126,14 @@ def connection_test(host = 'localhost'):
     
 class EvaluatorClient(Evaluator):
     def __init__(self, nproc = 2, host = 'localhost',
-                       soldir = ''):
+                       soldir = '', user = ''):
         self.init_done = False        
         self.soldir = soldir
         self.solfiles = None
         self.nproc = nproc
         self.p = start_connection(host =  host,
-                                  num_proc = nproc)
+                                  num_proc = nproc,
+                                  user = user)
 
     def __del__(self):
         self.terminate_all()

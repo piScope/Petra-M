@@ -42,6 +42,7 @@ class DlgPlotSol(DialogWithWindowList):
         if remote is not None:
             self.config['cs_soldir'] = remote.param.getvar('rwdir')
             self.config['cs_server'] = remote.param.eval('host').name
+            self.config['cs_user'] = remote.param.eval('user')
         print remote
         print self.config
         
