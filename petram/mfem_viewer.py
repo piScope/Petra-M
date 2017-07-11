@@ -755,8 +755,16 @@ class MFEMViewer(BookViewer):
         remote = self.model.param.eval('remote')
         if remote is None: return
 
+        value = [1, 1, '00:60:00', False]
+        keys = ['num_nodes', 'num_cores', 'walltime']
+        for i in range(3):
+            if remote.param.getvar(keys[i]) is not None:
+                value[i] = remote.param.getvar(keys[i])
         from petram.pi.dlg_submit_job import get_job_submisson_setting
-        setting = get_job_submisson_setting(self, 'using '+remote.name)
+        setting = get_job_submisson_setting(self, 'using '+remote.name,
+                                            value = value)
+        for k in setting.keys():
+            remote.param.setvar(k, setting[k])
 
         if len(setting.keys()) == 0: return
         if self.model.param.eval('sol') is None:
