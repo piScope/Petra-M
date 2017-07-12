@@ -149,7 +149,7 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient):
 from petram.phys.vtable import VtableElement, Vtable
 
 class Phys(Model, NS_mixin):
-   
+    hide_ns_menu = True   
     dep_var_base = []
     der_var_base = []
 
@@ -475,6 +475,7 @@ class Phys(Model, NS_mixin):
 
 
 class PhysModule(Phys):
+    hide_ns_menu = False
     def attribute_set(self, v):
         v = super(PhysModule, self).attribute_set(v)
         v["order"] = 1

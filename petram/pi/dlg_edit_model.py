@@ -125,9 +125,11 @@ class DlgEditModel(DialogWithWindowList):
            menus=menus+[('Add '+txt, add_func, None),]
 
         menus = menus + [('---', None, None)]
-        if mm.has_ns():
+        if mm.has_ns() and not mm.hide_ns_menu:
             if mm.ns_name is not None:
                 menus.append(("Delete NS.",  self.OnDelNS, None))
+                if hasattr(mm, '_global_ns'):
+                    menus.append(("Initialize Dataset", self.OnInitDataset, None))      
             else:
                 menus.append(("Add NS...",  self.OnAddNS, None))
 
@@ -226,9 +228,8 @@ class DlgEditModel(DialogWithWindowList):
                 p3panel.Show()
                 self.p3.Layout()
         else:
-            if self.nb.GetPageCount() == 3:
-               self.nb.RemovePage(2)                
-               self.nb.RemovePage(1)
+            if self.nb.GetPageCount() > 2:  self.nb.RemovePage(2)
+            if self.nb.GetPageCount() > 1:  self.nb.RemovePage(1)
             p1panel = self.panels[mm.__class__][0]
             self.p1sizer.Add(p1panel, 1, wx.EXPAND|wx.ALL, 1)
             p1panel.SetValue(mm.get_panel1_value())
@@ -342,7 +343,18 @@ class DlgEditModel(DialogWithWindowList):
         mm = self.model.GetItem(indices)
         mm.delete_ns()
         self.tree.RefreshItems()
-        evt.Skip()        
+        evt.Skip()
+        
+    def OnInitDataset(self, evt):
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+        if not hasattr(mm, '_global_ns'): return
+        if not 'dataset_names' in mm._global_ns: return
+        names = mm._global_ns['dataset_names']
+        viewer = self.GetParent()               
+        viewer.model.scripts.helpers.init_dataset(mm.ns_name, names)                       
+        self.tree.RefreshItems()
+        evt.Skip()
 
     def OnEvalNS(self, evt):
         viewer = self.GetParent()

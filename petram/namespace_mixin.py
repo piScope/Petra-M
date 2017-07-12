@@ -3,6 +3,7 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Namespace')
 
 class NS_mixin(object):
+    hide_ns_menu = False
     def __init__(self, *args, **kwargs):
         object.__init__(self)
         self.reset_ns()
@@ -109,7 +110,7 @@ class NS_mixin(object):
         RF module set freq and omega
         '''
         return {}
-    
+                
     def eval_attribute_expr(self, targets=None):
 
         names, types = self.attribute_expr()

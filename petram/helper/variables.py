@@ -340,26 +340,30 @@ class ExpressionVariable(Variable):
     
 class DomainVariable(Variable):
     def __init__(self, expr = '', ind_vars = None, domains = None,
-                 complex = False):
+                 complex = False, gdomain = None):
         super(DomainVariable, self).__init__(complex = complex)
         self.domains = {}
+        self.gdomains = {}        
         if expr == '': return
         domains = sorted(domains)
+        self.gdomains[tuple(domains)] = gdomain
         self.domains[tuple(domains)] = ExpressionVariable(expr, ind_vars,
                                                   complex = complex)
     def __repr__(self):
         return "DomainVariable"
         
-    def add_expression(self, expr, ind_vars, domains, complex = False):
+    def add_expression(self, expr, ind_vars, domains, gdomain, complex = False):
         domains = sorted(domains)
         #print 'adding expression expr',expr, domains
         self.domains[tuple(domains)] = ExpressionVariable(expr, ind_vars,
                                                   complex = complex)
+        self.gdomains[tuple(domains)] = gdomain        
         if complex: self.complex = True
 
-    def add_const(self, value, domains):
+    def add_const(self, value, domains, gdomain):
         domains = sorted(domains)        
         self.domains[tuple(domains)] = Constant(value)
+        self.gdomains[tuple(domains)] = gdomain
         if np.iscomplexobj(value):self.complex = True
         
     def set_point(self,T, ip, g, l, t = None):
@@ -390,8 +394,9 @@ class DomainVariable(Variable):
                 iele0[idx] = iele[idx]
 
             expr = self.domains[domains]
+            gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
             v = expr.nodal_values(iele = iele0, elattr = elattr,
-                                  g = g, **kwargs)
+                                  g = gdomain, **kwargs)
                                   #iele = iele, elattr = elattr,
                                   #el2v = el2v, wvert = wvert,
                                   #locs = locs, g = g
@@ -721,29 +726,33 @@ def add_components(solvar, name, suffix, ind_vars, solr,
                                                     deriv = deriv)
 
 def add_expression(solvar, name, suffix, ind_vars, expr, vars,
-                   domains = None, bdrs = None, complex = None):
+                   domains = None, bdrs = None, complex = None,
+                   gdomain = None, gbdr = None):
     expr = append_suffix_to_expression(expr, vars, suffix)
     if domains is not None:
         if (name + suffix) in solvar:
             solvar[name + suffix].add_expression(expr, ind_vars, domains,
+                                                 gdomain,
                                                  complex = complex)
         else:
             solvar[name + suffix] = DomainVariable(expr, ind_vars,
-                                               domains = domains,
-                                               complex = complex)
+                                                   domains = domains,
+                                                   complex = complex,
+                                                   gdomain = gdomain)
     elif bdrs is not None:
         pass
     else:
         solvar[name + suffix] = ExpressionVariable(expr, ind_vars,
                                                    complex = complex)
         
-def add_constant(solvar, name, suffix, value, domains = None, bdrs = None):
+def add_constant(solvar, name, suffix, value, domains = None,
+                 gdomain = None, bdrs = None, gbdr = None):
     if domains is not None:
         if (name + suffix) in solvar:
-            solvar[name + suffix].add_const(value, domains)
+            solvar[name + suffix].add_const(value, domains, gdomain)
         else:
             solvar[name + suffix] = DomainVariable('')
-            solvar[name + suffix].add_const(value, domains)
+            solvar[name + suffix].add_const(value, domains, gdomain)
     elif bdrs is not None:
         pass
     else:
