@@ -102,7 +102,7 @@ def start_connection(host = 'localhost', num_proc = 2, user = ''):
                 stdout=sp.PIPE)
     ans = p.stdout.readlines()[0].strip()
     command = ans+'/bin/evalsvr'
-    p = sp.Popen(['ssh', host, command], stdin = sp.PIPE,
+    p = sp.Popen(['ssh', user + host, command], stdin = sp.PIPE,
                  stdout=sp.PIPE, stderr=sp.STDOUT,
                  close_fds = ON_POSIX,
                  universal_newlines = True)
