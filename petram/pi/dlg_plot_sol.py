@@ -196,11 +196,14 @@ class DlgPlotSol(DialogWithWindowList):
             vbox.Add(hbox, 0, wx.EXPAND|wx.ALL,5)     
             ibutton=wx.Button(p, wx.ID_ANY, "Integrate")
             ebutton=wx.Button(p, wx.ID_ANY, "Export")                     
+            e2button=wx.Button(p, wx.ID_ANY, "Export2")                     
             button=wx.Button(p, wx.ID_ANY, "Apply")
             ibutton.Bind(wx.EVT_BUTTON, self.onInteg)
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)            
+            e2button.Bind(wx.EVT_BUTTON, self.onExport2)            
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL,1)                                  
+            hbox.Add(ebutton2, 0, wx.ALL,1)                                  
             hbox.Add(ibutton, 0, wx.ALL,1)                                  
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL,1)
@@ -373,6 +376,11 @@ class DlgPlotSol(DialogWithWindowList):
         t = t.replace('(','').replace(')','')                
         m = getattr(self, 'onExport'+t)
         m(evt)
+    def onExport2(self, evt):
+        t = self.nb.GetPageText(self.nb.GetSelection())
+        t = t.replace('(','').replace(')','')                
+        m = getattr(self, 'onExport2'+t)
+        m(evt)
 
     #    
     #   Edge value ('Edge' tab)
@@ -540,8 +548,17 @@ class DlgPlotSol(DialogWithWindowList):
         verts, cdata = data[0]
         data = {'vertices': verts, 'data': cdata}
         self.export_to_piScope_shell(data, 'bdr_data')
+
+    def onExport2Bdr(self, evt):
+        from petram.sol.evaluators import area_tri
+        data, battrs = self.eval_bdr(mode = 'integ', export_type=2)
+        if data is None: return
         
-    def eval_bdr(self, mode = 'plot'):
+        verts, cdata = data[0]
+        data = {'vertices': verts, 'data': cdata}
+        self.export_to_piScope_shell(data, 'bdr_data')
+        
+    def eval_bdr(self, mode = 'plot', export_type = 1):
         from petram.sol.evaluators import area_tri
         value = self.elps['Bdr'] .GetValue()
         
@@ -555,7 +572,8 @@ class DlgPlotSol(DialogWithWindowList):
             do_merge1 = True
             do_merge2 = False
         data, battrs = self.evaluate_sol_bdr(expr, battrs, phys_path,
-                                             do_merge1, do_merge2)
+                                             do_merge1, do_merge2,
+                                             export_type = export_type )
 
         if data is None: return None, None
         return data, battrs

@@ -170,6 +170,9 @@ class BdrNodalEvaluator(EvaluatorAgent):
         if val is None: return None, None
 
         edge_only = kwargs.pop('edge_only', False)
+        export_type = kwargs.pop('export_type', 1)
+        if export_type == 2:
+            return self.locs, val
         if not edge_only:
             return self.locs[self.iverts_inv], val[self.iverts_inv, ...]
         else:

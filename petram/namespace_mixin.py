@@ -168,20 +168,21 @@ class NS_mixin(object):
            self._global_ns = g
            for p in chain[:-1]:#self.parents:
                if not isinstance(p, NS_mixin): continue
-               if (p.ns_string == '' or p.ns_string is None): continue
-               l = p.get_default_ns()               
-               for k in l.keys():
-                   g[k] = l[k]
+               ll = p.get_default_ns()               
+               if (p.ns_string == '' or p.ns_string is None and
+                   len(ll.keys()) == 0): continue
+               for k in ll.keys():
+                   g[k] = ll[k]
                if p.ns_name is not None:
                    try:
                        if p.dataset is not None:
                            for k in p.dataset.keys(): g[k] = p.dataset[k]
                        for k in p.attribute_mirror_ns():
                            g[k] = chain[-2]._global_ns[k]                   
-                       l = {}
+                       ll = {}
                        if (p.ns_string != '' and p.ns_string is not None):
-                           exec p.ns_string in g, l
-                           for k in l.keys(): g[k] = l[k]
+                           exec p.ns_string in g, ll
+                           for k in l.keys(): g[k] = ll[k]
                            
                    except:
                        import traceback
@@ -190,6 +191,8 @@ class NS_mixin(object):
            if self.dataset is not None:
                for k in self.dataset.keys(): g[k] = self.dataset[k]
         else:
+           self._global_ns = g
+           for k in l.keys():  g[k] = l[k]
            if self.dataset is not None:
                for k in self.dataset.keys(): g[k] = self.dataset[k]
         # step2 eval attribute using upstream + non-expression
@@ -203,12 +206,15 @@ class NS_mixin(object):
             if not a in invalid: g[a] = getattr(self, a)
 
         # step 4 run namespace scripts otherise exit
+        for k in l.keys():
+            g[k] = l[k]  # copying default ns
+
         try:
             l = {}
             if (self.ns_string != '' and self.ns_string is not None):
                  exec self.ns_string in g, l
             else:
-                 return 
+                 pass ###return 
         except:
             import traceback
             traceback.print_exc()
