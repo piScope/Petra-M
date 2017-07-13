@@ -65,6 +65,8 @@ class EvaluatorSingle(EvaluatorCommon):
         phys = self.mfem_model()[self.phys_path]
         solvars = self.load_solfiles()
         if solvars is None: return None, None
+
+        export_type = kwargs.get('export_type', 1)
         
         data = []
         attrs = []
@@ -86,7 +88,7 @@ class EvaluatorSingle(EvaluatorCommon):
                     data[-1]  = [(np.vstack(vdata), np.vstack(cdata))]
                 else:
                     return None, None # for now,, let's do this
-                
+        if export_type == 2: return data, attrs                     
         ## normally this is good option.
         if merge_flag1 and not merge_flag2:
             vdata = np.vstack([x[0][0] for x in data])

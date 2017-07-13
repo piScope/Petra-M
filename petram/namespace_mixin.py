@@ -182,7 +182,7 @@ class NS_mixin(object):
                        ll = {}
                        if (p.ns_string != '' and p.ns_string is not None):
                            exec p.ns_string in g, ll
-                           for k in l.keys(): g[k] = ll[k]
+                           for k in ll.keys(): g[k] = ll[k]
                            
                    except:
                        import traceback

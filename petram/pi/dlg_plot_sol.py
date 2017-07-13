@@ -203,7 +203,7 @@ class DlgPlotSol(DialogWithWindowList):
             e2button.Bind(wx.EVT_BUTTON, self.onExport2)            
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL,1)                                  
-            hbox.Add(ebutton2, 0, wx.ALL,1)                                  
+            hbox.Add(e2button, 0, wx.ALL,1)                                  
             hbox.Add(ibutton, 0, wx.ALL,1)                                  
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL,1)
@@ -551,11 +551,9 @@ class DlgPlotSol(DialogWithWindowList):
 
     def onExport2Bdr(self, evt):
         from petram.sol.evaluators import area_tri
-        data, battrs = self.eval_bdr(mode = 'integ', export_type=2)
+        data, battrs = self.eval_bdr(mode = 'export2', export_type=2)
         if data is None: return
         
-        verts, cdata = data[0]
-        data = {'vertices': verts, 'data': cdata}
         self.export_to_piScope_shell(data, 'bdr_data')
         
     def eval_bdr(self, mode = 'plot', export_type = 1):
@@ -568,8 +566,11 @@ class DlgPlotSol(DialogWithWindowList):
         if mode == 'plot':
             do_merge1 = value[4]
             do_merge2 = value[5]
-        else:
+        elif mode == 'integ':
             do_merge1 = True
+            do_merge2 = False
+        else:
+            do_merge1 = False
             do_merge2 = False
         data, battrs = self.evaluate_sol_bdr(expr, battrs, phys_path,
                                              do_merge1, do_merge2,
