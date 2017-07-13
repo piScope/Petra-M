@@ -251,12 +251,13 @@ class DlgPlotSol(DialogWithWindowList):
 
             if len(choices)==0: choices = ['no physcs in mode']
             ll = [['Expression', '', 0, {}],
-                  ['Plane', '1.0, 0, 0, 0', 0, {}],
+                  ['Plane(a,b,c,d)', '1.0, 0, 0, 0', 0, {}],
                   ['Domain Index', text, 0, {}],
                   ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extraction'}],
-                  [None, True, 3, {"text":'merge solutions'}],]
+                  [None, True, 3, {"text":'merge solutions'}],
+                  ["", "ax+by+cz+d = 0"  ,2, None],]
 
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
