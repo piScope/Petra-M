@@ -578,13 +578,11 @@ class MFEMViewer(BookViewer):
                 sel0.extend(bdrs)
             else:
                 sel1.extend(bdrs)
-        print sel0, sel1
         sel = [x  for x in sel0 if not x in sel1]
         
         children = [child
                     for name, child in self.get_axes().get_children()
                     if name.startswith('face') and int(name.split('_')[1]) in sel]
-        print children
         for o in children:
             o.set_suppress(True)
         self.draw()
