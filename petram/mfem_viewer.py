@@ -438,7 +438,10 @@ class MFEMViewer(BookViewer):
 
     def viewer_canvasmenu(self):
         menus = [("+MFEM", None, None), 
-                 ("Hide...",  self.onHideBdry, None),
+                 ("+Hide...",  self.onHideBdry, None),
+                 ("Boundaries",  self.onHideBdry, None),                 
+                 ("Domains",  self.onHideDom, None),
+                 ('!', None, None),
                  ("Show All",  self.onShowAll, None)]
         if self._hidemesh:
            menus.append(("Show Mesh",  self.onShowMesh, None))
@@ -554,12 +557,38 @@ class MFEMViewer(BookViewer):
         for child in children:
                 child.set_linewidth(0.0, child._artists[0])
         self.update(True)
-        self.draw_all()        
+        self.draw_all()
+        
     def onHideBdry(self, evt):
         objs = [x().figobj for x in self.canvas.selection]        
         for o in objs:
             o.set_suppress(True)
         self.draw()
+        
+    def onHideDom(self, evt):
+        mesh = self.engine.get_mesh()
+        if not mesh.Dimension() == 3: return    # 3D mesh
+        
+        domidx = [x-1 for x in self._dom_bdr_sel[0]]
+
+        sel0 = []  # hide this
+        sel1 = []  # but show this...
+        for k, bdrs in enumerate(self.dombdr):
+            if k in domidx:
+                sel0.extend(bdrs)
+            else:
+                sel1.extend(bdrs)
+        print sel0, sel1
+        sel = [x  for x in sel0 if not x in sel1]
+        
+        children = [child
+                    for name, child in self.get_axes().get_children()
+                    if name.startswith('face') and int(name.split('_')[1]) in sel]
+        print children
+        for o in children:
+            o.set_suppress(True)
+        self.draw()
+        
 
     def onShowAll(self, evt):
         for obj in self.book.walk_tree():
