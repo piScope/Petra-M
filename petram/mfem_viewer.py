@@ -226,7 +226,7 @@ class MFEMViewer(BookViewer):
 
         evt.Skip()
         
-    def onTD_SelectionInFigure(self, evt):
+    def onTD_SelectionInFigure(self, evt = None):
         mesh = self.engine.get_mesh()
         if mesh is None: return
         names = [x().figobj._name for x in self.canvas.selection if x() is not None]
@@ -439,7 +439,7 @@ class MFEMViewer(BookViewer):
     def viewer_canvasmenu(self):
         menus = [("+MFEM", None, None), 
                  ("+Hide...",  self.onHideBdry, None),
-                 ("Boundaries",  self.onHideBdry, None),                 
+                 ("Boundaries",  self.onHideBdry, None), 
                  ("Domains",  self.onHideDom, None),
                  ('!', None, None),
                  ("Show All",  self.onShowAll, None)]
@@ -464,25 +464,34 @@ class MFEMViewer(BookViewer):
                          ("!", None, None),])
 
         if self.editdlg is not None:
-            check, kind, cidx = self.editdlg.isSelectionPanelOpen()
+            check, kind, cidxs, labels = self.editdlg.isSelectionPanelOpen()
             if check:
                 if kind == 'domain': idx = self._dom_bdr_sel[0]
                 elif kind == 'bdry': idx = self._dom_bdr_sel[1]
                 elif kind == 'pair': idx = self._dom_bdr_sel[1]
                 else:
                     idx = None
-                print idx, cidx
-                if idx is not None and len(idx) == 1:
-                    if idx[0] in cidx:
-                        menus.append(("Remove from selection", self.onRmSelection, None))                        
-                    else:
-                        menus.append(("Add to selection", self.onAddSelection, None))
+                k = 0
+                for cidx, label in zip(cidxs, labels):
+                    if label == '': continue
+                    show_rm = any([x in cidx for x in idx])
+                    show_add = any([not x in cidx for x in idx])
+                    print cidx, label, show_rm, show_add                    
+                    if show_add:
+                       m = getattr(self, 'onAddSelection'+str(k))
+                       txt = "Add to "+ label
+                       menus.append((txt, m, None))
+                    if show_rm:
+                       m = getattr(self, 'onRmSelection'+str(k))
+                       txt = "Remove from "+ label
+                       menus.append((txt, m, None))
+                    k = k + 1
         menus.extend([("!", None, None),
                       ("---", None, None),])
         return menus
-    
-    def onAddSelection(self, evt):
-        check, kind, cidx= self.editdlg.isSelectionPanelOpen()
+
+    def onAddSelection(self, evt, flag=0):
+        check, kind, cidx, labels= self.editdlg.isSelectionPanelOpen()
         if check:
             if kind == 'domain': idx = self._dom_bdr_sel[0]
             elif kind == 'bdry': idx = self._dom_bdr_sel[1]
@@ -490,10 +499,17 @@ class MFEMViewer(BookViewer):
             else:
                 idx = None
             if idx is not None:
-                self.editdlg.add_remove_AreaSelection(idx)
+                self.editdlg.add_remove_AreaSelection(idx, flag = flag)
+
+    def onAddSelection0(self, evt):
+        self.onAddSelection(evt, flag = 0)
+    def onAddSelection1(self, evt):
+        self.onAddSelection(evt, flag = 1)
+    def onAddSelection2(self, evt):
+        self.onAddSelection(evt, flag = 2)
         
-    def onRmSelection(self, evt):
-        check, kind, cidx = self.editdlg.isSelectionPanelOpen()
+    def onRmSelection(self, evt, flag = 0):
+        check, kind, cidx, labels = self.editdlg.isSelectionPanelOpen()
         if check:
             if kind == 'domain': idx = self._dom_bdr_sel[0]
             elif kind == 'bdry': idx = self._dom_bdr_sel[1]
@@ -501,7 +517,14 @@ class MFEMViewer(BookViewer):
             else:
                 idx = None
             if idx is not None:
-                self.editdlg.add_remove_AreaSelection(idx, rm=True)
+                self.editdlg.add_remove_AreaSelection(idx, rm=True, flag = flag)
+                
+    def onRmSelection0(self, evt):
+        self.onRmSelection(evt, flag = 0)
+    def onRmSelection1(self, evt):
+        self.onRmSelection(evt, flag = 1)
+    def onRmSelection2(self, evt):
+        self.onRmSelection(evt, flag = 2)
         
     def onSelVolume(self, evt):
         self.set_picker_mask('face') # volume is not shown as figobj

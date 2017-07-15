@@ -269,6 +269,23 @@ class Model(RestorableOrderedDict):
                          
     def panel2_param(self):
         return []
+
+    def panel2_sel_labels(self):
+        return ['selection']
+    
+    def panel2_all_sel_index(self):
+        try:
+            idx = [int(x) for x in self.sel_index]
+        except:
+            idx = []
+        return [idx]
+    def is_wildcard_in_sel(self):
+        ans = [False,]
+        try:
+            idx = [int(x) for x in self.sel_index]
+        except:
+            ans[0] = True
+        return ans
     
     def panel3_param(self):
         return []
@@ -530,6 +547,34 @@ class Pair(Model):
                                           'setfocus_event':True}],
                 ["Source",  '',  0, {'changing_event':True, 
                                      'setfocus_event':True}] ]
+
+    def panel2_sel_labels(self):
+        return ['destination', 'source']
+
+    def panel2_all_sel_index(self):
+        try:
+            idx = [int(x) for x in self.sel_index]
+        except:
+            idx = []
+        try:
+            idx2 = [int(x) for x in self.src_index]
+        except:
+            idx2 = []
+            
+        return [idx, idx2]
+    
+    def is_wildcard_in_sel(self):
+        ans = [False, False]
+        try:
+            idx = [int(x) for x in self.sel_index]
+        except:
+            ans[0] = True
+        try:
+            idx2 = [int(x) for x in self.src_index]
+        except:
+            ans[1] = True
+        return ans
+        
     def get_panel2_value(self):
         return (','.join([str(x) for x in self.sel_index]),
                 ','.join([str(x) for x in self.src_index]),)

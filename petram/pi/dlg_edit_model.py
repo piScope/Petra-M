@@ -252,7 +252,6 @@ class DlgEditModel(DialogWithWindowList):
                     phys = mm.get_root_phys()
                     engine.assign_sel_index(phys)
                 viewer.highlight_domain(mm._sel_index)
-                
         if evt is not None: evt.Skip()
         
     def OnClose(self, evt):
@@ -416,46 +415,45 @@ class DlgEditModel(DialogWithWindowList):
         from petram.model import Bdry, Point, Pair, Domain, Edge        
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
+
+        false_value = False, '', [], []        
         try:
            phys = mm.get_root_phys()
         except:
-           return False, '', []
+           return false_value
 
-        if not hasattr(mm, 'src_index'):
-            self._focus_idx = 0
-        if self._focus_idx == 0:
-            if len(mm.sel_index)==0:
-                idx = []
+        if self.nb.GetPageCount() == 0: return false_value
+        if (self.nb.GetPageCount() > 0 and 
+            self.nb.GetSelection() != 1):return false_value
+       
+        is_wc = mm.is_wildcard_in_sel()
+
+        idx = []
+        labels = []
+        for a, b, c in zip(mm.is_wildcard_in_sel(),
+                           mm.panel2_sel_labels(),
+                           mm.panel2_all_sel_index()):
+            if not a:
+                labels.append(b)                
+                idx.append(c)
             else:
-                if mm.sel_index[0] == 'remaining': return False, '', []
-                try:
-                    idx = [int(x) for x in mm.sel_index]
-                except:
-                    return False, '', []
-        else:
-            if len(mm.src_index)==0:
-                idx = []
-            else:
-                try:            
-                    idx = [int(x) for x in mm.src_index]
-                except:
-                    return False, '', []
+                labels.append('')
+                idx.append([])
                 
-        if (self.nb.GetPageCount() > 1 and
-            self.nb.GetSelection() == 1):
-            if isinstance(mm, Domain):
-                return True, 'domain', idx
-            elif isinstance(mm, Bdry):
-                return True, 'bdry', idx
-            elif isinstance(mm, Edge):
-                return True, 'edge', idx           
-            elif isinstance(mm, Point):
-                return True, 'point', idx                
-            elif isinstance(mm, Pair):
-                return True, 'pair', idx                
-        return False, '', []
+        if isinstance(mm, Domain):
+            tt = 'domain'
+        elif isinstance(mm, Bdry):
+            tt = 'bdry'            
+        elif isinstance(mm, Edge):
+            tt = 'edge'
+        elif isinstance(mm, Pair):
+            tt = 'pair'
+        else:
+           return false_value
 
-    def add_remove_AreaSelection(self,  idx, rm= False):
+        return True, tt, idx, labels
+
+    def add_remove_AreaSelection(self,  idx, rm= False, flag=0):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
         try:
@@ -464,8 +462,12 @@ class DlgEditModel(DialogWithWindowList):
            return 
 
         sidx = [' ' + str(x) for x in idx]
-        if self._focus_idx == 0:   tgt = [int(x) for x in mm.sel_index]
-        elif self._focus_idx == 1: tgt = [int(x) for x in mm.src_index]
+        if flag == 0:
+            tgt = [int(x) for x in mm.sel_index]
+        elif flag == 1:
+            tgt = [int(x) for x in mm.src_index]
+        else:
+            pass
 
         if rm:
             for x in idx: 
@@ -476,9 +478,12 @@ class DlgEditModel(DialogWithWindowList):
 
         sidx = [' ' + str(x) for x in tgt]
         if len(tgt) > 0:  sidx[0] = str(tgt[0])
-        if self._focus_idx == 0:  mm.sel_index = sidx
-        elif self._focus_idx == 1: mm.src_index = sidx
-            
+        if flag == 0:
+            mm.sel_index = sidx
+        elif flag == 1:
+            mm.src_index = sidx
+        else:
+            pass    
         if phys is not None:
            viewer = self.GetParent()
            try:
