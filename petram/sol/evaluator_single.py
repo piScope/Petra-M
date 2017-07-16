@@ -87,7 +87,8 @@ class EvaluatorSingle(EvaluatorCommon):
                 if len(vdata) != 0:
                     data[-1]  = [(np.vstack(vdata), np.vstack(cdata))]
                 else:
-                    return None, None # for now,, let's do this
+                    data = data[:-1]  # remove empty tupple
+                    attrs = attrs[:-1]
         if export_type == 2: return data, attrs                     
         ## normally this is good option.
         if merge_flag1 and not merge_flag2:

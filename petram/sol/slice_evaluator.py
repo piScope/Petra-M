@@ -59,9 +59,11 @@ class SliceEvaluator(EvaluatorAgent):
             verts = np.vstack([mesh.GetVertexArray(i)
                                for i in mesh.GetElement(iel).GetVerticesArray()])
             f = np.sum(verts*axyz, -1) + c
+
             ips = np.where(f > 0)[0]
             ims = np.where(f < 0)[0]
-            izs = np.where(f == 0)[0]           
+            izs = np.where(f == 0)[0]
+            #print f, ips, ims, izs            
             if (len(ips) == 0 or len(ims) == 0) and len(izs) != 3:
                 continue # outside the plane
             ieles.append(iel)
@@ -74,8 +76,9 @@ class SliceEvaluator(EvaluatorAgent):
 
         # then get unique set of elements relating to the verts.
         if num_tri == 0:
-            print "not found"
-            return 
+            #print "not found"
+            return
+        print("found " + str(num_tri) + " elements")
         vert2el = mesh.GetVertexToElementTable()
 
         iverts = np.array([mesh.GetElement(iel).GetVerticesArray()

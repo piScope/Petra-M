@@ -772,10 +772,18 @@ class MFEMViewer(BookViewer):
         super(MFEMViewer, self).onWindowClose(evt)
 
     def onServerSetting(self, evt):
+        remote = self.model.param.eval('remote')
+        if remote is not None:
+            hostname = remote.param.eval('host').name
+        else:
+            hostname = ''
         ret, new_name=dialog.textentry(self,
-                       "Enter the name of new connection", "Add Connection", "")
+                                       "Enter the name of new connection",
+                                       "Add Connection",
+                                       hostname)
         if ret:
-            self.model.scripts.remote.setup_server(new_name)        
+            self.model.scripts.remote.setup_server(new_name)
+            
     def onServerNewDir(self, evt):
 
         import datetime, socket

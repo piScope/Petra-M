@@ -259,22 +259,31 @@ class EvaluatorMP(Evaluator):
         if merge_flag1:
             data0 = [None]*len(attrs)
             for k, x in enumerate(data):
-                if x is None:  return None, None
+                if x is None:  continue
                 vdata, cdata = zip(*x)
                 data0[k] = [(np.vstack(vdata), np.vstack(cdata))]
             data = data0
             
+        data0 = []; attrs0 = []
+        for x, a in zip(data, attrs):
+            if x is not None:
+                data0.append(x)
+                attrs0.append(a)
+        data = data0; attrs = attrs0                
+        
         if merge_flag1 and not merge_flag2:
             vdata = np.vstack([x[0][0] for x in data])
             cdata = np.vstack([x[0][1] for x in data])
             data = [(vdata, cdata)]
         elif merge_flag1:
             data0 = []
-            for x in data: data0.extend(x)
+            for x in data:
+                if x is not None: data0.extend(x)
             data = data0
         else:
             data0 = []
-            for x in data: data0.extend(x)
+            for x in data:
+                if x is not None: data0.extend(x)
             data = data0
         return data, attrs                                  
                 
