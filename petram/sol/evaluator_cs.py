@@ -29,16 +29,17 @@ except ImportError:
     
 ON_POSIX = 'posix' in sys.builtin_module_names
 
-def enqueue_output(out, queue, prompt):
+def enqueue_output(p, queue, prompt):
     while True:
-        line = out.readline()
+        line = p.stdout.readline()
         if line ==  (prompt + '\n'): break
         queue.put(line)
+        if p.poll() is not None: return
     queue.put("??????")
     
 def run_and_wait_for_prompt(p, prompt, verbose=True):    
     q = Queue()
-    t = Thread(target=enqueue_output, args=(p.stdout, q, prompt))
+    t = Thread(target=enqueue_output, args=(p, q, prompt))
     t.daemon = True # thread dies with the program
     t.start()
 
@@ -123,6 +124,23 @@ def connection_test(host = 'localhost'):
     p.stdin.write('e\n')
     out, alive = wait_for_prompt(p)
 
+from petram.sol.evaluator_mp import EvaluatorMP
+class EvaluatorServer(EvaluatorMP):
+    def __init__(self, nproc = 2, logfile = False):
+        return EvaluatorMP.__init__(self, nproc = nproc,
+                                    logfile = logfile)
+    
+    def set_model(self, soldir):
+        import os
+        model_path = os.path.join(soldir, 'model.pmfm')
+        if not os.path.exists(model_path):
+           if 'case' in os.path.split(soldir)[-1]:
+               model_path = os.path.join(os.path.dirname(soldir), 'model.pmfm')
+        if not os.path.exists(model_path):
+            assert False, "Model File not found: " + model_path
+            
+        self.tasks.put((3, model_path), join = True)
+
     
 class EvaluatorClient(Evaluator):
     def __init__(self, nproc = 2, host = 'localhost',
@@ -164,10 +182,11 @@ class EvaluatorClient(Evaluator):
         elif result[0] == 'echo':
             print result[1]
         else:
+            print output
             assert False, result[1]
         
     def set_model(self,  *params, **kparams):
-        return self.__call_server('set_model', *params, **kparams)
+        return self.__call_server('set_model', self.soldir)
         
     def set_solfiles(self,  *params, **kparams):
         return self.__call_server('set_solfiles', *params, **kparams)
@@ -182,7 +201,6 @@ class EvaluatorClient(Evaluator):
         return self.__call_server('set_phys_path', *params, **kparams)        
         
     def validate_evaluator(self,  *params, **kparams):
-        print self.p
         if self.p is None: return False
         return self.__call_server('validate_evaluator', *params, **kparams)        
 

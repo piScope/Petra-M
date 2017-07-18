@@ -194,8 +194,8 @@ class EvaluatorMP(Evaluator):
             w.daemon = True
             w.start()
         
-    #def __del__(self):
-    #    self.terminate_all()
+    def __del__(self):
+        self.terminate_all()
 
     def set_model(self, model):
         import tempfile, shutil

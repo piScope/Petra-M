@@ -1001,7 +1001,7 @@ class DlgPlotSol(DialogWithWindowList):
         solfiles = model.variables.getvar('solfiles')
         soldir = model.variables.getvar('remote_soldir')
 
-        if soldir is None:
+        if not self.config['use_cs']:
             return solfiles
         else:
             return soldir
