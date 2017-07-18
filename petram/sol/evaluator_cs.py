@@ -132,6 +132,7 @@ class EvaluatorServer(EvaluatorMP):
     
     def set_model(self, soldir):
         import os
+        soldir = os.path.expanduser(soldir)        
         model_path = os.path.join(soldir, 'model.pmfm')
         if not os.path.exists(model_path):
            if 'case' in os.path.split(soldir)[-1]:
