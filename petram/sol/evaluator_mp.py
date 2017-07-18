@@ -71,7 +71,8 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         if self.logfile == 'suppress':
             sys.stdout = open(os.devnull, 'w')
         elif self.logfile == 'log':
-            sys.stdout = open("/Users/shiraiwa/test.out", "w", 0)
+            path = os.path.expanduser('~/MPChild.out')
+            sys.stdout = open(path, "w", 0)
         else:
             pass
         while True:

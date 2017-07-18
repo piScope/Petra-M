@@ -97,12 +97,15 @@ def wait_for_prompt(p, prompt = '?', verbose = True):
 def wait_for_prompt(p, prompt = '?', verbose = True):
     return run_and_wait_for_prompt(p, prompt, verbose=verbose)
         
-def start_connection(host = 'localhost', num_proc = 2, user = ''):
+def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
     if user != '': user = user+'@'
     p= sp.Popen("ssh " + user + host + " 'printf $PetraM'", shell=True,
                 stdout=sp.PIPE)
     ans = p.stdout.readlines()[0].strip()
     command = ans+'/bin/evalsvr'
+    if soldir != '':
+        command = 'cd ' + soldir + ';' + command
+    print command
     p = sp.Popen(['ssh', user + host, command], stdin = sp.PIPE,
                  stdout=sp.PIPE, stderr=sp.STDOUT,
                  close_fds = ON_POSIX,
@@ -152,7 +155,8 @@ class EvaluatorClient(Evaluator):
         self.nproc = nproc
         self.p = start_connection(host =  host,
                                   num_proc = nproc,
-                                  user = user)
+                                  user = user,
+                                  soldir = soldir)
 
     def __del__(self):
         self.terminate_all()
@@ -175,15 +179,16 @@ class EvaluatorClient(Evaluator):
             result = cPickle.loads(binascii.a2b_hex(response))
         except:
             traceback.print_exc()
-            print "response", response
-            print "output",  output
+            print("response", response)
+            print("output", output)
+            assert False, "Unpickle failed"
         #print 'output is', result
         if result[0] == 'ok':
             return result[1]
         elif result[0] == 'echo':
-            print result[1]
+            print(result[1])
         else:
-            print output
+            print(output, result)
             assert False, result[1]
         
     def set_model(self,  *params, **kparams):

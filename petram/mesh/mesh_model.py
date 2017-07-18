@@ -88,7 +88,7 @@ class MeshFile(Mesh):
     def run(self, mesh = None):
         path = self.get_real_path()
         if not os.path.exists(path):
-            print("mesh file does not exists : " + path)
+            print("mesh file does not exists : " + path + " in " + os.getcwd())
             return None
         args = (path,  self.generate_edges, self.refine, self.fix_orientation)
         mesh =  mfem.Mesh(*args)
