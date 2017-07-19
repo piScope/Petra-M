@@ -33,7 +33,7 @@ class PhysCoefficient(mfem.PyCoefficient):
        self.variables = []
 
        if isinstance(expr, str):
-           st = parser.expr(expr)
+           st = parser.expr(expr.strip())
            code= st.compile('<string>')
            names = code.co_names
            for n in names:
@@ -82,7 +82,7 @@ class VectorPhysCoefficient(mfem.VectorPyCoefficient):
         
         for expr in exprs:
            if isinstance(expr, str):
-               st = parser.expr(expr)
+               st = parser.expr(expr.strip())
                code= st.compile('<string>')
                names = code.co_names
                for n in names:
@@ -96,7 +96,6 @@ class VectorPhysCoefficient(mfem.VectorPyCoefficient):
         self.ind_vars = [x.strip() for x in ind_vars.split(',')]
         mfem.VectorPyCoefficient.__init__(self, sdim)
         self.exprs = exprs
-        
     def __repr__(self):
         return self.__class__.__name__+"(VectorPhysCoefficeint)"
         
@@ -126,7 +125,7 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient):
         self.co = []
         for expr in exprs:
            if isinstance(expr, str):
-               st = parser.expr(expr)
+               st = parser.expr(expr.strip())
                code= st.compile('<string>')
                names = code.co_names
                for n in names:
@@ -533,14 +532,15 @@ class Phys(Model, NS_mixin):
         else:
             return self.vt3.panel_tip() +[None]
 
-    def add_integrator(self, engine, name, coeff, adder, integrator):
+    def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None):
         if coeff is None: return
-        if self.vt[name].ndim == 0:
-           coeff = self.restrict_coeff(coeff, engine)
-        elif self.vt[name].ndim == 1:
-           coeff = self.restrict_coeff(coeff, engine, vec = True)
+        if vt is None: vt = self.vt
+        if vt[name].ndim == 0:
+           coeff = self.restrict_coeff(coeff, engine, idx=idx)
+        elif vt[name].ndim == 1:
+           coeff = self.restrict_coeff(coeff, engine, vec = True, idx=idx)
         else:
-           coeff = self.restrict_coeff(coeff, engine, matrix = True)           
+           coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)           
         adder(integrator(coeff))
 
 
