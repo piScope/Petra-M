@@ -361,9 +361,13 @@ class MFEMViewer(BookViewer):
             self.canvas.add_selection(ch._artists[0])
         
     def onResetModel(self, evt):
-        self.model.scripts.helpers.reset_model()
-        self.model.scripts.helpers.rebuild_ns()        
-        self.cla()
+        ans = ifigure.widgets.dialog.message(self,
+                                             "Do you want to delete all model setting?",
+                                             style = 2)
+        if ans == 'ok':
+            self.model.scripts.helpers.reset_model()
+            self.model.scripts.helpers.rebuild_ns()        
+            self.cla()
         
     def onEditModel(self, evt):
         from pi.dlg_edit_model import DlgEditModel

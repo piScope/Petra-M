@@ -36,6 +36,7 @@
 import numpy as np
 import parser
 import weakref
+import types
 import traceback
 from weakref import WeakKeyDictionary as WKD
 from weakref import WeakValueDictionary as WVD
@@ -62,7 +63,9 @@ class _decorator(object):
         
 variable = _decorator()        
 
+
 def eval_code(co, g, l):
+    if not isinstance(co, types.CodeType): return co
     a = eval(co, g, l)
     if callable(a): return a()
     return a
@@ -72,6 +75,7 @@ var_g = {'sin':  np.sin,
          'tan':  np.tan,
          'arctan':  np.arctan,                                      
          'arctan2':  np.arctan2,
+         'exp': np.exp,
          'log10':  np.log10,
          'log':  np.log,
          'log2':  np.log2,

@@ -323,7 +323,7 @@ class DlgEditModel(DialogWithWindowList):
             except ValueError:
                 return
         self._focus_idx = evt.widget_idx
-        print  self._focus_obj
+        #print  self._focus_obj
 
     def OnAddNS(self, evt):
         import   ifigure.widgets.dialog as dialog

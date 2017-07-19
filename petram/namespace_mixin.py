@@ -143,7 +143,10 @@ class NS_mixin(object):
     def eval_ns(self):
         chain = self.get_ns_chain()
         l = self.get_default_ns()
-        g = {}
+
+        from petram.helper.variables import var_g
+        g = var_g.copy()
+        
         if self.root() is self:
             self._variables = {}
         else:

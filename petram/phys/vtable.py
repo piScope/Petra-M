@@ -16,13 +16,17 @@
   tip : tip string
   example:
 
-  Scalar : VtableElement('Tbdr',  type='float)
-  Vector : VtableElement('Jsurf', type='float, 
+  Scalar : VtableElement('Tbdr',  type='float')
+  Vector : VtableElement('Jsurf', type='float', 
                          suffix = ('x', 'y', 'z')
                          default = [0,0,0])
-  Matrix : VtableElement('epsilonr', type='float, 
+  Matrix : VtableElement('epsilonr', type='complex', 
                          suffix = [('x', 'y', 'z'), ('x', 'y', 'z')]
                          default = np.eye(3,3))
+
+  StaticText :  VtableElement(None,
+                              guilabel = 'Default Domain (Vac)',  
+                              default =  'eps_r=1, mu_r=1, sigma=0')
 
                          
 '''
@@ -30,14 +34,17 @@
 import six
 import numpy as np
 import itertools
+from collections import OrderedDict
 
 class VtableElement(object):
-    def __init__(self, name, type = None,
+    def __init__(self, name, type = '', 
                 size  = (1,), suffix = None,
                 cb = None, no_func = False,
                 default = 0., guilabel = None, tip = '',
                 chkbox = False):
         self.name = name
+        if not isinstance(type, str):
+            assert False, "data type should be given as str"
         self.type = type
         self.chkbox = chkbox
         if suffix is None:
@@ -55,7 +62,10 @@ class VtableElement(object):
             self.suffix = [''.join(tmp) for tmp in itertools.product(*suffix)]
         self.cb = cb
         self.no_func = no_func
-        self.default = np.array(default, copy = False)
+        if name is not None:
+            self.default = np.array(default, copy = False)
+        else:
+            self.default = default
         self.guilabel = guilabel if guilabel is not None else self.name
         self.tip = tip
 
@@ -67,6 +77,7 @@ class VtableElement(object):
         return float(txt)
     
     def add_attribute(self, v):
+        if self.name is None: return
         if len(self.shape) == 0:
             v[self.name] = self.txt2value(self.default)
             v[self.name + '_txt'] = self.default
@@ -87,6 +98,8 @@ class VtableElement(object):
         return v
     
     def panel_param(self, obj, validator = None):
+        if self.name is None:
+            return [self.guilabel, self.default,  2, {}]   
         chk_float   = (self.type == 'float')
         chk_int     = (self.type == 'int')
         chk_complex = (self.type == 'complex')
@@ -115,6 +128,7 @@ class VtableElement(object):
                                          chk_complex = chk_complex)
 
     def get_panel_value(self, obj):
+        if self.name is None: return
         if len(self.shape) == 0:
             if self.chkbox:
                 f = getattr(obj, 'use_' + self.name + '_txt')
@@ -132,6 +146,7 @@ class VtableElement(object):
             return a
             
     def import_panel_value(self, obj, v):
+        if self.name is None: return        
         if len(self.shape) == 0:
             if self.chkbox:
                 setattr(obj, 'use_' + self.name + '_txt', v[0])
@@ -151,6 +166,7 @@ class VtableElement(object):
         if no_func, values are evaluated at this stage.
         otherwise, it only makes sure that values are string
         '''
+        if self.name is None: return                
         if len(self.shape) == 0:
             if self.no_func:
                 value = obj.eval_phys_expr(str(getattr(obj, self.name+'_txt')),
@@ -166,6 +182,7 @@ class VtableElement(object):
                          str(getattr(obj, self.name + n + '_txt')))
                              
     def make_value_or_expression(self, obj):
+        if self.name is None: return None                     
         if len(self.shape) == 0:
             if self.no_func:
                 pass
@@ -192,9 +209,10 @@ class VtableElement(object):
             return f_name
         
     def panel_tip(self):
+        if self.name is None: return None                       
         return self.tip
     
-class Vtable(dict):
+class Vtable(OrderedDict):
     def attribute_set(self, v, keys = None):
         keys = keys if keys is not None else self.keys()
         for key in keys:

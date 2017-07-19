@@ -15,6 +15,14 @@ from petram.helper.variables import Variable, eval_code
 
  
 # not that PyCoefficient return only real number array
+class PhysConstant(mfem.ConstantCoefficient):
+    def __init__(self, value):
+        self.value = value
+        mfem.ConstantCoefficient.__init__(self, value)
+        
+    def __repr__(self):
+        return self.__class__.__name__+"("+str(self.value)+")"
+      
 class PhysCoefficient(mfem.PyCoefficient):
     def __init__(self, expr, ind_vars, l, g, real=True):
        self.l = {}
@@ -24,19 +32,25 @@ class PhysCoefficient(mfem.PyCoefficient):
        self.real = real
        self.variables = []
 
-       st = parser.expr(str(expr))
-       code= st.compile('<string>')
-       names = code.co_names
-       for n in names:
-          if n in g and isinstance(g[n], Variable):
-             self.variables.append((n, g[n]))
-
-       self.co = code
+       if isinstance(expr, str):
+           st = parser.expr(expr)
+           code= st.compile('<string>')
+           names = code.co_names
+           for n in names:
+               if n in g and isinstance(g[n], Variable):
+                   self.variables.append((n, g[n]))
+           self.co = code
+       else:
+           self.co = expr
+           
        #compile(f_name+'('+ind_vars+')', '<strign>', 'eval')
        # 'x, y, z' -> 'x', 'y', 'z'
        self.ind_vars = [x.strip() for x in ind_vars.split(',')]
        mfem.PyCoefficient.__init__(self)
 
+    def __repr__(self):
+        return self.__class__.__name__+"(PhysCoefficeint)"
+        
     def Eval(self, T, ip):
         for n, v in self.variables:
            v.set_point(T, ip, self.g, self.l)
@@ -68,22 +82,23 @@ class VectorPhysCoefficient(mfem.VectorPyCoefficient):
         
         for expr in exprs:
            if isinstance(expr, str):
-               st = parser.expr(expr)              
+               st = parser.expr(expr)
+               code= st.compile('<string>')
+               names = code.co_names
+               for n in names:
+                   if n in g and isinstance(g[n], Variable):
+                       self.variables.append((n, g[n]))
+               self.co.append(code)
            else:
-               st = parser.expr(expr.__repr__())
-
-           code= st.compile('<string>')
-           names = code.co_names
-           for n in names:
-              if n in g and isinstance(g[n], Variable):
-                 if not g[n] in self.variables:
-                      self.variables.append((n, g[n]))
-           self.co.append(code)
+               self.co.append(expr)
 
         # 'x, y, z' -> 'x', 'y', 'z'
         self.ind_vars = [x.strip() for x in ind_vars.split(',')]
         mfem.VectorPyCoefficient.__init__(self, sdim)
         self.exprs = exprs
+        
+    def __repr__(self):
+        return self.__class__.__name__+"(VectorPhysCoefficeint)"
         
     def Eval(self, V, T, ip):
         for n, v in self.variables:
@@ -95,9 +110,6 @@ class VectorPhysCoefficient(mfem.VectorPyCoefficient):
            self.l[name] = x[k]
 
         for n, v in self.variables:
-#           self.l['v'] = v
-#           self.l[n] = eval('v()', self.g, {'v': v})           
-#           self.l[n] = eval('v()', self.g, self.l)
             self.l[n] = v()           
         val = [eval_code(co, self.g, self.l) for co in self.co]
         return np.array(val, copy = False).flatten()
@@ -114,19 +126,22 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient):
         self.co = []
         for expr in exprs:
            if isinstance(expr, str):
-               st = parser.expr(expr)              
+               st = parser.expr(expr)
+               code= st.compile('<string>')
+               names = code.co_names
+               for n in names:
+                  if n in g and isinstance(g[n], Variable):
+                       self.variables.append((n, g[n]))
+               self.co.append(code)
            else:
-               st = parser.expr(expr.__repr__())
-           code= st.compile('<string>')
-           names = code.co_names
-           for n in names:
-              if n in g and isinstance(g[n], Variable):
-                 if not g[n] in self.variables:
-                      self.variables.append((n, g[n]))
-           self.co.append(code)
+               self.co.append(expr)
+               
         # 'x, y, z' -> 'x', 'y', 'z'
         self.ind_vars = [x.strip() for x in ind_vars.split(',')]
         mfem.MatrixPyCoefficient.__init__(self, sdim)
+        
+    def __repr__(self):
+        return self.__class__.__name__+"(MatrixPhysCoefficeint)"
         
     def Eval(self, K, T, ip):
         for n, v in self.variables:
@@ -137,9 +152,6 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient):
         for k, name in enumerate(self.ind_vars):
            self.l[name] = x[k]
         for n, v in self.variables:           
-           #self.l['v'] = v
-           #self.l[n] = eval('v()', self.g, self.l)
-           #self.l[n] = eval('v()', self.g, {'v': v})
            self.l[n] = v()
 
         val = [eval_code(co, self.g, self.l) for co in self.co]
@@ -149,7 +161,8 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient):
 from petram.phys.vtable import VtableElement, Vtable
 
 class Phys(Model, NS_mixin):
-    hide_ns_menu = True   
+    hide_ns_menu = True
+    hide_nl_panel = False
     dep_var_base = []
     der_var_base = []
 
@@ -158,9 +171,10 @@ class Phys(Model, NS_mixin):
     is_secondary_condition = False   # if true, there should be other
                                      # condtion assigned to the same
                                      # edge/face/domain
-    vt  = Vtable(tuple())         
+    vt   = Vtable(tuple())         
     vt2  = Vtable(tuple())         
-    vt3  = Vtable(tuple())      
+    vt3  = Vtable(tuple())
+    nlterms = []
                                      
     def __init__(self, *args, **kwargs):
         super(Phys, self).__init__(*args, **kwargs)
@@ -169,7 +183,11 @@ class Phys(Model, NS_mixin):
     def attribute_set(self, v):
         v = super(Phys, self).attribute_set(v)
         self.vt.attribute_set(v)
-        self.vt3.attribute_set(v)                        
+        self.vt3.attribute_set(v)
+
+        nl_config = dict()
+        for k in self.nlterms: nl_config[k] = []
+        v['nl_config'] = (False, nl_config)
         return v
         
     def get_possible_bdry(self):
@@ -471,7 +489,59 @@ class Phys(Model, NS_mixin):
         pass
     def add_bdr_variables(self, v, n, suffix, ind_vars, solr, soli = None):
         pass
-     
+
+    def panel1_param(self):
+        return self.vt.panel_param(self)
+        
+    def get_panel1_value(self):
+        return self.vt.get_panel_value(self)
+
+    def preprocess_params(self, engine):
+        return self.vt.preprocess_params(self)
+
+    def import_panel1_value(self, v):
+        return self.vt.import_panel_value(self, v)
+
+    def panel1_tip(self):
+        return self.vt.panel_tip()
+
+    def panel3_param(self):
+        from petram.pi.widget_nl import NonlinearTermPanel
+        l = self.vt3.panel_param(self)
+        if self.hide_nl_panel or len(self.nlterms)==0:
+           return l
+        setting = {'UI':NonlinearTermPanel, 'names':self.nlterms}
+        l.append([None, None, 99, setting])
+        return l
+        
+    def get_panel3_value(self):
+        if self.hide_nl_panel or len(self.nlterms)==0:
+            return self.vt3.get_panel_value(self)
+        else:
+            return self.vt3.get_panel_value(self) + [self.nl_config]
+    
+    def import_panel3_value(self, v):
+        if self.hide_nl_panel or len(self.nlterms)==0:
+            self.vt3.import_panel_value(self, v)
+        else:
+            self.vt3.import_panel_value(self, v[:-1])
+            self.nl_config = v[-1]
+
+    def panel3_tip(self):
+        if self.hide_nl_panel or len(self.nlterms)==0:
+            return self.vt3.panel_tip()
+        else:
+            return self.vt3.panel_tip() +[None]
+
+    def add_integrator(self, engine, name, coeff, adder, integrator):
+        if coeff is None: return
+        if self.vt[name].ndim == 0:
+           coeff = self.restrict_coeff(coeff, engine)
+        elif self.vt[name].ndim == 1:
+           coeff = self.restrict_coeff(coeff, engine, vec = True)
+        else:
+           coeff = self.restrict_coeff(coeff, engine, matrix = True)           
+        adder(integrator(coeff))
 
 
 class PhysModule(Phys):
@@ -490,9 +560,10 @@ class PhysModule(Phys):
         return [["mesh num.",   self.mesh_idx, 400, {}],
                 ["element",self.element,  2,   {}],
                 ["order",  self.order,    400, {}],]
+    def panel1_tip(self):
+        return ["index of mesh", "element type", "element order"]
     def get_panel1_value(self):                
         return [self.mesh_idx, self.element, self.order]
-
     def import_panel1_value(self, v):
         self.mesh_idx = long(v[0])
         self.element = str(v[1])
