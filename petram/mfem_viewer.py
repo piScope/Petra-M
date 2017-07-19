@@ -8,7 +8,7 @@
 from ifigure.interactive import figure
 from ifigure.widgets.book_viewer import BookViewer
 from ifigure.utils.cbook import BuildMenu
-import ifigure.widgets.dialog  as     dialog
+import ifigure.widgets.dialog as dialog
 import numpy as np
 import os
 import wx
@@ -361,13 +361,17 @@ class MFEMViewer(BookViewer):
             self.canvas.add_selection(ch._artists[0])
         
     def onResetModel(self, evt):
-        ans = ifigure.widgets.dialog.message(self,
-                                             "Do you want to delete all model setting?",
-                                             style = 2)
+        ans = dialog.message(self,
+                             "Do you want to delete all model setting?",
+                             style = 2)
         if ans == 'ok':
             self.model.scripts.helpers.reset_model()
             self.model.scripts.helpers.rebuild_ns()        
             self.cla()
+            if self.editdlg is not None:
+                od = self.model.param.getvar('mfem_model')        
+                self.editdlg.set_model(od)        
+            
         
     def onEditModel(self, evt):
         from pi.dlg_edit_model import DlgEditModel
