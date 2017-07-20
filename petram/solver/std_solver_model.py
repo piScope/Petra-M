@@ -1,3 +1,4 @@
+import os
 import numpy as np
 
 from petram.model import Model
@@ -11,23 +12,37 @@ class StdSolver(Solver):
     has_2nd_panel = False
 
     def attribute_set(self, v):
+        v['clear_wdir'] = False
         v['init_only'] = False   
         v['assemble_real'] = False
         v['phys_model']   = ''
+        v['init_setting']   = ''        
         super(StdSolver, self).attribute_set(v)
         return v
     
     def panel1_param(self):
-        return [["physics model",   self.phys_model,  0, {},],
-                ["assemble complex \nas real problem",
-                 self.assemble_real,  3, {"text":""}],
+        return [["Initial value setting",   self.init_setting,  0, {},],
+                ["physics model",   self.phys_model,  0, {},],
+                ["clear working directory",
+                 self.clear_wdir,  3, {"text":""}],
                 ["initialize solution only",
-                 self.init_only,  3, {"text":""}],    ]     
+                 self.init_only,  3, {"text":""}], 
+                ["assemble complex \nas real problem",
+                 self.assemble_real,  3, {"text":""}],]
 
     def get_panel1_value(self):
-        return (self.phys_model,
-                self.assemble_real,
-                self.init_only)    
+        return (self.init_setting,
+                self.phys_model,
+                self.clear_wdir,
+                self.init_only,               
+                self.assemble_real)
+    
+    def import_panel1_value(self, v):
+        self.init_setting = str(v[0])        
+        self.phys_model = str(v[1])
+        self.clear_wdir = v[2]
+        self.init_only = v[3]        
+        self.assemble_real = v[4]
 
     def get_editor_menus(self):
         return []
@@ -37,8 +52,13 @@ class StdSolver(Solver):
 
     def get_phys(self):
         names = self.phys_model.split(',')
-        names = [n.strip() for n in names]        
+        names = [n.strip() for n in names if n.strip() != '']        
         return [self.root()['Phys'][n] for n in names]
+    def get_init_setting(self):
+        names = self.init_setting.split(',')
+        names = [n.strip() for n in names if n.strip() != '']        
+        return [self.root()['InitialValue'][n] for n in names]
+    
     '''
     This interactive are mostly for debug purpose
     '''
@@ -73,19 +93,28 @@ class StdSolver(Solver):
         self.call_solver(engine)
         self.postprocess(engine)
 
-    def import_panel1_value(self, v):
-        self.phys_model = str(v[0])
-        self.assemble_real = v[1]
-
     def get_possible_child(self):
         from petram.solver.mumps_model import MUMPS
         from petram.solver.gmres_model import GMRES
         return [MUMPS, GMRES]
     
     def init_sol(self, engine):
-        phys_targets = self.get_phys()
-        engine.run_init_sol(phys_targets)
+        inits = self.get_init_setting()
+        if len(inits) == 0:
+            # in this case alloate all fespace and initialize all
+            # to zero
+            names = self.root()['Phys'].keys()
+            phys_targets = [self.root()['Phys'][n] for n in names]
+            engine.run_alloc_sol(phys_targets)
+            engine.run_apply_init(phys_targets, 0)
+            engine.run_apply_essential(phys_targets)
+        else:
+            for init in inits:
+                init.run(engine)
+            phys_targets = self.get_phys()
+            engine.run_apply_essential(phys_targets)
         return 
+
 
     def assemble(self, engine):
         phys_targets = self.get_phys()
@@ -185,17 +214,23 @@ class StdSolver(Solver):
         
     def run(self, engine):
         phys_target = self.get_phys()
+        if self.clear_wdir:
+            engine.remove_solfiles()
         if not engine.isInitialized: self.init_sol(engine)
         if self.init_only:
-            return
-        matvecs, matvecs_c = self.assemble(engine)
-        self.generate_linear_system(engine, matvecs, matvecs_c)
-        solall, PT = self.call_solver(engine)
-        extra_data = self.store_sol(engine, matvecs, solall, PT, 0)
-        dprint1("Extra Data", extra_data)
+            extra_data = None
+        else:
+            matvecs, matvecs_c = self.assemble(engine)
+            self.generate_linear_system(engine, matvecs, matvecs_c)
+            solall, PT = self.call_solver(engine)
+            extra_data = self.store_sol(engine, matvecs, solall, PT, 0)
+            dprint1("Extra Data", extra_data)
+            
+        engine.remove_solfiles()
+        dprint1("writing sol files")
         self.save_solution(engine, extra_data)
 
-        rprint(debug.format_memory_usage())
+        print(debug.format_memory_usage())
            
 
 

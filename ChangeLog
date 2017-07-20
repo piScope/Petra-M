@@ -1,0 +1,47 @@
+	Change Log
+	* 07/20/2017
+
+	** initialization step was cleaned for future expansion
+
+	- InitialValue branch is added in model tree
+	- InitialValue branch can hold multiple InitSetting
+	- StdSolver has a text box to selecto InitSetting
+	- comma separated names can be used to select multiple InitSetting
+	- If no InitSetting is specifid, StdSolver allocate all fespace/sol
+    	vector and initialize to zero. If this is not desired, one has to
+	use NoInitialization in InitSetting
+	- StdSolver saves solfiles when init_only mode is selected
+	- Physics setting panels has thrid Init/NL panel, where a user can
+	set domain/boundary specfic initial values.
+
+	- This changes are not important for RF-only modeling. It will be
+	useful for in a multiphysics case
+	
+	* 07/19/2017
+	
+	** Significant reduction of GUI handling code length using
+	petram.phys.vtable
+
+	** reset_model menu in mfem_viewer shows a confirmation dialog
+	to avoid deleting a model tree by mistake.
+
+	** When setting up mfem_eofe module using setupmodel command, a
+	newly created model now has server setting to eofe.
+	-  a user still need to make a new work directory.
+	
+
+	* 07/15-07/18/2017
+	
+
+	** A problem of server side data processing is fixed.
+	
+
+	** Selecting multiple surface and adding them to domain/boundary
+	selection work now.
+
+	** A problem of not closing threads and processing when a
+	communication channel is closed is fixed.
+
+	- number of threads shown at the right bottom corner of
+	piScope window goes back to 1 after the connection is closed.
+

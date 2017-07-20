@@ -318,7 +318,11 @@ class Phys(Model, NS_mixin):
     def apply_essential(self, engine, gf, **kwargs):
         raise NotImplementedError(
              "you must specify this method in subclass")
-
+     
+    def apply_init(self, engine, gf, **kwargs):
+        import warnings
+        warnings.warn("apply init is not implemented to " + str(self))
+        
     def add_mix_contribution(self, engine, a, real=True):
         '''
         return array of crossterms
@@ -496,7 +500,9 @@ class Phys(Model, NS_mixin):
         return self.vt.get_panel_value(self)
 
     def preprocess_params(self, engine):
-        return self.vt.preprocess_params(self)
+        self.vt.preprocess_params(self)
+        self.vt3.preprocess_params(self)               
+        return
 
     def import_panel1_value(self, v):
         return self.vt.import_panel_value(self, v)

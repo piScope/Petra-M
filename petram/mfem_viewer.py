@@ -840,7 +840,7 @@ class MFEMViewer(BookViewer):
         if remote.param.eval('rwdir') is None:
             remote.scripts.prepare_remote_dir()
             
-        remote.scripts.clean_remote_dir()
+        #remote.scripts.clean_remote_dir()
 
         self.model.param.eval('sol').clean_owndir()        
         res = self.model.scripts.remote.run_model.RunT(folder,

@@ -76,6 +76,13 @@ class MFEM_PhysRoot(Model):
             solvars[k] = solvar
         return solvars
 
+class MFEM_InitRoot(Model):    
+    can_delete = False
+    has_2nd_panel = False        
+    def get_possible_child(self):
+        from init_model import InitSetting
+        return [InitSetting]
+    
 class MFEM_MeshRoot(Model):
     can_delete = False
     has_2nd_panel = False    
@@ -101,6 +108,7 @@ class MFEM_ModelRoot(Model):
         self['General'] = MFEM_GeneralRoot()
         self['Mesh'] = MFEM_MeshRoot()
         self['Phys'] = MFEM_PhysRoot()
+        self['InitialValue'] = MFEM_InitRoot()        
         self['Solver'] = MFEM_SolverRoot()
 
         from petram.helper.variables import Variables

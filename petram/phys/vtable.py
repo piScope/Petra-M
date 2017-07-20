@@ -82,7 +82,7 @@ class VtableElement(object):
             v[self.name] = self.txt2value(self.default)
             v[self.name + '_txt'] = self.default
             if self.chkbox:
-                v['use_' + self.name + '_txt'] = False
+                v['use_' + self.name] = False
         else:
             values = [str(x) for x in self.default.flatten()]
             if len(values) != len(self.suffix):
@@ -92,9 +92,11 @@ class VtableElement(object):
                 v[self.name + x] = self.txt2value(v_txt)
                 v[self.name + x + '_txt'] = v_txt
             v[self.name + '_m'] =  self.default
-            xxx = self.default.__repr__().split('(')[1].split(')')[0]            
+            xxx = self.default.__repr__().split('(')[1].split(')')[0]
             v[self.name + '_m_txt'] =  ''.join(xxx.split("\n"))
             v['use_m_'+self.name] = False
+            if self.chkbox:
+                v['use_' + self.name] = False
         return v
     
     def panel_param(self, obj, validator = None):
@@ -120,18 +122,22 @@ class VtableElement(object):
             row = self.shape[0]
             col = self.shape[1] if self.ndim == 2 else 1
             suffix = ['_'+x for x in self.suffix]
-            return obj.make_matrix_panel(self.name, suffix, row = row,
+            ret =  obj.make_matrix_panel(self.name, suffix, row = row,
                                          col = col,
                                          validator = validator,
                                          chk_float = chk_float,
                                          chk_int   = chk_int, 
                                          chk_complex = chk_complex)
+            if self.chkbox:
+                ret =  [None, None, 27, [{'text':'Use'},
+                                         {'elp': [ret]}],]
+            return ret
 
     def get_panel_value(self, obj):
         if self.name is None: return
         if len(self.shape) == 0:
             if self.chkbox:
-                f = getattr(obj, 'use_' + self.name + '_txt')
+                f = getattr(obj, 'use_' + self.name)
                 v = getattr(obj, self.name + '_txt')
                 return [f, [v]]
             else:
@@ -143,17 +149,24 @@ class VtableElement(object):
             a = [cb_value,
                 [[str(getattr(obj, self.name+n+'_txt')) for n in suffix]],
                 [str(getattr(obj, self.name + '_m_txt'))]]
-            return a
+            if self.chkbox:
+                f = getattr(obj, 'use_' + self.name)
+                return [f, [a]]                
+            else:
+                return a
             
     def import_panel_value(self, obj, v):
         if self.name is None: return        
         if len(self.shape) == 0:
             if self.chkbox:
-                setattr(obj, 'use_' + self.name + '_txt', v[0])
+                setattr(obj, 'use_' + self.name, v[0])
                 setattr(obj, self.name + '_txt', str(v[1][0]))                
             else:
                 setattr(obj, self.name + '_txt', str(v))
         else:
+            if self.chkbox:
+                setattr(obj, 'use_' + self.name, v[0])
+                v = v[1][0]
             suffix = ['_'+x for x in self.suffix]        
             setattr(obj, 'use_m_'+self.name,
                     (str(v[0]) == 'Array Form'))

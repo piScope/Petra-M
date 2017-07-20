@@ -61,8 +61,13 @@ class Engine(object):
         if modelfile != '':
            import cPickle as pickle
            model = pickle.load(open(modelfile, 'rb'))
-
+           
         self.set_model(model)
+        if not 'InitialValue' in model:
+           idx = model.keys().index('Phys')+1
+           from petram.mfem_model import MFEM_InitRoot
+           model.insert_item(idx, 'InitialValue', MFEM_InitRoot())
+        
         self.is_assembled = False
         self.is_initialized = False
         #
@@ -96,6 +101,7 @@ class Engine(object):
             self.interps = ModelDict(model)
             self.extras = ModelDict(model)
             self.gl_ess_tdofs = ModelDict(model)
+            self.alloc_flag  = ModelDict(model)
         else:
             self.fespaces = None
             self.fec = None            
@@ -109,6 +115,7 @@ class Engine(object):
             self.interps = None
             self.extras = None
             self.gl_ess_tdofs = None
+            self.alloc_flag = ModelDict(model)
             
 
         # below is to support old version
@@ -187,16 +194,31 @@ class Engine(object):
             for node in phys.walk():
                 if not node.enabled: continue
                 node.preprocess_params(self)
+        for k in self.model['InitialValue'].keys():
+            init = self.model['InitialValue'][k]
+            init.preprocess_params(self)            
 
     #
     #  assembly 
     #
-    def run_init_sol(self, phys_target = None):
+    def run_alloc_sol(self, phys_target = None):
         '''
         allocate fespace and gridfunction (unknowns)
         apply essentials
         define model variables
+
+        alloc_flag is used to avoid repeated allocation.
         '''
+        allocated_phys = []
+        for phys in phys_target:
+           try:
+              if self.alloc_flag[phys]: alloced_phys.append[phys]
+           except:
+              pass
+        phys_target = [phys for phys in phys_target
+                       if not phys in allocated_phys]
+        dprint1("allocating fespace/sol vector for " + str(phys_target))
+        
         for phys in phys_target:
             self.run_update_param(phys)
         for phys in phys_target:
@@ -216,13 +238,45 @@ class Engine(object):
         dprint1(variables)
         for k in variables.keys():
            self.model._variables[k] = variables[k]
-        for phys in phys_target:
-            self.apply_essential(phys)
         self.is_initialized = True
+        for phys in phys_target:        
+            self.alloc_flag[phys] = True
 
     @property
     def isInitialized(self):
         return  self.is_initialized
+
+    def run_apply_init(self, phys_target, mode,
+                       init_value=0.0, init_path=''):
+        # mode
+        #  0: zero
+        #  1: init to constant
+        #  2: use init panel values
+        #  3: load file
+        #  4: do nothing
+        for phys in phys_target:
+           if mode == 0:
+               for kfes, rgf, igf in enum_fes(phys, self.r_x, self.i_x):
+                   rgf.Assign(0.0)
+                   if igf is not None: igf.Assign(0.0)
+           elif mode == 1: 
+               for kfes, rgf, igf in enum_fes(phys, self.r_x, self.i_x):
+                   rgf.Assign(init_value)
+                   if igf is not None: igf.Assign(init_value)
+           elif mode == 2: # apply Einit
+               self.apply_init(phys)
+           elif mode == 3:
+               raise NotImplementedError(
+                         "load from file not implemented")
+           elif mode == 4:
+               pass
+           else: #
+               raise NotImplementedError(
+                         "unknown init mode")
+            
+    def run_apply_essential(self, phys_target):      
+        for phys in phys_target:
+            self.apply_essential(phys)
      
     def run_assemble(self, phys_target = None):
         matvecs = ModelDict(self.model)
@@ -275,7 +329,7 @@ class Engine(object):
             if not mm.enabled: continue
             mm.update_param()
 
-    def initialize_phys(self, phys, apply_ess = True):
+    def initialize_phys(self, phys):
         is_complex = phys.is_complex()        
         self.assign_sel_index(phys)
         
@@ -357,9 +411,9 @@ class Engine(object):
         
     def apply_essential(self, phys):
         for kfes, rgf, igf in enum_fes(phys, self.r_x, self.i_x):
-            rgf.Assign(0.0)
-            if igf is not None:
-               igf.Assign(0.0)
+            #rgf.Assign(0.0)
+            #if igf is not None:
+            #   igf.Assign(0.0)
             for mm in phys.walk():
                 if not mm.enabled: continue
                 if not mm.has_essential: continue
@@ -367,7 +421,15 @@ class Engine(object):
                 mm.apply_essential(self, rgf, real = True, kfes = kfes)
                 if igf is not None:
                     mm.apply_essential(self, igf, real = False, kfes = kfes)
-                    
+
+    def apply_init(self, phys):
+        for kfes, rgf, igf in enum_fes(phys, self.r_x, self.i_x):
+            for mm in phys.walk():
+                if not mm.enabled: continue
+                mm.apply_init(self, rgf, real = True, kfes = kfes)
+                if igf is not None:
+                    mm.apply_init(self, igf, real = False, kfes = kfes)
+
     def assemble_bf(self, phys):
         for kfes, ra, ia in enum_fes(phys, self.r_a, self.i_a):
             for mm in phys.walk():
@@ -933,12 +995,12 @@ class Engine(object):
         return ess_tdofs
 
     def allocate_fespace(self, phys):
-        print("allocate_fespace")
+        #
         self.fespaces[phys] = []
         self.fec[phys] = []
         
         for name, elem in phys.get_fec():
-            print(name)
+            dprint1("allocate_fespace" + name)
             mesh = self.meshes[phys.mesh_idx]
             fec = getattr(mfem, elem)
             if fec is mfem.ND_FECollection:
@@ -1265,7 +1327,15 @@ class SerialEngine(Engine):
     def mkdir(self, path):
         if not os.path.exists(path):  os.mkdir(path)
     def cleancwd(self):
-        for f in os.listdir("."): os.remove(f)            
+        for f in os.listdir("."): os.remove(f)
+    def remove_solfiles(self):       
+        dprint1("clear sol: ", os.getcwd())                  
+        d = os.getcwd()
+        files = os.listdir(d)
+        for file in files:
+            if file.startswith('solmesh'): os.remove(os.path.join(d, file))
+            if file.startswith('solr'): os.remove(os.path.join(d, file))
+            if file.startswith('soli'): os.remove(os.path.join(d, file))
 
 class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
@@ -1529,5 +1599,19 @@ class ParallelEngine(Engine):
         else:
             pass
         MPI.COMM_WORLD.Barrier()                
-              
+
+    def remove_solfiles(self):       
+        dprint1("clear sol: ", os.getcwd())                  
+        myid     = MPI.COMM_WORLD.rank                
+        if myid == 0:
+            d = os.getcwd()
+            files = os.listdir(d)
+            for file in files:
+                if file.startswith('solmesh'): os.remove(os.path.join(d, file))
+                if file.startswith('solr'): os.remove(os.path.join(d, file))
+                if file.startswith('soli'): os.remove(os.path.join(d, file))
+        else:
+            pass
+        MPI.COMM_WORLD.Barrier()                
+        
   
