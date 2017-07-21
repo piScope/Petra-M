@@ -1,4 +1,16 @@
 	Change Log
+	* 07/21/2017
+
+	** multiple selection in piScope is enabled
+	- a user can select domain and change the surface color at once.
+	- this makes a production of final graphics easier using the following
+	steps...
+	1) use "select Volume"
+	2) copy selected faces
+	3) open a new window (change 3D axes mode, set gl shading..)
+	4) paste the copied faces
+	5) open property panel and change color.
+	
 	* 07/20/2017
 
 	** initialization step was cleaned for future expansion
@@ -13,8 +25,7 @@
 	- StdSolver saves solfiles when init_only mode is selected
 	- Physics setting panels has thrid Init/NL panel, where a user can
 	set domain/boundary specfic initial values.
-
-	- This changes are not important for RF-only modeling. It will be
+	- THIS CHANGES  are NOT important for RF-only modeling. It will be
 	useful for in a multiphysics case
 	
 	* 07/19/2017
@@ -35,13 +46,11 @@
 
 	** A problem of server side data processing is fixed.
 	
-
 	** Selecting multiple surface and adding them to domain/boundary
 	selection work now.
 
 	** A problem of not closing threads and processing when a
 	communication channel is closed is fixed.
-
 	- number of threads shown at the right bottom corner of
 	piScope window goes back to 1 after the connection is closed.
 

@@ -266,6 +266,8 @@ class MFEMViewer(BookViewer):
            self._dom_bdr_sel  = (dom_idx, bdr_idx)
         except:
            traceback.print_exc()
+        evt.selections = self.canvas.selection
+        self.property_editor.onTD_Selection(evt)           
 
     def onNewMesh(self, evt):
         from ifigure.widgets.dialog import read
