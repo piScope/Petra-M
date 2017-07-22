@@ -264,10 +264,9 @@ class Engine(object):
                    rgf.Assign(init_value)
                    if igf is not None: igf.Assign(init_value)
            elif mode == 2: # apply Einit
-               self.apply_init(phys)
+               self.apply_init_from_init_panel(phys)
            elif mode == 3:
-               raise NotImplementedError(
-                         "load from file not implemented")
+               self.apply_init_from_file(phys, init_path)              
            elif mode == 4:
                pass
            else: #
@@ -422,14 +421,58 @@ class Engine(object):
                 if igf is not None:
                     mm.apply_essential(self, igf, real = False, kfes = kfes)
 
-    def apply_init(self, phys):
+    def apply_init_from_init_panel(self, phys):
         for kfes, rgf, igf in enum_fes(phys, self.r_x, self.i_x):
+            tmp = self.new_gf(None, gf = rgf)
             for mm in phys.walk():
                 if not mm.enabled: continue
-                mm.apply_init(self, rgf, real = True, kfes = kfes)
-                if igf is not None:
-                    mm.apply_init(self, igf, real = False, kfes = kfes)
+                c = mm.get_init_coeff(self, real = True, kfes = kfes)
+                if c is None: continue
+                tmp.ProjectCoefficient(c)                
+                rgf += tmp
+            if igf is None: continue
+            tmp *= 0.0
+            for mm in phys.walk():
+                if not mm.enabled: continue
+                c = mm.get_init_coeff(self, real = False, kfes = kfes)
+                if c is None: continue
+                tmp.ProjectCoefficient(c)
+                igf += tmp
 
+    def apply_init_from_file(self, phys, init_path):
+        '''
+        read initial gridfunction from solution
+        if init_path is "", then file is read from cwd.
+        if file is not found, then it zeroes the gf
+        '''
+        mesh_idx = phys.mesh_idx
+        names = phys.dep_vars
+        
+        for kfes, rgf, igf in enum_fes(phys, self.r_x, self.i_x):
+            fr, fi, meshname = self.solfile_name(names[kfes],
+                                                         mesh_idx)
+            path = os.path.expanduser(init_path)
+            if path != '':
+                fr = os.path.join(path, fr)
+                fi = os.path.join(path, fi)
+                meshname = os.path.join(path, meshname)
+
+            rgf.Assign(0.0)
+            if igf is not None: igf.Assign(0.0)
+            if not os.path.exists(meshname): continue
+
+            m = mfem.Mesh(str(meshname), 1, 1)
+            m.ReorientTetMesh()            
+            solr = mfem.GridFunction(m, str(fr))
+            if solr.Size() != rgf.Size():
+               assert False, "Solution file (real) has different length!!!"
+            rgf += solr
+            if igf is not None:
+               soli = mfem.GridFunction(m, str(fi))
+               if soli.Size() != igf.Size():
+                   assert False, "Solution file (imag) has different length!!!"
+               igf += soli               
+       
     def assemble_bf(self, phys):
         for kfes, ra, ia in enum_fes(phys, self.r_a, self.i_a):
             for mm in phys.walk():
@@ -1121,10 +1164,17 @@ class Engine(object):
     def eliminate_ess_dof(self, ess_tdof_list, M, B):     
         raise NotImplementedError(
              "you must specify this method in subclass")
-    def save_solfile_fespace(sellf, *args, **kwargs):
+     
+    def solfile_name(self, name, mesh_idx):
         raise NotImplementedError(
              "you must specify this method in subclass")
-
+     
+    def save_solfile_fespace(self, name, mesh_idx, r_x, i_x):
+        fnamer, fnamei, meshname = self.solfile_name(name, mesh_idx)
+        r_x.SaveToFile(fnamer, 8)
+        if i_x is not None:
+            i_x.SaveToFile(fnamei, 8)
+     
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(SerialEngine, self).__init__(modelfile = modelfile, model=model)
@@ -1161,8 +1211,11 @@ class SerialEngine(Engine):
     def new_mixed_bf(self, fes1, fes2):
         return  mfem.MixedBilinearForm(fes1, fes2)
      
-    def new_gf(self, fes, init = True):
-        gf = mfem.GridFunction(fes)
+    def new_gf(self, fes, init = True, gf = None):
+        if gf is None:
+           gf = mfem.GridFunction(fes)
+        else:
+           gf = mfem.GridFunction(gf.FESpace())               
         if init: gf.Assign(0.0)
         return gf
 
@@ -1304,14 +1357,13 @@ class SerialEngine(Engine):
             mesh.PrintToFile(name, 8)
             mesh_names.append(name)
         return mesh_names
-    
-    def save_solfile_fespace(self, name, mesh_idx, r_x, i_x,
-                             namer = 'solr', namei = 'soli' ):
-        fname = '_'.join((namer, name, str(mesh_idx)))
-        r_x.SaveToFile(fname, 8)
-        if i_x is not None:
-            fname = '_'.join((namei, name, str(mesh_idx)))
-            i_x.SaveToFile(fname, 8)
+
+    def solfile_name(self, name, mesh_idx,
+                     namer = 'solr', namei = 'soli' ):
+        fnamer = '_'.join((namer, name, str(mesh_idx)))
+        fnamei = '_'.join((namei, name, str(mesh_idx)))
+        mesh_name  =  "solmesh_"+str(mesh_idx)              
+        return fnamer, fnamei, mesh_name
 
     def get_true_v_sizes(self, phys):
         fe_sizes = [fes[1].GetTrueVSize() for fes in self.fespaces[phys]]
@@ -1373,11 +1425,14 @@ class ParallelEngine(Engine):
     def new_mixed_bf(self, fes1, fes2):
         return  mfem.ParMixedBilinearForm(fes1, fes2)
 
-    def new_gf(self, fes, init = True):
-        gf = mfem.ParGridFunction(fes)
+    def new_gf(self, fes, init = True, gf = None):
+        if gf is None:
+           gf = mfem.ParGridFunction(fes)
+        else:
+           gf = mfem.ParGridFunction(gf.ParFESpace())               
         if init: gf.Assign(0.0)
         return gf
-
+               
     def new_fespace(self,mesh, fec):
         return  mfem.ParFiniteElementSpace(mesh, fec)
  
@@ -1410,6 +1465,19 @@ class ParallelEngine(Engine):
             mesh_names.append(mesh_name)
         return mesh_names
      
+    def solfile_name(self, name, mesh_idx,
+                     namer = 'solr', namei = 'soli' ):
+        from mpi4py import MPI                               
+        num_proc = MPI.COMM_WORLD.size
+        myid     = MPI.COMM_WORLD.rank
+        smyid = '{:0>6d}'.format(myid)
+       
+        fnamer = '_'.join((namer, name, str(mesh_idx)))+"."+smyid
+        fnamei = '_'.join((namei, name, str(mesh_idx)))+"."+smyid
+        mesh_name  =  "solmesh_"+str(mesh_idx)+"."+smyid        
+        return fnamer, fnamei, mesh_name
+
+    '''
     def save_solfile_fespace(self, name, mesh_idx, r_x, i_x, 
                              namer = 'solr', namei = 'soli' ):
         from mpi4py import MPI                               
@@ -1420,9 +1488,9 @@ class ParallelEngine(Engine):
         fname = '_'.join((namer, name, str(mesh_idx)))+"."+smyid
         r_x.SaveToFile(fname, 8)
         if i_x is not None:
-            fname = '_'.join((namei, name, str(mesh_idx)))+"."+smyid           
+            fname = '_'.join((namei, name, str(mesh_idx)))+"."+smyid
             i_x.SaveToFile(fname, 8)
-
+    '''
 
     def fill_block_matrix_fespace(self, blocks, mv,
                                         gl_ess_tdof, extra, interp,

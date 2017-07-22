@@ -10,6 +10,18 @@
 	3) open a new window (change 3D axes mode, set gl shading..)
 	4) paste the copied faces
 	5) open property panel and change color.
+
+	** Other piScope enhancement
+	- OIT (order independent transparency) renderer is enabled.
+	- Videoplayer button relocation.
+
+	** Initial value from file and inital value from init panel is added
+	- Initial value panel of EM3D module works now.
+	- Reading initial values from file works only when the file structure
+	is the same. (previous simulation should be run with the same CPU
+	count and the same mesh). This is meant for a simple restart
+	capability. Features such as an interpolation from course mesh is not
+	supported.
 	
 	* 07/20/2017
 

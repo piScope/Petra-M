@@ -118,6 +118,7 @@ class InitSettingPanel(wx.Panel):
         w = evt.GetEventObject()
         sel = self.rbs.index(w)
         self.adjust_enables(sel)
+        self.send_event(self, evt)
         evt.Skip()
             
     def send_event(self, obj, evt):

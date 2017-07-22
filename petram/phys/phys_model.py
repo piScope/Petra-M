@@ -318,6 +318,9 @@ class Phys(Model, NS_mixin):
     def apply_essential(self, engine, gf, **kwargs):
         raise NotImplementedError(
              "you must specify this method in subclass")
+
+    def get_init_coeff(self, engine, **kwargs):
+        return None
      
     def apply_init(self, engine, gf, **kwargs):
         import warnings
