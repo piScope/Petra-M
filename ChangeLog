@@ -1,4 +1,13 @@
 	Change Log
+	* 07/22/2017
+
+	** Arrow plot resampling
+        - resampling the data to reduce the number of arrows to a
+	practical (~300) level
+	- a user can specifiy the number of arrow
+	- keep face separated is eliminated since we want to make the
+	arrow length consistent among surfaces.
+	
 	* 07/21/2017
 
 	** multiple selection in piScope is enabled

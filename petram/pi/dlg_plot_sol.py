@@ -222,10 +222,11 @@ class DlgPlotSol(DialogWithWindowList):
                   ['Expression(w)', '', 0, {}],
                   ['Boundary Index', text, 0, {}],
                   ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
-                                           'choices': choices}],      
-                  [None, False, 3, {"text":'dynamic extraction'}],
+                                           'choices': choices}],
+                  [None, False, 3, {"text":'dynamic extraction (does not work)'}],
                   [None, True, 3, {"text":'merge solutions'}],
-                  [None, True, 3, {"text":'keep surface separated'}],]        
+                  ['Arrow count', 300, 400, None],]
+
 
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
@@ -703,13 +704,16 @@ class DlgPlotSol(DialogWithWindowList):
            u = np.mean(udata[1], 1)
            v = np.mean(vdata[1], 1)
            w = np.mean(wdata[1], 1)
-           print xyz.shape
-           print u.shape
-           print v.shape
-           print w.shape
-           print length
-
-           viewer.quiver3d(xyz[:,0], xyz[:,1], xyz[:,2], u, v, w,
+           #print xyz.shape
+           #print u.shape
+           #print v.shape
+           #print w.shape
+           #print length
+           ll = np.min([xyz.shape[0]-1,int(value[7])])
+           idx = np.linspace(0, xyz.shape[0]-1,ll).astype(int)
+           #print idx
+           viewer.quiver3d(xyz[idx,0], xyz[idx,1], xyz[idx,2],
+                           u[idx], v[idx], w[idx],
                            length = length)
 
         viewer.update(True)
@@ -752,7 +756,7 @@ class DlgPlotSol(DialogWithWindowList):
         phys_path = value[4]
         if mode  == 'plot':
             do_merge1 = value[6]
-            do_merge2 = value[7]
+            do_merge2 = False
         else:
             do_merge1 = True
             do_merge2 = False
