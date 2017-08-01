@@ -67,6 +67,11 @@ class Engine(object):
            idx = model.keys().index('Phys')+1
            from petram.mfem_model import MFEM_InitRoot
            model.insert_item(idx, 'InitialValue', MFEM_InitRoot())
+        from petram.mfem_model import has_geom
+        if not 'Geom' in model and has_geom:
+           from petram.geom.geom_model import MFEM_GeomRoot
+           model.insert_item(1, 'Geometry', MFEM_GeomRoot())
+           
         
         self.is_assembled = False
         self.is_initialized = False

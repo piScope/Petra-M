@@ -101,11 +101,20 @@ class MFEM_SolverRoot(Model):
     
     def get_active_solvers(self, mm = None):
         return [x for x in self.iter_enabled()]
-      
+    
+try:    
+   from petram.geom.geom_model import MFEM_GeomRoot
+   has_geom = True
+except:
+   has_geom = False
+
 class MFEM_ModelRoot(Model):
     def __init__(self, **kwargs):
         super(MFEM_ModelRoot, self).__init__(**kwargs)
         self['General'] = MFEM_GeneralRoot()
+
+        if has_geom:
+            self['Geometry'] = MFEM_GeomRoot()        
         self['Mesh'] = MFEM_MeshRoot()
         self['Phys'] = MFEM_PhysRoot()
         self['InitialValue'] = MFEM_InitRoot()        

@@ -36,6 +36,10 @@ import numpy as np
 import itertools
 from collections import OrderedDict
 
+import petram.debug as debug
+dprint1, dprint2, dprint3 = debug.init_dprints('Vtable')
+
+
 class VtableElement(object):
     def __init__(self, name, type = '', 
                 size  = (1,), suffix = None,
@@ -74,6 +78,7 @@ class VtableElement(object):
         if self.type == 'complex': return complex(txt)
         if self.type == 'int': return int(txt)
         if self.type == 'long': return long(txt)
+        if self.type == 'array': return np.array(eval(txt))
         return float(txt)
     
     def add_attribute(self, v):
@@ -105,7 +110,7 @@ class VtableElement(object):
         chk_float   = (self.type == 'float')
         chk_int     = (self.type == 'int')
         chk_complex = (self.type == 'complex')
-
+        chk_array   = (self.type == 'array')
         if len(self.shape) == 0:
             value = getattr(obj, self.name + '_txt')
             ret = obj.make_phys_param_panel(self.guilabel,
@@ -113,7 +118,8 @@ class VtableElement(object):
                                              no_func = self.no_func,
                                              chk_float = chk_float,
                                              chk_int   = chk_int,
-                                             chk_complex = chk_complex)
+                                             chk_complex = chk_complex,
+                                             chk_array = chk_array)
             if self.chkbox:
                 ret =  [None, [True, [value]], 27, [{'text':'Use'},
                                                     {'elp': [ret]}],]
@@ -258,4 +264,155 @@ class Vtable(OrderedDict):
     def make_value_or_expression(self, obj, keys = None):    
         keys = keys if keys is not None else self.keys()
         return [self[key].make_value_or_expression(obj) for key in keys]
+
+
+    
+class Vtable_mixin(object):
+    def check_phys_expr(self, value, param, ctrl, **kwargs):
+        try:
+            self.eval_phys_expr(str(value), param, **kwargs)
+            return True
+        except:
+            import petram.debug
+            import traceback
+            if petram.debug.debug_default_level > 2:
+                traceback.print_exc()
+            return False
+
+    def check_phys_expr_int(self, value, param, ctrl):
+        return self.check_phys_expr(value, param, ctrl, chk_int = True)
+
+    def check_phys_expr_float(self, value, param, ctrl):
+        return self.check_phys_expr(value, param, ctrl, chk_float = True)
+     
+    def check_phys_expr_complex(self, value, param, ctrl):
+        return self.check_phys_expr(value, param, ctrl, chk_complex = True)
+     
+    def check_phys_array_expr(self, value, param, ctrl, **kwargs):
+        try:
+            if not 'array' in self._global_ns:
+               self._global_ns['array'] = np.array
+            self.eval_phys_array_expr(str(value), param, **kwargs)
+            return True
+        except:
+            import petram.debug
+            import traceback
+            if petram.debug.debug_default_level > 2:
+               traceback.print_exc()
+            return False
+         
+    def check_phys_array_expr_int(self, value, param, ctrl):
+        return self.check_phys_array_expr(value, param, ctrl, chk_int = True)
+
+    def check_phys_array_expr_float(self, value, param, ctrl):
+        return self.check_phys_array_expr(value, param, ctrl, chk_float = True)
+
+    def check_phys_array_expr_complex(self, value, param, ctrl):
+        return self.check_phys_array_expr(value, param, ctrl, chk_complex = True)
+
+    def eval_phys_expr(self, value, param,
+                       chk_int = False, chk_complex = False, 
+                       chk_float = False):
+        def dummy():
+            pass
+        if value.startswith('='):
+            return dummy,  value.split('=')[1]
+        else:
+            x = eval(value, self._global_ns, self._local_ns)
+            if chk_int:
+                x = int(x)
+            elif chk_complex:
+                x = complex(x)
+            elif chk_float:
+                x = float(x)
+            else:
+                x = x + 0   # at least check if it is number.
+            dprint2('Value Evaluation ', param, '=', x)            
+            return x, None
+         
+    def eval_phys_array_expr(self, value, param, chk_complex = False,
+                             chk_float = False, chk_int = False):
+        def dummy():
+            pass
+        if value.startswith('='):
+            return dummy,  value.split('=')[1]           
+        else:
+            if not 'array' in self._global_ns:
+               self._global_ns['array'] = np.array
+            x = eval('array('+value+')', self._global_ns, self._local_ns)
+            if chk_int:
+                x = x.astype(int)
+            elif chk_complex:
+                x = x.astype(complex)
+            elif chk_float:
+                x = x.astype(float)
+            else:
+                x = x + 0   # at least check if it is number.
+            dprint2('Value Evaluation ', param, '=', x)            
+            return x, None
+         
+    # param_panel (defined in NS_mixin) verify if expression can be evaluated
+    # phys_param_panel verify if the value is actually float.
+    # it forces the number to become float after evaulating the expresison
+    # using namespace.     
+    def make_phys_param_panel(self, base_name, value, no_func = True,
+                              chk_int = False,
+                              chk_complex = False,
+                              chk_float = False,
+                              chk_array = False,
+                              validator = None):
+        if validator is None:
+            if chk_int:
+                validator = self.check_phys_expr_int
+            elif chk_float:
+                validator = self.check_phys_expr_float
+            elif chk_complex:
+                validator = self.check_phys_expr_complex            
+            else:
+                validator = self.check_phys_expr
+
+        if no_func:
+            return  [base_name + "(=)",  value, 0,  
+                     {'validator': validator,
+                     'validator_param':base_name}]
+        else:
+            return  [base_name + "(*)",  value, 0,  
+                     {'validator':   validator,
+                     'validator_param':base_name}]
+
+    def make_matrix_panel(self, base_name, suffix, row = 1, col = 1,
+                          chk_int = False,
+                          chk_complex = False,
+                          chk_float = False,
+                          validator = None):
+        if validator is None:
+           
+            if chk_int:
+                validator = self.check_phys_expr_int
+                validatora= self.check_phys_array_expr_int                      
+            elif chk_float:
+                validator = self.check_phys_expr_float           
+                validatora= self.check_phys_array_expr_float   
+            elif chk_complex:
+                validator = self.check_phys_expr_complex
+                validatora= self.check_phys_array_expr_complex                       
+            else:
+                validator = self.check_phys_expr
+                validatora= self.check_phys_array_expr       
+
+        a = [ {'validator': validator,
+               'validator_param':base_name + n} for n in suffix]
+        elp1 = [[None, None, 43, {'row': row,
+                                  'col': col,
+                                 'text_setting': a}],]
+        elp2 = [[None, None, 0, {'validator': validatora,
+                                 'validator_param': base_name + '_m'},]]
+
+        ll = [None, None, 34, ({'text': base_name + '*  ',
+                                'choices': ['Elemental Form', 'Array Form'],
+                                'call_fit': False},
+                                {'elp': elp1},  
+                                {'elp': elp2},),]
+        return ll
+
     

@@ -157,9 +157,9 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient):
         return np.array(val, copy=False).reshape(self.sdim, self.sdim)
        
 
-from petram.phys.vtable import VtableElement, Vtable
+from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
 
-class Phys(Model, NS_mixin):
+class Phys(Model, Vtable_mixin, NS_mixin):
     hide_ns_menu = True
     hide_nl_panel = False
     dep_var_base = []
@@ -337,7 +337,7 @@ class Phys(Model, NS_mixin):
              "you must specify this method in subclass")
 
 
-
+    '''
     def check_phys_expr(self, value, param, ctrl, **kwargs):
         try:
             self.eval_phys_expr(str(value), param, **kwargs)
@@ -429,6 +429,7 @@ class Phys(Model, NS_mixin):
                               chk_int = False,
                               chk_complex = False,
                               chk_float = False,
+                              chk_array = False,
                               validator = None):
         if validator is None:
             if chk_int:
@@ -483,7 +484,7 @@ class Phys(Model, NS_mixin):
                                 {'elp': elp1},  
                                 {'elp': elp2},),]
         return ll
-
+    '''
     def add_variables(self, solvar, n, solr, soli = None):
         '''
         add model variable so that a user can interept simulation 
