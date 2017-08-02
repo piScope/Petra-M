@@ -21,7 +21,8 @@ class Mesh(Model):
 
 class MeshGroup(Model):
     can_delete = True
-    has_2nd_panel = False    
+    has_2nd_panel = False
+    isMeshGroup = True    
     def get_possible_child(self):
         return [MeshFile, UniformRefinement]          
 

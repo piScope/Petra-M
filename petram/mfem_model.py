@@ -87,9 +87,12 @@ class MFEM_MeshRoot(Model):
     can_delete = False
     has_2nd_panel = False    
     def get_possible_child(self):
-        from mesh.mesh_model import MeshFile, UniformRefinement, MeshGroup
-        return [MeshGroup,]
-
+        from mesh.mesh_model import MeshGroup
+        try:
+            from petram.mesh.gmsh_mesh_model import GmshMesh
+            return [MeshGroup, GmshMesh]
+        except:
+            return [MeshGroup]
 class MFEM_SolverRoot(Model):
     can_delete = False
     has_2nd_panel = False    

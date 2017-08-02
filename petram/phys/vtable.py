@@ -9,7 +9,7 @@
 
   name : 'tol'
   guilabel: 'tolelance (%)'
-  type : 'any', 'float, 'int', 'complex'
+  type : 'any', 'float, 'int', 'complex', 'array', 'string'
   suffix : [('x', 'y', 'z'), ('x', 'y', 'z')]
   cb :   callback method name
   no_func: True: it can not become variable (use '=')
@@ -75,10 +75,12 @@ class VtableElement(object):
 
     def txt2value(self, txt):
         if self.type == 'float': return float(txt)
-        if self.type == 'complex': return complex(txt)
-        if self.type == 'int': return int(txt)
-        if self.type == 'long': return long(txt)
-        if self.type == 'array': return np.array(eval(txt))
+        elif self.type == 'complex': return complex(txt)
+        elif self.type == 'int': return int(txt)
+        elif self.type == 'long': return long(txt)
+        elif self.type == 'array': return np.array(eval(txt))
+        elif self.type == 'string': return str(txt)
+        elif self.type == 'any': return txt
         return float(txt)
     
     def add_attribute(self, v):
@@ -111,6 +113,7 @@ class VtableElement(object):
         chk_int     = (self.type == 'int')
         chk_complex = (self.type == 'complex')
         chk_array   = (self.type == 'array')
+        chk_string   = (self.type == 'string')        
         if len(self.shape) == 0:
             value = getattr(obj, self.name + '_txt')
             ret = obj.make_phys_param_panel(self.guilabel,
@@ -119,7 +122,8 @@ class VtableElement(object):
                                              chk_float = chk_float,
                                              chk_int   = chk_int,
                                              chk_complex = chk_complex,
-                                             chk_array = chk_array)
+                                             chk_array = chk_array,
+                                             chk_string = chk_string)            
             if self.chkbox:
                 ret =  [None, [True, [value]], 27, [{'text':'Use'},
                                                     {'elp': [ret]}],]
@@ -205,6 +209,8 @@ class VtableElement(object):
         if len(self.shape) == 0:
             if self.no_func:
                 pass
+            elif self.type == 'string':
+                return str(getattr(obj, self.name))        
             else:
                 var, f_name0 = obj.eval_phys_expr(getattr(obj, self.name),
                                            self.name)
@@ -360,6 +366,7 @@ class Vtable_mixin(object):
                               chk_complex = False,
                               chk_float = False,
                               chk_array = False,
+                              chk_string = False,                              
                               validator = None):
         if validator is None:
             if chk_int:
@@ -367,7 +374,9 @@ class Vtable_mixin(object):
             elif chk_float:
                 validator = self.check_phys_expr_float
             elif chk_complex:
-                validator = self.check_phys_expr_complex            
+                validator = self.check_phys_expr_complex
+            elif chk_string:
+                validator = None
             else:
                 validator = self.check_phys_expr
 
@@ -375,6 +384,8 @@ class Vtable_mixin(object):
             return  [base_name + "(=)",  value, 0,  
                      {'validator': validator,
                      'validator_param':base_name}]
+        elif chk_string:
+            return  [base_name,  value, 0,  {}]
         else:
             return  [base_name + "(*)",  value, 0,  
                      {'validator':   validator,

@@ -129,7 +129,7 @@ class Engine(object):
         items = []
 
         for k in model['Mesh'].keys():
-            if  model['Mesh'][k].__class__.__name__ != "MeshGroup":
+            if  not hasattr(model['Mesh'][k], 'isMeshGroup'):
                 if g is None:
                     name = model['Mesh'].add_item('MeshGroup', MeshGroup)
                     g = model['Mesh'][name]

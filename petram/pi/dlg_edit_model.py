@@ -26,6 +26,8 @@ class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
         if item.has_ns():
             if item.get_ns_name() is not None:
                 txt = txt + '(NS:'+item.ns_name + ')'
+        if hasattr(item, 'isGeom') and hasattr(item, '_newobjs'):
+                txt = txt + '('+','.join(item._newobjs) + ')'            
         return txt
     def OnGetItemTextColour(self, indices):
         item = self.topwindow.model.GetItem(indices)
@@ -123,7 +125,8 @@ class DlgEditModel(DialogWithWindowList):
                tree.RefreshItems()
            txt = cls.__name__.split('_')[-1]
            menus=menus+[('Add '+txt, add_func, None),]
-
+        for t, m in mm.get_special_menu():
+           menus=menus+[(t, m, None),]            
         menus = menus + [('---', None, None)]
         if mm.has_ns() and not mm.hide_ns_menu:
             if mm.ns_name is not None:
@@ -190,8 +193,9 @@ class DlgEditModel(DialogWithWindowList):
         del mm.parent[text]   
         self.tree.RefreshItems()
 
-    def OnRefreshTree(self, evt):
+    def OnRefreshTree(self, evt=None):
         self.tree.RefreshItems()
+        if evt is not None: evt.Skip()
 
     def OnItemSelChanged(self, evt = None):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())

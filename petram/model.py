@@ -228,6 +228,9 @@ class Model(RestorableOrderedDict):
     
     def get_possible_child(self):
         return []
+    
+    def get_special_menu(self):
+        return []
 
     def add_item(self, txt, cls,  **kwargs):
         
