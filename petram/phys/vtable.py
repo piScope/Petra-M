@@ -67,18 +67,24 @@ class VtableElement(object):
         self.cb = cb
         self.no_func = no_func
         if name is not None:
-            self.default = np.array(default, copy = False)
+            if type=='string':
+                self.default = default
+            elif type=='array':
+                self.default = default
+            else:
+                self.default = np.array(default, copy = False)
         else:
             self.default = default
         self.guilabel = guilabel if guilabel is not None else self.name
         self.tip = tip
 
     def txt2value(self, txt):
+        # note txt is not always text...
         if self.type == 'float': return float(txt)
         elif self.type == 'complex': return complex(txt)
         elif self.type == 'int': return int(txt)
         elif self.type == 'long': return long(txt)
-        elif self.type == 'array': return np.array(eval(txt))
+        elif self.type == 'array':return txt
         elif self.type == 'string': return str(txt)
         elif self.type == 'any': return txt
         return float(txt)
@@ -87,7 +93,7 @@ class VtableElement(object):
         if self.name is None: return
         if len(self.shape) == 0:
             v[self.name] = self.txt2value(self.default)
-            v[self.name + '_txt'] = self.default
+            v[self.name + '_txt'] = str(self.default)
             if self.chkbox:
                 v['use_' + self.name] = False
         else:
@@ -97,7 +103,7 @@ class VtableElement(object):
             suffix = ['_'+x for x in self.suffix]             
             for x, v_txt  in zip(suffix, values):
                 v[self.name + x] = self.txt2value(v_txt)
-                v[self.name + x + '_txt'] = v_txt
+                v[self.name + x + '_txt'] = str(v_txt)
             v[self.name + '_m'] =  self.default
             xxx = self.default.__repr__().split('(')[1].split(')')[0]
             v[self.name + '_m_txt'] =  ''.join(xxx.split("\n"))
@@ -123,7 +129,7 @@ class VtableElement(object):
                                              chk_int   = chk_int,
                                              chk_complex = chk_complex,
                                              chk_array = chk_array,
-                                             chk_string = chk_string)            
+                                             chk_string = chk_string) 
             if self.chkbox:
                 ret =  [None, [True, [value]], 27, [{'text':'Use'},
                                                     {'elp': [ret]}],]
@@ -192,7 +198,8 @@ class VtableElement(object):
         if self.name is None: return                
         if len(self.shape) == 0:
             if self.no_func:
-                value = obj.eval_phys_expr(str(getattr(obj, self.name+'_txt')),
+                value = obj.eval_phys_expr(str(getattr(obj,
+                                                       self.name+'_txt')),
                                            self.name)[0]
                 setattr(obj, self.name, value)
             else:
@@ -205,7 +212,9 @@ class VtableElement(object):
                          str(getattr(obj, self.name + n + '_txt')))
                              
     def make_value_or_expression(self, obj):
-        if self.name is None: return None                     
+        if self.name is None: return None
+
+        kwargs = {}; kwargs['chk_'+self.type]=True
         if len(self.shape) == 0:
             if self.no_func:
                 pass
@@ -213,7 +222,8 @@ class VtableElement(object):
                 return str(getattr(obj, self.name))        
             else:
                 var, f_name0 = obj.eval_phys_expr(getattr(obj, self.name),
-                                           self.name)
+                                                  self.name,
+                                                  **kwargs)
                 if f_name0 is None: return var
                 return f_name0
         else:
@@ -293,6 +303,9 @@ class Vtable_mixin(object):
      
     def check_phys_expr_complex(self, value, param, ctrl):
         return self.check_phys_expr(value, param, ctrl, chk_complex = True)
+    
+    def check_phys_expr_array(self, value, param, ctrl):
+        return self.check_phys_expr(value, param, ctrl, chk_array = True)
      
     def check_phys_array_expr(self, value, param, ctrl, **kwargs):
         try:
@@ -318,7 +331,7 @@ class Vtable_mixin(object):
 
     def eval_phys_expr(self, value, param,
                        chk_int = False, chk_complex = False, 
-                       chk_float = False):
+                       chk_float = False, chk_array = False):
         def dummy():
             pass
         if value.startswith('='):
@@ -331,6 +344,8 @@ class Vtable_mixin(object):
                 x = complex(x)
             elif chk_float:
                 x = float(x)
+            elif chk_array:
+                x = np.atleast_1d(np.array(x, copy= False))
             else:
                 x = x + 0   # at least check if it is number.
             dprint2('Value Evaluation ', param, '=', x)            
@@ -366,7 +381,7 @@ class Vtable_mixin(object):
                               chk_complex = False,
                               chk_float = False,
                               chk_array = False,
-                              chk_string = False,                              
+                              chk_string = False,
                               validator = None):
         if validator is None:
             if chk_int:
@@ -377,6 +392,8 @@ class Vtable_mixin(object):
                 validator = self.check_phys_expr_complex
             elif chk_string:
                 validator = None
+            elif chk_array:
+                validator = self.check_phys_expr_array
             else:
                 validator = self.check_phys_expr
 
@@ -400,13 +417,13 @@ class Vtable_mixin(object):
            
             if chk_int:
                 validator = self.check_phys_expr_int
-                validatora= self.check_phys_array_expr_int                      
+                validatora= self.check_phys_array_expr_int           
             elif chk_float:
                 validator = self.check_phys_expr_float           
                 validatora= self.check_phys_array_expr_float   
             elif chk_complex:
                 validator = self.check_phys_expr_complex
-                validatora= self.check_phys_array_expr_complex                       
+                validatora= self.check_phys_array_expr_complex
             else:
                 validator = self.check_phys_expr
                 validatora= self.check_phys_array_expr       
