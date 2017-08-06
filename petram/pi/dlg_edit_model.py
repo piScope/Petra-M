@@ -380,6 +380,17 @@ class DlgEditModel(DialogWithWindowList):
         mm.enabled = True
         self.tree.RefreshItems()
 
+    def select_next_enabled(self):
+        item = self.tree.GetSelection()
+        while True:
+           item = self.tree.GetNextSibling(item)
+           if not item.IsOk(): return 
+           indices = self.tree.GetIndexOfItem(item)
+           mm = self.model.GetItem(indices)
+           if mm.enabled:
+               self.tree.SelectItem(item)
+               return
+
     @staticmethod                         
     def MoveItemInList(l, i1,i2):
         if i1 > i2:
