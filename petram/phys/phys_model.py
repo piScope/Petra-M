@@ -552,6 +552,14 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         else:
            coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)           
         adder(integrator(coeff))
+        
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.canvas.use_navibar_palette('petram_palette', mode = '3D')
 
 
 class PhysModule(Phys):

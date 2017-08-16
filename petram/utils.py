@@ -1,6 +1,7 @@
 '''
    utility routines
 '''
+import os
 import numpy as np
 import resource    
 from petram.mfem_config import use_parallel
@@ -77,6 +78,20 @@ def eval_loc(sol, battrs):
     locs   = np.stack([np.stack([mesh.GetVertexArray(k) for k in ivert])     
                           for ivert in iverts])
     return locs
+
+
+def get_pkg_datafile(pkg, *path):
+    '''
+    return package data
+
+    ex) get_pkg_datafile(petram.geom, 'icon', 'line.png')
+    '''
+    file = getattr(pkg, '__file__')
+    root = os.path.abspath(os.path.dirname(file))
+    return os.path.join(os.path.dirname(root), 'data', *path)
+
+
+ 
 '''
 This is old less accurate code.
 Those derivatis should be evaulated using DiscreteLinearInterpolator.

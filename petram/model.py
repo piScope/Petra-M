@@ -335,6 +335,15 @@ class Model(RestorableOrderedDict):
     def import_panel4_value(self, v):
         pass
 
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.canvas.use_navibar_std_palette()
+        
+    
     def export_modeldata(self):
         pass
 

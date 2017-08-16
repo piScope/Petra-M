@@ -14,6 +14,13 @@ import os
 import wx
 import traceback
 
+try:
+    import petram.geom
+    hasGeom = True
+except ImportError:
+    hasGeom = False
+    
+
 def setup_figure(fig):
     fig.nsec(1)
     fig.property(fig.get_axes(0), 'axis', False)
@@ -80,13 +87,26 @@ class MFEMViewer(BookViewer):
         ret = BuildMenu(extra_menu, menus)
         self._solmenu = ret[ID_SOL_FOLDER]
         self._hidemesh = True
-        self._sel_mode = ''  # selecting particular geometry element
+        self._sel_mode = ''  # selecting particular geomgetry element
         self.model = self.book.get_parent()
         self.editdlg = None
         self.plotsoldlg = None
         self.plotexprdlg = None        
         self.engine = None
         self.dombdr = None
+
+        from petram.pi.sel_buttons import btask
+        self.canvas.install_navibar_palette('petram_palette',
+                                             btask,
+                                             mode = '3D')
+        self.canvas.use_navibar_palette('petram_palette',
+                                        mode = '3D')    
+        if hasGeom:
+            from petram.geom.geom_sel_buttons import btask
+            self.canvas.install_navibar_palette('petram_geom',
+                                                btask,
+                                                mode = '3D')
+            
         od = self.model.param.getvar('mfem_model')
         if od is None:
             self.model.scripts.helpers.reset_model()

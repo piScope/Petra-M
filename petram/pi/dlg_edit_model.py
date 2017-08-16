@@ -256,7 +256,10 @@ class DlgEditModel(DialogWithWindowList):
                     phys = mm.get_root_phys()
                     engine.assign_sel_index(phys)
                 viewer.highlight_domain(mm._sel_index)
-        if evt is not None: evt.Skip()
+                
+        if evt is not None:
+            mm.onItemSelChanged(evt)      
+            evt.Skip()
         
     def OnClose(self, evt):
         wx.GetApp().rm_palette(self)
@@ -390,6 +393,7 @@ class DlgEditModel(DialogWithWindowList):
            if mm.enabled:
                self.tree.SelectItem(item)
                return
+        wx.CallAfter(self.Refresh, False)
 
     @staticmethod                         
     def MoveItemInList(l, i1,i2):
