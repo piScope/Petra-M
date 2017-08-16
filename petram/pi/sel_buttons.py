@@ -6,6 +6,16 @@ fedge = get_pkg_datafile(petram.pi, 'icon', 'line.png')
 fface = get_pkg_datafile(petram.pi, 'icon', 'face.png')
 fdom = get_pkg_datafile(petram.pi, 'icon', 'domain.png')
 
+def _select_x(evt, mode, mask):
+    viewer = evt.GetEventObject().GetTopLevelParent()
+    viewer._sel_mode = mode
+    viewer.canvas.unselect_all()    
+    viewer.set_picker_mask(mask)
+    for name, child in viewer.get_axes().get_children():
+        if hasattr(child, 'setSelectedIndesx'):
+            child.setSelectedIndex([])
+    viewer.draw()
+
 def select_dot(evt):
     print(evt.GetEventObject())
     

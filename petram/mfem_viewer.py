@@ -250,6 +250,10 @@ class MFEMViewer(BookViewer):
         mesh = self.engine.get_mesh()
         if mesh is None: return
         names = [x().figobj._name for x in self.canvas.selection if x() is not None]
+        
+        for x in self.canvas.selection:
+            print x().figobj.getSelectedIndex()
+        
         self._dom_bdr_sel  = (None, None)
         try:
            if mesh.Dimension() == 3:
@@ -570,11 +574,11 @@ class MFEMViewer(BookViewer):
         self._sel_mode = 'point'                        
     def onSelAny(self, evt):
         self.set_picker_mask('')
-        self._sel_mode = ''                                
+        self._sel_mode = ''
+        
     def set_picker_mask(self, key):
         for name, child in self.get_axes().get_children():
-            if name.startswith(key): child._pickmask = False
-            else: child._pickmask = True
+            child.set_pickmask(not name.startswith(key))
             
     def onShowMesh(self, evt):
         from petram.mesh.plot_mesh  import plot_domainmesh        
