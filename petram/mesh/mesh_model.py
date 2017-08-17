@@ -17,14 +17,30 @@ else:
    import mfem.ser as mfem
 
 class Mesh(Model):
-    pass
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.canvas.use_navibar_palette('petram_mesh', mode = '3D')
+        viewer._view_mode = 'mesh'
 
 class MeshGroup(Model):
     can_delete = True
     has_2nd_panel = False
     isMeshGroup = True    
     def get_possible_child(self):
-        return [MeshFile, UniformRefinement]          
+        return [MeshFile, UniformRefinement]
+     
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.canvas.use_navibar_palette('petram_mesh', mode = '3D')
+        viewer._view_mode = 'mesh'
 
 
 class MeshFile(Mesh):

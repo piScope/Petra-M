@@ -560,6 +560,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.canvas.use_navibar_palette('petram_palette', mode = '3D')
+        viewer._view_mode = 'phys'
 
 
 class PhysModule(Phys):

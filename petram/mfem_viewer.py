@@ -88,6 +88,8 @@ class MFEMViewer(BookViewer):
         self._solmenu = ret[ID_SOL_FOLDER]
         self._hidemesh = True
         self._sel_mode = ''  # selecting particular geomgetry element
+        self._view_mode = ''  # ('geom', 'mesh', 'phys')
+        self._s_v_loop = (None, None)  ## surface and volume link
         self.model = self.book.get_parent()
         self.editdlg = None
         self.plotsoldlg = None
@@ -99,8 +101,12 @@ class MFEMViewer(BookViewer):
         self.canvas.install_navibar_palette('petram_palette',
                                              btask,
                                              mode = '3D')
+        from petram.mesh.mesh_sel_buttons import btask
+        self.canvas.install_navibar_palette('petram_mesh',
+                                             btask,
+                                             mode = '3D')
         self.canvas.use_navibar_palette('petram_palette',
-                                        mode = '3D')    
+                                        mode = '3D')
         if hasGeom:
             from petram.geom.geom_sel_buttons import btask
             self.canvas.install_navibar_palette('petram_geom',
@@ -247,12 +253,63 @@ class MFEMViewer(BookViewer):
         evt.Skip()
         
     def onTD_SelectionInFigure(self, evt = None):
+        if len(self.canvas.selection) == 0: return
+
+        status_txt = ''
+        if self._sel_mode == 'volume':
+            if self._s_v_loop[1] is None: return
+            idx = self.get_axes().faces.getSelectedIndex()
+            sl =self._s_v_loop[1]
+
+            selected_volume = []
+            for i in idx:
+               for k in sl.keys():
+                   if i in sl[k]:
+                       selected_volume.append(k)
+            selected_volume = list(sel(selected_volume))
+            surf_idx = []
+            for kk in selected_volume:
+                surf_idx.extend(sl[kk])
+            surf_idx = list(set(surf_idx))
+
+            status_txt = 'Volume :'+ ','.join([str(x) for x in selected_volume])
+            self.get_axes().faces.setSelectedIndex(surf_idx)
+
+        elif self._sel_mode == 'face':
+            idx = self.get_axes().faces.getSelectedIndex()
+            v =self._s_v_loop[1]
+            connected_vol = []
+            for i in idx:
+               for k in v.keys():
+                   if i in v[k]: connected_vol.append(k)
+            connected_vol = list(set(connected_vol))            
+            status_txt = ('Face: '+ ','.join([str(x) for x in idx]) + '(Volume: ' +
+                        ','.join([str(x) for x in connected_vol]) + ')')
+
+        elif self._sel_mode == 'edge':
+            idx = self.get_axes().edges.getSelectedIndex()
+            s =self._s_v_loop[0]
+            connected_surf = []
+            for i in idx:
+               for k in s.keys():
+                   if i in s[k]: connected_surf.append(k)
+            connected_vol = list(set(connected_surf))            
+            status_txt = ('Edge: '+ ','.join([str(x) for x in idx]) + '(Face: ' +
+                        ','.join([str(x) for x in connected_vol]) + ')')
+            
+        elif self._sel_mode == 'point':
+            idx = self.get_axes().points.getSelectedIndex()
+            status_txt = 'Vertex: '+ ','.join([str(x) for x in idx])
+        else:
+            pass
+        
+        self.set_status_text(status_txt, timeout = 3000)
+
+        
         mesh = self.engine.get_mesh()
         if mesh is None: return
         names = [x().figobj._name for x in self.canvas.selection if x() is not None]
         
-        for x in self.canvas.selection:
-            print x().figobj.getSelectedIndex()
         
         self._dom_bdr_sel  = (None, None)
         try:
@@ -561,20 +618,29 @@ class MFEMViewer(BookViewer):
         self.onRmSelection(evt, flag = 2)
         
     def onSelVolume(self, evt):
-        self.set_picker_mask('face') # volume is not shown as figobj
-        self._sel_mode = 'volume'
+        self.set_sel_mode('volume')        
+
     def onSelFace(self, evt):
-        self.set_picker_mask('face')
-        self._sel_mode = 'face'        
+        self.set_sel_mode('face')
+
     def onSelEdge(self, evt):
-        self.set_picker_mask('edge')
-        self._sel_mode = 'edge'                
+        self.set_sel_mode('edge')        
+
     def onSelPoint(self, evt):
-        self.set_picker_mask('point')
-        self._sel_mode = 'point'                        
+        self.set_sel_mode('point')
+
     def onSelAny(self, evt):
         self.set_picker_mask('')
         self._sel_mode = ''
+        
+    def set_sel_mode(self, mode):
+        # mode = volume | face | edge | point
+        self._sel_mode = mode
+        mask = mode if mode != 'volume' else 'face'
+        self.set_picker_mask(mask)
+        
+    def get_sel_mode(self):
+        return self._sel_mode
         
     def set_picker_mask(self, key):
         for name, child in self.get_axes().get_children():

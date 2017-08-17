@@ -76,6 +76,15 @@ class MFEM_PhysRoot(Model):
             solvars[k] = solvar
         return solvars
 
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.canvas.use_navibar_palette('petram_palette', mode = '3D')
+        viewer._view_mode = 'phys'
+
 class MFEM_InitRoot(Model):    
     can_delete = False
     has_2nd_panel = False        
@@ -93,6 +102,16 @@ class MFEM_MeshRoot(Model):
             return [MeshGroup, GmshMesh]
         except:
             return [MeshGroup]
+
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.canvas.use_navibar_palette('petram_mesh', mode = '3D')
+        viewer._view_mode = 'mesh'
+        
 class MFEM_SolverRoot(Model):
     can_delete = False
     has_2nd_panel = False    
