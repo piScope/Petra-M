@@ -266,7 +266,7 @@ class MFEMViewer(BookViewer):
                for k in sl.keys():
                    if i in sl[k]:
                        selected_volume.append(k)
-            selected_volume = list(sel(selected_volume))
+            selected_volume = list(set(selected_volume))
             surf_idx = []
             for kk in selected_volume:
                 surf_idx.extend(sl[kk])
