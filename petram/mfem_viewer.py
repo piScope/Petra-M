@@ -13,6 +13,7 @@ import numpy as np
 import os
 import wx
 import traceback
+import weakref
 
 try:
     import petram.geom
@@ -97,21 +98,24 @@ class MFEMViewer(BookViewer):
         self.engine = None
         self.dombdr = None
 
-        from petram.pi.sel_buttons import btask
-        self.canvas.install_navibar_palette('petram_palette',
-                                             btask,
-                                             mode = '3D')
+        from petram.pi.sel_buttons import btask, refresh
+        self.install_toolbar_palette('petram_palette',
+                                            btask,
+                                            mode = '3D',
+                                            refresh = refresh)
         from petram.mesh.mesh_sel_buttons import btask
-        self.canvas.install_navibar_palette('petram_mesh',
+        self.install_toolbar_palette('petram_mesh',
                                              btask,
-                                             mode = '3D')
-        self.canvas.use_navibar_palette('petram_palette',
+                                             mode = '3D',
+                                             refresh = refresh)
+        self.use_toolbar_palette('petram_palette',
                                         mode = '3D')
         if hasGeom:
             from petram.geom.geom_sel_buttons import btask
-            self.canvas.install_navibar_palette('petram_geom',
+            self.install_toolbar_palette('petram_geom',
                                                 btask,
-                                                mode = '3D')
+                                                mode = '3D',
+                                                refresh = refresh)
             
         od = self.model.param.getvar('mfem_model')
         if od is None:
@@ -258,7 +262,7 @@ class MFEMViewer(BookViewer):
         status_txt = ''
         if self._sel_mode == 'volume':
             if self._s_v_loop[1] is None: return
-            idx = self.get_axes().faces.getSelectedIndex()
+            idx = self.get_axes().face.getSelectedIndex()
             sl =self._s_v_loop[1]
 
             selected_volume = []
@@ -273,10 +277,10 @@ class MFEMViewer(BookViewer):
             surf_idx = list(set(surf_idx))
 
             status_txt = 'Volume :'+ ','.join([str(x) for x in selected_volume])
-            self.get_axes().faces.setSelectedIndex(surf_idx)
+            self.get_axes().face.setSelectedIndex(surf_idx)
 
         elif self._sel_mode == 'face':
-            idx = self.get_axes().faces.getSelectedIndex()
+            idx = self.get_axes().face.getSelectedIndex()
             v =self._s_v_loop[1]
             connected_vol = []
             for i in idx:
@@ -287,7 +291,7 @@ class MFEMViewer(BookViewer):
                         ','.join([str(x) for x in connected_vol]) + ')')
 
         elif self._sel_mode == 'edge':
-            idx = self.get_axes().edges.getSelectedIndex()
+            idx = self.get_axes().edge.getSelectedIndex()
             s =self._s_v_loop[0]
             connected_surf = []
             for i in idx:
@@ -298,7 +302,7 @@ class MFEMViewer(BookViewer):
                         ','.join([str(x) for x in connected_vol]) + ')')
             
         elif self._sel_mode == 'point':
-            idx = self.get_axes().points.getSelectedIndex()
+            idx = self.get_axes().point.getSelectedIndex()
             status_txt = 'Vertex: '+ ','.join([str(x) for x in idx])
         else:
             pass
@@ -400,6 +404,34 @@ class MFEMViewer(BookViewer):
                                 linewidths = lw)               
             
 #            plot_domain(mesh = mesh, viewer = self)
+
+    def highlight_element(self, sel):
+        print sel
+        ax = self.get_axes()
+
+        obj = None
+        if ax.has_child('point'):
+            ax.point.setSelectedIndex(sel['point'])
+            obj = ax.point
+            if len(sel['point']) != 0: obj = ax.point
+            
+        if ax.has_child('edge'):
+            ax.edge.setSelectedIndex(sel['edge'])
+            if len(sel['edge']) != 0: obj = ax.edge
+            
+        if ax.has_child('face'):
+            ax.face.setSelectedIndex(sel['face'])
+            if len(sel['volume']) != 0:
+                if self._s_v_loop[1] is None: return
+                sl =self._s_v_loop[1]
+                faces = []
+                for i in sel['volume']:
+                   face.append(sl[i])
+                faces_idx = list(set(face))
+                ax.face.setSelectedIndex(face)
+            if len(sel['face']) != 0: obj = ax.face
+            
+        return obj
 
     def highlight_domain(self, i):
         '''
@@ -633,8 +665,10 @@ class MFEMViewer(BookViewer):
         self.set_picker_mask('')
         self._sel_mode = ''
         
-    def set_sel_mode(self, mode):
-        # mode = volume | face | edge | point
+    def set_sel_mode(self, mode = None):
+        if mode is None:
+            self.refresh_toolbar_buttons()
+            return
         self._sel_mode = mode
         mask = mode if mode != 'volume' else 'face'
         self.set_picker_mask(mask)

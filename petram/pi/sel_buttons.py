@@ -26,7 +26,20 @@ def select_face(evt):
     print(evt.GetEventObject())
     
 def select_dom(evt):
-    print(evt.GetEventObject())    
-    
+    print(evt.GetEventObject())
+
+def refresh(navibar, btnls):
+    viewer = navibar.GetTopLevelParent()
+    mode = viewer._sel_mode
+    for btnl in btnls:
+        if isinstance(btnl, str): continue
+        if btnl.tg == 2:
+            if btnl.btask == mode:
+               btnl.SetToggled(True)
+               btnl.SetBitmap(btnl.bitmap2)
+            else:
+               btnl.SetToggled(False)
+               btnl.SetBitmap(btnl.bitmap1)
+               
 btask = [('face',   fface, 2, 'select face', select_face),
          ('domain', fdom,  2, 'select domain', select_dom),]

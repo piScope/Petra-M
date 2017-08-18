@@ -321,19 +321,32 @@ class Model(RestorableOrderedDict):
         pass
 
     def import_panel1_value(self, v):
-        pass
+        '''
+        return value : gui_update_request
+        '''
+        return False
     
     def import_panel2_value(self, v):
+        '''
+        return value : gui_update_request
+        '''
         if not self.sel_readonly:
            arr =  str(v[0]).split(',')
            arr = [x for x in arr if x.strip() != '']
            self.sel_index = arr
-           
+        return False
+    
     def import_panel3_value(self, v):
-        pass
+        '''
+        return value : gui_update_request
+        '''
+        return False        
     
     def import_panel4_value(self, v):
-        pass
+        '''
+        return value : gui_update_request
+        '''
+        return False                
 
     def onItemSelChanged(self, evt):
         '''
@@ -341,7 +354,7 @@ class Model(RestorableOrderedDict):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.canvas.use_navibar_std_palette()
+        viewer.use_toolbar_std_palette()
         
     
     def export_modeldata(self):

@@ -559,7 +559,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.canvas.use_navibar_palette('petram_palette', mode = '3D')
+        viewer.use_toolbar_palette('petram_palette', mode = '3D')
         viewer._view_mode = 'phys'
 
 

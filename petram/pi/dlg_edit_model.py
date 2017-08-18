@@ -280,10 +280,11 @@ class DlgEditModel(DialogWithWindowList):
   
         p1children = self.p1sizer.GetChildren()
         phys = None
+        gui_update = False
         if len(p1children) > 0:
             elp1 = p1children[0].GetWindow()
             v1 = elp1.GetValue()
-            mm.import_panel1_value(v1)
+            viewer_update = mm.import_panel1_value(v1)
             try:
                 phys = mm.get_root_phys()
             except:
@@ -293,19 +294,22 @@ class DlgEditModel(DialogWithWindowList):
             if len(p2children) > 0:
                 elp2 = p2children[0].GetWindow()
                 v2 = elp2.GetValue()
-                mm.import_panel2_value(v2)
+                viewer_update = mm.import_panel2_value(v2)
         if mm.has_3rd_panel:                
             p3children = self.p3sizer.GetChildren()
             if len(p3children) > 0:
                 elp3 = p3children[0].GetWindow()
                 v3 = elp3.GetValue()
-                mm.import_panel3_value(v3)
+                viewer_update = mm.import_panel3_value(v3)
         if phys is not None:
            viewer = self.GetParent()
            try:
                engine = viewer.engine.assign_sel_index(phys)
            except:
                traceback.print_exc()
+               
+        if viewer_update:
+            mm.update_after_ELChanged(self)
         evt.Skip()
 
     def OnEL_Changing(self, evt):

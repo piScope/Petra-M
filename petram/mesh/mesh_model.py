@@ -23,7 +23,7 @@ class Mesh(Model):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.canvas.use_navibar_palette('petram_mesh', mode = '3D')
+        viewer.use_toolbar_palette('petram_mesh', mode = '3D')
         viewer._view_mode = 'mesh'
 
 class MeshGroup(Model):
@@ -39,7 +39,7 @@ class MeshGroup(Model):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.canvas.use_navibar_palette('petram_mesh', mode = '3D')
+        viewer.use_toolbar_palette('petram_mesh', mode = '3D')
         viewer._view_mode = 'mesh'
 
 
