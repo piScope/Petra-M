@@ -183,7 +183,15 @@ class DlgEditModel(DialogWithWindowList):
         newmm = pickle.loads(pickle.dumps(mm))
 #        mm._parent = parent
         index = parent.keys().index(name)
-        parent.insert_item(index+1, base+str(long(num)+1), newmm)
+        nums = []
+        for key in parent.keys():
+           print key, base
+           base0 = ''.join([k for k in key if not k.isdigit()])
+           if base0 != base: continue
+           print nums
+           nums.append(int(''.join([k for k in key if k.isdigit()])))
+        
+        parent.insert_item(index+1, base+str(long(max(nums))+1), newmm)
         self.tree.RefreshItems()        
         
     def OnDeleteItemFromModel(self, evt):

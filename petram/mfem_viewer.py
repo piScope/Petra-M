@@ -91,6 +91,7 @@ class MFEMViewer(BookViewer):
         self._sel_mode = ''  # selecting particular geomgetry element
         self._view_mode = ''  # ('geom', 'mesh', 'phys')
         self._s_v_loop = (None, None)  ## surface and volume link
+        self._selected_volume = []    # store selected volume        
         self.model = self.book.get_parent()
         self.editdlg = None
         self.plotsoldlg = None
@@ -260,6 +261,7 @@ class MFEMViewer(BookViewer):
         if len(self.canvas.selection) == 0: return
 
         status_txt = ''
+        self._selected_volume = []
         if self._sel_mode == 'volume':
             if self._s_v_loop[1] is None: return
             idx = self.get_axes().face.getSelectedIndex()
@@ -278,7 +280,7 @@ class MFEMViewer(BookViewer):
 
             status_txt = 'Volume :'+ ','.join([str(x) for x in selected_volume])
             self.get_axes().face.setSelectedIndex(surf_idx)
-
+            self._selected_volume = selected_volume
         elif self._sel_mode == 'face':
             idx = self.get_axes().face.getSelectedIndex()
             v =self._s_v_loop[1]
