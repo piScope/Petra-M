@@ -395,6 +395,13 @@ class DlgEditModel(DialogWithWindowList):
         mm.enabled = True
         self.tree.RefreshItems()
 
+    def get_selected_mm(self):
+        import   ifigure.widgets.dialog as dialog
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+        return mm
+        
+
     def select_next_enabled(self):
         item = self.tree.GetSelection()
         while True:

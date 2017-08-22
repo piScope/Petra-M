@@ -6,6 +6,7 @@ PetraM_PATH =os.getenv("PetraM")
 HOME = os.path.expanduser("~")
 
 from petram.model import Model
+from petram.namespace_mixin import NS_mixin
 from petram.mfem_config import use_parallel
 
 if use_parallel:
@@ -16,7 +17,11 @@ if use_parallel:
 else:
    import mfem.ser as mfem
 
-class Mesh(Model):
+class Mesh(Model, NS_mixin):
+    def __init__(self, *args, **kwargs):
+        super(Mesh, self).__init__(*args, **kwargs)
+        NS_mixin.__init__(self, *args, **kwargs)
+   
     def onItemSelChanged(self, evt):
         '''
         GUI response when model object is selected in

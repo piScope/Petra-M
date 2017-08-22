@@ -121,7 +121,7 @@ class Model(RestorableOrderedDict):
         return self._hook
         
     def __repr__(self):
-         return self.__class__.__name__+'('+','.join(self.keys()) + ')'
+         return self.__class__.__name__+'('+self.name()+':'+','.join(self.keys()) + ')'
 
     def attribute_set(self, v):
         v['enabled'] = True

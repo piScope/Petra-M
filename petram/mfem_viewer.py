@@ -257,6 +257,15 @@ class MFEMViewer(BookViewer):
 
         evt.Skip()
         
+    def _getSelectedIndex(self, mode='face'):
+        ax = self.get_axes()
+        if ax.has_child(mode+"_meshed"):
+           name = mode+"_meshed"
+        else:
+           name = mode            
+        obj = ax.get_child(name = name)
+        return obj.getSelectedIndex(), obj
+    
     def onTD_SelectionInFigure(self, evt = None):
         if len(self.canvas.selection) == 0: return
 
@@ -264,7 +273,7 @@ class MFEMViewer(BookViewer):
         self._selected_volume = []
         if self._sel_mode == 'volume':
             if self._s_v_loop[1] is None: return
-            idx = self.get_axes().face.getSelectedIndex()
+            idx, obj = self._getSelectedIndex(mode='face')
             sl =self._s_v_loop[1]
 
             selected_volume = []
@@ -279,10 +288,10 @@ class MFEMViewer(BookViewer):
             surf_idx = list(set(surf_idx))
 
             status_txt = 'Volume :'+ ','.join([str(x) for x in selected_volume])
-            self.get_axes().face.setSelectedIndex(surf_idx)
+            obj.setSelectedIndex(surf_idx)
             self._selected_volume = selected_volume
         elif self._sel_mode == 'face':
-            idx = self.get_axes().face.getSelectedIndex()
+            idx, obj = self._getSelectedIndex(mode='face')            
             v =self._s_v_loop[1]
             connected_vol = []
             for i in idx:
@@ -293,7 +302,7 @@ class MFEMViewer(BookViewer):
                         ','.join([str(x) for x in connected_vol]) + ')')
 
         elif self._sel_mode == 'edge':
-            idx = self.get_axes().edge.getSelectedIndex()
+            idx, obj = self._getSelectedIndex(mode='edge')                        
             s =self._s_v_loop[0]
             connected_surf = []
             for i in idx:
@@ -428,9 +437,10 @@ class MFEMViewer(BookViewer):
                 sl =self._s_v_loop[1]
                 faces = []
                 for i in sel['volume']:
-                   face.append(sl[i])
-                faces_idx = list(set(face))
-                ax.face.setSelectedIndex(face)
+                   faces.extend(sl[i])
+                print(faces)
+                faces_idx = list(set(faces))
+                ax.face.setSelectedIndex(faces)
             if len(sel['face']) != 0: obj = ax.face
             
         return obj
