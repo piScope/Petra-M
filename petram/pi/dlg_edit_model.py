@@ -150,6 +150,7 @@ class DlgEditModel(DialogWithWindowList):
                menus = menus + [('+Move...', None, None),
                                 ('Up', self.OnMoveItemUp, None),
                                 ('Down', self.OnMoveItemDown, None),
+                                ('To...', self.OnMoveItemTo, None),
                                 ('!', None, None),]
             menus = menus + [('Delete', self.OnDeleteItemFromModel, None)]
         if menus[-1][0] != '---':
@@ -431,7 +432,7 @@ class DlgEditModel(DialogWithWindowList):
         if idx == 0: return
 
         new_names = self.MoveItemInList(names, idx, idx-1)
-        from collections import OrderedDict
+
         p._contents = OrderedDict((k, p._contents[k]) for k in new_names)        
         self.tree.RefreshItems()
                              
@@ -445,10 +446,51 @@ class DlgEditModel(DialogWithWindowList):
         if idx == len(names)-1: return
 
         new_names = self.MoveItemInList(names, idx, idx+1)
-        from collections import OrderedDict
+
         p._contents = OrderedDict((k, p._contents[k]) for k in new_names)
         self.tree.RefreshItems()
-                             
+
+    def OnMoveItemTo(self, evt):
+        from   ifigure.utils.edit_list import DialogEditList                
+        import   ifigure.widgets.dialog as dialog
+        
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+        p = mm.parent
+        names = list(p._contents)
+        idx = names.index(mm.name())
+        
+
+        list6 = [
+               ["New parent", p.name(), 0],
+               ["Index ", str(idx), 0],]
+        value = DialogEditList(list6, modal = True, 
+                               style = wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER,
+                               tip = None, 
+                               parent=self,
+                               title = 'Move item to...')
+        if not value[0]: return
+
+        if value[1][0] != p.name():
+            try:
+                assert False, "Moving under diffent parent is not supported"
+            except AssertionError:
+                dialog.showtraceback(parent = self,
+                           txt='Moving under diffent parent is not supported',
+                           title='Error',
+                           traceback=traceback.format_exc())
+                return
+            
+        new_idx = int(value[1][1])
+        names = list(p._contents)
+        new_idx = max([0, new_idx])
+        new_idx = min([len(names)-1, new_idx])
+
+        idx = names.index(mm.name())        
+        new_names = self.MoveItemInList(names, idx, new_idx)
+        p._contents = OrderedDict((k, p._contents[k]) for k in new_names)
+        self.tree.RefreshItems()
+        
     def isSelectionPanelOpen(self):
         from petram.model import Bdry, Point, Pair, Domain, Edge        
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
