@@ -258,16 +258,16 @@ class MFEMViewer(BookViewer):
         evt.Skip()
         
     def _getSelectedIndex(self, mode='face'):
-        ax = self.get_axes()
-        if ax.has_child(mode+"_meshed"):
-           name = mode+"_meshed"
+        obj = self.canvas.selection[0]().figobj
+        if obj.name == mode+"_meshed":
+            return obj.getSelectedIndex(), obj
+        elif obj.name == mode:
+            return obj.getSelectedIndex(), obj
         else:
-           name = mode            
-        obj = ax.get_child(name = name)
-        return obj.getSelectedIndex(), obj
+            return [], None
     
     def onTD_SelectionInFigure(self, evt = None):
-        if len(self.canvas.selection) == 0: return
+        if len(self.canvas.selection) != 1: return
 
         status_txt = ''
         self._selected_volume = []
@@ -288,8 +288,9 @@ class MFEMViewer(BookViewer):
             surf_idx = list(set(surf_idx))
 
             status_txt = 'Volume :'+ ','.join([str(x) for x in selected_volume])
-            obj.setSelectedIndex(surf_idx)
-            self._selected_volume = selected_volume
+            if obj is not None:
+                obj.setSelectedIndex(surf_idx)
+                self._selected_volume = selected_volume
         elif self._sel_mode == 'face':
             idx, obj = self._getSelectedIndex(mode='face')            
             v =self._s_v_loop[1]
