@@ -90,8 +90,10 @@ class MFEMViewer(BookViewer):
         self._hidemesh = True
         self._sel_mode = ''  # selecting particular geomgetry element
         self._view_mode = ''  # ('geom', 'mesh', 'phys')
-        self._s_v_loop = (None, None)  ## surface and volume link
-        self._selected_volume = []    # store selected volume        
+        self._s_v_loop = {}
+        self._selected_volume = []    # store selected volume
+        self._figure_data = {}
+        self._view_mode_group = ''
         self.model = self.book.get_parent()
         self.editdlg = None
         self.plotsoldlg = None
@@ -100,7 +102,7 @@ class MFEMViewer(BookViewer):
         self.dombdr = None
 
         from petram.pi.sel_buttons import btask, refresh
-        self.install_toolbar_palette('petram_palette',
+        self.install_toolbar_palette('petram_phys',
                                             btask,
                                             mode = '3D',
                                             refresh = refresh)
@@ -109,7 +111,7 @@ class MFEMViewer(BookViewer):
                                              btask,
                                              mode = '3D',
                                              refresh = refresh)
-        self.use_toolbar_palette('petram_palette',
+        self.use_toolbar_palette('petram_phys',
                                         mode = '3D')
         if hasGeom:
             from petram.geom.geom_sel_buttons import btask
@@ -125,11 +127,75 @@ class MFEMViewer(BookViewer):
         self.cla()
         setup_figure(self)
         self.start_engine()
+
+        for child in od.walk():
+            view_mode, name, data = child.load_gui_figure_data(self)
+            if data is not None:
+                self.set_figure_data(view_mode, name, data)
+                
         self.load_mesh()
         self.model.scripts.helpers.rebuild_ns()                
         self.engine.run_config()
         #self.Bind(wx.EVT_ACTIVATE, self.onActivate)
 
+    def set_view_mode(self, mode, mm = None):
+        p = mm
+        while p is not None:
+           if p.is_viewmode_grouphead(): break
+           p = p.parent
+        group = p.name() if p is not None else 'root'
+        
+
+            
+        do_palette = (self._view_mode != mode)
+        print(mode, group)
+        print(self._view_mode, mode, self._view_mode_group, group)
+        print((self._view_mode != mode), (self._view_mode_group != group))
+        do_plot = (self._view_mode != mode) or (self._view_mode_group != group)
+        
+        self._view_mode = mode
+        self._view_mode_group = p.name() if p is not None else 'root'        
+
+        if do_palette:
+            if mode == '':
+                self.use_toolbar_std_palette()
+            else:
+                self.use_toolbar_palette('petram_'+mode, mode = '3D')
+        print(do_plot, p)   
+        if do_plot:
+            if p is not None:
+                print("calling do_plot", self._view_mode, p.figure_data_name())   
+                self.update_figure(self._view_mode, p.figure_data_name())
+
+    def set_figure_data(self, view_mode, name, data):
+        if not view_mode in self._figure_data:
+            self._figure_data[view_mode] = {}
+        self._figure_data[view_mode][name] = data
+
+    def update_figure(self, view_mode, name):
+        from petram.mesh.geo_plot import plot_geometry, oplot_meshed
+
+        if view_mode == 'geom':
+            d = self._figure_data['geom']
+            if name in d:
+                ret = d[name]
+                plot_geometry(self,  d[d.keys()[0]])
+            else:
+                assert False, 'Geometry figur data not found :'+ name
+        elif view_mode == 'mesh':
+            if name == 'mfem':
+                d = self._figure_data['mesh']['mfem']
+                plot_geometry(self, d, geo_phys = 'physical', lw=1.0)                     
+            else:
+                d = self._figure_data['geom']
+                plot_geometry(self,  d[name[1]])
+                d = self._figure_data['mesh']
+                oplot_meshed(self,  d[name[0]])
+                
+        elif view_mode == 'phys':            
+            ret = self._figure_data['phys']
+            plot_geometry(self,  ret, geo_phys = 'physical')     
+        
     def onUpdateUI(self, evt):
         if evt.GetId() == ID_SOL_FOLDER:
             m = self._solmenu
@@ -270,11 +336,12 @@ class MFEMViewer(BookViewer):
         if len(self.canvas.selection) != 1: return
 
         status_txt = ''
+        _s_v_loop = self._s_v_loop[self._view_mode]
         self._selected_volume = []
         if self._sel_mode == 'volume':
-            if self._s_v_loop[1] is None: return
+            if _s_v_loop[1] is None: return
             idx, obj = self._getSelectedIndex(mode='face')
-            sl =self._s_v_loop[1]
+            sl = _s_v_loop[1]
 
             selected_volume = []
             for i in idx:
@@ -293,7 +360,7 @@ class MFEMViewer(BookViewer):
                 self._selected_volume = selected_volume
         elif self._sel_mode == 'face':
             idx, obj = self._getSelectedIndex(mode='face')            
-            v =self._s_v_loop[1]
+            v = _s_v_loop[1]
             connected_vol = []
             for i in idx:
                for k in v.keys():
@@ -304,7 +371,7 @@ class MFEMViewer(BookViewer):
 
         elif self._sel_mode == 'edge':
             idx, obj = self._getSelectedIndex(mode='edge')                        
-            s =self._s_v_loop[0]
+            s = _s_v_loop[0]
             connected_surf = []
             for i in idx:
                for k in s.keys():
@@ -321,7 +388,12 @@ class MFEMViewer(BookViewer):
         
         self.set_status_text(status_txt, timeout = 3000)
 
+        evt.selections = self.canvas.selection
+        self.property_editor.onTD_Selection(evt)           
         
+        return
+
+        '''
         mesh = self.engine.get_mesh()
         if mesh is None: return
         names = [x().figobj._name for x in self.canvas.selection if x() is not None]
@@ -365,7 +437,8 @@ class MFEMViewer(BookViewer):
            traceback.print_exc()
         evt.selections = self.canvas.selection
         self.property_editor.onTD_Selection(evt)           
-
+        '''
+        
     def onNewMesh(self, evt):
         from ifigure.widgets.dialog import read
         from petram.mesh.mesh_model import MeshFile        
@@ -384,41 +457,36 @@ class MFEMViewer(BookViewer):
         if self.engine is None: self.start_engine()
         od = self.model.param.getvar('mfem_model')            
         self.engine.set_model(od)
+        cdir = os.getcwd()
+        
         try:
+            os.chdir(self.model.owndir())
             self.engine.run_mesh()
             mesh = self.engine.get_mesh()
             self.model.variables.setvar('mesh', mesh)
+            os.chdir(cdir)
         except:
+            os.chdir(cdir)            
             dialog.showtraceback(parent = self,
                                txt='Mesh load error',
                                title='Error',
                                traceback=traceback.format_exc())       
             return
         from petram.mesh.plot_mesh  import plot_bdrymesh, find_domain_bdr, plot_domainmesh
+        from petram.mesh.read_mfemmesh import extract_mesh_data
+        from petram.mesh.geo_plot import plot_geometry
+        
         self.cls()
         if mesh is not None:
-            if mesh.Dimension() == 2:
-                lw = 3.0
-                dom_check = plot_bdrymesh(mesh = mesh,
-                                          viewer = self,
-                                          linewidths = lw)
-            else:
-                lw = 0.0 if self._hidemesh else 1.0
-                dom_check = plot_bdrymesh(mesh = mesh,
-                                          viewer = self,
-                                          linewidths = lw)
-                
-            self.dombdr = find_domain_bdr(mesh, dom_check)
-            if mesh.Dimension() == 2:
-                lw = 0.0 if self._hidemesh else 1.0                
-                plot_domainmesh(mesh = mesh,
-                                viewer = self, 
-                                linewidths = lw)               
-            
-#            plot_domain(mesh = mesh, viewer = self)
+            X, cells, cell_data, sl, iedge2bb = extract_mesh_data(mesh)
+            self._s_v_loop['phys'] = sl
+            ret = (X, cells, None, cell_data, None)
+            plot_geometry(self, ret, geo_phys = 'physical')
+            self._figure_data['phys'] = ret
+            self._figure_data['mesh']['mfem'] = ret            
 
     def highlight_element(self, sel):
-        print sel
+        _s_v_loop = self._s_v_loop[self._view_mode]        
         ax = self.get_axes()
 
         obj = None
@@ -434,8 +502,8 @@ class MFEMViewer(BookViewer):
         if ax.has_child('face'):
             ax.face.setSelectedIndex(sel['face'])
             if len(sel['volume']) != 0:
-                if self._s_v_loop[1] is None: return
-                sl =self._s_v_loop[1]
+                if _s_v_loop[1] is None: return
+                sl = _s_v_loop[1]
                 faces = []
                 for i in sel['volume']:
                    faces.extend(sl[i])

@@ -559,9 +559,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.use_toolbar_palette('petram_palette', mode = '3D')
-        viewer._view_mode = 'phys'
-
+        viewer.set_view_mode('phys',  self)
 
 class PhysModule(Phys):
     hide_ns_menu = False
@@ -642,9 +640,16 @@ class PhysModule(Phys):
                   mm.add_bdr_variables(variables, n, suffix, ind_vars,
                                     solr, soli)
 
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.set_view_mode('phys',  self)
 
-            
-       
+    def is_viewmode_grouphead(self):
+        return True
          
 
 

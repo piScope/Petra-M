@@ -1191,16 +1191,19 @@ class SerialEngine(Engine):
         super(SerialEngine, self).__init__(modelfile = modelfile, model=model)
 
     def run_mesh(self, meshmodel = None):
-        from petram.mesh.mesh_model import MeshFile
+        from petram.mesh.mesh_model import MeshFile, MFEMMesh
         
         self.meshes = []
         if meshmodel is None:
-            for idx, g in enumerate(self.model['Mesh'].keys()):
+            parent = self.model['Mesh']
+            children =  [parent[g] for g in parent.keys()
+                         if isinstance(parent[g], MFEMMesh)]
+            for idx, child in enumerate(children):
                 self.meshes.append(None)
-                if not self.model['Mesh'][g].enabled: continue
+                if not child.enabled: continue
                 target = None
-                for k in self.model['Mesh'][g].keys():
-                    o = self.model['Mesh'][g][k]
+                for k in child.keys():
+                    o = child[k]
                     if not o.enabled: continue
                     if isinstance(o, MeshFile):
                         self.meshes[idx] = o.run()
@@ -1407,21 +1410,27 @@ class ParallelEngine(Engine):
 
     def run_mesh(self, meshmodel = None):
         from mpi4py import MPI
-        from petram.mesh.mesh_model import MeshFile        
+        from petram.mesh.mesh_model import MeshFile, MFEMMesh
+        
         self.meshes = []
         if meshmodel is None:
-            for idx, g in enumerate(self.model['Mesh'].keys()):
+            parent = self.model['Mesh']
+            children =  [parent[g] for g in parent.keys()
+                         if isinstance(parent[g], MFEMMesh)]
+            for idx, child in enumerate(children):
                 self.meshes.append(None)
-                if not self.model['Mesh'][g].enabled: continue
-                for k in self.model['Mesh'][g].keys():
-                    o = self.model['Mesh'][g][k]
-                    if not o.enabled: continue   
+                if not child.enabled: continue
+                target = None
+                for k in child.keys():
+                    o = child[k]
+                    if not o.enabled: continue
                     if isinstance(o, MeshFile):
                         smesh = o.run()
                         self.meshes[idx] = mfem.ParMesh(MPI.COMM_WORLD, smesh)
                         target = self.meshes[idx]
                     else:
-                        if hasattr(o, 'run'): self.meshes[idx] = o.run(target)
+                        if hasattr(o, 'run') and target is not None:
+                            self.meshes[idx] = o.run(target)
 
     def run_assemble(self, phys):
         self.is_matrix_distributed = True       

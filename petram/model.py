@@ -354,8 +354,7 @@ class Model(RestorableOrderedDict):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.use_toolbar_std_palette()
-        
+        viewer.set_view_mode('',  self)                                                
     
     def export_modeldata(self):
         pass
@@ -543,7 +542,21 @@ class Model(RestorableOrderedDict):
         fid.close()
         
         return script
-                
+    
+    def load_gui_figure_data(self, viewer):
+        '''
+        called when mfem_viewer opened to set inital figure (geometry)
+        plottting data.
+
+        return value : (view_mode, name, data)
+        '''
+        return None, None, None
+    def is_viewmode_grouphead(self):
+        return False
+    
+    def figure_data_name(self):
+        return self.name()
+    
 class Bdry(Model):
     can_delete = True
     is_essential = False            

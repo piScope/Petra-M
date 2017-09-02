@@ -25,20 +25,28 @@ def fill_table(table1, table2, i, j, value):
             
 def find_edges(mesh):
 
-    nv = mesh.GetNV()
-    nb = mesh.GetNBE()
-    ne = mesh.GetNEdges()
-
-    iattr= mesh.GetBdrAttributeArray()  # min of this array is 1
-    nattr = np.max(iattr)
-
-    table1 = lil_matrix((ne, nattr), dtype = int)
-
     iv = mesh.GetBdrElementVertices(0)
     l = len(iv)
+    ne = mesh.GetNEdges()        
+
+    if l == 2:
+        # 2D mesh
+        get_edges = mesh.GetElementEdges
+        get_attr  = mesh.GetAttribute
+        iattr= mesh.GetAttributeArray()     # min of this array is 1
+        nattr = np.max(iattr)
+        nb = mesh.GetNE()        
+    else:
+        # 3D mesh
+        get_edges = mesh.GetBdrElementEdges
+        get_attr  = mesh.GetBdrAttribute
+        iattr= mesh.GetBdrAttributeArray()  # min of this array is 1
+        nattr = np.max(iattr)        
+        nb = mesh.GetNBE()
+    table1 = lil_matrix((ne, nattr), dtype = int)        
     for i in range(nb):
-        ie, io = mesh.GetBdrElementEdges(i)
-        iattr = mesh.GetBdrAttribute(i)
+        ie, io = get_edges(i)
+        iattr = get_attr(i)
         for k in ie:
             table1[k, iattr-1] = 1
     csr = table1.tocsr()

@@ -1,7 +1,6 @@
 import numpy as np
-
+import petram
 from petram.utils import get_pkg_datafile
-import petram.geom
 
 fdot = get_pkg_datafile(petram.pi, 'icon',  'dot.png')
 fedge = get_pkg_datafile(petram.pi, 'icon', 'line.png')
@@ -31,19 +30,28 @@ def show_all(evt):
 
     ax = viewer.get_axes()
     if mode == 'volume':
-        ax.face_meshed.hide_component([])
-        idx = ax.face_meshed.getvar('array_idx')
-        idx = list(np.unique(idx))
+        if ax.has_child('face_meshed'):
+            ax.face_meshed.hide_component([])
+            idx = ax.face_meshed.getvar('array_idx')
+            idx = list(np.unique(idx))
+        else:
+            idx = []
         ax.face.hide_component(idx)        
     elif mode == 'face':
-        ax.face_meshed.hide_component([])
-        idx = ax.face_meshed.getvar('array_idx')
-        idx = list(np.unique(idx))
+        if ax.has_child('face_meshed'):        
+            ax.face_meshed.hide_component([])
+            idx = ax.face_meshed.getvar('array_idx')
+            idx = list(np.unique(idx))
+        else:
+            idx = []
         ax.face.hide_component(idx)        
     elif mode == 'edge':
-        ax.edge_meshed.hide_component([])
-        idx = ax.face_meshed.getvar('array_idx')
-        idx = list(np.unique(idx))
+        if ax.has_child('edge_meshed'):                
+            ax.edge_meshed.hide_component([])
+            idx = ax.face_meshed.getvar('array_idx')
+            idx = list(np.unique(idx))
+        else:
+            idx = []
         ax.edge.hide_component(idx)        
     elif mode == 'point':
         ax.point.hide_component([])                        
@@ -70,7 +78,7 @@ def hide_elem(evt):
     if mode == 'volume':
         facesa = []
         facesb = []        
-        s, v = viewer._s_v_loop
+        s, v = viewer._s_v_loop['mesh']
         for key in v.keys():
             if key in viewer._selected_volume:
                 facesa.extend(v[key])

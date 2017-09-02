@@ -28,8 +28,7 @@ class Mesh(Model, NS_mixin):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.use_toolbar_palette('petram_mesh', mode = '3D')
-        viewer._view_mode = 'mesh'
+        viewer.set_view_mode('mesh', self)                        
 
 class MeshGroup(Model):
     can_delete = True
@@ -44,9 +43,16 @@ class MeshGroup(Model):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.use_toolbar_palette('petram_mesh', mode = '3D')
-        viewer._view_mode = 'mesh'
-
+        viewer.set_view_mode('mesh', self)
+        
+    def is_viewmode_grouphead(self):
+        return True
+     
+    def figure_data_name(self):
+        return 'mfem'
+        
+        
+MFEMMesh = MeshGroup
 
 class MeshFile(Mesh):
     has_2nd_panel = False        

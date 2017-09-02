@@ -82,8 +82,7 @@ class MFEM_PhysRoot(Model):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.use_toolbar_palette('petram_palette', mode = '3D')
-        viewer._view_mode = 'phys'
+        viewer.set_view_mode('phys')                                        
 
 class MFEM_InitRoot(Model):    
     can_delete = False
@@ -92,16 +91,24 @@ class MFEM_InitRoot(Model):
         from init_model import InitSetting
         return [InitSetting]
     
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.set_view_mode('phys')                                        
+    
 class MFEM_MeshRoot(Model):
     can_delete = False
     has_2nd_panel = False    
     def get_possible_child(self):
-        from mesh.mesh_model import MeshGroup
+        from mesh.mesh_model import MFEMMesh, MeshGroup
         try:
             from petram.mesh.gmsh_mesh_model import GmshMesh
-            return [MeshGroup, GmshMesh]
+            return [MFEMMesh, GmshMesh]
         except:
-            return [MeshGroup]
+            return [MFEMMesh]
 
     def onItemSelChanged(self, evt):
         '''
@@ -109,8 +116,7 @@ class MFEM_MeshRoot(Model):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.use_toolbar_palette('petram_mesh', mode = '3D')
-        viewer._view_mode = 'mesh'
+        viewer.set_view_mode('mesh')                                
         
 class MFEM_SolverRoot(Model):
     can_delete = False
@@ -123,6 +129,15 @@ class MFEM_SolverRoot(Model):
     
     def get_active_solvers(self, mm = None):
         return [x for x in self.iter_enabled()]
+    
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.set_view_mode('phys')                                        
+    
     
 try:    
    from petram.geom.geom_model import MFEM_GeomRoot
