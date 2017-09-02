@@ -68,8 +68,9 @@ def hide_elem(evt):
         facesa = []
         facesb = []        
         s, v = viewer._s_v_loop['phys']
+        selected_volume = viewer._dom_bdr_sel
         for key in v.keys():
-            if key in viewer._selected_volume:
+            if key in selected_volume:
                 facesa.extend(v[key])
             else:
                 facesb.extend(v[key])

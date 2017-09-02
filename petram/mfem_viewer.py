@@ -28,7 +28,14 @@ def setup_figure(fig):
     fig.get_page(0).set_nomargin(True)
     fig.property(fig.get_page(0), 'bgcolor', 'white')
 ID_SOL_FOLDER = wx.NewId()
-    
+
+from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
+
+class MFEMViewerCanvas(ifigure_canvas):
+    def unselect_all(self):    
+        ifigure_canvas.unselect_all(self)
+        self.GetTopLevelParent()._dom_bdr_sel  = ([], [], [], [])        
+        
 class MFEMViewer(BookViewer):
     def __init__(self, *args, **kargs):
         kargs['isattachable'] = False
@@ -94,6 +101,7 @@ class MFEMViewer(BookViewer):
         self._selected_volume = []    # store selected volume
         self._figure_data = {}
         self._view_mode_group = ''
+        self._dom_bdr_sel  = ([], [], [], [])
         self.model = self.book.get_parent()
         self.editdlg = None
         self.plotsoldlg = None
@@ -136,6 +144,9 @@ class MFEMViewer(BookViewer):
         self.load_mesh()
         self.model.scripts.helpers.rebuild_ns()                
         self.engine.run_config()
+
+        self.canvas.__class__ = MFEMViewerCanvas
+        self.canvas._popup_style = 1 # popup_skip_2d
         #self.Bind(wx.EVT_ACTIVATE, self.onActivate)
 
     def set_view_mode(self, mode, mm = None):
@@ -148,9 +159,6 @@ class MFEMViewer(BookViewer):
 
             
         do_palette = (self._view_mode != mode)
-        print(mode, group)
-        print(self._view_mode, mode, self._view_mode_group, group)
-        print((self._view_mode != mode), (self._view_mode_group != group))
         do_plot = (self._view_mode != mode) or (self._view_mode_group != group)
         
         self._view_mode = mode
@@ -161,7 +169,6 @@ class MFEMViewer(BookViewer):
                 self.use_toolbar_std_palette()
             else:
                 self.use_toolbar_palette('petram_'+mode, mode = '3D')
-        print(do_plot, p)   
         if do_plot:
             if p is not None:
                 print("calling do_plot", self._view_mode, p.figure_data_name())   
@@ -294,10 +301,8 @@ class MFEMViewer(BookViewer):
             return
         dir = os.path.dirname(path)
         c = [child for name, child in self.model.datasets.get_children()]
-        print c
         for child in c: child.destroy()
         c = [child for name, child in self.model.namespaces.get_children()]
-        print c
         for child in c: child.destroy()
             
         for file in os.listdir(dir):
@@ -337,7 +342,7 @@ class MFEMViewer(BookViewer):
 
         status_txt = ''
         _s_v_loop = self._s_v_loop[self._view_mode]
-        self._selected_volume = []
+        sf, sv, se, sp = [], [], [], []
         if self._sel_mode == 'volume':
             if _s_v_loop[1] is None: return
             idx, obj = self._getSelectedIndex(mode='face')
@@ -357,7 +362,7 @@ class MFEMViewer(BookViewer):
             status_txt = 'Volume :'+ ','.join([str(x) for x in selected_volume])
             if obj is not None:
                 obj.setSelectedIndex(surf_idx)
-                self._selected_volume = selected_volume
+                sv = selected_volume
         elif self._sel_mode == 'face':
             idx, obj = self._getSelectedIndex(mode='face')            
             v = _s_v_loop[1]
@@ -369,6 +374,9 @@ class MFEMViewer(BookViewer):
             status_txt = ('Face: '+ ','.join([str(x) for x in idx]) + '(Volume: ' +
                         ','.join([str(x) for x in connected_vol]) + ')')
 
+            sv = connected_vol
+            sf = idx
+
         elif self._sel_mode == 'edge':
             idx, obj = self._getSelectedIndex(mode='edge')                        
             s = _s_v_loop[0]
@@ -376,18 +384,22 @@ class MFEMViewer(BookViewer):
             for i in idx:
                for k in s.keys():
                    if i in s[k]: connected_surf.append(k)
-            connected_vol = list(set(connected_surf))            
+            connected_suf = list(set(connected_surf))            
             status_txt = ('Edge: '+ ','.join([str(x) for x in idx]) + '(Face: ' +
-                        ','.join([str(x) for x in connected_vol]) + ')')
+                        ','.join([str(x) for x in connected_suf]) + ')')
+
+            sf = connected_suf
+            se = idx
             
         elif self._sel_mode == 'point':
             idx = self.get_axes().point.getSelectedIndex()
             status_txt = 'Vertex: '+ ','.join([str(x) for x in idx])
+            sp = idx            
         else:
             pass
         
         self.set_status_text(status_txt, timeout = 3000)
-
+        self._dom_bdr_sel  = (sv, sf, se, sp)
         evt.selections = self.canvas.selection
         self.property_editor.onTD_Selection(evt)           
         
@@ -641,31 +653,12 @@ class MFEMViewer(BookViewer):
         self.model.scripts.run_parallel.RunT(nproc = nproc)        
 
     def viewer_canvasmenu(self):
-        menus = [("+MFEM", None, None), 
-                 ("+Hide...",  self.onHideBdry, None),
-                 ("Boundaries",  self.onHideBdry, None), 
-                 ("Domains",  self.onHideDom, None),
-                 ('!', None, None),
-                 ("Show All",  self.onShowAll, None)]
+        menus = [("+MFEM", None, None), ]
         if self._hidemesh:
            menus.append(("Show Mesh",  self.onShowMesh, None))
         else:
            menus.append(("Hide Mesh",  self.onHideMesh, None))
            
-        if self.engine is not None and self.engine.get_mesh() is not None:
-            mesh_dim = self.engine.get_mesh().Dimension()
-            menus.append(("+Select", None, None))
-            if mesh_dim == 3:
-                menus.extend([("Volume", self.onSelVolume, None),
-                              ("Face", self.onSelFace, None),])
-            elif mesh_dim == 2:            
-                menus.extend([("Face", self.onSelFace, None),
-                              ("Edge", self.onSelEdge, None),])
-            elif mesh_dim == 1:
-                menus.extend([("Edge", self.onSelEdge, None),
-                              ("Point", self.onSelPoint, None),])
-            menus.extend([("Any", self.onSelAny, None), 
-                         ("!", None, None),])
 
         if self.editdlg is not None:
             check, kind, cidxs, labels = self.editdlg.isSelectionPanelOpen()
