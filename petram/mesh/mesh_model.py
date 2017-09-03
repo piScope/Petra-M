@@ -134,6 +134,7 @@ class MeshFile(Mesh):
             print("mesh file does not exists : " + path + " in " + os.getcwd())
             return None
         args = (path,  self.generate_edges, self.refine, self.fix_orientation)
+        
         mesh =  mfem.Mesh(*args)
         try:
            mesh.GetNBE()

@@ -236,7 +236,8 @@ class Model(RestorableOrderedDict):
         
         m = []
         for k in self.keys():
-            if k.startswith(txt):
+            label = ''.join([x for x in k if not x.isdigit()])
+            if txt == label:
                 m.append(long(k[len(txt):]))
         if len(m) == 0:
            name = txt+str(1)

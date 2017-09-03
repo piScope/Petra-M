@@ -1,8 +1,26 @@
 	Change Log
 
-	* 08/16/2017
+	* 09/04/2017
 
-	**
+	** Geometry building is reorganized to a list of geometry creation
+	commads
+
+        object created from givn coordinates
+           Point/Circle/Rect/Line/Polygon
+        object created from given entities
+           Spline -> Points to Spline
+           CreateLine -> Points to multiple Lines
+           LineLoop -> Lines to LineLoop
+           CreateSurface -> Lines to PlaneSurface
+           SurfaceLoop -> Surfacess to SurfaceLoop
+           CreateVolume ->  Surfacess to Volume
+ 	object manipulation
+           Extrude/Revolve
+        boolean operation
+           Union/Intersection/Difference/Fragments
+
+	** sample waveguide model is added which uses all Geometry/Mesh/Physics
+	segments and solves the problem using serial/parallel solvers.
 	
 	* 08/01/2017
 
