@@ -163,8 +163,15 @@ class MFEM_ModelRoot(Model):
     def attribute_set(self, v):
         from petram.helper.variables import Variables
         v['_variables'] = Variables()
-        v['enabled'] = True        
+        v['enabled'] = True
+        v['root_path'] = ''
         return v
+    
+    def set_root_path(self, path):
+        self.root_path = path
+        
+    def get_root_path(self):
+        return self.root_path
         
     def save_setting(self, filename = ''):
         fid = open(fiilename, 'w')

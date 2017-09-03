@@ -21,6 +21,7 @@ def _select_x(evt, mode, mask):
     for name, child in viewer.get_axes().get_children():
         if hasattr(child, 'setSelectedIndesx'):
             child.setSelectedIndex([])
+    viewer.canvas.unselect_all()
     viewer.draw()
 
 def select_edge(evt):

@@ -28,8 +28,16 @@ class Mesh(Model, NS_mixin):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.set_view_mode('mesh', self)                        
-
+        viewer.set_view_mode('mesh', self)
+        
+    def get_mesh_root(self):
+        from petram.mfem_model import MFEM_MeshRoot
+        
+        p = self.parent
+        while p is not None:
+            if isinstance(p, MFEM_MeshRoot): return p           
+            p = p.parent
+            
 class MeshGroup(Model):
     can_delete = True
     has_2nd_panel = False
@@ -105,6 +113,13 @@ class MeshFile(Mesh):
 
     def get_real_path(self):
         path = str(self.path)
+        if path == '':
+           # if path is empty, file is given by internal mesh generator.
+           parent = self.get_mesh_root()
+           for key in parent.keys():
+              if not parent[key].is_enabled(): continue
+              if hasattr(parent[key], 'get_meshfile_path'):
+                 return parent[key].get_meshfile_path()
         if path.find('{mfem}') != -1:
             path = path.replace('{mfem}', PyMFEM_PATH)
         if path.find('{petram}') != -1:
