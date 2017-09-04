@@ -167,16 +167,16 @@ class BdrNodalEvaluator(EvaluatorAgent):
         
     def eval(self, expr, solvars, phys, **kwargs):
         val = eval_at_nodals(self, expr, solvars, phys)
-        if val is None: return None, None
+        if val is None: return None, None, None
 
         edge_only = kwargs.pop('edge_only', False)
         export_type = kwargs.pop('export_type', 1)
         if export_type == 2:
-            return self.locs, val
+            return self.locs, val, None
         if not edge_only:
-            return self.locs[self.iverts_inv], val[self.iverts_inv, ...]
+            return self.locs, val, self.iverts_inv
         else:
             idx = edge_detect(self.iverts_inv)
-            return self.locs[idx], val[idx, ...]            
+            return self.locs, val, idx
     
 

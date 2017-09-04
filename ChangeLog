@@ -21,6 +21,9 @@
 
 	** sample waveguide model is added which uses all Geometry/Mesh/Physics
 	segments and solves the problem using serial/parallel solvers.
+
+	** plotting panel is fixed to use a new indexed-vertex mode of solid
+	   function. 
 	
 	* 08/01/2017
 

@@ -196,14 +196,11 @@ class DlgPlotSol(DialogWithWindowList):
             vbox.Add(hbox, 0, wx.EXPAND|wx.ALL,5)     
             ibutton=wx.Button(p, wx.ID_ANY, "Integrate")
             ebutton=wx.Button(p, wx.ID_ANY, "Export")                     
-            e2button=wx.Button(p, wx.ID_ANY, "Export2")                     
             button=wx.Button(p, wx.ID_ANY, "Apply")
             ibutton.Bind(wx.EVT_BUTTON, self.onInteg)
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)            
-            e2button.Bind(wx.EVT_BUTTON, self.onExport2)            
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL,1)                                  
-            hbox.Add(e2button, 0, wx.ALL,1)                                  
             hbox.Add(ibutton, 0, wx.ALL,1)                                  
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL,1)
@@ -407,12 +404,13 @@ class DlgPlotSol(DialogWithWindowList):
             v.update(False)        
             setup_figure(v, self.GetParent())                
             v.suptitle(expr + ':' + str(battrs))
-            for verts, cdata in data:
+            for verts, cdata, adata in data:
                if cls is None:
-                    v.solid(verts, cz=True, cdata= cdata.astype(float),
-                                 shade='linear')                    
+                    v.solid(verts, adata, cz=True, cdata= cdata.astype(float),
+                            shade='linear')                    
                else:
-                    v.solid(verts, cz=True, cdata= cdata, shade='linear')
+                    v.solid(verts, adata, cz=True, cdata= cdata,
+                            shade='linear')
             v.update(True)
             v.view('noclip')
             v.view('equal')
@@ -506,12 +504,12 @@ class DlgPlotSol(DialogWithWindowList):
         v.update(False)        
         setup_figure(v, self.GetParent())                
         v.suptitle(expr + ':' + str(battrs))
-        for verts, cdata in data:
+        for verts, cdata, adata in data:
            if cls is None:
-                v.solid(verts, cz=True, cdata= cdata.astype(float),
-                             shade='linear')                    
+                v.solid(verts, adata, cz=True, cdata= cdata.astype(float),
+                        shade='linear')
            else:
-                v.solid(verts, cz=True, cdata= cdata, shade='linear')
+                v.solid(verts, adata, cz=True, cdata= cdata, shade='linear')
         v.update(True)
         v.view('noclip')
         v.view('equal')
@@ -532,9 +530,11 @@ class DlgPlotSol(DialogWithWindowList):
         if data is None: return
         
         integ = 0.0
-        for verts, cdata in data:
-            area = area_tri(verts)
-            integ += np.sum(area * np.mean(cdata, 1))
+        for verts, cdata, adata in data:
+            v = verts[adata]
+            c = cdata[adata, ...]
+            area = area_tri(v)
+            integ += np.sum(area * np.mean(c, 1))
 
         print("Area Ingegration")
         print("Expression : " + expr)
@@ -546,17 +546,10 @@ class DlgPlotSol(DialogWithWindowList):
         data, battrs = self.eval_bdr(mode = 'integ')
         if data is None: return
         
-        verts, cdata = data[0]
-        data = {'vertices': verts, 'data': cdata}
+        verts, cdata, adata = data[0]
+        data = {'vertices': verts, 'data': cdata, 'index': adata}
         self.export_to_piScope_shell(data, 'bdr_data')
 
-    def onExport2Bdr(self, evt):
-        from petram.sol.evaluators import area_tri
-        data, battrs = self.eval_bdr(mode = 'export2', export_type=2)
-        if data is None: return
-        
-        self.export_to_piScope_shell(data, 'bdr_data')
-        
     def eval_bdr(self, mode = 'plot', export_type = 1):
         from petram.sol.evaluators import area_tri
         value = self.elps['Bdr'] .GetValue()
@@ -602,8 +595,9 @@ class DlgPlotSol(DialogWithWindowList):
         setup_figure(v, self.GetParent())                
         v.suptitle('Boundary '+ str(battrs))
         for xdata, ydata, zdata in zip(x, y, z):
-            verts = np.dstack((xdata[1], ydata[1], zdata[1]))
-            v.solid(verts, **kwargs)
+            verts = np.vstack((xdata[1], ydata[1], zdata[1])).transpose()
+            adata = xdata[2]
+            v.solid(verts, adata, **kwargs)
 
         v.update(True)
         v.view('noclip')
@@ -663,7 +657,8 @@ class DlgPlotSol(DialogWithWindowList):
         if basedata is None: basedata = y
         if basedata is None: basedata = z
 
-        zerodata = [(None, cdata * 0) for verts, cdata in basedata]
+        zerodata = [(None, cdata * 0, adata) for verts, cdata, adata
+                    in basedata]
         if x is None: x = zerodata
         if y is None: y = zerodata
         if z is None: z = zerodata
@@ -692,26 +687,20 @@ class DlgPlotSol(DialogWithWindowList):
         setup_figure(viewer,  self.GetParent())
         viewer.suptitle('['+ ','.join((expr_u, expr_v, expr_w)) + '] : '+ str(battrs))
 
-        allxyz = np.vstack([np.mean(udata[0], 1)
-                            for udata, vdata, wdata in zip(u, v, w)])
+        allxyz = np.vstack([udata[0] for udata in u])
         dx = np.max(allxyz[:,0])-np.min(allxyz[:,0])
         dy = np.max(allxyz[:,1])-np.min(allxyz[:,1])
         dz = np.max(allxyz[:,2])-np.min(allxyz[:,2])        
         length = np.max((dx, dy, dz))/20.
         
         for udata, vdata, wdata in zip(u, v, w):
-           xyz = np.mean(udata[0], 1)
-           u = np.mean(udata[1], 1)
-           v = np.mean(vdata[1], 1)
-           w = np.mean(wdata[1], 1)
-           #print xyz.shape
-           #print u.shape
-           #print v.shape
-           #print w.shape
-           #print length
+           xyz = udata[0]
+           u = udata[1]
+           v = vdata[1]
+           w = wdata[1]
+
            ll = np.min([xyz.shape[0]-1,int(value[7])])
            idx = np.linspace(0, xyz.shape[0]-1,ll).astype(int)
-           #print idx
            viewer.quiver3d(xyz[idx,0], xyz[idx,1], xyz[idx,2],
                            u[idx], v[idx], w[idx],
                            length = length)
@@ -783,7 +772,7 @@ class DlgPlotSol(DialogWithWindowList):
             basedata = w
             battrs = wbattrs
 
-        zerodata = [(verts, cdata * 0) for verts, cdata in basedata]
+        zerodata = [(verts, cdata * 0, adata) for verts, cdata, adata in basedata]
         if u is None: u = zerodata
         if v is None: v = zerodata
         if w is None: w = zerodata
@@ -792,7 +781,7 @@ class DlgPlotSol(DialogWithWindowList):
     #   Slice plane ('Slice' tab)
     #
     def onApplySlice(self, evt):
-        value = self.elps['Bdr'] .GetValue()
+        value = self.elps['Slice'] .GetValue()
         expr = str(value[0]).strip()
         
         if value[4]:
@@ -813,12 +802,12 @@ class DlgPlotSol(DialogWithWindowList):
         v.update(False)        
         setup_figure(v, self.GetParent())                
         v.suptitle(expr + ':' + str(battrs))
-        for verts, cdata in data:
+        for verts, cdata, adata in data:
            if cls is None:
-                v.solid(verts, cz=True, cdata= cdata.astype(float),
-                             shade='linear')                    
+                v.solid(verts, adata,  cz=True, cdata= cdata.astype(float),
+                        shade='linear')                    
            else:
-                v.solid(verts, cz=True, cdata= cdata, shade='linear')
+                v.solid(verts, adata, cz=True, cdata= cdata, shade='linear')
         v.update(True)
         v.view('noclip')
         v.view('equal')
@@ -883,7 +872,7 @@ class DlgPlotSol(DialogWithWindowList):
                                                name = 'EdgeNodal',
                                                config = self.config)
             
-        self.evaluators['Edge'].validate_evaluator('BdrNodal', battrs, solfiles)
+        self.evaluators['Edge'].validate_evaluator('EdgeNodal', battrs, solfiles)
 
         try:
             self.evaluators['Edge'].set_phys_path(phys_path)

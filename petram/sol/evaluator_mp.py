@@ -170,9 +170,10 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             attrs.append(key)                                  
             evaluators = self.agents[key]
             for o, solvar in zip(evaluators, solvars): # scan over sol files
-                v, c = o.eval(expr, solvar, phys, **kwargs)
-                if v is None: continue
-                data[-1].append((v, c))
+                v, c, a = o.eval(expr, solvar, phys, **kwargs)
+                if v is None:
+                    v = None; c = None; a = None
+                data[-1].append((v, c, a))
         #print("eval result", data, attrs)
         return data, attrs
         
@@ -244,7 +245,8 @@ class EvaluatorMP(Evaluator):
         print("waiting for answer'")
         res = [self.results.get() for x in range(len(self.workers))]
         for x in range(len(self.workers)):
-            self.results.task_done() 
+            self.results.task_done()
+            
         results = [x[0] for x in res if x[0] is not None]
         attrs = [x[1] for x in res if x[0] is not None]
         attrs = attrs[0]
@@ -253,18 +255,28 @@ class EvaluatorMP(Evaluator):
 
         for kk, x in enumerate(results):
             for k, y in enumerate(x):
-                if len(y) == 0: continue
                 if data[k] is None: data[k] = y
                 else: data[k].extend(y)
+        num_files = len(data[0])
+        def omit_none(l):
+            return [x for x in l if x is not None]
 
         if merge_flag1:
             data0 = [None]*len(attrs)
+            offset = 0            
             for k, x in enumerate(data):
-                if x is None:  continue
-                vdata, cdata = zip(*x)
-                data0[k] = [(np.vstack(vdata), np.vstack(cdata))]
+                if merge_flag2: offset = 0                
+                vdata, cdata, adata = zip(*x)
+                for c, a in zip(cdata, adata):
+                    if c is not None:                    
+                        a += offset
+                        offset = len(c) + offset
+                data0[k]  = [(np.vstack(omit_none(vdata)),
+                              np.hstack(omit_none(cdata)),
+                              np.vstack(omit_none(adata)))]
             data = data0
-            
+
+        # eliminate non-existent attribute
         data0 = []; attrs0 = []
         for x, a in zip(data, attrs):
             if x is not None:
@@ -274,21 +286,42 @@ class EvaluatorMP(Evaluator):
         
         if merge_flag1 and not merge_flag2:
             vdata = np.vstack([x[0][0] for x in data])
-            cdata = np.vstack([x[0][1] for x in data])
-            data = [(vdata, cdata)]
+            cdata = np.hstack([x[0][1] for x in data])
+            adata = np.vstack([x[0][2] for x in data])                                
+            data = [(vdata, cdata, adata)]
         elif merge_flag1:
             data0 = []
-            for x in data:
-                if x is not None: data0.extend(x)
+            for x in data: data0.extend(x)
+            data = data0
+        elif not merge_flag2:
+            keys = attrs
+            data0 = []
+            attr = []
+            for idx in range(num_files): # for each file
+                vdata = []
+                cdata = []
+                adata = []
+                offset = 0
+                for idx0, key in enumerate(keys):
+                    d1 = data[idx0][idx]
+                    if d1[0] is None: continue
+                    vdata.append(d1[0])
+                    cdata.append(d1[1])
+                    adata.append(d1[2]+offset)
+                    offset = offset + d1[1].shape[0]
+                if offset == 0: continue
+                dd  = (np.vstack(vdata), np.hstack(cdata), np.vstack(adata))
+                data0.append(dd)
+                attr.append(key)
+            attrs = list(set(attr))
             data = data0
         else:
             data0 = []
             for x in data:
-                if x is not None: data0.extend(x)
+                data0.extend([xx for xx in x if xx[0] is not None])
             data = data0
-        return data, attrs                                  
-                
-
+        return data, attrs
+    
     def terminate_all(self):
         #print('terminating all')      
         #num_alive = 0

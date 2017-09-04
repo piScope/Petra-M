@@ -49,14 +49,12 @@ class EdgeNodalEvaluator(EvaluatorAgent):
         
         bb_bdrs = bb_edges.keys()
         iverts = []
-        print eattrs
         for bb_bdr in bb_bdrs:
             if eattrs != 'all':
                 if isinstance(eattrs, tuple):
                     if any([not x in bb_bdr for x in eattrs]): continue
                 else:
                     if not eattrs in bb_bdr: continue
-            print eattrs, bb_bdr
             iedges = bb_edges[bb_bdr]
             iverts.extend([mesh.GetEdgeVertices(ie) for ie in iedges])
 
@@ -73,9 +71,10 @@ class EdgeNodalEvaluator(EvaluatorAgent):
             
     def eval(self, expr, solvars, phys, **kwargs):
         val = eval_at_nodals(self, expr, solvars, phys)
-        if val is None: return None, None
+        if val is None: return None, None, None
 
-        return self.locs[self.iverts_inv], val[self.iverts_inv, ...]
+#        return self.locs[self.iverts_inv], val[self.iverts_inv, ...]
+        return self.locs, val, self.iverts_inv
 
 
          

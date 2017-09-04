@@ -70,22 +70,33 @@ class EvaluatorSingle(EvaluatorCommon):
         
         data = []
         attrs = []
+        offset = 0
+        def omit_none(l):
+            return [x for x in l if x is not None]
         for key in six.iterkeys(self.agents): # scan over battr
-            vdata = []
-            cdata = []
+            if merge_flag2: offset = 0
+            vdata = [] # vertex
+            cdata = [] # data
+            adata = [] # array idx     
             data.append([])
             attrs.append(key)                                  
             evaluators = self.agents[key]
             for o, solvar in zip(evaluators, solvars): # scan over sol files
-                v, c = o.eval(expr, solvar, phys, **kwargs)
-                if v is None: continue
-                vdata.append(v)
-                cdata.append(c)
-                data[-1].append((v, c))
-
+                v, c, a = o.eval(expr, solvar, phys, **kwargs)
+                if v is None:
+                    v = None; c = None; a = None
+                else:
+                    if merge_flag1: a = a + offset
+                    offset = offset + c.shape[0]
+                    vdata.append(v)
+                    cdata.append(c)
+                    adata.append(a)                
+                data[-1].append((v, c, a))
             if merge_flag1:
                 if len(vdata) != 0:
-                    data[-1]  = [(np.vstack(vdata), np.vstack(cdata))]
+                    data[-1]  = [(np.vstack(omit_none(vdata)),
+                                  np.hstack(omit_none(cdata)),
+                                  np.vstack(omit_none(adata)))]
                 else:
                     data = data[:-1]  # remove empty tupple
                     attrs = attrs[:-1]
@@ -93,14 +104,38 @@ class EvaluatorSingle(EvaluatorCommon):
         ## normally this is good option.
         if merge_flag1 and not merge_flag2:
             vdata = np.vstack([x[0][0] for x in data])
-            cdata = np.vstack([x[0][1] for x in data])
-            data = [(vdata, cdata)]
+            cdata = np.hstack([x[0][1] for x in data])
+            adata = np.vstack([x[0][2] for x in data])                                
+            data = [(vdata, cdata, adata)]
         elif merge_flag1:
             data0 = []
             for x in data: data0.extend(x)
             data = data0
+        elif not merge_flag2:
+            keys = self.agents.keys()
+            data0 = []
+            attr = []
+            for idx, o in enumerate(evaluators): # for each file
+                vdata = []
+                cdata = []
+                adata = []
+                offset = 0
+                for idx0, key in enumerate(keys):
+                    d1 = data[idx0][idx]
+                    if d1[0] is None: continue
+                    vdata.append(d1[0])
+                    cdata.append(d1[1])
+                    adata.append(d1[2]+offset)
+                    offset = offset + d1[1].shape[0]
+                if offset == 0: continue
+                dd  = (np.vstack(vdata), np.hstack(cdata), np.vstack(adata))
+                data0.append(dd)
+                attr.append(key)
+            attrs = list(set(attr))
+            data = data0
         else:
             data0 = []
-            for x in data: data0.extend(x)
+            for x in data:
+                data0.extend([xx for xx in x if xx[0] is not None])
             data = data0
         return data, attrs                                  

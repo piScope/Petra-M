@@ -150,12 +150,14 @@ class SliceEvaluator(EvaluatorAgent):
         self.attrs[4] = d        
 
     def eval(self, expr, solvars, phys, **kwargs):
-        if self.vertices is None: return None, None
+        if self.vertices is None: return None, None, None
 
         val = eval_at_nodals(self, expr, solvars, phys)
-        if val is None: return None, None
+        if val is None: return None, None, None
         value = self.interp_mat.dot(val)
-        value = value.reshape(len(self.vertices), -1)
-        return self.vertices,  value
+        value = value.flatten()
+        verts = self.vertices.reshape(-1, self.vertices.shape[-1])
+        return (verts, value, np.arange(len(value)).
+                reshape(-1, self.vertices.shape[-1]))
         
     

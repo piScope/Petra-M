@@ -239,6 +239,9 @@ class MFEMViewer(BookViewer):
                     self.model.variables.setvar('solfiles', solfiles)                    
                     #solsets = read_solsets(path = path)
                     #self.model.variables.setvar('solsets', solsets)
+                    m = self.model.param.getvar('mfem_model')        
+                    m.set_root_path(self.model.owndir())
+                    
                     evt.Skip()
                 def handler2(evt):
                     path = dialog.readdir(message='Select solution directory',)
@@ -250,6 +253,9 @@ class MFEMViewer(BookViewer):
                     self.model.variables.setvar('solfiles', solfiles)                    
                     #solsets = read_solsets(path = str(path))
                     #self.model.variables.setvar('solsets', solsets)
+                    m = self.model.param.getvar('mfem_model')        
+                    m.set_root_path(self.model.owndir())
+                    
                     evt.Skip()
                 mm.append((m2, 'Load from ' + m0, handler))
             mm.append(('Other...', 'Load from ohter place (FileDialog will open)',
@@ -495,7 +501,8 @@ class MFEMViewer(BookViewer):
             ret = (X, cells, None, cell_data, None)
             plot_geometry(self, ret, geo_phys = 'physical')
             self._figure_data['phys'] = ret
-            self._figure_data['mesh']['mfem'] = ret            
+            self._figure_data['mesh']['mfem'] = ret
+            self._view_mode = 'phys'
 
     def highlight_element(self, sel):
         _s_v_loop = self._s_v_loop[self._view_mode]        
@@ -897,6 +904,9 @@ class MFEMViewer(BookViewer):
         self.plotexprdlg = ret
         evt.Skip()        
     def onDlgPlotSol(self, evt):
+        m = self.model.param.getvar('mfem_model')        
+        m.set_root_path(self.model.owndir())
+        
         from petram.pi.dlg_plot_sol import DlgPlotSol
         try:
             if self.plotsoldlg is not None:            
