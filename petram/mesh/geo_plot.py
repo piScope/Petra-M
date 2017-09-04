@@ -81,10 +81,10 @@ def oplot_meshed(viewer,  ret):
     ax =viewer.get_axes()
     if ax.has_child('face_meshed'):
         viewer.cls(obj = ax.face_meshed)
-        ax.face.hide_component([])                
+        #ax.face.hide_component([])                
     if ax.has_child('edge_meshed'):
         viewer.cls(obj = ax.edge_meshed)        
-        ax.edge.hide_component([])                        
+        #ax.edge.hide_component([])                        
     try:
         X, cells, pt_data, cell_data, field_data = ret
     except ValueError:
@@ -108,7 +108,8 @@ def oplot_meshed(viewer,  ret):
         meshed_face = list(np.unique(cell_data['triangle']['geometrical']))
     else:
         meshed_face = []
-    ax.face.hide_component(meshed_face)        
+    h = list(np.unique(ax.face.hidden_component + meshed_face))
+    ax.face.hide_component(h)        
     
     if 'line' in cells:
 
@@ -140,7 +141,8 @@ def oplot_meshed(viewer,  ret):
         meshed_edge = list(np.unique(cell_data['line']['geometrical']))
     else:
         meshed_edge = []
-    ax.edge.hide_component(meshed_edge)        
+    h = list(np.unique(ax.edge.hidden_component + meshed_face))        
+    ax.edge.hide_component(h)        
 
     viewer.set_sel_mode(viewer.get_sel_mode())
 

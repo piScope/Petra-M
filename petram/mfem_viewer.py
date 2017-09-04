@@ -172,14 +172,14 @@ class MFEMViewer(BookViewer):
         if do_plot:
             if p is not None:
                 print("calling do_plot", self._view_mode, p.figure_data_name())   
-                self.update_figure(self._view_mode, p.figure_data_name())
+                self.update_figure(self._view_mode, p.figure_data_name(), updateall=True)
 
     def set_figure_data(self, view_mode, name, data):
         if not view_mode in self._figure_data:
             self._figure_data[view_mode] = {}
         self._figure_data[view_mode][name] = data
 
-    def update_figure(self, view_mode, name):
+    def update_figure(self, view_mode, name, updateall = False):
         from petram.mesh.geo_plot import plot_geometry, oplot_meshed
 
         if view_mode == 'geom':
@@ -191,17 +191,24 @@ class MFEMViewer(BookViewer):
                 assert False, 'Geometry figur data not found :'+ name
         elif view_mode == 'mesh':
             if name == 'mfem':
-                d = self._figure_data['mesh']['mfem']
-                plot_geometry(self, d, geo_phys = 'physical', lw=1.0)                     
+                if not 'mfem' in self._figure_data['mesh']:
+                    self.cls()
+                else:
+                    d = self._figure_data['mesh']['mfem']
+                    plot_geometry(self, d, geo_phys = 'physical', lw=1.0)
             else:
-                d = self._figure_data['geom']
-                plot_geometry(self,  d[name[1]])
+                if updateall:
+                    d = self._figure_data['geom']
+                    plot_geometry(self,  d[name[1]])
                 d = self._figure_data['mesh']
                 oplot_meshed(self,  d[name[0]])
                 
-        elif view_mode == 'phys':            
-            ret = self._figure_data['phys']
-            plot_geometry(self,  ret, geo_phys = 'physical')     
+        elif view_mode == 'phys':
+            if not 'phys' in self._figure_data:
+                self.cls()
+            else:
+                ret = self._figure_data['phys']
+                plot_geometry(self,  ret, geo_phys = 'physical')     
         
     def onUpdateUI(self, evt):
         if evt.GetId() == ID_SOL_FOLDER:
