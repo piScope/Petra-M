@@ -47,7 +47,7 @@ def show_all(evt):
         ax.face.hide_component(idx)        
     elif mode == 'edge':
         if ax.has_child('edge_meshed'):                
-            ax.edge_meshed.hide_component([])
+            #ax.edge_meshed.hide_component([])
             idx = ax.face_meshed.getvar('array_idx')
             idx = list(np.unique(idx))
         else:
