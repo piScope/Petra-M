@@ -60,7 +60,7 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
                            linewidth = 1.5,
                            facecolor = (0, 0, 0, 1.0),
                            edgecolor = (0, 0, 0, 1.0),
-                           view_offset = (0, 0, -0.005, 0))
+                           view_offset = (0, 0, -0.001, 0))
 
         obj.rename('edge')
         obj._artists[0].set_gl_hl_use_array_idx(True)

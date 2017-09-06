@@ -8,6 +8,7 @@ fedge = get_pkg_datafile(petram.pi, 'icon', 'line.png')
 fface = get_pkg_datafile(petram.pi, 'icon', 'face.png')
 fdom = get_pkg_datafile(petram.pi, 'icon', 'domain.png')
 fshow = get_pkg_datafile(petram.pi, 'icon', 'show.png')
+fshowall = get_pkg_datafile(petram.pi, 'icon', 'showall.png')
 fhide = get_pkg_datafile(petram.pi, 'icon', 'hide.png')
 fsolid = get_pkg_datafile(petram.pi, 'icon', 'solid.png')
 ftrans = get_pkg_datafile(petram.pi, 'icon', 'transparent.png')
@@ -52,6 +53,7 @@ def show_all(evt):
     ax = viewer.get_axes()
     if mode == 'volume':
         ax.face.hide_component([])
+        viewer._hidden_volume = []
     elif mode == 'face':
         ax.face.hide_component([])        
     elif mode == 'edge':
@@ -60,7 +62,7 @@ def show_all(evt):
         pass
     viewer.draw_all()    
 
-def hide_elem(evt):
+def hide_elem(evt, inverse=False):
     viewer = evt.GetEventObject().GetTopLevelParent()
     mode = viewer._sel_mode
 
@@ -69,33 +71,44 @@ def hide_elem(evt):
         facesa = []
         facesb = []        
         s, v = viewer._s_v_loop['phys']
-        selected_volume = viewer._dom_bdr_sel
+        selected_volume = viewer._dom_bdr_sel[0]
+        if not inverse:
+            selected_volume.extend(viewer._hidden_volume)
         for key in v.keys():
             if key in selected_volume:
                 facesa.extend(v[key])
             else:
                 facesb.extend(v[key])
-        facesa = np.unique(np.array(facesa))
-        facesb = np.unique(np.array(facesb))
-        new_hide = list(np.setdiff1d(facesa, facesb, True))
-        idx = ax.face.hidden_component
-        idx = list(set(idx+new_hide))
-        ax.face.hide_component(idx)        
+        if inverse:
+            ax.face.hide_component(facesa, inverse=True)
+            hidden_volume = [x for x in v.keys() if not x in selected_volume]            
+            viewer._hidden_volume = hidden_volume
+        else:
+            facesa = np.unique(np.array(facesa))
+            facesb = np.unique(np.array(facesb))
+            new_hide = list(np.setdiff1d(facesa, facesb, True))
+            idx = ax.face.hidden_component
+            idx = list(set(idx+new_hide))
+            ax.face.hide_component(idx)
+            viewer._hidden_volume.extend(selected_volume)
     elif mode == 'face':
         idx = ax.face.getSelectedIndex()
         idx = list(set(ax.face.hidden_component+idx))        
-        ax.face.hide_component(idx)        
+        ax.face.hide_component(idx, inverse=inverse)
     elif mode == 'edge':
         idx = ax.edge.getSelectedIndex()
         idx = list(set(ax.edge.hidden_component+idx))        
-        ax.edge.hide_component(idx)                
+        ax.edge.hide_component(idx, inverse=inverse)
     elif mode == 'point':
         pass
     else:
         pass
     viewer.canvas.unselect_all()
     viewer.draw_all()
-               
+    
+def show_only(evt):    
+    hide_elem(evt, inverse=True)
+    
 def make_solid(evt):
     viewer = evt.GetEventObject().GetTopLevelParent()
     mode = viewer._sel_mode
@@ -121,8 +134,9 @@ btask = [
          ('face',   fface, 2, 'select face', select_face),
          ('domain', fdom,  2, 'select domain', select_volume),
          ('---', None, None, None),
-         ('mshow',  fshow,  0, 'show all', show_all),
+         ('mshow',  fshowall,  0, 'show all', show_all),
          ('mhide',  fhide,  0, 'hide selection', hide_elem),
+         ('mshowonly',  fshow,  0, 'show only', show_only),    
          ('---', None, None, None),
          ('solid',  fsolid,  0, 'solid', make_solid),
          ('transpaent',  ftrans,  0, 'transparent', make_transp),]
