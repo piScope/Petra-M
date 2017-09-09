@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.sparse import lil_matrix
+from scipy.sparse import lil_matrix, coo_matrix
 
 def fill_table(table1, table2, i, j, value):
     if i > j:
@@ -51,8 +51,8 @@ def find_edges(mesh):
             table1[k, iattr-1] = 1
     csr = table1.tocsr()
     idx = np.where(np.diff(csr.indptr) > 1)[0]
-    csr = table1[idx, :].tocsr()
-
+#    csr = table1[idx, :].tocsr()
+    csr = csr[idx, :]
     csc  = csr.tocsc()
 
     edges = [None]*csc.shape[1]

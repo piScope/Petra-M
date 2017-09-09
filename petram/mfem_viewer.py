@@ -141,8 +141,10 @@ class MFEMViewer(BookViewer):
             view_mode, name, data = child.load_gui_figure_data(self)
             if data is not None:
                 self.set_figure_data(view_mode, name, data)
-                
-        self.load_mesh()
+
+        if self.model.variables.getvar('mesh') is None:
+            self.load_mesh()
+        self.plot_mfem_geom()        
         self.model.scripts.helpers.rebuild_ns()                
         self.engine.run_config()
 
@@ -511,11 +513,13 @@ class MFEMViewer(BookViewer):
                                title='Error',
                                traceback=traceback.format_exc())       
             return
-        from petram.mesh.plot_mesh  import plot_bdrymesh, find_domain_bdr, plot_domainmesh
-        from petram.mesh.read_mfemmesh import extract_mesh_data
-        from petram.mesh.geo_plot import plot_geometry
+        self.plot_mfem_geom()
         
-        self.cls()
+    def plot_mfem_geom(self):
+        from petram.mesh.geo_plot import plot_geometry        
+        from petram.mesh.read_mfemmesh import extract_mesh_data
+        
+        mesh  = self.model.variables.getvar('mesh')
         if mesh is not None:
             X, cells, cell_data, sl, iedge2bb = extract_mesh_data(mesh)
             self._s_v_loop['phys'] = sl
@@ -527,6 +531,9 @@ class MFEMViewer(BookViewer):
                 self._figure_data['mesh'] = {}
             self._figure_data['mesh']['mfem'] = ret
             self._view_mode = 'phys'
+            self._is_mfem_geom_fig = True            
+        else:
+            self.cls()            
 
     def highlight_element(self, sel):
         _s_v_loop = self._s_v_loop[self._view_mode]        

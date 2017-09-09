@@ -20,11 +20,14 @@ class MUMPS(Solver):
                 ["error analysis",   self.error_ana,  4, {"readonly": True,
                       "choices": ["none", "full stat.", "main stat."]}],
                 ["write matrix",  self.write_mat,   3, {"text":""}],
-                ["centralize matrix",  self.central_mat,   3, {"text":""}],]        
+                ["centralize matrix",  self.central_mat,   3, {"text":""}],
+                ["use BLR",  self.use_blr,   3, {"text":""}],
+                ["BLR drop parameter",  self.blr_drop,   300, {}],]
     
     def get_panel1_value(self):
         return (long(self.log_level), self.ordering, self.out_of_core,
-                self.error_ana, self.write_mat, self.central_mat)
+                self.error_ana, self.write_mat, self.central_mat,
+                self.use_blr, self.blr_drop)
     
     def import_panel1_value(self, v):
         self.log_level = long(v[0])
@@ -32,7 +35,9 @@ class MUMPS(Solver):
         self.out_of_core = v[2]
         self.error_ana = v[3]                
         self.write_mat = v[4]
-        self.central_mat = v[5]        
+        self.central_mat = v[5]
+        self.use_blr = v[6]
+        self.blr_drop = v[7]                        
 
         
     def attribute_set(self, v):
@@ -50,7 +55,9 @@ class MUMPS(Solver):
         v['write_mat'] = False
         v['central_mat'] = False
         v['ordering'] = 'auto'
-        v['error_ana'] = 'none'        
+        v['error_ana'] = 'none'
+        v['use_blr'] = False
+        v['blr_drop'] = 0.0
         return v
     
     def linear_system_type(self, assemble_real, phys_real):
@@ -151,11 +158,22 @@ class MUMPS(Solver):
             s.set_jcn(i_array(col))            
             s.set_a(data_array(A.data))
         # No outputs
+        if self.use_blr:   
+            s.set_icntl(35,1)
+            s.set_cntl(7, float(self.blr_drop))
+        
         if self.log_level == 0:
             s.set_icntl(1, -1)
             s.set_icntl(2, -1)
             s.set_icntl(3, -1)
             s.set_icntl(4,  0)
+        elif self.log_level == 1:
+            pass
+        else:
+            s.set_icntl(1,  6)            
+            s.set_icntl(2,  6)
+            s.set_icntl(3,  6)            
+            s.set_icntl(4,  6)
         s.set_icntl(14,  50)
         s.set_icntl(6,  5)    # column permutation
         self.set_ordering_flag(s)
@@ -231,6 +249,10 @@ class MUMPS(Solver):
 
         s.set_icntl(5,0)
         s.set_icntl(18,3)
+        if self.use_blr:   
+            s.set_icntl(35,1)
+            s.set_cntl(7, float(self.blr_drop))
+        
         dprint1("NNZ local: ", A.nnz)
         nnz_array = np.array(MPI.COMM_WORLD.allgather(A.nnz))
         if myid ==0:
@@ -266,7 +288,9 @@ class MUMPS(Solver):
         elif self.log_level == 1:
             pass
         else:
+            s.set_icntl(1,  6)            
             s.set_icntl(2,  6)
+            s.set_icntl(3,  6)            
             s.set_icntl(4,  6)
         s.set_icntl(14,  200)
 
