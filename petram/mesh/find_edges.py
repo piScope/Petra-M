@@ -1,4 +1,5 @@
 import numpy as np
+from collections import defaultdict
 from scipy.sparse import lil_matrix, coo_matrix
 
 def fill_table(table1, table2, i, j, value):
@@ -43,12 +44,29 @@ def find_edges(mesh):
         iattr= mesh.GetBdrAttributeArray()  # min of this array is 1
         nattr = np.max(iattr)        
         nb = mesh.GetNBE()
+        
+    edges = defaultdict(list)
+    for i in range(nb):
+        ie, io = get_edges(i)
+        iattr = get_attr(i)
+        edges[iattr].extend(list(ie))
+
+    N = np.hstack([np.zeros(len(edges[k]))+k-1 for k in edges.keys()])
+    M = np.hstack([np.array(edges[k]) for k in edges.keys()])
+    data = M*0+1
+                  
+    table1 = coo_matrix((data, (M, N)), shape = (ne, nattr), dtype = int)
+    csr = table1.tocsr()
+    idx = np.where(np.diff(csr.indptr) > 1)[0]
+    csr = csr[idx, :]    
+    '''             
     table1 = lil_matrix((ne, nattr), dtype = int)        
     for i in range(nb):
         ie, io = get_edges(i)
         iattr = get_attr(i)
         for k in ie:
             table1[k, iattr-1] = 1
+
     csr = table1.tocsr()
     idx = np.where(np.diff(csr.indptr) > 1)[0]
 #    csr = table1[idx, :].tocsr()
@@ -60,17 +78,15 @@ def find_edges(mesh):
 
     for i in range(csc.shape[1]):
         edges[i] = idx[indices[indptr[i]:indptr[i+1]]]
+    '''
     # this is true bdr edges.
-    bb_edges = {}
+    bb_edges = defaultdict(list)
     indptr = csr.indptr; indices = csr.indices
-
+    
     for i in range(csr.shape[0]):
         idxs = tuple(indices[indptr[i]:indptr[i+1]]+1)
-        if idxs in bb_edges:
-            bb_edges[idxs].append(idx[i])
-        else:
-            bb_edges[idxs] = [idx[i]]
-
+        bb_edges[idxs].append(idx[i])
+    bb_edges.default_factory = None
     return edges, bb_edges
 
 def plot_edges(mesh, face = 'all'):
