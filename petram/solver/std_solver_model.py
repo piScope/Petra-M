@@ -96,7 +96,8 @@ class StdSolver(Solver):
     def get_possible_child(self):
         from petram.solver.mumps_model import MUMPS
         from petram.solver.gmres_model import GMRES
-        return [MUMPS, GMRES]
+        from petram.solver.strumpack_model import SpSparse
+        return [MUMPS, SpSparse, GMRES]
     
     def init_sol(self, engine):
         inits = self.get_init_setting()

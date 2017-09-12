@@ -232,6 +232,7 @@ class MUMPS(Solver):
             s = DMUMPS()
         import gc
 
+        A.eliminate_zeros()
         if self.write_mat:
             write_coo_matrix('matrix', A)
             if myid == 0:
@@ -256,7 +257,7 @@ class MUMPS(Solver):
         dprint1("NNZ local: ", A.nnz)
         nnz_array = np.array(MPI.COMM_WORLD.allgather(A.nnz))
         if myid ==0:
-            dprint1("NNZ all: ", np.sum(nnz_array))
+            dprint1("NNZ all: ", nnz_array, np.sum(nnz_array))            
             dprint1("RHS DoF: ", b.shape[0])
             dprint1("RHS len: ", b.shape[1])
             s.set_n(A.shape[1])

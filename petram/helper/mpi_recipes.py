@@ -191,4 +191,117 @@ def get_col_partitioning(r_A):
     n_array = comm.allgather(n)
     cols = [0] + list(np.cumsum(n_array))
     return cols
+
+
+def get_partition(A):
+    comm     = MPI.COMM_WORLD     
+    num_proc = MPI.COMM_WORLD.size
+    myid     = MPI.COMM_WORLD.rank
+    return np.linspace(0, A.shape[0], num_proc+1, dtype=int)
     
+def distribute_vec_from_head(b):
+    from mfem.common.mpi_dtype import  get_mpi_datatype
+    
+    comm     = MPI.COMM_WORLD     
+    num_proc = MPI.COMM_WORLD.size
+    myid     = MPI.COMM_WORLD.rank
+
+    if myid == 0:
+        partitioning = get_partition(b)        
+        MPItype = get_mpi_datatype(b)                
+        dtype = b.dtype        
+        for i in range(num_proc-1):
+            dest = i+1
+            b0 = b[partitioning[dest]:partitioning[dest+1]]
+            comm.send(b0.dtype, dest=dest, tag=dest)                                
+            comm.send(b0.shape, dest=dest, tag=dest)                    
+            comm.Send([b0, MPItype], dest=dest, tag=dest)
+        b0 = b[partitioning[0]:partitioning[1]]
+    else:
+        dtype = comm.recv(source=0, tag=myid)
+        shape = comm.recv( source=0, tag=myid)
+        b0 = np.zeros(shape, dtype = dtype)
+        MPItype = get_mpi_datatype(b0)        
+        comm.Recv([b0, MPItype], source=0, tag=myid)
+    return b0
+
+def distribute_global_coo(A):
+    from mfem.common.mpi_dtype import  get_mpi_datatype           
+
+    comm     = MPI.COMM_WORLD     
+    num_proc = MPI.COMM_WORLD.size
+    myid     = MPI.COMM_WORLD.rank
+    
+    partitioning = get_partition(A)
+    
+    row = A.row
+    col = A.col
+    data = A.data
+
+    ids = np.arange(num_proc)[::-1]
+
+    dtype = data.dtype
+    MPItype = get_mpi_datatype(data)
+
+    row2 = []
+    col2 = []
+    data2 = []
+    
+    for i in range(num_proc):
+        ids = np.roll(ids, 1)
+        pair = ids[myid]
+        
+        idx = np.logical_and(row >= partitioning[pair], row < partitioning[pair+1])
+        r0 = row[idx].astype(np.int32)
+        c0 = col[idx].astype(np.int32)
+        d0 = data[idx]
+
+        if pair < myid: # send first
+            comm.send(r0.shape, dest=pair, tag=i)
+            comm.Send([r0, MPI.INT], dest=pair, tag=i)
+            comm.Send([c0, MPI.INT], dest=pair, tag=i)        
+            comm.Send([d0, MPItype], dest=pair, tag=i)
+
+            shape = comm.recv(source=pair, tag=i)                
+            r = np.zeros(shape, dtype = np.int32)
+            c = np.zeros(shape, dtype = np.int32)
+            d = np.zeros(shape, dtype = dtype)                
+            comm.Recv([r, MPI.INT], source=pair, tag=i)
+            comm.Recv([c, MPI.INT], source=pair, tag=i)
+            comm.Recv([d, MPItype], source=pair, tag=i)        
+        elif pair >  myid: # recv first
+            shape = comm.recv(source=pair, tag=i)
+            r = np.zeros(shape, dtype = np.int32)
+            c = np.zeros(shape, dtype = np.int32)
+            d = np.zeros(shape, dtype = dtype)               
+            comm.Recv([r, MPI.INT], source=pair, tag=i)
+            comm.Recv([c, MPI.INT], source=pair, tag=i)
+            comm.Recv([d, MPItype], source=pair, tag=i)                
+            
+            comm.send(r0.shape, dest=pair, tag=i)        
+            comm.Send([r0, MPI.INT], dest=pair, tag=i)
+            comm.Send([c0, MPI.INT], dest=pair, tag=i)        
+            comm.Send([d0, MPItype], dest=pair, tag=i)
+        else:
+            
+            r = r0; c = c0; d = d0
+
+        row2.append(r)
+        col2.append(c)
+        data2.append(d)
+
+    from scipy.sparse import coo_matrix
+
+    r = np.hstack(row2) - partitioning[myid]
+    c = np.hstack(col2)
+    d = np.hstack(data2)
+
+    rsize = partitioning[myid+1] -  partitioning[myid]
+
+    A = coo_matrix((d, (r, c)), shape=(rsize, A.shape[1]),
+                   dtype = d.dtype)
+    return A
+
+        
+    
+        
