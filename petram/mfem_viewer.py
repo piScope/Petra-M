@@ -1032,20 +1032,33 @@ class MFEMViewer(BookViewer):
         super(MFEMViewer, self).onWindowClose(evt)
 
     def onServerSetting(self, evt):
+        '''
+        param needs to have two parameters
+        remote = {'name': 'eofe7',
+                  'rwdir': remote working directory,
+                  'sol', None)
+        host : points host setting object
+        '''
         remote = self.model.param.eval('remote')
         if remote is not None:
-            hostname = remote.param.eval('host').name
+            hostname = remote['name']
         else:
+            remote = {'name': '',
+                      'rwdir': '',
+                      'sol', None)
             hostname = ''
         ret, new_name=dialog.textentry(self,
                                        "Enter the name of new connection",
                                        "Add Connection",
                                        hostname)
-        if ret:
-            self.model.scripts.remote.setup_server(new_name)
-            
-    def onServerNewDir(self, evt):
 
+        if ret:
+            remote = self.model.param.setvar('remote', remote)
+            from petram.remote.client_script import make_remote_connection
+            obj = make_remote_connection(self.model, hostname)
+            self.model.param.setvar('host', '='+obj.get_full_path())
+
+    def onServerNewDir(self, evt):
         import datetime, socket
         from ifigure.widgets.dialog import textentry
         txt = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
@@ -1056,9 +1069,10 @@ class MFEMViewer(BookViewer):
                           def_string = txt, center = True)
         if not f: return
         
-        remote = self.model.param.eval('remote')
-        remote.scripts.prepare_remote_dir(txt)
-        
+        from petram.remote.client_script import prepare_remote_dir
+ 
+        prepare_remote_dir(self.model, txt)
+
     def onServerSolve(self, evt):
         m = self.model.param.getvar('mfem_model')        
         m.set_root_path(self.model.owndir())
@@ -1093,17 +1107,28 @@ class MFEMViewer(BookViewer):
             folder = self.model.scripts.helpers.make_new_sol()
         else:
             folder = self.model.param.eval('sol')
-        if remote.param.eval('rwdir') is None:
-            remote.scripts.prepare_remote_dir()
+
+        from petram.remote.client_script import prepare_remote_dir
+        if remote.param.eval('remote')['rwdir'] == '':
+             prepare_remote_dir(self.model)
             
         #remote.scripts.clean_remote_dir()
 
-        self.model.param.eval('sol').clean_owndir()        
+        sol = self.model.solutions.get_child(name= remote['sol'])
+        sol.clean_owndir()  
+
+        self.model.scripts.helpers.save_model(os.path.join(sol.owndir(), 
+                                              'model.pmfm'), 
+                                               meshfile_relativepath = True)
+
+        from petram.remote.client_script import send_file    
+        send_file(self.model)
         res = self.model.scripts.remote.run_model.RunT(folder,
                              retrieve_files = setting["retrieve_files"])
 
-    def onServerRetrieve(self, evt):
-        self.model.scripts.remote.retrieve_files()
+    def onServerRetrieve(self, evt): 
+        from petram.remote.client_script import retrive_files
+        retrieve_files(self.model)
 
     def run_preprocess(self):
         model = self.model
