@@ -102,13 +102,13 @@ class MeshFile(Mesh):
         self.fix_orientation = v[4]
         
     def use_relative_path(self):
-        self._path_dir = os.path.dirname(self.path)
-        self.path = os.path.basename(self.path)
+        self._path_bk  = self.path
+        self.path = os.path.basename(self.get_real_path())
 
         
     def restore_fullpath(self):       
-        self.path = os.path.join(self._path_dir, self.path)
-        self._path_dir = ''
+        self.path = self._path_bk
+        self._path_bk = ''
 
 
     def get_real_path(self):

@@ -421,8 +421,9 @@ class MFEMViewer(BookViewer):
             se = idx
             
         elif self._sel_mode == 'point':
-            idx = self.get_axes().point.getSelectedIndex()
-            status_txt = 'Vertex: '+ ','.join([str(x) for x in idx])
+            if self.get_axes().has_child('point'):
+                idx = self.get_axes().point.getSelectedIndex()
+                status_txt = 'Vertex: '+ ','.join([str(x) for x in idx])
             sp = idx            
         else:
             pass
@@ -568,17 +569,23 @@ class MFEMViewer(BookViewer):
         '''
         i is 1-based index
         '''
-        if self.dombdr is None: return
-
+        _s_v_loop = self._s_v_loop[self._view_mode]
+        ax = self.get_axes()
+        
         try:
           x = len(i)
         except:
           i = list(i)
         self.canvas.unselect_all()
-        for ii in i:
-            if ii > len(self.dombdr): continue
-            for k in self.dombdr[ii-1]:
-                self._select_bdry(k-1)            
+        if ax.has_child('face'):
+            if _s_v_loop[1] is None: return
+            sl = _s_v_loop[1]
+            faces = []
+            for key in i:
+                faces.extend(sl[key])
+            faces_idx = list(set(faces))
+            ax.face.setSelectedIndex(faces)
+            self.canvas.add_selection(ax.face._artists[0])                        
         self.canvas.refresh_hl()
         
     def highlight_bdry(self, i):
@@ -589,23 +596,23 @@ class MFEMViewer(BookViewer):
           x = len(i)
         except:
           i = list(i)
+        ax = self.get_axes()
         
         self.canvas.unselect_all()
-        for ii in i:        
-           self._select_bdry(ii-1)
+        if ax.has_child('face'):
+            ax.face.setSelectedIndex(i)
+            self.canvas.add_selection(ax.face._artists[0])            
         self.canvas.refresh_hl()
-        
+    '''   
     def _select_bdry(self, i):
-        '''
-        i is 0-based index
-        '''
+
         from petram.mesh.plot_mesh import dim2name_bdry
 
         key =  dim2name_bdry(self.engine.get_mesh().Dimension())
         ch = self.book.page1.axes1.get_child(name = key + '_'+str(i+1))
         if ch is not None and len(ch._artists) != 0:
             self.canvas.add_selection(ch._artists[0])
-        
+    '''    
     def onResetModel(self, evt):
         ans = dialog.message(self,
                              "Do you want to delete all model setting?",
@@ -1053,6 +1060,9 @@ class MFEMViewer(BookViewer):
         remote.scripts.prepare_remote_dir(txt)
         
     def onServerSolve(self, evt):
+        m = self.model.param.getvar('mfem_model')        
+        m.set_root_path(self.model.owndir())
+        
         try:
             self.run_preprocess()
         except:
@@ -1066,14 +1076,15 @@ class MFEMViewer(BookViewer):
         remote = self.model.param.eval('remote')
         if remote is None: return
 
-        value = [1, 1, '00:60:00', False]
-        keys = ['num_nodes', 'num_cores', 'walltime']
+        from petram.pi.dlg_submit_job import get_defaults
+        values, keys = get_defaults()
+        
         for i in range(3):
             if remote.param.getvar(keys[i]) is not None:
-                value[i] = remote.param.getvar(keys[i])
+                values[i] = remote.param.getvar(keys[i])
         from petram.pi.dlg_submit_job import get_job_submisson_setting
         setting = get_job_submisson_setting(self, 'using '+remote.name,
-                                            value = value)
+                                            value = values)
         for k in setting.keys():
             remote.param.setvar(k, setting[k])
 

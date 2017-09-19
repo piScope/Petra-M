@@ -1,10 +1,19 @@
 import wx
 from ifigure.utils.edit_list import EditListPanel
 
-ll = [["Number of Nodes", 1, 400, {}], 
-      ["Number of Cores", 16, 400, {}],
+ll = [["Num. of Nodes", 1, 400, {}], 
+      ["Num. of Cores(total)", 16, 400, {}],
+      ["Num. of OpenMP threads", 4, 400, {}],      
       ["Wall clock", "00:15:00", 0, {}],       
-      [None,   False,  3, {"text":"Retrieve Data"}],]     
+      [None,   False,  3, {"text":"Retrieve Data"}],]
+
+
+values = ['1', '1', '1', '00:10:00', 'debug', False]
+keys = ['num_nodes', 'num_cores', 'num_openmp', 'queue',
+         'walltime', 'retrieve_files']
+
+def get_defaults():
+    return values[:], keys[:]
 
 class dlg_jobsubmission(wx.Dialog):
 
@@ -33,8 +42,10 @@ class dlg_jobsubmission(wx.Dialog):
 
         button.Bind(wx.EVT_BUTTON, self.onCancel)
         button2.Bind(wx.EVT_BUTTON, self.onSubmit)
-        print self.elp.GetValue()
         if value is not None:
+            v, names = get_defaults()
+            for k, n in enumerate(names):
+                if n in value: v[k] = value[n]
             self.elp.SetValue(value)
 #        self.panel.Layout()
         size= self.GetSize()
@@ -44,7 +55,8 @@ class dlg_jobsubmission(wx.Dialog):
         self.Fit()
         self.CenterOnScreen()
         #wx.CallAfter(self.Fit)
-        self.value = self.elp.GetValue()     
+        self.value = self.elp.GetValue()
+        
     def onCancel(self, evt):
         self.value = self.elp.GetValue()     
         self.EndModal(wx.ID_CANCEL)
@@ -60,8 +72,9 @@ def get_job_submisson_setting(parent, servername = '', value = None):
         if dlg.ShowModal() == wx.ID_OK:
             value["num_nodes"] = dlg.value[0]
             value["num_cores"] = dlg.value[1]
-            value["walltime"] = dlg.value[2]            
-            value["retrieve_files"] = dlg.value[3]
+            value["num_openmp"] = dlg.value[2]            
+            value["walltime"] = dlg.value[3]            
+            value["retrieve_files"] = dlg.value[4]
         else:
             pass
     finally:
