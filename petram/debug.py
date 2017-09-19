@@ -69,7 +69,7 @@ class DPrint(object):
             myid     = MPI.COMM_WORLD.rank
         else:
             myid = 0
-        
+
         for item in args:
             s = s + ' ' + str(item)
         if self.name in debug_modes:

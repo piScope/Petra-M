@@ -631,6 +631,9 @@ class Engine(object):
                 for k in ess: r_B[k] = rb2[k]
                 
                 r_a.FormLinearSystem(ess_tdofs[kfes][1], i_x, i_b, r_A, i_X, i_B)
+                #fid = open('debug_matrix', 'w')
+                #r_A.Print(fid)
+                #fid.close()
                 ib = i_B.GetDataArray().astype(float) # astype will allocate
                                                       # new memory
                 i_B *= 0.0; i_b.Assign(0.0)
