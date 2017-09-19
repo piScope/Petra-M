@@ -62,11 +62,13 @@ class DPrint(object):
     def __call__(self, *args, **kargs):
         if 'stack' in kargs: traceback.print_stack()
         s = ''
-        try:
-           from mpi4py import MPI
-           myid     = MPI.COMM_WORLD.rank
-        except ImportError:
-           myid = 0
+
+        from petram.mfem_config import use_parallel
+        if use_parallel:
+            from mpi4py import MPI
+            myid     = MPI.COMM_WORLD.rank
+        else:
+            myid = 0
         
         for item in args:
             s = s + ' ' + str(item)
