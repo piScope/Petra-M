@@ -178,6 +178,10 @@ class MUMPS(Solver):
         s.set_icntl(6,  5)    # column permutation
         self.set_ordering_flag(s)
 
+        # out-of-core
+        if self.out_of_core:
+            s.set_icntl(22,  1)            
+        
         if MPI is not None: MPI.COMM_WORLD.Barrier()
         dprint1("job1")
         s.set_job(1)
@@ -297,6 +301,10 @@ class MUMPS(Solver):
 
         s.set_icntl(2, 1)
         self.set_ordering_flag(s)
+
+        # out-of-core
+        if self.out_of_core:
+            s.set_icntl(22,  1)            
 
         MPI.COMM_WORLD.Barrier()
         dprint1("job1")
