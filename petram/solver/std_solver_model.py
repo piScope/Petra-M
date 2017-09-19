@@ -94,10 +94,25 @@ class StdSolver(Solver):
         self.postprocess(engine)
 
     def get_possible_child(self):
-        from petram.solver.mumps_model import MUMPS
-        from petram.solver.gmres_model import GMRES
-        from petram.solver.strumpack_model import SpSparse
-        return [MUMPS, SpSparse, GMRES]
+        choice = []
+        try:
+            from petram.solver.mumps_model import MUMPS
+            choice.append(MUMPS)
+        except ImportError:
+            pass
+
+        try:
+            from petram.solver.gmres_model import GMRES
+            choice.append(GMRES)
+        except ImportError:
+            pass
+
+        try:
+            from petram.solver.strumpack_model import SpSparse
+            choice.append(SpSparse)
+        except ImportError:
+            pass
+        return choice
     
     def init_sol(self, engine):
         inits = self.get_init_setting()
