@@ -3,8 +3,9 @@ from ifigure.utils.edit_list import EditListPanel
 
 ll = [["Num. of Nodes", 1, 400, {}], 
       ["Num. of Cores(total)", 16, 400, {}],
-      ["Num. of OpenMP threads", 4, 400, {}],      
-      ["Wall clock", "00:15:00", 0, {}],       
+      ["Num. of OpenMP threads", 4, 400, {}],
+      ["Wall clock", "00:15:00", 0, {}],             
+      ["Queue", "Debug", 0, {}],             
       [None,   False,  3, {"text":"Retrieve Data"}],]
 
 
@@ -72,9 +73,10 @@ def get_job_submisson_setting(parent, servername = '', value = None):
         if dlg.ShowModal() == wx.ID_OK:
             value["num_nodes"] = dlg.value[0]
             value["num_cores"] = dlg.value[1]
-            value["num_openmp"] = dlg.value[2]            
-            value["walltime"] = dlg.value[3]            
-            value["retrieve_files"] = dlg.value[4]
+            value["num_openmp"] = dlg.value[2]
+            value["walltime"] = dlg.value[3]                        
+            value["queue"] = dlg.value[4]                        
+            value["retrieve_files"] = dlg.value[5]
         else:
             pass
     finally:

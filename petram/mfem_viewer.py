@@ -1045,7 +1045,7 @@ class MFEMViewer(BookViewer):
         else:
             remote = {'name': '',
                       'rwdir': '',
-                      'sol', None)
+                      'sol': ''}
             hostname = ''
         ret, new_name=dialog.textentry(self,
                                        "Enter the name of new connection",
@@ -1054,8 +1054,9 @@ class MFEMViewer(BookViewer):
 
         if ret:
             remote = self.model.param.setvar('remote', remote)
+            remote['name'] = new_name
             from petram.remote.client_script import make_remote_connection
-            obj = make_remote_connection(self.model, hostname)
+            obj = make_remote_connection(self.model, new_name)
             self.model.param.setvar('host', '='+obj.get_full_path())
 
     def onServerNewDir(self, evt):
@@ -1093,37 +1094,35 @@ class MFEMViewer(BookViewer):
         from petram.pi.dlg_submit_job import get_defaults
         values, keys = get_defaults()
         
-        for i in range(3):
-            if remote.param.getvar(keys[i]) is not None:
-                values[i] = remote.param.getvar(keys[i])
+        for i, key in enumerate(keys):
+            if remote.get(key, None) is not None:
+                values[i] = remote.get(key, None)
+                
         from petram.pi.dlg_submit_job import get_job_submisson_setting
-        setting = get_job_submisson_setting(self, 'using '+remote.name,
+        setting = get_job_submisson_setting(self, 'using '+remote['name'],
                                             value = values)
-        for k in setting.keys():
-            remote.param.setvar(k, setting[k])
-
         if len(setting.keys()) == 0: return
+        
+        for k in setting.keys(): remote[k] = setting[k]
         if self.model.param.eval('sol') is None:
-            folder = self.model.scripts.helpers.make_new_sol()
+            sol = self.model.scripts.helpers.make_new_sol()
         else:
-            folder = self.model.param.eval('sol')
+            sol = self.model.param.eval('sol')
 
         from petram.remote.client_script import prepare_remote_dir
-        if remote.param.eval('remote')['rwdir'] == '':
+        if remote['rwdir'] == '':
              prepare_remote_dir(self.model)
             
         #remote.scripts.clean_remote_dir()
-
-        sol = self.model.solutions.get_child(name= remote['sol'])
         sol.clean_owndir()  
-
         self.model.scripts.helpers.save_model(os.path.join(sol.owndir(), 
                                               'model.pmfm'), 
                                                meshfile_relativepath = True)
 
         from petram.remote.client_script import send_file    
         send_file(self.model)
-        res = self.model.scripts.remote.run_model.RunT(folder,
+        res = self.model.scripts.remote.launch_remote_job.RunT(
+                             sol,
                              retrieve_files = setting["retrieve_files"])
 
     def onServerRetrieve(self, evt): 
