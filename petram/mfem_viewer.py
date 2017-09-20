@@ -1053,7 +1053,7 @@ class MFEMViewer(BookViewer):
                                        hostname)
 
         if ret:
-            remote = self.model.param.setvar('remote', remote)
+            self.model.param.setvar('remote', remote)
             remote['name'] = new_name
             from petram.remote.client_script import make_remote_connection
             obj = make_remote_connection(self.model, new_name)
@@ -1099,8 +1099,18 @@ class MFEMViewer(BookViewer):
                 values[i] = remote.get(key, None)
                 
         from petram.pi.dlg_submit_job import get_job_submisson_setting
+        from petram.remote.client_script import get_job_queue
+
+        try: 
+            q = get_job_queue(self.model)
+        except:
+            import traceback
+            traceback.print_exc()
+            q = None
+
         setting = get_job_submisson_setting(self, 'using '+remote['name'],
-                                            value = values)
+                                            value = values,
+                                            queues = q)
         if len(setting.keys()) == 0: return
         
         for k in setting.keys(): remote[k] = setting[k]

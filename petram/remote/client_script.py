@@ -124,21 +124,31 @@ def retrieve_files(model, rhs=False, matrix = False, sol_dir = None):
     if matrix: get_files(host, 'matrix')
     if rhs: get_files(host, 'rhs')
  
-def get_job_queue(model):
-    param = model.param
-    host = param.eval('host')
-    remote = param.eval('remote') 
-    rwdir = remote['rwdir']
-
-    hostname = host.getvar('server')
-    user = host.getvar('user')
-    p= sp.Popen("ssh " + user+'@' + hostname + " 'printf $PetraM'", shell=True,
+def get_job_queue(model=None, host = None, user = None):
+    if model is not None:
+        param = model.param
+        hosto = param.eval('host')
+        host = hosto.getvar('server')
+        user = hosto.getvar('user')
+    p= sp.Popen("ssh " + user+'@' + host + " 'printf $PetraM'", shell=True,
     stdout=sp.PIPE)
     PetraM = p.stdout.readlines()[0].strip()
-    p= sp.Popen("ssh " + user+'@' + hostname + " 'cat $PetraM/etc/queue_config'", shell=True,
+    p= sp.Popen("ssh " + user+'@' + host + " 'cat $PetraM/etc/queue_config'", shell=True,
     stdout=sp.PIPE)
-    JobQueue = p.stdout.readlines()[0].strip()
-    return JobQueue
+    lines = p.stdout.readlines()
+    return interpret_job_queue_file(lines)
+
+def interpret_job_queue_file(lines):
+    lines = [x.strip() for x in lines if not x.startswith("#")]
+    q = {'type': lines[0], 'queues':[]}
+    for l in lines[1:]:
+        if l.startswith('QUEUE'):
+            q['queues'].append({'name':l.split(':')[1]})
+        else:
+            data = ':'.join(l.split(':')[1:])
+            param = l.split(':')[0]
+            q['queues'][-1][param] = data
+    return q
     
 def submit_job(model):
     param = model.param
@@ -152,11 +162,13 @@ def submit_job(model):
     stdout=sp.PIPE)
     PetraM = p.stdout.readlines()[0].strip()
 
-    w = proj.model1.mfem_eofe.param.eval("walltime")
-    n = str(proj.model1.mfem_eofe.param.eval("num_cores"))
-    N = str(proj.model1.mfem_eofe.param.eval("num_nodes"))
+    w = remote["walltime"]
+    n = str(remote["num_cores"])
+    N = str(remote["num_nodes"])
+    o = str(remote["num_openmp"])
+    q = str(remote["queue"])
 
-    exe = PetraM + '/bin/launch_petram -N '+N + ' -P ' + n + ' -W ' + w
+    exe = PetraM + '/bin/launch_petram -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q' + q 
 
     p = host.Execute('cd '+rwdir+';'+exe)
 

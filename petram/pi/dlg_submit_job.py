@@ -13,13 +13,20 @@ values = ['1', '1', '1', '00:10:00', 'debug', False]
 keys = ['num_nodes', 'num_cores', 'num_openmp', 'queue',
          'walltime', 'retrieve_files']
 
+def_queues = {'type':'SLURM',
+             'queus':[{'name': 'debug',
+                       'maxnode': 1}]}
+
 def get_defaults():
     return values[:], keys[:]
 
 class dlg_jobsubmission(wx.Dialog):
 
     def __init__(self, parent, id = wx.ID_ANY, title = '',
-                       value = None):
+                       value = None, queues = None):
+
+        if queues is None:
+            queues = def_queues
 
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title,
                     style=wx.STAY_ON_TOP|wx.DEFAULT_DIALOG_STYLE)
@@ -30,7 +37,11 @@ class dlg_jobsubmission(wx.Dialog):
         self.SetSizer(vbox)
         vbox.Add(hbox2, 1, wx.EXPAND|wx.ALL,1)      
 
+        q_names = [x['name'] for x in queues['queues']]
+        dp_setting = {"style":wx.CB_DROPDOWN, "choices": q_names}
+        ll[4] = ["Queue", q_names[0], 4, dp_setting]
         self.elp=EditListPanel(self, ll)
+
         hbox2.Add(self.elp, 1, wx.EXPAND|wx.ALIGN_CENTER|wx.RIGHT|wx.LEFT, 1)
         hbox = wx.BoxSizer(wx.HORIZONTAL)
         button=wx.Button(self, wx.ID_ANY, "Cancel")
@@ -66,16 +77,18 @@ class dlg_jobsubmission(wx.Dialog):
         self.value = self.elp.GetValue()     
         self.EndModal(wx.ID_OK)
  
-def get_job_submisson_setting(parent, servername = '', value = None):
-    dlg = dlg_jobsubmission(parent, title='Submit to '+servername, value=value)
+def get_job_submisson_setting(parent, servername = '', value = None,
+                              queues = None):
+    dlg = dlg_jobsubmission(parent, title='Submit to '+servername, value=value,
+                            queues = queues)
     value = {}
     try:
         if dlg.ShowModal() == wx.ID_OK:
             value["num_nodes"] = dlg.value[0]
             value["num_cores"] = dlg.value[1]
-            value["num_openmp"] = dlg.value[2]
-            value["walltime"] = dlg.value[3]                        
-            value["queue"] = dlg.value[4]                        
+            value["num_openmp"] =dlg.value[2]
+            value["walltime"] = str(dlg.value[3])
+            value["queue"] = str(dlg.value[4])
             value["retrieve_files"] = dlg.value[5]
         else:
             pass
