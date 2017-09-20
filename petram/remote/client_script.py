@@ -10,6 +10,8 @@ def make_remote_connection(model, host):
     host = 'eofe7.mit.edu'
 
     '''
+    import ifigure
+
     proj = model.get_root_parent()
     p = proj.setting.parameters
     if not p.hasvar('connection'): 
@@ -168,18 +170,21 @@ def submit_job(model):
     o = str(remote["num_openmp"])
     q = str(remote["queue"])
 
-    exe = PetraM + '/bin/launch_petram -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q' + q 
+    exe = PetraM + '/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q 
 
     p = host.Execute('cd '+rwdir+';'+exe)
 
+    '''
     lines = p.stdout.readlines()
     try:
+        for x in lines:
+           x.find("pid = "
         pid = long(lines[0].split(' ')[-1])
         check = long(pid)
     except:
         print('cannot convert pid to number: see the message from server')
         print(lines)
-        stop()
+        
     param.setvar('pid', str(pid))
 
     import time
@@ -194,6 +199,7 @@ def submit_job(model):
         p = host.Execute('cd '+rwdir+';tail PetraM.o'+str(pid))
     for txt in p.stdout.readlines():
         if txt.find('MFEM Parallel Driver Normal End') !=-1: exit()
+    '''
 
 
  

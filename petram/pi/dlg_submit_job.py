@@ -5,13 +5,12 @@ ll = [["Num. of Nodes", 1, 400, {}],
       ["Num. of Cores(total)", 16, 400, {}],
       ["Num. of OpenMP threads", 4, 400, {}],
       ["Wall clock", "00:15:00", 0, {}],             
-      ["Queue", "Debug", 0, {}],             
-      [None,   False,  3, {"text":"Retrieve Data"}],]
-
+      ["Queue", "Debug", 0, {}],]
+#      [None,   False,  3, {"text":"Retrieve Data"}],]
 
 values = ['1', '1', '1', '00:10:00', 'debug', False]
-keys = ['num_nodes', 'num_cores', 'num_openmp', 'queue',
-         'walltime', 'retrieve_files']
+keys = ['num_nodes', 'num_cores', 'num_openmp', 'walltime',
+        'queue', 'retrieve_files']
 
 def_queues = {'type':'SLURM',
              'queus':[{'name': 'debug',
@@ -89,7 +88,7 @@ def get_job_submisson_setting(parent, servername = '', value = None,
             value["num_openmp"] =dlg.value[2]
             value["walltime"] = str(dlg.value[3])
             value["queue"] = str(dlg.value[4])
-            value["retrieve_files"] = dlg.value[5]
+            value["retrieve_files"] = False
         else:
             pass
     finally:

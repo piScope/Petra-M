@@ -289,7 +289,7 @@ class DlgEditModel(DialogWithWindowList):
   
         p1children = self.p1sizer.GetChildren()
         phys = None
-        gui_update = False
+        viewer_update = False
         if len(p1children) > 0:
             elp1 = p1children[0].GetWindow()
             v1 = elp1.GetValue()
