@@ -467,7 +467,15 @@ class Model(RestorableOrderedDict):
         for attr in self.attribute():
             defvalue = self.attribute_set(dict())
             value = self.attribute(attr)
-            if value != defvalue[attr] or skip_def_check:
+            mycheck = True
+            try:
+                mycheck = any(value != defvalue[attr])  # for numpy array
+            except TypeError:
+                try:
+                    mycheck = value != defvalue[attr]
+                except:
+                    pass
+            if mycheck or skip_def_check:
                 script.append(self._script_name + '.'+attr + ' = ' +
                               value.__repr__())
         if self.has_ns() and self.ns_name is not None:
