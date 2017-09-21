@@ -39,10 +39,11 @@ class DlgPlotSol(DialogWithWindowList):
         from petram.sol.evaluators import def_config
         self.config = def_config
         remote = parent.model.param.eval('remote')
+        host =  parent.model.param.eval('host')
         if remote is not None:
-            self.config['cs_soldir'] = remote.param.getvar('rwdir')
-            self.config['cs_server'] = remote.param.eval('host').getvar('server')
-            self.config['cs_user'] = remote.param.eval('host').getvar('user')
+            self.config['cs_soldir'] = remote['rwdir']
+            self.config['cs_server'] = host.getvar('server')
+            self.config['cs_user'] = host.getvar('user')
         print remote
         print self.config
         

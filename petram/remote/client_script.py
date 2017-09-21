@@ -64,7 +64,7 @@ def prepare_remote_dir(model, txt = '', dirbase = '~/myscratch/mfem_batch'):
     param.eval('remote')['rwdir'] =  rwdir
 
 
-def send_file(model):
+def send_file(model, skip_mesh = False):
     model_dir = model.owndir()
     param = model.param
 
@@ -78,6 +78,7 @@ def send_file(model):
 
     host.PutFile(os.path.join(sol_dir, 'model.pmfm'), rwdir + '/model.pmfm')
 
+    if skip_mesh: return
     for od in mfem_model.walk():
         if hasattr(od, 'use_relative_path'):
             path = od.get_real_path()

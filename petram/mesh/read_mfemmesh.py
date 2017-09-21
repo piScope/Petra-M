@@ -1,6 +1,7 @@
 import numpy as np
 
 from petram.mesh.find_edges import find_edges
+from petram.mesh.find_vertex import find_vertex
 
 def extract_mesh_data(mesh):
     iv = mesh.GetBdrElementVertices(0)
@@ -64,6 +65,7 @@ def extract_mesh_data(mesh):
         
     ## fill line
     cell_data['line'] = {}
+    cell_data['vertex'] = {}    
     kbdr = mesh.GetBdrAttributeArray()
     if ndim == 3:
         edges, bb_edges = find_edges(mesh)
@@ -84,7 +86,9 @@ def extract_mesh_data(mesh):
                 ll[k].append(idx+1)
         cells['line'] = table[np.vstack(cell_line)]
         cell_data['line']['physical'] = np.array(kedge)
-
+        corners, iverts = find_vertex(mesh, bb_edges)
+        cells['vertex'] = table[iverts]
+        cell_data['vertex']['physical'] = np.arange(len(iverts))+1
     elif ndim == 2:
         ivert = np.vstack([mesh.GetBdrElement(i).GetVerticesArray()
                            for i in range(mesh.GetNBE())])

@@ -422,64 +422,24 @@ class MFEMViewer(BookViewer):
             
         elif self._sel_mode == 'point':
             if self.get_axes().has_child('point'):
-                idx = self.get_axes().point.getSelectedIndex()
+                point = self.get_axes().point
+                idx = point.getSelectedIndex()
                 status_txt = 'Vertex: '+ ','.join([str(x) for x in idx])
+                if len(idx) == 1:
+                    t = ("("+ str(point.getvar('x')[idx[0]]) + "," +
+                              str(point.getvar('y')[idx[0]]) + "," + 
+                              str(point.getvar('z')[idx[0]]) + ")")
+                    status_txt = status_txt + t
             sp = idx            
         else:
             pass
         
-        self.set_status_text(status_txt, timeout = 3000)
+        self.set_status_text(status_txt, timeout = 60000)
         self._dom_bdr_sel  = (sv, sf, se, sp)
         evt.selections = self.canvas.selection
         self.property_editor.onTD_Selection(evt)           
         
-        return
 
-        '''
-        mesh = self.engine.get_mesh()
-        if mesh is None: return
-        names = [x().figobj._name for x in self.canvas.selection if x() is not None]
-        
-        
-        self._dom_bdr_sel  = (None, None)
-        try:
-           if mesh.Dimension() == 3:
-              bdr_idx = [int(n.split('_')[1]) for n in names]
-              dom_idx = []
-              for y in bdr_idx:
-                  for k, x in enumerate(self.dombdr):
-                      if y in x: dom_idx.append(int(k+1))
-              if self._sel_mode == 'volume':
-                  self.highlight_domain(dom_idx)
-                  names = [x().figobj._name for x in self.canvas.selection
-                           if x() is not None]
-                  bdr_idx = [int(n.split('_')[1]) for n in names]   
-           elif mesh.Dimension() == 2:
-              bdr_idx = [int(n.split('_')[1]) for n in names if n.startswith('edge')]
-              dom_idx = [int(n.split('_')[1]) for n in names if n.startswith('face')]
-           elif mesh.Dimension() == 1:               
-              bdr_idx = [int(n.split('_')[1]) for n in names if n.startswith('point')]
-              dom_idx = [int(n.split('_')[1]) for n in names if n.startswith('edge')]
-
-           if len(dom_idx) > 0:
-              text1 = 'domain: '+ ','.join([str(x) for x in dom_idx])
-           else:
-              text1 = ''
-           if len(bdr_idx) > 0:
-              text2 = 'boundry: '+ ','.join([str(x) for x in bdr_idx])
-           else:
-              text2 = ''
-              
-           self.set_status_text('Selection: ' + text1  + '  ' + text2,
-                                timeout = 3000)
-              
-               
-           self._dom_bdr_sel  = (dom_idx, bdr_idx)
-        except:
-           traceback.print_exc()
-        evt.selections = self.canvas.selection
-        self.property_editor.onTD_Selection(evt)           
-        '''
         
     def onNewMesh(self, evt):
         from ifigure.widgets.dialog import read
@@ -1106,7 +1066,8 @@ class MFEMViewer(BookViewer):
         except:
             import traceback
             traceback.print_exc()
-            q = None
+            q = {'type': '',
+                 'queues':[{'name':'failed to read queue config'},]}
 
         setting = get_job_submisson_setting(self, 'using '+remote['name'],
                                             value = values,
@@ -1130,7 +1091,7 @@ class MFEMViewer(BookViewer):
                                                meshfile_relativepath = True)
 
         from petram.remote.client_script import send_file    
-        send_file(self.model)
+        send_file(self.model, skip_mesh = setting['skip_mesh'])
         res = self.model.scripts.remote.launch_remote_job.RunT(
                              sol,
                              retrieve_files = setting["retrieve_files"])

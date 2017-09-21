@@ -105,7 +105,7 @@ def hide_elem(evt):
     viewer.canvas.unselect_all()    
     viewer.draw_all()
     
-btask = [('mdot',    fdot,  2, 'select dot', select_dot),
+btask = [('mdot',    fdot,  2, 'select vertex', select_dot),
          ('medge',   fedge, 2, 'select edge', select_edge),
          ('mface',   fface, 2, 'select face', select_face),
          ('mdomain', fdom,  2, 'select domain', select_volume),
