@@ -44,41 +44,30 @@ def find_edges(mesh):
         iattr= mesh.GetBdrAttributeArray()  # min of this array is 1
         nattr = np.max(iattr)        
         nb = mesh.GetNBE()
-        
+
     edges = defaultdict(list)
     for i in range(nb):
         ie, io = get_edges(i)
         iattr = get_attr(i)
         edges[iattr].extend(list(ie))
-
+        
+    # for each iattr real edge appears only once
+    for key in edges.keys():
+        seen = defaultdict(int)
+        for x in edges[key]: seen[x] +=1
+        edges[key] = [k for k in seen if seen[k] == 1]
+        
     N = np.hstack([np.zeros(len(edges[k]))+k-1 for k in edges.keys()])
     M = np.hstack([np.array(edges[k]) for k in edges.keys()])
     data = M*0+1
                   
     table1 = coo_matrix((data, (M, N)), shape = (ne, nattr), dtype = int)
     csr = table1.tocsr()
-    idx = np.where(np.diff(csr.indptr) > 1)[0]
+
+    #embeded surface only touches to one iattr
+    idx = np.where(np.diff(csr.indptr) >= 1)[0]
     csr = csr[idx, :]    
-    '''             
-    table1 = lil_matrix((ne, nattr), dtype = int)        
-    for i in range(nb):
-        ie, io = get_edges(i)
-        iattr = get_attr(i)
-        for k in ie:
-            table1[k, iattr-1] = 1
 
-    csr = table1.tocsr()
-    idx = np.where(np.diff(csr.indptr) > 1)[0]
-#    csr = table1[idx, :].tocsr()
-    csr = csr[idx, :]
-    csc  = csr.tocsc()
-
-    edges = [None]*csc.shape[1]
-    indptr = csc.indptr; indices = csc.indices
-
-    for i in range(csc.shape[1]):
-        edges[i] = idx[indices[indptr[i]:indptr[i+1]]]
-    '''
     # this is true bdr edges.
     bb_edges = defaultdict(list)
     indptr = csr.indptr; indices = csr.indices
