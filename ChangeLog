@@ -1,5 +1,15 @@
 	Change Log
 
+	* 09/20/2017
+        ** merged scripts in project tree and remote coonections
+	Remote connection functionality is rewritten to be universal.
+	Server side scripts should absorb the difference between
+	remote servers.
+
+	Toggle edge/point buttons are added
+	Selecting vertex shows the vertex coordinates on the status
+	bar.
+	
 	* 09/04/2017
 
 	** Geometry building is reorganized to a list of geometry creation

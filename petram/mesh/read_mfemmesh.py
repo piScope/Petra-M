@@ -1,4 +1,5 @@
 import numpy as np
+from collections import defaultdict
 
 from petram.mesh.find_edges import find_edges
 from petram.mesh.find_vertex import find_vertex
@@ -36,8 +37,13 @@ def extract_mesh_data(mesh):
         cells['triangle'] = indices.reshape(ivert.shape)
         cell_data['triangle'] = {}
         cell_data['triangle']['physical'] = attrs
+    elif ivert.shape[1] == 4:
+        cells['quad'] = indices.reshape(ivert.shape)
+        cell_data['quad'] = {}
+        cell_data['quad']['physical'] = attrs
     else:
-        assert False, "only triangle surface is supported"
+        print(ivert.shape)
+        assert False, "only triangle/quad surface is supported"
 
     ## fill line/surface loop info
     loop= {}
@@ -87,15 +93,30 @@ def extract_mesh_data(mesh):
         cells['line'] = table[np.vstack(cell_line)]
         cell_data['line']['physical'] = np.array(kedge)
         corners, iverts = find_vertex(mesh, bb_edges)
-        cells['vertex'] = table[iverts]
-        cell_data['vertex']['physical'] = np.arange(len(iverts))+1
+        if len(iverts) != 0:        
+            cells['vertex'] = table[iverts]
+            cell_data['vertex']['physical'] = np.arange(len(iverts))+1
     elif ndim == 2:
         ivert = np.vstack([mesh.GetBdrElement(i).GetVerticesArray()
                            for i in range(mesh.GetNBE())])
         cells['line'] = table[ivert]
         cell_data['line']['physical'] = kbdr
         iedge2bb = {}
-        for k in kbdr: iedge2bb[k] = k    
+        for k in kbdr: iedge2bb[k] = k
+
+        d = defaultdict(list)
+        for i in range(mesh.GetNBE()):
+            d[kbdr[i]].extend(ivert[i, :])
+        corners = {}
+        for key in d:
+           seen = defaultdict(int)
+           for iiv in d[key]:
+               seen[iiv] += 1
+           corners[key] = [kk for kk in seen if seen[kk]==1]
+        iverts = np.unique(np.hstack([corners[key] for key in corners]))
+        if len(iverts) != 0:
+            cells['vertex'] = table[iverts]
+            cell_data['vertex']['physical'] = np.arange(len(iverts))+1
     else:
         pass
     

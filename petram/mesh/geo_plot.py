@@ -50,7 +50,19 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
 
         obj.rename('face')
         obj._artists[0].set_gl_hl_use_array_idx(True)
-    
+    if 'quad' in cells:        
+        verts, elem_idx, array_idx = expand_vertex_data(X, cells['quad'],
+                                       cell_data['quad'][geo_phys])
+
+
+        #print verts.shape, elem_idx.shape, array_idx.shape
+        obj = viewer.solid(verts, elem_idx,
+                           array_idx = array_idx,
+                           facecolor = (0.7, 0.7, 0.7, 1.0),
+                           linewidth = lw)
+
+        obj.rename('face')
+        obj._artists[0].set_gl_hl_use_array_idx(True)
     if 'line' in cells:
         verts, elem_idx, array_idx = expand_vertex_data(X, cells['line'],
                                        cell_data['line'][geo_phys])
@@ -89,6 +101,8 @@ def oplot_meshed(viewer,  ret):
         X, cells, pt_data, cell_data, field_data = ret
     except ValueError:
         return
+    
+    meshed_face = []    
     if 'triangle' in cells:
         verts, elem_idx, array_idx = expand_vertex_data(X, cells['triangle'],
                                        cell_data['triangle']['geometrical'])
@@ -105,9 +119,23 @@ def oplot_meshed(viewer,  ret):
         obj.rename('face_meshed')
         obj._artists[0].set_gl_hl_use_array_idx(True)
 
-        meshed_face = list(np.unique(cell_data['triangle']['geometrical']))
-    else:
-        meshed_face = []
+        meshed_face.extend(list(np.unique(cell_data['triangle']['geometrical'])))
+    if 'quad' in cells:
+        verts, elem_idx, array_idx = expand_vertex_data(X, cells['quad'],
+                                       cell_data['quad']['geometrical'])
+
+        #print verts.shape, elem_idx.shape, array_idx.shape
+        obj = viewer.solid(verts, elem_idx,
+                           array_idx = array_idx,
+                           facecolor = (0.7, 0.7, 0.7, 1.0),
+                           edgecolor = (0, 0, 0, 1),
+                           linewidth = 1,
+                           view_offset = (0, 0, -0.0005, 0))
+
+        obj.rename('face_meshed')
+        obj._artists[0].set_gl_hl_use_array_idx(True)
+        meshed_face.extend(list(np.unique(cell_data['quad']['geometrical'])))
+
     h = list(np.unique(ax.face.hidden_component + meshed_face))
     ax.face.hide_component(h)        
     

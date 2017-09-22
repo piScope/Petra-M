@@ -393,16 +393,18 @@ class MFEMViewer(BookViewer):
                 obj.setSelectedIndex(surf_idx)
                 sv = selected_volume
         elif self._sel_mode == 'face':
-            idx, obj = self._getSelectedIndex(mode='face')            
+            idx, obj = self._getSelectedIndex(mode='face')
+            status_txt = 'Face: '+ ','.join([str(x) for x in idx])  
             v = _s_v_loop[1]
-            connected_vol = []
-            for i in idx:
-               for k in v.keys():
-                   if i in v[k]: connected_vol.append(k)
-            connected_vol = list(set(connected_vol))            
-            status_txt = ('Face: '+ ','.join([str(x) for x in idx]) + '(Volume: ' +
-                        ','.join([str(x) for x in connected_vol]) + ')')
+            connected_vol = []            
+            if v is not None:  ## in case surface loop is defined (3D)
 
+               for i in idx:
+                  for k in v.keys():
+                       if i in v[k]: connected_vol.append(k)
+               connected_vol = list(set(connected_vol))            
+               status_txt +=  ('(Volume: ' +
+                          ','.join([str(x) for x in connected_vol]) + ')')
             sv = connected_vol
             sf = idx
 
