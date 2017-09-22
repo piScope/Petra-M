@@ -147,8 +147,9 @@ def make_solid(evt):
     mode = viewer._sel_mode
 
     ax = viewer.get_axes()
-    for name, child in ax.get_children():    
-        child.set_alpha(1.0, child._artists[0])
+    for name, child in ax.get_children():
+        if len(child._artists) > 0:                
+             child.set_alpha(1.0, child._artists[0])
     viewer.canvas.unselect_all()
     viewer.draw_all()
     
@@ -157,8 +158,9 @@ def make_transp(evt):
     mode = viewer._sel_mode
 
     ax = viewer.get_axes()
-    for name, child in ax.get_children():    
-        child.set_alpha(0.75, child._artists[0])
+    for name, child in ax.get_children():
+        if len(child._artists) > 0:                        
+            child.set_alpha(0.75, child._artists[0])
     viewer.canvas.unselect_all()
     viewer.draw_all()
         
