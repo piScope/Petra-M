@@ -1092,11 +1092,9 @@ class MFEMViewer(BookViewer):
                                               'model.pmfm'), 
                                                meshfile_relativepath = True)
 
-        from petram.remote.client_script import send_file    
+        from petram.remote.client_script import send_file, submit_job  
         send_file(self.model, skip_mesh = setting['skip_mesh'])
-        res = self.model.scripts.remote.launch_remote_job.RunT(
-                             sol,
-                             retrieve_files = setting["retrieve_files"])
+        submit_job(self.model)
 
     def onServerRetrieve(self, evt): 
         from petram.remote.client_script import retrive_files

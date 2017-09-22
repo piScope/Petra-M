@@ -1,3 +1,4 @@
+import wx
 import numpy as np
 
 from petram.utils import get_pkg_datafile
@@ -125,8 +126,9 @@ def toggle_dot(evt):
         ax.point.onUnSuppress()
     else:
         ax.point.onSuppress()        
+    wx.CallAfter(ax.point.set_gl_hl_use_array_idx, True)
     viewer.canvas.unselect_all()
-    viewer.draw_all()
+    #viewer.draw_all()
     
 def toggle_edge(evt):
     viewer = evt.GetEventObject().GetTopLevelParent()
@@ -138,9 +140,11 @@ def toggle_edge(evt):
     if ax.edge.isSuppressed:
         ax.edge.onUnSuppress()
     else:
-        ax.edge.onSuppress()        
+        ax.edge.onSuppress()
+
+    wx.CallAfter(ax.edge.set_gl_hl_use_array_idx, True)
     viewer.canvas.unselect_all()
-    viewer.draw_all()
+    #viewer.draw_all()
     
 def make_solid(evt):
     viewer = evt.GetEventObject().GetTopLevelParent()

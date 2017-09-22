@@ -5,7 +5,7 @@
 #
 import os
 
-def petra():
+def petra(reload_scripts = False):
     '''
     setup PetraM simulation enveroment
     '''
@@ -18,12 +18,16 @@ def petra():
             model = proj.model1.mfem
             scripts = model.scripts
             scripts.onHGturnoff(evt=None, confirm = False)
-            for name, child in scripts.get_children():
-                child.destroy()
-            scripts.clean_owndir()
-            import_project_scripts(scripts)
+            reload_scripts = True
         except:
             model = load_petra_model(proj)
+    if reload_scripts:
+        scripts = model.scripts
+        for name, child in scripts.get_children():
+            child.destroy()
+        scripts.clean_owndir()
+        import_project_scripts(scripts)
+
     if model is not None:
         model.scripts.helpers.open_gui()
         proj.setting.parameters.setvar('PetraM', '='+model.get_full_path())
