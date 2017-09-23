@@ -58,8 +58,9 @@ class dlg_jobsubmission(wx.Dialog):
             v, names = get_defaults()
             for k, n in enumerate(names):
                 if n in value: v[k] = value[n]
+            if not value[4] in q_names:
+                value[4] = q_names[0]
             self.elp.SetValue(value)
-#        self.panel.Layout()
         size= self.GetSize()
         self.SetSizeHints(minH=-1, minW=size.GetWidth())
         self.Show()

@@ -1097,8 +1097,13 @@ class MFEMViewer(BookViewer):
         submit_job(self.model)
 
     def onServerRetrieve(self, evt): 
-        from petram.remote.client_script import retrive_files
-        retrieve_files(self.model)
+        from petram.remote.client_script import retrieve_files
+        sol = self.model.param.eval('sol')
+        if sol is None:
+            sol = self.model.scripts.helpers.make_new_sol()
+        sol_dir = sol.owndir()
+        retrieve_files(self.model,
+                       sol_dir = sol_dir )
 
     def run_preprocess(self):
         model = self.model

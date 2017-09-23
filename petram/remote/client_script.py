@@ -115,11 +115,12 @@ def retrieve_files(model, rhs=False, matrix = False, sol_dir = None):
     import os
 
     model_dir = model.owndir()
-
+    param = model.param
     if sol_dir is None:
         sol_dir = model.owndir()
     host = param.eval('host')
-    rwdir = param.eval('remote')['rwdir']
+    remote = param.eval('remote')
+    rwdir = remote['rwdir']
 
     get_files(host, 'solr')
     get_files(host, 'soli')
