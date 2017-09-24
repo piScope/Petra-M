@@ -259,13 +259,18 @@ class DlgEditModel(DialogWithWindowList):
                 if not hasattr(mm, '_sel_index') or mm.sel_index == 'remaining':
                     phys = mm.get_root_phys()
                     engine.assign_sel_index(phys)
+                viewer.canvas.toolbar.ClickP1Button('face')
                 viewer.highlight_bdry(mm._sel_index)
+                viewer._dom_bdr_sel = ([], mm._sel_index, [], [])
+
             elif isinstance(mm, Domain):
                 if not hasattr(mm, '_sel_index') or mm.sel_index == 'remaining':
                     phys = mm.get_root_phys()
                     engine.assign_sel_index(phys)
+                viewer.canvas.toolbar.ClickP1Button('domain')
                 viewer.highlight_domain(mm._sel_index)
-                
+                viewer._dom_bdr_sel = (mm._sel_index, [], [], [])
+
         if evt is not None:
             mm.onItemSelChanged(evt)      
             evt.Skip()

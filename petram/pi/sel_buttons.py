@@ -73,11 +73,13 @@ def hide_elem(evt, inverse=False):
     mode = viewer._sel_mode
 
     ax = viewer.get_axes()
+    print(mode, 'hide_elem')
     if mode == 'volume':
         facesa = []
         facesb = []        
         s, v = viewer._s_v_loop['phys']
         selected_volume = viewer._dom_bdr_sel[0]
+        print(selected_volume)
         if not inverse:
             selected_volume.extend(viewer._hidden_volume)
         for key in v.keys():

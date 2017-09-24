@@ -477,6 +477,7 @@ class MFEMViewer(BookViewer):
                                traceback=traceback.format_exc())       
             return
         self.plot_mfem_geom()
+        self.use_toolbar_palette('petram_phys', mode = '3D')
         
     def plot_mfem_geom(self):
         from petram.mesh.geo_plot import plot_geometry        
@@ -540,14 +541,17 @@ class MFEMViewer(BookViewer):
           i = list(i)
         self.canvas.unselect_all()
         if ax.has_child('face'):
-            if _s_v_loop[1] is None: return
-            sl = _s_v_loop[1]
-            faces = []
-            for key in i:
-                faces.extend(sl[key])
-            faces_idx = list(set(faces))
-            ax.face.setSelectedIndex(faces)
-            self.canvas.add_selection(ax.face._artists[0])                        
+            if _s_v_loop[1] is None: return            
+            if len(i) > 0:
+                sl = _s_v_loop[1]
+                faces = []
+                for key in i:
+                    faces.extend(sl[key])
+                faces_idx = list(set(faces))
+                ax.face.setSelectedIndex(faces)
+                self.canvas.add_selection(ax.face._artists[0])
+            else:
+                ax.face.setSelectedIndex([])                
         self.canvas.refresh_hl()
         
     def highlight_bdry(self, i):
@@ -561,9 +565,13 @@ class MFEMViewer(BookViewer):
         ax = self.get_axes()
         
         self.canvas.unselect_all()
+                                          
         if ax.has_child('face'):
-            ax.face.setSelectedIndex(i)
-            self.canvas.add_selection(ax.face._artists[0])            
+            if len(i) > 0:                                          
+                ax.face.setSelectedIndex(i)
+                self.canvas.add_selection(ax.face._artists[0])
+            else:
+                ax.face.setSelectedIndex([])
         self.canvas.refresh_hl()
     '''   
     def _select_bdry(self, i):

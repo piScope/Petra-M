@@ -17,7 +17,10 @@ def petra(reload_scripts = False):
         try:
             model = proj.model1.mfem
             scripts = model.scripts
-            scripts.onHGturnoff(evt=None, confirm = False)
+            from ifigure.mto.hg_support import has_repo
+            if has_repo(scripts):
+                scripts.onHGturnoff(evt=None, confirm = False)
+                model.param.setvar('remote', None)
             reload_scripts = True
         except:
             model = load_petra_model(proj)
