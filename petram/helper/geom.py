@@ -61,13 +61,26 @@ def do_find_circle_center(p1, p2, p3,  norm):
     elif np.linalg.det(m[[1,2],:]) != 0:
        a, b = np.dot(np.linalg.inv(m[[1,2],:]), dmp[[1,2]])
     else:
+        print(p1, p2, p3)
         raise ValueError("three points does not span a surface")
 
     return mp1 - v1*a
 
 def find_circle_center_radius(vv, norm):
+    '''
+    assuming that point are somewhat equally space, I will
+    scatter three points around the circle given by input points
+
+    this approch reduces the risk of having three points colinear,
+    Note that we need to have sufficently large number of points...
+  
+    '''
     k = len(vv)-2
-    pts = [do_find_circle_center(vv[i], vv[i+1], vv[i+2], norm) for i in range(k)]
+    ii = np.linspace(0, len(vv)-1, 4).astype(int)
+    print(vv.shape, ii)
+   
+    pts = [do_find_circle_center(vv[i+ii[0]], vv[i+ii[1]], vv[i+ii[2]], norm) 
+           for i in range(ii[1]-ii[0])]
 
     ctr = np.mean(pts, 0)
     r = np.mean(np.sqrt(np.sum((vv - ctr)**2, 1)))

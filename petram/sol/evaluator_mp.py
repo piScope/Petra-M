@@ -262,18 +262,20 @@ class EvaluatorMP(Evaluator):
             return [x for x in l if x is not None]
 
         if merge_flag1:
-            data0 = [None]*len(attrs)
+            #data0 = [None]*len(attrs)
+            data0 = []
             offset = 0            
             for k, x in enumerate(data):
                 if merge_flag2: offset = 0                
                 vdata, cdata, adata = zip(*x)
+                if len(omit_none(vdata)) == 0: continue
                 for c, a in zip(cdata, adata):
                     if c is not None:                    
                         a += offset
                         offset = len(c) + offset
-                data0[k]  = [(np.vstack(omit_none(vdata)),
+                data0.append([(np.vstack(omit_none(vdata)),
                               np.hstack(omit_none(cdata)),
-                              np.vstack(omit_none(adata)))]
+                              np.vstack(omit_none(adata)))])
             data = data0
 
         # eliminate non-existent attribute
@@ -285,9 +287,12 @@ class EvaluatorMP(Evaluator):
         data = data0; attrs = attrs0                
         
         if merge_flag1 and not merge_flag2:
-            vdata = np.vstack([x[0][0] for x in data])
+            x0 = [x[0][0] for x in data]
+            if len(x0) == 0:
+                assert False, "No slice data point"
+            vdata = np.vstack(x0)
             cdata = np.hstack([x[0][1] for x in data])
-            adata = np.vstack([x[0][2] for x in data])                                
+            adata = np.vstack([x[0][2] for x in data])
             data = [(vdata, cdata, adata)]
         elif merge_flag1:
             data0 = []
