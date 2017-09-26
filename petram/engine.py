@@ -1132,9 +1132,8 @@ class Engine(object):
            if node.has_ns():
               try:
                   node.eval_ns()
-              except:
-                  import traceback
-                  traceback.print_exc()
+              except Exception as e:
+                  assert False, "Failed to build name space: " + e.message
            else:
               node._local_ns = self.model.root()._variables
 

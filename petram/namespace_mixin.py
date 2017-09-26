@@ -187,10 +187,8 @@ class NS_mixin(object):
                            exec p.ns_string in g, ll
                            for k in ll.keys(): g[k] = ll[k]
                            
-                   except:
-                       import traceback
-                       traceback.print_exc()
-                       raise AssertionError("namespace script cannot be executed")
+                   except Exception as e:
+                       assert False, e.message
            if self.dataset is not None:
                for k in self.dataset.keys(): g[k] = self.dataset[k]
         else:
@@ -217,11 +215,9 @@ class NS_mixin(object):
             if (self.ns_string != '' and self.ns_string is not None):
                  exec self.ns_string in g, l
             else:
-                 pass ###return 
-        except:
-            import traceback
-            traceback.print_exc()
-            raise AssertionError("namespace script cannot be executed")
+                 pass ###return
+        except Exception as e:
+            assert False, e.message
         for k in l.keys():
             g[k] = l[k]
         

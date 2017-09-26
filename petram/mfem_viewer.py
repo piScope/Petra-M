@@ -426,12 +426,25 @@ class MFEMViewer(BookViewer):
             if self.get_axes().has_child('point'):
                 point = self.get_axes().point
                 idx = point.getSelectedIndex()
+                aidx = point.getvar('array_idx')
+
                 status_txt = 'Vertex: '+ ','.join([str(x) for x in idx])
                 if len(idx) == 1:
-                    t = ("("+ str(point.getvar('x')[idx[0]]) + "," +
-                              str(point.getvar('y')[idx[0]]) + "," + 
-                              str(point.getvar('z')[idx[0]]) + ")")
+                    ii = np.where(aidx == idx[0])[0][0]
+                    t = (" ("+ str(point.getvar('x')[ii]) + ", " +
+                              str(point.getvar('y')[ii]) + ", " + 
+                              str(point.getvar('z')[ii]) + ")")
                     status_txt = status_txt + t
+                elif len(idx) == 2:
+                    x, y, z = point.getvar('x', 'y', 'z')
+                    ii1 = np.where(aidx == idx[0])[0][0]
+                    ii2 = np.where(aidx == idx[1])[0][0]                    
+                    t = (" (delta = "+ str(x[ii1] - x[ii2]) + ", " + 
+                                      str(y[ii1] - y[ii2]) + ", " + 
+                                      str(z[ii1] - z[ii2]) + ")")
+                    status_txt = status_txt + t
+                else:
+                    pass
             sp = idx            
         else:
             pass
@@ -885,7 +898,6 @@ class MFEMViewer(BookViewer):
         except AttributeError:
             pass
         except:
-            import traceback
             traceback.print_exc()
             pass
 
@@ -953,7 +965,6 @@ class MFEMViewer(BookViewer):
         if len(choices) == 0: return
 
         ll = [
-              
               [None, choices[0], 4, {'style':wx.CB_READONLY,
                                        'choices': choices}],]        
         from ifigure.utils.edit_list import DialogEditList
@@ -969,7 +980,14 @@ class MFEMViewer(BookViewer):
         evt.Skip()
         
     def onRebuildNS(self, evt):
-        self.model.scripts.helpers.rebuild_ns()
+        try:
+            self.rebuild_ns()
+        except:
+            dialog.showtraceback(parent = self,
+                                 txt='Failed to rebuild namespace',
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            return
         evt.Skip()
         
     def onClearSol(self, evt):
@@ -1052,9 +1070,9 @@ class MFEMViewer(BookViewer):
             self.run_preprocess()
         except:
            dialog.showtraceback(parent = self,
-                                txt='Failed to during pre-processing model data',
-                                title='Error',
-                                traceback=traceback.format_exc())
+                          txt='Failed to during pre-processing model data',
+                          title='Error',
+                          traceback=traceback.format_exc())
            return
 
 
@@ -1074,7 +1092,6 @@ class MFEMViewer(BookViewer):
         try: 
             q = get_job_queue(self.model)
         except:
-            import traceback
             traceback.print_exc()
             q = {'type': '',
                  'queues':[{'name':'failed to read queue config'},]}
@@ -1120,4 +1137,21 @@ class MFEMViewer(BookViewer):
         engine.build_ns()
         engine.run_preprocess(model.namespaces, model.datasets)
 
+    def rebuild_ns(self):
+        engine = self.engine
+        model = self.model
+        engine.preprocess_ns(model.namespaces, model.datasets)
+        engine.build_ns()            
+
+    def get_interanl_bc(self):
+        d = self._s_v_loop['phys'][1]
+        dd = []
+        for k  in d : dd.extend(d[k])
+        
+        from collections import defaultdict
+        seen = defaultdict(int)
+        for k in dd: seen[k] += 1
+        return [k for k in seen if seen[k] > 1]
+
+    
 
