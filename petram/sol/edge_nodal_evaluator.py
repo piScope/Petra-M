@@ -40,21 +40,17 @@ class EdgeNodalEvaluator(EvaluatorAgent):
         if attrs[0] == 'all':
             eattrs = 'all'
         else:
-            eattrs = eval(attrs[0])
-
-        print eattrs
+            eattrs = attrs
 
         from petram.mesh.find_edges import find_edges 
         edges, bb_edges = find_edges(mesh)
-        
+
         bb_bdrs = bb_edges.keys()
         iverts = []
         for bb_bdr in bb_bdrs:
             if eattrs != 'all':
-                if isinstance(eattrs, tuple):
-                    if any([not x in bb_bdr for x in eattrs]): continue
-                else:
-                    if not eattrs in bb_bdr: continue
+                check = [sorted(tuple(eattr)) ==  sorted(bb_bdr) for eattr in eattrs]
+                if not any(check): continue
             iedges = bb_edges[bb_bdr]
             iverts.extend([mesh.GetEdgeVertices(ie) for ie in iedges])
 

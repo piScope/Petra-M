@@ -861,7 +861,14 @@ class DlgPlotSol(DialogWithWindowList):
         mesh = model.variables.getvar('mesh')
         if mesh is None: return
         if battrs != 'all':
-           battrs = [battrs]
+           battrs0 = [int(x) for x in battrs.split(',')]
+           s = self.GetParent()._s_v_loop['phys'][0]
+           battrs = []
+           for i in battrs0:
+               connected_surf = []                
+               for k in s.keys():
+                   if i in s[k]: connected_surf.append(k)
+               battrs.append(tuple(connected_surf))
         else:
            battrs = ['all']
  
