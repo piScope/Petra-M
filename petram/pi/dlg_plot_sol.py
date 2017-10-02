@@ -5,6 +5,7 @@ import weakref
 from weakref import WeakKeyDictionary as WKD
 
 import ifigure.widgets.dialog as dialog
+import ifigure.events
 from ifigure.utils.edit_list import EditListPanel
 from ifigure.utils.edit_list import EDITLIST_CHANGED
 from ifigure.utils.edit_list import EDITLIST_CHANGING
@@ -24,10 +25,35 @@ def setup_figure(fig, fig2):
     fig.xlim(xlim)
     fig.ylim(ylim)
     fig.zlim(zlim)
+    
+from functools import wraps
+import threading
 
+ThreadEnd = wx.NewEventType()
+EVT_THREADEND = wx.PyEventBinder(ThreadEnd, 1)
+
+def run_in_piScope_thread(func):
+    @wraps(func)
+    def func2(self, *args, **kwargs):
+        title = self.GetTitle()
+        self.SetTitle(title + '(*** processing ***)')
+        app = wx.GetApp().TopWindow
+        petram = app.proj.setting.parameters.eval('PetraM')
+        if str(petram._status) != '':
+            assert False, "other job is running (thread status error)"
+        maxt = app.aconfig.setting['max_thread']
+        if len(app.logw.threadlist) < maxt:
+             args = (self,) + args
+             t = threading.Thread(target=func, args=args, kwargs=kwargs)
+             petram._status = 'evaluating sol...'             
+             ifigure.events.SendThreadStartEvent(petram,
+                                                 w=app,
+                                                 thread=t,
+                                                 useProcessEvent = True )
+    return func2
 
 class DlgPlotSol(DialogWithWindowList):
-    def __init__(self, parent, id, title):
+    def __init__(self, parent, id = wx.ID_ANY, title = 'Plot Solution'):
         '''
         (use this style if miniframe is used)
         style=wx.CAPTION|
@@ -44,8 +70,6 @@ class DlgPlotSol(DialogWithWindowList):
             self.config['cs_soldir'] = remote['rwdir']
             self.config['cs_server'] = host.getvar('server')
             self.config['cs_user'] = host.getvar('user')
-        print remote
-        print self.config
         
         style = wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER
         super(DlgPlotSol, self).__init__(parent, id, title, style=style)
@@ -303,6 +327,7 @@ class DlgPlotSol(DialogWithWindowList):
         self.Bind(EDITLIST_CHANGED, self.onEL_Changed)        
         self.Bind(EDITLIST_CHANGING, self.onEL_Changing)
         self.Bind(EDITLIST_SETFOCUS, self.onEL_SetFocus)
+        self.Bind(EVT_THREADEND, self.onThreadEnd)
 
         self.Bind(wx.EVT_CLOSE, self.onClose)        
         wx.GetApp().add_palette(self)
@@ -312,6 +337,21 @@ class DlgPlotSol(DialogWithWindowList):
         self.evaluators = {}
         self.solfiles = {}
 
+
+    def post_threadend(self, func, *args, **kwargs):
+        evt = wx.PyCommandEvent(ThreadEnd, wx.ID_ANY)
+        evt.pp_method = (func, args, kwargs)
+        wx.PostEvent(self, evt)
+        
+    def onThreadEnd(self, evt):
+        title = self.GetTitle()
+        self.SetTitle(title.split('(')[0])
+        m = evt.pp_method[0]
+        args = evt.pp_method[1]
+        kargs = evt.pp_method[2]
+        m(*args, **kargs)
+        evt.Skip()
+        
     def onClose(self, evt):
         wx.GetApp().rm_palette(self)
         self.Destroy()
@@ -359,7 +399,7 @@ class DlgPlotSol(DialogWithWindowList):
         pass
     def onEL_SetFocus(self, evt):
         pass
-
+    
     def onApply(self, evt):
         t = self.nb.GetPageText(self.nb.GetSelection())
         t = t.replace('(','').replace(')','')        
@@ -384,6 +424,7 @@ class DlgPlotSol(DialogWithWindowList):
     #    
     #   Edge value ('Edge' tab)
     #
+    @run_in_piScope_thread        
     def onApplyEdge(self, evt):
         value = self.elps['Edge'] .GetValue()
         expr = str(value[0]).strip()
@@ -397,9 +438,14 @@ class DlgPlotSol(DialogWithWindowList):
             
         data, data_x, battrs = self.eval_edge(mode = 'plot')
         if data is None: return
-
+        self.post_threadend(self.make_plot_edge, data, battrs,
+                            data_x = data_x,
+                            cls = cls, expr = expr, expr_x = expr_x)
+        
+    def make_plot_edge(self, data, battrs,
+                             data_x = None, cls = None,
+                             expr='', expr_x=''):
         from ifigure.interactive import figure
-
         if data_x is None:
             v = figure(viewer = cls)
             v.update(False)        
@@ -487,6 +533,7 @@ class DlgPlotSol(DialogWithWindowList):
     #    
     #   Boundary value ('Bdr' tab)
     #
+    @run_in_piScope_thread    
     def onApplyBdr(self, evt):
         value = self.elps['Bdr'] .GetValue()
         expr = str(value[0]).strip()
@@ -499,7 +546,11 @@ class DlgPlotSol(DialogWithWindowList):
             
         data, battrs = self.eval_bdr(mode = 'plot')
         if data is None: return
-
+        self.post_threadend(self.make_plot_bdr, data, battrs,
+                            cls = cls, expr = expr)
+        
+    def make_plot_bdr(self, data, battrs, cls = None, expr=''):
+        
         from ifigure.interactive import figure
         v = figure(viewer = cls)
         v.update(False)        
@@ -681,6 +732,16 @@ class DlgPlotSol(DialogWithWindowList):
             cls = WaveViewer
         else:
             cls = None
+            
+        self.post_threadend(self.make_plot_bdrarrow, u, v, w, battrs, value,
+                            expr_u = expr_u,
+                            expr_v = expr_v,
+                            expr_w = expr_w,                            
+                            cls = cls)
+        
+    def make_plot_bdrarrow(self, u, v, w, battrs, value,
+                            expr_u = '', expr_v = '', expr_w = '',
+                            cls = None):
 
         from ifigure.interactive import figure        
         viewer = figure(viewer = cls)
@@ -781,6 +842,7 @@ class DlgPlotSol(DialogWithWindowList):
     #    
     #   Slice plane ('Slice' tab)
     #
+    @run_in_piScope_thread    
     def onApplySlice(self, evt):
         value = self.elps['Slice'] .GetValue()
         expr = str(value[0]).strip()
@@ -797,7 +859,11 @@ class DlgPlotSol(DialogWithWindowList):
                             message ='Error in evaluating slice', 
                             title ='Error')
             return
-
+        
+        self.post_threadend(self.make_plot_slice, data, battrs,
+                            cls = cls, expr = expr)
+        
+    def make_plot_slice(self, data, battrs, cls = None, expr=''):
         from ifigure.interactive import figure
         v = figure(viewer = cls)
         v.update(False)        
@@ -893,12 +959,14 @@ class DlgPlotSol(DialogWithWindowList):
                                 traceback=traceback.format_exc())
         
         return None, None
+    
 
     def evaluate_sol_bdr(self, expr, battrs, phys_path, do_merge1, do_merge2,
                          **kwargs):
         '''
         evaluate sol using boundary evaluator
         '''
+        print("input",  expr, battrs, phys_path, do_merge1, do_merge2, kwargs)
         model = self.GetParent().model
         solfiles = self.get_model_soldfiles()
         mfem_model = model.param.getvar('mfem_model')

@@ -932,9 +932,9 @@ class MFEMViewer(BookViewer):
             if self.plotsoldlg is not None:            
                 self.plotsoldlg.Raise()
             else:
-                self.plotsoldlg = DlgPlotSol(self, wx.ID_ANY, "plot...")        
+                self.plotsoldlg = DlgPlotSol(self)
         except:
-            self.plotsoldlg = DlgPlotSol(self, wx.ID_ANY, "plot...")
+            self.plotsoldlg = DlgPlotSol(self)
             
     def onDlgPlotSolClose(self, evt):
         self.plotsoldlg = None
