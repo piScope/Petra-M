@@ -343,9 +343,12 @@ class DlgPlotSol(DialogWithWindowList):
         evt.pp_method = (func, args, kwargs)
         wx.PostEvent(self, evt)
         
-    def onThreadEnd(self, evt):
+    def set_title_no_status(self):
         title = self.GetTitle()
         self.SetTitle(title.split('(')[0])
+
+    def onThreadEnd(self, evt):
+        self.set_title_no_status()
         m = evt.pp_method[0]
         args = evt.pp_method[1]
         kargs = evt.pp_method[2]
@@ -953,11 +956,11 @@ class DlgPlotSol(DialogWithWindowList):
             return self.evaluators['Edge'].eval(expr, do_merge1, do_merge2,
                                                **kwargs)
         except:
-            dialog.showtraceback(parent = self,
+            wx.CallAfter(dialog.showtraceback,parent = self,
                                 txt='Failed to evauate expression',
                                 title='Error',
                                 traceback=traceback.format_exc())
-        
+            wx.CallAfter(self.set_title_no_status)
         return None, None
     
 
@@ -972,10 +975,11 @@ class DlgPlotSol(DialogWithWindowList):
         mfem_model = model.param.getvar('mfem_model')
         
         if solfiles is None:
-             dialog.showtraceback(parent = self,
+             wx.CallAfter(dialog.showtraceback,parent = self,
                                   txt='Solution does not exist',
                                   title='Error',
                                   traceback='')
+             wx.CallAfter(self.set_title_no_status)
              return None, None
         mesh = model.variables.getvar('mesh')
         if mesh is None: return
@@ -999,11 +1003,11 @@ class DlgPlotSol(DialogWithWindowList):
             return self.evaluators['Bdr'].eval(expr, do_merge1, do_merge2,
                                                **kwargs)
         except:
-            dialog.showtraceback(parent = self,
+            wx.CallAfter(dialog.showtraceback, parent = self,
                                 txt='Failed to evauate expression',
                                 title='Error',
                                 traceback=traceback.format_exc())
-        
+            wx.CallAfter(self.set_title_no_status)        
         return None, None
 
     
@@ -1017,10 +1021,11 @@ class DlgPlotSol(DialogWithWindowList):
         mfem_model = model.param.getvar('mfem_model')
         
         if solfiles is None:
-             dialog.showtraceback(parent = self,
+             wx.CallAfter(dialog.showtraceback, parent = self,
                                   txt='Solution does not exist',
                                   title='Error',
                                   traceback='')
+             wx.CallAfter(self.set_title_no_status)
              return None, None
         mesh = model.variables.getvar('mesh')
         if mesh is None: return
@@ -1046,11 +1051,12 @@ class DlgPlotSol(DialogWithWindowList):
             self.evaluators['Slice'].set_phys_path(phys_path)
             return self.evaluators['Slice'].eval(expr, do_merge1, do_merge2)
         except:
-            dialog.showtraceback(parent = self,
-                                txt='Failed to evauate expression',
-                                title='Error',
-                                traceback=traceback.format_exc())
-        
+            wx.CallAfter(dialog.showtraceback,
+                         parent = self,
+                         txt='Failed to evauate expression',
+                         title='Error',
+                         traceback=traceback.format_exc())
+            wx.CallAfter(self.set_title_no_status)        
         return None, None
 
     #
