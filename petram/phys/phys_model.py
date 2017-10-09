@@ -522,6 +522,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if vt is None: vt = self.vt
         #if vt[name].ndim == 0:
         if isinstance(coeff, mfem.PyCoefficient):
+            coeff = self.restrict_coeff(coeff, engine, idx=idx)
+        elif isinstance(coeff, mfem.ConstantCoefficient):
             coeff = self.restrict_coeff(coeff, engine, idx=idx) 
         elif isinstance(coeff, mfem.VectorPyCoefficient):          
         #elif vt[name].ndim == 1:
@@ -530,7 +532,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         #else:
             coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)
         else:
-            assert  False, "Unknown coefficient type"
+            assert  False, "Unknown coefficient type: " + str(type(coeff))
         adder(integrator(coeff))
         
     def onItemSelChanged(self, evt):

@@ -118,7 +118,6 @@ class EvaluatorCommon(Evaluator):
             return self.solvars[self.solfiles()]
 
         from petram.sol.solsets import Solsets
-        #print('solfile', self.solfiles())
         solsets = Solsets(self.solfiles())
         print("reading sol variables")
         phys_root = self.mfem_model()["Phys"]
