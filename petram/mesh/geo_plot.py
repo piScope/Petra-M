@@ -72,7 +72,7 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
                            linewidth = 1.5,
                            facecolor = (0, 0, 0, 1.0),
                            edgecolor = (0, 0, 0, 1.0),
-                           view_offset = (0, 0, -0.001, 0),
+#                           view_offset = (0, 0, -0.001, 0),
                            draw_last = True)
 
         obj.rename('edge')
@@ -129,9 +129,10 @@ def oplot_meshed(viewer,  ret):
                            array_idx = array_idx,
                            facecolor = (0.7, 0.7, 0.7, 1.0),
                            edgecolor = (0, 0, 0, 1),
-                           linewidth = 1,
-                           view_offset = (0, 0, -0.0005, 0))
+#                           view_offset = (0, 0, -0.0005, 0),
+                           linewidth = 1,)
 
+                      
         obj.rename('face_meshed')
         obj._artists[0].set_gl_hl_use_array_idx(True)
         meshed_face.extend(list(np.unique(cell_data['quad']['geometrical'])))
