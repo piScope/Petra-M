@@ -22,99 +22,11 @@ class PhysConstant(mfem.ConstantCoefficient):
         
     def __repr__(self):
         return self.__class__.__name__+"("+str(self.value)+")"
-      
-class PhysCoefficient(mfem.PyCoefficient):
-    def __init__(self, expr, ind_vars, l, g, real=True):
-       self.l = {}
-       self.g = g
-       for key in l.keys():
-          self.g[key] = l[key]
-       self.real = real
-       self.variables = []
 
-       if isinstance(expr, str):
-           st = parser.expr(expr.strip())
-           code= st.compile('<string>')
-           names = code.co_names
-           for n in names:
-               if n in g and isinstance(g[n], Variable):
-                   self.variables.append((n, g[n]))
-           self.co = code
-       else:
-           self.co = expr
-           
-       #compile(f_name+'('+ind_vars+')', '<strign>', 'eval')
-       # 'x, y, z' -> 'x', 'y', 'z'
-       self.ind_vars = [x.strip() for x in ind_vars.split(',')]
-       mfem.PyCoefficient.__init__(self)
-
-    def __repr__(self):
-        return self.__class__.__name__+"(PhysCoefficeint)"
-        
-    def Eval(self, T, ip):
-        for n, v in self.variables:
-           v.set_point(T, ip, self.g, self.l)
-        return super(PhysCoefficient, self).Eval(T, ip)
-
-    def EvalValue(self, x):
-        # set x, y, z to local variable so that we can use in
-        # the expression.
-        for k, name in enumerate(self.ind_vars):
-           self.l[name] = x[k]
-        for n, v in self.variables:
-           #self.l['v'] = v
-           #self.l[n] = eval('v()', self.g, self.l)
-           #self.l[n] = eval('v()', self.g, {'v': v})                      
-           self.l[n] = v()
-        return (eval_code(self.co, self.g, self.l))
-             
-class VectorPhysCoefficient(mfem.VectorPyCoefficient):
-    def __init__(self, sdim, exprs, ind_vars, l, g, real=True):
-        self.l = {}
-        self.g = g
-        for key in l.keys():
-           self.g[key] = l[key]
-
-        self.real = real
-        self.variables = []
-
-        self.co = []
-        
-        for expr in exprs:
-           if isinstance(expr, str):
-               st = parser.expr(expr.strip())
-               code= st.compile('<string>')
-               names = code.co_names
-               for n in names:
-                   if n in g and isinstance(g[n], Variable):
-                       self.variables.append((n, g[n]))
-               self.co.append(code)
-           else:
-               self.co.append(expr)
-
-        # 'x, y, z' -> 'x', 'y', 'z'
-        self.ind_vars = [x.strip() for x in ind_vars.split(',')]
-        mfem.VectorPyCoefficient.__init__(self, sdim)
-        self.exprs = exprs
-    def __repr__(self):
-        return self.__class__.__name__+"(VectorPhysCoefficeint)"
-        
-    def Eval(self, V, T, ip):
-        for n, v in self.variables:
-           v.set_point(T, ip, self.g, self.l)                      
-        return super(VectorPhysCoefficient, self).Eval(V, T, ip)
-       
-    def EvalValue(self, x):
-        for k, name in enumerate(self.ind_vars):
-           self.l[name] = x[k]
-
-        for n, v in self.variables:
-            self.l[n] = v()           
-        val = [eval_code(co, self.g, self.l) for co in self.co]
-        return np.array(val, copy = False).flatten()
-
-class MatrixPhysCoefficient(mfem.MatrixPyCoefficient):
-    def __init__(self, sdim, exprs,  ind_vars, l, g, real=True):
+class Coefficient_Evaluator(object):
+    def __init__(self,  exprs,  ind_vars, l, g, real=True):
+        if isinstance(exprs, str): 
+            exprs = [exprs]          
         self.l = {}
         self.g = g
         for key in l.keys():
@@ -137,6 +49,64 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient):
                
         # 'x, y, z' -> 'x', 'y', 'z'
         self.ind_vars = [x.strip() for x in ind_vars.split(',')]
+        self.exprs = exprs
+        
+    def EvalValue(self, x):
+        for k, name in enumerate(self.ind_vars):
+           self.l[name] = x[k]
+        for n, v in self.variables:           
+           self.l[n] = v()
+
+        val = [eval_code(co, self.g, self.l) for co in self.co]
+        return np.array(val, copy=False).flatten()
+
+class PhysCoefficient(mfem.PyCoefficient, Coefficient_Evaluator):
+    def __init__(self, exprs, ind_vars, l, g, real=True, isArray = False):
+       #if not isArray:
+       #    exprs = [exprs]
+       Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)           
+       mfem.PyCoefficient.__init__(self)
+
+    def __repr__(self):
+        return self.__class__.__name__+"(PhysCoefficeint)"
+        
+    def Eval(self, T, ip):
+        for n, v in self.variables:
+           v.set_point(T, ip, self.g, self.l)
+        return super(PhysCoefficient, self).Eval(T, ip)
+
+    def EvalValue(self, x):
+        # set x, y, z to local variable so that we can use in
+        # the expression.
+
+        # note that this class could return array, since
+        # a user may want to define multiple variables
+        # as an array. In such case, subclass should pick
+        # one element.
+        val = Coefficient_Evaluator.EvalValue(self, x)
+        if len(self.co) == 1 and len(val) == 1:
+           return val[0]
+        return val
+             
+class VectorPhysCoefficient(mfem.VectorPyCoefficient, Coefficient_Evaluator):
+    def __init__(self, sdim, exprs, ind_vars, l, g, real=True):
+        Coefficient_Evaluator.__init__(self, exprs,  ind_vars, l, g, real=real)
+        mfem.VectorPyCoefficient.__init__(self, sdim)
+        
+    def __repr__(self):
+        return self.__class__.__name__+"(VectorPhysCoefficeint)"
+        
+    def Eval(self, V, T, ip):
+        for n, v in self.variables:
+           v.set_point(T, ip, self.g, self.l)                      
+        return super(VectorPhysCoefficient, self).Eval(V, T, ip)
+       
+    def EvalValue(self, x):
+        return Coefficient_Evaluator.EvalValue(self, x)
+     
+class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
+    def __init__(self, sdim, exprs,  ind_vars, l, g, real=True):
+        Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)       
         mfem.MatrixPyCoefficient.__init__(self, sdim)
         
     def __repr__(self):
@@ -148,13 +118,10 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient):
         return super(MatrixPhysCoefficient, self).Eval(K, T, ip)
 
     def EvalValue(self, x):
-        for k, name in enumerate(self.ind_vars):
-           self.l[name] = x[k]
-        for n, v in self.variables:           
-           self.l[n] = v()
-
-        val = [eval_code(co, self.g, self.l) for co in self.co]
-        return np.array(val, copy=False).reshape(self.sdim, self.sdim)
+        val = Coefficient_Evaluator.EvalValue(self, x)
+        # reshape to square matrix (not necessariliy = sdim x sdim)
+        dim = np.sqrt(len(val))
+        return val.reshape(dim, dim)
        
 
 from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
@@ -326,12 +293,15 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         import warnings
         warnings.warn("apply init is not implemented to " + str(self))
         
-    def add_mix_contribution(self, engine, a, real=True):
+    def add_mix_contribution(self, engine, a, r, c, is_trans, real=True):
         '''
         return array of crossterms
         [[vertical block elements], [horizontal block elements]]
         array length must be the number of fespaces
         for the physics
+ 
+        r, c : r,c of block matrix
+        is_trans: indicate if transposed matrix is filled
         '''
         raise NotImplementedError(
              "you must specify this method in subclass")
@@ -541,16 +511,26 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             return self.vt3.panel_tip()
         else:
             return self.vt3.panel_tip() +[None]
+         
+    @property
+    def geom_dim(self):
+        root_phys = self.get_root_phys()
+        return root_phys.geom_dim
 
     def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None):
         if coeff is None: return
         if vt is None: vt = self.vt
-        if vt[name].ndim == 0:
-           coeff = self.restrict_coeff(coeff, engine, idx=idx)
-        elif vt[name].ndim == 1:
-           coeff = self.restrict_coeff(coeff, engine, vec = True, idx=idx)
+        #if vt[name].ndim == 0:
+        if isinstance(coeff, mfem.PyCoefficient):
+            coeff = self.restrict_coeff(coeff, engine, idx=idx) 
+        elif isinstance(coeff, mfem.VectorPyCoefficient):          
+        #elif vt[name].ndim == 1:
+            coeff = self.restrict_coeff(coeff, engine, vec = True, idx=idx)
+        elif isinstance(coeff, mfem.MatrixPyCoefficient):                     
+        #else:
+            coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)
         else:
-           coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)           
+            assert  False, "Unknown coefficient type"
         adder(integrator(coeff))
         
     def onItemSelChanged(self, evt):
@@ -563,6 +543,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
 class PhysModule(Phys):
     hide_ns_menu = False
+    geom_dim = 2  # geometry dimension (~ number of indpendent variables)
     def attribute_set(self, v):
         v = super(PhysModule, self).attribute_set(v)
         v["order"] = 1

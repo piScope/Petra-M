@@ -567,7 +567,7 @@ class MFEMViewer(BookViewer):
                 ax.face.setSelectedIndex([])                
         self.canvas.refresh_hl()
         
-    def highlight_bdry(self, i):
+    def highlight_face(self, i):
         '''
         i is 1-based index
         '''
@@ -586,16 +586,47 @@ class MFEMViewer(BookViewer):
             else:
                 ax.face.setSelectedIndex([])
         self.canvas.refresh_hl()
-    '''   
-    def _select_bdry(self, i):
+        
+    def highlight_edge(self, i):
+        '''
+        i is 1-based index
+        '''
+        try:
+          x = len(i)
+        except:
+          i = list(i)
+        ax = self.get_axes()
+        
+        self.canvas.unselect_all()
+                                          
+        if ax.has_child('edge'):
+            if len(i) > 0:                                          
+                ax.edge.setSelectedIndex(i)
+                self.canvas.add_selection(ax.edge._artists[0])
+            else:
+                ax.edge.setSelectedIndex([])
+        self.canvas.refresh_hl()
 
-        from petram.mesh.plot_mesh import dim2name_bdry
-
-        key =  dim2name_bdry(self.engine.get_mesh().Dimension())
-        ch = self.book.page1.axes1.get_child(name = key + '_'+str(i+1))
-        if ch is not None and len(ch._artists) != 0:
-            self.canvas.add_selection(ch._artists[0])
-    '''    
+    def highlight_point(self, i):
+        '''
+        i is 1-based index
+        '''
+        try:
+          x = len(i)
+        except:
+          i = list(i)
+        ax = self.get_axes()
+        
+        self.canvas.unselect_all()
+                                          
+        if ax.has_child('point'):
+            if len(i) > 0:                                          
+                ax.point.setSelectedIndex(i)
+                self.canvas.add_selection(ax.point._artists[0])
+            else:
+                ax.point.setSelectedIndex([])
+        self.canvas.refresh_hl()
+        
     def onResetModel(self, evt):
         ans = dialog.message(self,
                              "Do you want to delete all model setting?",
@@ -697,7 +728,8 @@ class MFEMViewer(BookViewer):
             if check:
                 if kind == 'domain': idx = self._dom_bdr_sel[0]
                 elif kind == 'bdry': idx = self._dom_bdr_sel[1]
-                elif kind == 'pair': idx = self._dom_bdr_sel[1]
+                elif kind == 'edge': idx = self._dom_bdr_sel[2]                
+                elif kind == 'point': idx = self._dom_bdr_sel[3]
                 else:
                     idx = None
                 k = 0
@@ -724,7 +756,8 @@ class MFEMViewer(BookViewer):
         if check:
             if kind == 'domain': idx = self._dom_bdr_sel[0]
             elif kind == 'bdry': idx = self._dom_bdr_sel[1]
-            elif kind == 'pair': idx = self._dom_bdr_sel[1]
+            elif kind == 'edge': idx = self._dom_bdr_sel[2]                
+            elif kind == 'point': idx = self._dom_bdr_sel[3]
             else:
                 idx = None
             if idx is not None:

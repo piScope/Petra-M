@@ -85,3 +85,78 @@ def find_circle_center_radius(vv, norm):
     ctr = np.mean(pts, 0)
     r = np.mean(np.sqrt(np.sum((vv - ctr)**2, 1)))
     return ctr, r
+
+
+def connect_pairs2(ll):
+    '''
+    connect paris of indices to make a loop
+
+    (example)
+    >>> idx = array([[1, 4],  [3, 4], [1,2], [2, 3],])
+    >>> connect_pairs(idx)
+    [[1, 2, 3, 4, 1]]
+    ''' 
+    if not isinstance(ll, np.ndarray):
+       ll = np.array(ll)
+
+    idx = np.where(ll[:,0] > ll[:,1])[0]
+    t1 = ll[idx,0]
+    t2 = ll[idx,1]
+    ll[idx,0] = t2
+    ll[idx,1] = t1
+
+    ii = np.vstack([np.arange(ll.shape[0]),]*2).transpose()
+    d  = np.ones(ll.shape[0]*ll.shape[1]).reshape(ll.shape)
+    from scipy.sparse import csr_matrix, coo_matrix
+    m = coo_matrix((d.flatten(), (ii.flatten(), ll.flatten())), 
+                   shape=(len(ll),np.max(ll+1)))
+    mm = m.tocsc()
+    ic = mm.indices; icp = mm.indptr
+    mm = m.tocsr()
+    ir = mm.indices; irp = mm.indptr
+
+    def get_start(taken):
+       idx = np.where(np.logical_and(np.diff(icp) == 1, taken == 0))[0]
+       nz  = np.where(np.logical_and(np.diff(icp) != 0, taken == 0))[0]
+       if len(nz) == 0: return
+       if len(idx) > 0:
+          #print('Open end found')
+          pt = (ic[icp[idx[0]]], idx[0])
+       else:
+          pt = (ic[icp[nz[0]]], nz[0])
+       pts = [pt]
+       return pts
+
+    def hop_v(pt):
+       ii = pt[1]
+       ii = [icp[ii],icp[ii+1]-1]
+       next = ic[ii[1]] if ic[ii[0]] == pt[0] else ic[ii[0]]
+       return (next, pt[1])
+    def hop_h(pt):
+       ii = pt[0]
+       ii = [irp[ii],irp[ii+1]-1]
+       next = ir[ii[1]] if ir[ii[0]] == pt[1] else ir[ii[0]]
+       return (pt[0], next)
+
+    def trace(pts):
+        loop = [pts[-1][1]]
+        while True:
+            pts.append(hop_v(pts[-1]))
+            #rows.append(pts[-1][0])
+            pts.append(hop_h(pts[-1]))
+            if pts[-1][1] in loop : break # open ended
+            loop.append(pts[-1][1])
+            if pts[-1] == pts[0]: break
+        return loop
+
+    taken = (icp*0)[:-1]
+    loops = []
+    while True:
+        pts = get_start(taken)
+        if pts is None: break
+        loop = trace(pts)
+        loops.append(loop)
+        taken[loop] = 1
+
+    return loops
+

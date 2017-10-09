@@ -148,14 +148,23 @@ class BdrNodalEvaluator(EvaluatorAgent):
         self.battrs = battrs        
         self.knowns = WKD()
         self.iverts = []
-        
-        x = [mesh.GetBdrArray(battr) for battr in battrs]
+
+        if mesh.Dimension() == 3:
+            getarray = mesh.GetBdrArray
+            getelement = mesh.GetBdrElement
+        elif mesh.Dimension() == 2:
+            getarray = mesh.GetDomainArray
+            getelement = mesh.GetElement            
+        else:
+            assert False, "BdrNodal Evaluator is not supported for this dimension"
+            
+        x = [getarray(battr) for battr in battrs]
         if np.sum([len(xx) for xx in x]) == 0: return
         
         ibdrs = np.hstack(x).astype(int).flatten()
         self.ibeles = np.array(ibdrs)
         
-        iverts = np.stack([mesh.GetBdrElement(i).GetVerticesArray()
+        iverts = np.stack([getelement(i).GetVerticesArray()
                            for i in ibdrs])
         self.iverts = iverts
         if len(self.iverts) == 0: return

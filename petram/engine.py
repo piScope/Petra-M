@@ -231,8 +231,8 @@ class Engine(object):
 
         from petram.helper.variables import Variables
         variables = Variables()
-        
-        for phys in phys_target:            
+
+        for phys in phys_target:
             for kfes, rgf, igf in enum_fes(phys, self.r_x, self.i_x):
                 name = phys.dep_vars[kfes]
                 phys.add_variables(variables, name, rgf, igf)
@@ -543,9 +543,9 @@ class Engine(object):
             r,c, is_trans, is_conj= loc           
             for mm in tasks[loc]:
                 if not mm.enabled: continue               
-                mm.add_mix_contribution(self, mixed_bf[loc][0], r, c, real = True)
+                mm.add_mix_contribution(self, mixed_bf[loc][0], r, c, is_trans, real = True)
                 if is_complex:
-                     mm.add_mix_contribution(self, mixed_bf[loc][1], r, c, real = False)
+                     mm.add_mix_contribution(self, mixed_bf[loc][1], r, c, is_trans, real = False)
         for loc in mixed_bf:
             for mbf in mixed_bf[loc]: mbf.Assemble()
         self.mixed_bf[phys]  = mixed_bf
@@ -1057,7 +1057,7 @@ class Engine(object):
         self.fec[phys] = []
         
         for name, elem in phys.get_fec():
-            dprint1("allocate_fespace" + name)
+            dprint1("allocate_fespace: " + name)
             mesh = self.meshes[phys.mesh_idx]
             fec = getattr(mfem, elem)
             if fec is mfem.ND_FECollection:
