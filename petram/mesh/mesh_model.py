@@ -126,6 +126,14 @@ class MeshFile(Mesh):
             path = path.replace('{petram}', PetraM_PATH)
         if path.find('{home}') != -1:
             path = path.replace('{home}', HOME)
+
+        if not os.path.isabs(path):
+            path1 = os.path.join(os.getcwd(), path)
+            if not os.path.exists(path1):
+                print(os.path.dirname(os.getcwd()))
+                path = os.path.join(os.path.dirname(os.getcwd()), path)
+            else:
+                path = path1
         return path
 
     def run(self, mesh = None):
