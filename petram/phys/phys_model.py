@@ -25,7 +25,8 @@ class PhysConstant(mfem.ConstantCoefficient):
 
 class Coefficient_Evaluator(object):
     def __init__(self,  exprs,  ind_vars, l, g, real=True):
-        if isinstance(exprs, str): 
+        if not (isinstance(exprs, list) or
+                isinstance(exprs, tuple)):
             exprs = [exprs]          
         self.l = {}
         self.g = g
@@ -106,6 +107,7 @@ class VectorPhysCoefficient(mfem.VectorPyCoefficient, Coefficient_Evaluator):
      
 class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
     def __init__(self, sdim, exprs,  ind_vars, l, g, real=True):
+        self.sdim = sdim
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)       
         mfem.MatrixPyCoefficient.__init__(self, sdim)
         
@@ -119,9 +121,15 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
 
     def EvalValue(self, x):
         val = Coefficient_Evaluator.EvalValue(self, x)
-        # reshape to square matrix (not necessariliy = sdim x sdim)
-        dim = np.sqrt(len(val))
-        return val.reshape(dim, dim)
+        # reshape tosquare matrix (not necessariliy = sdim x sdim)
+        # if elment is just one, it formats to diagonal matrix
+
+        s = val.size
+        if s == 1:
+            return np.zeros((self.sdim, self.sdim)) + val[0]
+        else:
+            dim = int(np.sqrt(s))
+            return val.reshape(dim, dim)
        
 
 from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
