@@ -22,12 +22,48 @@ class PhysConstant(mfem.ConstantCoefficient):
         
     def __repr__(self):
         return self.__class__.__name__+"("+str(self.value)+")"
-
+     
+def try_eval(exprs, l, g):
+    '''
+    first evaulate as it is
+    if the result is list.. return
+    if not evaluate w/o knowing any Variables
+    '''
+    try:
+       value = eval(exprs, l, g)
+       if isinstance(value, list):
+           return True, [value]          
+       ll = [x for x in l if not isinstance(x, Variable)]
+       gg = [x for x in g if not isinstance(x, Variable)]       
+       value = eval(exprs, ll, gg)
+       return True, [value]
+    except:
+       return False, exprs
+   
 class Coefficient_Evaluator(object):
     def __init__(self,  exprs,  ind_vars, l, g, real=True):
-        if not (isinstance(exprs, list) or
-                isinstance(exprs, tuple)):
-            exprs = [exprs]          
+        ''' 
+        this is complicated....
+           elemental (or array) form 
+            [1,a,3]  (a is namespace variable) is given as [[1, a (valued), 3]]
+
+           single box
+              1+1j   is given as '(1+1j)' (string)
+
+           matrix
+              given as string like '[0, 1, 2, 3, 4]'
+              if variable is used it is become string element '['=variable', 1, 2, 3, 4]'
+              if =Varialbe in matrix form, it is passed as [['Variable']]
+        '''
+        #print("exprs", exprs, type(exprs))
+        flag, exprs = try_eval(exprs, l, g)
+        #print("after try_eval", flag, exprs)
+        if not flag:
+            if isinstance(exprs, str):
+                exprs = [exprs]
+        if isinstance(exprs, list) and isinstance(exprs[0], list):
+            exprs = exprs[0]
+        #print("final exprs", exprs)
         self.l = {}
         self.g = g
         for key in l.keys():
@@ -315,154 +351,6 @@ class Phys(Model, Vtable_mixin, NS_mixin):
              "you must specify this method in subclass")
 
 
-    '''
-    def check_phys_expr(self, value, param, ctrl, **kwargs):
-        try:
-            self.eval_phys_expr(str(value), param, **kwargs)
-            return True
-        except:
-            import petram.debug
-            import traceback
-            if petram.debug.debug_default_level > 2:
-                traceback.print_exc()
-            return False
-
-    def check_phys_expr_int(self, value, param, ctrl):
-        return self.check_phys_expr(value, param, ctrl, chk_int = True)
-
-    def check_phys_expr_float(self, value, param, ctrl):
-        return self.check_phys_expr(value, param, ctrl, chk_float = True)
-     
-    def check_phys_expr_complex(self, value, param, ctrl):
-        return self.check_phys_expr(value, param, ctrl, chk_complex = True)
-     
-    def check_phys_array_expr(self, value, param, ctrl, **kwargs):
-        try:
-            if not 'array' in self._global_ns:
-               self._global_ns['array'] = np.array
-            self.eval_phys_array_expr(str(value), param, **kwargs)
-            return True
-        except:
-            import petram.debug
-            import traceback
-            if petram.debug.debug_default_level > 2:
-               traceback.print_exc()
-            return False
-         
-    def check_phys_array_expr_int(self, value, param, ctrl):
-        return self.check_phys_array_expr(value, param, ctrl, chk_int = True)
-
-    def check_phys_array_expr_float(self, value, param, ctrl):
-        return self.check_phys_array_expr(value, param, ctrl, chk_float = True)
-
-    def check_phys_array_expr_complex(self, value, param, ctrl):
-        return self.check_phys_array_expr(value, param, ctrl, chk_complex = True)
-
-    def eval_phys_expr(self, value, param,
-                       chk_int = False, chk_complex = False, 
-                       chk_float = False):
-        def dummy():
-            pass
-        if value.startswith('='):
-            return dummy,  value.split('=')[1]
-        else:
-            x = eval(value, self._global_ns, self._local_ns)
-            if chk_int:
-                x = int(x)
-            elif chk_complex:
-                x = complex(x)
-            elif chk_float:
-                x = float(x)
-            else:
-                x = x + 0   # at least check if it is number.
-            dprint2('Value Evaluation ', param, '=', x)            
-            return x, None
-         
-    def eval_phys_array_expr(self, value, param, chk_complex = False,
-                             chk_float = False, chk_int = False):
-        def dummy():
-            pass
-        if value.startswith('='):
-            return dummy,  value.split('=')[1]           
-        else:
-            if not 'array' in self._global_ns:
-               self._global_ns['array'] = np.array
-            x = eval('array('+value+')', self._global_ns, self._local_ns)
-            if chk_int:
-                x = x.astype(int)
-            elif chk_complex:
-                x = x.astype(complex)
-            elif chk_float:
-                x = x.astype(float)
-            else:
-                x = x + 0   # at least check if it is number.
-            dprint2('Value Evaluation ', param, '=', x)            
-            return x, None
-         
-    # param_panel (defined in NS_mixin) verify if expression can be evaluated
-    # phys_param_panel verify if the value is actually float.
-    # it forces the number to become float after evaulating the expresison
-    # using namespace.     
-    def make_phys_param_panel(self, base_name, value, no_func = True,
-                              chk_int = False,
-                              chk_complex = False,
-                              chk_float = False,
-                              chk_array = False,
-                              validator = None):
-        if validator is None:
-            if chk_int:
-                validator = self.check_phys_expr_int
-            elif chk_float:
-                validator = self.check_phys_expr_float
-            elif chk_complex:
-                validator = self.check_phys_expr_complex            
-            else:
-                validator = self.check_phys_expr
-
-        if no_func:
-            return  [base_name + "(=)",  value, 0,  
-                     {'validator': validator,
-                     'validator_param':base_name}]
-        else:
-            return  [base_name + "(*)",  value, 0,  
-                     {'validator':   validator,
-                     'validator_param':base_name}]
-
-    def make_matrix_panel(self, base_name, suffix, row = 1, col = 1,
-                          chk_int = False,
-                          chk_complex = False,
-                          chk_float = False,
-                          validator = None):
-        if validator is None:
-           
-            if chk_int:
-                validator = self.check_phys_expr_int
-                validatora= self.check_phys_array_expr_int                      
-            elif chk_float:
-                validator = self.check_phys_expr_float           
-                validatora= self.check_phys_array_expr_float   
-            elif chk_complex:
-                validator = self.check_phys_expr_complex
-                validatora= self.check_phys_array_expr_complex                       
-            else:
-                validator = self.check_phys_expr
-                validatora= self.check_phys_array_expr       
-
-        a = [ {'validator': validator,
-               'validator_param':base_name + n} for n in suffix]
-        elp1 = [[None, None, 43, {'row': row,
-                                  'col': col,
-                                 'text_setting': a}],]
-        elp2 = [[None, None, 0, {'validator': validatora,
-                                 'validator_param': base_name + '_m'},]]
-
-        ll = [None, None, 34, ({'text': base_name + '*  ',
-                                'choices': ['Elemental Form', 'Array Form'],
-                                'call_fit': False},
-                                {'elp': elp1},  
-                                {'elp': elp2},),]
-        return ll
-    '''
     def add_variables(self, solvar, n, solr, soli = None):
         '''
         add model variable so that a user can interept simulation 

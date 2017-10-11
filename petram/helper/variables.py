@@ -183,8 +183,8 @@ class Variable(object):
         return self().__abs__()
 
     def __getitem__(self, idx):
-        print idx
-        print self().shape
+        #print idx
+        #print self().shape
         return self()[idx]
 
     def make_callable(self):

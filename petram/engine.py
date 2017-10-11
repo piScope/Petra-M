@@ -509,7 +509,7 @@ class Engine(object):
                   mm.add_lf_contribution(self, ib, real=False, kfes=kfes)
             rb.Assemble()
             if ib is not None: ib.Assemble()
-            
+           
     def assemble_mixed(self, phys):
         is_complex = phys.is_complex()
         mixed_bf = {}
@@ -886,7 +886,6 @@ class Engine(object):
                #s1 = self.split_sol_array_fespace(sol_section, P)
                s.append(sol_section)  ## I need to add toarray to hypre?
             e.append(sol[offsets[len(phys.dep_vars)]:offsets[-1]])
-        print(e)
         return s, e
      
     def recover_sol(self, phys_target, matvecs, sol):
