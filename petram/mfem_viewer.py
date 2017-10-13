@@ -469,6 +469,7 @@ class MFEMViewer(BookViewer):
         
     def onLoadMesh(self, evt):
         self.load_mesh()
+        self._hidemesh = True
         
     def load_mesh(self):
         if self.engine is None: self.start_engine()
@@ -1050,9 +1051,15 @@ class MFEMViewer(BookViewer):
     def onServerNewDir(self, evt):
         import datetime, socket
         from ifigure.widgets.dialog import textentry
-        txt = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
-        hostname = socket.gethostname()
-        txt = txt + '_' + hostname
+        remote = self.model.param.eval('remote')
+
+        # this assumes file_sep is "/" on server..
+        if remote is not None and remote['rwdir'].split('/')[-1] != '':
+            txt = remote['rwdir'].split('/')[-1]+'_new'
+        else:
+            txt = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+            hostname = socket.gethostname()
+            txt = txt + '_' + hostname
         f,txt = textentry(self, message = 'Enter remote directory name',
                           title = 'Creating remote directory', 
                           def_string = txt, center = True)
