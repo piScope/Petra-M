@@ -103,6 +103,7 @@ class MFEMViewer(BookViewer):
         self._view_mode_group = ''
         self._is_mfem_geom_fig = False        
         self._dom_bdr_sel  = ([], [], [], [])
+        self._palette_focus = ''
         self.model = self.book.get_parent()
         self.editdlg = None
         self.plotsoldlg = None
@@ -365,6 +366,12 @@ class MFEMViewer(BookViewer):
             return
 
         status_txt = ''
+        if not self._view_mode in self._s_v_loop:
+            self.set_status_text('', timeout = 60000)
+            evt.selections = self.canvas.selection
+            self.property_editor.onTD_Selection(evt)
+            return 
+            
         _s_v_loop = self._s_v_loop[self._view_mode]
         sf, sv, se, sp = [], [], [], []
         if self._sel_mode == 'volume':
@@ -452,9 +459,7 @@ class MFEMViewer(BookViewer):
         self.set_status_text(status_txt, timeout = 60000)
         self._dom_bdr_sel  = (sv, sf, se, sp)
         evt.selections = self.canvas.selection
-        self.property_editor.onTD_Selection(evt)           
-        
-
+        self.property_editor.onTD_Selection(evt)                   
         
     def onNewMesh(self, evt):
         from ifigure.widgets.dialog import read
@@ -723,7 +728,7 @@ class MFEMViewer(BookViewer):
            menus.append(("Hide Mesh",  self.onHideMesh, None))
            
 
-        if self.editdlg is not None:
+        if self.editdlg is not None and self._palette_focus == 'edit':
             check, kind, cidxs, labels = self.editdlg.isSelectionPanelOpen()
             if check:
                 if kind == 'domain': idx = self._dom_bdr_sel[0]
@@ -747,6 +752,39 @@ class MFEMViewer(BookViewer):
                        txt = "Remove from "+ label
                        menus.append((txt, m, None))
                     k = k + 1
+        elif self.plotsoldlg is not None and self._palette_focus == 'plot':
+            kind, cidx  = self.plotsoldlg.get_selected_plotmode(kind = True)
+            if kind == 'domain': idx = self._dom_bdr_sel[0]
+            elif kind == 'bdry': idx = self._dom_bdr_sel[1]
+            elif kind == 'edge': idx = self._dom_bdr_sel[2]                
+            elif kind == 'point': idx = self._dom_bdr_sel[3]
+            else: idx = None
+            if idx is not None:
+                if cidx != 'all':
+                    show_rm = any([x in cidx for x in idx])
+                    show_add = any([not x in cidx for x in idx])
+                else:
+                    show_rm = False
+                    show_add = False
+                    
+                m1 = self.plotsoldlg.add_selection
+                m2 = self.plotsoldlg.rm_selection
+                m3 = self.plotsoldlg.set_selection    
+                def onAddPlotSel(evt, idx=idx):
+                    m1(idx)
+                    evt.Skip()
+                def onRmPlotSel(evt, idx=idx):
+                    m2(idx)
+                    evt.Skip()
+                def onSetPlotSel(evt, idx=idx):
+                    m3(idx)
+                    evt.Skip()
+                if show_add:
+                    menus.append(("Add to plot " + kind + " selection", onAddPlotSel, None))
+                if show_rm:    
+                    menus.append(("Remove from plot " + kind + " selection", onRmPlotSel,
+                                  None))
+                menus.append(("Set to plot " + kind + " selection", onSetPlotSel, None))
         menus.extend([("!", None, None),
                       ("---", None, None),])
         return menus

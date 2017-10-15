@@ -148,7 +148,7 @@ class DlgPlotSol(DialogWithWindowList):
                   ['z:', '', 0, {}],
                   ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
-                  [None, False, 3, {"text":'dynamic extraction'}],]
+                  [None, False, 3, {"text":'dynamic extension'}],]
 
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
@@ -175,7 +175,7 @@ class DlgPlotSol(DialogWithWindowList):
                   ['Edge ', text, 0, {}],
                   ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
-                  [None, False, 3, {"text":'dynamic extraction'}],
+                  [None, False, 3, {"text":'dynamic extension'}],
                   [None, True, 3, {"text":'merge solutions'}],]
 
             elp = EditListPanel(p, ll)
@@ -209,9 +209,8 @@ class DlgPlotSol(DialogWithWindowList):
                   ['Boundary Index', text, 0, {}],
                   ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
-                  [None, False, 3, {"text":'dynamic extraction'}],
-                  [None, True, 3, {"text":'merge solutions'}],
-                  [None, True, 3, {"text":'keep surface separated'}],]        
+                  [None, False, 3, {"text":'dynamic extenstion'}],
+                  [None, True, 3, {"text":'merge solutions'}],]
 
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
@@ -245,7 +244,7 @@ class DlgPlotSol(DialogWithWindowList):
                   ['Boundary Index', text, 0, {}],
                   ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],
-                  [None, False, 3, {"text":'dynamic extraction (does not work)'}],
+                  [None, False, 3, {"text":'dynamic extension (does not work)'}],
                   [None, True, 3, {"text":'merge solutions'}],
                   ['Arrow count', 300, 400, None],]
 
@@ -278,7 +277,7 @@ class DlgPlotSol(DialogWithWindowList):
                   ['Domain Index', text, 0, {}],
                   ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
-                  [None, False, 3, {"text":'dynamic extraction'}],
+                  [None, False, 3, {"text":'dynamic extension'}],
                   [None, True, 3, {"text":'merge solutions'}],]
 
             elp = EditListPanel(p, ll)
@@ -337,6 +336,11 @@ class DlgPlotSol(DialogWithWindowList):
         self.evaluators = {}
         self.solfiles = {}
 
+        self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)        
+        
+    def OnChildFocus(self, evt):
+        self.GetParent()._palette_focus = 'plot'        
+        evt.Skip()
 
     def post_threadend(self, func, *args, **kwargs):
         evt = wx.PyCommandEvent(ThreadEnd, wx.ID_ANY)
@@ -404,32 +408,71 @@ class DlgPlotSol(DialogWithWindowList):
         pass
     
     def onApply(self, evt):
-        t = self.nb.GetPageText(self.nb.GetSelection())
-        t = t.replace('(','').replace(')','')        
+        t = self.get_selected_plotmode()                        
         m = getattr(self, 'onApply'+t)
         m(evt)
     def onInteg(self, evt):
-        t = self.nb.GetPageText(self.nb.GetSelection())
-        t = t.replace('(','').replace(')','')                
+        t = self.get_selected_plotmode()                
         m = getattr(self, 'onInteg'+t)
         m(evt)
     def onExport(self, evt):
-        t = self.nb.GetPageText(self.nb.GetSelection())
-        t = t.replace('(','').replace(')','')                
+        t = self.get_selected_plotmode()        
         m = getattr(self, 'onExport'+t)
         m(evt)
     def onExport2(self, evt):
-        t = self.nb.GetPageText(self.nb.GetSelection())
-        t = t.replace('(','').replace(')','')                
+        t = self.get_selected_plotmode()
         m = getattr(self, 'onExport2'+t)
         m(evt)
-
+        
+    def get_selected_plotmode(self, kind = False):
+        t = self.nb.GetPageText(self.nb.GetSelection())
+        t = t.replace('(','').replace(')','')
+        if kind:
+            kinds = {'Bdr': 'bdry',
+                     'BdrArrorw': 'bdry',
+                     'Edge': 'edge',
+                     'Slice': 'domain',
+                     'Domain': 'domain'}
+            i = getattr(self, 'get_attrs_field_'+t)
+            value = self.elps[t].GetValue()
+            attrs = str(value[i()])
+            if attrs.strip().lower() != 'all':            
+               attrs = [int(x) for x in attrs.split(',')]            
+            return kinds[t], attrs
+        else: 
+            return t
+                       
+    def add_selection(self, sel):
+        t = self.get_selected_plotmode()                
+        i = getattr(self, 'get_attrs_field_'+t)
+        attrs = self.elps[t].GetValue()[i()]
+        if attrs.strip().lower() == 'all': return
+        attrs = sorted(set([int(x) for x in attrs.split(',')]+sel))
+        self.set_selection(attrs)
+        
+    def rm_selection(self, sel):
+        t = self.get_selected_plotmode()                        
+        i = getattr(self, 'get_attrs_field_'+t)
+        attrs = self.elps[t].GetValue()[i()]
+        if attrs.strip().lower() == 'all': return
+        print(attrs, sel)
+        attrs = sorted([int(x) for x in attrs.split(',') if not int(x) in sel])
+        self.set_selection(attrs)
+        
+    def set_selection(self, sel):
+        t = self.get_selected_plotmode()                               
+        i = getattr(self, 'get_attrs_field_'+t)
+        txt = ', '.join([str(s) for s in sel])
+        v = self.elps[t].GetValue()
+        v[i()] = txt
+        self.elps[t].SetValue(v)
+    
     #    
     #   Edge value ('Edge' tab)
     #
     @run_in_piScope_thread        
     def onApplyEdge(self, evt):
-        value = self.elps['Edge'] .GetValue()
+        value = self.elps['Edge'].GetValue()
         expr = str(value[0]).strip()
         expr_x = str(value[1]).strip()
         
@@ -507,7 +550,10 @@ class DlgPlotSol(DialogWithWindowList):
         verts, cdata = data[0]
         data = {'vertices': verts, 'data': cdata}
         self.export_to_piScope_shell(data, 'bdr_data')
-        
+                       
+    def get_attrs_field_Edge(self):
+        return 2
+                       
     def eval_edge(self, mode = 'plot'):
         from petram.sol.evaluators import area_tri
         value = self.elps['Edge'] .GetValue()
@@ -559,12 +605,33 @@ class DlgPlotSol(DialogWithWindowList):
         v.update(False)        
         setup_figure(v, self.GetParent())                
         v.suptitle(expr + ':' + str(battrs))
-        for verts, cdata, adata in data:
-           if cls is None:
-                v.solid(verts, adata, cz=True, cdata= cdata.astype(float),
-                        shade='linear')
-           else:
-                v.solid(verts, adata, cz=True, cdata= cdata, shade='linear')
+
+        verts, cdata, adata = zip(*data)
+        offsets = np.hstack((0, np.cumsum([len(c) for c in cdata], dtype=int)))[:-1]
+        offsets_idx = np.hstack([np.zeros(len(a), dtype=int)+o
+                                 for o, a in zip(offsets, adata)])
+        array_idx = np.hstack([np.zeros(len(c), dtype=int)+k
+                               for k, c in enumerate(cdata)])        
+        verts = np.vstack(verts)
+        cdata = np.hstack(cdata)                
+        adata = np.vstack(adata)
+        adata = adata + np.atleast_2d(offsets_idx).transpose()
+        array_idx = array_idx + 1
+
+        if cls is None:
+            v.solid(verts, adata, array_idx=array_idx,
+                    cz=True, cdata= cdata.astype(float),
+                    shade='linear', )
+        else:
+            v.solid(verts, adata, array_idx=array_idx,
+                    cz=True, cdata= cdata, shade='linear')
+        
+        #for verts, cdata, adata in data:
+        #   if cls is None:
+        #        v.solid(verts, adata, cz=True, cdata= cdata.astype(float),
+        #                shade='linear')
+        #   else:
+        #        v.solid(verts, adata, cz=True, cdata= cdata, shade='linear')
         v.update(True)
         v.view('noclip')
         v.view('equal')
@@ -605,6 +672,9 @@ class DlgPlotSol(DialogWithWindowList):
         data = {'vertices': verts, 'data': cdata, 'index': adata}
         self.export_to_piScope_shell(data, 'bdr_data')
 
+    def get_attrs_field_Bdr(self):
+        return 1
+                       
     def eval_bdr(self, mode = 'plot', export_type = 1):
         from petram.sol.evaluators import area_tri
         value = self.elps['Bdr'] .GetValue()
@@ -614,7 +684,7 @@ class DlgPlotSol(DialogWithWindowList):
         phys_path = value[2]
         if mode == 'plot':
             do_merge1 = value[4]
-            do_merge2 = value[5]
+            do_merge2 = True
         elif mode == 'integ':
             do_merge1 = True
             do_merge2 = False
@@ -673,6 +743,9 @@ class DlgPlotSol(DialogWithWindowList):
         verts = np.dstack((x[0][1], y[0][1], z[0][1]))
         data = {'vertices': verts}
         self.export_to_piScope_shell(data, 'geom_data')
+                       
+    def get_attrs_field_GeomBdr(self):
+        return 3
         
     def eval_geombdr(self, mode = 'plot'):        
         value = self.elps['GeomBdr'] .GetValue()
@@ -798,6 +871,9 @@ class DlgPlotSol(DialogWithWindowList):
                 'v': v,
                 'w': w}
         self.export_to_piScope_shell(data, 'arrow_data')
+                       
+    def get_attrs_field_Bdrarrow(self):
+        return 3
     
     def eval_bdrarrow(self, mode = 'plot'):        
         value = self.elps['Bdr(arrow)'] .GetValue()
@@ -824,11 +900,12 @@ class DlgPlotSol(DialogWithWindowList):
                 v = None
                 battrs = None
             return v, battrs
-        
+
         u, ubattrs = call_eval_sol_bdr(expr_u)
         v, vbattrs = call_eval_sol_bdr(expr_v)
-        w, wbattrs = call_eval_sol_bdr(expr_w)        
+        w, wbattrs = call_eval_sol_bdr(expr_w)
         if u is None and v is None and w is None: return
+                     
         basedata = u; battrs = ubattrs
         if basedata is None:
             basedata = v
@@ -888,6 +965,9 @@ class DlgPlotSol(DialogWithWindowList):
         ax2.set_axes3d_viewparam(param, ax2._artists[0])
         v.lighting(light = 0.5)
         v.update(True)
+                       
+    def get_attrs_field_Slice(self):
+        return 2
         
     def eval_slice(self, mode = 'plot'):
         from petram.sol.evaluators import area_tri
@@ -970,7 +1050,6 @@ class DlgPlotSol(DialogWithWindowList):
         '''
         evaluate sol using boundary evaluator
         '''
-        print("input",  expr, battrs, phys_path, do_merge1, do_merge2, kwargs)
         model = self.GetParent().model
         solfiles = self.get_model_soldfiles()
         mfem_model = model.param.getvar('mfem_model')

@@ -106,9 +106,13 @@ class DlgEditModel(DialogWithWindowList):
         self.Bind(EDITLIST_CHANGED, self.OnEL_Changed)        
         self.Bind(EDITLIST_CHANGING, self.OnEL_Changing)
         self.Bind(EDITLIST_SETFOCUS, self.OnEL_SetFocus)
-
+        self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)        
         self._focus_idx = None
-        self._focus_obj = None        
+        self._focus_obj = None
+        
+    def OnChildFocus(self, evt):
+        self.GetParent()._palette_focus = 'edit'                
+        evt.Skip()
         
     def OnItemRightClick(self, e):
         tree = self.tree
