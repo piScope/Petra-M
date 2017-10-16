@@ -174,7 +174,7 @@ class Engine(object):
         self.build_ns()
         self.run_preprocess()
         
-        solver = model["Solver"].get_active_solver()
+        solver = model["Solver"].get_active_solvers()
         return solver
      
     def run_config(self):

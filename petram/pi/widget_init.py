@@ -1,20 +1,7 @@
 import wx
 import wx.grid as gr
-
-from ifigure.utils.edit_list import TextCtrlCopyPaste
-from petram.helper.variables import var_g
-
-g = var_g.copy()
-
-def eval_value(value):
-    return eval(value, g, {})    
-
-def validator(value, param, ctrl):
-    try:
-       x = eval_value(value)
-    except:
-       return False
-    return True
+from ifigure.utils.edit_list import TextCtrlCopyPaste        
+from petram.helper.init_helper import *
 
 class InitSettingPanel(wx.Panel):
     def __init__(self, parent, id, setting = None):
