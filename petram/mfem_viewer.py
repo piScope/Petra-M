@@ -538,7 +538,10 @@ class MFEMViewer(BookViewer):
                 sl = _s_v_loop[1]
                 faces = []
                 for i in sel['volume']:
-                   faces.extend(sl[i])
+                    if i in sl:
+                        faces.extend(sl[i])
+                    else:
+                        print('Volume: ' + str(i) + " not found")
                 print(faces)
                 faces_idx = list(set(faces))
                 ax.face.setSelectedIndex(faces)
@@ -564,7 +567,10 @@ class MFEMViewer(BookViewer):
                 sl = _s_v_loop[1]
                 faces = []
                 for key in i:
-                    faces.extend(sl[key])
+                    if key in sl:
+                        faces.extend(sl[key])
+                    else:
+                        print('Volume: ' + str(key) + " not found")                         
                 faces_idx = list(set(faces))
                 ax.face.setSelectedIndex(faces)
                 self.canvas.add_selection(ax.face._artists[0])

@@ -33,7 +33,7 @@ def expand_vertex_data(X, vertex_idx, element_id):
 
 def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
     viewer.cls()
-    viewer.get_axes()._artists[0].gl_hl_setcolor([1,0,0,])
+    viewer.set_hl_color((1,0,0))
     
     X, cells, pt_data, cell_data, field_data = ret
 
