@@ -106,9 +106,13 @@ class DlgEditModel(DialogWithWindowList):
         self.Bind(EDITLIST_CHANGED, self.OnEL_Changed)        
         self.Bind(EDITLIST_CHANGING, self.OnEL_Changing)
         self.Bind(EDITLIST_SETFOCUS, self.OnEL_SetFocus)
-
+        self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)        
         self._focus_idx = None
-        self._focus_obj = None        
+        self._focus_obj = None
+        
+    def OnChildFocus(self, evt):
+        self.GetParent()._palette_focus = 'edit'                
+        evt.Skip()
         
     def OnItemRightClick(self, e):
         tree = self.tree
@@ -259,18 +263,42 @@ class DlgEditModel(DialogWithWindowList):
                 if not hasattr(mm, '_sel_index') or mm.sel_index == 'remaining':
                     phys = mm.get_root_phys()
                     engine.assign_sel_index(phys)
-                viewer.canvas.toolbar.ClickP1Button('face')
-                viewer.highlight_bdry(mm._sel_index)
-                viewer._dom_bdr_sel = ([], mm._sel_index, [], [])
 
+                if mm.geom_dim == 3:
+                    viewer.canvas.toolbar.ClickP1Button('face')                    
+                    viewer.highlight_face(mm._sel_index)
+                    viewer._dom_bdr_sel = ([], mm._sel_index, [], [])
+                elif mm.geom_dim == 2:                    
+                    viewer.canvas.toolbar.ClickP1Button('edge')                    
+                    viewer.highlight_edge(mm._sel_index)
+                    viewer._dom_bdr_sel = ([], [], mm._sel_index, [],)
+                elif mm.geom_dim == 1:                                        
+                    viewer.canvas.toolbar.ClickP1Button('dot')                    
+                    viewer.highlight_point(mm._sel_index)
+                    viewer._dom_bdr_sel = ([], [], [], mm._sel_index, )
+                else:
+                    pass
+                
             elif isinstance(mm, Domain):
                 if not hasattr(mm, '_sel_index') or mm.sel_index == 'remaining':
                     phys = mm.get_root_phys()
                     engine.assign_sel_index(phys)
-                viewer.canvas.toolbar.ClickP1Button('domain')
-                viewer.highlight_domain(mm._sel_index)
-                viewer._dom_bdr_sel = (mm._sel_index, [], [], [])
 
+                if mm.geom_dim == 3:
+                    viewer.canvas.toolbar.ClickP1Button('domain')                    
+                    viewer.highlight_domain(mm._sel_index)
+                    viewer._dom_bdr_sel = (mm._sel_index, [], [], [])                    
+                elif mm.geom_dim == 2:
+                    viewer.canvas.toolbar.ClickP1Button('face')                    
+                    viewer.highlight_face(mm._sel_index)
+                    viewer._dom_bdr_sel = ([], mm._sel_index, [], [])
+                elif mm.geom_dim == 1:
+                    viewer.canvas.toolbar.ClickP1Button('edge')                    
+                    viewer.highlight_edge(mm._sel_index)
+                    viewer._dom_bdr_sel = ([], [], mm._sel_index, [],)
+                else:
+                    pass
+                
         if evt is not None:
             mm.onItemSelChanged(evt)      
             evt.Skip()
@@ -524,19 +552,22 @@ class DlgEditModel(DialogWithWindowList):
             else:
                 labels.append('')
                 idx.append([])
-                
+
+        tnames = ['domain', 'bdry', 'edge', 'point']
         if isinstance(mm, Domain):
-            tt = 'domain'
+            tt = 0
         elif isinstance(mm, Bdry):
-            tt = 'bdry'            
+            tt = 1
         elif isinstance(mm, Edge):
-            tt = 'edge'
+            tt = 2
         elif isinstance(mm, Pair):
-            tt = 'pair'
+            tt = 1
         else:
            return false_value
-
-        return True, tt, idx, labels
+        if mm.geom_dim == 2: tt += 1
+        if mm.geom_dim == 1: tt += 2
+        
+        return True, tnames[tt], idx, labels
 
     def add_remove_AreaSelection(self,  idx, rm= False, flag=0):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())

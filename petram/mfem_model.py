@@ -59,6 +59,11 @@ class MFEM_PhysRoot(Model):
         except:
             pass
         try:
+            from phys.em2da.em2da_model import EM2Da
+            ans.append(EM2Da)
+        except:
+            pass
+        try:
             from phys.th3ds.th3ds_model import TH3Ds
             ans.append(TH3Ds)
         except:

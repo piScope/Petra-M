@@ -28,7 +28,7 @@ import traceback
 debug_mode = 1
 debug_modes = {}
 debug_default_level = 1
-debug_essentail_bc = False
+debug_essential_bc = False
 debug_memory = False
 
 def set_debug_level(level):

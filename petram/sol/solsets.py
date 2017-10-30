@@ -100,6 +100,7 @@ def find_solfiles(path, idx = None):
           soli = (os.path.join(path,'soli_'+name+suffix)
                   if ('soli_'+name+suffix) in solifile else None)
           sol[name] = (solr, soli)
+       if sol[names[-1]][0] is None: continue # if real sol is None, skip this
        solfiles.append([x, sol])          
     return Solfiles(solfiles)
 

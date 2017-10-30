@@ -174,7 +174,7 @@ class Engine(object):
         self.build_ns()
         self.run_preprocess()
         
-        solver = model["Solver"].get_active_solver()
+        solver = model["Solver"].get_active_solvers()
         return solver
      
     def run_config(self):
@@ -231,8 +231,8 @@ class Engine(object):
 
         from petram.helper.variables import Variables
         variables = Variables()
-        
-        for phys in phys_target:            
+
+        for phys in phys_target:
             for kfes, rgf, igf in enum_fes(phys, self.r_x, self.i_x):
                 name = phys.dep_vars[kfes]
                 phys.add_variables(variables, name, rgf, igf)
@@ -509,7 +509,7 @@ class Engine(object):
                   mm.add_lf_contribution(self, ib, real=False, kfes=kfes)
             rb.Assemble()
             if ib is not None: ib.Assemble()
-            
+           
     def assemble_mixed(self, phys):
         is_complex = phys.is_complex()
         mixed_bf = {}
@@ -543,9 +543,9 @@ class Engine(object):
             r,c, is_trans, is_conj= loc           
             for mm in tasks[loc]:
                 if not mm.enabled: continue               
-                mm.add_mix_contribution(self, mixed_bf[loc][0], r, c, real = True)
+                mm.add_mix_contribution(self, mixed_bf[loc][0], r, c, is_trans, real = True)
                 if is_complex:
-                     mm.add_mix_contribution(self, mixed_bf[loc][1], r, c, real = False)
+                     mm.add_mix_contribution(self, mixed_bf[loc][1], r, c, is_trans, real = False)
         for loc in mixed_bf:
             for mbf in mixed_bf[loc]: mbf.Assemble()
         self.mixed_bf[phys]  = mixed_bf
@@ -553,6 +553,8 @@ class Engine(object):
     def assemble_extra(self, phys):
         names = phys.dep_vars      
         extras = []
+        mm_list = []
+        
         for kfes, gl_ess_tdof in enum_fes(phys, self.gl_ess_tdofs):
             extra = []
             for mm in phys.walk():
@@ -562,11 +564,12 @@ class Engine(object):
                                                      ess_tdof=gl_ess_tdof, 
                                                      kfes = kfes)
                     if tmp is None: continue
-                    extra.append((tmp, mm))
-            extras.append((names[kfes], extra))
+                    extra.append((tmp, mm,) )
+                    if not mm.fullname() in mm_list:
+                       mm_list.append(mm.fullname())
+            extras.append((names[kfes], (extra, mm_list)))
         self.extras[phys] = extras
-
-
+        
     def assemble_interp(self, phys):
         names = phys.dep_vars
         interps = []
@@ -707,14 +710,14 @@ class Engine(object):
             for kfes, extra, interp, gl_ess_tdof in enum_fes(phys,
                          self.extras, self.interps, self.gl_ess_tdofs):
                 offset = offsets[kfes]
+                offsete = offsets[len(phys.dep_vars)]                
                 mvs = matvecs[phys]
                 mv = [mm[kfes] for mm in mvs]                
                 #matvec[k]  =  r_X, r_B, r_A, i_X, i_B, i_A or r only
-
                 self.fill_block_matrix_fespace(blocks, mv,
                                                gl_ess_tdof, extra, 
                                                interp, 
-                                               offset)
+                                               offset, offsete)
         # (step2) in-physics coupling (MixedForm)
         for phys, offsets, mixed_bf, interps in iter_phys(
                                           phys_target, self.phys_offsets,
@@ -729,7 +732,6 @@ class Engine(object):
                                        self.fill_block_from_mixed(loc, elem,
                                                                  interps[loc[0]],
                                                                  interps[loc[1]]))
-
         # (step3) mulit-physics coupling (???)
         #         apply projection + place in a block format
         return 
@@ -745,9 +747,10 @@ class Engine(object):
             for kfes, extra, interp, gl_ess_tdof in enum_fes(phys,
                          self.extras, self.interps, self.gl_ess_tdofs):
                 offset = offsets[kfes]
-                mv = [mm[kfes] for mm in mvs]                
+                offsete = offsets[len(phys.dep_vars)]                
+                mv = [mm[kfes] for mm in mvs]
                 self.fill_block_rhs_fespace(blocks, mv, extra, interp,
-                                            offset)
+                                            offset, offsete)
 
         # (step3) mulit-physics coupling (???)
         #         apply projection + place in a block format
@@ -775,7 +778,7 @@ class Engine(object):
             for offset, gl_ess_tdof in zip(offsets, gl_ess_tdofs):
                 for ib in range(size):
                     if ib == offset: continue
-                    if M[offset, ib] is None: continue                    
+                    if M[offset, ib] is None: continue
                     M[offset, ib].resetRow(gl_ess_tdof[1])
 
         # store vertical to Me (choose only essential col)
@@ -798,12 +801,13 @@ class Engine(object):
         phys_offsets = ModelDict(self.model)
         base_offset = 0
         for phys, extras in iter_phys(phys_target, self.extras):
-            num_blocks = [1 + len(extra) for name, extra in extras]
+            mm_list = extras[0][1][1]
+            num_blocks = [1]*len(extras)+[1]*len(mm_list)
             offsets = np.hstack((0, np.cumsum(num_blocks)))+base_offset
             phys_offsets[phys] = offsets
             base_offset = offsets[-1]
-            dprint3("offset ", offsets)
-        
+            dprint1("offset ", offsets, mm_list)
+            
         size = base_offset
         M_block = self.new_blockmatrix((size, size))
         B_block = self.new_blockmatrix((size, 1))
@@ -876,11 +880,12 @@ class Engine(object):
             offsets = self.phys_offsets[phys]
             for kfes, interps, in enum_fes(phys, self.interps):
                P, nonzeros, zeros = interps
-               sol_section = sol[offsets[kfes]:offsets[kfes+1], 0]
-               s1, s2 = self.split_sol_array_fespace(sol_section, P)
-               s.append(s1)  ## I need to add toarray to hypre?
-               e.append(s2)
-
+               sol_section = sol[offsets[kfes], 0]
+               if P is not None:
+                   sol_section = (P.transpose()).dot(sol_section)
+               #s1 = self.split_sol_array_fespace(sol_section, P)
+               s.append(sol_section)  ## I need to add toarray to hypre?
+            e.append(sol[offsets[len(phys.dep_vars)]:offsets[-1]])
         return s, e
      
     def recover_sol(self, phys_target, matvecs, sol):
@@ -905,17 +910,21 @@ class Engine(object):
     def process_extra(self, phys_target, sol_extra):
         ret = {}
         k = 0
-        for phys in phys_target:
+        for k, phys in enumerate(phys_target):
             for name, extra in self.extras[phys]:
                dataset = sol_extra[k]
                key = phys.name()+ "." + name
                ret[key] = {}
+               extra, mm_list = extra
+               mask = [False]*len(mm_list)
                for kextra, v in enumerate(extra):
-                   data = dataset[kextra, 0]
                    t1, t2, t3, t4, t5 = v[0]
-                   if not t5: continue            
                    mm = v[1]
-                   t5 = [t5]*(t2.shape[0])
+                   kk = mm_list.index(mm.fullname())
+                   
+                   if not t5: continue
+                   if mask[kk]: continue
+                   data = dataset[kk, 0]
                    if data is None:
                        # extra can be none in MPI child nodes
                        # this is called so that we can use MPI
@@ -923,7 +932,7 @@ class Engine(object):
                        mm.postprocess_extra(None, t5, ret[key])
                    else:
                        mm.postprocess_extra(data, t5, ret[key])
-               k = k + 1
+                   mask[kk] = True
 
         return ret
 
@@ -1057,7 +1066,7 @@ class Engine(object):
         self.fec[phys] = []
         
         for name, elem in phys.get_fec():
-            dprint1("allocate_fespace" + name)
+            dprint1("allocate_fespace: " + name)
             mesh = self.meshes[phys.mesh_idx]
             fec = getattr(mfem, elem)
             if fec is mfem.ND_FECollection:
@@ -1248,7 +1257,7 @@ class SerialEngine(Engine):
 
     def fill_block_matrix_fespace(self, blocks, mv,
                                         gl_ess_tdof, extra, interp,
-                                        offset, convert_real = False):
+                                        offset, offsete, convert_real = False):
         M, B, Me = blocks
 
         if len(mv) == 6:
@@ -1272,38 +1281,50 @@ class SerialEngine(Engine):
            A1.setDiag(zeros, 1.0)
         
         M[offset, offset] = A1
-
+        extra, mm_list = extra
         for k, v in enumerate(extra):
             t1, t2, t3, t4, t5 = v[0]
-            dprint2("extra matrix nnz before elimination ",
-                    len(t1.nonzero()[0]), " ",  len(t2.nonzero()[0]))
+            mm = v[1]
+            kk = mm_list.index(mm.fullname())
+            if t1 is not None:
+               dprint2("extra matrix nnz before elimination (t1), kfes="+str(k),
+                    len(t1.nonzero()[0]))
+            if t2 is not None:
+               dprint2("extra matrix nnz before elimination (t2), kfes="+str(k),
+                    len(t2.nonzero()[0]))
 
-            if isinstance(t2, np.ndarray):
-                if P is not None:
-                    t2 = P.dot(t2.transpose()).transpose()
-                    t1 = PP.dot(t1)
-                M[k+1+offset, offset] = t2
-                M[offset, k+1+offset] = t1
-                M[k+1+offset, k+1+offset] = t3                
-
+            if isinstance(t1, np.ndarray) or isinstance(t2, np.ndarray):
+                if P is not None:               
+                   if t1 is not None: t1 = PP.dot(t1)
+                   if t2 is not None: t2 = P.dot(t2.transpose()).transpose()
             else:
-                t1 = t1.tolil(); t2 = t2.tolil()
-                if P is not None:
-                    for i in  zeros:
-                        t1[:, i] = 0.0
-                    for i in  zeros:
-                        t2[i, :] = 0.0
-                    t2 = P.dot(t2.transpose()).transpose().tolil()
-                    t1 = PP.dot(t1).tolil()
-                M[k+1+offset, offset] = t2
-                M[offset, k+1+offset] = t1
-                M[k+1+offset, k+1+offset] = t3
-                #t4 = np.zeros(t2.shape[0])+t4 (t4 should be vector...)
-                t5 = [t5]*(t2.shape[0])
+                if t1 is not None:
+                   t1 = t1.tolil()
+                   if P is not None:
+                      for i in  zeros:
+                          t1[:, i] = 0.0
+                      t1 = PP.dot(t1).tolil()                      
+                if t2 is not None:
+                   t2 = t2.tolil()
+                   if P is not None:
+                       for i in  zeros:
+                           t2[i, :] = 0.0
+                       t2 = P.dot(t2.transpose()).transpose().tolil()
+            if t1 is not None: M[offset,   kk+offsete] = t1
+            if t2 is not None: M[kk+offsete,   offset] = t2
+            if t3 is not None: M[kk+offsete, kk+offsete] = t3                
+
+            '''
+            M[k+1+offset, offset] = t2
+            M[offset, k+1+offset] = t1
+            M[k+1+offset, k+1+offset] = t3
+            '''
+            #t4 = np.zeros(t2.shape[0])+t4 (t4 should be vector...)
+            #t5 = [t5]*(t2.shape[0])
 
         return 
 
-    def fill_block_rhs_fespace(self, blocks, mv, extra, interp, offset):
+    def fill_block_rhs_fespace(self, blocks, mv, extra, interp, offset, offsete):
 
         M, B, Me = blocks
         if len(mv) == 6:
@@ -1322,9 +1343,12 @@ class SerialEngine(Engine):
            b1 = PP.dot(b1)
            
         B[offset] = b1
-        size = 1 + len(extra)
+        extra, mm_list = extra        
         for k, v in enumerate(extra):
             t1, t2, t3, t4, t5 = v[0]
+            mm = v[1]
+            kk = mm_list.index(mm.fullname())
+            if t4 is None: continue
             try:
                 void = len(t4)
                 t4 = t4
@@ -1332,7 +1356,7 @@ class SerialEngine(Engine):
                 print "here", t4, type(t4), t4.shape
                 raise ValueError("This is not supported")                
                 t4 = np.zeros(t2.shape[0])+t4
-            B[k+1+offset] = t4
+            B[kk+offsete] = t4
 
     def fill_block_from_mixed(self, loc,  m, interp1, interp2):
         if loc[2]  == -1:
@@ -1390,7 +1414,8 @@ class SerialEngine(Engine):
         sol0 = sol[0, 0]
         if P is not None:
            sol0 = P.transpose().dot(sol0)
-        return sol0, sol[1:, 0]
+        return sol0
+     
 
     def mkdir(self, path):
         if not os.path.exists(path):  os.mkdir(path)
@@ -1516,7 +1541,7 @@ class ParallelEngine(Engine):
 
     def fill_block_matrix_fespace(self, blocks, mv,
                                         gl_ess_tdof, extra, interp,
-                                        offset, convert_real = False):
+                                        offset, offsete, convert_real = False):
                                       
         '''
         fill block matrix for the left hand side
@@ -1546,40 +1571,23 @@ class ParallelEngine(Engine):
            A1.setDiag(zeros, 1.0) # comment this when making final matrix smaller
 
         M[offset, offset] = A1
-
-
-                                      
+        extra, mm_list = extra
         for k, v in enumerate(extra):
             t1, t2, t3, t4, t5 = v[0]
-            if isinstance(t1, chypre.CHypreMat):
-                dprint1("t1, t2, shape", t1.shape, t2.shape)
+            mm = v[1]
+            kk = mm_list.index(mm.fullname())
+            if (isinstance(t1, chypre.CHypreMat) or
+                isinstance(t2, chypre.CHypreMat)):
+                if t1 is not None: dprint1("t1, shape", t1.shape)
+                if t2 is not None: dprint1("t2, shape", t2.shape)
                 if P is not  None:
-                    t1 = P.conj().dot(t1); P.conj()
-                    t2 = t2.dot(P.transpose())
-                #                      
-                #t1.resetRow(ess_tdof_list)
-                #t2.resetCol(ess_tdof_list)
-                #t1.resetRow(zeros)
-                #t2.resetCol(zeros)
-                '''
-                elim = t3 is None
-                t1 = Mat2CooV(t1, is_complex, elimination = elim)
-                t2 = Mat2CooH(t2, is_complex, elimination = elim)               
-                '''
-                #dprint1("t1, t2, shape, shrunk", (t1.M(), t1.N()),(t2.M(), t2.N()))
-                '''
-                for x in ess_tdof_list:
-                   t1.set_row(0.0, 0.0, int(x))
-                   t2.set_col(0.0, 0.0, int(x))
-                for x in zeros:
-                   t1.set_row(0.0, 0.0, int(x))
-                   t2.set_col(0.0, 0.0, int(x))
-                '''
-                   
+                    if t1 is not None: t1 = P.conj().dot(t1); P.conj()
+                    if t2 is not None: t2 = t2.dot(P.transpose())
             elif isinstance(t1, chypre.CHypreVec): # 1D array
                 if P is not  None:
-                    t1 = P.conj().dot(t1); P.conj()
-                    t2 = P.dot(t2)  # = t2*P^t should check if t2 is not hirizontal
+                    if t1 is not None: t1 = P.conj().dot(t1); P.conj()
+                    if t2 is not None: t2 = P.dot(t2)
+                    # = t2*P^t should check if t2 is not hirizontal
                 # this should be taken care in finalization                      
                 #for x in ess_tdof_list:
                 #    t1.set_element(x, 0.0)
@@ -1588,12 +1596,12 @@ class ParallelEngine(Engine):
                 #t2 = Vec2MatH(t2, is_complex)                
             else:
                 pass
-
-            M[k+1+offset,offset] = t2
-            M[offset, k+1+offset] = t1
-            M[k+1+offset, k+1+offset] = t3
-
-    def fill_block_rhs_fespace(self, blocks, mv, extra, interp, offset):
+             
+            if t1 is not None: M[offset,   kk+offsete] = t1
+            if t2 is not None: M[kk+offsete,   offset] = t2
+            if t3 is not None: M[kk+offsete, kk+offsete] = t3
+            
+    def fill_block_rhs_fespace(self, blocks, mv, extra, interp, offset, offsete):
         from mpi4py import MPI
         myid     = MPI.COMM_WORLD.rank
 
@@ -1613,15 +1621,19 @@ class ParallelEngine(Engine):
            P.conj() # to set P back
         B[offset] = b1
 
+        extra, mm_list = extra        
         for k, v in enumerate(extra):
             t1, t2, t3, t4, t5 = v[0]
+            mm = v[1]
+            kk = mm_list.index(mm.fullname())
+            if t4 is None: continue
             try:
                void = len(t4)
                t4 = t4
             except:
                raise ValueError("This is not supported")
                t4 = np.zeros(t2.M())+t4
-            B[k+1+offset] = t4
+            B[kk+offsete] = t4
 
     def fill_block_from_mixed(self, loc, m, interp1, interp2):
         if loc[2]  == -1:
@@ -1656,7 +1668,7 @@ class ParallelEngine(Engine):
         sol0 = sol[0, 0]
         if P is not None:
            sol0 = (P.transpose()).dot(sol0)
-        return sol0, sol[1:, 0]
+        return sol0
 
     def collect_all_ess_tdof(self, phys, ess_tdofs, M = None):
         from mpi4py import MPI

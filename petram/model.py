@@ -508,27 +508,56 @@ class Model(RestorableOrderedDict):
         script.append('    from petram.engine import ParallelEngine as Eng')
         script.append('else:')                      
         script.append('    from petram.engine import SerialEngine as Eng')
+        script.append('')
+        script.append('import petram.debug as debug')
+        script.append('debug.set_debug_level(debug_level)')
         script.append('')        
         script.append('model = make_model()')
         script.append('')        
         script.append('eng = Eng(model = model)')
         script.append('')        
-        script.append('solver = eng.preprocess_modeldata()')
-        script.append('')        
-        script.append('solver.run(eng)')
+        script.append('solvers = eng.preprocess_modeldata()')
+        script.append('')
+        script.append('for s in solvers:')
+        script.append('    s.run(eng)')
         
         return script
+
+    def generate_import_section(self, script):
+        from petram.helper.variables import var_g        
+        from collections import OrderedDict
+
+        d1 = OrderedDict()
+        d2 = OrderedDict()        
+        for x in var_g.keys():
+            err = False
+            try:
+                d1[x] = var_g[x].__module__
+            except:
+                try:
+                    d1[x] = var_g[x].__class__.__module__
+                except:
+                    assert False, "can not generate script for " + x
+                    
+        for x in self.walk():
+            d2[x.__class__.__name__] = x.__class__.__module__
+
+        for key in d1.keys():
+            if d1[key] == '__builtin__': continue ### skip something like pi....
+            script.append('from '+d1[key] + ' import '+ key)
+        script.append('')            
+        for key in d2.keys():
+            script.append('from '+d2[key] + ' import '+ key)
     
     def generate_script(self, skip_def_check = False, dir = None, nofile = False):
         if dir is None: dir = os.getcwd()        
         script = []
         script.append('import  petram.mfem_config as mfem_config')
         script.append('mfem_config.use_parallel = False')
-        
-        script.append('from petram import *')
-        script.append('from petram.mesh import *')
-        script.append('from petram.phys import *')
-        script.append('from petram.solver import *')
+        script.append('')
+        script.append('debug_level = 0')        
+        script.append('')
+        self.generate_import_section(script)
         script.append('')
 
         script2 = self._generate_model_script(

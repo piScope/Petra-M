@@ -28,7 +28,7 @@ class InitSetting(Model):
         self.init_path = v[1][2]
 
     def preprocess_params(self, engine):
-        from petram.pi.widget_init import eval_value
+        from petram.helper.init_helper import eval_value
         try:
             self.init_value = eval_value(self.init_value_txt)
         except:

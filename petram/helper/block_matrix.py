@@ -315,7 +315,7 @@ class BlockMatrix(object):
     def add_to_element(self, i, j, v):
         if self[i,j] is None: self[i,j] = v
         else:
-            self[i,j] = self[i.j] + v
+            self[i,j] = self[i,j] + v
             
     def dot(self, mat):
         if self.shape[1] != mat.shape[0]:
@@ -526,9 +526,20 @@ class BlockMatrix(object):
         '''
         build matrix in coordinate format
         '''
-        roffset = [self[i, 0].shape[0] for i in range(self.shape[0])]
+        roffset = []
+        coffset = []
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                if self[i, j] is not None:
+                   roffset.append(self[i,j].shape[0])
+                   break
+        for j in range(self.shape[1]):
+            for i in range(self.shape[0]):
+                if self[i, j] is not None:
+                   coffset.append(self[i,j].shape[1])
+                   break
+        #coffset = [self[0, j].shape[1] for j in range(self.shape[1])] 
         roffsets = np.hstack([0, np.cumsum(roffset)])
-        coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
         coffsets = np.hstack([0, np.cumsum(coffset)])
         col = []
         row = []

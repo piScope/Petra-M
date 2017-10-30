@@ -103,6 +103,7 @@ class MFEMViewer(BookViewer):
         self._view_mode_group = ''
         self._is_mfem_geom_fig = False        
         self._dom_bdr_sel  = ([], [], [], [])
+        self._palette_focus = ''
         self.model = self.book.get_parent()
         self.editdlg = None
         self.plotsoldlg = None
@@ -365,6 +366,12 @@ class MFEMViewer(BookViewer):
             return
 
         status_txt = ''
+        if not self._view_mode in self._s_v_loop:
+            self.set_status_text('', timeout = 60000)
+            evt.selections = self.canvas.selection
+            self.property_editor.onTD_Selection(evt)
+            return 
+            
         _s_v_loop = self._s_v_loop[self._view_mode]
         sf, sv, se, sp = [], [], [], []
         if self._sel_mode == 'volume':
@@ -452,9 +459,7 @@ class MFEMViewer(BookViewer):
         self.set_status_text(status_txt, timeout = 60000)
         self._dom_bdr_sel  = (sv, sf, se, sp)
         evt.selections = self.canvas.selection
-        self.property_editor.onTD_Selection(evt)           
-        
-
+        self.property_editor.onTD_Selection(evt)                   
         
     def onNewMesh(self, evt):
         from ifigure.widgets.dialog import read
@@ -534,7 +539,10 @@ class MFEMViewer(BookViewer):
                 sl = _s_v_loop[1]
                 faces = []
                 for i in sel['volume']:
-                   faces.extend(sl[i])
+                    if i in sl:
+                        faces.extend(sl[i])
+                    else:
+                        print('Volume: ' + str(i) + " not found")
                 print(faces)
                 faces_idx = list(set(faces))
                 ax.face.setSelectedIndex(faces)
@@ -560,7 +568,10 @@ class MFEMViewer(BookViewer):
                 sl = _s_v_loop[1]
                 faces = []
                 for key in i:
-                    faces.extend(sl[key])
+                    if key in sl:
+                        faces.extend(sl[key])
+                    else:
+                        print('Volume: ' + str(key) + " not found")                         
                 faces_idx = list(set(faces))
                 ax.face.setSelectedIndex(faces)
                 self.canvas.add_selection(ax.face._artists[0])
@@ -568,7 +579,7 @@ class MFEMViewer(BookViewer):
                 ax.face.setSelectedIndex([])                
         self.canvas.refresh_hl()
         
-    def highlight_bdry(self, i):
+    def highlight_face(self, i):
         '''
         i is 1-based index
         '''
@@ -587,16 +598,47 @@ class MFEMViewer(BookViewer):
             else:
                 ax.face.setSelectedIndex([])
         self.canvas.refresh_hl()
-    '''   
-    def _select_bdry(self, i):
+        
+    def highlight_edge(self, i):
+        '''
+        i is 1-based index
+        '''
+        try:
+          x = len(i)
+        except:
+          i = list(i)
+        ax = self.get_axes()
+        
+        self.canvas.unselect_all()
+                                          
+        if ax.has_child('edge'):
+            if len(i) > 0:                                          
+                ax.edge.setSelectedIndex(i)
+                self.canvas.add_selection(ax.edge._artists[0])
+            else:
+                ax.edge.setSelectedIndex([])
+        self.canvas.refresh_hl()
 
-        from petram.mesh.plot_mesh import dim2name_bdry
-
-        key =  dim2name_bdry(self.engine.get_mesh().Dimension())
-        ch = self.book.page1.axes1.get_child(name = key + '_'+str(i+1))
-        if ch is not None and len(ch._artists) != 0:
-            self.canvas.add_selection(ch._artists[0])
-    '''    
+    def highlight_point(self, i):
+        '''
+        i is 1-based index
+        '''
+        try:
+          x = len(i)
+        except:
+          i = list(i)
+        ax = self.get_axes()
+        
+        self.canvas.unselect_all()
+                                          
+        if ax.has_child('point'):
+            if len(i) > 0:                                          
+                ax.point.setSelectedIndex(i)
+                self.canvas.add_selection(ax.point._artists[0])
+            else:
+                ax.point.setSelectedIndex([])
+        self.canvas.refresh_hl()
+        
     def onResetModel(self, evt):
         ans = dialog.message(self,
                              "Do you want to delete all model setting?",
@@ -693,12 +735,13 @@ class MFEMViewer(BookViewer):
            menus.append(("Hide Mesh",  self.onHideMesh, None))
            
 
-        if self.editdlg is not None:
+        if self.editdlg is not None and self._palette_focus == 'edit':
             check, kind, cidxs, labels = self.editdlg.isSelectionPanelOpen()
             if check:
                 if kind == 'domain': idx = self._dom_bdr_sel[0]
                 elif kind == 'bdry': idx = self._dom_bdr_sel[1]
-                elif kind == 'pair': idx = self._dom_bdr_sel[1]
+                elif kind == 'edge': idx = self._dom_bdr_sel[2]                
+                elif kind == 'point': idx = self._dom_bdr_sel[3]
                 else:
                     idx = None
                 k = 0
@@ -716,6 +759,39 @@ class MFEMViewer(BookViewer):
                        txt = "Remove from "+ label
                        menus.append((txt, m, None))
                     k = k + 1
+        elif self.plotsoldlg is not None and self._palette_focus == 'plot':
+            kind, cidx  = self.plotsoldlg.get_selected_plotmode(kind = True)
+            if kind == 'domain': idx = self._dom_bdr_sel[0]
+            elif kind == 'bdry': idx = self._dom_bdr_sel[1]
+            elif kind == 'edge': idx = self._dom_bdr_sel[2]                
+            elif kind == 'point': idx = self._dom_bdr_sel[3]
+            else: idx = None
+            if idx is not None:
+                if cidx != 'all':
+                    show_rm = any([x in cidx for x in idx])
+                    show_add = any([not x in cidx for x in idx])
+                else:
+                    show_rm = False
+                    show_add = False
+                    
+                m1 = self.plotsoldlg.add_selection
+                m2 = self.plotsoldlg.rm_selection
+                m3 = self.plotsoldlg.set_selection    
+                def onAddPlotSel(evt, idx=idx):
+                    m1(idx)
+                    evt.Skip()
+                def onRmPlotSel(evt, idx=idx):
+                    m2(idx)
+                    evt.Skip()
+                def onSetPlotSel(evt, idx=idx):
+                    m3(idx)
+                    evt.Skip()
+                if show_add:
+                    menus.append(("Add to plot " + kind + " selection", onAddPlotSel, None))
+                if show_rm:    
+                    menus.append(("Remove from plot " + kind + " selection", onRmPlotSel,
+                                  None))
+                menus.append(("Set to plot " + kind + " selection", onSetPlotSel, None))
         menus.extend([("!", None, None),
                       ("---", None, None),])
         return menus
@@ -725,7 +801,8 @@ class MFEMViewer(BookViewer):
         if check:
             if kind == 'domain': idx = self._dom_bdr_sel[0]
             elif kind == 'bdry': idx = self._dom_bdr_sel[1]
-            elif kind == 'pair': idx = self._dom_bdr_sel[1]
+            elif kind == 'edge': idx = self._dom_bdr_sel[2]                
+            elif kind == 'point': idx = self._dom_bdr_sel[3]
             else:
                 idx = None
             if idx is not None:

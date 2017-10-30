@@ -19,6 +19,10 @@ class Parametric(Model, NS_mixin):
     can_delete = True
     has_2nd_panel = False
     
+    def __init__(self, *args, **kwargs):
+        super(Parametric, self).__init__(*args, **kwargs)
+        NS_mixin.__init__(self, *args, **kwargs)
+    
     def init_solver(self):
         pass
 
