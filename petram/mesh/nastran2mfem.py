@@ -27,16 +27,18 @@ class NASReader(object):
         self.dataset = None
     def load(self):
         # check format length
+        num_lines = sum(1 for line in open(self.filename))
+        num_lines_base = num_lines/100
         fid = open(self.filename, 'r')
         while True:
             l = fid.readline()
             if l.startswith('+CONT'):
                 globals()['fwidth'] = 8
-                print('short format')                
+                print('short format ' + str(num_lines) + ' lines')
                 break
             elif l.startswith('*CONT'):
                 globals()['fwidth'] = 16
-                print('long format')
+                print('long format ' + str(num_lines) + ' lines')
                 break                
         fid.close()
         
@@ -71,6 +73,8 @@ class NASReader(object):
                  'TETRA':[],
                  'HEXA':[],
                  'QUAD8':[]} ### reading elements
+        print("reading elements")
+        ll = 0
         while True:            
             l = self._read_line(fid)
             if l.startswith('$ Property data section'):break
@@ -85,7 +89,10 @@ class NASReader(object):
             elif l.startswith('CQUAD8'):
                 elems['QUAD8'].append(self.parse_quad8_fixed(l))
             else: pass
-
+            ll += 1
+            if ll % num_lines_base == 0:
+               print(str(ll/num_lines_base) + "% done.(" + str(ll) + ")")
+        print("reading elements   (done)")
         new_elems = {}
         if len(elems['TETRA']) > 0:
             TETRA = np.vstack([np.array((int(g[3]), int(g[4]), int(g[5]), int(g[6]),))
@@ -127,6 +134,7 @@ class NASReader(object):
 
         props = {'PSOLID':[],
                  'PSHELL':[]}
+        print("reading shell/solid")
         while True:            
             l = self._read_line(fid)
             if l.startswith('ENDDATA'):break
@@ -135,7 +143,10 @@ class NASReader(object):
             elif l.startswith('PSHELL'):
                 props['PSHELL'].append(self.parse_pshell_fixed(l))
             else: pass
-                          
+            ll += 1
+            if ll % num_lines_base == 0:
+               print(str(ll/num_lines_base) + "% done.")
+        print("reading shell/solid ...(done)")                          
         PSHELL = np.array([int(g[1]) for g in props['PSHELL']])  #PSHELL
         PSOLID = np.array([int(g[1]) for g in props['PSOLID']])  #PSOLID
 
@@ -236,6 +247,7 @@ def write_nas2mfem(filename,  reader, exclude_bdr = None):
         if exclude_bdr is None: exclude_bdr = [] 
         if reader.dataset is None:
             reader.load()
+        print('loading (done)')
         data = reader.dataset
         fid = open(filename, 'w')
 
@@ -249,6 +261,7 @@ def write_nas2mfem(filename,  reader, exclude_bdr = None):
             el_2d = ['QUAD8',]
 
         unique_grids = list(np.unique(np.hstack([elems[name].flatten() for name in el_3d+el_2d if name in elems])))
+        print('unique_grid (done)')
         nvtc = len(unique_grids)
         ndim = grid.shape[-1]
         nelem = 0
@@ -294,6 +307,7 @@ def write_nas2mfem(filename,  reader, exclude_bdr = None):
             for i in range(len(attr)):
                 if attr[i] in exclude_bdr: continue
                 txt = [str(attr[i]), str(gtyp)]
+
 #                txt.extend([str(unique_grids.index(x)) for x in vidx[i]])
                 txt.extend([str(rev_map[x]) for x in vidx[i]])
                 txts[i] = ' '.join(txt)
