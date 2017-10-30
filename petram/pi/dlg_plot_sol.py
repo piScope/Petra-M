@@ -858,11 +858,11 @@ class DlgPlotSol(DialogWithWindowList):
             
         data, battrs = self.eval_slice(mode = 'plot')
         if data is None:
-            dialog.message(parent = self,
-                            message ='Error in evaluating slice', 
-                            title ='Error')
+            wx.CallAfter(dialog.message, parent = self,
+                         message ='Error in evaluating slice', 
+                         title ='Error')
+            wx.CallAfter(self.set_title_no_status)        
             return
-        
         self.post_threadend(self.make_plot_slice, data, battrs,
                             cls = cls, expr = expr)
         
@@ -922,10 +922,11 @@ class DlgPlotSol(DialogWithWindowList):
         mfem_model = model.param.getvar('mfem_model')
         
         if solfiles is None:
-             dialog.showtraceback(parent = self,
-                                  txt='Solution does not exist',
-                                  title='Error',
-                                  traceback='')
+             wx.CallAfter(dialog.showtraceback, parent = self,
+                          txt='Solution does not exist',
+                          title='Error',
+                          traceback='')
+             wx.CallAfter(self.set_title_no_status)                     
              return None, None
         mesh = model.variables.getvar('mesh')
         if mesh is None: return
