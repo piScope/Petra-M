@@ -70,9 +70,6 @@ class NS_mixin(object):
         fid.close()
         import cPickle as pickle
         self.dataset = pickle.load(open(path2, 'rb'))
-
-        print self.ns_string
-        print self.dataset
         
     def delete_ns(self):
         self._global_ns = None
