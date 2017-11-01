@@ -163,7 +163,7 @@ class Engine(object):
         from __main__ import __file__ as mainfile        
         model = self.model
         model['General'].run()
-        self.run_mesh()
+        self.run_mesh_serial()
         self.assign_sel_index()
 
         if dir is None:
@@ -173,7 +173,8 @@ class Engine(object):
                 node.read_ns_script_data(dir = dir)
         self.build_ns()
         self.run_preprocess()
-        
+
+        self.run_mesh()        
         solver = model["Solver"].get_active_solvers()
         return solver
      
@@ -1075,6 +1076,7 @@ class Engine(object):
             sdim= mesh.SpaceDimension()
             f = fec(phys.order, sdim)
             self.fec[phys].append(f)
+
             fes = self.new_fespace(mesh, f)
             self.fespaces[phys].append((name, fes))
             
@@ -1157,6 +1159,28 @@ class Engine(object):
     def form_linear_system(self, ess_tdof_list, extra, interp, r_A, r_B, i_A, i_B):
         raise NotImplementedError(
              "you must specify this method in subclass")
+
+    def run_mesh_serial(self, meshmodel = None):
+        from petram.mesh.mesh_model import MeshFile, MFEMMesh
+        
+        self.meshes = []
+        if meshmodel is None:
+            parent = self.model['Mesh']
+            children =  [parent[g] for g in parent.keys()
+                         if isinstance(parent[g], MFEMMesh)]
+            for idx, child in enumerate(children):
+                self.meshes.append(None)
+                if not child.enabled: continue
+                target = None
+                for k in child.keys():
+                    o = child[k]
+                    if not o.enabled: continue
+                    if isinstance(o, MeshFile):
+                        self.meshes[idx] = o.run()
+                        target = self.meshes[idx]
+                    else:
+                        if hasattr(o, 'run') and target is not None:
+                            self.meshes[idx] = o.run(target)
                                        
     def run_mesh(self):
         raise NotImplementedError(
@@ -1202,27 +1226,8 @@ class SerialEngine(Engine):
         super(SerialEngine, self).__init__(modelfile = modelfile, model=model)
 
     def run_mesh(self, meshmodel = None):
-        from petram.mesh.mesh_model import MeshFile, MFEMMesh
-        
-        self.meshes = []
-        if meshmodel is None:
-            parent = self.model['Mesh']
-            children =  [parent[g] for g in parent.keys()
-                         if isinstance(parent[g], MFEMMesh)]
-            for idx, child in enumerate(children):
-                self.meshes.append(None)
-                if not child.enabled: continue
-                target = None
-                for k in child.keys():
-                    o = child[k]
-                    if not o.enabled: continue
-                    if isinstance(o, MeshFile):
-                        self.meshes[idx] = o.run()
-                        target = self.meshes[idx]
-                    else:
-                        if hasattr(o, 'run') and target is not None:
-                            self.meshes[idx] = o.run(target)
-        
+        return self.run_mesh_serial(meshmodel = meshmodel)
+
     def run_assemble(self, phys):
         self.is_matrix_distributed = False       
         return super(SerialEngine, self).run_assemble(phys)
@@ -1481,8 +1486,10 @@ class ParallelEngine(Engine):
         return gf
                
     def new_fespace(self,mesh, fec):
-        return  mfem.ParFiniteElementSpace(mesh, fec)
- 
+        if mesh.__class__.__name__ == 'ParMesh':
+            return  mfem.ParFiniteElementSpace(mesh, fec)
+        else:
+            return  mfem.FiniteElementSpace(mesh, fec)
     def new_matrix(self, init = True):
         return  mfem.HypreParMatrix()
 
