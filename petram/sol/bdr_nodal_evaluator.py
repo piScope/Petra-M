@@ -97,6 +97,7 @@ def eval_at_nodals(obj, expr, solvars, phys):
     
     if len(obj.iverts) == 0: return None
     variables = []
+
     st = parser.expr(expr)
     code= st.compile('<string>')
     names = code.co_names
@@ -132,9 +133,15 @@ def eval_at_nodals(obj, expr, solvars, phys):
            ll_value.append(obj.knowns[g[n]])
        elif (n in g):
            var_g2[n] = g[n]
-
-    val = np.array([eval(code, var_g2, dict(zip(ll_name, v)))
+           
+    if len(ll_value) > 0:
+        val = np.array([eval(code, var_g2, dict(zip(ll_name, v)))
                     for v in zip(*ll_value)])
+    else:
+        # if expr does not involve Varialbe, evaluate code once
+        # and generate an array 
+        val = np.array([eval(code, var_g2)]*len(obj.locs))
+
     return val
 
 class BdrNodalEvaluator(EvaluatorAgent):

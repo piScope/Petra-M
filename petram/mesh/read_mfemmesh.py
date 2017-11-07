@@ -5,8 +5,7 @@ from petram.mesh.find_edges import find_edges
 from petram.mesh.find_vertex import find_vertex
 
 def extract_mesh_data(mesh):
-    iv = mesh.GetBdrElementVertices(0)
-    ndim = len(iv)
+    ndim = mesh.Dimension()
     if ndim == 3:
         ivert0 = [mesh.GetBdrElement(i).GetVerticesArray()
                            for i in range(mesh.GetNBE())]

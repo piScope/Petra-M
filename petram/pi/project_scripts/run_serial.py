@@ -30,7 +30,7 @@ def run_serial(path='', debug=0, thread =  True):
             folder = model.scripts.helpers.make_new_sol()
         else:
             folder = model.param.eval('sol')
-            #folder.clean_owndir()
+            folder.clean_owndir()
         path = os.path.join(folder.owndir(), 'model.pmfm')
         model.scripts.helpers.save_model(path)
         del_path = True

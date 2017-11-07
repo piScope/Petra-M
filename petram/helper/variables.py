@@ -338,7 +338,7 @@ class ExpressionVariable(Variable):
 
         from petram.helper.right_broadcast import multi
 
-        #print 'value!!!', ret.shape, value.shape
+        print 'value!!!', ret.shape, value.shape
         ret = multi(ret, value)
         return ret
     
@@ -467,7 +467,7 @@ class PyFunctionVariable(Variable):
         
         from petram.helper.right_broadcast import div        
         ret = div(ret, wverts)
-
+        #print("PyFunctionVariable", ret)
         return ret
 
 
