@@ -8,17 +8,38 @@ def extract_mesh_data(mesh):
     iv = mesh.GetBdrElementVertices(0)
     ndim = len(iv)
     if ndim == 3:
-        ivert = np.vstack([mesh.GetBdrElement(i).GetVerticesArray()
-                       for i in range(mesh.GetNBE())])
+        ivert0 = [mesh.GetBdrElement(i).GetVerticesArray()
+                           for i in range(mesh.GetNBE())]
         attrs = mesh.GetBdrAttributeArray()
     elif ndim == 2:
-        ivert = np.vstack([mesh.GetElement(i).GetVerticesArray()
-                       for i in range(mesh.GetNE())])
+        ivert0 = [mesh.GetElement(i).GetVerticesArray()
+                       for i in range(mesh.GetNE())]
+
         attrs = mesh.GetAttributeArray()        
     else:
         assert False, "1D mesh not supported"
-            
-    u, indices = np.unique(ivert.flatten(), return_inverse=True)
+    nvert = np.array([len(x) for x in ivert0])
+    idx3 = np.where(nvert == 3)[0]
+    idx4 = np.where(nvert == 4)[0]
+    ivert = []; ivert3 = None; ivert4 = None
+    iv3 = []; iv4 = []
+
+    if len(idx3) != 0:
+        iv3 = [ivert0[k] for k in idx3]
+        ivert3 = np.vstack(iv3)
+        attrs3 = attrs[idx3]
+    if len(idx4) != 0:
+        iv4 = [ivert0[k] for k in idx4]        
+        ivert4 = np.vstack(iv4)
+        attrs4 = attrs[idx4]
+
+    tmp = np.hstack(iv3 + iv4)
+    u, indices = np.unique(tmp, return_inverse=True)
+    
+    ll3 = 3*len(idx3)
+    indices3 = indices[:ll3]
+    indices4 = indices[ll3:]
+
     table = np.zeros(np.max(u)+1, dtype=int)-1
     for k, u0 in enumerate(u):
         table[u0] = k
@@ -33,18 +54,15 @@ def extract_mesh_data(mesh):
     
     cells = {}
     cell_data = {}
-    if ivert.shape[1] == 3:
-        cells['triangle'] = indices.reshape(ivert.shape)
+    if ivert3 is not None:
+        cells['triangle'] = indices3.reshape(ivert3.shape)
         cell_data['triangle'] = {}
-        cell_data['triangle']['physical'] = attrs
-    elif ivert.shape[1] == 4:
-        cells['quad'] = indices.reshape(ivert.shape)
+        cell_data['triangle']['physical'] = attrs3
+    if ivert4 is not None:
+        cells['quad'] = indices4.reshape(ivert4.shape)
         cell_data['quad'] = {}
-        cell_data['quad']['physical'] = attrs
-    else:
-        print(ivert.shape)
-        assert False, "only triangle/quad surface is supported"
-
+        cell_data['quad']['physical'] = attrs4
+    
     ## fill line/surface loop info
     loop= {}
     for k in kdom:

@@ -1,7 +1,8 @@
 import wx
 import traceback
 import numpy as np
-import weakref 
+import weakref
+from collections import defaultdict
 from weakref import WeakKeyDictionary as WKD
 
 import ifigure.widgets.dialog as dialog
@@ -601,47 +602,56 @@ class DlgPlotSol(DialogWithWindowList):
     def make_plot_bdr(self, data, battrs, cls = None, expr=''):
         
         from ifigure.interactive import figure
-        v = figure(viewer = cls)
-        v.update(False)        
-        setup_figure(v, self.GetParent())                
-        v.suptitle(expr + ':' + str(battrs))
+        viewer = figure(viewer = cls)
+        viewer.update(False)        
+        setup_figure(viewer, self.GetParent())                
+        viewer.suptitle(expr + ':' + str(battrs))
 
-        verts, cdata, adata = zip(*data)
-        offsets = np.hstack((0, np.cumsum([len(c) for c in cdata], dtype=int)))[:-1]
-        offsets_idx = np.hstack([np.zeros(len(a), dtype=int)+o
-                                 for o, a in zip(offsets, adata)])
-        array_idx = np.hstack([np.zeros(len(c), dtype=int)+k
-                               for k, c in enumerate(cdata)])        
-        verts = np.vstack(verts)
-        cdata = np.hstack(cdata)                
-        adata = np.vstack(adata)
-        adata = adata + np.atleast_2d(offsets_idx).transpose()
-        array_idx = array_idx + 1
+        dd = defaultdict(list)
+        # regroup to sepparte triangles and quads.
+        for k, datasets in enumerate(data):
+            v, c, i = datasets #verts, cdata, idata
+            idx = i.shape[-1]
+            dd[idx].append((k+1, v, c, i))
 
-        if cls is None:
-            v.solid(verts, adata, array_idx=array_idx,
-                    cz=True, cdata= cdata.astype(float),
-                    shade='linear', )
-        else:
-            v.solid(verts, adata, array_idx=array_idx,
-                    cz=True, cdata= cdata, shade='linear')
-        
-        #for verts, cdata, adata in data:
-        #   if cls is None:
-        #        v.solid(verts, adata, cz=True, cdata= cdata.astype(float),
-        #                shade='linear')
-        #   else:
-        #        v.solid(verts, adata, cz=True, cdata= cdata, shade='linear')
-        v.update(True)
-        v.view('noclip')
-        v.view('equal')
-        v.update(False)                
+        for key in dd.keys():
+            kk, verts, cdata, idata = zip(*(dd[key]))
+            #print([v.shape for v in verts])
+            #print([v.shape for v in cdata])
+            #print([v.shape for v in idata])                
+            offsets = np.hstack((0, np.cumsum([len(c) for c in cdata], dtype=int)))[:-1]
+            offsets_idx = np.hstack([np.zeros(len(a), dtype=int)+o
+                                 for o, a in zip(offsets, idata)])
+            array_idx = np.hstack([np.zeros(len(c), dtype=int)+k
+                                  for k, c in zip(kk, cdata)])
+            array_idx = array_idx + 1
+                                  
+            verts = np.vstack(verts)
+            cdata = np.hstack(cdata)                
+            idata = np.vstack(idata)
+            idata = idata + np.atleast_2d(offsets_idx).transpose()
+
+
+            if cls is None:
+               obj = viewer.solid(verts, idata, array_idx=array_idx,
+                       cz=True, cdata= cdata.astype(float),
+                       shade='linear', )
+               obj.set_gl_hl_use_array_idx(True)
+            else:
+               obj = viewer.solid(verts, idata, array_idx=array_idx,
+                       cz=True, cdata= cdata, shade='linear')
+               obj.set_gl_hl_use_array_idx(True)
+               
+        viewer.update(True)
+        viewer.view('noclip')
+        viewer.view('equal')
+        viewer.update(False)                
         ax = self.GetParent().get_axes()
         param = ax.get_axes3d_viewparam(ax._artists[0])
-        ax2 = v.get_axes()
+        ax2 = viewer.get_axes()
         ax2.set_axes3d_viewparam(param, ax2._artists[0])
-        v.lighting(light = 0.5)
-        v.update(True)
+        viewer.lighting(light = 0.5)
+        viewer.update(True)
 
     def onIntegBdr(self, evt):
         value = self.elps['Bdr'] .GetValue()

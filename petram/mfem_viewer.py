@@ -352,18 +352,21 @@ class MFEMViewer(BookViewer):
         evt.Skip()
         
     def _getSelectedIndex(self, mode='face'):
-        obj = self.canvas.selection[0]().figobj
-        if obj.name == mode+"_meshed":
-            return obj.getSelectedIndex(), obj
-        elif obj.name == mode:
-            return obj.getSelectedIndex(), obj
-        else:
-            return [], None
+        objs = [o().figobj for o in self.canvas.selection]
+
+        sel = []
+        oo = []
+        for obj in objs:
+            if obj.name.startswith(mode):
+                sel.extend(obj.getSelectedIndex())
+                oo.append(obj)
+        print sel, oo        
+        return sel, oo
     
     def onTD_SelectionInFigure(self, evt = None):
-        if len(self.canvas.selection) != 1:
-            self._dom_bdr_sel  = ([], [], [], [])                    
-            return
+        #if len(self.canvas.selection) == 0:
+        #    self._dom_bdr_sel  = ([], [], [], [])                    
+        #    return
 
         status_txt = ''
         if not self._view_mode in self._s_v_loop:
@@ -376,7 +379,7 @@ class MFEMViewer(BookViewer):
         sf, sv, se, sp = [], [], [], []
         if self._sel_mode == 'volume':
             if _s_v_loop[1] is None: return
-            idx, obj = self._getSelectedIndex(mode='face')
+            idx, objs = self._getSelectedIndex(mode='face')
             sl = _s_v_loop[1]
             already_selected = self._dom_bdr_sel[0]
 
@@ -396,11 +399,11 @@ class MFEMViewer(BookViewer):
             surf_idx = list(set(surf_idx))
 
             status_txt = 'Volume :'+ ','.join([str(x) for x in selected_volume])
-            if obj is not None:
-                obj.setSelectedIndex(surf_idx)
+            for o in objs:
+                o.setSelectedIndex(surf_idx)
                 sv = selected_volume
         elif self._sel_mode == 'face':
-            idx, obj = self._getSelectedIndex(mode='face')
+            idx, objs = self._getSelectedIndex(mode='face')
             status_txt = 'Face: '+ ','.join([str(x) for x in idx])  
             v = _s_v_loop[1]
             connected_vol = []            
@@ -416,7 +419,7 @@ class MFEMViewer(BookViewer):
             sf = idx
 
         elif self._sel_mode == 'edge':
-            idx, obj = self._getSelectedIndex(mode='edge')                        
+            idx, objs = self._getSelectedIndex(mode='edge')                        
             s = _s_v_loop[0]
             connected_surf = []
             for i in idx:
@@ -522,33 +525,37 @@ class MFEMViewer(BookViewer):
         _s_v_loop = self._s_v_loop[self._view_mode]        
         ax = self.get_axes()
 
+        if len(sel['volume']) != 0:
+            if _s_v_loop[1] is None: return
+            sl = _s_v_loop[1]
+            vfaces = []
+            for i in sel['volume']:
+                if i in sl:
+                    vfaces.extend(sl[i])
+                else:
+                    print('Volume: ' + str(i) + " not found")
+            vfaces = list(set(vfaces))
+            print(vfaces)            
+        else:
+            vfaces = []
+        
         obj = None
-        if ax.has_child('point'):
-            ax.point.setSelectedIndex(sel['point'])
-            obj = ax.point
-            if len(sel['point']) != 0: obj = ax.point
+        for name, obj in ax.get_children():
+            if name.startswith('point'):
+                obj.setSelectedIndex(sel['point'])
+                if len(sel['point']) != 0: robj = obj
+                
+            if name.startswith('edge'):
+                obj.setSelectedIndex(sel['edge'])
+                if len(sel['edge']) != 0: robj = obj
+                
+            if name.startswith('face'):
+                obj.setSelectedIndex(sel['face'])
+                if len(sel['face']) != 0: robj = obj                
+                if len(vfaces) > 0:
+                    obj.setSelectedIndex(vfaces)
             
-        if ax.has_child('edge'):
-            ax.edge.setSelectedIndex(sel['edge'])
-            if len(sel['edge']) != 0: obj = ax.edge
-            
-        if ax.has_child('face'):
-            ax.face.setSelectedIndex(sel['face'])
-            if len(sel['volume']) != 0:
-                if _s_v_loop[1] is None: return
-                sl = _s_v_loop[1]
-                faces = []
-                for i in sel['volume']:
-                    if i in sl:
-                        faces.extend(sl[i])
-                    else:
-                        print('Volume: ' + str(i) + " not found")
-                print(faces)
-                faces_idx = list(set(faces))
-                ax.face.setSelectedIndex(faces)
-            if len(sel['face']) != 0: obj = ax.face
-            
-        return obj
+        return robj
 
     def highlight_domain(self, i):
         '''
@@ -562,7 +569,8 @@ class MFEMViewer(BookViewer):
         except:
           i = list(i)
         self.canvas.unselect_all()
-        if ax.has_child('face'):
+        for name, obj in ax.get_children():
+            if not name.startswith('face'):continue
             if _s_v_loop[1] is None: return            
             if len(i) > 0:
                 sl = _s_v_loop[1]
@@ -573,10 +581,10 @@ class MFEMViewer(BookViewer):
                     else:
                         print('Volume: ' + str(key) + " not found")                         
                 faces_idx = list(set(faces))
-                ax.face.setSelectedIndex(faces)
-                self.canvas.add_selection(ax.face._artists[0])
+                obj.setSelectedIndex(faces)
+                self.canvas.add_selection(obj._artists[0])
             else:
-                ax.face.setSelectedIndex([])                
+                obj.setSelectedIndex([])                
         self.canvas.refresh_hl()
         
     def highlight_face(self, i):
@@ -591,12 +599,13 @@ class MFEMViewer(BookViewer):
         
         self.canvas.unselect_all()
                                           
-        if ax.has_child('face'):
+        for name, obj in ax.get_children():
+            if not name.startswith('face'):continue
             if len(i) > 0:                                          
-                ax.face.setSelectedIndex(i)
-                self.canvas.add_selection(ax.face._artists[0])
+                obj.setSelectedIndex(i)
+                self.canvas.add_selection(obj._artists[0])
             else:
-                ax.face.setSelectedIndex([])
+                obj.setSelectedIndex([])
         self.canvas.refresh_hl()
         
     def highlight_edge(self, i):
@@ -611,12 +620,13 @@ class MFEMViewer(BookViewer):
         
         self.canvas.unselect_all()
                                           
-        if ax.has_child('edge'):
+        for name, obj in ax.get_children():
+            if not name.startswith('edge'):continue
             if len(i) > 0:                                          
-                ax.edge.setSelectedIndex(i)
-                self.canvas.add_selection(ax.edge._artists[0])
+                obj.setSelectedIndex(i)
+                self.canvas.add_selection(obj._artists[0])
             else:
-                ax.edge.setSelectedIndex([])
+                obj.setSelectedIndex([])
         self.canvas.refresh_hl()
 
     def highlight_point(self, i):
@@ -631,12 +641,13 @@ class MFEMViewer(BookViewer):
         
         self.canvas.unselect_all()
                                           
-        if ax.has_child('point'):
+        for name, obj in ax.get_children():
+            if not name.startswith('point'):continue
             if len(i) > 0:                                          
-                ax.point.setSelectedIndex(i)
-                self.canvas.add_selection(ax.point._artists[0])
+                obj.setSelectedIndex(i)
+                self.canvas.add_selection(obj._artists[0])
             else:
-                ax.point.setSelectedIndex([])
+                obj.setSelectedIndex([])
         self.canvas.refresh_hl()
         
     def onResetModel(self, evt):

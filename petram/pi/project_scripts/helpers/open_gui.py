@@ -12,3 +12,6 @@ if not obj.get_pymodel().has_child('mfembook'):
     v.book.Close()
     v.book.move(obj.get_pymodel())
 obj.get_pymodel().mfembook.Open(MFEMViewer)
+
+import wx
+wx.CallAfter(obj.get_pymodel().mfembook.find_bookviewer().Raise)

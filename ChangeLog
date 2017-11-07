@@ -1,5 +1,10 @@
 	Change Log
 
+	* 11/07/2017
+	** gl_plot_sol and mfem_viewer is modefided to handle a geometry which
+	uses different types of elements.
+	** many updates made to support em2da is merged to master
+	
 	* 09/20/2017
         ** merged scripts in project tree and remote coonections
 	Remote connection functionality is rewritten to be universal.

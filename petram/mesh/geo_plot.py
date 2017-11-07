@@ -32,6 +32,7 @@ def expand_vertex_data(X, vertex_idx, element_id):
     return verts, elem_idx, array_idx
 
 def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
+
     viewer.cls()
     viewer.set_hl_color((1,0,0))
     
@@ -48,7 +49,7 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
                            facecolor = (0.7, 0.7, 0.7, 1.0),
                            linewidth = lw)
 
-        obj.rename('face')
+        obj.rename('face_t')
         obj._artists[0].set_gl_hl_use_array_idx(True)
     if 'quad' in cells:        
         verts, elem_idx, array_idx = expand_vertex_data(X, cells['quad'],
@@ -61,7 +62,7 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
                            facecolor = (0.7, 0.7, 0.7, 1.0),
                            linewidth = lw)
 
-        obj.rename('face')
+        obj.rename('face_r')
         obj._artists[0].set_gl_hl_use_array_idx(True)
     if 'line' in cells:
         verts, elem_idx, array_idx = expand_vertex_data(X, cells['line'],
@@ -90,13 +91,12 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
     viewer.set_sel_mode(viewer.get_sel_mode())
 
 def oplot_meshed(viewer,  ret):
+
     ax =viewer.get_axes()
-    if ax.has_child('face_meshed'):
-        viewer.cls(obj = ax.face_meshed)
-        #ax.face.hide_component([])                
-    if ax.has_child('edge_meshed'):
-        viewer.cls(obj = ax.edge_meshed)        
-        #ax.edge.hide_component([])                        
+    for name, obj in ax.get_children():
+        if name.endswith('_meshed'):
+            viewer.cls(obj = obj)
+
     try:
         X, cells, pt_data, cell_data, field_data = ret
     except ValueError:
@@ -116,7 +116,7 @@ def oplot_meshed(viewer,  ret):
                            linewidth = 1,
                            view_offset = (0, 0, -0.0005, 0))
 
-        obj.rename('face_meshed')
+        obj.rename('face_t_meshed')
         obj._artists[0].set_gl_hl_use_array_idx(True)
 
         meshed_face.extend(list(np.unique(cell_data['triangle']['geometrical'])))
@@ -133,12 +133,14 @@ def oplot_meshed(viewer,  ret):
                            linewidth = 1,)
 
                       
-        obj.rename('face_meshed')
+        obj.rename('face_r_meshed')
         obj._artists[0].set_gl_hl_use_array_idx(True)
         meshed_face.extend(list(np.unique(cell_data['quad']['geometrical'])))
 
-    h = list(np.unique(ax.face.hidden_component + meshed_face))
-    ax.face.hide_component(h)        
+    for name, obj in ax.get_children():
+        if name.startswith('face') and not name.endswith('meshed'):
+            h = list(np.unique(obj.hidden_component + meshed_face))            
+            obj.hide_component(h)        
     
     if 'line' in cells:
 
@@ -170,8 +172,11 @@ def oplot_meshed(viewer,  ret):
         meshed_edge = list(np.unique(cell_data['line']['geometrical']))
     else:
         meshed_edge = []
-    h = list(np.unique(ax.edge.hidden_component + meshed_face))        
-    ax.edge.hide_component(h)        
+        
+    for name, obj in ax.get_children():
+        if name.startswith('edge') and not name.endswith('meshed'):
+            h = list(np.unique(obj.hidden_component + meshed_edge))
+            if obj.hasvar('idxset'): obj.hide_component(h)        
 
     viewer.set_sel_mode(viewer.get_sel_mode())
 
