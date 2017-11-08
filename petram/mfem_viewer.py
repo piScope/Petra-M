@@ -539,7 +539,7 @@ class MFEMViewer(BookViewer):
         else:
             vfaces = []
         
-        obj = None
+        obj = None; robj = None
         for name, obj in ax.get_children():
             if name.startswith('point'):
                 obj.setSelectedIndex(sel['point'])

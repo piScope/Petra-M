@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import mfem
 
 PyMFEM_PATH =os.path.dirname(os.path.dirname(mfem.__file__))
@@ -14,8 +15,12 @@ if use_parallel:
    from mpi4py import MPI
    num_proc = MPI.COMM_WORLD.size
    myid     = MPI.COMM_WORLD.rank
+   from petram.helper.mpi_recipes import *   
 else:
    import mfem.ser as mfem
+   
+import petram.debug
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('MeshModel')
 
 class Mesh(Model, NS_mixin):
     def __init__(self, *args, **kwargs):
@@ -174,12 +179,17 @@ class UniformRefinement(Mesh):
         return (str(self.num_refine))
      
     def run(self, mesh):
+        gtype = np.unique([mesh.GetElementBaseGeometry(i) for i in range(mesh.GetNE())])
         if use_parallel:
-           for i in range(int(self.num_refine)):           
-               mesh.UniformRefinement() # this is parallel refinement
-        else:
-           for i in range(int(self.num_refine)):
-               mesh.UniformRefinement()
+            from mpi4py import MPI
+            gtype = gtype.astype(np.int32)
+            gtype = np.unique(allgather_vector(gtype, MPI.INT))
+
+        if len(gtype) > 1:
+           dprint1("(Warning) Element Geometry Type is mixed. Cannot perform UniformRefinement")
+           return mesh
+        for i in range(int(self.num_refine)):           
+            mesh.UniformRefinement() # this is parallel refinement
         return mesh
 
    
