@@ -259,7 +259,12 @@ class DlgEditModel(DialogWithWindowList):
         engine = viewer.engine
         if hasattr(mm, '_sel_index'):
             self._focus_idx = 0
-            if isinstance(mm, Bdry):
+            
+            if not mm.enabled:
+                viewer.highlight_none()
+                viewer._dom_bdr_sel = ([], [], [], [])
+                
+            elif isinstance(mm, Bdry):
                 if not hasattr(mm, '_sel_index') or mm.sel_index == 'remaining':
                     phys = mm.get_root_phys()
                     engine.assign_sel_index(phys)
@@ -298,7 +303,7 @@ class DlgEditModel(DialogWithWindowList):
                     viewer._dom_bdr_sel = ([], [], mm._sel_index, [],)
                 else:
                     pass
-                
+
         if evt is not None:
             mm.onItemSelChanged(evt)      
             evt.Skip()
@@ -420,7 +425,16 @@ class DlgEditModel(DialogWithWindowList):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
         mm.enabled = False
-        self.tree.RefreshItems()        
+        self.tree.RefreshItems()
+        
+        phys = mm.get_root_phys()   # handle possible change of what remaining means          
+        if phys is not None:
+           viewer = self.GetParent()
+           try:
+               viewer.engine.assign_sel_index(phys)
+           except:
+               traceback.print_exc()
+
 
     def OnEnableItem(self, evt):
         import   ifigure.widgets.dialog as dialog
@@ -428,6 +442,14 @@ class DlgEditModel(DialogWithWindowList):
         mm = self.model.GetItem(indices)
         mm.enabled = True
         self.tree.RefreshItems()
+
+        phys = mm.get_root_phys()  # handle possible change of what remaining means    
+        if phys is not None:
+           viewer = self.GetParent()
+           try:
+               viewer.engine.assign_sel_index(phys)
+           except:
+               traceback.print_exc()
 
     def get_selected_mm(self):
         import   ifigure.widgets.dialog as dialog

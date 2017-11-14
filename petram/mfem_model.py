@@ -102,7 +102,10 @@ class MFEM_InitRoot(Model):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.set_view_mode('phys')                                        
+        viewer.set_view_mode('phys', self)
+        
+    def is_viewmode_grouphead(self):
+        return True
     
 class MFEM_MeshRoot(Model):
     can_delete = False
@@ -141,8 +144,10 @@ class MFEM_SolverRoot(Model):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.set_view_mode('phys')                                        
+        viewer.set_view_mode('phys', self)                                        
     
+    def is_viewmode_grouphead(self):
+        return True
     
 try:    
    from petram.geom.geom_model import MFEM_GeomRoot

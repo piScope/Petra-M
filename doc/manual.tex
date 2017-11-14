@@ -1,0 +1,97 @@
+\documentclass[11pt,a4paper,draft]{report}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\author{S. Shiraiwa}
+\title{Petra-M: Physics Equation Translator for MFEM}
+\begin{document}
+\maketitle
+\chapter{Introduction}
+Petra-M (Physics Equation Translator for MFEM) is a tool to build a finite element simulation model using MFEM. 
+MFEM is a scalable finite element library built at LLNL. In MFEM,  a user has to fill the linear system matrix and the right hand side by adding  mfem::BilinearFormIntegrator and mfem::LinearFormIntegrator to mfem::BilinearForm and mfem::LinearForm.
+While a variety of integrators are already defined in MFEM, translating a physics equation to a weakform and choosing a proper integrator for each case is an error-prone process. 
+Another practical issue is to assign domain and boundary conditions for a particular element. A real world 3D geometry could contain several handreds or even more surfaces and domains. Without an interactive interface, it is difficult to perform this step in a reliable manner.
+
+Using Petra-M and $\pi$Scope, a user can build physics simulation model quickly and reliably. Petra-M currently support only frequency domain Maxwell problems and simple thermal diffusion model. However, its low level engine is design to be flexible to expand in future.
+
+Goal of this report is to describe how Petra-M construct a linear system. An emphasis is on showing the weakform equation systems used for each physics module. Note that these equations are mostly well established and found in various literature, and therefore, giving detailed derivation is not the point of this report. 
+
+ 
+\chapter{Linear system construction strategy}
+\chapter{EM Modules}
+\section{3D frequency domain(EM3D)}
+\subsection{Weakform of the Maxwell's equation}
+This module uses the Cartesian coordinate system (x, y, z), and solves the following weakform of Maxwell equations. 
+ \begin{align}
+(\nabla \times \mathbf{F},  \frac{1}{\mu}\nabla  \times  \mathbf{E})
+ - (\mathbf{F},  (\omega^2 \epsilon+ i \omega \sigma)  \mathbf{E}) 
+ +  \langle \mathbf{F},  \mathbf{Q} \rangle 
+ \notag \\
+ - \gamma \langle  \mathbf{F}, \mathbf{n} \times \mathbf{n} \times  \mathbf{E}\rangle = i \omega (\mathbf{F}, \mathbf{J}_{\rm ext} ) ,
+\label{em3d_weak} \\
+ \mathbf{n} \times (\frac{1}{\mu} \nabla \times \mathbf{E}) + \gamma \mathbf{n} \times \mathbf{n} \times  \mathbf{E} = Q\,\,\,on\,\,\,\partial \Omega_{2}
+ \end{align}
+  where $(A , B)$ is the domain integral ($\int_{\Omega} AB dxdydz$) and $\langle A, B \rangle $ is the boundary integral ($\int_{\partial \Omega_{2}} ABdxdydz$). 
+ 
+ \subsection{Anisotropic media}
+ 
+ \subsection{External current source}
+ 
+ \subsection{PMC (perfect magnetic conductor)}
+ 
+ \subsection{PEC (perfect electric conductor/electric field BC}
+ 
+  \subsection{Surface Current}
+  
+ \subsection{Port}
+ 
+ \subsection{Periodic (Floquet-Bloch) BC}
+ 
+\section{Axisymmetric frequency domain(EM2Da)}
+\subsection{Weakform of the Maxwell's equation}
+This module uses the cylindrical coordinate system (r,  $\phi$, z). Physics quantities are supposed to have a periodic dependence to 
+$\phi$ direction ($\sim e^{m \phi}$), where $m$ is the out-of-plane mode number. First, we write the curl operator in the following form
+
+ \begin{align}
+ \nabla \times E = &(\frac{im}{r} E_{\rm z} - \frac{\partial E_{\phi}}{\partial z})\mathbf{e}_{\rm r} +
+( \frac{\partial E_{\rm r}}{\partial z} - \frac{\partial E_{\rm z}}{\partial r})\mathbf{e}_{\rm \phi}+
+ (\frac{1}{r}\frac{\partial }{\partial r}(r E_{\phi}) - \frac{im}{r} E_{\rm r} )\mathbf{e}_{\rm z} 
+ \notag \\ 
+ = &\nabla_{t} \times \mathbf{E}_{\rm t} + \frac{\mathbf{e}_{\rm \phi}}{r} \times (im \mathbf{E}_{\rm t} - \nabla_{\rm t} (rE_{\rm \phi}) ),
+ \end{align}
+ where $\mathbf{E}_{\rm t} = (E_{\rm r}, E_{\rm z})$ and  $\nabla_{t} = (\frac{\partial }{\partial r}, \frac{\partial }{\partial z}$) are 2D vectors on $r$, $z$ plane.
+ 
+Then, we exapned the weakform for Maxwell equations (Eq.\,\ref{em3d_weak}) using $\mathbf{E}_{\rm t}$, $E_{\phi}$, and $\nabla_{t}$ so that a direct one-by-one connection to mfem::LinearFormIntegrator and mfem::BilinearFormIntegrator becomes clear.
+For a scolar $\mu$, $\epsilon$, and $\sigma$, it can be written as 
+ \begin{align}
+r(\nabla_{\rm t} \times \mathbf{F}_{\rm t},  \frac{1}{\mu}\nabla_{\rm t}  \times & \mathbf{E}_{\rm t}) 
++\frac{1}{r} m^2(\mathbf{F}_{\rm t}, \frac{1}{\mu}\mathbf{E}_{\rm t})
++ \frac{1}{r} (\nabla_{\rm t} (rF_{\rm \phi}), \frac{1}{\mu}\nabla_{\rm t} (rE_{\rm \phi}))
+ \notag \\
++& \frac{1}{r} (im \mathbf{F}_{\rm t}, \frac{1}{\mu}\nabla_{\rm t} (rE_{\rm \phi}))
+- \frac{1}{r} (\nabla_{\rm t} (rF_{\rm \phi}), \frac{im}{\mu} \mathbf{E}_{\rm t})
+ \notag \\
+ -& (\omega^2 \epsilon+ i \omega \sigma) ( r( \mathbf{F}_{\rm t}, \mathbf{E}_{\rm t}) + \frac{1}{r}(rF_{\rm \phi}, rE_{\rm \phi})) 
+ \notag \\
+ +& r \langle \mathbf{F}_{\rm t},  \mathbf{Q}_{\rm t} \rangle + \langle rF_{\rm \phi}, Q_{\rm phi} \rangle -r \gamma \langle \mathbf{F}_{\rm t}, \mathbf{E}_{\rm t} \rangle
+ \notag \\
+ =& i \omega r ( \mathbf{F}_{\rm t}, \mathbf{J}_{\rm t} ) + i \omega ( rF_{\rm \phi}, J_{\rm \phi} ), \label{em2da_weak}
+ \end{align}
+ where $(A , B)$ is the domain integral ($\int_{\Omega} AB drdz$) and $\langle A, B \rangle $ is the boundary integral ($\int_{\partial \Omega} ABdrdz$). The module uses the H(curl) element for $\mathbf{E}_{\rm t}$ and the H1 element for $rE_{\phi}$. Note that the integration does not consider $2 \pi r$ and $r$ is included in the coefficient of the linear/bilinear forms. 
+ 
+ \subsection{Anisotropic media}
+ 
+ \subsection{External current source}
+ This domain condition is implemented using the last line of Eq.\,\ref{em2da_weak}. 
+ 
+ \subsection{PMC (perfect magnetic conductor)}
+ 
+ \subsection{PEC (perfect electric conductor/electric field BC}
+  
+  
+\chapter{Thermal Modules}
+\section{3D static (TH3Ds)}
+\chapter{Cross-Physics Coupling}
+\end{document}

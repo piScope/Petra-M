@@ -360,7 +360,7 @@ class MFEMViewer(BookViewer):
             if obj.name.startswith(mode):
                 sel.extend(obj.getSelectedIndex())
                 oo.append(obj)
-        print sel, oo        
+        #print sel, oo        
         return sel, oo
     
     def onTD_SelectionInFigure(self, evt = None):
@@ -649,6 +649,15 @@ class MFEMViewer(BookViewer):
             else:
                 obj.setSelectedIndex([])
         self.canvas.refresh_hl()
+
+    def highlight_none(self):
+        self.canvas.unselect_all()
+        
+        ax = self.get_axes()                                          
+        for name, obj in ax.get_children():
+            if hasattr(obj, 'setSelectedIndex'):
+                 obj.setSelectedIndex([])
+        self.canvas.refresh_hl()
         
     def onResetModel(self, evt):
         ans = dialog.message(self,
@@ -760,7 +769,7 @@ class MFEMViewer(BookViewer):
                     if label == '': continue
                     show_rm = any([x in cidx for x in idx])
                     show_add = any([not x in cidx for x in idx])
-                    print cidx, label, show_rm, show_add                    
+
                     if show_add:
                        m = getattr(self, 'onAddSelection'+str(k))
                        txt = "Add to "+ label
@@ -770,6 +779,7 @@ class MFEMViewer(BookViewer):
                        txt = "Remove from "+ label
                        menus.append((txt, m, None))
                     k = k + 1
+                    
         elif self.plotsoldlg is not None and self._palette_focus == 'plot':
             kind, cidx  = self.plotsoldlg.get_selected_plotmode(kind = True)
             if kind == 'domain': idx = self._dom_bdr_sel[0]
@@ -1011,7 +1021,8 @@ class MFEMViewer(BookViewer):
                                             style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER,
                                             add_palette = True)
         self.plotexprdlg = ret
-        evt.Skip()        
+        evt.Skip()
+        
     def onDlgPlotSol(self, evt):
         m = self.model.param.getvar('mfem_model')        
         m.set_root_path(self.model.owndir())

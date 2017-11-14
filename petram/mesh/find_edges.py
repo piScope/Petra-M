@@ -76,6 +76,11 @@ def find_edges(mesh):
         idxs = tuple(indices[indptr[i]:indptr[i+1]]+1)
         bb_edges[idxs].append(idx[i])
     bb_edges.default_factory = None
+
+    '''
+    edges : face index -> edge elements
+    bb_edges : set of face index -> edge elements
+    '''
     return edges, bb_edges
 
 def plot_edges(mesh, face = 'all'):
@@ -127,7 +132,7 @@ def plot_bbedges(mesh, bb = 'all'):
                 if any([not x in bb_bdr for x in bb]): continue
             else:
                if not bb in  bb_bdr: continue
-        print bb_bdr
+        
         #if bb != 'all' and bb != bb_bdr: continue
         
         iedges = bb_edges[bb_bdr]

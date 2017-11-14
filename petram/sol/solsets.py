@@ -27,7 +27,7 @@ class Solsets(object):
         import mfem.ser as mfem
 
         for x, solf, in solfiles:
-            m = mfem.Mesh(str(x), 1, 1)
+            m = mfem.Mesh(str(x), 1, 0)  ### what is this refine = 0 !?
             m.ReorientTetMesh()
             s = {}
             for key in six.iterkeys(solf):

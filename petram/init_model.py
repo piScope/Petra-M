@@ -47,5 +47,13 @@ class InitSetting(Model):
         engine.run_apply_init(phys_targets, self.init_mode,
                              self.init_value, self.init_path)
 
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.set_view_mode('phys')                                        
+        
         
     

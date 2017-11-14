@@ -21,12 +21,11 @@ class Solver(Model):
     
     def get_active_solver(self, mm = None):
         for x in self.iter_enabled(): return x
-        #raise AttributeError("get_active_solver is obsolete")
-        #if mm is None:
-        #    for mm in self.walk():
-        #        if mm is self: continue
-        #        if not mm.is_enabled(): continue
-        #        break
-        #    else:
-        #
 
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.set_view_mode('phys', self)                                        

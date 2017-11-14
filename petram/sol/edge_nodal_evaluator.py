@@ -2,6 +2,7 @@ import numpy as np
 import parser
 import scipy
 import six
+from collections import defaultdict
 import weakref
 from weakref import WeakKeyDictionary as WKD
 from weakref import WeakValueDictionary as WVD
@@ -42,17 +43,27 @@ class EdgeNodalEvaluator(EvaluatorAgent):
         else:
             eattrs = attrs
 
-        from petram.mesh.find_edges import find_edges 
-        edges, bb_edges = find_edges(mesh)
-
-        bb_bdrs = bb_edges.keys()
-        iverts = []
-        for bb_bdr in bb_bdrs:
-            if eattrs != 'all':
-                check = [sorted(tuple(eattr)) ==  sorted(bb_bdr) for eattr in eattrs]
-                if not any(check): continue
-            iedges = bb_edges[bb_bdr]
-            iverts.extend([mesh.GetEdgeVertices(ie) for ie in iedges])
+        from petram.mesh.find_edges import find_edges
+        if mesh.Dimension() == 3:
+            edges, bb_edges = find_edges(mesh)
+            bb_bdrs = bb_edges.keys()
+            iverts = []
+            for bb_bdr in bb_bdrs:
+                if eattrs != 'all':
+                    check = [sorted(tuple(eattr)) ==  sorted(bb_bdr) for eattr in eattrs]
+                    if not any(check): continue
+                iedges = bb_edges[bb_bdr]
+                iverts.extend([mesh.GetEdgeVertices(ie) for ie in iedges])
+        elif mesh.Dimension() == 2:
+            kbdr = mesh.GetBdrAttributeArray()
+            if eattrs == 'all': eattrs = np.unique(kbdr)
+            iverts = []
+            #d = defaultdict(list)
+            for i in range(mesh.GetNBE()):
+                attr = mesh.GetBdrAttribute(i)
+                if attr in eattrs:
+                    iverts.append(list(mesh.GetBdrElement(i).GetVerticesArray()))
+                    #d[attr].extend(mesh.GetBdrElement(i).GetVerticesArray())
 
         self.ibeles = None # can not use boundary variable in this evaulator  
         if len(iverts) == 0: return

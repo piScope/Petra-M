@@ -438,7 +438,7 @@ class DlgPlotSol(DialogWithWindowList):
             value = self.elps[t].GetValue()
             attrs = str(value[i()])
             if attrs.strip().lower() != 'all':            
-               attrs = [int(x) for x in attrs.split(',')]            
+               attrs = [int(x) for x in attrs.split(',') if x.strip() != '']            
             return kinds[t], attrs
         else: 
             return t
@@ -1022,13 +1022,18 @@ class DlgPlotSol(DialogWithWindowList):
         if mesh is None: return
         if battrs != 'all':
            battrs0 = [int(x) for x in battrs.split(',')]
-           s = self.GetParent()._s_v_loop['phys'][0]
-           battrs = []
-           for i in battrs0:
-               connected_surf = []                
-               for k in s.keys():
-                   if i in s[k]: connected_surf.append(k)
-               battrs.append(tuple(connected_surf))
+           if mesh.Dimension() == 3:
+               s = self.GetParent()._s_v_loop['phys'][0]
+               battrs = []
+               for i in battrs0:
+                   connected_surf = []                
+                   for k in s.keys():
+                       if i in s[k]: connected_surf.append(k)
+                   battrs.append(tuple(connected_surf))
+           elif mesh.Dimension() == 2:
+               battrs = battrs0               
+           else:
+               assert False, "edge plot is not supported for 1D"
         else:
            battrs = ['all']
  

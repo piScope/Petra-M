@@ -338,7 +338,6 @@ class ExpressionVariable(Variable):
 
         from petram.helper.right_broadcast import multi
 
-        print 'value!!!', ret.shape, value.shape
         ret = multi(ret, value)
         return ret
     
