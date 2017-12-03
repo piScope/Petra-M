@@ -21,8 +21,17 @@ Goal of this report is to describe how Petra-M construct a linear system. An emp
  
 \chapter{Linear system construction strategy}
 \chapter{PDE modules}
-\section{2D static(Coeff2D)}
-This module solves the following equation.  
+\section{2D static (Coeff2D)}
+This module solves the following equation in 2D (x, y) domain.
+  \begin{align}
+   \nabla (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) + \mathbf{q} \cdot \nabla u + au - f = 0 
+  \\  
+  u = u_{0} \,\,\,on\,\,\,\partial \Omega_{1}
+  \\
+ \mathbf{n}\cdot (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) = hu + g,\,\,on\,\,\,\partial \Omega_{2}
+  \end{align}
+  
+  \section{2D time-dependent (Coeff2Dt)}
   \begin{align}
   m\frac{\partial^2 u}{\partial t^2} +   d\frac{\partial u}{\partial t} + \nabla (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) + \mathbf{q} \cdot \nabla u + au - f = 0 
   \\  
@@ -30,7 +39,6 @@ This module solves the following equation.
   \\
  \mathbf{n}\cdot (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) = hu + g,\,\,on\,\,\,\partial \Omega_{2}
   \end{align}
-  
   a u + gamma) 
               + beta (grad u) + a u - f = 0
 
