@@ -1,5 +1,10 @@
 import numpy as np
+from os.path import dirname, basename, isfile, join
+import warnings
+import glob
 import parser
+
+import petram
 from petram.model import Model, Bdry, Domain
 from petram.namespace_mixin import NS_mixin
 import petram.debug as debug
@@ -12,7 +17,6 @@ else:
    import mfem.ser as mfem
 
 from petram.helper.variables import Variable, eval_code 
-
  
 # not that PyCoefficient return only real number array
 class PhysConstant(mfem.ConstantCoefficient):

@@ -20,6 +20,62 @@ Goal of this report is to describe how Petra-M construct a linear system. An emp
 
  
 \chapter{Linear system construction strategy}
+\chapter{PDE modules}
+\section{2D static(Coeff2D)}
+This module solves the following equation.  
+  \begin{align}
+  m\frac{\partial^2 u}{\partial t^2} +   d\frac{\partial u}{\partial t} + \nabla (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) + \mathbf{q} \cdot \nabla u + au - f = 0 
+  \\  
+  u = u_{0} \,\,\,on\,\,\,\partial \Omega_{1}
+  \\
+ \mathbf{n}\cdot (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) = hu + g,\,\,on\,\,\,\partial \Omega_{2}
+  \end{align}
+  
+  a u + gamma) 
+              + beta (grad u) + a u - f = 0
+
+  On domain boundary
+     n ( c grad u + alpha u - gamma) + q u = g - h$^t$ mu
+       or 
+     u = u0  
+
+    m, d, a, f, g and h: scalar
+    alpha, beta and gamma : vector
+    c  : matrix (dim (space) $^2$)
+
+    If all coefficients are independent from u, ux,
+    the system is linear.
+
+    BC
+     Zero Flux : 
+        n ( c grad u + alpha u - gamma) = 0
+     Flux: 
+        n ( c grad u + alpha u - gamma) = - g + q u
+     Dirichlet Boundary Condition
+        u = u0
+
+  Weakform integrators:
+    domain integral
+       c     -->  c (grad u, grad v)     bi
+       alpha -->  alpha * (u, grad v)    bi
+       gamma -->  gamma * grad v         li
+       beta  -->  beta * (grad u, v)     bi
+       f     -->  (f, v)                 bi
+    surface integral
+       c     -->   n dot c (grad u, v)   bi
+       alpha -->   n dot alpha  (u v)    bi
+       gamma -->   n dot gamma   v       li
+ 
+    surface integral can be replaced by (g - qu, v)
+        
+  Domain:   
+     Coeff2D          : tensor dielectric
+
+  Boundary:
+     Coeff2D-Zero     : zero essential (default)
+     Coeff2D-Esse     : general essential
+
+'''
 \chapter{EM Modules}
 \section{3D frequency domain(EM3D)}
 \subsection{Weakform of the Maxwell's equation}

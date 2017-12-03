@@ -46,6 +46,8 @@ COEFF2D : 2D coefficient form of PDE
      Coeff2D_Esse     : general essential
 
 '''
+model_basename = 'Coeff2D'
+
 import numpy as np
 
 from petram.model import Domain, Bdry, Pair
@@ -105,7 +107,6 @@ class Coeff2D_DefPair(Pair, Phys):
         return []
 
 class Coeff2D(PhysModule):
-    dep_var_base = ['u']
     der_var_base = ['ux', 'uy']
     def __init__(self, **kwargs):
         super(Coeff2D, self).__init__()
@@ -114,19 +115,51 @@ class Coeff2D(PhysModule):
         self['Boundary'] = Coeff2D_DefBdry()
         self['Pair'] = Coeff2D_DefPair()        
         
+    @property
+    def dep_vars(self):
+        ret = self.dep_vars_base
+        return [x + self.dep_vars_suffix for x in ret]
+    
+    @property 
+    def dep_vars_base(self):
+        return self.dep_vars_base_txt.split(',')
+
+    def get_fec(self):
+        v = self.dep_vars
+        return [(v[0], self.element),]
+    
     def attribute_set(self, v):
         v = super(Coeff2D, self).attribute_set(v)
         v["element"] = 'H1_FECollection'
         v["dim"] = 2
         v["ind_vars"] = 'x, y'
         v["dep_vars_suffix"] = ''
+        v["dep_vars_base_txt"] = 'u'        
         return v
     
     def panel1_param(self):
-        return [["element",  self.element,  0, {}],
-                ["order",  self.order,    400, {}],
+        panels = super(Coeff2D, self).panel1_param()
+        panels.extend([
                 ["indpendent vars.", self.ind_vars, 0, {}],
                 ["dep. vars. suffix", self.dep_vars_suffix, 0, {}],
-                ["dep. vars.", ','.join(Coeff2D.dep_var_base), 2, {}],
+                ["dep. vars.", ','.join(Coeff2D.dep_var_base), 0, {}],
                 ["derived vars.", ','.join(Coeff2D.der_var_base), 2, {}],
-                ["predefined ns vars.", txt_predefined , 2, {}]]     
+                ["predefined ns vars.", txt_predefined , 2, {}]])
+                      
+    def get_panel1_value(self):
+        names  = ','.join([x+self.dep_vars_suffix for x in self.dep_vars])
+        names2  = ','.join([x+self.dep_vars_suffix for x in Coeff2D.der_var_base])
+        val =  super(Coeff2D, self).get_panel1_value()
+                      
+        return val.extend([
+                self.ind_vars, self.dep_vars_suffix,
+                names, names2, txt_predefined])
+    
+    def get_panel2_value(self):
+        return 'all'
+                      
+    def import_panel1_value(self, v):
+        v = super(Coeff2D, self).import_panel1_value(v)
+        self.ind_vars =  str(v[1])
+        self.dep_vars_suffix =  str(v[2])
+        self.dep_vars_base_txt = ','.join([x.strip() for x in str(v[0].split(','))])

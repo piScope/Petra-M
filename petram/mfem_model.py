@@ -53,22 +53,9 @@ class MFEM_PhysRoot(Model):
     has_2nd_panel = False        
     def get_possible_child(self):
         ans = []
-        try:
-            from phys.em3d.em3d_model import EM3D
-            ans.append(EM3D)
-        except:
-            pass
-        try:
-            from phys.em2da.em2da_model import EM2Da
-            ans.append(EM2Da)
-        except:
-            pass
-        try:
-            from phys.th3ds.th3ds_model import TH3Ds
-            ans.append(TH3Ds)
-        except:
-            pass
-        return ans
+        from petram.helper.phys_module_util import all_phys_models
+        models, classes = all_phys_models()
+        return classes
     
     def make_solvars(self, solsets, g=None):
         solvars = [None]*len(solsets)

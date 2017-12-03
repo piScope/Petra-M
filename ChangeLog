@@ -1,12 +1,14 @@
 	Change Log
-
+        ** fixed sel_button to work with mixed triangle and quad surfaces.
+	
+	
 	* 11/14/2017
 	** fixed refine=1 when loading mesh file for visualization.
 	** fixed EM2Da_PEC, EM3D_PEC. These BC now apply Et=0 properly w/o relying
 	   on the initialization of solution vector by engine.
 	** various improvement of dialog link behaviors.
         ** EM2Da_ExtJ is added for volumetric current source.
-	
+	** Dynamic loading of all installed physics modules 
 	* 11/07/2017
 	** gl_plot_sol and mfem_viewer is modefided to handle a geometry which
 	uses different types of elements.
@@ -34,7 +36,7 @@
            CreateLine -> Points to multiple Lines
            LineLoop -> Lines to LineLoop
            CreateSurface -> Lines to PlaneSurface
-           SurfaceLoop -> Surfacess to SurfaceLoop
+           SurfaceLoop -> Surfacess to SurfaceLoops
            CreateVolume ->  Surfacess to Volume
  	object manipulation
            Extrude/Revolve

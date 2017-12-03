@@ -55,17 +55,15 @@ def refresh(navibar, btnls):
 def show_all(evt):
     viewer = evt.GetEventObject().GetTopLevelParent()
     mode = viewer._sel_mode
-
     ax = viewer.get_axes()
+
+    namestart = mode if mode != 'volume' else 'face'
+    for name, child in ax.get_children():
+       if name.startswith(namestart):
+           child.hide_component([])
+           
     if mode == 'volume':
-        ax.face.hide_component([])
         viewer._hidden_volume = []
-    elif mode == 'face':
-        ax.face.hide_component([])        
-    elif mode == 'edge':
-        ax.edge.hide_component([])                
-    else:
-        pass
     viewer.draw_all()    
 
 def hide_elem(evt, inverse=False):
@@ -74,6 +72,9 @@ def hide_elem(evt, inverse=False):
 
     ax = viewer.get_axes()
     print(mode, 'hide_elem')
+    namestart = mode if mode != 'volume' else 'face'
+    objs = [child for name, child in ax.get_children() if name.startswith(namestart)]
+    
     if mode == 'volume':
         facesa = []
         facesb = []        
@@ -95,18 +96,16 @@ def hide_elem(evt, inverse=False):
             facesa = np.unique(np.array(facesa))
             facesb = np.unique(np.array(facesb))
             new_hide = list(np.setdiff1d(facesa, facesb, True))
-            idx = ax.face.hidden_component
-            idx = list(set(idx+new_hide))
-            ax.face.hide_component(idx)
+            for o in objs: 
+                idx = o.hidden_component
+                idx = list(set(idx+new_hide))
+                o.hide_component(idx)            
             viewer._hidden_volume.extend(selected_volume)
-    elif mode == 'face':
-        idx = ax.face.getSelectedIndex()
-        idx = list(set(ax.face.hidden_component+idx))        
-        ax.face.hide_component(idx, inverse=inverse)
-    elif mode == 'edge':
-        idx = ax.edge.getSelectedIndex()
-        idx = list(set(ax.edge.hidden_component+idx))        
-        ax.edge.hide_component(idx, inverse=inverse)
+    elif mode == 'face' or mode == 'edge':
+        for o in objs:
+            idx = o.getSelectedIndex()
+            idx = list(set(o.hidden_component+idx))                
+            o.hide_component(idx, inverse=inverse)
     elif mode == 'point':
         pass
     else:
