@@ -143,8 +143,8 @@ class MFEMViewer(BookViewer):
             if data is not None:
                 self.set_figure_data(view_mode, name, data)
 
-        if self.model.variables.getvar('mesh') is None:
-            self.load_mesh()
+        #if self.model.variables.getvar('mesh') is None:
+        #    self.load_mesh()
         self.plot_mfem_geom()        
         self.model.scripts.helpers.rebuild_ns()                
         self.engine.run_config()
