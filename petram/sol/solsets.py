@@ -20,14 +20,14 @@ class Solsets(object):
 
       methes: names, meshes, gfr, gfi
     '''
-    def __init__(self, solfiles):
+    def __init__(self, solfiles, refine=0):
         solfiles = solfiles.set
         object.__init__(self)
         self.set = []
         import mfem.ser as mfem
 
         for x, solf, in solfiles:
-            m = mfem.Mesh(str(x), 1, 0)  ### what is this refine = 0 !?
+            m = mfem.Mesh(str(x), 1, refine)  ### what is this refine = 0 !?
             m.ReorientTetMesh()
             s = {}
             for key in six.iterkeys(solf):
@@ -104,9 +104,9 @@ def find_solfiles(path, idx = None):
        solfiles.append([x, sol])          
     return Solfiles(solfiles)
 
-def read_solsets(path, idx = None):
+def read_solsets(path, idx = None, refine=0):
     solfiles = find_solfiles(path, idx)
-    return Solsets(solfiles)
+    return Solsets(solfiles, refine=refine)
 read_sol = read_solsets
 '''    
 def read_solsets(path, idx = None):

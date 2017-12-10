@@ -45,7 +45,7 @@ class VtableElement(object):
                 size  = (1,), suffix = None,
                 cb = None, no_func = False,
                 default = 0., guilabel = None, tip = '',
-                chkbox = False):
+                default_txt = None, chkbox = False):
         self.name = name
         if not isinstance(type, str):
             assert False, "data type should be given as str"
@@ -75,6 +75,11 @@ class VtableElement(object):
                 self.default = np.array(default, copy = False)
         else:
             self.default = default
+        if len(self.shape) == 0:            
+            if default_txt is not None:
+                self.default_txt = default_txt
+            else:
+                self.default_txt = self.txt2value(self.default)
         self.guilabel = guilabel if guilabel is not None else self.name
         self.tip = tip
 
@@ -87,13 +92,14 @@ class VtableElement(object):
         elif self.type == 'array':return txt
         elif self.type == 'string': return str(txt)
         elif self.type == 'any': return txt
+        elif self.type == '': return txt        
         return float(txt)
     
     def add_attribute(self, v):
         if self.name is None: return
         if len(self.shape) == 0:
-            v[self.name] = self.txt2value(self.default)
-            v[self.name + '_txt'] = str(self.default)
+            v[self.name] = self.default_txt
+            v[self.name + '_txt'] = self.default_txt
             if self.chkbox:
                 v['use_' + self.name] = False
         else:
@@ -221,8 +227,12 @@ class VtableElement(object):
             elif self.type == 'string':
                 return str(getattr(obj, self.name))        
             else:
-                var, f_name0 = obj.eval_phys_expr(getattr(obj, self.name),
-                                                  self.name,
+                v = getattr(obj, self.name)
+                print('v(before)', v)
+                if str(v) == '':
+                    v = str(self.default)
+                print('v(after)', v)                    
+                var, f_name0 = obj.eval_phys_expr(v, self.name,
                                                   **kwargs)
                 if f_name0 is None: return var
                 return f_name0

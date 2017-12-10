@@ -426,8 +426,10 @@ class DlgEditModel(DialogWithWindowList):
         mm = self.model.GetItem(indices)
         mm.enabled = False
         self.tree.RefreshItems()
-        
-        phys = mm.get_root_phys()   # handle possible change of what remaining means          
+
+        # if it is phys, handle possible change of what remaining means                  
+        if not hasattr(mm, 'get_root_phys'): return        
+        phys = mm.get_root_phys()   
         if phys is not None:
            viewer = self.GetParent()
            try:
@@ -443,7 +445,9 @@ class DlgEditModel(DialogWithWindowList):
         mm.enabled = True
         self.tree.RefreshItems()
 
-        phys = mm.get_root_phys()  # handle possible change of what remaining means    
+        # if it is phys, handle possible change of what remaining means                          
+        if not hasattr(mm, 'get_root_phys'): return
+        phys = mm.get_root_phys() 
         if phys is not None:
            viewer = self.GetParent()
            try:
