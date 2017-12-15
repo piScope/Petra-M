@@ -139,7 +139,7 @@ def oplot_meshed(viewer,  ret):
 
     for name, obj in ax.get_children():
         if name.startswith('face') and not name.endswith('meshed'):
-            h = list(np.unique(obj.hidden_component + meshed_face))            
+            h = list(np.unique(obj.hidden_component + meshed_face))
             obj.hide_component(h)        
     
     if 'line' in cells:

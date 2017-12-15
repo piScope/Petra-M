@@ -35,30 +35,20 @@ def show_all(evt):
     mode = viewer._sel_mode
 
     ax = viewer.get_axes()
-    if mode == 'volume':
-        if ax.has_child('face_meshed'):
-            ax.face_meshed.hide_component([])
-            idx = ax.face_meshed.getvar('array_idx')
-            idx = list(np.unique(idx))
-        else:
-            idx = []
-        ax.face.hide_component(idx)        
-    elif mode == 'face':
-        if ax.has_child('face_meshed'):        
-            ax.face_meshed.hide_component([])
-            idx = ax.face_meshed.getvar('array_idx')
-            idx = list(np.unique(idx))
-        else:
-            idx = []
-        ax.face.hide_component(idx)        
-    elif mode == 'edge':
-        if ax.has_child('edge_meshed'):                
-            #ax.edge_meshed.hide_component([])
-            idx = ax.face_meshed.getvar('array_idx')
-            idx = list(np.unique(idx))
-        else:
-            idx = []
-        ax.edge.hide_component(idx)        
+    
+    namestart = mode if mode != 'volume' else 'face'
+    namestart2 =  namestart + '_meshed'    
+    objs = [child for name, child in ax.get_children() if name.startswith(namestart)
+            and not name.startswith(namestart2)]
+    meshed_objs = [child for name, child in ax.get_children() if name.startswith(namestart2)]
+    
+    if mode == 'volume' or mode == 'face' or mode == 'edge':
+        idx = []
+        for o in meshed_objs:
+            o.hide_component([])
+            idx = idx + list(np.unique(o.getvar('array_idx')))
+        for o in objs:            
+            o.hide_component(idx)        
     elif mode == 'point':
         ax.point.hide_component([])                        
     else:
@@ -68,19 +58,18 @@ def show_all(evt):
 def hide_elem(evt, inverse=False):
     viewer = evt.GetEventObject().GetTopLevelParent()
     mode = viewer._sel_mode
-
-    def hide(ax, name, inverse=False):
-        if not ax.has_child(name): return
-        obj = ax.get_child(name = name)
-        idx = obj.getSelectedIndex()
-        idx = list(set(obj.hidden_component+idx))        
-        obj.hide_component(idx, inverse=inverse)        
-        
-
     ax = viewer.get_axes()
+    
+    namestart = mode if mode != 'volume' else 'face'
+    namestart2 =  namestart + '_meshed'    
+    objs = [child for name, child in ax.get_children() if name.startswith(namestart)
+            and not name.startswith(namestart2)]
+    meshed_objs = [child for name, child in ax.get_children() if name.startswith(namestart2)]
+
     sel = viewer.canvas.selection
     if len(sel) != 1:  return
-    names = [s().figobj.name for s in sel]
+    sel_objs = [s().figobj for s in sel]
+        
     if mode == 'volume':
         facesa = []
         facesb = []        
@@ -92,7 +81,8 @@ def hide_elem(evt, inverse=False):
             else:
                 facesb.extend(v[key])
         if inverse:
-            ax.face.hide_component(facesa, inverse=True)
+            for o in objs:                         
+                o.hide_component(facesa, inverse=True)
             hidden_volume = [x for x in v.keys() if not x
                              in selected_volume]            
             viewer._hidden_volume = hidden_volume
@@ -100,17 +90,17 @@ def hide_elem(evt, inverse=False):
             facesa = np.unique(np.array(facesa))
             facesb = np.unique(np.array(facesb))
             new_hide = list(np.setdiff1d(facesa, facesb, True))
-            idx = ax.face.hidden_component
-            idx = list(set(idx+new_hide))
-            ax.face.hide_component(idx)        
-    elif mode == 'face':
-        if 'face' in names: hide(ax, 'face', invserse=inverse)
-        if 'face_meshed' in names: hide(ax, 'face_meshed',
-                                        inverse=inverse)                
-    elif mode == 'edge':
-        if 'edge' in names: hide(ax, 'edge', inverse=inverse)
-        if 'edge_meshed' in names: hide(ax, 'edge_meshed',
-                                        inverse=inverse)                
+            for o in objs:                                     
+                idx = o.hidden_component
+                idx = list(set(idx+new_hide))
+                o.hide_component(idx)
+                
+    elif mode == 'face' or mode == 'edge':
+        for o in objs + meshed_objs:
+            if not o in sel_objs: continue
+            idx = o.getSelectedIndex()
+            idx = list(set(o.hidden_component+idx))        
+            o.hide_component(idx, inverse=inverse)        
     elif mode == 'point':
         pass
     else:
@@ -121,39 +111,27 @@ def hide_elem(evt, inverse=False):
 def show_only(evt):    
     hide_elem(evt, inverse=True)
 
-def toggle_dot(evt):
+def _toggle_any(evt, txt):
     viewer = evt.GetEventObject().GetTopLevelParent()
     mode = viewer._sel_mode
 
     ax = viewer.get_axes()
-    if ax.has_child('point'):
-       if ax.point.isSuppressed:
-           ax.point.onUnSuppress()
-       else:
-           ax.point.onSuppress()        
-       wx.CallAfter(ax.point.set_gl_hl_use_array_idx, True)
+    objs = [child for name, child in ax.get_children() if name.startswith(txt)]
+
+    c_status = any([o.isSuppressed for o in objs])
+    for o in objs:
+        if c_status:
+            o.onUnSuppress()
+        else:
+            o.onSuppress()
+        wx.CallAfter(o.set_gl_hl_use_array_idx, True)
     viewer.canvas.unselect_all()
-    #viewer.draw_all()
+    evt.Skip()
     
+def toggle_dot(evt):
+    self._toggle_any('point')
 def toggle_edge(evt):
-    viewer = evt.GetEventObject().GetTopLevelParent()
-    mode = viewer._sel_mode
-
-    ax = viewer.get_axes()
-    if ax.has_child('edge'): 
-        if ax.edge.isSuppressed:
-            ax.edge.onUnSuppress()
-        else:
-            ax.edge.onSuppress()
-        wx.CallAfter(ax.edge.set_gl_hl_use_array_idx, True)
-    if ax.has_child('edge_meshed'): 
-        if ax.edge_meshed.isSuppressed:
-            ax.edge_meshed.onUnSuppress()
-        else:
-            ax.edge_meshed.onSuppress()        
-        wx.CallAfter(ax.edge_meshed.set_gl_hl_use_array_idx, True)
-    viewer.canvas.unselect_all()
-    #viewer.draw_all()
+    self._toggle_any('edge')    
      
 def make_solid(evt):
     viewer = evt.GetEventObject().GetTopLevelParent()

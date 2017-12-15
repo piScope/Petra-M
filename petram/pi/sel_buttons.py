@@ -71,7 +71,6 @@ def hide_elem(evt, inverse=False):
     mode = viewer._sel_mode
 
     ax = viewer.get_axes()
-    print(mode, 'hide_elem')
     namestart = mode if mode != 'volume' else 'face'
     objs = [child for name, child in ax.get_children() if name.startswith(namestart)]
     
@@ -89,7 +88,8 @@ def hide_elem(evt, inverse=False):
             else:
                 facesb.extend(v[key])
         if inverse:
-            ax.face.hide_component(facesa, inverse=True)
+            for o in objs:             
+                o.hide_component(facesa, inverse=True)
             hidden_volume = [x for x in v.keys() if not x in selected_volume]            
             viewer._hidden_volume = hidden_volume
         else:
