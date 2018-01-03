@@ -1006,6 +1006,8 @@ class Engine(object):
            if ret is None:
               if rem is not None: rem._sel_index = []
               rem = node
+           elif ret == -1:
+              node._sel_index = range(size)
            else:
               dprint1(node.fullname(), ret)
               for k in ret:

@@ -213,8 +213,8 @@ class DlgEditModel(DialogWithWindowList):
     def OnItemSelChanged(self, evt = None):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
-        if not mm.__class__ in self.panels.keys():
-            self.generate_panel(mm)
+#        if not mm.__class__ in self.panels.keys():
+
         for k in self.panels.keys():
             p1panel, p2panel, p3panel = self.panels[k]
             self.p1sizer.Detach(p1panel)
@@ -223,6 +223,8 @@ class DlgEditModel(DialogWithWindowList):
             p1panel.Hide()
             p2panel.Hide()
             p3panel.Hide()
+        self.generate_panel(mm)
+        
         if mm.has_2nd_panel:
             if self.nb.GetPageCount() == 1:
                self.nb.AddPage(self.p2, "Selection")
@@ -320,7 +322,11 @@ class DlgEditModel(DialogWithWindowList):
                                                    tip=mm.panel2_tip()),
                                      EditListPanel(self.p3, list =  mm.panel3_param(),
                                                    tip=mm.panel3_tip()),)
-                                     
+    def update_panel_label(self, mm):
+        self.panels[mm.__class__][0].SetLabel(mm.panel1_param())
+        self.panels[mm.__class__][1].SetLabel(mm.panel2_param())
+        self.panels[mm.__class__][2].SetLabel(mm.panel3_param())        
+                             
     def OnEL_Changed(self, evt):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
@@ -336,18 +342,24 @@ class DlgEditModel(DialogWithWindowList):
                 phys = mm.get_root_phys()
             except:
                 pass
+            elp1.SetValue(mm.get_panel1_value())
+            
         if mm.has_2nd_panel:
             p2children = self.p2sizer.GetChildren()
             if len(p2children) > 0:
                 elp2 = p2children[0].GetWindow()
                 v2 = elp2.GetValue()
                 viewer_update = mm.import_panel2_value(v2)
+                elp2.SetValue(mm.get_panel2_value())
+            
         if mm.has_3rd_panel:                
             p3children = self.p3sizer.GetChildren()
             if len(p3children) > 0:
                 elp3 = p3children[0].GetWindow()
                 v3 = elp3.GetValue()
                 viewer_update = mm.import_panel3_value(v3)
+                elp3.SetValue(mm.get_panel3_value())
+                
         if phys is not None:
            viewer = self.GetParent()
            try:

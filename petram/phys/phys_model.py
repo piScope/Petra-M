@@ -59,12 +59,18 @@ class Coefficient_Evaluator(object):
               if variable is used it is become string element '['=variable', 1, 2, 3, 4]'
               if =Varialbe in matrix form, it is passed as [['Variable']]
         '''
-        #print("exprs", exprs, type(exprs))
+        print("exprs", exprs, type(exprs))
         flag, exprs = try_eval(exprs, l, g)
-        #print("after try_eval", flag, exprs)
+        print("after try_eval", flag, exprs)
         if not flag:
             if isinstance(exprs, str):
                 exprs = [exprs]
+            elif isinstance(exprs, float):
+                exprs = [exprs]               
+            elif isinstance(exprs, long):
+                exprs = [exprs]
+            else:
+               pass
         if isinstance(exprs, list) and isinstance(exprs[0], list):
             exprs = exprs[0]
         #print("final exprs", exprs)
@@ -177,8 +183,8 @@ from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
 class Phys(Model, Vtable_mixin, NS_mixin):
     hide_ns_menu = True
     hide_nl_panel = False
-    dep_var_base = []
-    der_var_base = []
+    dep_vars_base = []
+    der_vars_base = []
 
     has_essential = False
     is_complex = False
@@ -242,6 +248,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         return intArray(arr)
 
     def restrict_coeff(self, coeff, engine, vec = False, matrix = False, idx=None):
+        if len(self._sel_index) == 1 and self._sel_index[0] == -1:
+           return coeff
         arr = self.get_restriction_array(engine, idx)
 #        arr.Print()
         if vec:
@@ -421,15 +429,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if coeff is None: return
         if vt is None: vt = self.vt
         #if vt[name].ndim == 0:
-        if isinstance(coeff, mfem.PyCoefficient):
+        if isinstance(coeff, mfem.Coefficient):
             coeff = self.restrict_coeff(coeff, engine, idx=idx)
-        elif isinstance(coeff, mfem.ConstantCoefficient):
-            coeff = self.restrict_coeff(coeff, engine, idx=idx) 
-        elif isinstance(coeff, mfem.VectorPyCoefficient):          
-        #elif vt[name].ndim == 1:
+        elif isinstance(coeff, mfem.VectorCoefficient):          
             coeff = self.restrict_coeff(coeff, engine, vec = True, idx=idx)
-        elif isinstance(coeff, mfem.MatrixPyCoefficient):                     
-        #else:
+        elif isinstance(coeff, mfem.MatrixCoefficient):                     
             coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)
         else:
             assert  False, "Unknown coefficient type: " + str(type(coeff))
@@ -472,19 +476,14 @@ class PhysModule(Phys):
      
     @property
     def dep_vars(self):
-        '''
-        list of dependent variables, for example.
-           [p]   
-           [E]      
-           [E, psi]
-        '''
-        return  ['p' + self.dep_vars_suffix]
-
-    def dep_var_label(self, name):
-        return name + self.dep_vars_suffix
-
-    def dep_var_base(self, name):
-        return name[:-len(self.dep_vars_suffix)]
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+    #def dep_vars_label(self, name):
+    #    return name + self.dep_vars_suffix
+    @property
+    def dep_vars_base(self, name):
+        raise NotImplementedError(
+             "you must specify this method in subclass")
 
     def dep_var_index(self, name):
         return self.dep_vars.index(name)

@@ -44,13 +44,15 @@ COEFF2D : 2D coefficient form of PDE
   Boundary:
      Coeff2D_Zero     : zero essential (default)
      Coeff2D_Esse     : general essential
+  Point:
+     Coeff2D_PointEsse: point essential (default)
 
 '''
 model_basename = 'Coeff2D'
 
 import numpy as np
 
-from petram.model import Domain, Bdry, Pair
+from petram.model import Domain, Bdry, Point, Pair
 from petram.phys.phys_model import Phys, PhysModule
 
 import petram.debug as debug
@@ -87,6 +89,22 @@ class Coeff2D_DefBdry(Bdry, Phys):
         return v
         
     def get_possible_bdry(self):
+        return []
+    
+class Coeff2D_DefPoint(Point, Phys):
+    can_delete = False
+    is_essential = False    
+    def __init__(self, **kwargs):
+        super(Coeff2D_DefPoint, self).__init__(**kwargs)
+        Phys.__init__(self)
+
+    def attribute_set(self, v):
+        super(Coeff2D_DefPoint, self).attribute_set(v)        
+        v['sel_readonly'] = False
+        v['sel_index'] = ['']
+        return v
+        
+    def get_possible_point(self):
         return []                
 
 class Coeff2D_DefPair(Pair, Phys):
@@ -107,12 +125,13 @@ class Coeff2D_DefPair(Pair, Phys):
         return []
 
 class Coeff2D(PhysModule):
-    der_var_base = ['ux', 'uy']
+    geom_dim = 2
     def __init__(self, **kwargs):
         super(Coeff2D, self).__init__()
         Phys.__init__(self)
         self['Domain'] = Coeff2D_DefDomain()
         self['Boundary'] = Coeff2D_DefBdry()
+        self['Point'] = Coeff2D_DefPoint()        
         self['Pair'] = Coeff2D_DefPair()        
         
     @property
@@ -124,6 +143,14 @@ class Coeff2D(PhysModule):
     def dep_vars_base(self):
         return self.dep_vars_base_txt.split(',')
 
+    @property 
+    def der_vars(self):
+        names = []
+        for t in self.dep_vars:
+            names.append(t+'x')
+            names.append(t+'y')            
+        return names
+    
     def get_fec(self):
         v = self.dep_vars
         return [(v[0], self.element),]
@@ -142,24 +169,71 @@ class Coeff2D(PhysModule):
         panels.extend([
                 ["indpendent vars.", self.ind_vars, 0, {}],
                 ["dep. vars. suffix", self.dep_vars_suffix, 0, {}],
-                ["dep. vars.", ','.join(Coeff2D.dep_var_base), 0, {}],
-                ["derived vars.", ','.join(Coeff2D.der_var_base), 2, {}],
+                ["dep. vars.", ','.join(self.dep_vars_base), 0, {}],
+                ["derived vars.", ','.join(self.der_vars), 2, {}],
                 ["predefined ns vars.", txt_predefined , 2, {}]])
+        return panels
                       
     def get_panel1_value(self):
-        names  = ','.join([x+self.dep_vars_suffix for x in self.dep_vars])
-        names2  = ','.join([x+self.dep_vars_suffix for x in Coeff2D.der_var_base])
+        names  =  ', '.join(self.dep_vars_base)
+        names2  = ', '.join(self.der_vars)
         val =  super(Coeff2D, self).get_panel1_value()
                       
-        return val.extend([
-                self.ind_vars, self.dep_vars_suffix,
-                names, names2, txt_predefined])
+        val.extend([self.ind_vars, self.dep_vars_suffix,
+                     names, names2, txt_predefined])
+        return val
     
     def get_panel2_value(self):
         return 'all'
                       
     def import_panel1_value(self, v):
         v = super(Coeff2D, self).import_panel1_value(v)
-        self.ind_vars =  str(v[1])
-        self.dep_vars_suffix =  str(v[2])
-        self.dep_vars_base_txt = ','.join([x.strip() for x in str(v[0].split(','))])
+        self.ind_vars =  str(v[0])
+        self.dep_vars_suffix =  str(v[1])
+        self.dep_vars_base_txt = ','.join([x.strip() for x in str(v[2]).split(',')])
+
+    def import_panel2_value(self, v):
+        self.sel_index = 'all'
+
+    def get_possible_domain(self):
+        from coeff2d_domains       import Coeff2D_Diffusion, Coeff2D_Source
+        return [Coeff2D_Diffusion, Coeff2D_Source]
+    
+    def get_possible_bdry(self):
+        from coeff2d_bdries import Coeff2D_Essential, Coeff2D_Zero,Coeff2D_ZeroFlux
+        return [Coeff2D_ZeroFlux, Coeff2D_Zero, Coeff2D_Essential]
+    
+    def get_possible_edge(self):
+        return []                
+    
+    def get_possible_point(self):
+        from coeff2d_points       import Coeff2D_PointSource, Coeff2D_PointValue
+        return [Coeff2D_PointSource, Coeff2D_PointValue]
+    
+    def get_possible_pair(self):
+        return []
+
+    def add_variables(self, v, name, solr, soli = None):
+        from petram.helper.variables import add_coordinates
+        from petram.helper.variables import add_scalar
+        from petram.helper.variables import add_components
+        from petram.helper.variables import add_expression
+        from petram.helper.variables import add_surf_normals
+        from petram.helper.variables import add_constant      
+
+        ind_vars = [x.strip() for x in self.ind_vars.split(',')]
+        suffix = self.dep_vars_suffix
+
+        #from petram.helper.variables import TestVariable
+        #v['debug_test'] =  TestVariable()
+        
+        add_coordinates(v, ind_vars)        
+        add_surf_normals(v, ind_vars)
+
+        dep_vars = self.dep_vars
+        for dep_var in dep_vars:
+            if name.startswith(dep_var):
+                add_scalar(v, dep_var, suffix, ind_vars, solr, soli)
+
+        return v
+    

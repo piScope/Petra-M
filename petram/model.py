@@ -133,6 +133,9 @@ class Model(RestorableOrderedDict):
         if len(self.sel_index) == 1 and self.sel_index[0] == 'remaining':
             self._sel_index = []
             return None
+        elif len(self.sel_index) == 1 and self.sel_index[0] == 'all':
+            self._sel_index = []
+            return -1
         elif len(self.sel_index) == 0:
             self._sel_index = []            
         elif self.sel_index[0] == '':            
@@ -597,7 +600,12 @@ class Model(RestorableOrderedDict):
     
 class Bdry(Model):
     can_delete = True
-    is_essential = False            
+    is_essential = False
+    def attribute_set(self, v):
+        v = super(Bdry, self).attribute_set(v)
+        v['sel_readonly'] = True
+        return v
+    
     def get_possible_child(self):
         return self.parent.get_possible_bdry()
     

@@ -31,14 +31,25 @@ This module solves the following equation in 2D (x, y) domain.
  \mathbf{n}\cdot (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) = hu + g,\,\,on\,\,\,\partial \Omega_{2}
   \end{align}
   
+ 
+
+  
   \section{2D time-dependent (Coeff2Dt)}
   \begin{align}
-  m\frac{\partial^2 u}{\partial t^2} +   d\frac{\partial u}{\partial t} + \nabla (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) + \mathbf{q} \cdot \nabla u + au - f = 0 
+  m\frac{\partial^2 u}{\partial t^2} +   d\frac{\partial u}{\partial t} + \nabla (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) + \mathbf{q} \cdot \nabla u + au - f = 0, 
   \\  
-  u = u_{0} \,\,\,on\,\,\,\partial \Omega_{1}
+  u = u_{0} \,\,\,on\,\,\,\partial \Omega_{1},
   \\
- \mathbf{n}\cdot (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) = hu + g,\,\,on\,\,\,\partial \Omega_{2}
+ \mathbf{n}\cdot (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) = hu + g,\,\,on\,\,\,\partial \Omega_{2},
   \end{align}
+where m is the mass coefficient, d is the damping coefficient, c is the diffusion coefficient, p is the conservative flux convection coefficient. q is the convection coefficient,  a is the absorption coefficient, r is the conservative flux source term, and f is the source term.
+
+ \section{Weakform}
+  Multipling a test funcion $v$ from the left and integrating it over the computation domain,  we can transform the terms in the previous 2nd order PDE as follows.
+  \begin{equation}
+ \int v \nabla (\mathbf{c} \cdot \nabla u) = (\nabla v,\mathbf{c} \cdot \nabla u) - \langle v, \mathbf{c} \cdot \frac{\partial u}{\partial \mathbf{n}} \rangle
+  \end{equation}
+  
   a u + gamma) 
               + beta (grad u) + a u - f = 0
 
