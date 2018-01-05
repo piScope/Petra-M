@@ -196,8 +196,8 @@ class Coeff2D(PhysModule):
         self.sel_index = 'all'
 
     def get_possible_domain(self):
-        from coeff2d_domains       import Coeff2D_Diffusion, Coeff2D_Source
-        return [Coeff2D_Diffusion, Coeff2D_Source]
+        from coeff2d_domains       import Coeff2D_Diffusion, Coeff2D_Source, Coeff2D_Convection, Coeff2D_Absorption
+        return [Coeff2D_Diffusion,  Coeff2D_Convection, Coeff2D_Absorption, Coeff2D_Source]
     
     def get_possible_bdry(self):
         from coeff2d_bdries import Coeff2D_Essential, Coeff2D_Zero,Coeff2D_ZeroFlux
