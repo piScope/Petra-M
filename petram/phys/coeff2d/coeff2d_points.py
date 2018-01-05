@@ -49,17 +49,25 @@ data =  (('x_delta', VtableElement('x_delta', type='array',
 class Coeff2D_PointSource(Coeff2D_Point):
     vt  = Vtable(data)
     _sel_index = [-1]
+    def panel2_param(self):
+        return []
+    def import_panel2_value(self, v):
+        self.sel_index = 'all'
+        
+    def verify_setting(self):
+        x, y, s = self.vt.make_value_or_expression(self)    
+        if len(x) != len(y):
+           return False, "Invalid x, y, s", "number of x and y must be the same"
+        if len(x) != len(s):
+           return False, "Invalid x, y, s", "number of x and s must be the same"           
+        return True, "", ""
+     
     def has_lf_contribution(self, kfes):
         print 'point source'
         return True
 
     def add_lf_contribution(self, engine, b, real = True, kfes=0):
-        print 'point source'       
         x, y, s = self.vt.make_value_or_expression(self)    
-        if real:       
-            dprint1("Add contribution(real)" + str(self._sel_index))
-        else:
-            dprint1("Add contribution(imag)" + str(self._sel_index))
         print '!!!!!', x, y, s
         if len(x) != len(y):
            assert False, "number of x and y must be the same"
@@ -75,21 +83,67 @@ class Coeff2D_PointSource(Coeff2D_Point):
         from petram.helper.variables import add_expression, add_constant
         pass
 
-
-data =  (('x_delta', VtableElement('x_delta', type='float',
+data =  (('x_delta', VtableElement('x_delta', type='array',
                                    guilabel = 'x',
                                    default = 0.0,
                                    tip = "x")),
-         ('y_delta', VtableElement('y_delta', type='float',
+         ('y_delta', VtableElement('y_delta', type='array',
                                    guilabel = 'y',
                                    default = 0.0,
                                    tip = "y")),
-         ('value', VtableElement('value', type='float',
-                                   guilabel = 'scale',
+         ('value', VtableElement('value', type='array',
+                                   guilabel = 'value',
                                    default = 1.0,
                                    tip = "value at (x, y)")),)
      
      
 class Coeff2D_PointValue(Coeff2D_Point):
-    pass
-
+    vt  = Vtable(data)
+    _sel_index = [-1]
+    def panel2_param(self):
+        return []
+    def import_panel2_value(self, v):
+        self.sel_index = 'all'
+    
+    def verify_setting(self):
+        x, y, s = self.vt.make_value_or_expression(self)
+        if len(x) != len(y):
+           return False, "Invalid x, y, s", "number of x and y must be the same"
+        if len(x) != len(s):
+           return False, "Invalid x, y, s", "number of x and s must be the same"           
+        return True, "", ""
+     
+    def has_extra_DoF(self, kfes):
+        if kfes != 0: return False       
+        return True
+     
+    def get_exter_NDoF(self):
+        x, y, s = self.vt.make_value_or_expression(self)    
+        return len(x)
+     
+    def postprocess_extra(self, sol, flag, sol_extra):
+        name = self.name()
+        sol_extra[name] = sol.toarray()
+        
+    def add_extra_contribution(self, engine, **kwargs):
+        dprint1("Add Extra contribution" + str(self._sel_index))
+        fes = engine.get_fes(self.get_root_phys(), 0)
+        
+        x, y, s = self.vt.make_value_or_expression(self)    
+        
+        from mfem.common.chypre import LF2PyVec, EmptySquarePyMat, HStackPyVec
+        from mfem.common.chypre import Array2PyVec
+        vecs = []
+        for x0, y0, s0 in zip(x, y, s):        
+           lf1 = engine.new_lf(fes)
+           d = mfem.DeltaCoefficient(x0, y0, 1.0)
+           itg = mfem.DomainLFIntegrator(d)
+           lf1.AddDomainIntegrator(itg)
+           lf1.Assemble()
+           vecs.append(LF2PyVec(lf1))
+        
+        t3 =  EmptySquarePyMat(len(x))
+        v1 = HStackPyVec(vecs)
+        v2 = v1.transpose()
+        t4 = Array2PyVec(np.array(s))
+        return (v1, v2, t3, t4, True)

@@ -252,6 +252,15 @@ class Engine(object):
     def isInitialized(self):
         return  self.is_initialized
 
+    def run_verify_setting(self, phys_target, solver):
+        for phys in phys_target:
+            for mm in phys.walk():
+                error, txt, long_txt = mm.verify_setting()
+                assert error, mm.fullname() + ":" + long_txt 
+        for mm in solver.walk():
+                error, txt, long_txt = mm.verify_setting()           
+                assert error, mm.fullname() + ":" + long_txt         
+           
     def run_apply_init(self, phys_target, mode,
                        init_value=0.0, init_path=''):
         # mode
@@ -282,7 +291,8 @@ class Engine(object):
     def run_apply_essential(self, phys_target):      
         for phys in phys_target:
             self.apply_essential(phys)
-     
+
+
     def run_assemble(self, phys_target = None):
         matvecs = ModelDict(self.model)
         matvecs_c = ModelDict(self.model)
@@ -827,6 +837,7 @@ class Engine(object):
 
         # essentailBC is stored in b
         B_blocks = [b - Me.dot(b) for b in B_blocks]
+
         
         # shrink size
         dprint2("M (before shrink)\n", M_block)        
@@ -842,12 +853,11 @@ class Engine(object):
      
     def finalize_linearsystem(self, M_block, B_blocks, is_complex,
                               format = 'coo'):
-        
         if format == 'coo': # coo either real or complex
             M = self.finalize_coo_matrix(M_block, is_complex)
             B = [self.finalize_coo_rhs(b, is_complex) for b in B_blocks]
             B = np.hstack(B)
-
+            
         elif format == 'coo_real': # real coo converted from complex
             M = self.finalize_coo_matrix(M_block, is_complex,
                                             convert_real = True)
@@ -856,7 +866,6 @@ class Engine(object):
                                    convert_real = True)
                     for b in B_blocks]
             B = np.hstack(B)
-
 
         #S = self.finalize_flag(S_block)
         self.is_assembled = True
@@ -955,7 +964,7 @@ class Engine(object):
      
     def save_extra_to_file(self, sol_extra):
         if sol_extra is None: return
-        fid = open('sol_extended.data', 'w')
+        fid = open(self.extrafile_name(), 'w')
         for name in sol_extra.keys():
             for k in sol_extra[name].keys():
                 data = sol_extra[name][k]
@@ -1412,6 +1421,9 @@ class SerialEngine(Engine):
         mesh_name  =  "solmesh_"+str(mesh_idx)              
         return fnamer, fnamei, mesh_name
 
+    def extrafile_name(self):
+        return 'sol_extended.data'
+
     def get_true_v_sizes(self, phys):
         fe_sizes = [fes[1].GetTrueVSize() for fes in self.fespaces[phys]]
         dprint1('Number of finite element unknowns: '+  str(fe_sizes))
@@ -1533,20 +1545,13 @@ class ParallelEngine(Engine):
         mesh_name  =  "solmesh_"+str(mesh_idx)+"."+smyid        
         return fnamer, fnamei, mesh_name
 
-    '''
-    def save_solfile_fespace(self, name, mesh_idx, r_x, i_x, 
-                             namer = 'solr', namei = 'soli' ):
+    def extrafile_name(self):
         from mpi4py import MPI                               
         num_proc = MPI.COMM_WORLD.size
         myid     = MPI.COMM_WORLD.rank
         smyid = '{:0>6d}'.format(myid)
-
-        fname = '_'.join((namer, name, str(mesh_idx)))+"."+smyid
-        r_x.SaveToFile(fname, 8)
-        if i_x is not None:
-            fname = '_'.join((namei, name, str(mesh_idx)))+"."+smyid
-            i_x.SaveToFile(fname, 8)
-    '''
+       
+        return 'sol_extended.data.'+smyid
 
     def fill_block_matrix_fespace(self, blocks, mv,
                                         gl_ess_tdof, extra, interp,

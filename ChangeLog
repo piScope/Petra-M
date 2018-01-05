@@ -1,20 +1,31 @@
-	Change Log
+	<<< Change Log >>>
+
+01/02/2018
+	* Worked on Coeff2D. Diffusion term, Essential, Point source, Point Value, Natural
+	are written
+	* Coeff2D:PointValue is implemented using Lagrange multiplier and DeltaCoefficient
+	* engine is fixed to work with real value problem
+	* Lagrange multiplier can be array distributed among nodes.
+	* call to verify_setting is added in engine so that it checks setting before assembling
+	the matrix. In order to use this, each module shoud implement verify_setting method.
+	* _sel_index=-1 indicates not to restrict coefficient.
+	
+12/15/2017	
         ** fixed sel_button to work with mixed triangle and quad surfaces.
 	
-	
-	* 11/14/2017
+11/14/2017
 	** fixed refine=1 when loading mesh file for visualization.
 	** fixed EM2Da_PEC, EM3D_PEC. These BC now apply Et=0 properly w/o relying
 	   on the initialization of solution vector by engine.
 	** various improvement of dialog link behaviors.
         ** EM2Da_ExtJ is added for volumetric current source.
 	** Dynamic loading of all installed physics modules 
-	* 11/07/2017
+11/07/2017
 	** gl_plot_sol and mfem_viewer is modefided to handle a geometry which
 	uses different types of elements.
 	** many updates made to support em2da is merged to master
 	
-	* 09/20/2017
+09/20/2017
         ** merged scripts in project tree and remote coonections
 	Remote connection functionality is rewritten to be universal.
 	Server side scripts should absorb the difference between
@@ -24,7 +35,7 @@
 	Selecting vertex shows the vertex coordinates on the status
 	bar.
 	
-	* 09/04/2017
+09/04/2017
 
 	** Geometry building is reorganized to a list of geometry creation
 	commads
@@ -49,15 +60,15 @@
 	** plotting panel is fixed to use a new indexed-vertex mode of solid
 	   function. 
 	
-	* 08/01/2017
+08/01/2017
 
 	** Geometry building interface is added for testing an idea...
 	
-	* 07/24/2017
+07/24/2017
 
 	** Initial value setting for TH3Ds was added.
 	
-	* 07/22/2017
+07/22/2017
 
 	** Arrow plot resampling
         - resampling the data to reduce the number of arrows to a
@@ -66,7 +77,7 @@
 	- keep face separated is eliminated since we want to make the
 	arrow length consistent among surfaces.
 	
-	* 07/21/2017
+07/21/2017
 
 	** multiple selection in piScope is enabled
 	- a user can select domain and change the surface color at once.
@@ -90,7 +101,7 @@
 	capability. Features such as an interpolation from course mesh is not
 	supported.
 	
-	* 07/20/2017
+07/20/2017
 
 	** initialization step was cleaned for future expansion
 
@@ -107,7 +118,7 @@
 	- THIS CHANGES  are NOT important for RF-only modeling. It will be
 	useful for in a multiphysics case
 	
-	* 07/19/2017
+07/19/2017
 	
 	** Significant reduction of GUI handling code length using
 	petram.phys.vtable
@@ -120,7 +131,7 @@
 	-  a user still need to make a new work directory.
 	
 
-	* 07/15-07/18/2017
+07/15-07/18/2017
 	
 
 	** A problem of server side data processing is fixed.

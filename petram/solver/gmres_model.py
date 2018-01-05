@@ -45,8 +45,8 @@ class GMRES(Solver):
         if not self.parent.assemble_real:
             root = self.root
             phys = root['Phys'][self.parent.phys_model]
-            if phys.is_complex: return False
-        return True
+            if phys.is_complex: return False, "Complex Problem not supported.", "AMS does not support complex problem"
+        return True, "", ""
 
     def linear_system_type(self, assemble_real, phys_complex):
         if not phys_complex: return 'block'

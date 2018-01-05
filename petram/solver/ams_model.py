@@ -45,5 +45,5 @@ class AMS(Solver):
         if not self.parent.assemble_real:
             root = self.root
             phys = root['Phys'][self.parent.phys_model]
-            if phys.is_complex: return False
-        return True
+            if phys.is_complex: return False, "Complex Problem not supported.", "AMS does not support complex problem"
+        return True, "", ""

@@ -134,6 +134,7 @@ class StdSolver(Solver):
 
     def assemble(self, engine):
         phys_targets = self.get_phys()
+        engine.run_verify_setting(phys_targets, self)
         matvecs, matvecs_c = engine.run_assemble(phys_targets)
         return matvecs, matvecs_c
 

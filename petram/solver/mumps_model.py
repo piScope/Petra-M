@@ -267,7 +267,7 @@ class MUMPS(Solver):
             s.set_n(A.shape[1])
             s.set_lrhs_nrhs(b.shape[0], b.shape[1])
             # this way we keep bstack in memory            
-            bstack = np.hstack(np.transpose(b)) 
+            bstack = np.hstack(np.transpose(b))
             s.set_rhs(data_array(bstack))
             
         dtype_int = 'int'+str(mumps_solve.SIZEOF_MUMPS_INT()*8)
@@ -335,7 +335,6 @@ class MUMPS(Solver):
                 sol = s.get_real_rhs()
             sol = np.transpose(sol.reshape(-1, len(b)))
             return sol
-
         
     def solve(self, engine, A, b):
         try:
