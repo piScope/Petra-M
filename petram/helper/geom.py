@@ -46,25 +46,22 @@ def connect_pairs(ll):
     return ret
 
 def do_find_circle_center(p1, p2, p3,  norm):
-    dp1 = p2 - p1
-    dp2 = p3 - p2
-    mp1 = (p2 + p1)/2.0
-    mp2 = (p3 + p2)/2.0
-    v1 = np.cross(norm, dp1)
-    v2 = np.cross(norm, dp2)
-    m = np.transpose(np.vstack((v1, v2)))
-    dmp = mp1 - mp2
-    if np.linalg.det(m[[0,1],:]) != 0:
-       a, b = np.dot(np.linalg.inv(m[[0,1],:]), dmp[[0,1]])
-    elif np.linalg.det(m[[0,2],:]) != 0:
-       a, b = np.dot(np.linalg.inv(m[[0,2],:]), dmp[[0,2]])
-    elif np.linalg.det(m[[1,2],:]) != 0:
-       a, b = np.dot(np.linalg.inv(m[[1,2],:]), dmp[[1,2]])
-    else:
-        print(p1, p2, p3)
-        raise ValueError("three points does not span a surface")
+    p = p2 - p1
+    q = np.cross(norm, p)
+    d = np.sqrt(np.sum(p**2))
 
-    return mp1 - v1*a
+    p = p/np.sqrt(np.sum(p**2))
+    q = q/np.sqrt(np.sum(q**2))
+
+    a = np.sum((p3-p1)*p)
+    b = np.sum((p3-p1)*q)
+
+    m =  np.linalg.inv(np.array([[0, b/2.], [1., -a/2.]]))
+    v =  np.array([[a/2.-d/2.], [b/2.]])
+
+    s, t = np.dot(m, v)
+    c = p1 + (p2-p1)/2.+s[0]*q
+    return c
 
 def find_circle_center_radius(vv, norm):
     '''
