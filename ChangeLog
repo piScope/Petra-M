@@ -1,5 +1,8 @@
 	<<< Change Log >>>
-
+01/12/2018
+	* mfem_viewer is change to skip refinement steps
+	* (perhaps, I should add an option to look refined mesh, for
+	   adavptive meshing)
 01/02/2018
 	* Worked on Coeff2D. Diffusion term, Essential, Point source, Point Value, Natural
 	are written

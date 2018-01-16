@@ -23,6 +23,7 @@ import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('MeshModel')
 
 class Mesh(Model, NS_mixin):
+    isRefinement = False      
     def __init__(self, *args, **kwargs):
         super(Mesh, self).__init__(*args, **kwargs)
         NS_mixin.__init__(self, *args, **kwargs)
@@ -43,7 +44,7 @@ class Mesh(Model, NS_mixin):
             if isinstance(p, MFEM_MeshRoot): return p           
             p = p.parent
             
-class MeshGroup(Model):
+class MeshGroup(Model):  
     can_delete = True
     has_2nd_panel = False
     isMeshGroup = True    
@@ -68,6 +69,7 @@ class MeshGroup(Model):
 MFEMMesh = MeshGroup
 
 class MeshFile(Mesh):
+    isRefinement = False   
     has_2nd_panel = False        
     def __init__(self, parent = None, **kwargs):
         self.path = kwargs.pop("path", "")
@@ -154,8 +156,8 @@ class MeshFile(Mesh):
            return mesh
         except:
            return None
-        
 class UniformRefinement(Mesh):
+    isRefinement = True
     has_2nd_panel = False           
     def __init__(self, parent = None, **kwargs):
         self.num_refine = kwargs.pop("num_refine", "0")

@@ -1171,7 +1171,8 @@ class Engine(object):
         raise NotImplementedError(
              "you must specify this method in subclass")
 
-    def run_mesh_serial(self, meshmodel = None):
+    def run_mesh_serial(self, meshmodel = None,
+                        skip_refine = False):
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
         
         self.meshes = []
@@ -1190,6 +1191,7 @@ class Engine(object):
                         self.meshes[idx] = o.run()
                         target = self.meshes[idx]
                     else:
+                        if o.isRefinement and skip_refine: continue
                         if hasattr(o, 'run') and target is not None:
                             self.meshes[idx] = o.run(target)
                                        
@@ -1236,8 +1238,12 @@ class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(SerialEngine, self).__init__(modelfile = modelfile, model=model)
 
-    def run_mesh(self, meshmodel = None):
-        return self.run_mesh_serial(meshmodel = meshmodel)
+    def run_mesh(self, meshmodel = None, skip_refine=False):
+        '''
+        skip_refine is for mfem_viewer
+        '''
+        return self.run_mesh_serial(meshmodel = meshmodel,
+                                    skip_refine=skip_refine)
 
     def run_assemble(self, phys):
         self.is_matrix_distributed = False       

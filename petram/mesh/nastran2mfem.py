@@ -88,7 +88,8 @@ class NASReader(object):
                 elems['HEXA'].append(self.parse_hexa_fixed(l))
             elif l.startswith('CQUAD8'):
                 elems['QUAD8'].append(self.parse_quad8_fixed(l))
-            else: pass
+            else: 
+                assert False, "Element not supported: " + l
             ll += 1
             if ll % num_lines_base == 0:
                print(str(ll/num_lines_base) + "% done.(" + str(ll) + ")")

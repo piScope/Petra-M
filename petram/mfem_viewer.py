@@ -487,7 +487,7 @@ class MFEMViewer(BookViewer):
         
         try:
             os.chdir(self.model.owndir())
-            self.engine.run_mesh()
+            self.engine.run_mesh(skip_refine = True)
             mesh = self.engine.get_mesh()
             self.model.variables.setvar('mesh', mesh)
             os.chdir(cdir)
