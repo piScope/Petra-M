@@ -1,6 +1,7 @@
 import wx
 import numpy as np
 
+import petram
 from petram.utils import get_pkg_datafile
 #import petram.geom
 
