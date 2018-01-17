@@ -1249,7 +1249,7 @@ class MFEMViewer(BookViewer):
         engine.preprocess_ns(model.namespaces, model.datasets)
         engine.build_ns()            
 
-    def get_interanl_bc(self):
+    def get_internal_bc(self):
         d = self._s_v_loop['phys'][1]
         dd = []
         for k  in d : dd.extend(d[k])
