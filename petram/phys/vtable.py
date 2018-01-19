@@ -228,10 +228,10 @@ class VtableElement(object):
                 return str(getattr(obj, self.name))        
             else:
                 v = getattr(obj, self.name)
-                print('v(before)', v)
+                #print('v(before)', v)
                 if str(v) == '':
                     v = str(self.default)
-                print('v(after)', v)                    
+                #print('v(after)', v)                    
                 var, f_name0 = obj.eval_phys_expr(v, self.name,
                                                   **kwargs)
                 if f_name0 is None: return var
