@@ -1,8 +1,9 @@
 import wx
 import numpy as np
 
+import petram
 from petram.utils import get_pkg_datafile
-import petram.geom
+#import petram.geom
 
 fdotbk = get_pkg_datafile(petram.pi, 'icon',  'dot_bk.png')
 fedgebk = get_pkg_datafile(petram.pi, 'icon', 'line_bk.png')
