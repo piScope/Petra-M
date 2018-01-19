@@ -56,7 +56,7 @@ class ValidatorInputMixIn(object):
                              'call_fit': False},
                              {'elp': elp1},  
                              {'elp': elp2},),],
-       return elp
+        return elp
    
     def form_name(self, v):
         if v: return 'Array Form'
@@ -69,7 +69,7 @@ class ValidatorInputMixIn(object):
         '''         
         return [self.form_name(getattr(self, 'use_m_' + name)), 
                 [[str(getattr(self, name + s)) for s in suffix]],
-                [str(getattr(self, name + '_m')]]
+                [str(getattr(self, name + '_m'))]]
 
     def import_multivalidator_panel1_value(self, v, name, suffix):
         '''
@@ -79,7 +79,7 @@ class ValidatorInputMixIn(object):
         setattr(self, 'use_m_'+name,  (str(v[0]) == 'Array Form'))
         for k, s in enumerate(suffix):
             setattr(self, name + '_' + s, str(v[1][0][k]))
-        setattr(self, name + '_m',  str(v[2][0])
+        setattr(self, name + '_m',  str(v[2][0]))
             
 
     def make_multivaliator_f_name(self, basename, suffix):
