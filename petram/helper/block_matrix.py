@@ -170,6 +170,22 @@ class ScipyCoo(coo_matrix):
               return self
         except:
            return self
+        
+    def get_mfem_sparsemat(self):
+        '''
+        generate mfem::SparseMatrix using the same data
+        '''
+        if np.iscomplexobj(self):
+            csr_r = np.real(self).tocsr()
+            csr_r.eliminate_zeros()
+            csr_i = np.imag(self).tocsr()
+            csr_i.eliminate_zeros()
+            return mfem.SparseMatrix(csr_r), mfem.SparseMatrix(csr_i)
+        else:
+            csr_r = self.tocsr()
+            csr_r.eliminate_zeros()
+            csr_i = None
+            return mfem.SparseMatrix(csr_r), None
      
     def __repr__(self):
         return "ScipyCoo"+str(self.shape)
@@ -521,8 +537,9 @@ class BlockMatrix(object):
                     raise ValueError("Unsupported element" + str((i,0)) + 
                                      ":" + str(type(self[i,0])))
             return np.hstack(data).reshape(-1,1)
-        
-    def get_global_coo(self, dtype = 'float'):
+
+    def get_global_offsets(self, convert_real = False,
+                                 interleave = True):
         '''
         build matrix in coordinate format
         '''
@@ -538,9 +555,21 @@ class BlockMatrix(object):
                 if self[i, j] is not None:
                    coffset.append(self[i,j].shape[1])
                    break
-        #coffset = [self[0, j].shape[1] for j in range(self.shape[1])] 
+        #coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
+        if self.complex and convert_real:
+            if interleave:
+                roffset = np.vstack((roffset, roffset)).flatten()
+                coffset = np.vstack((roffset, roffset)).flatten()                          
+            else:
+                roffset = np.hstack((roffset, roffset))
+                coffset = np.hstack((roffset, roffset))                                    
+
         roffsets = np.hstack([0, np.cumsum(roffset)])
         coffsets = np.hstack([0, np.cumsum(coffset)])
+        return roffsets, coffsets
+     
+    def get_global_coo(self, dtype = 'float'):
+        roffsets, coffsets = self.get_global_offsets()
         col = []
         row = []
         data = []
@@ -559,6 +588,85 @@ class BlockMatrix(object):
         glcoo.data = np.hstack(data)
 
         return glcoo
+     
+    def gather_blkvec_interleave(self):
+        '''
+        Construct MFEM::BlockVector
+
+        This routine ordered unkonws in the following order
+           Re FFE1, Im FES1, ReFES2, Im FES2, ...
+        If self.complex is False, it assembles a nomal block
+           vector
+        This routine is used together with get_global_blkmat_interleave(self):
+        '''
+        
+        roffsets, coffsets = self.get_global_offsets(convert_real=True, interleave=True)
+        dprint1("roffsets", roffsets)
+        offset = mfem.intArray(list(roffsets))
+        
+        vec = mfem.BlockVector(offset)
+        
+        data = []
+        ii = 0; jj = 0
+
+        for i in range(self.shape[0]):        
+            if self[i,0] is not None:
+                #print type(self[i,0])
+                if isinstance(self[i,0], chypre.CHypreVec):
+                    vec.GetBlock(ii).Assign(self[i,0][0])
+                    if self.complex:
+                        vec.GetBlock(ii+1).Assign(self[i,0][1])
+                elif isinstance(self[i,0], ScipyCoo):
+                    arr = self[i,0].toarray().squeeze()
+                    vec.GetBlock(ii).Assign(np.real(arr))
+                    if self.complex:
+                        vec.GetBlock(ii+1).Assign(np.imag(arr))
+                else:
+                    assert False, "not implemented, "+ str(type(self[i,0]))
+                
+            ii = ii + 2 if self.complex else ii+1
+        return vec
+       
+    def get_global_blkmat_interleave(self):
+        '''
+        This routine ordered unkonws in the following order
+           Re FFE1, Im FES1, ReFES2, Im FES2, ...
+        If self.complex is False, it assembles a nomal block
+        matrix FES1, FES2...
+        '''
+        
+        roffsets, coffsets = self.get_global_offsets(convert_real=True, interleave=True)
+        dprint1("roffsets", roffsets)
+        ro = mfem.intArray(list(roffsets))
+        co = mfem.intArray(list(coffsets))        
+        #glcsr = mfem.BlockOperator(ro, co)
+        glcsr = mfem.BlockMatrix(ro, co)
+        ii = 0
+        for i in range(self.shape[0]):
+            jj = 0
+            for j in range(self.shape[1]):
+                if self[i,j] is not None:
+                    if use_parallel:
+                        assert False, "not implemented (blkmat interleave in parallel)"
+                    else:
+                        if isinstance(self[i,j], ScipyCoo):
+                            gcsr = self[i,j].get_mfem_sparsemat()
+                            #print self[i,j].nnz
+                        else:
+                            assert False, "unsupported block element "+type(self[i,j])
+                    glcsr.SetBlock(ii, jj, gcsr[0])
+                    if self.complex:
+                        glcsr.SetBlock(ii+1, jj+1, gcsr[0])
+                    if gcsr[1] is not None:
+                        glcsr.SetBlock(ii, jj+1,  gcsr[1])
+                        glcsr.SetBlock(ii+1, jj, -gcsr[1])
+                jj = jj + 2 if self.complex else jj+1
+            ii = ii + 2 if self.complex else ii+1
+
+        M =glcsr.GetBlock(0,0)
+        I = M.GetIArray()
+
+        return glcsr
 
 
 

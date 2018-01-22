@@ -110,7 +110,7 @@ class Coeff2D_DefPoint(Point, Phys):
 class Coeff2D_DefPair(Pair, Phys):
     can_delete = False
     is_essential = False
-    is_complex = True
+    is_complex = False
     def __init__(self, **kwargs):
         super(Coeff2D_DefPair, self).__init__(**kwargs)
         Phys.__init__(self)
@@ -161,7 +161,7 @@ class Coeff2D(PhysModule):
         v["dim"] = 2
         v["ind_vars"] = 'x, y'
         v["dep_vars_suffix"] = ''
-        v["dep_vars_base_txt"] = 'u'        
+        v["dep_vars_base_txt"] = 'u'
         return v
     
     def panel1_param(self):

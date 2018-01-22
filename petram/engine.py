@@ -866,7 +866,10 @@ class Engine(object):
                                    convert_real = True)
                     for b in B_blocks]
             B = np.hstack(B)
-
+        elif format == 'blk_interleave': # real coo converted from complex
+            M = M_block.get_global_blkmat_interleave()
+            B = [b.gather_blkvec_interleave() for b in B_blocks]
+            
         #S = self.finalize_flag(S_block)
         self.is_assembled = True
         return M, B
@@ -1405,7 +1408,6 @@ class SerialEngine(Engine):
             M = M_block.get_global_coo(dtype='complex')                      
             M = scipy.sparse.bmat([[M.real, -M.imag], [-M.imag, -M.real]], format='coo')
         return M
-
 
     def collect_all_ess_tdof(self, phys, ess_tdofs):
         self.gl_ess_tdofs[phys] = [(name, ess_tdof.ToList())

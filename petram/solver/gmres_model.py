@@ -2,7 +2,17 @@ from .solver_model import Solver
 import numpy as np
 
 import petram.debug as debug
-dprint1, dprint2, dprint3 = debug.init_dprints('MUMPSModel')
+dprint1, dprint2, dprint3 = debug.init_dprints('GMRESModel')
+
+from petram.mfem_config import use_parallel
+if use_parallel:
+   from petram.helper.mpi_recipes import *
+   from mfem.common.parcsr_extra import *
+   import mfem.par as mfem
+   default_kind = 'hypre'
+else:
+   import mfem.ser as mfem
+   default_kind = 'scipy'
 
 class GMRES(Solver):
     has_2nd_panel = False
@@ -19,16 +29,16 @@ class GMRES(Solver):
                 ["preconditioner", self.preconditioner,     0, {}],]    
     
     def get_panel1_value(self):
-        return (long(self.log_level), self.maxiter,
-                self.reltol, self.abstol, self.kdim,
+        return (long(self.log_level), long(self.maxiter),
+                self.reltol, self.abstol, long(self.kdim),
                 self.preconditioner)
     
     def import_panel1_value(self, v):
         self.log_level = long(v[0])
-        self.maxiter = v[1]
+        self.maxiter = long(v[1])
         self.reltol = v[2]
         self.abstol = v[3]
-        self.kdim = v[4]        
+        self.kdim = long(v[4])
         self.preconditioner = v[5]
         
     def attribute_set(self, v):
@@ -38,21 +48,75 @@ class GMRES(Solver):
         v['reltol']  = 1e-7
         v['abstol'] = 1e-7
         v['kdim'] =   50
+        v['printit'] = 1
         v['preconditioner'] = 'AMS'
         return v
     
     def verify_setting(self):
         if not self.parent.assemble_real:
-            root = self.root
+            root = self.root()
             phys = root['Phys'][self.parent.phys_model]
-            if phys.is_complex: return False, "Complex Problem not supported.", "AMS does not support complex problem"
+            if phys.is_complex:
+                return False, "Complex Problem not supported.", "AMS does not support complex problem"
         return True, "", ""
 
     def linear_system_type(self, assemble_real, phys_complex):
-        if not phys_complex: return 'block'
-        if assemble_real: return 'block_real'
-        return None
+        #if not phys_complex: return 'block'
+        return 'blk_interleave'
+        #return None
+        
+    def solve(self, engine, A, b):
 
+        offset = A.RowOffsets()
+        rows = A.NumRowBlocks()
+
+        M = mfem.BlockDiagonalPreconditioner(offset)
+
+        #A.GetBlock(0,0).Print()
+        M1 = mfem.GSSmoother(A.GetBlock(0,0));
+        M1.iterative_mode = False
+        M.SetDiagonalBlock(0, M1)
+        
+        #M1 = mfem.DSmoother(A.GetBlock(0,0))
+
+        if offset.Size() > 2:
+            B = A.GetBlock(1,0)
+            MinvBt = A.GetBlock(0,1)
+            Md = mfem.Vector(A.GetBlock(0,0).Height())
+            A.GetBlock(0,0).GetDiag(Md)
+
+            for i in range(Md.Size()):
+                if Md[i] != 0.:
+                    MinvBt.ScaleRow(i, 1/Md[i])
+                else:
+                    assert False, "diagnal element of matrix is zero"
+            S = mfem.Mult(B, MinvBt)
+
+            S.iterative_mode = False
+            M.SetDiagonalBlock(1, S)
+
+
+        '''
+        int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
+          int &max_iter, int m, double &tol, double atol, int printit)
+        '''
+        maxiter = int(self.maxiter)
+        atol = self.abstol
+        tol = self.reltol
+        kdim = int(self.kdim)
+        printit = 1
+
+        sol = []
+        for bb in b:
+           #bb.Print()            
+           x = mfem.Vector(bb.Size())
+           ##print A, M, b[0], x, printit, maxiter, kdim, tol, atol
+           mfem.GMRES(A, M, bb, x, printit, maxiter, kdim, tol, atol)
+           sol.append(x.GetDataArray().copy())
+           
+        sol = np.transpose(np.vstack(sol))
+        return sol
+'''    
     def make_ams_preconditioner(self, engine):
         ## this code fragment should go to AMS preconditioner?
         ## extra for ASM
@@ -74,13 +138,9 @@ class GMRES(Solver):
         return ams1
     
     def solve(self, engine, A, b, flag, initial_x, offsets, isComplex = True):
-        '''
-        solve matrix using GMRES
-
-        offset is python list of block offsets in real part section
-        like   [0, r_A.GetNumRows()]
-
-        '''
+        #solve matrix using GMRES
+        #offset is python list of block offsets in real part section
+        #like   [0, r_A.GetNumRows()]
         Pr = self.make_ams_preconditioner(engine)
         if isComplex:
             #here offsets should be doble sized
@@ -127,4 +187,4 @@ class GMRES(Solver):
 
         return sol, extra
         
-    
+'''    

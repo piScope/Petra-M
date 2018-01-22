@@ -27,7 +27,7 @@ class StdSolver(Solver):
                  self.clear_wdir,  3, {"text":""}],
                 ["initialize solution only",
                  self.init_only,  3, {"text":""}], 
-                ["assemble complex \nas real problem",
+                ["assemble as real problem if it is complex valued prob.",
                  self.assemble_real,  3, {"text":""}],]
 
     def get_panel1_value(self):
@@ -165,9 +165,11 @@ class StdSolver(Solver):
                  coo_real  (matrix in coo format converted from complex 
                             matrix : DMUMPS)
                  # below is a plan...
-                 block (matrix made mfem:block operator)
-                 block_real (matrix made mfem:block operator for complex
+                 blk (matrix made mfem:block operator)
+                 blk_real (matrix made mfem:block operator for complex
                              problem)
+                          (unknowns are in the order of  R_fes1, R_fes2,... I_fes1, Ifes2...)
+                 blk_interleave (unknowns are in the order of  R_fes1, I_fes1, R_fes2, I_fes2,...)
                  None(not supported)
         '''
         if debug.debug_memory:
