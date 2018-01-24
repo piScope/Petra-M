@@ -64,36 +64,122 @@ class GMRES(Solver):
         #if not phys_complex: return 'block'
         return 'blk_interleave'
         #return None
-        
-    def solve(self, engine, A, b):
 
+
+    def solve_parallel(self, engine, A, b):
+        from mpi4py import MPI
+        myid     = MPI.COMM_WORLD.rank
+        nproc    = MPI.COMM_WORLD.size
+        from petram.helper.mpi_recipes import gather_vector
+        
+        def get_block(Op, i, j):
+            return Op._linked_op[(i,j)]
+
+                      
         offset = A.RowOffsets()
         rows = A.NumRowBlocks()
 
         M = mfem.BlockDiagonalPreconditioner(offset)
 
         #A.GetBlock(0,0).Print()
-        M1 = mfem.GSSmoother(A.GetBlock(0,0));
-        M1.iterative_mode = False
-        M.SetDiagonalBlock(0, M1)
-        
-        #M1 = mfem.DSmoother(A.GetBlock(0,0))
+        #M1 = mfem.DSmoother(get_block(A, 0, 0))
+        #M1 = mfem.GSSmoother(get_block(A, 0, 0))
+        #M1.iterative_mode = False
+        #M.SetDiagonalBlock(0, M1)
+        A0 = get_block(A, 0, 0)   
+        invA0 = mfem.HypreDiagScale(A0)
+        invA0.iterative_mode = False
+        M.SetDiagonalBlock(0, invA0)
 
         if offset.Size() > 2:
-            B = A.GetBlock(1,0)
-            MinvBt = A.GetBlock(0,1)
-            Md = mfem.Vector(A.GetBlock(0,0).Height())
-            A.GetBlock(0,0).GetDiag(Md)
+            B =  get_block(A, 1, 0)
+            MinvBt = get_block(A, 0, 1)
+            #Md = mfem.HypreParVector(MPI.COMM_WORLD,
+            #                        A0.GetGlobalNumRows(),
+            #                        A0.GetRowStarts())
+            Md = mfem.Vector()
+            A0.GetDiag(Md)
+            MinvBt.InvScaleRows(Md)
+            S = mfem.ParMult(B, MinvBt)
+            invS = mfem.HypreBoomerAMG(S)
+            invS.iterative_mode = False
+            M.SetDiagonalBlock(1, invS)
 
+        maxiter = int(self.maxiter)
+        atol = self.abstol
+        rtol = self.reltol
+        kdim = int(self.kdim)
+        printit = 1
+
+        sol = []
+
+        solver = mfem.GMRESSolver(MPI.COMM_WORLD)
+        solver.SetKDim(kdim)
+        #solver = mfem.MINRESSolver(MPI.COMM_WORLD)
+        solver.SetAbsTol(atol)
+        solver.SetRelTol(rtol)
+        solver.SetMaxIter(maxiter)
+        solver.SetOperator(A)
+        solver.SetPreconditioner(M)
+        solver.SetPrintLevel(1)
+
+        # solve the problem and gather solution to head node...
+        # may not be the best approach
+
+        for bb in b:
+           rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
+           rowstarts = np.hstack((0, np.cumsum(rows)))
+           dprint1(rowstarts)
+           x = mfem.BlockVector(offset)
+           x.Assign(0.0)
+           solver.Mult(bb, x)
+           s = []
+           for i in range(offset.Size()-1):
+               v = x.GetBlock(i).GetDataArray()
+               vv = gather_vector(v)
+               if myid == 0:
+                   s.append(vv)
+               else:
+                   pass
+           if myid == 0:               
+               sol.append(np.hstack(s))
+        if myid == 0:                              
+            sol = np.transpose(np.vstack(sol))
+            return sol
+        else:
+            return None
+        
+    def solve_serial(self, engine, A, b):
+
+        def get_block(Op, i, j):
+            return Op._linked_op[(i,j)]
+
+                      
+        offset = A.RowOffsets()
+        rows = A.NumRowBlocks()
+
+        M = mfem.BlockDiagonalPreconditioner(offset)
+
+        #M1 = mfem.DSmoother(get_block(A, 0, 0))     
+        M1 = mfem.GSSmoother(get_block(A, 0, 0))
+        M1.iterative_mode = False
+        M.SetDiagonalBlock(0, M1)
+
+        if offset.Size() > 2:
+            B =  get_block(A, 1, 0)
+            MinvBt = get_block(A, 0, 1)
+            Md = mfem.Vector(get_block(A, 0, 0).Height())
+            get_block(A, 0, 0).GetDiag(Md)
             for i in range(Md.Size()):
                 if Md[i] != 0.:
                     MinvBt.ScaleRow(i, 1/Md[i])
                 else:
                     assert False, "diagnal element of matrix is zero"
             S = mfem.Mult(B, MinvBt)
-
             S.iterative_mode = False
-            M.SetDiagonalBlock(1, S)
+            SS = mfem.DSmoother(S)
+            SS.iterative_mode = False            
+            M.SetDiagonalBlock(1, SS)
 
 
         '''
@@ -102,20 +188,39 @@ class GMRES(Solver):
         '''
         maxiter = int(self.maxiter)
         atol = self.abstol
-        tol = self.reltol
+        rtol = self.reltol
         kdim = int(self.kdim)
         printit = 1
 
         sol = []
+
+        solver = mfem.GMRESSolver()
+        solver.SetKDim(kdim)
+        #solver = mfem.MINRESSolver()
+        solver.SetAbsTol(atol)
+        solver.SetRelTol(rtol)
+        solver.SetMaxIter(maxiter)
+
+        solver.SetOperator(A)
+        solver.SetPreconditioner(M)
+        solver.SetPrintLevel(1)
+
         for bb in b:
            #bb.Print()            
            x = mfem.Vector(bb.Size())
+           x.Assign(0.0)
            ##print A, M, b[0], x, printit, maxiter, kdim, tol, atol
-           mfem.GMRES(A, M, bb, x, printit, maxiter, kdim, tol, atol)
+           #mfem.GMRES(A, M, bb, x, printit, maxiter, kdim, tol, atol)
+           solver.Mult(bb, x)
            sol.append(x.GetDataArray().copy())
-           
         sol = np.transpose(np.vstack(sol))
         return sol
+    
+    def solve(self, engine, A, b):
+        if use_parallel:
+            return self.solve_parallel(engine, A, b)
+        else:
+            return self.solve_serial(engine, A, b)
 '''    
     def make_ams_preconditioner(self, engine):
         ## this code fragment should go to AMS preconditioner?

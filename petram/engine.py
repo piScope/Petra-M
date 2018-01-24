@@ -675,7 +675,6 @@ class Engine(object):
 
         # elimination of
         self.fill_elimination_block(phys_target, blocks)
-
         return blocks
 
     def generate_rhs(self, phys_target, vecs, vecs_c):
@@ -1378,7 +1377,6 @@ class SerialEngine(Engine):
                 void = len(t4)
                 t4 = t4
             except:
-                print "here", t4, type(t4), t4.shape
                 raise ValueError("This is not supported")                
                 t4 = np.zeros(t2.shape[0])+t4
             B[kk+offsete] = t4
@@ -1579,16 +1577,18 @@ class ParallelEngine(Engine):
             is_complex = False
             
         M, B, Me = blocks
-        
+
         A1 = chypre.MfemMat2PyMat(r_A, i_A)
         M[offset, offset] = A1;  A1 = M[offset, offset]
         # use the same as in the serial 
         #M.set_element(r_A, i_A, offset, offset)
         #A1 = M[offset, offset]
+
         A1.setDiag(gl_ess_tdof, 1.0) # fix diagonal since they are set 1+1j
-        
+
         P, nonzeros, zeros = interp
         if P is not None:
+           print("P is not None")
            A1 = A1.rap(P.transpose())
            A1.setDiag(zeros, 1.0) # comment this when making final matrix smaller
 
@@ -1622,7 +1622,7 @@ class ParallelEngine(Engine):
             if t1 is not None: M[offset,   kk+offsete] = t1
             if t2 is not None: M[kk+offsete,   offset] = t2
             if t3 is not None: M[kk+offsete, kk+offsete] = t3
-            
+
     def fill_block_rhs_fespace(self, blocks, mv, extra, interp, offset, offsete):
         from mpi4py import MPI
         myid     = MPI.COMM_WORLD.rank

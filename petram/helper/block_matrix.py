@@ -196,6 +196,17 @@ class ScipyCoo(coo_matrix):
     @property     
     def isHypre(self):
         return False
+
+
+    '''
+    two function to provde the same interface as CHypre
+    '''
+    def GetColPartArray(self):
+        return (0, self.shape[1], self.shape[1])
+     
+    def GetRowPartArray(self):
+        return (0, self.shape[0], self.shape[0])
+    GetPartitioningArray = GetRowPartArray
      
 def convert_to_ScipyCoo(mat):
     if isinstance(mat, np.ndarray):
@@ -406,7 +417,6 @@ class BlockMatrix(object):
                    nonzeros.append(knonzero)
                else:
                    nonzeros.append([])
-
             knonzeros = reduce(np.union1d, nonzeros)
             knonzeros = np.array(knonzeros, dtype = np.int64)
             # share nonzero to eliminate column...
@@ -428,24 +438,21 @@ class BlockMatrix(object):
                     P2[i,i] = self[i,i].elimination_matrix(gknonzeros)
                 else:
                     P2[i,i] = One(self[i,i])
-                
             # what if common zero rows differs from common zero col?
             for j in range(self.shape[1]):
                 if ret[i,j] is not None:
-                    ret[i,j] = ret[i,j].selectRows(gknonzeros)                   
+                    ret[i,j] = ret[i,j].selectRows(gknonzeros)
                 elif self[i,j] is not None:
                     ret[i,j] = self[i,j].selectRows(gknonzeros)
                 else: pass
                 if ret[j,i] is not None:
-                    ret[j,i] = ret[j,i].selectCols(gknonzeros)                   
+                    ret[j,i] = ret[j,i].selectCols(gknonzeros)
                 elif self[j,i] is not None:
                     ret[j,i] = self[j,i].selectCols(gknonzeros)
                 else: pass
+
         return ret, P2
-     
 
-
-         
     def reformat_central_mat(self, mat, ksol):
         '''
         reformat central matrix into blockmatrix (columne vector)
@@ -511,7 +518,9 @@ class BlockMatrix(object):
         else:
             # this will return CHypreMat
             return self[r, c].get_squaremat_from_right()
-         
+    #
+    #  methods for coo format
+    #
     def gather_densevec(self):
         '''
         gather vector data to head node as dense data (for rhs)
@@ -567,7 +576,7 @@ class BlockMatrix(object):
         roffsets = np.hstack([0, np.cumsum(roffset)])
         coffsets = np.hstack([0, np.cumsum(coffset)])
         return roffsets, coffsets
-     
+
     def get_global_coo(self, dtype = 'float'):
         roffsets, coffsets = self.get_global_offsets()
         col = []
@@ -579,7 +588,6 @@ class BlockMatrix(object):
             for j in range(self.shape[1]):
                 if self[i,j] is None: continue
                 gcoo = self[i,j].get_global_coo()
-                dprint1(i, j, len(gcoo.row))
                 row.append(gcoo.row + roffsets[i])                
                 col.append(gcoo.col + coffsets[j])
                 data.append(gcoo.data)
@@ -588,6 +596,70 @@ class BlockMatrix(object):
         glcoo.data = np.hstack(data)
 
         return glcoo
+
+    #
+    #  methods for distributed csr format
+    #
+    def get_local_partitioning(self, convert_real = True,
+                                     interleave = True):
+        '''
+        build matrix in coordinate format
+        '''
+        roffset = np.zeros(self.shape[0], dtype=int)
+        coffset = np.zeros(self.shape[1], dtype=int)
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                if self[i, j] is not None:
+                   rp = self[i,j].GetRowPartArray()
+                   if (roffset[i] != 0 and
+                       roffset[i] != rp[1] - rp[0]):
+                        assert False, 'row partitioning is not consistent'
+                   roffset[i] = rp[1] - rp[0]
+        for j in range(self.shape[1]):
+            for i in range(self.shape[0]):
+                if self[i, j] is not None:
+                   cp = self[i,j].GetColPartArray()
+                   if (coffset[j] != 0 and
+                       coffset[j] != cp[1] - cp[0]):
+                        assert False, 'col partitioning is not consistent'
+                   coffset[j] = cp[1] - cp[0]
+                   
+        #coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
+        if self.complex and convert_real:
+            if interleave:
+                roffset = np.vstack((roffset, roffset)).flatten()
+                coffset = np.vstack((roffset, roffset)).flatten()  
+            else:
+                roffset = np.hstack((roffset, roffset))
+                coffset = np.hstack((roffset, roffset))  
+
+        roffsets = np.hstack([0, np.cumsum(roffset)])
+        coffsets = np.hstack([0, np.cumsum(coffset)])
+        return roffsets, coffsets
+
+    def get_local_partitioning_v(self, convert_real = True,
+                                       interleave = True):
+        '''
+        build matrix in coordinate format
+        '''
+        roffset = np.zeros(self.shape[0], dtype=int)
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                if self[i, j] is not None:
+                   rp = self[i,j].GetPartitioningArray()
+                   if (roffset[i] != 0 and
+                       roffset[i] != rp[1] - rp[0]):
+                        assert False, 'row partitioning is not consistent'
+                   roffset[i] = rp[1] - rp[0]
+        #coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
+        if self.complex and convert_real:
+            if interleave:
+                roffset = np.vstack((roffset, roffset)).flatten()
+            else:
+                roffset = np.hstack((roffset, roffset))
+
+        roffsets = np.hstack([0, np.cumsum(roffset)])
+        return roffsets
      
     def gather_blkvec_interleave(self):
         '''
@@ -600,7 +672,8 @@ class BlockMatrix(object):
         This routine is used together with get_global_blkmat_interleave(self):
         '''
         
-        roffsets, coffsets = self.get_global_offsets(convert_real=True, interleave=True)
+        roffsets = self.get_local_partitioning_v(convert_real=True,
+                                                 interleave=True)
         dprint1("roffsets", roffsets)
         offset = mfem.intArray(list(roffsets))
         
@@ -609,13 +682,14 @@ class BlockMatrix(object):
         data = []
         ii = 0; jj = 0
 
+        # Here I don't like that I am copying the data between two vectors..
+        # But, avoiding this takes the large rearangement of program flow...
         for i in range(self.shape[0]):        
             if self[i,0] is not None:
-                #print type(self[i,0])
                 if isinstance(self[i,0], chypre.CHypreVec):
-                    vec.GetBlock(ii).Assign(self[i,0][0])
+                    vec.GetBlock(ii).Assign(self[i,0][0].GetDataArray())
                     if self.complex:
-                        vec.GetBlock(ii+1).Assign(self[i,0][1])
+                        vec.GetBlock(ii+1).Assign(self[i,0][1].GetDataArray())
                 elif isinstance(self[i,0], ScipyCoo):
                     arr = self[i,0].toarray().squeeze()
                     vec.GetBlock(ii).Assign(np.real(arr))
@@ -634,24 +708,37 @@ class BlockMatrix(object):
         If self.complex is False, it assembles a nomal block
         matrix FES1, FES2...
         '''
-        
-        roffsets, coffsets = self.get_global_offsets(convert_real=True, interleave=True)
-        dprint1("roffsets", roffsets)
+        roffsets, coffsets = self.get_local_partitioning(convert_real=True,
+                                                         interleave=True)
+        #dprint1("roffsets", roffsets)
         ro = mfem.intArray(list(roffsets))
         co = mfem.intArray(list(coffsets))        
-        #glcsr = mfem.BlockOperator(ro, co)
-        glcsr = mfem.BlockMatrix(ro, co)
+        glcsr = mfem.BlockOperator(ro, co)
+        #glcsr = mfem.BlockMatrix(ro, co)
         ii = 0
+
         for i in range(self.shape[0]):
             jj = 0
             for j in range(self.shape[1]):
                 if self[i,j] is not None:
                     if use_parallel:
-                        assert False, "not implemented (blkmat interleave in parallel)"
+                        if isinstance(self[i,j], chypre.CHypreMat):
+                            gcsr =  self[i,j]
+                            cp = self[i,j].GetColPartArray()
+                            rp = self[i,j].GetRowPartArray()
+                            s = self[i,j].shape
+                            if (cp == rp).all() and s[0] == s[1]:
+                               if gcsr[0] is not None:
+                                  csr = ToScipyCoo(gcsr[0]).tocsr()
+                                  gcsr[0] = ToHypreParCSR(csr, col_starts =cp)
+                               if gcsr[1] is not None:
+                                  csr = ToScipyCoo(gcsr[1]).tocsr()
+                                  gcsr[1] = ToHypreParCSR(csr, col_starts =cp)
+                        else:
+                            assert False, "unsupported block element "+type(self[i,j])
                     else:
                         if isinstance(self[i,j], ScipyCoo):
                             gcsr = self[i,j].get_mfem_sparsemat()
-                            #print self[i,j].nnz
                         else:
                             assert False, "unsupported block element "+type(self[i,j])
                     glcsr.SetBlock(ii, jj, gcsr[0])
@@ -663,8 +750,8 @@ class BlockMatrix(object):
                 jj = jj + 2 if self.complex else jj+1
             ii = ii + 2 if self.complex else ii+1
 
-        M =glcsr.GetBlock(0,0)
-        I = M.GetIArray()
+        #M =glcsr.GetBlock(0,0)
+        #I = M.GetIArray()
 
         return glcsr
 
