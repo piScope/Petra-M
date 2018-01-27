@@ -1,4 +1,4 @@
-PYTHON=$(shell which python)
+PYTHON ?= $(shell which python)
 
 INSTALLDIR=$(shell echo $(PetraM))
 ifeq ($(INSTALLDIR),)
