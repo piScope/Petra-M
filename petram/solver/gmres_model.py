@@ -22,7 +22,7 @@ class GMRES(Solver):
     
     def panel1_param(self):
         return [["log_level",   self.log_level,  400, {}],
-                ["max  iter.",  self.maxiter,  300, {}],
+                ["max  iter.",  self.maxiter,  400, {}],
                 ["rel. tol",    self.reltol,  300,  {}],
                 ["abs. tol.",   self.abstol,  300, {}],
                 ["restart(kdim)", self.kdim,     400, {}],
