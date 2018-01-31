@@ -255,9 +255,11 @@ class Engine(object):
     def run_verify_setting(self, phys_target, solver):
         for phys in phys_target:
             for mm in phys.walk():
+                if not mm.enabled: continue
                 error, txt, long_txt = mm.verify_setting()
                 assert error, mm.fullname() + ":" + long_txt 
         for mm in solver.walk():
+                if not mm.enabled: continue
                 error, txt, long_txt = mm.verify_setting()           
                 assert error, mm.fullname() + ":" + long_txt         
            
