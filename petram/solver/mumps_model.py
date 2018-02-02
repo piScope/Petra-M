@@ -368,3 +368,18 @@ class MUMPS(Solver):
             dprint1("calling solve_central_matrix")                            
             ret = self.solve_central_matrix(engine, A, b)
             return ret
+
+    def real_to_complex(self, solall, M):
+        try:
+           from mpi4py import MPI
+           myid     = MPI.COMM_WORLD.rank
+           nproc    = MPI.COMM_WORLD.size
+           from petram.helper.mpi_recipes import gather_vector           
+        except:
+           myid == 0
+           MPI  = None
+        if myid == 0:        
+           s = solall.shape[0]
+           solall = solall[:s/2,:] + 1j*solall[s/2:,:]
+           return solall
+        

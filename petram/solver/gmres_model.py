@@ -26,12 +26,13 @@ class GMRES(Solver):
                 ["rel. tol",    self.reltol,  300,  {}],
                 ["abs. tol.",   self.abstol,  300, {}],
                 ["restart(kdim)", self.kdim,     400, {}],
-                ["preconditioner", self.preconditioner,     0, {}],]    
+                ["preconditioner", self.preconditioner,     0, {}],
+                ["write matrix",  self.write_mat,   3, {"text":""}],]     
     
     def get_panel1_value(self):
         return (long(self.log_level), long(self.maxiter),
                 self.reltol, self.abstol, long(self.kdim),
-                self.preconditioner)
+                self.preconditioner, self.write_mat)
     
     def import_panel1_value(self, v):
         self.log_level = long(v[0])
@@ -40,6 +41,7 @@ class GMRES(Solver):
         self.abstol = v[3]
         self.kdim = long(v[4])
         self.preconditioner = v[5]
+        self.write_mat = bool(v[6])
         
     def attribute_set(self, v):
         v = super(GMRES, self).attribute_set(v)
@@ -49,7 +51,8 @@ class GMRES(Solver):
         v['abstol'] = 1e-7
         v['kdim'] =   50
         v['printit'] = 1
-        v['preconditioner'] = 'AMS'
+        v['preconditioner'] = ''
+        v['write_mat'] = False        
         return v
     
     def verify_setting(self):
@@ -73,9 +76,11 @@ class GMRES(Solver):
         from petram.helper.mpi_recipes import gather_vector
         
         def get_block(Op, i, j):
-            return Op._linked_op[(i,j)]
+            try:
+               return Op._linked_op[(i,j)]
+            except KeyError:
+               return None
 
-                      
         offset = A.RowOffsets()
         rows = A.NumRowBlocks()
 
@@ -91,6 +96,7 @@ class GMRES(Solver):
         invA0.iterative_mode = False
         M.SetDiagonalBlock(0, invA0)
 
+        '''
         if offset.Size() > 2:
             B =  get_block(A, 1, 0)
             MinvBt = get_block(A, 0, 1)
@@ -104,7 +110,7 @@ class GMRES(Solver):
             invS = mfem.HypreBoomerAMG(S)
             invS.iterative_mode = False
             M.SetDiagonalBlock(1, invS)
-
+        '''
         maxiter = int(self.maxiter)
         atol = self.abstol
         rtol = self.reltol
@@ -152,11 +158,24 @@ class GMRES(Solver):
     def solve_serial(self, engine, A, b):
 
         def get_block(Op, i, j):
-            return Op._linked_op[(i,j)]
-
+            try:
+               return Op._linked_op[(i,j)]
+            except KeyError:
+               return None
                       
         offset = A.RowOffsets()
         rows = A.NumRowBlocks()
+        cols = A.NumColBlocks()
+        if self.write_mat:
+           for i in range(cols):
+              for j in range(rows):
+                 m = get_block(A, i, j)
+                 if m is None: continue
+                 m.Print('matrix_'+str(i)+'_'+str(j))
+           for i, bb  in enumerate(b):
+              for j in range(rows):
+                 v = bb.GetBlock(j)
+                 v.Print('rhs_'+str(i)+'_'+str(j))
 
         M = mfem.BlockDiagonalPreconditioner(offset)
 
@@ -164,7 +183,7 @@ class GMRES(Solver):
         M1 = mfem.GSSmoother(get_block(A, 0, 0))
         M1.iterative_mode = False
         M.SetDiagonalBlock(0, M1)
-
+        '''
         if offset.Size() > 2:
             B =  get_block(A, 1, 0)
             MinvBt = get_block(A, 0, 1)
@@ -180,7 +199,7 @@ class GMRES(Solver):
             SS = mfem.DSmoother(S)
             SS.iterative_mode = False            
             M.SetDiagonalBlock(1, SS)
-
+        '''
 
         '''
         int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
@@ -206,11 +225,8 @@ class GMRES(Solver):
         solver.SetPrintLevel(1)
 
         for bb in b:
-           #bb.Print()            
            x = mfem.Vector(bb.Size())
            x.Assign(0.0)
-           ##print A, M, b[0], x, printit, maxiter, kdim, tol, atol
-           #mfem.GMRES(A, M, bb, x, printit, maxiter, kdim, tol, atol)
            solver.Mult(bb, x)
            sol.append(x.GetDataArray().copy())
         sol = np.transpose(np.vstack(sol))
@@ -221,75 +237,35 @@ class GMRES(Solver):
             return self.solve_parallel(engine, A, b)
         else:
             return self.solve_serial(engine, A, b)
-'''    
-    def make_ams_preconditioner(self, engine):
-        ## this code fragment should go to AMS preconditioner?
-        ## extra for ASM
-        d_b = engine.new_lf()        
-        d_x = engine.new_gf()   ### solution + essential
-        d_a = engine.new_bf()   ### matrix
-        engine.assemble_bf(phys, d_a)
-        engine.assemble_lf_bf(phys, d_a, real=False)
-        
-        d_X = mfem.Vector()           
-        d_A = engine.new_matrix()
-        d_B = mfem.Vector()
-        da.FormLinearSystem(engine.ess_tdof_list,
-                            d_x, d_b, d_A, d_X, d_B)
-        
-        d_a.FormLinearSystem(ess_tdof_list, d_x, d_b, self.d_A, d_X, d_B)
 
-        ams1 = mfem.HypreAMS(d_A, engine.fespace)
-        return ams1
-    
-    def solve(self, engine, A, b, flag, initial_x, offsets, isComplex = True):
-        #solve matrix using GMRES
-        #offset is python list of block offsets in real part section
-        #like   [0, r_A.GetNumRows()]
-        Pr = self.make_ams_preconditioner(engine)
-        if isComplex:
-            #here offsets should be doble sized
-            offsets2 = offsets + offsets
-            offsets2.PartialSum()
-            imag_block = len(offset)-1
-            Pr = mfem.BlockDiagonalPreconditioner(offsets2)
-            Pr.SetDiagonalBlock(0, ams1);
-            Pr.SetDiagonalBlock(imag_block, ams1);
+    def real_to_complex(self, solall, M):
+        if use_parallel:
+           from mpi4py import MPI
+           myid     = MPI.COMM_WORLD.rank
+
+
+           offset = M.RowOffsets().ToList()
+           of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o))) for o in offset]
+           if myid != 0: return           
+
         else:
-            offsets = mfem.intArray(offsets)
-            offsets.PartialSum()              
-            Pr = mfem.BlockDiagonalPreconditioner(offsets)
-            Pr.SetDiagonalBlock(0, ams1);
-            
-        
-        import time
-        stime = time.clock()
-        solver = mfem.GMRESSolver(MPI.COMM_WORLD)
-        solver.SetAbsTol(self.abstol)
-        solver.SetRelTol(self.reltol)
-        solver.SetMaxIter(self.maxiter)
-        solver.SetKDim(self.kdim)
-        solver.SetOperator(A)
-        solver.SetPreconditioner(Pr)
-        solver.SetPrintLevel(2)
+           offset = M.RowOffsets()
+           of = offset.ToList()
+           
+        rows = M.NumRowBlocks()
+        s = solall.shape
+        nb = rows/2
+        i = 0
+        pt = 0
+        result = np.zeros((s[0]/2, s[1]), dtype='complex')
+        for j in range(nb):
+           l = of[i+1]-of[i]
+           result[pt:pt+l,:] = (solall[of[i]:of[i+1],:]
+                             +  1j*solall[of[i+1]:of[i+2],:])
+           i = i+2
+           pt = pt + l
 
-        print 'start solving'
-        solver.Mult(b, x)
+        return result
+         
 
-        
-        data = x.GetBlock(0).GetDataArray()
-        rsol = self.gather_vector(data, MPI.DOUBLE)
-        if myid != 0: rsol = None#; isol = None; sol_extra = None
-        sol = self.scatter_vector(rsol, MPI.DOUBLE)
-
-        if isComplex:
-            data = x.GetBlock(imag_block).GetDataArray()        
-            isol = self.gather_vector(data, MPI.DOUBLE)
-            if myid != 0: isol = None
-            isol = self.scatter_vector(isol, MPI.DOUBLE)
-            sol = sol + 1j*isol
-        extra = []
-
-        return sol, extra
-        
-'''    
+     

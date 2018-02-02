@@ -258,16 +258,15 @@ class BlockMatrix(object):
             r = idx ; c = 0
         if v is not None:
             if isinstance(v, chypre.CHypreMat):
-                pass
+                if v.isComplex(): self.complex = True                                      
             elif isinstance(v, chypre.CHypreVec):
-                pass
+                if v.isComplex(): self.complex = True                       
             elif v is None:
                 pass
             else:   
                 v = convert_to_ScipyCoo(v)
-        
+                if np.iscomplexobj(v): self.complex = True        
         self.block[r][c] = v
-        if np.iscomplexobj(v): self.complex = True
 
     def __add__(self, v):
         if self.shape != v.shape:
@@ -583,7 +582,7 @@ class BlockMatrix(object):
         row = []
         data = []
         glcoo = coo_matrix((roffsets[-1], coffsets[-1]), dtype = dtype)
-        dprint1("roffset", roffsets)
+        dprint1("roffset(get_global_coo)", roffsets)
         for i in range(self.shape[0]):
             for j in range(self.shape[1]):
                 if self[i,j] is None: continue
@@ -615,6 +614,10 @@ class BlockMatrix(object):
                        roffset[i] != rp[1] - rp[0]):
                         assert False, 'row partitioning is not consistent'
                    roffset[i] = rp[1] - rp[0]
+                   if use_parallel and not isinstance(self[i,j], chypre.CHypreMat):
+                      from mpi4py import MPI
+                      myid = MPI.COMM_WORLD.rank
+                      if myid != 0: roffset[i] = 0
         for j in range(self.shape[1]):
             for i in range(self.shape[0]):
                 if self[i, j] is not None:
@@ -623,12 +626,14 @@ class BlockMatrix(object):
                        coffset[j] != cp[1] - cp[0]):
                         assert False, 'col partitioning is not consistent'
                    coffset[j] = cp[1] - cp[0]
+                   if use_parallel and not isinstance(self[i,j], chypre.CHypreMat):
+                      if myid != 0: coffset[i] = 0                      
                    
         #coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
         if self.complex and convert_real:
             if interleave:
-                roffset = np.vstack((roffset, roffset)).flatten()
-                coffset = np.vstack((roffset, roffset)).flatten()  
+                roffset = np.repeat(roffset, 2)
+                coffset = np.repeat(coffset, 2)
             else:
                 roffset = np.hstack((roffset, roffset))
                 coffset = np.hstack((roffset, roffset))  
@@ -654,7 +659,7 @@ class BlockMatrix(object):
         #coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
         if self.complex and convert_real:
             if interleave:
-                roffset = np.vstack((roffset, roffset)).flatten()
+                roffset = np.repeat(roffset, 2)
             else:
                 roffset = np.hstack((roffset, roffset))
 
@@ -674,10 +679,11 @@ class BlockMatrix(object):
         
         roffsets = self.get_local_partitioning_v(convert_real=True,
                                                  interleave=True)
-        dprint1("roffsets", roffsets)
+        dprint1("roffsets(vector)", roffsets)
         offset = mfem.intArray(list(roffsets))
         
         vec = mfem.BlockVector(offset)
+        vec._offsets = offset # in order to keep it from freed
         
         data = []
         ii = 0; jj = 0
@@ -691,7 +697,7 @@ class BlockMatrix(object):
                     if self.complex:
                         vec.GetBlock(ii+1).Assign(self[i,0][1].GetDataArray())
                 elif isinstance(self[i,0], ScipyCoo):
-                    arr = self[i,0].toarray().squeeze()
+                    arr =np.atleast_1d( self[i,0].toarray().squeeze())
                     vec.GetBlock(ii).Assign(np.real(arr))
                     if self.complex:
                         vec.GetBlock(ii+1).Assign(np.imag(arr))
@@ -699,6 +705,7 @@ class BlockMatrix(object):
                     assert False, "not implemented, "+ str(type(self[i,0]))
                 
             ii = ii + 2 if self.complex else ii+1
+
         return vec
        
     def get_global_blkmat_interleave(self):
@@ -710,11 +717,11 @@ class BlockMatrix(object):
         '''
         roffsets, coffsets = self.get_local_partitioning(convert_real=True,
                                                          interleave=True)
-        #dprint1("roffsets", roffsets)
+        dprint1("offsets", roffsets, coffsets)
         ro = mfem.intArray(list(roffsets))
         co = mfem.intArray(list(coffsets))        
         glcsr = mfem.BlockOperator(ro, co)
-        #glcsr = mfem.BlockMatrix(ro, co)
+
         ii = 0
 
         for i in range(self.shape[0]):
@@ -727,31 +734,34 @@ class BlockMatrix(object):
                             cp = self[i,j].GetColPartArray()
                             rp = self[i,j].GetRowPartArray()
                             s = self[i,j].shape
-                            if (cp == rp).all() and s[0] == s[1]:
-                               if gcsr[0] is not None:
+                            #if (cp == rp).all() and s[0] == s[1]:
+                            if gcsr[0] is not None:
                                   csr = ToScipyCoo(gcsr[0]).tocsr()
                                   gcsr[0] = ToHypreParCSR(csr, col_starts =cp)
-                               if gcsr[1] is not None:
+                            if gcsr[1] is not None:
                                   csr = ToScipyCoo(gcsr[1]).tocsr()
+                                  print('csr shape', csr.shape)
                                   gcsr[1] = ToHypreParCSR(csr, col_starts =cp)
+                                  gcsrm   = ToHypreParCSR(-csr, col_starts =cp)
+                            dprint1(i, j, s, rp, cp)
                         else:
-                            assert False, "unsupported block element "+type(self[i,j])
+                            assert False, "unsupported block element "+str(type(self[i,j]))
                     else:
                         if isinstance(self[i,j], ScipyCoo):
                             gcsr = self[i,j].get_mfem_sparsemat()
+                            if gcsr[1] is not None:
+                               gcsrm = mfem.SparseMatrix(gcsr[1])
+                               gcsrm *= -1.
                         else:
                             assert False, "unsupported block element "+type(self[i,j])
                     glcsr.SetBlock(ii, jj, gcsr[0])
                     if self.complex:
                         glcsr.SetBlock(ii+1, jj+1, gcsr[0])
                     if gcsr[1] is not None:
-                        glcsr.SetBlock(ii, jj+1,  gcsr[1])
-                        glcsr.SetBlock(ii+1, jj, -gcsr[1])
+                        glcsr.SetBlock(ii+1, jj,  gcsr[1])
+                        glcsr.SetBlock(ii, jj+1,  gcsrm)
                 jj = jj + 2 if self.complex else jj+1
             ii = ii + 2 if self.complex else ii+1
-
-        #M =glcsr.GetBlock(0,0)
-        #I = M.GetIArray()
 
         return glcsr
 

@@ -837,6 +837,8 @@ class Engine(object):
         dprint1("Me\n", Me)
 
         # essentailBC is stored in b
+        for b in B_blocks:
+            print b, Me.dot(b)
         B_blocks = [b - Me.dot(b) for b in B_blocks]
 
         
@@ -872,15 +874,32 @@ class Engine(object):
             B = [b.gather_blkvec_interleave() for b in B_blocks]
             
         #S = self.finalize_flag(S_block)
+        dprint2('exiting finalize_linearsystem')
         self.is_assembled = True
         return M, B
+     
+    def finalize_coo_matrix(self, M_block, is_complex, convert_real = False):     
+        if not convert_real:
+            if is_complex:
+                M = M_block.get_global_coo(dtype='complex')           
+            else:
+                M = M_block.get_global_coo(dtype='float')                          
+        else:
+            M = M_block.get_global_coo(dtype='complex')                      
+            M = scipy.sparse.bmat([[M.real, -M.imag], [M.imag, M.real]], format='coo')
+            # (this one make matrix symmetric, for now it is off to do the samething
+            #  as GMRES case)
+            # M = scipy.sparse.bmat([[M.real, -M.imag], [-M.imag, -M.real]], format='coo')
+        return M
 
     def finalize_coo_rhs(self, b, is_complex,
                      convert_real = False):
-        dprint1("b \n",  b)
+        dprint1("b (in finalizie_coo_rhs) \n",  b)
         B = b.gather_densevec()
         if convert_real:
-            B = np.hstack((B.real, -B.imag))
+             B = np.vstack((B.real, B.imag))           
+             # (this one make matrix symmetric)           
+             # B = np.vstack((B.real, -B.imag))
         return B
     #
     #  processing solution
@@ -1398,6 +1417,7 @@ class SerialEngine(Engine):
            m = m.dot(P2.conj().transpose())
         return m
 
+    ''' 
     def finalize_coo_matrix(self, M_block, is_complex, convert_real = False):
         if not convert_real:
             if is_complex:
@@ -1408,7 +1428,7 @@ class SerialEngine(Engine):
             M = M_block.get_global_coo(dtype='complex')                      
             M = scipy.sparse.bmat([[M.real, -M.imag], [-M.imag, -M.real]], format='coo')
         return M
-
+    '''
     def collect_all_ess_tdof(self, phys, ess_tdofs):
         self.gl_ess_tdofs[phys] = [(name, ess_tdof.ToList())
                                    for name, ess_tdof in ess_tdofs]
@@ -1675,7 +1695,7 @@ class ParallelEngine(Engine):
            m = m.dot(P2.conj().transpose())        
            P2.conj() # set P2 back...
         return m
-     
+    ''' 
     def finalize_coo_matrix(self, M_block, is_complex, convert_real = False):     
         if not convert_real:
             if is_complex:
@@ -1686,8 +1706,7 @@ class ParallelEngine(Engine):
             M = M_block.get_global_coo(dtype='complex')                      
             M = scipy.sparse.bmat([[M.real, -M.imag], [-M.imag, -M.real]], format='coo')
         return M
-
-
+    '''
     def split_sol_array_fespace(self, sol, P):
         sol0 = sol[0, 0]
         if P is not None:

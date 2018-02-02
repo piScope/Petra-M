@@ -187,11 +187,9 @@ class StdSolver(Solver):
         solall = solver.solve(engine, M, B)
         #solall = np.zeros((M.shape[0], len(B_blocks))) # this will make fake data to skip solve step
         
-        if ls_type.endswith('_real'):
-            s = sallall.shape[1]
-            solall = sol[:, :s/2] + 1j*solall[:,s/2:]
-
-
+        #if ls_type.endswith('_real'):
+        if not phys_real and self.assemble_real:
+            solall = solver.real_to_complex(solall, M)
         PT = P.transpose()
 
         return solall, PT
@@ -201,6 +199,7 @@ class StdSolver(Solver):
 
         sol = PT.reformat_central_mat(solall, ksol)
         sol = PT.dot(sol)
+
         dprint1(sol)
         l = len(self.B)
 
