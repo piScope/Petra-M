@@ -41,6 +41,7 @@ class Evaluator(object):
     '''
     def __init__(self):
         object.__init__(self)
+        self.failed = False
     '''
     make_agent
     '''

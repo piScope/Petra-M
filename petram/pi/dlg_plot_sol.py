@@ -1,3 +1,4 @@
+import sys
 import wx
 import traceback
 import numpy as np
@@ -1038,14 +1039,16 @@ class DlgPlotSol(DialogWithWindowList):
            battrs = ['all']
  
         from petram.sol.evaluators import build_evaluator
-        if not 'Edge' in self.evaluators:
+        if (not 'Edge' in self.evaluators or
+            self.evaluators['Edge'].failed):
             self.evaluators['Edge'] =  build_evaluator(battrs,
                                                mfem_model,
                                                solfiles,
                                                name = 'EdgeNodal',
                                                config = self.config)
             
-        self.evaluators['Edge'].validate_evaluator('EdgeNodal', battrs, solfiles)
+        self.evaluators['Edge'].validate_evaluator('EdgeNodal', battrs, 
+                                                   solfiles)
 
         try:
             self.evaluators['Edge'].set_phys_path(phys_path)
@@ -1055,7 +1058,8 @@ class DlgPlotSol(DialogWithWindowList):
             wx.CallAfter(dialog.showtraceback,parent = self,
                                 txt='Failed to evauate expression',
                                 title='Error',
-                                traceback=traceback.format_exc())
+                  traceback=''.join(traceback.format_exception_only(
+                                    sys.exc_info()[0], sys.exc_info()[1])))
             wx.CallAfter(self.set_title_no_status)
         return None, None
     
@@ -1084,7 +1088,8 @@ class DlgPlotSol(DialogWithWindowList):
            battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
            
         from petram.sol.evaluators import build_evaluator
-        if not 'Bdr' in self.evaluators:
+        if (not 'Bdr' in self.evaluators or
+            self.evaluators['Bdr'].failed):
             self.evaluators['Bdr'] =  build_evaluator(battrs,
                                                mfem_model,
                                                solfiles,
@@ -1101,7 +1106,8 @@ class DlgPlotSol(DialogWithWindowList):
             wx.CallAfter(dialog.showtraceback, parent = self,
                                 txt='Failed to evauate expression',
                                 title='Error',
-                                traceback=traceback.format_exc())
+                  traceback=''.join(traceback.format_exception_only(
+                                    sys.exc_info()[0], sys.exc_info()[1])))
             wx.CallAfter(self.set_title_no_status)        
         return None, None
 
@@ -1131,7 +1137,8 @@ class DlgPlotSol(DialogWithWindowList):
            attrs = [x+1 for x in range(mesh.attributes.Size())]
            
         from petram.sol.evaluators import build_evaluator
-        if not 'Slice' in self.evaluators:
+        if (not 'Slice' in self.evaluators or
+            self.evaluators['Slice'].failed):
             self.evaluators['Slice'] =  build_evaluator(attrs, 
                                                         mfem_model,
                                                         solfiles,
@@ -1150,7 +1157,8 @@ class DlgPlotSol(DialogWithWindowList):
                          parent = self,
                          txt='Failed to evauate expression',
                          title='Error',
-                         traceback=traceback.format_exc())
+                         traceback=''.join(traceback.format_exception_only(
+                                    sys.exc_info()[0], sys.exc_info()[1])))
             wx.CallAfter(self.set_title_no_status)        
         return None, None
 

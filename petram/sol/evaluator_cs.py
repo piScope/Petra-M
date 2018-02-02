@@ -157,12 +157,13 @@ class EvaluatorClient(Evaluator):
                                   num_proc = nproc,
                                   user = user,
                                   soldir = soldir)
+        self.failed = False
 
     def __del__(self):
         self.terminate_all()
         self.p = None
 
-    def __call_server(self, name, *params, **kparams):
+    def __call_server0(self, name, *params, **kparams):
         if self.p is None: return
         
         command = [name, params, kparams]
@@ -189,8 +190,20 @@ class EvaluatorClient(Evaluator):
             print(result[1])
         else:
             print(output, result)
-            assert False, result[1]
-        
+            #assert False, result[1]
+            message = ''.join([o[:75] for o in output])
+            assert False, message
+
+    def __call_server(self, name, *params, **kparams):        
+        try:
+            return self.__call_server0(name, *params, **kparams)
+        except IOError:
+            self.failed = True
+            return False
+        except:
+            raise
+
+
     def set_model(self,  *params, **kparams):
         return self.__call_server('set_model', self.soldir)
         
@@ -208,7 +221,7 @@ class EvaluatorClient(Evaluator):
         
     def validate_evaluator(self,  *params, **kparams):
         if self.p is None: return False
-        return self.__call_server('validate_evaluator', *params, **kparams)        
+        return self.__call_server('validate_evaluator', *params, **kparams)
 
     def eval(self,  *params, **kparams):
         return self.__call_server('eval', *params, **kparams)
