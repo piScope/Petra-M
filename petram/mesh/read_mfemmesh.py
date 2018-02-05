@@ -99,6 +99,11 @@ def extract_mesh_data(mesh, refine = None):
         l_s_loop = loop, None
     else:
         l_s_loop = None, None
+
+    if mesh.GetNBE() == 0:
+        # 2D surface mesh in 3D space could have no NBE
+        iedge2bb = {}
+        return X, cells, cell_data, l_s_loop, iedge2bb
         
     ## fill line
     cell_data['line'] = {}

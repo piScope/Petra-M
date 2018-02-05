@@ -5,7 +5,31 @@
 #
 import os
 
-def petra(reload_scripts = False):
+class PetraMHelper(object):
+    '''
+    configurator/helper
+    '''
+    def __init__(self, p = None):
+        object.__init__(self)
+        self.properties = {'refine': 5}
+
+        if p is not None:
+            for k in p:
+                if k in self.properties:
+                     self.properties[k] = p[k]
+        for k in self.properties:
+            self.set(k, self.properties[k])
+
+    def set(self, name, value):
+        if name == 'refine':
+            import petram.mesh.refined_mfem_geom
+            petram.mesh.refined_mfem_geom.default_refine = value
+
+    def show(self):
+        for k in self.properties:
+            print(k + ' : ' + str(self.properties[k]))
+
+def petram(reload_scripts = False):
     '''
     setup PetraM simulation enveroment
     '''
@@ -34,6 +58,7 @@ def petra(reload_scripts = False):
     if model is not None:
         model.scripts.helpers.open_gui()
         proj.setting.parameters.setvar('PetraM', '='+model.get_full_path())
+    return PetraMHelper()
 
 def load_petra_model(proj):
 

@@ -102,7 +102,11 @@ def extract_refined_mesh_data2(mesh, refine = None):
         loop[k] = np.unique(loop[k])
         
     l_s_loop = loop, None
-        
+
+    if mesh.GetNBE() == 0:
+        # 2D surface mesh in 3D space could have no NBE
+        iedge2bb = {}
+        return X, cells, cell_data, l_s_loop, iedge2bb
     ## fill line
     battrs = mesh.GetBdrAttributeArray()
     ivert = np.vstack([mesh.GetBdrElement(i).GetVerticesArray()

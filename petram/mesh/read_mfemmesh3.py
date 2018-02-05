@@ -119,7 +119,11 @@ def extract_refined_mesh_data3(mesh, refine = None):
     ll.default_factory = None
     l_s_loop[0] = ll
 
-    
+    if len(bb_keys) == 0:
+        ## iedge2bb : mapping from edge_id to boundary numbrer set
+        ## X, cells, cell_data : the same data strucutre as pygmsh
+        return X, cells, cell_data, l_s_loop, iedge2bb
+
     idx2 = [ie for key in bb_keys for ie in bb_edges[key]]  # all mfem edge index
     attr22 = np.hstack([[k+1]*len(bb_edges[key]) for k, key in enumerate(bb_keys)])
 
