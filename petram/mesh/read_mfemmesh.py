@@ -6,17 +6,17 @@ from petram.mesh.find_vertex import find_vertex
 from mfem.ser import GlobGeometryRefiner
 
 
-def extract_mesh_data(mesh, refine = 5):
+def extract_mesh_data(mesh, refine = None):
     hasNodal = mesh.GetNodalFESpace() is not None    
     ndim = mesh.Dimension()
     
     if hasNodal and refine != 1:
        if ndim == 3:
            from read_mfemmesh3 import extract_refined_mesh_data3           
-           return extract_refined_mesh_data3(mesh, 5)
+           return extract_refined_mesh_data3(mesh, refine)
        elif ndim == 2:
            from read_mfemmesh2 import extract_refined_mesh_data2
-           return extract_refined_mesh_data2(mesh, 5)
+           return extract_refined_mesh_data2(mesh, refine)
        else:
            assert False, "1D mesh not supported"           
     if ndim == 3:

@@ -2,15 +2,17 @@ import numpy as np
 from collections import defaultdict
 
 from mfem.ser import GlobGeometryRefiner as GR
+default_refine = 5
 
-def get_geom(idx, size, base, get_transformation,attrs, sdim, refine = 5):
+def get_geom(idx, size, base, get_transformation,attrs, sdim, refine = None):
     # base 
     # SEGMENT     = 1
     # TRIANGLE    = 2
     # SQUARE      =p 3
     # TETRAHEDRON = 4
     # CUBE        = 5
-
+    if refine is None: refine = default_refine
+    
     RefG = GR.Refine(base, refine)
     T = get_transformation(idx[0])
     ir = RefG.RefPts
@@ -18,7 +20,7 @@ def get_geom(idx, size, base, get_transformation,attrs, sdim, refine = 5):
     ref_idx = np.array(RefG.RefGeoms.ToList()).reshape(-1, size)
     refe_idx = np.array(RefG.RefEdges.ToList()).reshape(-1, 2)        
     ptx_x = np.zeros((npt*len(idx), sdim), dtype=np.float32 )   
-    print len(idx), npt, ptx_x.shape
+
     for k, i in enumerate(idx):
         T = get_transformation(i)
         ptx = np.vstack([T.Transform(ir.IntPoint(j)) for j in range(npt)])
@@ -40,5 +42,5 @@ def get_geom(idx, size, base, get_transformation,attrs, sdim, refine = 5):
     ivert_x = ivert_x.flatten().reshape(-1,size)
     attrs = a
 
-    print ptx_x.shape, ivert_x.shape, attrs_x.shape
+
     return attrs, ptx_x, ivert_x, iverte_x, attrs_x

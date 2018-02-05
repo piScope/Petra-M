@@ -5,7 +5,7 @@ from petram.mesh.find_edges import find_edges
 from petram.mesh.find_vertex import find_vertex
 from mfem.ser import GlobGeometryRefiner as GR
 
-def extract_refined_mesh_data2(mesh, refine = 5):
+def extract_refined_mesh_data2(mesh, refine = None):
     
     ndim = mesh.Dimension()
     sdim = mesh.SpaceDimension()
@@ -26,7 +26,7 @@ def extract_refined_mesh_data2(mesh, refine = 5):
         base = mesh.GetElementBaseGeometry(idx3[0])
         gt = mesh.GetElementTransformation        
         attr3, ptx3, ivx3, ivxe3, attrx3 =  get_geom(idx3, 3, base,
-                                                     gt, attrs, sdim)
+                                                     gt, attrs, sdim, refine)
         ptx.append(ptx3)
         iv3 = [ivert0[k] for k in idx3]      
         ivert3 = np.vstack(iv3)
@@ -34,7 +34,7 @@ def extract_refined_mesh_data2(mesh, refine = 5):
         base = mesh.GetElementBaseGeometry(idx4[0])
         gt = mesh.GetElementTransformation                
         attr4, ptx4, ivx4, ivxe4, attrx4 =  get_geom(idx4, 4, base,
-                                                          gt, attrs,sdim)
+                                                          gt, attrs,sdim,refine)
         ptx.append(ptx4)
         iv4 = [ivert0[k] for k in idx4]
         ivert4 = np.vstack(iv4)
@@ -115,7 +115,8 @@ def extract_refined_mesh_data2(mesh, refine = 5):
     base = 1
     gt = mesh.GetBdrElementTransformation
     idx2 = range(mesh.GetNBE())
-    attr2, ptx2, ivx2, ivxe2, attrx2 = get_geom(idx2, 2, base, gt, battrs, sdim)
+    attr2, ptx2, ivx2, ivxe2, attrx2 = get_geom(idx2, 2, base, gt, battrs,
+                                                sdim,refine)
     
     cells['line_x'] = ivx2
     cell_data['line_x'] = {}                        
