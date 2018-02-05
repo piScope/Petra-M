@@ -42,11 +42,11 @@ def call_solid1(viewer, name, verts, elem_idx, array_idx, lw):
     obj._artists[0].set_gl_hl_use_array_idx(True)
     return obj
 
-def call_solid2(viewer, name, verts, elem_idx, array_idx=None):
+def call_solid2(viewer, name, verts, elem_idx, array_idx=None, lw=1.5):
     # template for lines
     obj = viewer.solid(verts, elem_idx,
                       array_idx = array_idx,
-                      linewidth = 1.5,
+                      linewidth = lw,
                       facecolor = (0, 0, 0, 1.0),
                       edgecolor = (0, 0, 0, 1.0),
 #                           view_offset = (0, 0, -0.001, 0),
@@ -68,7 +68,7 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
         array_idx = cell_data['triangle_x'][geo_phys]
         call_solid1(viewer, 'face_t', verts, elem_idx, array_idx, lw)
         eelem_idx = cells['triangle_xe']        
-        call_solid2(viewer, 'face_te', verts, eelem_idx)
+        call_solid2(viewer, 'face_te', verts, eelem_idx, lw=0)
         
     elif 'triangle' in cells:
         verts, elem_idx, array_idx = expand_vertex_data(X, cells['triangle'],
@@ -82,7 +82,7 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
         array_idx = cell_data['quad_x'][geo_phys]
         call_solid1(viewer, 'face_r', verts, elem_idx, array_idx, lw)
         eelem_idx = cells['quad_xe']        
-        call_solid2(viewer, 'face_re', verts, eelem_idx)
+        call_solid2(viewer, 'face_re', verts, eelem_idx, lw = 0)
     elif 'quad' in cells:        
         verts, elem_idx, array_idx = expand_vertex_data(X, cells['quad'],
                                        cell_data['quad'][geo_phys])

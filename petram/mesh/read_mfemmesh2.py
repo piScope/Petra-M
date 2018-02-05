@@ -134,6 +134,8 @@ def extract_refined_mesh_data2(mesh, refine = None):
            seen[iiv] += 1
        corners[key] = [kk for kk in seen if seen[kk]==1]
     iverts = np.unique(np.hstack([corners[key] for key in corners]))
+    
+    cell_data['vertex'] = {}        
     if len(iverts) != 0:        
         cells['vertex'] = table[iverts]
         cell_data['vertex']['physical'] = np.arange(len(iverts))+1

@@ -433,7 +433,8 @@ class MFEMViewer(BookViewer):
             se = idx
             
         elif self._sel_mode == 'point':
-            if self.get_axes().has_child('point'):
+            if (self.get_axes().has_child('point') and
+                not self.get_axes().point.isempty()):
                 point = self.get_axes().point
                 idx = point.getSelectedIndex()
                 aidx = point.getvar('array_idx')
@@ -455,6 +456,8 @@ class MFEMViewer(BookViewer):
                     status_txt = status_txt + t
                 else:
                     pass
+            else:
+                idx = []
             sp = idx            
         else:
             pass
@@ -892,16 +895,18 @@ class MFEMViewer(BookViewer):
         self._hidemesh = False
         self.update(False)
         
-        if mesh.Dimension() == 3:      # 3D mesh
-           children = [child
+        children = [child
                     for name, child in self.get_axes().get_children()
                     if name.startswith('face')]
-        else:                          # 2D mesh
-           children = [child
+        childrene = [child
                     for name, child in self.get_axes().get_children()
-                    if name.startswith('face')]
-        for child in children:
-            if not child.isempty(): child.set_linewidth(1.0, child._artists[0])
+                    if name.startswith('face') and name.endswith('e')]
+        if len(childrene) > 0:
+            for child in childrene:
+                if not child.isempty(): child.set_linewidth(1.0, child._artists[0])
+        else:
+            for child in children:
+                if not child.isempty(): child.set_linewidth(1.0, child._artists[0])
         self.update(True)            
         self.draw_all()
         
@@ -909,12 +914,7 @@ class MFEMViewer(BookViewer):
         self._hidemesh = True
         self.update(False)
         mesh = self.engine.get_mesh()
-        if mesh.Dimension() == 3:        # 3D mesh
-           children = [child
-                    for name, child in self.get_axes().get_children()
-                    if name.startswith('face')]
-        else:
-           children = [child
+        children = [child
                     for name, child in self.get_axes().get_children()
                     if name.startswith('face')]
         for child in children:
