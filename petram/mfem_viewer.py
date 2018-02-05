@@ -213,7 +213,9 @@ class MFEMViewer(BookViewer):
                         d = self._figure_data['geom']
                         plot_geometry(self,  d[name[1]])
                     d = self._figure_data['mesh']
-                    oplot_meshed(self,  d[name[0]])
+                    if name[0] in d:
+                        oplot_meshed(self,  d[name[0]])
+                        self._hidemesh = False                        
 
             elif view_mode == 'phys':
                 ret = self._figure_data['phys']
