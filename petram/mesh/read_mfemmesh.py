@@ -3,9 +3,22 @@ from collections import defaultdict
 
 from petram.mesh.find_edges import find_edges
 from petram.mesh.find_vertex import find_vertex
+from mfem.ser import GlobGeometryRefiner
 
-def extract_mesh_data(mesh):
+
+def extract_mesh_data(mesh, refine = 5):
+    hasNodal = mesh.GetNodalFESpace() is not None    
     ndim = mesh.Dimension()
+    
+    if hasNodal and refine != 1:
+       if ndim == 3:
+           from read_mfemmesh3 import extract_refined_mesh_data3           
+           return extract_refined_mesh_data3(mesh, 5)
+       elif ndim == 2:
+           from read_mfemmesh2 import extract_refined_mesh_data2
+           return extract_refined_mesh_data2(mesh, 5)
+       else:
+           assert False, "1D mesh not supported"           
     if ndim == 3:
         ivert0 = [mesh.GetBdrElement(i).GetVerticesArray()
                            for i in range(mesh.GetNBE())]
@@ -39,6 +52,7 @@ def extract_mesh_data(mesh):
     indices3 = indices[:ll3]
     indices4 = indices[ll3:]
 
+    
     table = np.zeros(np.max(u)+1, dtype=int)-1
     for k, u0 in enumerate(u):
         table[u0] = k

@@ -31,6 +31,30 @@ def expand_vertex_data(X, vertex_idx, element_id):
 
     return verts, elem_idx, array_idx
 
+def call_solid1(viewer, name, verts, elem_idx, array_idx, lw):
+    # template for faces    
+    obj = viewer.solid(verts, elem_idx,
+                      array_idx = array_idx,
+                      facecolor = (0.7, 0.7, 0.7, 1.0),
+                      linewidth = lw)
+
+    obj.rename(name)
+    obj._artists[0].set_gl_hl_use_array_idx(True)
+    return obj
+
+def call_solid2(viewer, name, verts, elem_idx, array_idx=None):
+    # template for lines
+    obj = viewer.solid(verts, elem_idx,
+                      array_idx = array_idx,
+                      linewidth = 1.5,
+                      facecolor = (0, 0, 0, 1.0),
+                      edgecolor = (0, 0, 0, 1.0),
+#                           view_offset = (0, 0, -0.001, 0),
+                      draw_last = True)
+    obj.rename(name)
+    obj._artists[0].set_gl_hl_use_array_idx(True)
+    return obj
+
 def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
 
     viewer.cls()
@@ -38,46 +62,43 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
     
     X, cells, pt_data, cell_data, field_data = ret
 
-    if 'triangle' in cells:
+    if 'triangle_x' in cells:
+        verts = cell_data['X_refined_face']
+        elem_idx = cells['triangle_x']
+        array_idx = cell_data['triangle_x'][geo_phys]
+        call_solid1(viewer, 'face_t', verts, elem_idx, array_idx, lw)
+        eelem_idx = cells['triangle_xe']        
+        call_solid2(viewer, 'face_te', verts, eelem_idx)
+        
+    elif 'triangle' in cells:
         verts, elem_idx, array_idx = expand_vertex_data(X, cells['triangle'],
                                        cell_data['triangle'][geo_phys])
 
+        call_solid1(viewer, 'face_t', verts, elem_idx, array_idx, lw)
 
-        #print verts.shape, elem_idx.shape, array_idx.shape
-        obj = viewer.solid(verts, elem_idx,
-                           array_idx = array_idx,
-                           facecolor = (0.7, 0.7, 0.7, 1.0),
-                           linewidth = lw)
-
-        obj.rename('face_t')
-        obj._artists[0].set_gl_hl_use_array_idx(True)
-    if 'quad' in cells:        
+    if 'quad_x' in cells:
+        verts = cell_data['X_refined_face']
+        elem_idx = cells['quad_x']
+        array_idx = cell_data['quad_x'][geo_phys]
+        call_solid1(viewer, 'face_r', verts, elem_idx, array_idx, lw)
+        eelem_idx = cells['quad_xe']        
+        call_solid2(viewer, 'face_re', verts, eelem_idx)
+    elif 'quad' in cells:        
         verts, elem_idx, array_idx = expand_vertex_data(X, cells['quad'],
                                        cell_data['quad'][geo_phys])
 
+        call_solid1(viewer, 'face_r', verts, elem_idx, array_idx, lw)
+        
+    if 'line_x' in cells:
+        verts = cell_data['X_refined_edge']
+        elem_idx = cells['line_x']
+        array_idx = cell_data['line_x'][geo_phys]
+        call_solid2(viewer, 'edge', verts, elem_idx, array_idx)        
 
-        #print verts.shape, elem_idx.shape, array_idx.shape
-        obj = viewer.solid(verts, elem_idx,
-                           array_idx = array_idx,
-                           facecolor = (0.7, 0.7, 0.7, 1.0),
-                           linewidth = lw)
-
-        obj.rename('face_r')
-        obj._artists[0].set_gl_hl_use_array_idx(True)
-    if 'line' in cells:
+    elif 'line' in cells:
         verts, elem_idx, array_idx = expand_vertex_data(X, cells['line'],
                                        cell_data['line'][geo_phys])
-        
-        obj = viewer.solid(verts, elem_idx, 
-                           array_idx = array_idx,
-                           linewidth = 1.5,
-                           facecolor = (0, 0, 0, 1.0),
-                           edgecolor = (0, 0, 0, 1.0),
-#                           view_offset = (0, 0, -0.001, 0),
-                           draw_last = True)
-
-        obj.rename('edge')
-        obj._artists[0].set_gl_hl_use_array_idx(True)
+        call_solid2(viewer, 'edge', verts, elem_idx, array_idx)                
 
     if 'vertex' in cells:
         vert = np.atleast_2d(np.squeeze(X[cells['vertex']]))

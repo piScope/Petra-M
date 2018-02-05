@@ -46,7 +46,7 @@ def run_serial(path='', debug=1, thread =  True):
     p = sp.Popen(args, stdout=sp.PIPE, stderr=sp.STDOUT)
 
     line = ''
-    thread = False
+    thread = True
     if thread:
         q = Queue()
         t = Thread(target=enqueue_output, args=(p, q))
