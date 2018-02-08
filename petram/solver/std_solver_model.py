@@ -27,7 +27,7 @@ class StdSolver(Solver):
                  self.clear_wdir,  3, {"text":""}],
                 ["initialize solution only",
                  self.init_only,  3, {"text":""}], 
-                ["assemble as real problem if it is complex valued prob.",
+                ["convert to real matrix (complex prob.)",
                  self.assemble_real,  3, {"text":""}],]
 
     def get_panel1_value(self):

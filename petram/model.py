@@ -552,11 +552,16 @@ class Model(RestorableOrderedDict):
         for key in d2.keys():
             script.append('from '+d2[key] + ' import '+ key)
     
-    def generate_script(self, skip_def_check = False, dir = None, nofile = False):
+    def generate_script(self, skip_def_check = False, dir = None, nofile = False,
+                        parallel = False, filename = 'model.py'):
         if dir is None: dir = os.getcwd()        
         script = []
-        script.append('import  petram.mfem_config as mfem_config')
-        script.append('mfem_config.use_parallel = False')
+        if parallel:
+            script.append('import  petram.mfem_config as mfem_config')
+            script.append('mfem_config.use_parallel = True')
+        else:
+            script.append('import  petram.mfem_config as mfem_config')
+            script.append('mfem_config.use_parallel = False')
         script.append('')
         script.append('debug_level = 0')        
         script.append('')
@@ -577,7 +582,7 @@ class Model(RestorableOrderedDict):
         for x in main_script:
             script.append(' '*4 + x)
 
-        path1 = os.path.join(dir, 'model.py')
+        path1 = os.path.join(dir, filename)
         fid = open(path1, 'w')
         fid.write('\n'.join(script))
         fid.close()

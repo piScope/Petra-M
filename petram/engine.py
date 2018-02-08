@@ -837,8 +837,8 @@ class Engine(object):
         dprint1("Me\n", Me)
 
         # essentailBC is stored in b
-        for b in B_blocks:
-            print b, Me.dot(b)
+        #for b in B_blocks:
+        #    print b, Me.dot(b)
         B_blocks = [b - Me.dot(b) for b in B_blocks]
 
         
@@ -1612,7 +1612,7 @@ class ParallelEngine(Engine):
 
         P, nonzeros, zeros = interp
         if P is not None:
-           print("P is not None")
+           dprint1("P is not None")
            A1 = A1.rap(P.transpose())
            A1.setDiag(zeros, 1.0) # comment this when making final matrix smaller
 
