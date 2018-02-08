@@ -1,4 +1,11 @@
 	<<< Change Log >>>
+02/07/2018
+	* partial_mesh is added. This tool generate a new mesh object which contains
+	only a boundary with a given attributes.
+   	 petram.mesh.partial_mesh.surface(mesh, index, filename = '', precision=8)
+           mesh: input mesh
+	   index: surface attribute (bdr for 3Din3D, domain for 2Din3D and 2Din2D mesh)
+
 01/12/2018
 	* mfem_viewer is change to skip refinement steps
 	* (perhaps, I should add an option to look refined mesh, for
@@ -13,7 +20,7 @@
 	the matrix. In order to use this, each module shoud implement verify_setting method.
 	* _sel_index=-1 indicates not to restrict coefficient.
 	
-12/15/2017	
+12/15/2017
         ** fixed sel_button to work with mixed triangle and quad surfaces.
 	
 11/14/2017

@@ -3,9 +3,7 @@ import numpy as np
 import mfem.ser as mfem
 from petram.sol.solsets import read_solsets
 
-def generate_surface(mesh = None, filename = '', precision=8,
-                     obj=None, i = 157):
-
+def surface(mesh, index, filename = '', precision=8):
     '''
     mesh must be 
     if sdim == 3:
@@ -14,6 +12,7 @@ def generate_surface(mesh = None, filename = '', precision=8,
     if sdim == 2:
        a domain  in 2D mesh
 
+    index : eihter
     filename : an option to save the file 
     return new surface mesh
 
@@ -26,16 +25,6 @@ def generate_surface(mesh = None, filename = '', precision=8,
     # TETRAHEDRON = 4
     # CUBE        = 5
     '''
-    
-
-    if obj is not None:
-        path = obj.owndir()
-    else:
-        path = os.getcwd()
-    if mesh is None:
-        solsets = read_solsets(path)
-        mesh = solsets.meshes[0]
-
     sdim = mesh.SpaceDimension()
     dim = mesh.Dimension()
     Nodal = mesh.GetNodalFESpace()
@@ -56,11 +45,10 @@ def generate_surface(mesh = None, filename = '', precision=8,
        GetXAttributeArray  = mesh.GetAttributeArray
        GetXElementVertices = mesh.GetElementVertices
        GetXBaseGeometry    = mesh.GetElementBaseGeometry
-       if hasNodal:
     else:
         assert False, "not supprint sdim==1"
     attrs = GetXAttributeArray()
-    idx = np.where(attrs == i)[0]
+    idx = np.arange(len(attrs))[np.in1d(attrs, index)]
 
     u, indices = np.unique([GetXElementVertices(i) for i in idx],
                             return_inverse = True)
@@ -70,10 +58,6 @@ def generate_surface(mesh = None, filename = '', precision=8,
     Nvert = len(u)
     Nelem = len(idx)
     spaceDim = sdim
-
-    if hasNodal:
-
-
 
     omesh = mfem.Mesh(2, Nvert, Nelem, 0, spaceDim)
 
@@ -91,10 +75,13 @@ def generate_surface(mesh = None, filename = '', precision=8,
 
     for i in range(Nvert):
          omesh.AddVertex(list(vtx[i]))
+         
+    omesh.FinalizeTopology()
+    omesh.Finalize(refine=False, fix_orientation=True)
 
     if hasNodal:
         fec = Nodal.FEColl()
-        dNodal = mfem.FiniteElementSpace(mesh, fec, spaceDim)
+        dNodal = mfem.FiniteElementSpace(omesh, fec, spaceDim)
         omesh.SetNodalFESpace(dNodal)
         omesh._nodal= dNodal
 
@@ -114,21 +101,19 @@ def generate_surface(mesh = None, filename = '', precision=8,
         nodes = mesh.GetNodes()
         node_ptx1 = nodes.GetDataArray()
 
-        onodes = mesh.GetNodes()
+        onodes = omesh.GetNodes()
         node_ptx2 = onodes.GetDataArray()
 
-        for j in idx: 
+        for k, j in enumerate(idx): 
             dofs1 = GetXDofs(j)
             dof1_idx = np.array([[DofToVDof(i, d)
                                  for d in range(sdim)] for i in dofs1])
-            dofs2 = dGetXDofs(j)
+            dofs2 = dGetXDofs(k)
             dof2_idx = np.array([[dDofToVDof(i, d)
                                  for d in range(sdim)] for i in dofs2])
             for i1, i2 in zip(dof1_idx, dof2_idx):
                 node_ptx2[i2] = node_ptx1[i1]
 
-    omesh.FinalizeTopology()
-    omesh.Finalize(refine=False, fix_orientation=True)
     #mesh.FinalizeTriMesh(1,1, True)
     if filename != '':
         omesh.PrintToFile(filename, precision)
