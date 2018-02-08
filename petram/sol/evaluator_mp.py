@@ -186,7 +186,7 @@ class EvaluatorMP(Evaluator):
         self.results= mp.JoinableQueue() 
         self.workers = [None]*nproc
         self.solfiles = None
-        
+        self.failed = False        
         for i in range(nproc):
             w = EvaluatorMPChild(self.tasks[i], self.results, i, nproc,
                                  logfile = logfile)

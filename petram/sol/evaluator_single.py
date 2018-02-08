@@ -29,6 +29,7 @@ class EvaluatorSingle(EvaluatorCommon):
         self.agents = {}
         self.physpath = ''
         self.init_done = False
+        self.failed = False
         
     def set_solfiles(self, solfiles):
         self.solfiles = weakref.ref(solfiles)

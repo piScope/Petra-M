@@ -34,9 +34,6 @@ def find_dof_map_nd(idx1, idx2, transu, transv, transu2, transv2,
    this version accept two mapping function which mappps
    (x, y, z) to (u, v) plane
 
-   Need to test that this approach works even when two 
-   surface is not parallel...
-
    In this version, returned matrix is interpolation constraints P.
    P will be used as follows.
     P^t A P y = P^t f, x = Py

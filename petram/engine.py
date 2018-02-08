@@ -794,7 +794,7 @@ class Engine(object):
                     M[offset, ib].resetRow(gl_ess_tdof[1])
 
         # store vertical to Me (choose only essential col)
-        dprint2("Filling Elimination Block (step2)")        
+        dprint2("Filling Elimination Block (step2)")
         for phys, gl_ess_tdofs, offsets in iter_phys(phys_target,
                                                      self.gl_ess_tdofs,
                                                      self.phys_offsets):
@@ -1341,22 +1341,24 @@ class SerialEngine(Engine):
             if isinstance(t1, np.ndarray) or isinstance(t2, np.ndarray):
                 if P is not None:               
                    if t1 is not None: t1 = PP.dot(t1)
-                   if t2 is not None: t2 = P.dot(t2.transpose()).transpose()
+                   #if t2 is not None: t2 = P.dot(t2.transpose()).transpose()
+                   if t2 is not None: t2 = P.dot(t2)
             else:
                 if t1 is not None:
-                   t1 = t1.tolil()
+                   #t1 = t1.tolil()
                    if P is not None:
-                      for i in  zeros:
-                          t1[:, i] = 0.0
-                      t1 = PP.dot(t1).tolil()                      
+                      #for i in  zeros:
+                      #    t1[:, i] = 0.0
+                      t1 = PP.dot(t1)#.tolil()                      
                 if t2 is not None:
-                   t2 = t2.tolil()
+                   #t2 = t2.tolil()
                    if P is not None:
-                       for i in  zeros:
-                           t2[i, :] = 0.0
-                       t2 = P.dot(t2.transpose()).transpose().tolil()
+                       #for i in  zeros:
+                       #    t2[i, :] = 0.0
+                       #t2 = P.dot(t2.transpose()).transpose().tolil()
+                       t2 = P.dot(t2)
             if t1 is not None: M[offset,   kk+offsete] = t1
-            if t2 is not None: M[kk+offsete,   offset] = t2
+            if t2 is not None: M[kk+offsete,   offset] = t2.transpose()
             if t3 is not None: M[kk+offsete, kk+offsete] = t3                
 
             '''
@@ -1626,12 +1628,11 @@ class ParallelEngine(Engine):
                 if t2 is not None: dprint1("t2, shape", t2.shape)
                 if P is not  None:
                     if t1 is not None: t1 = P.conj().dot(t1); P.conj()
-                    if t2 is not None: t2 = t2.dot(P.transpose())
+                    if t2 is not None: t2 = P.dot(t2)
             elif isinstance(t1, chypre.CHypreVec): # 1D array
                 if P is not  None:
                     if t1 is not None: t1 = P.conj().dot(t1); P.conj()
                     if t2 is not None: t2 = P.dot(t2)
-                    # = t2*P^t should check if t2 is not hirizontal
                 # this should be taken care in finalization                      
                 #for x in ess_tdof_list:
                 #    t1.set_element(x, 0.0)
@@ -1640,9 +1641,8 @@ class ParallelEngine(Engine):
                 #t2 = Vec2MatH(t2, is_complex)                
             else:
                 pass
-             
             if t1 is not None: M[offset,   kk+offsete] = t1
-            if t2 is not None: M[kk+offsete,   offset] = t2
+            if t2 is not None: M[kk+offsete,   offset] = t2.transpose()
             if t3 is not None: M[kk+offsete, kk+offsete] = t3
 
     def fill_block_rhs_fespace(self, blocks, mv, extra, interp, offset, offsete):
