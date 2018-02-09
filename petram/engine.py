@@ -15,8 +15,9 @@ else:
    import mfem.ser as mfem
 import mfem.common.chypre as chypre
 
-#this is only for debuging
+#these are only for debuging
 from mfem.common.parcsr_extra import ToScipyCoo
+from mfem.common.mpi_debug import nicePrint
 
 from petram.model import Domain, Bdry
 import petram.debug
@@ -1618,7 +1619,6 @@ class ParallelEngine(Engine):
 
         M[offset, offset] = A1
         extra, mm_list = extra
-        from mfem.common.mpi_debug import nicePrint
         
         for k, v in enumerate(extra):
             t1, t2, t3, t4, t5 = v[0]
@@ -1643,7 +1643,7 @@ class ParallelEngine(Engine):
                 #t2 = Vec2MatH(t2, is_complex)                
             else:
                 pass
-            nicePrint('t2', t2[0].GetRowPartArray(), t2[0].GetColPartArray())
+            #nicePrint('t2', t2[0].GetRowPartArray(), t2[0].GetColPartArray())
             
             if t1 is not None: M[offset,   kk+offsete] = t1
             if t2 is not None: M[kk+offsete,   offset] = t2.transpose()
