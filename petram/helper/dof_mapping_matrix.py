@@ -23,7 +23,7 @@ else:
    num_proc = 1
    myid = 0
 
-def dof_mapping_matrix(src,  dst,  fes, tdof, engine, dphase,
+def dof_mapping_matrix(src,  dst,  fes, tdof, engine=None, dphase=0.0,
                        map_to_u = def_map_u, 
                        map_to_v = def_map_v,
                        smap_to_u = None,

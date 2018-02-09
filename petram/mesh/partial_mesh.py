@@ -49,6 +49,7 @@ def surface(mesh, index, filename = '', precision=8):
         assert False, "not supprint sdim==1"
     attrs = GetXAttributeArray()
     idx = np.arange(len(attrs))[np.in1d(attrs, index)]
+    attrs = attrs[idx]
 
     u, indices = np.unique([GetXElementVertices(i) for i in idx],
                             return_inverse = True)
@@ -67,9 +68,9 @@ def surface(mesh, index, filename = '', precision=8):
         iv = indices[k:k+len(iv)]
         k = k + len(iv)
         if base[i] == 2:  # triangle
-            omesh.AddTri(list(iv), 1)
+            omesh.AddTri(list(iv), attrs[i])
         elif base[i] == 3: # quad
-            omesh.AddQuad(list(iv), 1)
+            omesh.AddQuad(list(iv), attrs[i])
         else:
             assert False, "unsupported base geometry: " + str(base[i])
 
