@@ -144,6 +144,6 @@ class Coeff2D_PointValue(Coeff2D_Point):
         
         t3 =  EmptySquarePyMat(len(x))
         v1 = HStackPyVec(vecs)
-        v2 = v1.transpose()
+        v2 = v1
         t4 = Array2PyVec(np.array(s))
         return (v1, v2, t3, t4, True)

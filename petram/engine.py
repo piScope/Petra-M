@@ -1618,6 +1618,8 @@ class ParallelEngine(Engine):
 
         M[offset, offset] = A1
         extra, mm_list = extra
+        from mfem.common.mpi_debug import nicePrint
+        
         for k, v in enumerate(extra):
             t1, t2, t3, t4, t5 = v[0]
             mm = v[1]
@@ -1641,6 +1643,8 @@ class ParallelEngine(Engine):
                 #t2 = Vec2MatH(t2, is_complex)                
             else:
                 pass
+            nicePrint('t2', t2[0].GetRowPartArray(), t2[0].GetColPartArray())
+            
             if t1 is not None: M[offset,   kk+offsete] = t1
             if t2 is not None: M[kk+offsete,   offset] = t2.transpose()
             if t3 is not None: M[kk+offsete, kk+offsete] = t3

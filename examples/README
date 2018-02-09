@@ -6,13 +6,17 @@ This directory collects example models
 Usage:
    python model.py
    mpirun -np num_proc modelp.py
+* Coeff
+** diffusion_in_start (Coeff2D)
+   Diffusion equation in 2D star
+        Terms: Diffusion, ZeroFlux, PointValue
+	Element : H1 quadratic
+	Solver: GMRES
    
-* RF
-
+* RF (need PetraM_RF)
 ** parallel_plate (EM3D)
    Propagation of TEM mode.
-	Domain: Vacuum
-	BC : PEC, Port, Floquet
+	Terms: Vacuum, BC : PEC, Port, Floquet
 	Element : ND linear
 	Solver: GMRES
  
