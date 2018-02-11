@@ -29,17 +29,22 @@ import numpy as np
 import scipy
 from scipy.sparse import lil_matrix
 import petram.debug as debug
-dprint1, dprint2, dprint3 = debug.init_dprints('find_dof_map3_h1')
+debug.debug_default_level = 1
+dprint1, dprint2, dprint3 = debug.init_dprints('find_dof_map_h1_2')
+
 
 from petram.helper.matrix_file import write_matrix, write_vector
 
 from petram.mfem_config import use_parallel
 if use_parallel:
    from mpi4py import MPI
+   comm = MPI.COMM_WORLD
    num_proc = MPI.COMM_WORLD.size
    myid     = MPI.COMM_WORLD.rank
    from petram.helper.mpi_recipes import *
    import mfem.par as mfem
+   from mfem.common.mpi_debug import nicePrint
+   
 else:
    import mfem.ser as mfem
    num_proc = 1
@@ -90,7 +95,6 @@ def find_el_center(fes, ibdr1, trans1, mode = 'Bdr'):
     if len(ibdr1) == 0: return np.empty(shape=(0,2))
     mesh = fes.GetMesh()
     m = getattr(mesh, methods[mode]['Vertices'])
-    print methods[mode]['Vertices']
     pts = np.vstack([np.mean([trans1(mesh.GetVertexArray(kk))
                               for kk in m(k)],0) for k in ibdr1])
     return pts
@@ -101,13 +105,12 @@ def get_element_data(fes, idx, trans, mode='Bdr'):
     GetTrans = getattr(fes, methods[mode]['Transformation'])
     GetElement = getattr(fes, methods[mode]['Element'])
     GetVDofs = getattr(fes, methods[mode]['VDofs'])
-
+    
     ret = [None]*len(idx)
     for iii, k1 in enumerate(idx):
        tr1 = GetTrans(k1)
        nodes1 = GetElement(k1).GetNodes()
        vdof1 = GetVDofs(k1)
-
        pt1 = np.vstack([trans(tr1.Transform(nodes1.IntPoint(kk)))
                         for kk in range(len(vdof1))])
        pt1o = np.vstack([tr1.Transform(nodes1.IntPoint(kk))
@@ -122,7 +125,7 @@ def get_element_data(fes, idx, trans, mode='Bdr'):
                     subvdof2[k] = fes.GetMyTDofOffset()+ x
                 else: flag = True
             if element_data_debug and flag:
-               dprint1(subvdof1, vdof1, subvdof2)
+               dprint2(subvdof1, vdof1, subvdof2)
             ## note subdof2 = -1 if it is not owned by the node
        else:
            subvdof2 = subvdof1
@@ -161,6 +164,7 @@ def resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2):
     this is done based on integration point distance.
     It searches a closeest true (non-shadow) DoF point
     '''
+    k2all = np.stack(k2all)
     for k in range(len(pt1all)):
         subvdof1 = k1all[k][:,2]
         k2 = map_1_2[k]
@@ -169,7 +173,7 @@ def resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2):
         check = False
         if -1 in subvdof2:
                 check = True
-                dprint1('before resolving dof', subvdof2)
+                dprint2('before resolving dof', subvdof2)
         for kk, x in enumerate(subvdof2):
              if x == -1:
                 dist = pt2all-pt2[kk]
@@ -184,7 +188,7 @@ def resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2):
                     minidx = np.hstack((minidx, isort[len(minidx)]))
                 dprint1("distances", np.min(dist),fdist[minidx],
                         fdist[isort[:len(minidx)+1]])                    
-                dprint1("minidx",  minidx, k2all[:,:,2].flatten()[minidx])
+                dprint2("minidx",  minidx, k2all[:,:,2].flatten()[minidx])
                 for i in minidx:
                     if k2all[:,:,2].flatten()[i] != -1:
                        subvdof2[kk] = k2all[:,:,2].flatten()[i]
@@ -193,6 +197,7 @@ def resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2):
              dprint1('resolved dof', k2all[k2][:,2])
              if -1 in subvdof2: 
                  assert False, "failed to resolve shadow DoF"
+    return k2all
 
 def map_dof_h1(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                k1all, k2all, sh1all, sh2all, map_1_2,
@@ -205,7 +210,15 @@ def map_dof_h1(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
     num_entry = 0
     num_pts = 0
 
-    decimals = int(np.abs(np.log10(tol)))       
+    decimals = int(np.abs(np.log10(tol)))
+
+    if use_parallel:
+        P = fes1.Dof_TrueDof_Matrix()
+        from mfem.common.parcsr_extra import ToScipyCoo
+        P = ToScipyCoo(P).tocsr()
+        VDoFtoGTDoF = P.indices  #this is global TrueDoF (offset is not subtracted)
+        external_entry = []
+        gtdof_check = []
     for k0 in range(len(pt1all)):
         k2 = map_1_2[k0]
         pt1 = pt1all[k0]
@@ -218,37 +231,59 @@ def map_dof_h1(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
         sh2 = sh2all[k2]
         for k, p in enumerate(pt1):
             num_pts = num_pts + 1
-            if newk1[k,2] == -1: continue # not owned by the node
             if newk1[k,2] in tdof: continue
             if newk1[k,2] in subvdofs1: continue               
 
             dist = np.sum((pt2-p)**2, 1)
             d = np.where(dist == np.min(dist))[0]
-            #dprint1('min_dist', np.min(dist))
+            if myid == 1: dprint1('min_dist', np.min(dist))
             if len(d) == 1:
                d = d[0]
                s1 = sh1[newk1[k, 0]]
                s2 = sh2[newk2[d, 0]]
                #dprint1("case1 ", s1, s2) this looks all 1
                if s1/s2 < 0: dprint1("not positive")
+               #if myid == 1: print(newk1[d][2]-rstart, newk2[k][2])
+               value = np.around(s1/s2, decimals)               
+               if newk1[k,2] != -1: 
+                   map[newk1[k][2]-rstart, 
+                       newk2[d][2]] = value
+                   num_entry = num_entry + 1
+                   subvdofs1.append(newk1[k][2])
+               else:
+                   gtdof = VDoFtoGTDoF[newk1[k][1]]
+                   if not gtdof in gtdof_check:
+                       external_entry.append((gtdof, newk2[d][2], value))
+                       gtdof_check.append(gtdof)
+                   
 
-               map[newk1[d][2]+rstart, 
-                   newk2[k][2]] = np.around(s1/s2, decimals)
-               num_entry = num_entry + 1
             else:
                 raise AssertionError("more than two dofs at same plase is not asupported. ")
-        subvdofs1.extend([s for k, v, s in newk1])
+        #subvdofs1.extend([s for k, v, s in newk1])
         subvdofs2.extend([s for k, v, s in newk2])
         #print len(subvdofs1), len(subvdofs2)
 
     if use_parallel:
+        dprint1("total entry (before)",sum(allgather(num_entry)))
+        #nicePrint(len(subvdofs1), subvdofs1)
+        external_entry =  sum(comm.allgather(external_entry),[])
+        for r, c, d in external_entry:
+           h = map.shape[0]
+           if (r - rstart >= 0 and r - rstart < h and
+               not r  in subvdofs1):
+               num_entry = num_entry + 1                                 
+               print("adding",myid, r,  c, d )
+               map[r-rstart, c] = d
+               subvdofs1.append(r)
         total_entry = sum(allgather(num_entry))
         total_pts = sum(allgather(num_pts))
+        if sum(allgather(map.nnz)) != total_entry:
+           assert False, "total_entry does not match with nnz"
     else:
         total_entry = num_entry
         total_pts = num_pts
-       
-    dprint1("map size", map.shape)       
+        
+    #dprint1("map size", map.shape)       
     dprint1("local pts/entry", num_pts, " " , num_entry)
     dprint1("total pts/entry", total_pts, " " , total_entry)       
     return map
@@ -285,8 +320,14 @@ def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
     sh2all = get_h1_shape(fes2, ibdr2, mode=mode2)
 
     # pt is on (u, v), pto is (x, y, z)
-    k1all, pt1all, pto1all = zip(*arr1)
-    k2all, pt2all, pto2all = zip(*arr2)
+    try:
+       k1all, pt1all, pto1all = zip(*arr1)
+    except:
+       k1all, pt1all, pto1all = (), (), ()
+    try:
+       k2all, pt2all, pto2all = zip(*arr2)
+    except:
+       k1all, pt1all, pto1all = (), (), ()
 
     if use_parallel:
        # share ibr2 (destination information among nodes...)
@@ -307,13 +348,14 @@ def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
     map_1_2= [np.argmin(np.sum((ct2-c)**2, 1)) for c in ct1]
 
     if use_parallel:
-       pt2all =  allgather_vector(pt2all, MPI.DOUBLE)
-       pto2all = allgather_vector(pto2all, MPI.DOUBLE)
-       k2all =  allgather_vector(k2all, MPI.INT)
-       sh2all =  allgather_vector(sh2all, MPI.DOUBLE)
-       resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2)
+       pt2all =  sum(comm.allgather(pt2all),())
+       pto2all = sum(comm.allgather(pto2all),())
+       k2all =  sum(comm.allgather(k2all),())
+       sh2all =  sum(comm.allgather(sh2all),[])
+       k2all = resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2)
 
     # map is fill as transposed shape (row = fes1)
+    
     map = lil_matrix((fesize1, fesize2), dtype=float)
     map_dof_h1(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
               k1all, k2all, sh1all, sh2all, map_1_2,
