@@ -138,7 +138,7 @@ def get_element_data(fes, idx, trans, mode='Bdr'):
        ret[iii] = (newk1, pt1, pt1o)
     return ret
 
-def get_h1_shape(fes, ibdr , mode='Bdr'):
+def get_shape(fes, ibdr , mode='Bdr'):
     mesh = fes.GetMesh()  
 
     GetTrans = getattr(fes, methods[mode]['Transformation'])
@@ -155,6 +155,28 @@ def get_h1_shape(fes, ibdr , mode='Bdr'):
         for idx in range(len(shape)):
             el.CalcShape(nodes1.IntPoint(idx), v)
             shape[idx] = v.GetDataArray()[idx]
+        ret[iii]  = shape
+    return ret
+ 
+def get_vshape(fes, ibdr , mode='Bdr'):
+    mesh = fes.GetMesh()  
+
+    GetTrans = getattr(fes, methods[mode]['Transformation'])
+    GetElement = getattr(fes, methods[mode]['Element'])
+    GetVDofs = getattr(fes, methods[mode]['VDofs'])
+
+    ret = [None]*len(ibdr)
+    for iii, k1 in enumerate(ibdr):
+        tr1 = GetTrans(k1)
+        el = GetElement(k1)
+        nodes1 = el.GetNodes()
+        m = mfem.DenseMatrix(nodes1.GetNPoints(),
+                             tr1.GetSpaceDim())        
+        shape = [None]*nodes1.GetNPoints()
+        for idx in range(len(shape)):
+            tr1.SetIntPoint(nodes1.IntPoint(idx))
+            el.CalcVShape(tr1,m)
+            shape[idx] = m.GetDataArray()[idx,:].copy()
         ret[iii]  = shape
     return ret
 
@@ -199,7 +221,7 @@ def resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2):
                  assert False, "failed to resolve shadow DoF"
     return k2all
 
-def map_dof_h1(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
+def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                k1all, k2all, sh1all, sh2all, map_1_2,
                trans1, trans2, tol, tdof, rstart):
 
@@ -219,6 +241,7 @@ def map_dof_h1(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
         VDoFtoGTDoF = P.indices  #this is global TrueDoF (offset is not subtracted)
         external_entry = []
         gtdof_check = []
+        
     for k0 in range(len(pt1all)):
         k2 = map_1_2[k0]
         pt1 = pt1all[k0]
@@ -237,6 +260,7 @@ def map_dof_h1(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
             dist = np.sum((pt2-p)**2, 1)
             d = np.where(dist == np.min(dist))[0]
             if myid == 1: dprint1('min_dist', np.min(dist))
+
             if len(d) == 1:
                d = d[0]
                s1 = sh1[newk1[k, 0]]
@@ -251,6 +275,10 @@ def map_dof_h1(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                    num_entry = num_entry + 1
                    subvdofs1.append(newk1[k][2])
                else:
+                   # for scalar, this is perhaps not needed
+                   # rr = newk1[k][1]] if newk1[k][1]] >= 0 else -1-newk1[k][1]]
+                   # gtdof = VDoFtoGTDoF[rr]
+                   assert newk1[k][1]>=0, "Negative index found"
                    gtdof = VDoFtoGTDoF[newk1[k][1]]
                    if not gtdof in gtdof_check:
                        external_entry.append((gtdof, newk2[d][2], value))
@@ -288,24 +316,181 @@ def map_dof_h1(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
     dprint1("total pts/entry", total_pts, " " , total_entry)       
     return map
 
-def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
-                trans2=None, tdof=None, tol=1e-4):
-    '''
-    map DoF on surface to surface
+def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
+                   k1all, k2all, sh1all, sh2all, map_1_2,
+                   trans1, trans2, tol, tdof, rstart):
 
-      fes1: source finite element space
-      fes2: destination finite element space
+    pt = []
+    subvdofs1 = []
+    subvdofs2 = []
 
-      idx1: surface attribute (Bdr for 3D/3D, Domain for 2D/3D or 2D/2D)
+    num1 = 0
+    num2 = 0    
+    num_pts = 0
 
-    '''
+    decimals = int(np.abs(np.log10(tol)))
+
+    if use_parallel:
+        P = fes1.Dof_TrueDof_Matrix()
+        from mfem.common.parcsr_extra import ToScipyCoo
+        P = ToScipyCoo(P).tocsr()
+        VDoFtoGTDoF = P.indices  #this is global TrueDoF (offset is not subtracted)
+        external_entry = []
+        gtdof_check = []
+        
+    def make_entry(r, c, value, num_entry):
+        value = np.around(value, decimals)
+        if value == 0: return num_entry
+        if r[1] != -1: 
+            map[r[1]-rstart, c] = value 
+            num_entry = num_entry + 1
+            subvdofs1.append(r[1])
+        else:
+            rr = r[0] if r[0] >= 0 else -1-r[0]
+            gtdof = VDoFtoGTDoF[rr]
+            if not gtdof in gtdof_check:
+               external_entry.append((gtdof, c, value))
+               gtdof_check.append(gtdof)
+        return num_entry      
+        
+    for k0 in range(len(pt1all)):
+        k2 = map_1_2[k0]
+        pt1 = pt1all[k0]
+        pto1 = pto1all[k0]
+        newk1 = k1all[k0] #(i local DoF, global DoF)
+        sh1 = sh1all[k0]           
+        pt2 = pt2all[k2]
+        pto2 = pto2all[k2]
+        newk2 = k2all[k2]
+        sh2 = sh2all[k2]
+        if myid == 1: print newk1[:,2], newk1[:,1], rstart
+        if myid == 1:
+            x = [r if r >= 0 else -1-r for r in newk1[:,1]]
+            print [VDoFtoGTDoF[r] for r in x]
+        for k, p in enumerate(pt1):
+            num_pts = num_pts + 1
+            if newk1[k,2] in tdof: continue
+            if newk1[k,2] in subvdofs1: continue               
+
+            dist = np.sum((pt2-p)**2, 1)
+            d = np.where(dist == np.min(dist))[0]
+            #if myid == 1: dprint1('min_dist', np.min(dist))
+            if len(d) == 1:            
+               '''
+               this factor is not always 1
+               '''
+
+               d = d[0]               
+               s = np.sign(newk1[k,1] +0.5)*np.sign(newk2[d,1] + 0.5)
+
+               p1 = pto1[k]; p2 = pto2[d]
+               delta = np.sum(np.std(p1, 0))/np.sum(np.std(sh1, 0))/10.
+
+               v1 = trans1(p1) - trans1(p1 + delta*sh1[newk1[k, 0]])
+               v2 = trans2(p2) - trans2(p2 + delta*sh2[newk2[d, 0]])
+
+               fac = np.sum(v1*v2)/np.sum(v1*v1)*s
+
+               num1 = make_entry(newk1[k, [1,2]], newk2[d, 2], fac, num1)
+                             
+            elif len(d) == 2:
+               dd = np.argsort(np.sum((pt1 - p)**2, 1))
+                   
+               p1 = pto1[dd[0]]; p3 = pto2[d[0]]
+               p2 = pto1[dd[1]]; p4 = pto2[d[1]]
+               delta = np.sum(np.std(p1, 0))/np.sum(np.std(sh1, 0))/10.
+                   
+               v1 = trans1(p1) - trans1(p1 + delta*sh1[newk1[dd[0], 0]])
+               v2 = trans1(p2) - trans1(p2 + delta*sh1[newk1[dd[1], 0]])
+               v3 = trans2(p3) - trans2(p3 + delta*sh2[newk2[d[0], 0]])
+               v4 = trans2(p4) - trans2(p4 + delta*sh2[newk2[d[1], 0]])
+               v1 = v1*np.sign(newk1[dd[0], 1] +0.5)
+               v2 = v2*np.sign(newk1[dd[1], 1] +0.5)
+               v3 = v3*np.sign(newk2[d[0], 1] +0.5)
+               v4 = v4*np.sign(newk2[d[1], 1] +0.5)
+               s = np.sign(newk1[k,1] +0.5)*np.sign(newk2[d,1] + 0.5)
+               def vnorm(v):
+                   return v/np.sqrt(np.sum(v**2))
+               v1n = vnorm(v1) ; v2n = vnorm(v2)
+               v3n = vnorm(v3) ; v4n = vnorm(v4)                   
+
+               if (np.abs(np.abs(np.sum(v1n*v3n))-1) < tol and
+                   np.abs(np.abs(np.sum(v2n*v4n))-1) < tol):
+                   fac1 = np.sum(v1*v3)/np.sum(v1*v1)
+                   fac2 = np.sum(v2*v4)/np.sum(v2*v2)
+                   num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[0],2], fac1, num2)
+                   num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[1],2], fac2, num2)
+
+               elif (np.abs(np.abs(np.sum(v2n*v3n))-1) < tol and
+                     np.abs(np.abs(np.sum(v1n*v4n))-1) < tol):
+                   fac1 = np.sum(v1*v4)/np.sum(v1*v1)
+                   fac2 = np.sum(v2*v3)/np.sum(v2*v2)
+                   num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[1],2], fac1, num2)
+                   num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[0],2], fac2, num2)
+               else:
+                   def proj2d(v, e1, e2):
+                       return np.array([np.sum(v*e1), np.sum(v*e2)])
+                   if len(v1) == 3: # if vector is 3D, needs to prjoect on surface
+                      e3 = np.cross(v1n, v2n)
+                      e1 = v1n
+                      e2 = np.cross(e1, e3)
+                      v1 = proj2d(v1, e1, e2)
+                      v2 = proj2d(v2, e1, e2)
+                      v3 = proj2d(v3, e1, e2)
+                      v4 = proj2d(v4, e1, e2)
+                   m1 = np.transpose(np.vstack((v1, v2)))
+                   m2 = np.transpose(np.vstack((v3, v4)))
+                   m = np.dot(np.linalg.inv(m1), m2)
+                   m = np.around(np.linalg.inv(m), decimals = decimals)
+                   num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[0],2], m[0,0], num2)
+                   num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[1],2], m[1,0], num2)
+                   num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[0],2], m[0,1], num2)
+                   num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[1],2], m[1,1], num2)
+            else:
+                # to do support three vectors
+                raise AssertionError("more than two dofs at same place")
+        subvdofs2.extend([s for k, v, s in newk2])
+
+    num_entry = num1 + num2
+    
+    if use_parallel:
+        dprint1("total entry (before)",sum(allgather(num_entry)))
+        #nicePrint(len(subvdofs1), subvdofs1)
+        external_entry =  sum(comm.allgather(external_entry),[])
+        #nicePrint(external_entry)        
+        for r, c, d in external_entry:
+           h = map.shape[0]
+           if (r - rstart >= 0 and r - rstart < h and
+               not r  in subvdofs1):
+               num_entry = num_entry + 1                                 
+               print("adding",myid, r,  c, d )
+               map[r-rstart, c] = d
+               subvdofs1.append(r)
+        total_entry = sum(allgather(num_entry))
+        total_pts = sum(allgather(num_pts))
+        if sum(allgather(map.nnz)) != total_entry:
+           assert False, "total_entry does not match with nnz"
+    else:
+        total_entry = num_entry
+        total_pts = num_pts
+        
+    #dprint1("map size", map.shape)       
+    dprint1("local pts/entry", num_pts, " " , num_entry)
+    dprint1("total pts/entry", total_pts, " " , total_entry)
+                             
+    return map
+
+def gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                               trans2, tdof, tol, shape_type = 'scalar'):
+
     if fes2 is None: fes2 = fes1
     if trans1 is None: trans1=notrans
     if trans2 is None: trans2=notrans
     if tdof is None: tdof=[]
 
     mesh1= fes1.GetMesh()  
-    mesh2= fes2.GetMesh()  
+    mesh2= fes2.GetMesh()
+                             
     mode1 = get_surface_mode(mesh1.Dimension(), mesh1.SpaceDimension())
     mode2 = get_surface_mode(mesh2.Dimension(), mesh2.SpaceDimension())
 
@@ -316,8 +501,15 @@ def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
     ct2 = find_el_center(fes2, ibdr2, trans2, mode=mode2)
     arr1 = get_element_data(fes1, ibdr1, trans1, mode=mode1)
     arr2 = get_element_data(fes2, ibdr2, trans1, mode=mode2)
-    sh1all = get_h1_shape(fes1, ibdr1, mode=mode1)
-    sh2all = get_h1_shape(fes2, ibdr2, mode=mode2)
+
+    if shape_type == 'scalar':
+        sh1all = get_shape(fes1, ibdr1, mode=mode1)
+        sh2all = get_shape(fes2, ibdr2, mode=mode2)
+    elif shape_type == 'vector':
+        sh1all = get_vshape(fes1, ibdr1, mode=mode1)
+        sh2all = get_vshape(fes2, ibdr2, mode=mode2)
+    else:
+        assert False, "Unknown shape type"
 
     # pt is on (u, v), pto is (x, y, z)
     try:
@@ -357,9 +549,68 @@ def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
     # map is fill as transposed shape (row = fes1)
     
     map = lil_matrix((fesize1, fesize2), dtype=float)
-    map_dof_h1(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
-              k1all, k2all, sh1all, sh2all, map_1_2,
-              trans1, trans2, tol, tdof, rstart)
+    data = pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all,
+
+    return  map, data, map_1_2, rstart    
+
+
+def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
+                trans2=None, tdof=None, tol=1e-4):
+    '''
+    map DoF on surface to surface
+
+      fes1: source finite element space
+      fes2: destination finite element space
+
+      idx1: surface attribute (Bdr for 3D/3D, Domain for 2D/3D or 2D/2D)
+
+    '''
+                             
+    if fes2 is None: fes2 = fes1
+    if trans1 is None: trans1=notrans
+    if trans2 is None: trans2=trans1
+    if tdof is None: tdof=[]
+                             
+    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                               trans2, tdof, tol, shape_type = 'scalar')
+    
+    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
+    
+    map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
+                   k1all, k2all, sh1all, sh2all, elmap,
+                   trans1, trans2, tol, tdof, rstart)
 
     return map
 
+def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
+                trans2=None, tdof=None, tol=1e-4):
+ 
+    '''
+    map DoF on surface to surface
+
+      fes1: source finite element space
+      fes2: destination finite element space
+
+      idx1: surface attribute (Bdr for 3D/3D, Domain for 2D/3D or 2D/2D)
+
+    '''
+                             
+    if fes2 is None: fes2 = fes1
+    if trans1 is None: trans1=notrans
+    if trans2 is None: trans2=trans1
+    if tdof is None: tdof=[]
+                             
+    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                               trans2, tdof, tol, shape_type = 'vector')
+    
+    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
+    
+    map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
+                   k1all, k2all, sh1all, sh2all, elmap,
+                   trans1, trans2, tol, tdof, rstart)
+
+    return map
+ 
+# ToDO test these
+# map_surface_rt = map_surface_nd
+# map_surface_l2 = map_surface_h1

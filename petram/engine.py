@@ -975,9 +975,12 @@ class Engine(object):
     #
     
     def save_sol_to_file(self, phys_target, skip_mesh = False,
-                               mesh_only = False):
+                               mesh_only = False,
+                               save_parmesh = False):
         if not skip_mesh:
             mesh_filenames =self.save_mesh()
+        if save_parmesh:
+            self.save_parmesh()
         if mesh_only: return mesh_filenames
        
         for phys in phys_target:
@@ -1445,6 +1448,10 @@ class SerialEngine(Engine):
             mesh_names.append(name)
         return mesh_names
 
+    def save_parmesh(self):
+        # serial engine does not do anything
+        return
+
     def solfile_name(self, name, mesh_idx,
                      namer = 'solr', namei = 'soli' ):
         fnamer = '_'.join((namer, name, str(mesh_idx)))
@@ -1563,6 +1570,19 @@ class ParallelEngine(Engine):
             mesh.PrintToFile(mesh_name, 8)
             mesh_names.append(mesh_name)
         return mesh_names
+     
+    def save_parmesh(self):
+        from mpi4py import MPI                               
+        num_proc = MPI.COMM_WORLD.size
+        myid     = MPI.COMM_WORLD.rank
+        smyid = '{:0>6d}'.format(myid)
+
+        mesh_names = []
+        for k, mesh in enumerate(self.meshes):
+            if mesh is None: continue
+            mesh_name  =  "solparmesh_"+str(k)+"."+smyid
+            mesh.ParPrintToFile(mesh_name, 8)
+        return
      
     def solfile_name(self, name, mesh_idx,
                      namer = 'solr', namei = 'soli' ):

@@ -1,8 +1,11 @@
 	<<< Change Log >>>
+02/12/2018
+	* std_solver_model supports saving ParMesh file
+	* new dof_map is added, which will replace old mappers.
+	
 02/08/2018
 	* extra contribution is assembled as matrix. Physics module must return t2
 	as vertical (transposed).This is due to Hypre
-	
 	
 02/07/2018
 	* partial_mesh is added. This tool generate a new mesh object which contains

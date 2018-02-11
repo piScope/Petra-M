@@ -15,6 +15,7 @@ class StdSolver(Solver):
         v['clear_wdir'] = False
         v['init_only'] = False   
         v['assemble_real'] = False
+        v['save_parmesh'] = False        
         v['phys_model']   = ''
         v['init_setting']   = ''        
         super(StdSolver, self).attribute_set(v)
@@ -28,14 +29,17 @@ class StdSolver(Solver):
                 ["initialize solution only",
                  self.init_only,  3, {"text":""}], 
                 ["convert to real matrix (complex prob.)",
-                 self.assemble_real,  3, {"text":""}],]
+                 self.assemble_real,  3, {"text":""}],
+                ["save parallel mesh",
+                 self.save_parmesh,  3, {"text":""}],]
 
     def get_panel1_value(self):
         return (self.init_setting,
                 self.phys_model,
                 self.clear_wdir,
                 self.init_only,               
-                self.assemble_real)
+                self.assemble_real,
+                self.save_parmesh)    
     
     def import_panel1_value(self, v):
         self.init_setting = str(v[0])        
@@ -43,6 +47,7 @@ class StdSolver(Solver):
         self.clear_wdir = v[2]
         self.init_only = v[3]        
         self.assemble_real = v[4]
+        self.save_parmesh = v[5]        
 
     def get_editor_menus(self):
         return []
@@ -225,7 +230,8 @@ class StdSolver(Solver):
         phys_target = self.get_phys()
         engine.save_sol_to_file(phys_target, 
                                 skip_mesh = skip_mesh,
-                                mesh_only = mesh_only)
+                                mesh_only = mesh_only,
+                                save_parmesh = self.save_parmesh)
         if mesh_only: return
         engine.save_extra_to_file(extra_data)
         engine.is_initialzied = False
