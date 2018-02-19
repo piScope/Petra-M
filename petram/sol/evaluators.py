@@ -34,6 +34,15 @@ if use_parallel:
 else:
     import mfem.ser as mfem
 
+def evaluator_cls():    
+    from petram.sol.bdr_nodal_evaluator import BdrNodalEvaluator    
+    from petram.sol.slice_evaluator import SliceEvaluator
+    from petram.sol.edge_nodal_evaluator import EdgeNodalEvaluator
+    from petram.sol.ncface_evaluator import NCFaceEvaluator    
+    return {'BdrNodal': BdrNodalEvaluator,
+            'EdgeNodal': EdgeNodalEvaluator,
+            'NCFace':   NCFaceEvaluator,            
+            'Slice': SliceEvaluator,}    
 
 class Evaluator(object):
     '''
@@ -136,7 +145,7 @@ class EvaluatorCommon(Evaluator):
         print("making new agents", name, params, kwargs)
         super(EvaluatorCommon, self).make_agents(name, params, **kwargs)
         self.agents = {}
-        cls = evaluator_cls[name]
+        cls = evaluator_cls()[name]
         solsets = self.solsets
         for param in params:
             self.agents[param] = []
@@ -145,14 +154,14 @@ class EvaluatorCommon(Evaluator):
                 a.set_mesh(m)
                 self.agents[param].append(a)
 
-                
+'''                
 from petram.sol.bdr_nodal_evaluator import BdrNodalEvaluator    
 from petram.sol.slice_evaluator import SliceEvaluator
 from petram.sol.edge_nodal_evaluator import EdgeNodalEvaluator
 evaluator_cls = {'BdrNodal': BdrNodalEvaluator,
                  'EdgeNodal': EdgeNodalEvaluator,
                  'Slice': SliceEvaluator,}
-
+'''
 def_config = {'use_mp': False,
               'use_cs': False,
               'mp_worker': 2,

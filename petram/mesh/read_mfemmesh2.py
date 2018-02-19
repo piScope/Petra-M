@@ -1,3 +1,8 @@
+'''
+   extract_refined_mesh_data3
+
+   extract refined  mesh data from 2D (=ndim)  mesh
+'''
 import numpy as np
 from collections import defaultdict
 

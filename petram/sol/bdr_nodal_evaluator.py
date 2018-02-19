@@ -14,11 +14,13 @@ from weakref import WeakValueDictionary as WVD
 from petram.mfem_config import use_parallel
 if use_parallel:
     import mfem.par as mfem
+    from mfem.par import GlobGeometryRefiner as GR    
 else:
     import mfem.ser as mfem
-
+    from mfem.ser import GlobGeometryRefiner as GR
+    
 from petram.sol.evaluator_agent import EvaluatorAgent
-
+Geom = mfem.Geometry()
 
 def process_iverts2nodals(mesh, iverts):
     ''' 
@@ -189,10 +191,22 @@ class BdrNodalEvaluator(EvaluatorAgent):
         export_type = kwargs.pop('export_type', 1)
         if export_type == 2:
             return self.locs, val, None
-        if not edge_only:
-            return self.locs, val, self.iverts_inv
+
+        refine = kwargs.pop('refine', 1)
+        if refine == 1 or edge_only:
+            if not edge_only:
+                return self.locs, val, self.iverts_inv
+            else:
+                idx = edge_detect(self.iverts_inv)
+                return self.locs, val, idx
         else:
-            idx = edge_detect(self.iverts_inv)
-            return self.locs, val, idx
-    
+            from nodal_refinement import refine_surface_data
+            ptx, data, ridx = refine_surface_data(self.mesh(),
+                                                  self.ibeles,
+                                                  val, self.iverts_inv,
+                                                  refine)
+            return ptx, data, ridx
+
+
+
 

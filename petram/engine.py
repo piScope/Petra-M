@@ -1630,8 +1630,8 @@ class ParallelEngine(Engine):
         #A1 = M[offset, offset]
 
         A1.setDiag(gl_ess_tdof, 1.0) # fix diagonal since they are set 1+1j
-
         P, nonzeros, zeros = interp
+        
         if P is not None:
            dprint1("P is not None")
            A1 = A1.rap(P.transpose())

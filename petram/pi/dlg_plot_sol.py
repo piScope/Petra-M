@@ -207,13 +207,18 @@ class DlgPlotSol(DialogWithWindowList):
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices)==0: choices = ['no physcs in mode']
+            
+            s4 = {"style":wx.TE_PROCESS_ENTER,
+                  "choices":[str(x+1) for x in range(10)]}
+            
             ll = [['Expression', '', 0, {}],
                   ['Boundary Index', text, 0, {}],
                   ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extenstion'}],
-                  [None, True, 3, {"text":'merge solutions'}],]
-
+                  [None, True, 3, {"text":'merge solutions'}],
+                  ['Refine', 1, 104, s4],            
+                  [None, True, 3, {"text":'averaging'}],]
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
             self.elps['Bdr'] = elp
@@ -594,8 +599,8 @@ class DlgPlotSol(DialogWithWindowList):
             cls = WaveViewer
         else:
             cls = None
-            
-        data, battrs = self.eval_bdr(mode = 'plot')
+        refine = int(value[5])
+        data, battrs = self.eval_bdr(mode = 'plot', refine=refine)
         if data is None: return
         self.post_threadend(self.make_plot_bdr, data, battrs,
                             cls = cls, expr = expr)
@@ -686,7 +691,7 @@ class DlgPlotSol(DialogWithWindowList):
     def get_attrs_field_Bdr(self):
         return 1
                        
-    def eval_bdr(self, mode = 'plot', export_type = 1):
+    def eval_bdr(self, mode = 'plot', export_type = 1, refine = 1):
         from petram.sol.evaluators import area_tri
         value = self.elps['Bdr'] .GetValue()
         
@@ -702,9 +707,13 @@ class DlgPlotSol(DialogWithWindowList):
         else:
             do_merge1 = False
             do_merge2 = False
+                  
+        average = value[6]
         data, battrs = self.evaluate_sol_bdr(expr, battrs, phys_path,
                                              do_merge1, do_merge2,
-                                             export_type = export_type )
+                                             export_type = export_type,
+                                             refine = refine,
+                                             average = average)
 
         if data is None: return None, None
         return data, battrs
@@ -1086,21 +1095,29 @@ class DlgPlotSol(DialogWithWindowList):
            battrs = [int(x) for x in battrs.split(',')]
         else:
            battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
-           
+
+        average = kwargs.pop('average', True)
+                  
         from petram.sol.evaluators import build_evaluator
-        if (not 'Bdr' in self.evaluators or
-            self.evaluators['Bdr'].failed):
-            self.evaluators['Bdr'] =  build_evaluator(battrs,
-                                               mfem_model,
-                                               solfiles,
-                                               name = 'BdrNodal',
-                                               config = self.config)
+        if average:
+            key, name = 'Bdr', 'BdrNodal'
+            kkwargs = {}
+        else:
+            key, name = 'NCFace', 'NCFace'
+        
+        if (not key in self.evaluators or
+            self.evaluators[key].failed):
+            self.evaluators[key] =  build_evaluator(battrs,
+                                                    mfem_model,
+                                                    solfiles,
+                                                    name = name,
+                                                    config = self.config)
             
-        self.evaluators['Bdr'].validate_evaluator('BdrNodal', battrs, solfiles)
+        self.evaluators[key].validate_evaluator(name, battrs, solfiles)
 
         try:
-            self.evaluators['Bdr'].set_phys_path(phys_path)
-            return self.evaluators['Bdr'].eval(expr, do_merge1, do_merge2,
+            self.evaluators[key].set_phys_path(phys_path)
+            return self.evaluators[key].eval(expr, do_merge1, do_merge2,
                                                **kwargs)
         except:
             wx.CallAfter(dialog.showtraceback, parent = self,

@@ -30,7 +30,7 @@ import scipy
 from scipy.sparse import lil_matrix
 import petram.debug as debug
 debug.debug_default_level = 1
-dprint1, dprint2, dprint3 = debug.init_dprints('find_dof_map_h1_2')
+dprint1, dprint2, dprint3 = debug.init_dprints('dof_map')
 
 
 from petram.helper.matrix_file import write_matrix, write_vector
@@ -363,10 +363,10 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
         pto2 = pto2all[k2]
         newk2 = k2all[k2]
         sh2 = sh2all[k2]
-        if myid == 1: print newk1[:,2], newk1[:,1], rstart
-        if myid == 1:
-            x = [r if r >= 0 else -1-r for r in newk1[:,1]]
-            print [VDoFtoGTDoF[r] for r in x]
+        #if myid == 1: print newk1[:,2], newk1[:,1], rstart
+        #if myid == 1:
+        #    x = [r if r >= 0 else -1-r for r in newk1[:,1]]
+        #    print [VDoFtoGTDoF[r] for r in x]
         for k, p in enumerate(pt1):
             num_pts = num_pts + 1
             if newk1[k,2] in tdof: continue
@@ -614,3 +614,68 @@ def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
 # ToDO test these
 # map_surface_rt = map_surface_nd
 # map_surface_l2 = map_surface_h1
+
+def projection_matrix(idx1,  idx2,  fes, tdof,
+                      trans1=None, trans2 = None, dphase=0.0,
+                      tol = 1e-7, mode = 'surface'):
+    '''
+     map: destinatiom mapping 
+     smap: source mapping
+    '''
+    fec_name = fes.FEColl().Name()
+
+    if fec_name.startswith('ND') and mode == 'surface':
+        mapper = map_surface_nd
+    elif fec_name.startswith('H1') and mode == 'surface':
+        mapper = map_surface_h1
+    else:
+        raise NotImplementedError("mapping for " + fec_name)
+
+
+    map = mapper(idx2, idx1, fes,  trans1=trans1, trans2=None, tdof=tdof,
+                 tol=tol)
+
+    iscomplex = False
+    if (dphase == 0.):
+        pass
+    elif (dphase == 180.):
+        map = -map
+    else:
+        iscomplex = True
+        map = map.astype(complex)        
+        map *= np.exp(-1j*np.pi/180*dphase)
+      
+    m_coo = map.tocoo()
+    row = m_coo.row
+    col = m_coo.col
+    col = np.unique(col)
+    
+    if use_parallel:
+        start_row = fes.GetMyTDofOffset()
+        end_row = fes.GetMyTDofOffset() + fes.GetTrueVSize()
+        col =  np.unique(allgather_vector(col))
+        row = row + start_row
+    else:
+        start_row = 0
+        end_row = map.shape[0]
+
+    for i in range(map.shape[0]):
+        r = start_row+i
+        if not r in col: map[i, r] = 1.0
+        
+    from scipy.sparse import coo_matrix, csr_matrix
+    if use_parallel:
+        if iscomplex:
+            m1 = csr_matrix(map.real, dtype=float)
+            m2 = csr_matrix(map.imag, dtype=float) 
+        else:
+            m1 = csr_matrix(map.real, dtype=float)
+            m2 = None
+        from mfem.common.chypre import CHypreMat
+        M = CHypreMat(m1, m2)
+    else:
+        from petram.helper.block_matrix import convert_to_ScipyCoo
+
+        M = convert_to_ScipyCoo(coo_matrix(map, dtype=map.dtype))
+
+    return M, row, col

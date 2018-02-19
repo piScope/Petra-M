@@ -1,4 +1,8 @@
 	<<< Change Log >>>
+02/19/2018
+	* ncface and nodal_refinement is added
+	* tested only using 3D RF waveguide.
+	
 02/12/2018
 	* std_solver_model supports saving ParMesh file
 	* new dof_map is added, which will replace old mappers.
