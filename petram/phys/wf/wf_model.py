@@ -1,69 +1,27 @@
 '''
-COEFF2D : 2D coefficient form of PDE
 
-  m u'' + d u' + div( -c grad u - alpha u + gamma) 
-              + beta (grad u) + a u - f = 0
+   WF module
 
-  On domain boundary
-     n ( c grad u + alpha u - gamma) + q u = g - h^t mu
-       or 
-     u = u0  
-
-    m, d, a, f, g and h: scalar
-    alpha, beta and gamma : vector
-    c  : matrix (dim (space) ^2)
-
-    If all coefficients are independent from u, ux,
-    the system is linear.
-
-    BC
-     Zero Flux : 
-        n ( c grad u + alpha u - gamma) = 0
-     Flux: 
-        n ( c grad u + alpha u - gamma) = - g + q u
-     Dirichlet Boundary Condition
-        u = u0
-
-  Weakform integrators:
-    domain integral
-       c     -->  c (grad u, grad v)     bi
-       alpha -->  alpha * (u, grad v)    bi
-       gamma -->  gamma * grad v         li
-       beta  -->  beta * (grad u, v)     bi
-       f     -->  (f, v)                 bi
-    surface integral
-       c     -->   n dot c (grad u, v)   bi
-       alpha -->   n dot alpha  (u v)    bi
-       gamma -->   n dot gamma   v       li
- 
-    surface integral can be replaced by (g - qu, v)
-        
-  Domain:   
-     Coeff2D          : tensor dielectric
-
-  Boundary:
-     Coeff2D_Zero     : zero essential (default)
-     Coeff2D_Esse     : general essential
-  Point:
-     Coeff2D_PointEsse: point essential (default)
+   physics module which defines physics directly using MFEM weakform 
+   integrators 
 
 '''
-model_basename = 'Coeff2D'
-
 import numpy as np
+import wx
 
 from petram.model import Domain, Bdry, Point, Pair
 from petram.phys.phys_model import Phys, PhysModule
 
 import petram.debug as debug
-dprint1, dprint2, dprint3 = debug.init_dprints('Coeff2D_Model')
+dprint1, dprint2, dprint3 = debug.init_dprints('WF_Model')
 
 txt_predefined = ''    
+model_basename = 'WF'
 
-class Coeff2D_DefDomain(Domain, Phys):
+class WF_DefDomain(Domain, Phys):
     can_delete = False
     def __init__(self, **kwargs):
-        super(Coeff2D_DefDomain, self).__init__(**kwargs)
+        super(WF_DefDomain, self).__init__(**kwargs)
 
     
     def get_panel1_value(self):
@@ -75,15 +33,15 @@ class Coeff2D_DefDomain(Domain, Phys):
     def get_possible_domain(self):
         return []
         
-class Coeff2D_DefBdry(Bdry, Phys):
+class WF_DefBdry(Bdry, Phys):
     can_delete = False
     is_essential = False    
     def __init__(self, **kwargs):
-        super(Coeff2D_DefBdry, self).__init__(**kwargs)
+        super(WF_DefBdry, self).__init__(**kwargs)
         Phys.__init__(self)
 
     def attribute_set(self, v):
-        super(Coeff2D_DefBdry, self).attribute_set(v)        
+        super(WF_DefBdry, self).attribute_set(v)        
         v['sel_readonly'] = False
         v['sel_index'] = ['remaining']
         return v
@@ -91,15 +49,15 @@ class Coeff2D_DefBdry(Bdry, Phys):
     def get_possible_bdry(self):
         return []
     
-class Coeff2D_DefPoint(Point, Phys):
+class WF_DefPoint(Point, Phys):
     can_delete = False
     is_essential = False    
     def __init__(self, **kwargs):
-        super(Coeff2D_DefPoint, self).__init__(**kwargs)
+        super(WF_DefPoint, self).__init__(**kwargs)
         Phys.__init__(self)
 
     def attribute_set(self, v):
-        super(Coeff2D_DefPoint, self).attribute_set(v)        
+        super(WF_DefPoint, self).attribute_set(v)        
         v['sel_readonly'] = False
         v['sel_index'] = ['']
         return v
@@ -107,16 +65,16 @@ class Coeff2D_DefPoint(Point, Phys):
     def get_possible_point(self):
         return []                
 
-class Coeff2D_DefPair(Pair, Phys):
+class WF_DefPair(Pair, Phys):
     can_delete = False
     is_essential = False
     is_complex = False
     def __init__(self, **kwargs):
-        super(Coeff2D_DefPair, self).__init__(**kwargs)
+        super(WF_DefPair, self).__init__(**kwargs)
         Phys.__init__(self)
         
     def attribute_set(self, v):
-        super(Coeff2D_DefPair, self).attribute_set(v)
+        super(WF_DefPair, self).attribute_set(v)
         v['sel_readonly'] = False
         v['sel_index'] = []
         return v
@@ -124,15 +82,14 @@ class Coeff2D_DefPair(Pair, Phys):
     def get_possible_pair(self):
         return []
 
-class Coeff2D(PhysModule):
-    geom_dim = 2
+class WF(PhysModule):
     def __init__(self, **kwargs):
-        super(Coeff2D, self).__init__()
+        super(WF, self).__init__()
         Phys.__init__(self)
-        self['Domain'] = Coeff2D_DefDomain()
-        self['Boundary'] = Coeff2D_DefBdry()
-        self['Point'] = Coeff2D_DefPoint()        
-        self['Pair'] = Coeff2D_DefPair()        
+        self['Domain'] = WF_DefDomain()
+        self['Boundary'] = WF_DefBdry()
+        self['Point'] = WF_DefPoint()        
+        self['Pair'] = WF_DefPair()        
         
     @property
     def dep_vars(self):
@@ -151,23 +108,35 @@ class Coeff2D(PhysModule):
             names.append(t+'y')            
         return names
     
+    def is_complex(self):
+        return self.is_complex_valued
+    
     def get_fec(self):
         v = self.dep_vars
         return [(v[0], self.element),]
     
     def attribute_set(self, v):
-        v = super(Coeff2D, self).attribute_set(v)
+        v = super(WF, self).attribute_set(v)
         v["element"] = 'H1_FECollection'
         v["dim"] = 2
         v["ind_vars"] = 'x, y'
         v["dep_vars_suffix"] = ''
         v["dep_vars_base_txt"] = 'u'
+        v["is_complex_valued"] = False
         return v
     
     def panel1_param(self):
-        panels = super(Coeff2D, self).panel1_param()
+        panels = super(WF, self).panel1_param()
+        panels[1] = ["element", "H1", 4,
+                     {"style":wx.CB_READONLY, 
+                     "choices": ["H1_FECollection",
+                                 "L2_FECollection",
+                                 "ND_FECollection",
+                                 "RT_FECollection",
+                                 "DG_FECollection"]}]
         panels.extend([
                 ["indpendent vars.", self.ind_vars, 0, {}],
+                ["complex", self.is_complex_valued, 3, {"text":""}],
                 ["dep. vars. suffix", self.dep_vars_suffix, 0, {}],
                 ["dep. vars.", ','.join(self.dep_vars_base), 0, {}],
                 ["derived vars.", ','.join(self.der_vars), 2, {}],
@@ -177,33 +146,38 @@ class Coeff2D(PhysModule):
     def get_panel1_value(self):
         names  =  ', '.join(self.dep_vars_base)
         names2  = ', '.join(self.der_vars)
-        val =  super(Coeff2D, self).get_panel1_value()
+        val =  super(WF, self).get_panel1_value()
                       
-        val.extend([self.ind_vars, self.dep_vars_suffix,
+        val.extend([self.ind_vars, self.is_complex_valued,
+                    self.dep_vars_suffix,
                      names, names2, txt_predefined])
         return val
     
+                      
     def import_panel1_value(self, v):
-        v = super(Coeff2D, self).import_panel1_value(v)
+        v = super(WF, self).import_panel1_value(v)
         self.ind_vars =  str(v[0])
-        self.dep_vars_suffix =  str(v[1])
-        self.dep_vars_base_txt = ','.join([x.strip() for x in str(v[2]).split(',')])
+        self.is_complex_valued = bool(v[1])
+        self.dep_vars_suffix =  str(v[2])
+        self.dep_vars_base_txt = ','.join([x.strip() for x in str(v[3]).split(',')])
 
     def get_possible_domain(self):
-        from coeff2d_domains       import Coeff2D_Diffusion, Coeff2D_Source, Coeff2D_Convection, Coeff2D_Absorption
-        return [Coeff2D_Diffusion,  Coeff2D_Convection, Coeff2D_Absorption, Coeff2D_Source]
+        from wf_constraints       import WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint
+        return [WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint]
     
     def get_possible_bdry(self):
-        from coeff2d_bdries import Coeff2D_Essential, Coeff2D_Zero,Coeff2D_ZeroFlux
-        return [Coeff2D_ZeroFlux, Coeff2D_Zero, Coeff2D_Essential]
+        from wf_constraints       import WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint
+        return [WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint]
     
+    '''
     def get_possible_edge(self):
-        return []                
+        from wf_constraints       import WF_Edge
+        return [WeakIntegration]
     
     def get_possible_point(self):
-        from coeff2d_points       import Coeff2D_PointSource, Coeff2D_PointValue
-        return [Coeff2D_PointSource, Coeff2D_PointValue]
-    
+        from wf_constraints       import WF_Point
+        return [WeakIntegration]
+    '''
     def get_possible_pair(self):
         return []
 
@@ -230,4 +204,3 @@ class Coeff2D(PhysModule):
                 add_scalar(v, dep_var, suffix, ind_vars, solr, soli)
 
         return v
-    

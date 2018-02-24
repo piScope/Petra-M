@@ -449,7 +449,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
 class PhysModule(Phys):
     hide_ns_menu = False
-    geom_dim = 2  # geometry dimension (~ number of indpendent variables)
+    #geom_dim = 2  # geometry dimension (~ number of indpendent variables)
+    @property
+    def geom_dim(self):
+        return len(self.ind_vars.split(','))
+     
     def attribute_set(self, v):
         v = super(PhysModule, self).attribute_set(v)
         v["order"] = 1
@@ -458,28 +462,50 @@ class PhysModule(Phys):
         v["ind_vars"] = 'x, y'
         v["dep_vars_suffix"] = ''
         v["mesh_idx"] = 0
+        v['sel_index'] = ['all']        
+        v["bdr_sel"] = []
         return v
      
     def panel1_param(self):
         return [["mesh num.",   self.mesh_idx, 400, {}],
                 ["element",self.element,  2,   {}],
                 ["order",  self.order,    400, {}],]
+     
     def panel1_tip(self):
         return ["index of mesh", "element type", "element order"]
+     
     def get_panel1_value(self):                
         return [self.mesh_idx, self.element, self.order]
+     
     def import_panel1_value(self, v):
         self.mesh_idx = long(v[0])
         self.element = str(v[1])
         self.order = long(v[2])
         return v[3:]
      
+    def panel2_param(self):
+        return [["Domain",  'all',  0, {'changing_event':True,
+                                        'setfocus_event':True}, ],
+                ["Bdry",    '',     0,   {'changing_event':True,
+                                        'setfocus_event':True}, ]]
+    def get_panel2_value(self):
+        return  (','.join([str(x) for x in self.sel_index]),
+                 ','.join([str(x) for x in self.bdr_sel]))
+     
+    def import_panel2_value(self, v):
+        arr =  str(v[0]).split(',')
+        arr = [x for x in arr if x.strip() != '']
+        self.sel_index = arr
+        
+        arr =  str(v[1]).split(',')
+        arr = [x for x in arr if x.strip() != '']
+        self.bdr_sel = arr
+       
     @property
     def dep_vars(self):
         raise NotImplementedError(
              "you must specify this method in subclass")
-    #def dep_vars_label(self, name):
-    #    return name + self.dep_vars_suffix
+
     @property
     def dep_vars_base(self, name):
         raise NotImplementedError(

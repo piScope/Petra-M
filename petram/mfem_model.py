@@ -74,7 +74,20 @@ class MFEM_PhysRoot(Model):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.set_view_mode('phys')                                        
+        viewer.set_view_mode('phys')
+
+    def dependent_values(self):
+        '''
+        return dependent_values
+           names: name of values
+           pnames: list of physics module
+           pindex: index of dependent value in the physics module 
+        '''
+        names =  sum([c.dep_vars for c in self.iter_enabled()], [])
+        pnames = sum([[c.name()]*len(c.dep_vars) for c in self.iter_enabled()], [])
+        pindex = sum([range(len(c.dep_vars)) for c in self.iter_enabled()], [])
+
+        return names, pnames, pindex
 
 class MFEM_InitRoot(Model):    
     can_delete = False
@@ -93,7 +106,17 @@ class MFEM_InitRoot(Model):
         
     def is_viewmode_grouphead(self):
         return True
-    
+
+class MFEM_GeomRoot(Model):
+    can_delete = False
+    has_2nd_panel = False
+    def get_possible_child(self):
+        try:
+            from petram.geom.gmsh_geom_model import GmshGeom
+            return [GmshGeom]
+        except:
+            return []
+        
 class MFEM_MeshRoot(Model):
     can_delete = False
     has_2nd_panel = False    

@@ -150,7 +150,10 @@ class Model(RestorableOrderedDict):
 
         for k in d.keys():
            if not hasattr(self, k):
-               setattr(self, k, d[k])
+               try:
+                   setattr(self, k, d[k])
+               except AttributeError:
+                   print("Attribute Error", self, k, d[k])
         
     def attribute(self, *args, **kwargs):
         if 'showall' in kwargs:
@@ -228,6 +231,9 @@ class Model(RestorableOrderedDict):
 
     def get_child(self, id):
         return self[self.keys()[id]]
+    
+    def get_children(self):
+        return self.values()
     
     def get_possible_child(self):
         return []
@@ -376,9 +382,9 @@ class Model(RestorableOrderedDict):
                 yield x
 
     def iter_enabled(self):
-        for k in self.keys():
-            if not self[k].enabled: continue
-            yield self[k]
+        for child in self.values():
+            if not child.enabled: continue
+            yield child
     enum_enabled = iter_enabled #backward compabibility.
     
     def name(self):

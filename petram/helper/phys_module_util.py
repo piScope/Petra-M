@@ -36,13 +36,18 @@ def all_phys_models():
         mm = getattr(petram.phys, m)
         models.append(getattr(mm, m+'_model'))
 
-        chk = ([x.isdigit() for x in m]).index(True)
-        if hasattr(models[-1], 'model_basename'):
-            bs = getattr(models[-1], 'model_basename')
+        chk = [x.isdigit() for x in m]
+        if True in chk:
+            chk = chk.index(True)
+            if hasattr(models[-1], 'model_basename'):
+                bs = getattr(models[-1], 'model_basename')
+            else:
+                bs = m[:chk+2].upper()
+            classname = bs + m[chk+2:].lower()
+            classes.append(getattr(models[-1],classname))
         else:
-            bs = m[:chk+2].upper()
-        classname = bs + m[chk+2:].lower()
-        classes.append(getattr(models[-1],classname))
+            bs = getattr(models[-1], 'model_basename')
+            classes.append(getattr(models[-1], bs))            
     return models, classes
 
 

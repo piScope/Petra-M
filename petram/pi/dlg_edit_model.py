@@ -109,6 +109,7 @@ class DlgEditModel(DialogWithWindowList):
         self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)        
         self._focus_idx = None
         self._focus_obj = None
+        self.SetSize((600,400))
         
     def OnChildFocus(self, evt):
         self.GetParent()._palette_focus = 'edit'                
