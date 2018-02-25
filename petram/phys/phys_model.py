@@ -221,9 +221,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         return []                
 
     def get_possible_pair(self):
-        return []        
-
-    def get_possible_paint(self):
+        return []
+     
+    def get_possible_point(self):
         return []
 
     def get_independent_variables(self):
@@ -556,6 +556,10 @@ class PhysModule(Phys):
      
     def is_complex(self):
         return False
+     
+    def get_possible_pair(self):
+        from projection import BdrDoFProjection, DomainDoFProjection
+        return [DomainDoFProjection, BdrDoFProjection,]
      
     def soldict_to_solvars(self, soldict, variables):
         keys = soldict.keys()

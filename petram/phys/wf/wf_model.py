@@ -30,9 +30,6 @@ class WF_DefDomain(Domain, Phys):
     def import_panel1_value(self, v):
         pass
 
-    def get_possible_domain(self):
-        return []
-        
 class WF_DefBdry(Bdry, Phys):
     can_delete = False
     is_essential = False    
@@ -62,9 +59,6 @@ class WF_DefPoint(Point, Phys):
         v['sel_index'] = ['']
         return v
         
-    def get_possible_point(self):
-        return []                
-
 class WF_DefPair(Pair, Phys):
     can_delete = False
     is_essential = False
@@ -78,9 +72,6 @@ class WF_DefPair(Pair, Phys):
         v['sel_readonly'] = False
         v['sel_index'] = []
         return v
-
-    def get_possible_pair(self):
-        return []
 
 class WF(PhysModule):
     dim_fixed = False    
@@ -178,9 +169,9 @@ class WF(PhysModule):
     def get_possible_point(self):
         from wf_constraints       import WF_Point
         return [WeakIntegration]
-    '''
     def get_possible_pair(self):
         return []
+    '''
 
     def add_variables(self, v, name, solr, soli = None):
         from petram.helper.variables import add_coordinates

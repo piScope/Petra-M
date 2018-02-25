@@ -120,9 +120,10 @@ class Coeff2D_DefPair(Pair, Phys):
         v['sel_readonly'] = False
         v['sel_index'] = []
         return v
-
+    
     def get_possible_pair(self):
-        return []
+        from petram.phys.projection import BdrDoFProjection, DomainDoFProjection
+        return [BdrDoFProjection, DomainDoFProjection]
 
 class Coeff2D(PhysModule):
     geom_dim = 2
