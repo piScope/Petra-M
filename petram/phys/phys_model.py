@@ -1,3 +1,4 @@
+import wx
 import numpy as np
 from os.path import dirname, basename, isfile, join
 import warnings
@@ -424,6 +425,10 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     def geom_dim(self):
         root_phys = self.get_root_phys()
         return root_phys.geom_dim
+    @property
+    def dim(self):
+        root_phys = self.get_root_phys()
+        return root_phys.dim        
 
     def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None):
         if coeff is None: return
@@ -449,21 +454,26 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
 class PhysModule(Phys):
     hide_ns_menu = False
-    #geom_dim = 2  # geometry dimension (~ number of indpendent variables)
+    dim_fixed = True # if ndim of physics is fixed
     @property
     def geom_dim(self):
-        return len(self.ind_vars.split(','))
-     
+        return len(self.ind_vars.split(','))       
+    @property
+    def dim(self):
+        return self.ndim        
+    @dim.setter
+    def dim(self, value):
+        self.ndim = value
+       
     def attribute_set(self, v):
         v = super(PhysModule, self).attribute_set(v)
         v["order"] = 1
         v["element"] = 'H1_FECollection'
-        v["dim"] = 2
+        v["ndim"] = 2 #logical dimension (= ndim of mfem::Mesh)
         v["ind_vars"] = 'x, y'
         v["dep_vars_suffix"] = ''
         v["mesh_idx"] = 0
-        v['sel_index'] = ['all']        
-        v["bdr_sel"] = []
+        v['sel_index'] = ['all']
         return v
      
     def panel1_param(self):
@@ -484,22 +494,44 @@ class PhysModule(Phys):
         return v[3:]
      
     def panel2_param(self):
-        return [["Domain",  'all',  0, {'changing_event':True,
-                                        'setfocus_event':True}, ],
-                ["Bdry",    '',     0,   {'changing_event':True,
-                                        'setfocus_event':True}, ]]
+
+        if self.geom_dim == 3:
+           choice = ("Volume", "Surface", "Edge")
+        elif self.geom_dim == 2:
+           choice = ("Surface", "Edge")
+           
+        p = ["Type", choice[0], 4,
+             {"style":wx.CB_READONLY, "choices": choice}]
+        if self.dim_fixed:
+            return [["index",  'all',  0,   {'changing_event':True,
+                                            'setfocus_event':True}, ]]
+        else:
+            return [p, ["index",  'all',  0,   {'changing_event':True,
+                                            'setfocus_event':True}, ]]
+              
     def get_panel2_value(self):
-        return  (','.join([str(x) for x in self.sel_index]),
-                 ','.join([str(x) for x in self.bdr_sel]))
+        choice = ["Point", "Edge", "Surface", "Volume",]
+        if self.dim_fixed:
+            return ','.join(self.sel_index)
+        else:
+            return choice[self.dim], ','.join(self.sel_index)
      
     def import_panel2_value(self, v):
-        arr =  str(v[0]).split(',')
+        if self.dim_fixed:        
+            arr =  str(v[0]).split(',')
+        else:
+           if str(v[0]) == "Volume":
+              self.dim = 3
+           elif str(v[0]) == "Surface":
+              self.dim = 2
+           elif str(v[0]) == "Edge":
+              self.dim = 1                      
+           else:
+              self.dim = 1                                 
+           arr =  str(v[1]).split(',')
+           
         arr = [x for x in arr if x.strip() != '']
         self.sel_index = arr
-        
-        arr =  str(v[1]).split(',')
-        arr = [x for x in arr if x.strip() != '']
-        self.bdr_sel = arr
        
     @property
     def dep_vars(self):

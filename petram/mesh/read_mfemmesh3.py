@@ -125,6 +125,10 @@ def extract_refined_mesh_data3(mesh, refine = None):
     l_s_loop[0] = ll
 
     if len(bb_keys) == 0:
+        surf2line = l_s_loop[0]
+        vol2surf  = l_s_loop[1]
+        mesh.extended_connectivity = (None, surf2line, vol2surf)
+        
         ## iedge2bb : mapping from edge_id to boundary numbrer set
         ## X, cells, cell_data : the same data strucutre as pygmsh
         return X, cells, cell_data, l_s_loop, iedge2bb
@@ -155,6 +159,11 @@ def extract_refined_mesh_data3(mesh, refine = None):
         cells['vertex'] = table[iverts]
         cell_data['vertex']['physical'] = np.arange(len(iverts))+1
     
+    line2vert = {key: np.array(corners[iedge2bb[key]])+1 for key in iedge2bb}
+    surf2line = l_s_loop[0]
+    vol2surf  = l_s_loop[1]
+    mesh.extended_connectivity = (line2vert, surf2line, vol2surf)
+
     ## iedge2bb : mapping from edge_id to boundary numbrer set
     ## X, cells, cell_data : the same data strucutre as pygmsh
     return X, cells, cell_data, l_s_loop, iedge2bb

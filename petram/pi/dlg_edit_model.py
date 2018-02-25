@@ -272,15 +272,15 @@ class DlgEditModel(DialogWithWindowList):
                     phys = mm.get_root_phys()
                     engine.assign_sel_index(phys)
 
-                if mm.geom_dim == 3:
+                if mm.dim == 3:
                     viewer.canvas.toolbar.ClickP1Button('face')                    
                     viewer.highlight_face(mm._sel_index)
                     viewer._dom_bdr_sel = ([], mm._sel_index, [], [])
-                elif mm.geom_dim == 2:                    
+                elif mm.dim == 2:                    
                     viewer.canvas.toolbar.ClickP1Button('edge')                    
                     viewer.highlight_edge(mm._sel_index)
                     viewer._dom_bdr_sel = ([], [], mm._sel_index, [],)
-                elif mm.geom_dim == 1:                                        
+                elif mm.dim == 1:                                        
                     viewer.canvas.toolbar.ClickP1Button('dot')                    
                     viewer.highlight_point(mm._sel_index)
                     viewer._dom_bdr_sel = ([], [], [], mm._sel_index, )
@@ -292,15 +292,15 @@ class DlgEditModel(DialogWithWindowList):
                     phys = mm.get_root_phys()
                     engine.assign_sel_index(phys)
 
-                if mm.geom_dim == 3:
+                if mm.dim == 3:
                     viewer.canvas.toolbar.ClickP1Button('domain')                    
                     viewer.highlight_domain(mm._sel_index)
                     viewer._dom_bdr_sel = (mm._sel_index, [], [], [])                    
-                elif mm.geom_dim == 2:
+                elif mm.dim == 2:
                     viewer.canvas.toolbar.ClickP1Button('face')                    
                     viewer.highlight_face(mm._sel_index)
                     viewer._dom_bdr_sel = ([], mm._sel_index, [], [])
-                elif mm.geom_dim == 1:
+                elif mm.dim == 1:
                     viewer.canvas.toolbar.ClickP1Button('edge')                    
                     viewer.highlight_edge(mm._sel_index)
                     viewer._dom_bdr_sel = ([], [], mm._sel_index, [],)
@@ -603,8 +603,8 @@ class DlgEditModel(DialogWithWindowList):
             tt = 1
         else:
            return false_value
-        if mm.geom_dim == 2: tt += 1
-        if mm.geom_dim == 1: tt += 2
+        if mm.dim == 2: tt += 1
+        if mm.dim == 1: tt += 2
         
         return True, tnames[tt], idx, labels
 

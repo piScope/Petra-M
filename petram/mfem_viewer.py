@@ -516,7 +516,7 @@ class MFEMViewer(BookViewer):
             self._s_v_loop['phys'] = sl
             self._s_v_loop['mesh'] = sl            
             ret = (X, cells, None, cell_data, None)
-            self._ret_ret = ret
+            self._ret_ret = ret, iedge2bb
             plot_geometry(self, ret, geo_phys = 'physical')
             self._figure_data['phys'] = ret
             if not 'mesh' in self._figure_data:

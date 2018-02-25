@@ -111,6 +111,7 @@ def extract_refined_mesh_data2(mesh, refine = None):
     if mesh.GetNBE() == 0:
         # 2D surface mesh in 3D space could have no NBE
         iedge2bb = {}
+        mesh.extended_connectivity = (None, loop, None)
         return X, cells, cell_data, l_s_loop, iedge2bb
     ## fill line
     battrs = mesh.GetBdrAttributeArray()
@@ -149,7 +150,11 @@ def extract_refined_mesh_data2(mesh, refine = None):
         cells['vertex'] = table[iverts]
         cell_data['vertex']['physical'] = np.arange(len(iverts))+1
     
-    
+    line2vert = {key: np.array(corners[key])+1 for key in corners}
+    surf2line = l_s_loop[0]
+    vol2surf  = l_s_loop[1]
+    mesh.extended_connectivity = (line2vert, surf2line, vol2surf)
+                 
     ## iedge2bb : mapping from edge_id to boundary numbrer set
     ## X, cells, cell_data : the same data strucutre as pygmsh
     return X, cells, cell_data, l_s_loop, iedge2bb

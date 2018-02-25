@@ -162,6 +162,8 @@ class Coeff2D(PhysModule):
         v["ind_vars"] = 'x, y'
         v["dep_vars_suffix"] = ''
         v["dep_vars_base_txt"] = 'u'
+        v["vol_sel"] = []
+        v["surf_sel"] = ['all']
         return v
     
     def panel1_param(self):

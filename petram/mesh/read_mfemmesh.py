@@ -96,9 +96,9 @@ def extract_mesh_data(mesh, refine = None):
     if ndim == 3:
         l_s_loop = [None, loop]
     elif ndim == 2:
-        l_s_loop = loop, None
+        l_s_loop = [loop, None]
     else:
-        l_s_loop = None, None
+        l_s_loop = [None, None]
 
     if mesh.GetNBE() == 0:
         # 2D surface mesh in 3D space could have no NBE
@@ -132,6 +132,8 @@ def extract_mesh_data(mesh, refine = None):
         if len(iverts) != 0:        
             cells['vertex'] = table[iverts]
             cell_data['vertex']['physical'] = np.arange(len(iverts))+1
+        line2vert = {key: np.array(corners[iedge2bb[key]])+1 for key in iedge2bb}
+        
     elif ndim == 2:
         ivert = np.vstack([mesh.GetBdrElement(i).GetVerticesArray()
                            for i in range(mesh.GetNBE())])
@@ -149,13 +151,20 @@ def extract_mesh_data(mesh, refine = None):
            for iiv in d[key]:
                seen[iiv] += 1
            corners[key] = [kk for kk in seen if seen[kk]==1]
+           
         iverts = np.unique(np.hstack([corners[key] for key in corners]))
         if len(iverts) != 0:
             cells['vertex'] = table[iverts]
             cell_data['vertex']['physical'] = np.arange(len(iverts))+1
+        line2vert = {key: np.array(corners[key])+1 for key in corners}            
     else:
         pass
     
+
+    surf2line = l_s_loop[0]
+    vol2surf  = l_s_loop[1]
+    mesh.extended_connectivity = (line2vert, surf2line, vol2surf)
+                 
     ## iedge2bb : mapping from edge_id to boundary numbrer set
     ## X, cells, cell_data : the same data strucutre as pygmsh
     return X, cells, cell_data, l_s_loop, iedge2bb

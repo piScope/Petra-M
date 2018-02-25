@@ -51,7 +51,7 @@ class WF_DefBdry(Bdry, Phys):
     
 class WF_DefPoint(Point, Phys):
     can_delete = False
-    is_essential = False    
+    is_essential = False
     def __init__(self, **kwargs):
         super(WF_DefPoint, self).__init__(**kwargs)
         Phys.__init__(self)
@@ -83,6 +83,7 @@ class WF_DefPair(Pair, Phys):
         return []
 
 class WF(PhysModule):
+    dim_fixed = False    
     def __init__(self, **kwargs):
         super(WF, self).__init__()
         Phys.__init__(self)

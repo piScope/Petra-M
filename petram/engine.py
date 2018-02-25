@@ -1023,10 +1023,47 @@ class Engine(object):
             if p.mesh_idx < 0: continue
             mesh = self.meshes[p.mesh_idx]
             if mesh is None: continue
-            self.do_assign_sel_index(p, mesh.attributes.Max(), Domain)
-            self.do_assign_sel_index(p, mesh.bdr_attributes.Max(), Bdry)
+            if len(p.sel_index) == 0: continue
+            if p.dim == mesh.Dimension():
+                if p.sel_index[0] == 'all' or p.sel_index[0] == 'remaining':
+                   dom_choice = [x+1 for x in range(mesh.attributes.Max())]
+                   bdr_choice = [x+1 for x in range(mesh.bdr_attributes.Max())]
+                else:
+                   dom_choice = [int(x) for x in p.sel_index]
+                   if hasattr(mesh, 'extended_connectivity'):
+                       if p.dim == 3:
+                           c = mesh.extended_connectivity[2]
+                       elif p.dim == 2:
+                           c = mesh.extended_connectivity[1]                          
+                       elif p.dim == 1:
+                           c = mesh.extended_connectivity[0]
+                       bdr_choice = np.unique(np.hstack([c[int(x)]for x in p.sel_index]))
+                   else:
+                       print("!!!! mesh does not have the extended connectivity data")
+                       bdr_choice = range(mesh.bdr_attributes.Max())                   
+            elif p.dim == mesh.Dimension()-1: #model surf(edge) in 3D(2D) mesh
+                if not hasattr(mesh, 'extended_connectivity'):
+                   assert False, "!!!! mesh does not have the extended connectivity data"
+                if p.sel_index[0] == 'all' or p.sel_index[0] == 'remaining':
+                    dom_choice = [x+1 for x in range(mesh.bdr_attributes.Max())]
+                else:
+                    dom_choice = [int(x) for x in p.sel_index]
+                if p.dim == 2:
+                    c = mesh.extended_connectivity[1]
+                elif p.dim == 1:
+                    c = mesh.extended_connectivity[0]
+                else:
+                    assert False, "!!!! can not make low-d model"
+                bdr_choice = np.unique(np.hstack([c[int(x)]for x in p.sel_index]))
+            elif p.dim == mesh.Dimension()-2: #model edge in 3D mesh
+                assert False, "not implemenbted"
+            else:
+                assert False, "not implemenbted"              
+
+            self.do_assign_sel_index(p, dom_choice, Domain)
+            self.do_assign_sel_index(p, bdr_choice, Bdry)
      
-    def do_assign_sel_index(self, m, size, cls):
+    def do_assign_sel_index(self, m, choice, cls):
         dprint1("## setting _sel_index (1-based number): "+m.fullname())
         #_sel_index is 0-base array
         def _walk_physics(node):
@@ -1034,24 +1071,25 @@ class Engine(object):
             for k in node.keys():
                 yield node[k]
         rem = None
-        checklist = [True]*size
+        checklist = [True]*len(choice)
+        print(choice)
         for node in m.walk():
            if not isinstance(node, cls): continue
            if not node.enabled: continue
-           ret = node.process_sel_index()
+           ret = node.process_sel_index(choice)
            if ret is None:
               if rem is not None: rem._sel_index = []
               rem = node
            elif ret == -1:
-              node._sel_index = range(size)
+              node._sel_index = choice
            else:
               dprint1(node.fullname(), ret)
               for k in ret:
-                 if k-1 >= len(checklist): continue
+                 idx = list(choice).index(k)
                  if node.is_secondary_condition: continue
-                 checklist[k-1] = False
+                 checklist[idx] = False
         if rem is not None:
-           rem._sel_index = list(np.where(checklist)[0]+1)
+           rem._sel_index = list(np.array(choice)[checklist])
            dprint1(rem.fullname() + ':' + rem._sel_index.__repr__())
 
     def find_domain_by_index(self, phys, idx,  check_enabled = False):

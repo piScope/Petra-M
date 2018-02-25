@@ -9,6 +9,7 @@ from collections import OrderedDict
 import traceback
 from collections import MutableMapping
 import os
+import numpy as np
 
 from functools import reduce
 
@@ -129,7 +130,7 @@ class Model(RestorableOrderedDict):
         v['sel_index'] = ['remaining']
         return v
 
-    def process_sel_index(self):
+    def process_sel_index(self, choice = None):
         if len(self.sel_index) == 1 and self.sel_index[0] == 'remaining':
             self._sel_index = []
             return None
@@ -142,6 +143,10 @@ class Model(RestorableOrderedDict):
             self._sel_index = []
         else:
             self._sel_index = [long(i) for i in self.sel_index]
+        if choice is not None:
+            ret = np.array(self._sel_index);
+            ret = list(ret[np.in1d(ret, choice)])
+            self._sel_index = ret
         return self._sel_index
             
     def update_attribute_set(self, kw = None):
