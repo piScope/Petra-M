@@ -643,13 +643,13 @@ class Pair(Model):
         return self.parent.get_possible_pair()
 
     def panel2_param(self):
-        return [["Destination",  '',  0, {'changing_event':True,
-                                          'setfocus_event':True}],
-                ["Source",  '',  0, {'changing_event':True, 
-                                     'setfocus_event':True}] ]
+        return [["Source",  '',  0, {'changing_event':True, 
+                                     'setfocus_event':True}],
+                ["Destination",  '',  0, {'changing_event':True,
+                                         'setfocus_event':True}],]
 
     def panel2_sel_labels(self):
-        return ['destination', 'source']
+        return ['source', 'destination']
 
     def panel2_all_sel_index(self):
         try:
@@ -661,7 +661,7 @@ class Pair(Model):
         except:
             idx2 = []
             
-        return [idx, idx2]
+        return [idx2, idx]
     
     def is_wildcard_in_sel(self):
         ans = [False, False]
@@ -676,16 +676,16 @@ class Pair(Model):
         return ans
         
     def get_panel2_value(self):
-        return (','.join([str(x) for x in self.sel_index]),
-                ','.join([str(x) for x in self.src_index]),)
+        return (','.join([str(x) for x in self.src_index]),
+                ','.join([str(x) for x in self.sel_index]),)
     
     def import_panel2_value(self, v):
         arr =  str(v[0]).split(',')
         arr = [x for x in arr if x.strip() != '']
-        self.sel_index = arr
+        self.src_index = arr
         arr =  str(v[1]).split(',')
         arr = [x for x in arr if x.strip() != '']
-        self.src_index = arr
+        self.sel_index = arr
         
     def process_sel_index(self):
         if len(self.sel_index) == 0:

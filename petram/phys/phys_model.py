@@ -456,10 +456,10 @@ class PhysModule(Phys):
     hide_ns_menu = False
     dim_fixed = True # if ndim of physics is fixed
     @property
-    def geom_dim(self):
+    def geom_dim(self):  # if dim of geometry
         return len(self.ind_vars.split(','))       
-    @property
-    def dim(self):
+    @property   
+    def dim(self):  # if dim of FESpace independent variable
         return self.ndim        
     @dim.setter
     def dim(self, value):
@@ -558,8 +558,8 @@ class PhysModule(Phys):
         return False
      
     def get_possible_pair(self):
-        from projection import BdrDoFProjection, DomainDoFProjection
-        return [DomainDoFProjection, BdrDoFProjection,]
+        from projection import BdrProjection, DomainProjection
+        return [DomainProjection, BdrProjection,]
      
     def soldict_to_solvars(self, soldict, variables):
         keys = soldict.keys()

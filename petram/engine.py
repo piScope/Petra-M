@@ -1058,8 +1058,9 @@ class Engine(object):
             elif p.dim == mesh.Dimension()-2: #model edge in 3D mesh
                 assert False, "not implemenbted"
             else:
-                assert False, "not implemenbted"              
-
+                assert False, "not implemenbted"
+                
+            p._phys_sel_index = dom_choice
             self.do_assign_sel_index(p, dom_choice, Domain)
             self.do_assign_sel_index(p, bdr_choice, Bdry)
      

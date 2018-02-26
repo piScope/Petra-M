@@ -258,11 +258,11 @@ class DlgEditModel(DialogWithWindowList):
             
         self._focus_idx = None
         from petram.model import Bdry, Domain, Pair
+        from petram.phys.phys_model import PhysModule
         viewer = self.GetParent()
         engine = viewer.engine
         if hasattr(mm, '_sel_index'):
             self._focus_idx = 0
-            
             if not mm.enabled:
                 viewer.highlight_none()
                 viewer._dom_bdr_sel = ([], [], [], [])
@@ -306,7 +306,30 @@ class DlgEditModel(DialogWithWindowList):
                     viewer._dom_bdr_sel = ([], [], mm._sel_index, [],)
                 else:
                     pass
-
+        elif isinstance(mm, PhysModule):
+            if not mm.enabled:
+                viewer.highlight_none()
+                viewer._dom_bdr_sel = ([], [], [], [])
+            else:
+                if not hasattr(mm, '_phys_sel_index') or mm.sel_index == 'all':
+                    engine.assign_sel_index(mm)
+                
+                if mm.dim == 3:
+                    viewer.canvas.toolbar.ClickP1Button('domain')                    
+                    viewer.highlight_domain(mm._phys_sel_index)
+                    viewer._dom_bdr_sel = (mm._phys_sel_index, [], [], [])                    
+                elif mm.dim == 2:
+                    viewer.canvas.toolbar.ClickP1Button('face')                    
+                    viewer.highlight_face(mm._phys_sel_index)
+                    viewer._dom_bdr_sel = ([], mm._phys_sel_index, [], [])
+                elif mm.dim == 1:
+                    viewer.canvas.toolbar.ClickP1Button('edge')                    
+                    viewer.highlight_edge(mm._phys_sel_index)
+                    viewer._dom_bdr_sel = ([], [], mm._phys_sel_index, [],)
+                else:
+                    pass
+        else:
+            pass
         if evt is not None:
             mm.onItemSelChanged(evt)      
             evt.Skip()

@@ -81,8 +81,8 @@ class DoFProjection(Pair, Phys):
     def assemble_matrix(self):
         raise NotImplementedError("subclass must implement this")
     
-class BdrDoFProjection(DoFProjection, Bdry):
+class BdrProjection(DoFProjection, Bdry):
     pass
-class DomainDoFProjection(DoFProjection, Domain):
+class DomainProjection(DoFProjection, Domain):
     pass
 
