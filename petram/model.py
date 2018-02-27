@@ -687,7 +687,7 @@ class Pair(Model):
         arr = [x for x in arr if x.strip() != '']
         self.sel_index = arr
         
-    def process_sel_index(self):
+    def process_sel_index(self,  choice = None):
         if len(self.sel_index) == 0:
             self._sel_index = []            
         elif self.sel_index[0] == '':            
@@ -702,6 +702,15 @@ class Pair(Model):
         else:
             self._src_index = [long(i) for i in self.src_index]
         self._sel_index = self._sel_index + self._src_index
+
+        if choice is not None:
+            ret = np.array(self._sel_index);
+            ret = list(ret[np.in1d(ret, choice)])
+            self._sel_index = ret
+            ret = np.array(self._src_index);
+            ret = list(ret[np.in1d(ret, choice)])
+            self._src_index = ret
+        
             
         return self._sel_index
 
