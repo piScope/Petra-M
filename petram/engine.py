@@ -1,3 +1,4 @@
+
 #!/bin/env python
 import sys
 import os
@@ -1032,12 +1033,13 @@ class Engine(object):
                    dom_choice = [int(x) for x in p.sel_index]
                    if hasattr(mesh, 'extended_connectivity'):
                        if p.dim == 3:
-                           c = mesh.extended_connectivity[2]
+                           c = mesh.extended_connectivity.vol2surf
                        elif p.dim == 2:
-                           c = mesh.extended_connectivity[1]                          
+                           c = mesh.extended_connectivity.surf2line
                        elif p.dim == 1:
-                           c = mesh.extended_connectivity[0]
-                       bdr_choice = np.unique(np.hstack([c[int(x)]for x in p.sel_index]))
+                           c = mesh.extended_connectivity.line2ver
+                       bdr_choice = np.unique(np.hstack([c[int(x)]
+                                                         for x in p.sel_index]))
                    else:
                        print("!!!! mesh does not have the extended connectivity data")
                        bdr_choice = range(mesh.bdr_attributes.Max())                   
@@ -1049,9 +1051,9 @@ class Engine(object):
                 else:
                     dom_choice = [int(x) for x in p.sel_index]
                 if p.dim == 2:
-                    c = mesh.extended_connectivity[1]
+                    c = mesh.extended_connectivity.surf2line
                 elif p.dim == 1:
-                    c = mesh.extended_connectivity[0]
+                    c = mesh.extended_connectivity.line2vert
                 else:
                     assert False, "!!!! can not make low-d model"
                 bdr_choice = np.unique(np.hstack([c[int(x)]for x in p.sel_index]))

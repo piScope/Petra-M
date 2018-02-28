@@ -123,17 +123,24 @@ def extract_refined_mesh_data3(mesh, refine = None):
 
     ll.default_factory = None
     l_s_loop[0] = ll
-
+    
+    line2edge = {}
+    vert2vert = {}
     if len(bb_keys) == 0:
-        surf2line = l_s_loop[0]
-        vol2surf  = l_s_loop[1]
-        mesh.extended_connectivity = (None, surf2line, vol2surf)
+        mesh.extended_connectivity = {'line2vert':None,
+                                      'surf2line':l_s_loop[0],
+                                      'vol2surf': l_s_loop[1],
+                                      'line2edge':line2edge,
+                                      'vert2vert':vert2vert}
         
         ## iedge2bb : mapping from edge_id to boundary numbrer set
         ## X, cells, cell_data : the same data strucutre as pygmsh
         return X, cells, cell_data, l_s_loop, iedge2bb
 
-    idx2 = [ie for key in bb_keys for ie in bb_edges[key]]  # all mfem edge index
+    # all mfem edge index
+    idx2 = [ie for key in bb_keys for ie in bb_edges[key]]
+    line2edge = {idx+1: bb_edges[key] for idx, key in enumerate(bb_edges)}
+    
     attr22 = np.hstack([[k+1]*len(bb_edges[key]) for k, key in enumerate(bb_keys)])
 
     attr2 = {i:attr22[k]  for k, i in enumerate(idx2)}
@@ -160,9 +167,13 @@ def extract_refined_mesh_data3(mesh, refine = None):
         cell_data['vertex']['physical'] = np.arange(len(iverts))+1
     
     line2vert = {key: np.array(corners[iedge2bb[key]])+1 for key in iedge2bb}
-    surf2line = l_s_loop[0]
-    vol2surf  = l_s_loop[1]
-    mesh.extended_connectivity = (line2vert, surf2line, vol2surf)
+    vert2vert = {i+1: iverts[i] for i in range(len(iverts))}
+    
+    mesh.extended_connectivity = {'line2vert':line2vert,
+                                  'surf2line':l_s_loop[0],
+                                  'vol2surf': l_s_loop[1],
+                                  'line2edge':line2edge,
+                                  'vert2vert':vert2vert}
 
     ## iedge2bb : mapping from edge_id to boundary numbrer set
     ## X, cells, cell_data : the same data strucutre as pygmsh

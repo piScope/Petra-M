@@ -472,7 +472,7 @@ class MFEMViewer(BookViewer):
     def onNewMesh(self, evt):
         from ifigure.widgets.dialog import read
         from petram.mesh.mesh_model import MeshFile        
-        path = read(message='Select mesh file to read', wildcard='*.mesh')
+        path = read(message='Select mesh file to read', wildcard='MFEM|*.mesh|Gmsh|*.msh')
         if path == '': return
         od = self.model.param.getvar('mfem_model')
         
@@ -512,7 +512,8 @@ class MFEMViewer(BookViewer):
         
         mesh  = self.model.variables.getvar('mesh')
         if mesh is not None:
-            X, cells, cell_data, sl, iedge2bb = extract_mesh_data(mesh)
+            from petram.mesh.refined_mfem_geom import default_refine as refine
+            X, cells, cell_data, sl, iedge2bb = extract_mesh_data(mesh, refine)
             self._s_v_loop['phys'] = sl
             self._s_v_loop['mesh'] = sl            
             ret = (X, cells, None, cell_data, None)

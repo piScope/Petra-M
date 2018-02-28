@@ -18,6 +18,35 @@ else:
    import mfem.ser as mfem
    myid = 0
 
+def collect_data(index, mesh, mode, skip_vtx= False):
+   
+    if mode == 'bdr':
+        GetXAttributeArray  = mesh.GetBdrAttributeArray
+        GetXElementVertices = mesh.GetBdrElementVertices
+        GetXBaseGeometry    = mesh.GetBdrElementBaseGeometry
+        attrs = mesh.GetBdrAttributeArray()
+    elif mode == 'dom':
+        GetXAttributeArray  = mesh.GetAttributeArray
+        GetXElementVertices = mesh.GetElementVertices
+        GetXBaseGeometry    = mesh.GetElementBaseGeometry
+        attrs = mesh.GetAttributeArray()
+        
+    idx = np.arange(len(attrs))[np.in1d(attrs, index)]
+    attrs = attrs[idx]
+                 
+    if len(idx) > 0:
+        ivert = [GetXElementVertices(i) for i in idx]
+        nverts = np.array([len(x) for x in ivert], dtype=int)                 
+        ivert = np.hstack(ivert).astype(int, copy=False)
+        base = np.hstack([GetXBaseGeometry(i)
+                          for i in idx]).astype(int, copy=False)
+    else:
+        ivert = np.array([], dtype=int)
+        nverts= np.array([], dtype=int)
+        base = np.array([], dtype=int)
+        
+    return idx, attrs, ivert, nverts, base
+ 
 def distribute_shared_vertex(pmesh):
     master_entry = []
     local_data = {}
@@ -55,8 +84,18 @@ def distribute_shared_vertex(pmesh):
             master_data[entry] = data
     return local_data, master_data
 
-def surface(mesh, index, filename = '', precision=8):
+def surface(mesh, in_attr, filename = '', precision=8):
     '''
+    make a new mesh which contains only spedified boundaries.
+
+    we want to assign boundary attribute number consistently.
+
+    MFEM currently does not have a mechanism to assign numbers
+    to ndim-2 and below elements.
+    We take this informatnion from extended_connectivity data
+    gathered when loading mesh. This way, edge(vertex) numbers
+    in 3D (2D) mesh is properied carrid over to surface. 
+
     mesh must be 
     if sdim == 3:
        a domain of   2D mesh
@@ -64,18 +103,10 @@ def surface(mesh, index, filename = '', precision=8):
     if sdim == 2:
        a domain  in 2D mesh
 
-    index : eihter
+    in_attr : eihter
     filename : an option to save the file 
     return new surface mesh
 
-    # MFEM Geometry Types (see mesh/geom.hpp):
-    #
-    # POINT       = 0
-    # SEGMENT     = 1
-    # TRIANGLE    = 2
-    # SQUARE      = 3
-    # TETRAHEDRON = 4
-    # CUBE        = 5
     '''
     sdim = mesh.SpaceDimension()
     dim = mesh.Dimension()
@@ -100,7 +131,7 @@ def surface(mesh, index, filename = '', precision=8):
     else:
         assert False, "not supprint sdim==1"
     attrs = GetXAttributeArray()
-    idx = np.arange(len(attrs))[np.in1d(attrs, index)]
+    idx = np.arange(len(attrs))[np.in1d(attrs, in_attr)]
     attrs = attrs[idx]
     
     if len(idx) > 0:
@@ -121,9 +152,6 @@ def surface(mesh, index, filename = '', precision=8):
     Nvert = len(u)
     Nelem = len(idx)
     
-    #cnverts = np.hstack([0, np.cumsum(nverts)])    
-    #indices  = np.hstack([indices[cnverts[i]:cnverts[i+1]] for i in range(len(cnverts)-1)])
-
     if use_parallel:
         #accumulate all info...
         Nelem = np.sum(allgather(Nelem))
@@ -139,7 +167,7 @@ def surface(mesh, index, filename = '', precision=8):
         offset = np.hstack([0, np.cumsum(allgather(mesh.GetNV()))])
 
         ivert = ivert + offset[myid] # -> global numbering
-        u = u +  offset[myid] # -> global numbering
+        u = u +  offset[myid]        # -> global numbering
         #nicePrint(u)        
         ## eliminat shared vertices from data collection
         
@@ -257,87 +285,66 @@ def surface(mesh, index, filename = '', precision=8):
 
     return omesh
 
-def volume(mesh, index, filename = '', precision=8):
+def volume(mesh, in_attr, filename = '', precision=8):
     '''
-    mesh must be 
-    if sdim == 3:
-       a domain of   2D mesh
-       a boundary of 3D mesh
-    if sdim == 2:
-       a domain  in 2D mesh
+    make a new mesh which contains only spedified attributes.
 
-    index : eihter
+    note: 
+       1) boundary elements are also copied and bdr_attributes
+          are maintained
+       2) in parallel, new mesh must be geometrically continuous.
+          this routine does not check it
+         
+    mesh must have sdim == 3:
+    in_attr : domain attribute
     filename : an option to save the file 
-    return new surface mesh
 
-    # MFEM Geometry Types (see mesh/geom.hpp):
-    #
-    # POINT       = 0
-    # SEGMENT     = 1
-    # TRIANGLE    = 2
-    # SQUARE      = 3
-    # TETRAHEDRON = 4
-    # CUBE        = 5
+    return new volume mesh
     '''
+    in_attr = np.atleast_1d(in_attr)
     sdim = mesh.SpaceDimension()
     dim = mesh.Dimension()
     Nodal = mesh.GetNodalFESpace()
     hasNodal = (Nodal is not None)    
 
     if sdim != 3: assert False, "sdim must be three for volume mesh"
-    if dim != 3: assert False, "sdim must be three for volume mesh"    
+    if dim != 3: assert False, "sdim must be three for volume mesh"
 
-    GetXAttributeArray  = mesh.GetAttributeArray
-    GetXElementVertices = mesh.GetElementVertices
-    GetXBaseGeometry    = mesh.GetElementBaseGeometry
-    
-    attrs = GetXAttributeArray()
-    idx = np.arange(len(attrs))[np.in1d(attrs, index)]
-    attrs = attrs[idx]
-    
+    idx, attrs, ivert, nverts, base = collect_data(in_attr, mesh, 'dom')
+    u, indices = np.unique(ivert, return_inverse = True)
     if len(idx) > 0:
-        ivert = np.hstack([GetXElementVertices(i)
-                           for i in idx]).astype(int, copy=False)
-        u, indices = np.unique(ivert, return_inverse = True)
-    
-        nverts= np.hstack([len(GetXElementVertices(i))
-                           for i in idx]).astype(int, copy=False)
-        base = np.hstack([GetXBaseGeometry(i)
-                          for i in idx]).astype(int, copy=False)
-        vtx = np.vstack([mesh.GetVertexArray(i) for i in u])
+        vtx = np.vstack([mesh.GetVertexArray(i) for i in u])    
     else:
-        ivert = np.array([], dtype=int)
-        u, indices = np.unique(ivert, return_inverse = True)
-    
-        nverts= np.array([], dtype=int)
-        base = np.array([], dtype=int)
         vtx = np.array([]).reshape((-1, sdim))
     
+    v2s = mesh.extended_connectivity['vol2surf']
+    in_battr = np.unique(np.hstack([v2s[k] for k in in_attr]))
+    bidx, battrs, bivert, nbverts, bbase = collect_data(in_battr, mesh, 'bdr')
+
     Nvert = len(u)
     Nelem = len(idx)
+    Nbelem = len(bidx)
     
-    #cnverts = np.hstack([0, np.cumsum(nverts)])    
-    #indices  = np.hstack([indices[cnverts[i]:cnverts[i+1]] for i in range(len(cnverts)-1)])
-
     if use_parallel:
         #accumulate all info...
         Nelem = np.sum(allgather(Nelem))
         base = allgather_vector(base)
         nverts = allgather_vector(nverts)
         attrs = allgather_vector(attrs)
-
         
+        Nbelem = np.sum(allgather(Nbelem))       
+        battrs = allgather_vector(battrs)
+        bbase = allgather_vector(bbase)
+        nbverts = allgather_vector(nbverts)
+        
+        offset = np.hstack([0, np.cumsum(allgather(mesh.GetNV()))])
+        ivert = ivert + offset[myid] # -> global numbering
+        bivert = bivert + offset[myid] # -> global numbering
+        u = u +  offset[myid] # -> global numbering
+
         ld, md = distribute_shared_vertex(mesh)
 
-        #nicePrint("ld", ld)
-        #nicePrint("md", md)        
-        offset = np.hstack([0, np.cumsum(allgather(mesh.GetNV()))])
-
-        ivert = ivert + offset[myid] # -> global numbering
-        u = u +  offset[myid] # -> global numbering
-        #nicePrint(u)        
         ## eliminat shared vertices from data collection
-        
         vtx_mask = np.array([True]*len(u))
         #nicePrint(ivert)
         #nicePrint("Nvert", Nvert)        
@@ -345,9 +352,13 @@ def volume(mesh, index, filename = '', precision=8):
             mid, g_in_master = key
             if mid == myid: continue
             for lv, mv in zip(ld[key], md[key]):
-                idx0 =  np.where(ivert == lv)[0]
-                if len(idx0) > 0:
-                    ivert[idx0] = mv
+                iii =  np.where(ivert == lv)[0]
+                if len(iii) > 0:
+                    ivert[iii] = mv
+                jjj =  np.where(bivert == lv)[0]
+                if len(jjj) > 0:
+                    bivert[jjj] = mv
+                    
             idx0 = np.in1d(u, ld[key])
             Nvert = Nvert - np.sum(idx0)
             vtx_mask[idx0] = False
@@ -355,36 +366,45 @@ def volume(mesh, index, filename = '', precision=8):
         Nvert = allgather(Nvert)
         cNvert = np.hstack([0, np.cumsum(Nvert)])
         Nvert = np.sum(Nvert)
-        #nicePrint(cNvert)
+        
+
         ivert = allgather_vector(ivert)
         u, indices = np.unique(ivert, return_inverse = True)
+        
         size = vtx.shape
         if len(vtx) > 0: vtx = vtx[vtx_mask, :]
         vtx = allgather_vector(vtx.flatten()).reshape(-1, sdim)
 
-
+        bivert = allgather_vector(bivert)
+        
+    bindices =[np.where(u == biv)[0][0] for biv in bivert]
+    
     cnverts = np.hstack([0, np.cumsum(nverts)])
-    #nicePrint(list(indices), list(cnverts), Nelem, vtx.shape)
-
-    omesh = mfem.Mesh(3, Nvert, Nelem, 0, sdim)
-
+    cnbverts = np.hstack([0, np.cumsum(nbverts)])
+    
+    omesh = mfem.Mesh(3, Nvert, Nelem, Nbelem, sdim)
+         
     for i in range(Nelem):
         iv = indices[cnverts[i]:cnverts[i+1]]
-
-        if base[i] == 2:  # triangle
-            omesh.AddTri(list(iv), attrs[i])
-        elif base[i] == 3: # quad
-            omesh.AddQuad(list(iv), attrs[i])
-        elif base[i] == 4: # tet
+        if base[i] == 4: # tet
             omesh.AddTet(list(iv), attrs[i])
         elif base[i] == 5: # hex
             omesh.AddHex(list(iv), attrs[i])
         else:
             assert False, "unsupported base geometry: " + str(base[i])
+            
+    for i in range(Nbelem):
+        iv = bindices[cnbverts[i]:cnbverts[i+1]]
+        if bbase[i] == 2:  # triangle
+            omesh.AddBdrTriangle(list(iv), battrs[i])
+        elif bbase[i] == 3: # quad
+            omesh.AddBdrQuad(list(iv), battrs[i])
+        else:
+            assert False, "unsupported base geometry: " + str(base[i])
 
     for i in range(Nvert):
-         omesh.AddVertex(list(vtx[i]))
-
+        omesh.AddVertex(list(vtx[i]))
+        
     omesh.FinalizeTopology()
     omesh.Finalize(refine=False, fix_orientation=True)
 

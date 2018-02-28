@@ -1,15 +1,46 @@
+'''
+
+    extract_mesh_data: 
+
+    digest mesh object data for plotting.
+    if also extend mfem:Mesh object to include the 
+    extended_connectivity information
+  
+    extended_connectivity = {'line2vert':{},   # two edges to make an edge
+                             'surf2line':{},   # line loop for surface
+                             'vol2surf': {},   # surface loop for volue
+                             'line2edge':{},   # line number to mfem edge element
+                             'vert2vert':{}}   # vertex number to mfem vertex id
+
+
+'''
 import numpy as np
 from collections import defaultdict
 
 from petram.mesh.find_edges import find_edges
 from petram.mesh.find_vertex import find_vertex
-from mfem.ser import GlobGeometryRefiner
 
+from petram.mfem_config import use_parallel
 
-def extract_mesh_data(mesh, refine = None):
+if use_parallel:
+    from mfem.par import GlobGeometryRefiner
+    import mfem.par as mfem
+    from mfem.par import ParMesh
+else:
+    from mfem.ser import GlobGeometryRefiner
+    import mfem.ser as mfem
+
+    # dummy class
+    class ParMesh(object):
+        pass
+
+def extract_mesh_data(mesh, refine = 1):
+    if isinstance(mesh, ParMesh):
+        assert False, "mesh data must be processed in serial"
+    
     hasNodal = mesh.GetNodalFESpace() is not None    
     ndim = mesh.Dimension()
-    
+
     if hasNodal and refine != 1:
        if ndim == 3:
            from read_mfemmesh3 import extract_refined_mesh_data3           
@@ -99,15 +130,25 @@ def extract_mesh_data(mesh, refine = None):
         l_s_loop = [loop, None]
     else:
         l_s_loop = [None, None]
+        
+    line2edge = {}
+    vert2vert = {}
 
     if mesh.GetNBE() == 0:
         # 2D surface mesh in 3D space could have no NBE
         iedge2bb = {}
+        mesh.extended_connectivity = {'line2vert':None,
+                                      'surf2line':l_s_loop[0],
+                                      'vol2surf': l_s_loop[1],
+                                      'line2edge':line2edge,
+                                      'vert2vert':vert2vert}
+        
         return X, cells, cell_data, l_s_loop, iedge2bb
         
     ## fill line
     cell_data['line'] = {}
-    cell_data['vertex'] = {}    
+    cell_data['vertex'] = {}
+    
     kbdr = mesh.GetBdrAttributeArray()
     if ndim == 3:
         edges, bb_edges = find_edges(mesh)
@@ -118,7 +159,7 @@ def extract_mesh_data(mesh, refine = None):
         l_s_loop[0] = ll
         for k in range(np.max(kbdr)):
             ll[k+1] = []
-        
+
         for idx, key in enumerate(bb_edges.keys()):
             kedge.extend([idx+1]*len(bb_edges[key]))
             iedge2bb[idx+1] = key
@@ -126,14 +167,16 @@ def extract_mesh_data(mesh, refine = None):
                                          for ie in bb_edges[key]]))
             for k in key:
                 ll[k].append(idx+1)
+            line2edge[idx+1] = bb_edges[key]
         cells['line'] = table[np.vstack(cell_line)]
         cell_data['line']['physical'] = np.array(kedge)
+        
         corners, iverts = find_vertex(mesh, bb_edges)
         if len(iverts) != 0:        
             cells['vertex'] = table[iverts]
             cell_data['vertex']['physical'] = np.arange(len(iverts))+1
         line2vert = {key: np.array(corners[iedge2bb[key]])+1 for key in iedge2bb}
-        
+        vert2vert = {i+1: iverts[i] for i in range(len(iverts))}
     elif ndim == 2:
         ivert = np.vstack([mesh.GetBdrElement(i).GetVerticesArray()
                            for i in range(mesh.GetNBE())])
@@ -156,14 +199,16 @@ def extract_mesh_data(mesh, refine = None):
         if len(iverts) != 0:
             cells['vertex'] = table[iverts]
             cell_data['vertex']['physical'] = np.arange(len(iverts))+1
-        line2vert = {key: np.array(corners[key])+1 for key in corners}            
+        line2vert = {key: np.array(corners[key])+1 for key in corners}
+        vert2vert = {i+1: iverts[i] for i in range(len(iverts))}
     else:
         pass
-    
 
-    surf2line = l_s_loop[0]
-    vol2surf  = l_s_loop[1]
-    mesh.extended_connectivity = (line2vert, surf2line, vol2surf)
+    mesh.extended_connectivity = {'line2vert':line2vert,
+                                  'surf2line':l_s_loop[0],
+                                  'vol2surf': l_s_loop[1],
+                                  'line2edge':line2edge,
+                                  'vert2vert':vert2vert}
                  
     ## iedge2bb : mapping from edge_id to boundary numbrer set
     ## X, cells, cell_data : the same data strucutre as pygmsh
