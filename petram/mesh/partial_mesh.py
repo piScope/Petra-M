@@ -59,10 +59,7 @@ def _collect_data(index, mesh, mode, skip_vtx= False):
     else:
        assert False, "Unknown mode (_collect_data) "+mode
 
-
-                 
     if len(idx) > 0:
-        nicePrint(idx)
         ivert = [GetXElementVertices(i) for i in idx]
         nverts = np.array([len(x) for x in ivert], dtype=int)                 
         ivert = np.hstack(ivert).astype(int, copy=False)
@@ -251,13 +248,13 @@ def surface(mesh, in_attr, filename = '', precision=8):
     elif sdim == 2 and dim == 2: mode = 'dom', 'bdr'
 
     idx, attrs, ivert, nverts, base = _collect_data(in_attr, mesh, mode[0])
-    nicePrint(len(ivert))
+
     s2l = mesh.extended_connectivity['surf2line']
     in_eattr = np.unique(np.hstack([s2l[k] for k in in_attr]))
     eidx, eattrs, eivert, neverts, ebase = _collect_data(in_eattr, mesh,
                                                           mode[1])
-    nicePrint(len(eivert))
-    nicePrint(len(np.hstack((eivert, ivert))))
+    #nicePrint(len(eivert))
+    #nicePrint(len(np.hstack((eivert, ivert))))
     u, indices = np.unique(np.hstack((ivert, eivert)),
                            return_inverse = True)
     keelem = np.array([True]*len(eidx), dtype=bool)    
