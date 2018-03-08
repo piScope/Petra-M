@@ -331,7 +331,7 @@ def surface(mesh, in_attr, filename = '', precision=8):
 
     if hasNodal:
         odim = omesh.Dimension()
-        print("odim", odim)
+        print("odim, dim, sdim", odim, " ", dim, " ", sdim)
         fec = Nodal.FEColl()
         dNodal = mfem.FiniteElementSpace(omesh, fec, sdim)
         omesh.SetNodalFESpace(dNodal)
@@ -355,6 +355,8 @@ def surface(mesh, in_attr, filename = '', precision=8):
            else:
                assert False, "not supported ndim (3->1)" 
         elif sdim == 2:
+           GetNX           =  Nodal.GetNE                          
+           dGetNX          = dNodal.GetNE                          
            GetXDofs         =  Nodal.GetElementDofs
            dGetXDofs        = dNodal.GetElementDofs
            

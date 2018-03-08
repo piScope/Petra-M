@@ -168,7 +168,7 @@ def scatter_vector2(vector, mpi_data_type, rcounts = None):
 def check_complex(obj, root=0):
     return MPI.COMM_WORLD.bcast(np.iscomplexobj(obj), root=root)
 
-
+    
 def get_row_partitioning(r_A):
     warn('get_row_partition is deplicated', DeprecationWarning,
                   stacklevel=2)

@@ -2,6 +2,9 @@ import os
 import numpy as np
 from scipy.sparse import coo_matrix
 from collections import OrderedDict, defaultdict
+from petram.helper.global_named_list import GlobalNamedList
+
+debug = True
 
 def distribute_shared_entity(pmesh):
     '''
@@ -78,6 +81,35 @@ def distribute_shared_entity(pmesh):
     return local_data, master_data
 
 
+def bdr_loop(mesh):
+    use_parallel = hasattr(mesh, "GroupNVertices")
+    
+    ## fill line/surface loop info
+    doms = np.unique(mesh.GetAttributeArray()).astype(int, copy=False)
+    attrs =  mesh.GetBdrAttributeArray()
+    
+    if use_parallel:
+        from petram.helper.mpi_recipes import allgather_vector
+        
+        doms = allgather_vector(doms).astype(int, copy=False)
+        doms = np.unique(doms)
+        
+    loop= {k:[] for k in doms}
+
+    for ibdr in range(mesh.GetNBE()):
+        idx = mesh.GetBdrElementEdgeIndex(ibdr)
+        elem1, elem2 = mesh.GetFaceElements(idx)
+        if elem1 != -1:
+            i = mesh.GetAttribute(elem1)
+            loop[i].append(attrs[ibdr])
+        if elem2 != -1:
+            i = mesh.GetAttribute(elem2)
+            loop[i].append(attrs[ibdr])
+    for k in loop:
+        loop[k] = np.unique(loop[k])
+
+    return loop
+    
 def find_edge_corner(mesh):
     '''
     For 3D geometry
@@ -104,22 +136,15 @@ def find_edge_corner(mesh):
     ne = mesh.GetNEdges()
     assert ndim == 3, "find_edge_corner is for 3D mesh"
 
-    '''
-    if ndim == 2:
-        # 2D mesh
-        get_edges = mesh.GetElementEdges
-        get_attr  = mesh.GetAttribute
-        iattr= mesh.GetAttributeArray()     # min of this array is 1
-        nattr = np.max(iattr)
-        nb = mesh.GetNE()        
-    else:
-    '''
     # 3D mesh
     get_edges = mesh.GetBdrElementEdges
     get_attr  = mesh.GetBdrAttribute
     iattr= mesh.GetBdrAttributeArray()  # min of this array is 1
     nattr = np.max(iattr)        
     nb = mesh.GetNBE()
+    if mesh.GetNBE() == 0:    
+        return {}, {}, {}
+    
 
     if use_parallel:
         offset = np.hstack([0, np.cumsum(allgather(mesh.GetNEdges()))])
@@ -309,7 +334,7 @@ def find_edge_corner(mesh):
     if len(u_own) > 0:
         vtx = np.vstack([mesh.GetVertexArray(i - myoffsetv) for i in u_own])
     else:
-        vtx = np.atleast_1d([]).astype(int).reshape(-1, sdim)
+        vtx = np.atleast_1d([]).reshape(-1, sdim)
     if use_parallel:
         u_own = gather_vector(u_own)
         vtx   = gather_vector(vtx.flatten())
@@ -335,9 +360,10 @@ def find_edge_corner(mesh):
                 u_own[iii] = lv
         idx = np.logical_and(u_own >= offsetv[myid], u_own < offsetv[myid+1])
         u_own = u_own[idx]
-        vtx = comm.bcast(vtx)
-        vtx = comm.bcast(vtx)[idx.flatten()]
-        ivert = ivert[idx]                          
+        ivert = ivert[idx]
+        #vtx = comm.bcast(vtx)
+        #vtx = comm.bcast(vtx)[idx.flatten()]
+
 
     vert2vert = {iv: iu-myoffsetv for iv, iu in zip(ivert, u_own)}
     #nicePrint('vert2vert', vert2vert)
@@ -424,21 +450,204 @@ def find_edge_corner(mesh):
     for k, attr_set in enumerate(sorted_key):
         for a in attr_set: surf2line[a].append(k+1)
 
-
-    nicePrint('line2vert', line2vert)
-    #nicePrint('vert2vert', vert2vert)    
-    '''
-    comm.Barrier()
-    for j in range(nprc):
-        if j == myid:
-            for k in line2vert:
-#               print myid, k, [mesh.GetVertexArray(vert2vert[x]) for x in line2vert[k]]
-            for x in vert2vert:
-                 print myid, x, mesh.GetVertexArray(vert2vert[x])
-        comm.Barrier()        
-    '''
-    '''
-    edges : face index -> edge elements
-    bb_edges : set of face index -> edge elements
-    '''
+    if debug:
+        g = GlobalNamedList(line2vert)
+        g.sharekeys()
+        gg = g.gather(overwrite = False).unique()
+        if myid==0: print(gg)
+    
     return surf2line, line2vert, line2edge, vert2vert
+
+def find_corner(mesh):
+    '''
+    For 3D geometry
+      find line (boundary between two bdr_attribute) and
+      corner of lines
+    '''
+    use_parallel = hasattr(mesh, "GroupNVertices")
+    
+    if use_parallel:
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
+        nprc = MPI.COMM_WORLD.size   
+        comm  = MPI.COMM_WORLD
+        
+        from mfem.common.mpi_debug import nicePrint, niceCall        
+        from petram.helper.mpi_recipes import allgather, allgather_vector, gather_vector
+        from petram.mesh.mesh_utils import distribute_shared_entity        
+        if not hasattr(mesh, "shared_info"):
+            mesh.shared_info = distribute_shared_entity(mesh)
+    else:
+        myid = 0
+    ndim =  mesh.Dimension()
+    sdim =  mesh.SpaceDimension()    
+    ne = mesh.GetNEdges()
+    assert ndim == 2, "find_edge_corner is for 3D mesh"
+
+    get_edges = mesh.GetElementEdges
+    get_attr  = mesh.GetAttribute
+    iattr= mesh.GetAttributeArray()     # min of this array is 1
+    nattr = np.max(iattr)
+    nb = mesh.GetNE()
+    if mesh.GetNBE() == 0:    
+        return {}, {}, {}
+
+    if use_parallel:
+        offset = np.hstack([0, np.cumsum(allgather(mesh.GetNEdges()))])
+        offsetf = np.hstack([0, np.cumsum(allgather(mesh.GetNFaces()))])
+        offsetv = np.hstack([0, np.cumsum(allgather(mesh.GetNV()))])
+        myoffset = offset[myid]
+        myoffsetf = offsetf[myid]
+        myoffsetv = offsetv[myid]                
+        nattr = max(allgather(nattr))
+        ne = sum(allgather(mesh.GetNEdges()))
+    else:
+        myoffset = 0
+        myoffsetf = 0
+        myoffsetv = 0        
+        
+    battrs =  mesh.GetBdrAttributeArray()
+    iedges = np.hstack([mesh.GetBdrElementEdgeIndex(ibdr) for ibdr in
+                        range(mesh.GetNBE())]).astype(int, copy=False)
+    
+    line2edge = GlobalNamedList()
+    line2edge.setlists(battrs, iedges)
+    
+    if use_parallel:
+        ld, md = mesh.shared_info                
+        iedges = iedges+myoffset
+
+    line2realedge = GlobalNamedList(line2edge)
+
+    if use_parallel:    
+        for key2 in ld:
+            if key2[0] == myid: continue
+            iii = np.in1d(iedges, ld[key2][1], invert = True)
+            iedges = iedges[iii]
+            
+    line2realedge.setlists(battrs, iedges)
+    line2realvert = GlobalNamedList()
+    for key in line2realedge:
+        data = np.hstack([mesh.GetEdgeVertices(i-myoffset)+ myoffsetv
+                           for i in line2realedge[key]])
+        if use_parallel:        
+            for key2 in ld:
+                if key2[0] == myid: continue                
+                for lv, mv in zip(ld[key2][0], md[key2][0]):
+                   iii =  np.where(data == lv)[0]
+                   data[iii] = mv
+        line2realvert[key] = data
+    line2realvert.sharekeys().gather(distribute=True)
+    
+    corners = GlobalNamedList()
+    for key in line2realvert:
+        seen = defaultdict(int)
+        for iiv in line2realvert[key]:
+            seen[iiv] += 1
+        corners[key] = [kk for kk in seen if seen[kk]==1]
+
+    sorted_key = corners.sharekeys().globalkeys
+    
+    corners.allgather()
+    u_own = np.unique(np.hstack([corners[key] for key in corners]).astype(int, copy=False))
+
+    if use_parallel:
+        idx = np.logical_and(u_own >= offsetv[myid], u_own < offsetv[myid+1])
+        u_own = u_own[idx]
+
+    if len(u_own) > 0:
+        vtx = np.hstack([mesh.GetVertexArray(i - myoffsetv) for i in u_own])
+    else:
+        vtx = np.atleast_1d([])
+    if use_parallel:
+        vtx = gather_vector(vtx)
+        u_own = gather_vector(u_own)
+
+    # sort vertex  
+    if myid == 0:
+        vtx = vtx.reshape(-1, sdim)
+        tmp = sorted([(k, tuple(x)) for k, x in enumerate(vtx)], key=lambda x:x[1])
+        vtx = np.vstack([x[1] for x in tmp])
+        u_own = np.hstack([[u_own[x[0]] for x in tmp]]).astype(int)
+        ivert=np.arange(len(vtx), dtype=int)+1
+
+
+    if use_parallel:
+        #if myid != 0:
+        #    u_own = None; vtx = None
+        u_own = comm.bcast(u_own)
+        ivert=np.arange(len(u_own), dtype=int)+1
+        for key in ld:
+            if key[0] == myid: continue
+            for lv, mv in zip(ld[key][0], md[key][0]):
+                iii =  np.where(u_own == mv)[0]
+                u_own[iii] = lv
+        idx = np.logical_and(u_own >= offsetv[myid], u_own < offsetv[myid+1])
+        u_own = u_own[idx]
+        vtx = comm.bcast(vtx)
+        vtx = comm.bcast(vtx)[idx.flatten()]
+        ivert = ivert[idx]                          
+
+    vert2vert = {iv: iu-myoffsetv for iv, iu in zip(ivert, u_own)}
+    
+    # mapping line index to vertex index (not MFFEM vertex id)
+    line2vert = {}
+    #nicePrint(corners)
+    corners.bcast(distributed = True)
+    for j, key in enumerate(sorted_key):
+        data = corners[key]
+        if use_parallel:                     
+            for key2 in ld:
+                if key2[0] == myid: continue
+                for lv, mv in zip(ld[key2][0], md[key2][0]):
+                    iii =  np.where(data == mv)[0]
+                    data[iii] = lv
+            idx = np.logical_and(data >= offsetv[myid],
+                                 data < offsetv[myid+1])
+            data = data[idx]
+        data = list(data - myoffsetv)
+        line2vert[j+1] = [k for k in vert2vert
+                          if vert2vert[k] in data]
+   
+    if debug:
+        g = GlobalNamedList(line2vert)
+        g.sharekeys()
+        gg = g.gather(overwrite = False).unique()
+        if myid==0: print(gg)
+        for i in range(nprc):
+            comm.barrier()
+            if myid == i:
+                for k in vert2vert:
+                    print(myid, k, mesh.GetVertexArray(vert2vert[k]))
+            comm.barrier()                  
+    return line2vert, line2edge, vert2vert
+
+def get_extended_connectivity(mesh):
+    
+    ndim = mesh.Dimension()
+    if ndim == 3:
+        v2s = bdr_loop(mesh)
+        s2l, l2v, l2e, v2v = find_edge_corner(mesh)        
+
+    elif ndim == 2:
+        v2s = None
+        s2l = bdr_loop(mesh)
+        l2v, l2e, v2v = find_corner(mesh)
+        
+    else:
+        v2s = None; s2l = None
+        l2e = bdr_loop(mesh)
+        l2v = None
+        v2v = None
+        
+    mesh.extended_connectivity = {}
+    me = mesh.extended_connectivity
+    me['vol2surf']  = v2s
+    me['surf2line'] = s2l
+    me['line2edge'] = l2e
+    me['line2vert'] = l2v
+    me['vert2vert'] = v2v
+        
+        
+
+    
