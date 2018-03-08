@@ -83,7 +83,7 @@ def extract_mesh_data(mesh, refine = 1):
     indices3 = indices[:ll3]
     indices4 = indices[ll3:]
 
-    
+    # table u -> u's idx
     table = np.zeros(np.max(u)+1, dtype=int)-1
     for k, u0 in enumerate(u):
         table[u0] = k
@@ -106,7 +106,41 @@ def extract_mesh_data(mesh, refine = 1):
         cells['quad'] = indices4.reshape(ivert4.shape)
         cell_data['quad'] = {}
         cell_data['quad']['physical'] = attrs4
+
+
+    from petram.mesh.mesh_utils import  get_extended_connectivity
+    get_extended_connectivity(mesh)
+    ec = mesh.extended_connectivity
+
+    cell_data['line'] = {}
+    cell_data['vertex'] = {}
+    l2e = ec['line2edge']
+    v2v = ec['vert2vert']
+
+    kedge = []
+
+    kedge = np.array(sum([[key]*len(l2e[key]) for key in l2e], [])).astype(int)
+    iverts = np.vstack([mesh.GetEdgeVertices(ie)
+                        for key in l2e for ie in l2e[key]])
+    cells['line'] = table[iverts]
+    cell_data['line']['physical'] = np.array(kedge)
+
+    kvert = np.array([v2v[key] for key in v2v]).astype(int)    
+    iverts = np.vstack([mesh.GetEdgeVertices(v2v[key]) for key in v2v])
+    cells['vertex'] = table[iverts]    
+    cell_data['vertex']['physical'] = kvert
     
+    if ndim == 3:
+        l_s_loop = [ec['surf2line'], ec['vol2surf']]
+    elif ndim == 2:
+        l_s_loop = [ec['surf2line'], None]
+    else:
+        l_s_loop = [None, None]
+
+    iedge2bb = None # is it used?
+    return X, cells, cell_data, l_s_loop, iedge2bb
+
+    '''
     ## fill line/surface loop info
     loop= {}
     for k in kdom:
@@ -124,6 +158,7 @@ def extract_mesh_data(mesh, refine = 1):
     for k in kdom:
         loop[k] = np.unique(loop[k])
         
+    
     if ndim == 3:
         l_s_loop = [None, loop]
     elif ndim == 2:
@@ -148,6 +183,12 @@ def extract_mesh_data(mesh, refine = 1):
     ## fill line
     cell_data['line'] = {}
     cell_data['vertex'] = {}
+    
+        cells['line'] = table[np.vstack(cell_line)]
+        cell_data['line']['physical'] = np.array(kedge)
+    
+            cells['vertex'] = table[iverts]
+            cell_data['vertex']['physical'] = np.arange(len(iverts))+1
     
     kbdr = mesh.GetBdrAttributeArray()
     if ndim == 3:
@@ -213,3 +254,4 @@ def extract_mesh_data(mesh, refine = 1):
     ## iedge2bb : mapping from edge_id to boundary numbrer set
     ## X, cells, cell_data : the same data strucutre as pygmsh
     return X, cells, cell_data, l_s_loop, iedge2bb
+    '''

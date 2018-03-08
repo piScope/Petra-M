@@ -156,10 +156,10 @@ def find_edge_corner(mesh):
         nattr = max(allgather(nattr))
         ne = sum(allgather(mesh.GetNEdges()))
     else:
-        myoffset = 0
-        myoffsetf = 0
-        myoffsetv = 0        
-        
+        myoffset  = np.array(0, dtype=int)
+        myoffsetf = np.array(0, dtype=int)
+        myoffsetv = np.array(0, dtype=int)
+
     edges = defaultdict(list)
     iedges = np.arange(nb, dtype=int)
     
@@ -254,14 +254,15 @@ def find_edge_corner(mesh):
 
     # sort keys (= attribute set) 
     keys = bb_edges.keys()
-    if use_parallel:  keys = comm.gather(keys)
+    if use_parallel:
+        keys = comm.gather(keys)
+        keys = sum(keys, [])
     sorted_key = None
     if myid == 0:
-        sorted_key = list(set(sum(keys, [])))
+        sorted_key = keys
         sorted_key.sort(key = lambda x:(len(x), x))
 
     if use_parallel: sorted_key = comm.bcast(sorted_key, root=0)
-    
     bb_edgess = OrderedDict()
     for k in sorted_key:
         if k in bb_edges:
@@ -373,9 +374,9 @@ def find_edge_corner(mesh):
     #nicePrint(corners)
     for j, key in enumerate(sorted_key):
         data = corners[key] if key in corners else None
-        data = comm.bcast(data, root = j % nprc)
-        data = np.array(data, dtype=int)
-        if use_parallel:                     
+        if use_parallel:
+            data = comm.bcast(data, root = j % nprc)
+            data = np.array(data, dtype=int)            
             for key2 in ld:
                 if key2[0] == myid: continue
                 for lv, mv in zip(ld[key2][0], md[key2][0]):
@@ -384,6 +385,8 @@ def find_edge_corner(mesh):
             idx = np.logical_and(data >= offsetv[myid],
                                  data < offsetv[myid+1])
             data = data[idx]
+        else:
+            data = np.array(data, dtype=int)                        
         data = list(data - myoffsetv)
         line2vert[j+1] = [k for k in vert2vert
                           if vert2vert[k] in data]
@@ -454,7 +457,7 @@ def find_edge_corner(mesh):
         g = GlobalNamedList(line2vert)
         g.sharekeys()
         gg = g.gather(overwrite = False).unique()
-        if myid==0: print(gg)
+        if myid==0: print("debug (gathered line2vert)", gg)
     
     return surf2line, line2vert, line2edge, vert2vert
 
@@ -479,6 +482,8 @@ def find_corner(mesh):
             mesh.shared_info = distribute_shared_entity(mesh)
     else:
         myid = 0
+        nprc = 1
+        
     ndim =  mesh.Dimension()
     sdim =  mesh.SpaceDimension()    
     ne = mesh.GetNEdges()
@@ -502,9 +507,9 @@ def find_corner(mesh):
         nattr = max(allgather(nattr))
         ne = sum(allgather(mesh.GetNEdges()))
     else:
-        myoffset = 0
-        myoffsetf = 0
-        myoffsetv = 0        
+        myoffset  = np.array(0, dtype=int)
+        myoffsetf = np.array(0, dtype=int)
+        myoffsetv = np.array(0, dtype=int)
         
     battrs =  mesh.GetBdrAttributeArray()
     iedges = np.hstack([mesh.GetBdrElementEdgeIndex(ibdr) for ibdr in
@@ -518,13 +523,12 @@ def find_corner(mesh):
         iedges = iedges+myoffset
 
     line2realedge = GlobalNamedList(line2edge)
-
     if use_parallel:    
         for key2 in ld:
             if key2[0] == myid: continue
             iii = np.in1d(iedges, ld[key2][1], invert = True)
             iedges = iedges[iii]
-            
+
     line2realedge.setlists(battrs, iedges)
     line2realvert = GlobalNamedList()
     for key in line2realedge:
@@ -537,8 +541,9 @@ def find_corner(mesh):
                    iii =  np.where(data == lv)[0]
                    data[iii] = mv
         line2realvert[key] = data
-    line2realvert.sharekeys().gather(distribute=True)
-    
+
+    line2realvert.sharekeys().gather(nprc, distribute=True)
+
     corners = GlobalNamedList()
     for key in line2realvert:
         seen = defaultdict(int)
@@ -571,7 +576,6 @@ def find_corner(mesh):
         u_own = np.hstack([[u_own[x[0]] for x in tmp]]).astype(int)
         ivert=np.arange(len(vtx), dtype=int)+1
 
-
     if use_parallel:
         #if myid != 0:
         #    u_own = None; vtx = None
@@ -593,7 +597,7 @@ def find_corner(mesh):
     # mapping line index to vertex index (not MFFEM vertex id)
     line2vert = {}
     #nicePrint(corners)
-    corners.bcast(distributed = True)
+    corners.bcast(nprc, distributed = True)
     for j, key in enumerate(sorted_key):
         data = corners[key]
         if use_parallel:                     
@@ -612,14 +616,14 @@ def find_corner(mesh):
     if debug:
         g = GlobalNamedList(line2vert)
         g.sharekeys()
-        gg = g.gather(overwrite = False).unique()
+        gg = g.gather(nprc, overwrite = False).unique()
         if myid==0: print(gg)
         for i in range(nprc):
-            comm.barrier()
+            if use_parallel:comm.barrier()
             if myid == i:
                 for k in vert2vert:
                     print(myid, k, mesh.GetVertexArray(vert2vert[k]))
-            comm.barrier()                  
+            if use_parallel:comm.barrier()                  
     return line2vert, line2edge, vert2vert
 
 def get_extended_connectivity(mesh):

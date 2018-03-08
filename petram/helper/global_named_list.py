@@ -25,7 +25,8 @@ import numpy as np
 try:
     from mpi4py import MPI
     myid = MPI.COMM_WORLD.rank
-    nprc = MPI.COMM_WORLD.size   
+    #nprc = MPI.COMM_WORLD.size
+    # this is because even if nprc > 1, we may want this behave as if nprc = 1
     comm  = MPI.COMM_WORLD
         
     from mfem.common.mpi_debug import nicePrint, niceCall        
@@ -114,8 +115,14 @@ class GlobalNamedList(dict):
             dest[key] = data
         return dest
                                 
-    def gather(self, root=None, distribute = False, overwrite=True):
-        if not hasMPI: return
+    def gather(self, nprc, root=None, distribute = False, overwrite=True):
+        # we don't take nprc from MPI.COMM_WROLD (see a comment above)
+        if nprc == 1:
+            dest = self if overwrite else GlobalNamedList()            
+            if not overwrite:
+                for key in self:
+                    dest[key] = np.array(self[key]).copy()
+            return dest
         dest = self if overwrite else GlobalNamedList()
         for j, key in enumerate(self._gkey):
             if key in self:
@@ -131,8 +138,14 @@ class GlobalNamedList(dict):
                 if key in dest: del dest[key]
         return dest
         
-    def bcast(self, root = None, distributed = False, overwrite=True):
-        if not hasMPI: return
+    def bcast(self, nprc, root = None, distributed = False, overwrite=True):
+        # we don't take nprc from MPI.COMM_WROLD (see a comment above)
+        if nprc == 1:
+            dest = self if overwrite else GlobalNamedList()            
+            if not overwrite:
+                for key in self:
+                    dest[key] = np.array(self[key]).copy()
+            return dest
         dest = self if overwrite else GlobalNamedList()      
         for j, key in enumerate(self._gkey):
             r = 0 if root is None else root
