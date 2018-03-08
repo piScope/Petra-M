@@ -131,6 +131,7 @@ def find_edge_corner(mesh):
             mesh.shared_info = distribute_shared_entity(mesh)
     else:
         myid = 0
+        nprc = 1
     ndim =  mesh.Dimension()
     sdim =  mesh.SpaceDimension()    
     ne = mesh.GetNEdges()
@@ -456,7 +457,7 @@ def find_edge_corner(mesh):
     if debug:
         g = GlobalNamedList(line2vert)
         g.sharekeys()
-        gg = g.gather(overwrite = False).unique()
+        gg = g.gather(nprc, overwrite = False).unique()
         if myid==0: print("debug (gathered line2vert)", gg)
     
     return surf2line, line2vert, line2edge, vert2vert
@@ -653,5 +654,41 @@ def get_extended_connectivity(mesh):
     me['vert2vert'] = v2v
         
         
+def populate_plotdata(mesh, table, cells, cell_data):
+    from petram.mesh.mesh_utils import  get_extended_connectivity
+    if not hasattr(mesh, 'extended_connectivity'):
+        get_extended_connectivity(mesh)
+
+    ndim = mesh.Dimension()
+    ec = mesh.extended_connectivity
+   
+    cell_data['line'] = {}
+    cell_data['vertex'] = {}
+    l2e = ec['line2edge']
+    v2v = ec['vert2vert']
+
+    kedge = []
+
+    kedge = np.array(sum([[key]*len(l2e[key]) for key in l2e], [])).astype(int)
+    iverts = np.vstack([mesh.GetEdgeVertices(ie)
+                        for key in l2e for ie in l2e[key]])
+    cells['line'] = table[iverts]
+    cell_data['line']['physical'] = np.array(kedge)
+
+    kvert = np.array([key for key in v2v]).astype(int)    
+    iverts = np.array([v2v[key] for key in v2v]).astype(int)    
+
+    cells['vertex'] = table[iverts]    
+    cell_data['vertex']['physical'] = kvert
+    
+    if ndim == 3:
+        l_s_loop = [ec['surf2line'], ec['vol2surf']]
+    elif ndim == 2:
+        l_s_loop = [ec['surf2line'], None]
+    else:
+        l_s_loop = [None, None]
+
+    iedge2bb = None # is it used?
+    return l_s_loop
 
     

@@ -88,16 +88,7 @@ def extract_refined_mesh_data2(mesh, refine = None):
         cell_data['quad']['physical'] = attr4
         cell_data['quad_x'] = {}                         
         cell_data['quad_x']['physical'] = attrx4                         
-
-    from petram.mesh.mesh_utils import populate_plotdata
-    l_s_loop = populate_plotdata(mesh, table, cells, cell_data)
-    iedge2bb = None # is it used?    
-
-    ### to do (add line_x)
-    return X, cells, cell_data, l_s_loop, iedge2bb
-
-
-    '''    
+    
     ## fill line/surface loop info
     loop= {}
     for k in kdom:
@@ -175,4 +166,3 @@ def extract_refined_mesh_data2(mesh, refine = None):
     ## iedge2bb : mapping from edge_id to boundary numbrer set
     ## X, cells, cell_data : the same data strucutre as pygmsh
     return X, cells, cell_data, l_s_loop, iedge2bb
-    '''

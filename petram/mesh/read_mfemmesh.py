@@ -108,7 +108,11 @@ def extract_mesh_data(mesh, refine = 1):
         cell_data['quad']['physical'] = attrs4
 
 
-    from petram.mesh.mesh_utils import  get_extended_connectivity
+    from petram.mesh.mesh_utils import populate_plotdata
+    l_s_loop = populate_plotdata(mesh, table, cells, cell_data)
+    iedge2bb = None # is it used?    
+    return X, cells, cell_data, l_s_loop, iedge2bb
+    '''
     get_extended_connectivity(mesh)
     ec = mesh.extended_connectivity
 
@@ -125,8 +129,9 @@ def extract_mesh_data(mesh, refine = 1):
     cells['line'] = table[iverts]
     cell_data['line']['physical'] = np.array(kedge)
 
-    kvert = np.array([v2v[key] for key in v2v]).astype(int)    
-    iverts = np.vstack([mesh.GetEdgeVertices(v2v[key]) for key in v2v])
+    kvert = np.array([key for key in v2v]).astype(int)    
+    iverts = np.array([v2v[key] for key in v2v]).astype(int)    
+
     cells['vertex'] = table[iverts]    
     cell_data['vertex']['physical'] = kvert
     
@@ -138,120 +143,6 @@ def extract_mesh_data(mesh, refine = 1):
         l_s_loop = [None, None]
 
     iedge2bb = None # is it used?
-    return X, cells, cell_data, l_s_loop, iedge2bb
-
     '''
-    ## fill line/surface loop info
-    loop= {}
-    for k in kdom:
-        loop[k] = []
-    battr =  mesh.GetBdrAttributeArray()
-    for ibdr in range(mesh.GetNBE()):
-        idx = mesh.GetBdrElementEdgeIndex(ibdr)
-        elem1, elem2 = mesh.GetFaceElements(idx)
-        if elem1 != -1:
-            i = mesh.GetAttribute(elem1)
-            loop[i].append(battr[ibdr])
-        if elem2 != -1:
-            i = mesh.GetAttribute(elem2)
-            loop[i].append(battr[ibdr])
-    for k in kdom:
-        loop[k] = np.unique(loop[k])
-        
-    
-    if ndim == 3:
-        l_s_loop = [None, loop]
-    elif ndim == 2:
-        l_s_loop = [loop, None]
-    else:
-        l_s_loop = [None, None]
-        
-    line2edge = {}
-    vert2vert = {}
 
-    if mesh.GetNBE() == 0:
-        # 2D surface mesh in 3D space could have no NBE
-        iedge2bb = {}
-        mesh.extended_connectivity = {'line2vert':None,
-                                      'surf2line':l_s_loop[0],
-                                      'vol2surf': l_s_loop[1],
-                                      'line2edge':line2edge,
-                                      'vert2vert':vert2vert}
-        
-        return X, cells, cell_data, l_s_loop, iedge2bb
-        
-    ## fill line
-    cell_data['line'] = {}
-    cell_data['vertex'] = {}
-    
-        cells['line'] = table[np.vstack(cell_line)]
-        cell_data['line']['physical'] = np.array(kedge)
-    
-            cells['vertex'] = table[iverts]
-            cell_data['vertex']['physical'] = np.arange(len(iverts))+1
-    
-    kbdr = mesh.GetBdrAttributeArray()
-    if ndim == 3:
-        edges, bb_edges = find_edges(mesh)
-        kedge = []
-        cell_line = []
-        iedge2bb = {}
-        ll = {};
-        l_s_loop[0] = ll
-        for k in range(np.max(kbdr)):
-            ll[k+1] = []
 
-        for idx, key in enumerate(bb_edges.keys()):
-            kedge.extend([idx+1]*len(bb_edges[key]))
-            iedge2bb[idx+1] = key
-            cell_line.append(np.vstack([mesh.GetEdgeVertices(ie)
-                                         for ie in bb_edges[key]]))
-            for k in key:
-                ll[k].append(idx+1)
-            line2edge[idx+1] = bb_edges[key]
-        cells['line'] = table[np.vstack(cell_line)]
-        cell_data['line']['physical'] = np.array(kedge)
-        
-        corners, iverts = find_vertex(mesh, bb_edges)
-        if len(iverts) != 0:        
-            cells['vertex'] = table[iverts]
-            cell_data['vertex']['physical'] = np.arange(len(iverts))+1
-        line2vert = {key: np.array(corners[iedge2bb[key]])+1 for key in iedge2bb}
-        vert2vert = {i+1: iverts[i] for i in range(len(iverts))}
-    elif ndim == 2:
-        ivert = np.vstack([mesh.GetBdrElement(i).GetVerticesArray()
-                           for i in range(mesh.GetNBE())])
-        cells['line'] = table[ivert]
-        cell_data['line']['physical'] = kbdr
-        iedge2bb = {}
-        for k in kbdr: iedge2bb[k] = k
-
-        d = defaultdict(list)
-        for i in range(mesh.GetNBE()):
-            d[kbdr[i]].extend(ivert[i, :])
-        corners = {}
-        for key in d:
-           seen = defaultdict(int)
-           for iiv in d[key]:
-               seen[iiv] += 1
-           corners[key] = [kk for kk in seen if seen[kk]==1]
-           
-        iverts = np.unique(np.hstack([corners[key] for key in corners]))
-        if len(iverts) != 0:
-            cells['vertex'] = table[iverts]
-            cell_data['vertex']['physical'] = np.arange(len(iverts))+1
-        line2vert = {key: np.array(corners[key])+1 for key in corners}
-        vert2vert = {i+1: iverts[i] for i in range(len(iverts))}
-    else:
-        pass
-
-    mesh.extended_connectivity = {'line2vert':line2vert,
-                                  'surf2line':l_s_loop[0],
-                                  'vol2surf': l_s_loop[1],
-                                  'line2edge':line2edge,
-                                  'vert2vert':vert2vert}
-                 
-    ## iedge2bb : mapping from edge_id to boundary numbrer set
-    ## X, cells, cell_data : the same data strucutre as pygmsh
-    return X, cells, cell_data, l_s_loop, iedge2bb
-    '''

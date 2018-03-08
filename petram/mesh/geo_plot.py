@@ -102,6 +102,7 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
 
     if 'vertex' in cells:
         vert = np.atleast_2d(np.squeeze(X[cells['vertex']]))
+        print('vert here', vert)
         obj= viewer.plot(vert[:,0],
                     vert[:,1],
                     vert[:,2], 'ok',
