@@ -113,7 +113,7 @@ def extract_refined_mesh_data2(mesh, refine = None):
     idx2 = range(mesh.GetNBE())
     attr2, ptx2, ivx2, ivxe2, attrx2 = get_geom(idx2, 2, base, gt, battrs,
                                                 sdim, refine)
-    cells['line_x'] = ivx2
+    cells['line_x'] = ivx
     cell_data['line_x'] = {}                        
     cell_data['line_x']['physical'] = attrx2
     cell_data['X_refined_edge']=ptx2
@@ -123,8 +123,8 @@ def extract_refined_mesh_data2(mesh, refine = None):
     l_s_loop = populate_plotdata(mesh, table, cells, cell_data)
     iedge2bb = None # is it used?    
 
-    print "X", X.shape
-    for k in cells['vertex']:print X[k]
+    #print "X", X.shape
+    #for k in cells['vertex']:print X[k]
     return X, cells, cell_data, l_s_loop, iedge2bb
 
 
