@@ -4,7 +4,7 @@ from scipy.sparse import coo_matrix
 from collections import OrderedDict, defaultdict
 from petram.helper.global_named_list import GlobalNamedList
 
-debug = True
+debug = False
 
 def distribute_shared_entity(pmesh):
     '''
@@ -257,10 +257,10 @@ def find_edge_corner(mesh):
     keys = bb_edges.keys()
     if use_parallel:
         keys = comm.gather(keys)
-        keys = sum(keys, [])
+        if myid == 0: keys = sum(keys, [])        
     sorted_key = None
     if myid == 0:
-        sorted_key = keys
+        sorted_key = list(set(keys))
         sorted_key.sort(key = lambda x:(len(x), x))
 
     if use_parallel: sorted_key = comm.bcast(sorted_key, root=0)
@@ -464,7 +464,7 @@ def find_edge_corner(mesh):
 
 def find_corner(mesh):
     '''
-    For 3D geometry
+    For 2D geometry
       find line (boundary between two bdr_attribute) and
       corner of lines
     '''
@@ -531,6 +531,7 @@ def find_corner(mesh):
             iedges = iedges[iii]
 
     line2realedge.setlists(battrs, iedges)
+    
     line2realvert = GlobalNamedList()
     for key in line2realedge:
         data = np.hstack([mesh.GetEdgeVertices(i-myoffset)+ myoffsetv
@@ -644,7 +645,8 @@ def get_extended_connectivity(mesh):
         l2e = bdr_loop(mesh)
         l2v = None
         v2v = None
-        
+    from mfem.common.mpi_debug import nicePrint, niceCall                
+    nicePrint('s2l', s2l)
     mesh.extended_connectivity = {}
     me = mesh.extended_connectivity
     me['vol2surf']  = v2s
@@ -677,10 +679,9 @@ def populate_plotdata(mesh, table, cells, cell_data):
 
     kvert = np.array([key for key in v2v]).astype(int)    
     iverts = np.array([v2v[key] for key in v2v]).astype(int)    
-
+    
     cells['vertex'] = table[iverts]    
     cell_data['vertex']['physical'] = kvert
-    
     if ndim == 3:
         l_s_loop = [ec['surf2line'], ec['vol2surf']]
     elif ndim == 2:

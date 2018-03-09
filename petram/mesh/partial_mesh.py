@@ -253,7 +253,7 @@ def surface(mesh, in_attr, filename = '', precision=8):
     in_eattr = np.unique(np.hstack([s2l[k] for k in in_attr]))
     eidx, eattrs, eivert, neverts, ebase = _collect_data(in_eattr, mesh,
                                                           mode[1])
-    #nicePrint(len(eivert))
+    #nicePrint("eidx", eidx, eattrs)
     #nicePrint(len(np.hstack((eivert, ivert))))
     u, indices = np.unique(np.hstack((ivert, eivert)),
                            return_inverse = True)
@@ -363,7 +363,7 @@ def surface(mesh, in_attr, filename = '', precision=8):
         DofToVDof        =  Nodal.DofToVDof
         dDofToVDof       = dNodal.DofToVDof
 
-        nicePrint(dGetNX(),',', GetNX())
+        #nicePrint(dGetNX(),',', GetNX())
         nodes = mesh.GetNodes()
         node_ptx1 = nodes.GetDataArray()
 

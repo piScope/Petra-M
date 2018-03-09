@@ -76,7 +76,7 @@ def extract_mesh_data(mesh, refine = 1):
         ivert4 = np.vstack(iv4)
         attrs4 = attrs[idx4]
 
-    tmp = np.hstack(iv3 + iv4)
+    tmp = np.hstack(iv3+iv4)
     u, indices = np.unique(tmp, return_inverse=True)
     
     ll3 = 3*len(idx3)
