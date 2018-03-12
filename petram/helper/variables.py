@@ -646,7 +646,7 @@ class GFScalarVariable(GridFunctionVariable):
         if not self.isDerived: self.set_funcs()
         
         name = self.gfr.FESpace().FEColl().Name()
-        ndim = self.gfr.FESpace().GetMesh().Dimention()
+        ndim = self.gfr.FESpace().GetMesh().Dimension()
         
         isVector = False
         if (name.startswith('RT') or 
@@ -757,7 +757,7 @@ class GFVectorVariable(GridFunctionVariable):
                       gtypes = None, **kwargs):
 
         if not self.isDerived: self.set_funcs()
-        ndim = self.gfr.FESpace().GetMesh().Dimention()
+        ndim = self.gfr.FESpace().GetMesh().Dimension()
         
         d = mfem.DenseMatrix()
         p  = mfem.DenseMatrix()
