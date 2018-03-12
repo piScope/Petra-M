@@ -10,6 +10,8 @@ import traceback
 from collections import MutableMapping
 import os
 import numpy as np
+import weakref
+from weakref import WeakKeyDictionary
 
 from functools import reduce
 
@@ -56,7 +58,7 @@ class RestorableOrderedDict(MutableMapping, Restorable, object):
          st = [(x, self.__dict__[x]) for x in self.__dict__ if not x.startswith('_')]
 #         st.append(('_parent', self._parent))
          return [ (key, value) for key, value in self._contents.iteritems() ], st
-     
+      
      def _restore(self, restoration_data):
          for (key, value) in restoration_data:
 #             print key
@@ -94,6 +96,26 @@ class RestorableOrderedDict(MutableMapping, Restorable, object):
 class Hook(object):
     def __init__(self, names):
         self.names = names
+
+class ModelDict(WeakKeyDictionary):
+    '''
+    Weak reference dictionary using Model Object (unhashable) as key
+    '''
+    def __init__(self, root):
+        WeakKeyDictionary.__init__(self)
+        self.root = weakref.ref(root)
+        
+    def __setitem__(self, key, value):
+        hook = key.get_hook()
+        return WeakKeyDictionary.__setitem__(self, hook, value)
+
+    def __getitem__(self, key):
+        hook = key.get_hook()
+        return WeakKeyDictionary.__getitem__(self, hook)
+        
+    def __iter__(self):
+        return [reduce(lambda x, y: x[y], [self.root()] + hook().names)
+                for hook in self.keys()]
 
 class Model(RestorableOrderedDict):
     can_delete = True
@@ -251,8 +273,9 @@ class Model(RestorableOrderedDict):
         m = []
         for k in self.keys():
             label = ''.join([x for x in k if not x.isdigit()])
-            if txt == label:
+            if k.startswith(txt):#            if txt == label:
                 m.append(long(k[len(txt):]))
+
         if len(m) == 0:
            name = txt+str(1)
         else:
@@ -268,6 +291,9 @@ class Model(RestorableOrderedDict):
         else:
             self[name] = obj
         return name
+
+    def postprocess_after_add(self, engine):
+        pass
     
     def add_itemobj(self, txt, obj):
         
@@ -280,7 +306,7 @@ class Model(RestorableOrderedDict):
         else:
            name = txt + str(max(m)+1)
         self[name] = obj
-        return txt+str(1)
+        return name
 
     def panel1_param(self):
         return []

@@ -35,7 +35,6 @@ class InitSetting(Model):
             self.init_value = 0.0            
             assert False, traceback.format_exc()
 
-
     def get_phys(self):
         names = self.phys_model.split(',')
         names = [n.strip() for n in names if n.strip() != '']        

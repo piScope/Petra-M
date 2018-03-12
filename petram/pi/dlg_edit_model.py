@@ -124,9 +124,11 @@ class DlgEditModel(DialogWithWindowList):
            def add_func(evt, cls = cls, indices = indices, tree = tree,
                         model = self.model):
                txt = cls.__name__.split('_')[-1]               
-               model.GetItem(indices).add_item(txt, cls)
+               name = model.GetItem(indices).add_item(txt, cls)
                viewer = self.GetParent()               
-               viewer.model.scripts.helpers.rebuild_ns()                        
+               viewer.model.scripts.helpers.rebuild_ns()
+               engine = viewer.engine
+               model.GetItem(indices)[name].postprocess_after_add(engine)
                tree.RefreshItems()
            txt = cls.__name__.split('_')[-1]
            menus=menus+[('Add '+txt, add_func, None),]

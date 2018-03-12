@@ -5,8 +5,6 @@ import os
 import numpy as np
 import scipy.sparse
 from warnings import warn
-import weakref
-from weakref import WeakKeyDictionary
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -20,7 +18,7 @@ import mfem.common.chypre as chypre
 from mfem.common.parcsr_extra import ToScipyCoo
 from mfem.common.mpi_debug import nicePrint
 
-from petram.model import Domain, Bdry
+from petram.model import Domain, Bdry, ModelDict
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Engine')
 from petram.helper.matrix_file import write_coo_matrix, write_vector
@@ -28,22 +26,6 @@ from petram.helper.matrix_file import write_coo_matrix, write_vector
 #groups = ['Domain', 'Boundary', 'Edge', 'Point', 'Pair']
 groups = ['Domain', 'Boundary', 'Pair']
 
-class ModelDict(WeakKeyDictionary):
-    def __init__(self, root):
-        WeakKeyDictionary.__init__(self)
-        self.root = weakref.ref(root)
-        
-    def __setitem__(self, key, value):
-        hook = key.get_hook()
-        return WeakKeyDictionary.__setitem__(self, hook, value)
-
-    def __getitem__(self, key):
-        hook = key.get_hook()
-        return WeakKeyDictionary.__getitem__(self, hook)
-        
-    def __iter__(self):
-        return [reduce(lambda x, y: x[y], [self.root()] + hook().names)
-                for hook in self.keys()]
 
 def iter_phys(phys_targets, *args):
     for phys in phys_targets:
@@ -56,8 +38,6 @@ def enum_fes(phys, *args):
     for k in range(len(args[0][phys])):
         yield ([k] + [(None if a[phys] is None else a[phys][k][1])
                      for a in args])
-   
-
 class Engine(object):
     def __init__(self, modelfile='', model = None):
         if modelfile != '':
@@ -81,6 +61,7 @@ class Engine(object):
         # I am not sure if there is any meaing to make mesh array at
         # this point...
         self.meshes = []
+        self.emeshes = []        
         
         # place holder : key is base physics modules, such as EM3D1...
         #
@@ -94,6 +75,7 @@ class Engine(object):
         self.is_assembled = False
         self.is_initialized = False        
         self.meshes = []
+        self.emeshes = []
         
         if model is not None:
             self.fespaces = ModelDict(model)
@@ -105,8 +87,8 @@ class Engine(object):
             self.i_x = ModelDict(model)
             self.i_a = ModelDict(model)
             self.mixed_bf = ModelDict(model)
-            self.interps = ModelDict(model)
             self.extras = ModelDict(model)
+            self.interps = ModelDict(model)
             self.gl_ess_tdofs = ModelDict(model)
             self.alloc_flag  = ModelDict(model)
         else:
@@ -195,9 +177,8 @@ class Engine(object):
         from .model import Domain, Bdry               
         for k in self.model['Phys'].keys():
             phys = self.model['Phys'][k]
-            #if phys.check_new_fespace(self.fespaces, self.meshes):
+            self.run_mesh_extension(phys)
             self.allocate_fespace(phys)
- 
             self.assign_sel_index(phys)
             for node in phys.walk():
                 if not node.enabled: continue
@@ -205,7 +186,24 @@ class Engine(object):
         for k in self.model['InitialValue'].keys():
             init = self.model['InitialValue'][k]
             init.preprocess_params(self)            
+    #
+    #  mesh manipulation
+    #
+    def run_mesh_extension(self, phys):
+        from petram.mesh.mesh_extension import MeshExt, generate_emesh
+        from petram.mesh.mesh_model import MFEMMesh
 
+        if len(self.emeshes) == 0:
+            self.emeshes = self.meshes[:]
+            #for j in range(len(self.emeshes)):
+            #    self.emesh_data.add_default_info(j)
+        info = phys.get_mesh_ext_info()
+        idx = self.emesh_data.add_info(info)
+        phys.emesh_idx = idx
+        if len(self.emeshes) <= idx:
+            m = generate_emesh(self.emeshes, info)
+            self.emeshes[idx] = m
+        
     #
     #  assembly 
     #
@@ -296,17 +294,28 @@ class Engine(object):
         for phys in phys_target:
             self.apply_essential(phys)
 
+    def run_assemble(self, phys_target=None, nterms=1):
+        matvecs = [None]*nterms
+        matvecs_c = [None]*nterms
+        for j in range(nterms):
+            m1, m2 = self.do_run_assemble(phys_target = phys_target,
+                                          kterm = j)
+            matvecs[j] = m1
+            matvecs_c[j] = m2
 
-    def run_assemble(self, phys_target = None):
+        if nterms ==1 :
+           return matvecs[0], matvecs_c[0]
+        else:
+           return matvecs, matvecs_c
+       
+    def do_run_assemble(self, phys_target = None, kterm = 1 ):
         matvecs = ModelDict(self.model)
         matvecs_c = ModelDict(self.model)
-        #for phys in phys_target:
-        #    self.run_update_param(phys)
         for phys in phys_target:
-            matvec = self.assemble_phys(phys)
+            matvec = self.assemble_phys(phys, kterm)
             matvecs[phys] = matvec
             if "Coupling" in self.model:
-               matvec = assemble_coupling(self.model["Coupling"],
+               matvec = assemble_coupling(self.model["Coupling"], kterm,
                                           oneway_only = False)
                matvecs_c[phys] = matvec
             else:
@@ -360,15 +369,12 @@ class Engine(object):
 
         self.allocate_gf(phys)
         
-    def assemble_phys(self, phys):
+    def assemble_phys(self, phys, kterm):
         '''
         assemble matrix made from block matrices
         each block can be either PyMatrix or HypreMatrix
         '''
         is_complex = phys.is_complex()        
-        #self.assign_sel_index(phys)
-        #self.allocate_fespace(phys)
-        #true_v_sizes = self.get_true_v_sizes(phys)
         flags = self.get_essential_bdr_flag(phys)
         ess_tdofs = self.get_essential_bdr_tofs(phys, flags)
 
@@ -391,7 +397,7 @@ class Engine(object):
 
         return matvec #r_X, r_B, r_A, i_X, i_B, i_A 
         
-    def assemble_coupling(self, coupling, oneway_only = False):
+    def assemble_coupling(self, coupling, kterm, oneway_only = False):
         raise NotImplementedError(
              "between Module coupling")
         '''
@@ -1025,43 +1031,9 @@ class Engine(object):
             mesh = self.meshes[p.mesh_idx]
             if mesh is None: continue
             if len(p.sel_index) == 0: continue
-            if p.dim == mesh.Dimension():
-                if p.sel_index[0] == 'all' or p.sel_index[0] == 'remaining':
-                   dom_choice = [x+1 for x in range(mesh.attributes.Max())]
-                   bdr_choice = [x+1 for x in range(mesh.bdr_attributes.Max())]
-                else:
-                   dom_choice = [int(x) for x in p.sel_index]
-                   if hasattr(mesh, 'extended_connectivity'):
-                       if p.dim == 3:
-                           c = mesh.extended_connectivity.vol2surf
-                       elif p.dim == 2:
-                           c = mesh.extended_connectivity.surf2line
-                       elif p.dim == 1:
-                           c = mesh.extended_connectivity.line2ver
-                       bdr_choice = np.unique(np.hstack([c[int(x)]
-                                                         for x in p.sel_index]))
-                   else:
-                       print("!!!! mesh does not have the extended connectivity data")
-                       bdr_choice = range(mesh.bdr_attributes.Max())                   
-            elif p.dim == mesh.Dimension()-1: #model surf(edge) in 3D(2D) mesh
-                if not hasattr(mesh, 'extended_connectivity'):
-                   assert False, "!!!! mesh does not have the extended connectivity data"
-                if p.sel_index[0] == 'all' or p.sel_index[0] == 'remaining':
-                    dom_choice = [x+1 for x in range(mesh.bdr_attributes.Max())]
-                else:
-                    dom_choice = [int(x) for x in p.sel_index]
-                if p.dim == 2:
-                    c = mesh.extended_connectivity.surf2line
-                elif p.dim == 1:
-                    c = mesh.extended_connectivity.line2vert
-                else:
-                    assert False, "!!!! can not make low-d model"
-                bdr_choice = np.unique(np.hstack([c[int(x)]for x in p.sel_index]))
-            elif p.dim == mesh.Dimension()-2: #model edge in 3D mesh
-                assert False, "not implemenbted"
-            else:
-                assert False, "not implemenbted"
-                
+
+            dom_choice, bdr_choice = p.get_dom_bdr_choice(self.meshes[p.mesh_idx])
+
             p._phys_sel_index = dom_choice
             self.do_assign_sel_index(p, dom_choice, Domain)
             self.do_assign_sel_index(p, bdr_choice, Bdry)
@@ -1147,7 +1119,7 @@ class Engine(object):
         
         for name, elem in phys.get_fec():
             dprint1("allocate_fespace: " + name)
-            mesh = self.meshes[phys.mesh_idx]
+            mesh = self.emeshes[phys.emesh_idx]
             fec = getattr(mfem, elem)
             if fec is mfem.ND_FECollection:
                 mesh.ReorientTetMesh()
@@ -1242,15 +1214,19 @@ class Engine(object):
     def run_mesh_serial(self, meshmodel = None,
                         skip_refine = False):
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
-        
+        from petram.mesh.mesh_extension import MeshExt
+        from petram.mesh.mesh_utils import  get_extended_connectivity
+    
         self.meshes = []
+        self.emeshes = []
+        self.emesh_data = MeshExt()
         if meshmodel is None:
             parent = self.model['Mesh']
             children =  [parent[g] for g in parent.keys()
-                         if isinstance(parent[g], MFEMMesh)]
+                         if isinstance(parent[g], MFEMMesh) and parent[g].enabled]
             for idx, child in enumerate(children):
-                self.meshes.append(None)
-                if not child.enabled: continue
+                self.meshes.append(None)                
+                #if not child.enabled: continue
                 target = None
                 for k in child.keys():
                     o = child[k]
@@ -1262,7 +1238,9 @@ class Engine(object):
                         if o.isRefinement and skip_refine: continue
                         if hasattr(o, 'run') and target is not None:
                             self.meshes[idx] = o.run(target)
-                                       
+        for m in self.meshes:
+            get_extended_connectivity(m)           
+           
     def run_mesh(self):
         raise NotImplementedError(
              "you must specify this method in subclass")
@@ -1313,9 +1291,9 @@ class SerialEngine(Engine):
         return self.run_mesh_serial(meshmodel = meshmodel,
                                     skip_refine=skip_refine)
 
-    def run_assemble(self, phys):
+    def run_assemble(self, phys_target=None, nterms=1):
         self.is_matrix_distributed = False       
-        return super(SerialEngine, self).run_assemble(phys)
+        return super(SerialEngine, self).run_assemble(phys_target=phys_target, nterms=nterms)
 
     def new_lf(self, fes):
         return  mfem.LinearForm(fes)
@@ -1536,8 +1514,13 @@ class ParallelEngine(Engine):
     def run_mesh(self, meshmodel = None):
         from mpi4py import MPI
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
-        
+        from petram.mesh.mesh_extension import MeshExt
+        from petram.mesh.mesh_utils import  get_extended_connectivity
+    
         self.meshes = []
+        self.emeshes = []
+        self.emesh_data = MeshExt()
+        
         if meshmodel is None:
             parent = self.model['Mesh']
             children =  [parent[g] for g in parent.keys()
@@ -1556,10 +1539,13 @@ class ParallelEngine(Engine):
                     else:
                         if hasattr(o, 'run') and target is not None:
                             self.meshes[idx] = o.run(target)
+                            
+        for m in self.meshes:
+            get_extended_connectivity(m)           
 
-    def run_assemble(self, phys):
+    def run_assemble(self, phys_target=None, nterms=1):
         self.is_matrix_distributed = True       
-        return super(ParallelEngine, self).run_assemble(phys)
+        return super(ParallelEngine, self).run_assemble(phys_target=phys_target, nterms=nterms)
      
     def new_lf(self, fes):
         return  mfem.ParLinearForm(fes)

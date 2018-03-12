@@ -455,15 +455,30 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 class PhysModule(Phys):
     hide_ns_menu = False
     dim_fixed = True # if ndim of physics is fixed
+
+    def __setstate__(self, state):
+        Phys.__setstate__(self, state)
+        if self.sel_index == 'all': self.sel_index = ['all']
     @property
-    def geom_dim(self):  # if dim of geometry
+    def geom_dim(self):  # dim of geometry
         return len(self.ind_vars.split(','))       
     @property   
-    def dim(self):  # if dim of FESpace independent variable
+    def dim(self):  # dim of FESpace independent variable
         return self.ndim        
     @dim.setter
     def dim(self, value):
         self.ndim = value
+
+    @property   
+    def emesh_idx(self):  # mesh_idx is dynamic value to point a mesh index used in solve.
+        return self._emesh_idx
+     
+    @emesh_idx.setter
+    def emesh_idx(self, value):
+        self._emesh_idx  = value
+        
+    def goem_signature(self):
+        pass
        
     def attribute_set(self, v):
         v = super(PhysModule, self).attribute_set(v)
@@ -512,7 +527,7 @@ class PhysModule(Phys):
     def get_panel2_value(self):
         choice = ["Point", "Edge", "Surface", "Volume",]
         if self.dim_fixed:
-            return ','.join(self.sel_index)
+            return (','.join(self.sel_index),)
         else:
             return choice[self.dim], ','.join(self.sel_index)
      
@@ -594,7 +609,31 @@ class PhysModule(Phys):
 
     def is_viewmode_grouphead(self):
         return True
-         
+
+    def get_mesh_ext_info(self):
+        from petram.mesh.mesh_extension import MeshExtInfo
+        
+        info = MeshExtInfo(dim = self.dim, base = self.mesh_idx)
+        if self.sel_index[0] != 'all':        
+           info.set_selection(self.sel_index)
+        return info
+     
+    def get_dom_bdr_choice(self, mesh):
+        if self.dim == 3: kk = 'vol2surf'
+        elif self.dim == 2: kk = 'surf2line'
+        elif self.dim == 1: kk = 'line2vert'                   
+        else: assert False, "not supported"
+        d = mesh.extended_connectivity[kk]
+        
+        dom_choice = d.keys()
+        bdr_choice = sum([list(d[x]) for x in d], [])
+            
+        if self.sel_index[0] != 'all':
+            dom_choice = [int(x) for x in self.sel_index]
+            bdr_choice = np.unique(np.hstack([d[int(x)]
+                                              for x in self.sel_index]))
+      
+        return dom_choice, bdr_choice       
 
 
         

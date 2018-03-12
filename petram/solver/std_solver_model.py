@@ -120,27 +120,27 @@ class StdSolver(Solver):
         return choice
     
     def init_sol(self, engine):
+        phys_targets = self.get_phys()
+        for p in phys_targets:
+            engine.run_mesh_extension(p)
+            
         inits = self.get_init_setting()
         if len(inits) == 0:
             # in this case alloate all fespace and initialize all
             # to zero
-            names = self.root()['Phys'].keys()
-            phys_targets = [self.root()['Phys'][n] for n in names]
             engine.run_alloc_sol(phys_targets)
             engine.run_apply_init(phys_targets, 0)
-            engine.run_apply_essential(phys_targets)
         else:
             for init in inits:
                 init.run(engine)
-            phys_targets = self.get_phys()
-            engine.run_apply_essential(phys_targets)
+        engine.run_apply_essential(phys_targets)
         return 
 
 
     def assemble(self, engine):
         phys_targets = self.get_phys()
         engine.run_verify_setting(phys_targets, self)
-        matvecs, matvecs_c = engine.run_assemble(phys_targets)
+        matvecs, matvecs_c = engine.run_assemble(phys_targets, nterms=1)
         return matvecs, matvecs_c
 
     def generate_linear_system(self, engine, matvecs, matvecs_c):

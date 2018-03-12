@@ -143,8 +143,14 @@ class MFEMViewer(BookViewer):
             if data is not None:
                 self.set_figure_data(view_mode, name, data)
 
-        #if self.model.variables.getvar('mesh') is None:
-        #    self.load_mesh()
+        if self.model.variables.getvar('mesh') is None:
+            try:
+                self.load_mesh()
+            except:
+                dialog.showtraceback(parent = self,
+                               txt='mesh file load error',
+                               title='Error',
+                               traceback=traceback.format_exc())
         self.plot_mfem_geom()        
         self.model.scripts.helpers.rebuild_ns()                
         self.engine.run_config()
@@ -471,13 +477,18 @@ class MFEMViewer(BookViewer):
         
     def onNewMesh(self, evt):
         from ifigure.widgets.dialog import read
-        from petram.mesh.mesh_model import MeshFile        
+        from petram.mesh.mesh_model import MeshFile, MeshGroup
         path = read(message='Select mesh file to read', wildcard='MFEM|*.mesh|Gmsh|*.msh')
         if path == '': return
         od = self.model.param.getvar('mfem_model')
         
+        mg = MeshGroup()
         data = MeshFile(path=path)
-        od['Mesh'].add_itemobj('MeshFile', data)
+        
+        nameg = od['Mesh'].add_itemobj('MeshGroup', mg)
+        name = od['Mesh'][nameg].add_itemobj('MeshFile', data)        
+        for key in od['Mesh']:
+            if key != nameg: od['Mesh'][key].enabled = False
         self.load_mesh()
         
     def onLoadMesh(self, evt):

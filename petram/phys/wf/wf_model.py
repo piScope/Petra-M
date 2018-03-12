@@ -99,7 +99,20 @@ class WF(PhysModule):
             names.append(t+'x')
             names.append(t+'y')            
         return names
-    
+
+    def postprocess_after_add(self, engine):
+        try:
+            sdim = engine.meshes[0].SpaceDimension()
+        except:
+            return
+        if sdim == 3:
+            self.ind_vars = 'x, y, z'
+        elif sdim == 2:            
+            self.ind_vars = 'x, y'    
+        elif sdim == 1:
+            self.ind_vars = 'x'
+        else:
+            pass
     def is_complex(self):
         return self.is_complex_valued
     
