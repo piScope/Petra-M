@@ -630,10 +630,18 @@ class PhysModule(Phys):
             
         if self.sel_index[0] != 'all':
             dom_choice = [int(x) for x in self.sel_index]
-            bdr_choice = np.unique(np.hstack([d[int(x)]
-                                              for x in self.sel_index]))
-      
-        return dom_choice, bdr_choice       
+            bdr_choice = list(np.unique(np.hstack([d[int(x)]
+                                              for x in self.sel_index])))
+        from petram.mfem_config import use_parallel
+        if use_parallel:
+             from mfem.common.mpi_debug import nicePrint
+             from petram.helper.mpi_recipes import allgather
+             dom_choice = list(set(sum(allgather(dom_choice),[])))
+             bdr_choice = list(set(sum(allgather(bdr_choice),[])))
+             #nicePrint("dom choice", dom_choice)
+             #nicePrint("bdr choice", bdr_choice)
+             
+        return dom_choice, bdr_choice
 
 
         

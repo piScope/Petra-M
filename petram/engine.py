@@ -200,6 +200,7 @@ class Engine(object):
         info = phys.get_mesh_ext_info()
         idx = self.emesh_data.add_info(info)
         phys.emesh_idx = idx
+        print self.emeshes
         if len(self.emeshes) <= idx:
             m = generate_emesh(self.emeshes, info)
             self.emeshes[idx] = m
@@ -308,7 +309,7 @@ class Engine(object):
         else:
            return matvecs, matvecs_c
        
-    def do_run_assemble(self, phys_target = None, kterm = 1 ):
+    def do_run_assemble(self, phys_target = None, kterm = 1):
         matvecs = ModelDict(self.model)
         matvecs_c = ModelDict(self.model)
         for phys in phys_target:
@@ -1047,7 +1048,6 @@ class Engine(object):
                 yield node[k]
         rem = None
         checklist = [True]*len(choice)
-        print(choice)
         for node in m.walk():
            if not isinstance(node, cls): continue
            if not node.enabled: continue
@@ -1121,14 +1121,17 @@ class Engine(object):
             dprint1("allocate_fespace: " + name)
             mesh = self.emeshes[phys.emesh_idx]
             fec = getattr(mfem, elem)
-            if fec is mfem.ND_FECollection:
-                mesh.ReorientTetMesh()
+
+            #if fec is mfem.ND_FECollection:
+            #   mesh.ReorientTetMesh()
+
             dim = mesh.Dimension()
             sdim= mesh.SpaceDimension()
             f = fec(phys.order, sdim)
             self.fec[phys].append(f)
 
             fes = self.new_fespace(mesh, f)
+            mesh.GetEdgeVertexTable()
             self.fespaces[phys].append((name, fes))
             
     def get_fes(self, phys, kfes):
@@ -1239,6 +1242,8 @@ class Engine(object):
                         if hasattr(o, 'run') and target is not None:
                             self.meshes[idx] = o.run(target)
         for m in self.meshes:
+            m.ReorientTetMesh()
+            m.GetEdgeVertexTable()                                   
             get_extended_connectivity(m)           
            
     def run_mesh(self):
@@ -1541,6 +1546,8 @@ class ParallelEngine(Engine):
                             self.meshes[idx] = o.run(target)
                             
         for m in self.meshes:
+            m.ReorientTetMesh()
+            m.GetEdgeVertexTable()                                   
             get_extended_connectivity(m)           
 
     def run_assemble(self, phys_target=None, nterms=1):

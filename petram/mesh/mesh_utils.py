@@ -144,7 +144,7 @@ def find_edge_corner(mesh):
     nattr = np.max(iattr)        
     nb = mesh.GetNBE()
     if mesh.GetNBE() == 0:    
-        return {}, {}, {}
+        return {}, {}, {}, {}
     
 
     if use_parallel:
@@ -178,7 +178,7 @@ def find_edge_corner(mesh):
         iedges = iedges[mask]
         
     # nicePrint(len(iedges)) np 1,2,4 gives 900... ok
-    
+
     for i in iedges:
         ie, io = get_edges(i)
         ie += myoffset
@@ -282,13 +282,14 @@ def find_edge_corner(mesh):
     '''
     # at this point each node has its own edges populated in bb_edges (no shadow)
     ivert = {}
+
     for k in sorted_key:
         if len(bb_edges[k])>0:
             ivert[k] = np.hstack([mesh.GetEdgeVertices(i-myoffset)+ myoffsetv
                               for i in np.unique(bb_edges[k])]).astype(int)
         else:
             ivert[k] = np.atleast_1d([]).astype(int)
-            
+
     if use_parallel:
         # convert shadow vertex to real
         for k in sorted_key:
@@ -305,7 +306,6 @@ def find_edge_corner(mesh):
             if data is not None:
                 ivertc[k] = data
         ivert = ivertc
-
 
     corners = {}
     for key in ivert:
@@ -646,7 +646,7 @@ def get_extended_connectivity(mesh):
         l2v = None
         v2v = None
     from mfem.common.mpi_debug import nicePrint, niceCall                
-    nicePrint('s2l', s2l)
+    #nicePrint('s2l', s2l)
     mesh.extended_connectivity = {}
     me = mesh.extended_connectivity
     me['vol2surf']  = v2s

@@ -98,7 +98,7 @@ class MeshFile(Mesh):
                 ["", "replacement rule: {petram}=$PetraM, {mfem}=PyMFEM, {home}=~"  ,2, None],
                 ["Generate edges",    self.generate_edges == 1,  3, {"text":""}],
                 ["Refine",    self.refine==1 ,  3, {"text":""}],
-                ["FixOrientatijon",    self.fix_orientation ,  3, {"text":""}]]
+                ["FixOrientation",    self.fix_orientation ,  3, {"text":""}]]
     def get_panel1_value(self):
         return (self.path, None, self.generate_edges, self.refine, self.fix_orientation)
     
@@ -149,13 +149,13 @@ class MeshFile(Mesh):
             print("mesh file does not exists : " + path + " in " + os.getcwd())
             return None
         args = (path,  self.generate_edges, self.refine, self.fix_orientation)
-        
         mesh =  mfem.Mesh(*args)
         try:
            mesh.GetNBE()
            return mesh
         except:
            return None
+        
 class UniformRefinement(Mesh):
     isRefinement = True
     has_2nd_panel = False           
