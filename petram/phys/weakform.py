@@ -41,6 +41,7 @@ def get_integrators(filename):
     dims    = [[int(x.strip()[0]) for x in l[6].split(',')]  for l in lines]
 
     return zip(names, domains, ranges, coeffs, dims)
+ 
 bilinintegs = get_integrators('BilinearOps')
 linintegs = get_integrators('LinearOps')
  
@@ -89,11 +90,11 @@ class WeakIntegration(Phys):
         return v
      
     def get_panel1_value(self):
-        return [self.use_src_proj,
-                self.use_dst_proj,
-                self.coeff_type,
+        return [self.coeff_type,
                 self.vt_coeff.get_panel_value(self)[0],
-                self.integrator]
+                self.integrator,
+                self.use_src_proj,
+                self.use_dst_proj,]
               
     def panel1_tip(self):
         pass
@@ -102,27 +103,27 @@ class WeakIntegration(Phys):
         p = ["coeff. type", "S", 4,
              {"style":wx.CB_READONLY, "choices": ["Scalar", "Vector", "Diagonal", "Matrix"]}]
 
-        names = [x[0] for x in bilinintegs]
+        names = [x[0] for x in self.itg_choice()]
         p2 = ["integrator", names[0], 4,
               {"style":wx.CB_READONLY, "choices": names}]
              
         panels = self.vt_coeff.panel_param(self)
-        ll = [["use src proj.",  self.use_src_proj,   3, {"text":""}],
-              ["use dst proj.",  self.use_dst_proj,   3, {"text":""}],
-               p,
+        ll = [ p,
                panels[0],
-               p2]
+               p2,
+              ["use src proj.",  self.use_src_proj,   3, {"text":""}],
+              ["use dst proj.",  self.use_dst_proj,   3, {"text":""}],  ]
         return ll
      
     def is_complex(self):
         return self.get_root_phys().is_complex_valued
               
     def import_panel1_value(self, v):
-        self.use_src_proj = v[0]
-        self.use_dst_proj = v[1]
-        self.coeff_type = str(v[2])
-        self.vt_coeff.import_panel_value(self, (v[3],))
-        self.integrator =  str(v[4])                                 
+        self.coeff_type = str(v[0])
+        self.vt_coeff.import_panel_value(self, (v[1],))
+        self.integrator =  str(v[2])
+        self.use_src_proj = v[3]
+        self.use_dst_proj = v[4]
 
     def preprocess_params(self, engine):
         self.vt_coeff.preprocess_params(self)
@@ -131,9 +132,9 @@ class WeakIntegration(Phys):
     def add_contribution(self, engine, a, real = True, kfes=0):      
         c = self.vt_coeff.make_value_or_expression(self)    
         if real:       
-            dprint1("Add diffusion contribution(real)" + str(self._sel_index))
+            dprint1("Add "+self.integrator+ " contribution(real)" + str(self._sel_index))
         else:
-            dprint1("Add diffusion contribution(imag)" + str(self._sel_index))
+            dprint1("Add "+self.integrator+ " contribution(imag)" + str(self._sel_index))
         dprint1("c", c)
         dim = self.get_root_phys().geom_dim
         cotype = self.coeff_type[0]
@@ -169,11 +170,19 @@ class WeakIntegration(Phys):
     def add_lf_contribution(self, engine, a, real = True, kfes=0):
         self.add_contribution(engine, a, real = real, kfes=kfes)
         
+    def itg_choice(self):
+        return []
+     
 class WeakLinIntegration(WeakIntegration):
     def has_lf_contribution(self, kfes):
         return True
+    def itg_choice(self):
+        return linintegs
      
 class WeakBilinIntegration(WeakIntegration):
+    def itg_choice(self):
+        return bilinintegs
+   
     def attribute_set(self, v):
         v = super(WeakBilinIntegration, self).attribute_set(v)
         v['paired_var'] = None  #(phys_name, index)
@@ -218,11 +227,7 @@ class WeakBilinIntegration(WeakIntegration):
                 {"style":wx.CB_READONLY, "choices": names}]]
         ll2 = super(WeakBilinIntegration, self).panel1_param()
         ll = ll1 + ll2
-        
-        names = [x[0] for x in bilinintegs]
-        p2 = ["integrator", names[0], 4,
-              {"style":wx.CB_READONLY, "choices": names}]
-        ll[-1] = p2
+
         return ll
         
     def has_bf_contribution(self, kfes):

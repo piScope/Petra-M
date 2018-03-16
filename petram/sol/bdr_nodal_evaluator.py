@@ -172,7 +172,6 @@ class BdrNodalEvaluator(EvaluatorAgent):
     def __init__(self, battrs):
         super(BdrNodalEvaluator, self).__init__()
         self.battrs = battrs
-        self.emesh_idx = -1
         
     def preprocess_geometry(self, battrs, emesh_idx=0):
         mesh = self.mesh()[emesh_idx]
@@ -209,10 +208,13 @@ class BdrNodalEvaluator(EvaluatorAgent):
     def eval(self, expr, solvars, phys, **kwargs):
         
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
+        print("emesh_idx", emesh_idx)
         if len(emesh_idx) != 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
         if self.emesh_idx != emesh_idx[0]:
+             print("process geom", emesh_idx[0])                         
              self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
+
              
         val = eval_at_nodals(self, expr, solvars, phys)
         if val is None: return None, None, None

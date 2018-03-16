@@ -29,7 +29,6 @@ class SliceEvaluator(EvaluatorAgent):
         self.attrs = attrs
         self.plane = plane
         
-        
     def preprocess_geometry(self, attrs, plane = None, emesh_idx=0):
         #from petram.sol.test import pg
         #return pg(self, battrs, plane = plane)

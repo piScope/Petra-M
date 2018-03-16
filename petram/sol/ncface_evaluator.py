@@ -21,7 +21,7 @@ else:
     
 Geom = mfem.Geometry()
 from petram.sol.evaluator_agent import EvaluatorAgent
-
+from petram.sol.bdr_nodal_evaluator import get_emesh_idx
 
 def eval_on_faces(obj, expr, solvars, phys):
     '''
@@ -158,20 +158,20 @@ class NCFaceEvaluator(EvaluatorAgent):
         self.ptx = np.vstack(ptx)
         self.ridx = np.vstack(ridx)
         self.ifaces = np.hstack(ifaces)
+        print  emesh_idx
         self.emesh_idx = emesh_idx
         
     def eval(self, expr, solvars, phys, **kwargs):
-        
+        refine = kwargs.pop("refine", 1)        
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
+        print("emesh_idx", emesh_idx)        
         if len(emesh_idx) != 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
-        if self.emesh_idx != emesh_idx[0]:
-             self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
         
-        refine = kwargs.pop("refine", 1)
-        if refine != self.refine:
+
+        if (refine != self.refine or self.emesh_idx != emesh_idx[0]):
              self.refine = refine
-             self.preprocess_geometry(self.battrs)
+             self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
         val = eval_on_faces(self, expr, solvars, phys)
         if val is None: return None, None, None
 
