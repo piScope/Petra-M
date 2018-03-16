@@ -66,6 +66,7 @@ class MFEM_PhysRoot(Model):
             for phys in self.iter_enabled():
                 phys.soldict_to_solvars(soldict, solvar)
             solvars[k] = solvar
+        print "solvars", solvars
         return solvars
 
     def onItemSelChanged(self, evt):

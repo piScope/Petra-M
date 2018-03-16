@@ -1094,7 +1094,8 @@ class DlgPlotSol(DialogWithWindowList):
         if battrs != 'all':
            battrs = [int(x) for x in battrs.split(',')]
         else:
-           battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
+           battrs = mesh.extended_connectivity['surf2line'].keys()
+           #battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
 
         average = kwargs.pop('average', True)
                   
@@ -1151,7 +1152,8 @@ class DlgPlotSol(DialogWithWindowList):
         if attrs != 'all':
            attrs = [int(x) for x in attrs.split(',')]
         else:
-           attrs = [x+1 for x in range(mesh.attributes.Size())]
+           attrs = mesh.extended_connectivity['vol2surf'].keys()            
+           #attrs = [x+1 for x in range(mesh.attributes.Size())]
            
         from petram.sol.evaluators import build_evaluator
         if (not 'Slice' in self.evaluators or

@@ -15,7 +15,8 @@ else:
     import mfem.ser as mfem
 
 from petram.sol.evaluator_agent import EvaluatorAgent
-from petram.sol.bdr_nodal_evaluator import process_iverts2nodals, eval_at_nodals
+from petram.sol.bdr_nodal_evaluator import process_iverts2nodals
+from petram.sol.bdr_nodal_evaluator import eval_at_nodals, get_emesh_idx
 
 class EdgeNodalEvaluator(EvaluatorAgent):
     def __init__(self, attrs, plane = None):
@@ -28,13 +29,11 @@ class EdgeNodalEvaluator(EvaluatorAgent):
         super(EdgeNodalEvaluator, self).__init__()
         self.attrs = attrs
         
-    def preprocess_geometry(self, attrs, plane = None):
-        #from petram.sol.test import pg
-        #return pg(self, battrs, plane = plane)
+    def preprocess_geometry(self, attrs, emesh_idx=0):
         self.vertices = None
 
         self.knowns = WKD()
-        mesh = self.mesh()
+        mesh = self.mesh()[emesh_idx]
         self.iverts = []
         self.attrs = attrs
 
@@ -65,7 +64,9 @@ class EdgeNodalEvaluator(EvaluatorAgent):
                     iverts.append(list(mesh.GetBdrElement(i).GetVerticesArray()))
                     #d[attr].extend(mesh.GetBdrElement(i).GetVerticesArray())
 
-        self.ibeles = None # can not use boundary variable in this evaulator  
+        self.ibeles = None # can not use boundary variable in this evaulator
+        self.emesh_idx = emesh_idx
+        
         if len(iverts) == 0: return
       
         iverts = np.stack(iverts)
@@ -75,8 +76,16 @@ class EdgeNodalEvaluator(EvaluatorAgent):
         data = process_iverts2nodals(mesh, iverts)
         for k in six.iterkeys(data):
             setattr(self, k, data[k])
+        
             
     def eval(self, expr, solvars, phys, **kwargs):
+        
+        emesh_idx = get_emesh_idx(self, expr, solvars, phys)
+        if len(emesh_idx) != 1:
+            assert False, "expression involves multiple mesh (emesh length != 1)"
+        if self.emesh_idx != emesh_idx[0]:
+             self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
+        
         val = eval_at_nodals(self, expr, solvars, phys)
         if val is None: return None, None, None
 

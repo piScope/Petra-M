@@ -188,6 +188,10 @@ class Variable(object):
         #print self().shape
         return self()[idx]
 
+    def get_emesh_idx(self, idx = None, g=None):
+        if idx is None: idx = []
+        return idx
+
     def make_callable(self):
         raise NotImplementedError("Subclass need to implement")
     
@@ -316,6 +320,13 @@ class ExpressionVariable(Variable):
         for k in keys:
            l[k] = self.variables[k]()
         return (eval_code(self.co, var_g, l))
+
+    def get_emesh_idx(self, idx = None, g = None):
+        if idx is None: idx = []
+        for n in self.names:
+            if (n in g and isinstance(g[n], Variable)):
+                idx = get_emesh_idx(self, idx=idx, g = g)
+        return idx
     
     def nodal_values(self, iele = None, el2v = None, locs = None,
                      wverts = None, elvertloc = None, g = None,
@@ -433,7 +444,15 @@ class DomainVariable(Variable):
     def __call__(self):
         if self.domain_target is None: return 0.0
         return self.domains[self.domain_target]()
-
+    
+    def get_emesh_idx(self, idx = None, g = None):
+        if idx is None: idx = []        
+        for domains in self.domains.keys():
+            expr = self.domains[domains]
+            gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
+            idx = expr.get_emesh_idx(self, idx=idx, g=gdomain)
+        return idx
+    
     def nodal_values(self, iele = None, elattr = None, g = None,
                      **kwargs):
                      #iele = None, elattr = None, el2v = None,
@@ -589,7 +608,19 @@ class GridFunctionVariable(Variable):
         self.T = T
         self.ip = ip
         self.t = t
-    
+        
+    def get_emesh_idx(self, idx = None, g=None):
+        if idx is None: idx = []
+        gf_real, gf_imag = self.deriv_args
+        if gf_real is not None:
+            idx.append(gf_real._emesh_idx)
+        elif gf_imag is not None:
+            idx.append(gf_imag._emesh_idx)
+        else:
+            pass
+            
+        return idx
+        
 class GFScalarVariable(GridFunctionVariable):
     def __repr__(self):
         return "GridFunctionVariable (Scalar)"
@@ -670,7 +701,10 @@ class GFScalarVariable(GridFunctionVariable):
                 if isVector:
                     return gf.GetVectorValues
                 else:
-                    return gf.GetValues
+                    def func(i, side, ir, vals, tr, in_gf = gf):
+                        in_gf.GetValues(i, ir, vals, tr)
+                        return
+                    return func
             else:
                 assert False, "ndim = 1 has no face"
             return None

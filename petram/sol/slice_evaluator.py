@@ -14,7 +14,7 @@ else:
     import mfem.ser as mfem
 
 from petram.sol.evaluator_agent import EvaluatorAgent
-from petram.sol.bdr_nodal_evaluator import process_iverts2nodals, eval_at_nodals
+from petram.sol.bdr_nodal_evaluator import eval_at_nodals, get_emesh_idx
 
 class SliceEvaluator(EvaluatorAgent):
     def __init__(self, attrs, plane = None):
@@ -30,14 +30,14 @@ class SliceEvaluator(EvaluatorAgent):
         self.plane = plane
         
         
-    def preprocess_geometry(self, attrs, plane = None):
+    def preprocess_geometry(self, attrs, plane = None, emesh_idx=0):
         #from petram.sol.test import pg
         #return pg(self, battrs, plane = plane)
         self.vertices = None
         self.iverts = None
 
         self.knowns = WKD()
-        mesh = self.mesh()
+        mesh = self.mesh()[emesh_idx]
         self.iverts = []
         self.attrs = attrs
         self.plane = plane
@@ -133,13 +133,15 @@ class SliceEvaluator(EvaluatorAgent):
 
                 fill_vert_mat(vertices, mat, ivv, itri, 0, i, ii[0], verts, f)
                 fill_vert_mat(vertices, mat, ivv, itri, 1, i, ii[1], verts, f)
-                fill_vert_mat(vertices, mat, ivv, itri, 2, i, ii[2], verts, f)            
+                fill_vert_mat(vertices, mat, ivv, itri, 2, i, ii[2], verts, f)    
                 itri += 1
 
         self.ibeles = None # can not use boundary variable in this evaulator        
         self.vertices = vertices
         self.interp_mat = mat
 
+        self.emesh_idx = emesh_idx
+        
     def set_plane(self, a, b, c, d):
         '''
         ax + by + cz + d = 0
@@ -151,6 +153,13 @@ class SliceEvaluator(EvaluatorAgent):
 
     def eval(self, expr, solvars, phys, **kwargs):
         if self.vertices is None: return None, None, None
+
+        emesh_idx = get_emesh_idx(self, expr, solvars, phys)
+        if len(emesh_idx) != 1:
+            assert False, "expression involves multiple mesh (emesh length != 1)"
+        if self.emesh_idx != emesh_idx[0]:
+             self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
+        
 
         val = eval_at_nodals(self, expr, solvars, phys)
         if val is None: return None, None, None

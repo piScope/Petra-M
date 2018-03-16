@@ -167,12 +167,13 @@ class WF(PhysModule):
         self.dep_vars_base_txt = ','.join([x.strip() for x in str(v[3]).split(',')])
 
     def get_possible_domain(self):
-        from wf_constraints       import WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint
+        from wf_constraints import WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint
         return [WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint]
     
     def get_possible_bdry(self):
-        from wf_constraints       import WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint
-        return [WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint]
+        from wf_constraints import WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint
+        from wf_essential import WF_Essential
+        return [WF_Essential, WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint]
     
     '''
     def get_possible_edge(self):

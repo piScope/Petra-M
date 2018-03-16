@@ -5,6 +5,15 @@ from petram.model import Domain, Bdry, Edge, Point, Pair
 from petram.phys.phys_model import VectorPhysCoefficient, PhysCoefficient
 from petram.phys.weakform import WeakLinIntegration, WeakBilinIntegration
 
+import petram.debug as debug
+dprint1, dprint2, dprint3 = debug.init_dprints('WF_Constraints')
+
+from petram.mfem_config import use_parallel
+if use_parallel:
+   import mfem.par as mfem
+else:
+   import mfem.ser as mfem
+
 # define variable for this BC.
 from petram.phys.vtable import VtableElement, Vtable
 

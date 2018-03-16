@@ -129,7 +129,26 @@ class Engine(object):
         if mm is not None:
            idx = mm.get_root_phys().mesh_idx
         return self.meshes[idx]
+     
+    def get_emesh(self, idx = 0, mm = None):
+        if len(self.emeshes) == 0: return None
+        if mm is not None:
+           idx = mm.get_root_phys().emesh_idx
+        return self.emeshes[idx]
 
+    def get_emesh_idx(self, mm = None, name=None):
+        if len(self.emeshes) == 0: return -1
+        if mm is not None:
+           return mm.get_root_phys().emesh_idx
+
+        if name is None:
+           for item in self.model['Phys']:
+              mm = self.model['Phys'][item]
+              if not mm.enabled: continue
+              if name in mm.dep_vars():
+                  return mm.emesh_idx
+        return -1
+     
     '''    
     def generate_fespace(self, phys):    
         fecs = phys.get_fecs(self)
@@ -195,14 +214,15 @@ class Engine(object):
 
         if len(self.emeshes) == 0:
             self.emeshes = self.meshes[:]
-            #for j in range(len(self.emeshes)):
-            #    self.emesh_data.add_default_info(j)
+            for j in range(len(self.emeshes)):
+                self.emesh_data.add_default_info(j)
         info = phys.get_mesh_ext_info()
         idx = self.emesh_data.add_info(info)
+
         phys.emesh_idx = idx
-        print self.emeshes
-        if len(self.emeshes) <= idx:
+        if len(self.emeshes) <= idx: 
             m = generate_emesh(self.emeshes, info)
+            self.emeshes.extend([None]*(1+idx-len(self.emeshes)))
             self.emeshes[idx] = m
         
     #
@@ -472,12 +492,12 @@ class Engine(object):
         if init_path is "", then file is read from cwd.
         if file is not found, then it zeroes the gf
         '''
-        mesh_idx = phys.mesh_idx
+        mesh_idx = phys.emesh_idx
         names = phys.dep_vars
         
         for kfes, rgf, igf in enum_fes(phys, self.r_x, self.i_x):
             fr, fi, meshname = self.solfile_name(names[kfes],
-                                                         mesh_idx)
+                                                         emesh_idx)
             path = os.path.expanduser(init_path)
             if path == '': path = os.getcwd()
             fr = os.path.join(path, fr)
@@ -669,7 +689,7 @@ class Engine(object):
         import petram.debug as debug
         if debug.debug_essential_bc:
             name = self.fespaces[phys][kfes][0]
-            mesh_idx = phys.mesh_idx 
+            mesh_idx = phys.emesh_idx 
             self.save_solfile_fespace(name, mesh_idx, r_x, i_x,
                                           namer = 'x_r',
                                           namei = 'x_i')
@@ -992,10 +1012,10 @@ class Engine(object):
         if mesh_only: return mesh_filenames
        
         for phys in phys_target:
-            mesh_idx = phys.mesh_idx 
+            emesh_idx = phys.emesh_idx 
             for kfes, r_x, i_x in enum_fes(phys, self.r_x, self.i_x):
                 name = self.fespaces[phys][kfes][0]
-                self.save_solfile_fespace(name, mesh_idx, r_x, i_x)
+                self.save_solfile_fespace(name, emesh_idx, r_x, i_x)
      
     def save_extra_to_file(self, sol_extra):
         if sol_extra is None: return
@@ -1096,7 +1116,7 @@ class Engine(object):
                 if node.has_essential:
                     index = index + node.get_essential_idx(k)
 
-            ess_bdr = [0]*self.meshes[phys.mesh_idx].bdr_attributes.Max()
+            ess_bdr = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
             for k in index: ess_bdr[k-1] = 1
             flag.append((name, ess_bdr))
         dprint1("esse flag", flag)
@@ -1134,8 +1154,12 @@ class Engine(object):
             mesh.GetEdgeVertexTable()
             self.fespaces[phys].append((name, fes))
             
-    def get_fes(self, phys, kfes):
-        return self.fespaces[phys][kfes][1]
+    def get_fes(self, phys, kfes = 0, name = None):
+        if name is None:
+            return self.fespaces[phys][kfes][1]
+        else:
+            for n, fes in self.fespaces[phys]:
+               if n == name: return fes
 
     def allocate_gf(self, phys):
         #print("allocate_gf")
@@ -1465,7 +1489,7 @@ class SerialEngine(Engine):
 
     def save_mesh(self):
         mesh_names = []
-        for k, mesh in enumerate(self.meshes):
+        for k, mesh in enumerate(self.emeshes):
             if mesh is None: continue
             name = 'solmesh_' + str(k)           
             mesh.PrintToFile(name, 8)
@@ -1598,7 +1622,7 @@ class ParallelEngine(Engine):
         smyid = '{:0>6d}'.format(myid)
 
         mesh_names = []
-        for k, mesh in enumerate(self.meshes):
+        for k, mesh in enumerate(self.emeshes):
             if mesh is None: continue
             mesh_name  =  "solmesh_"+str(k)+"."+smyid
             mesh.PrintToFile(mesh_name, 8)

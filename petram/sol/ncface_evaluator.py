@@ -60,7 +60,7 @@ def eval_on_faces(obj, expr, solvars, phys):
                                      locs  = obj.ptx,
                                      attr1 = obj.elattr1,
                                      attr2 = obj.elattr2, 
-                                     g = g, mesh = obj.mesh()))
+                                     g = g, mesh = obj.mesh()[obj.emesh_idx]))
            ll_name.append(n)
            ll_value.append(obj.knowns[g[n]])
        elif (n in g):
@@ -81,8 +81,8 @@ class NCFaceEvaluator(EvaluatorAgent):
         self.battrs = battrs
         self.refine = -1
         
-    def preprocess_geometry(self, battrs):
-        mesh = self.mesh()
+    def preprocess_geometry(self, battrs, emesh_idx=0):
+        mesh = self.mesh()[emesh_idx]
         #print 'preprocess_geom',  mesh, battrs
         self.battrs = battrs        
         self.knowns = WKD()
@@ -100,7 +100,7 @@ class NCFaceEvaluator(EvaluatorAgent):
             getattr2 = lambda x: mesh.GetFaceElementTransformations(x).Elem2No
             
         elif mesh.Dimension() == 2:
-            getface = lambda x: x
+            getface = lambda x: (x, 1)
             gettrans = mesh.GetElementTransformation                        
             getarray = mesh.GetDomainArray
             getelement = mesh.GetElement
@@ -158,8 +158,16 @@ class NCFaceEvaluator(EvaluatorAgent):
         self.ptx = np.vstack(ptx)
         self.ridx = np.vstack(ridx)
         self.ifaces = np.hstack(ifaces)
+        self.emesh_idx = emesh_idx
         
     def eval(self, expr, solvars, phys, **kwargs):
+        
+        emesh_idx = get_emesh_idx(self, expr, solvars, phys)
+        if len(emesh_idx) != 1:
+            assert False, "expression involves multiple mesh (emesh length != 1)"
+        if self.emesh_idx != emesh_idx[0]:
+             self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
+        
         refine = kwargs.pop("refine", 1)
         if refine != self.refine:
              self.refine = refine
@@ -170,7 +178,7 @@ class NCFaceEvaluator(EvaluatorAgent):
         edge_only = kwargs.pop('edge_only', False)
         export_type = kwargs.pop('export_type', 1)
 
-        print self.ptx.shape, val.shape, self.ridx.shape
+        #print self.ptx.shape, val.shape, self.ridx.shape
         if export_type == 2:
             return self.ptx, val, None
         if not edge_only:

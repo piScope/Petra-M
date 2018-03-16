@@ -24,13 +24,6 @@ else:
    
 from petram.phys.vtable import VtableElement, Vtable   
 
-
-data =  (('c', VtableElement('c', type='float',
-                                     guilabel = 'diffusion',
-                                     suffix =[('x', 'y'), ('x', 'y')],
-                                     default = np.eye(2, 2),
-                                     tip = "diffusion term: div(-c grad u)" )),)
-
 def get_integrators(filename):
     import petram
     fid = open(os.path.join(os.path.dirname(petram.__file__), 'data', filename), 'r')
@@ -57,6 +50,15 @@ class MCoeff(MatrixPhysCoefficient):
     def EvalValue(self, x):
         val = super(MCoeff, self).EvalValue(x)
         return val
+     
+class DCoeff(MatrixPhysCoefficient):
+    def __init__(self, *args, **kwargs):
+        self.space_dim = args[0]
+        super(DCoeff, self).__init__(*args, **kwargs)
+    def EvalValue(self, x):
+        val = super(DCoeff, self).EvalValue(x)
+        val = np.diag(val)
+        return val.flatten()
     
 class VCoeff(VectorPhysCoefficient):
     def __init__(self, *args, **kwargs):
@@ -72,9 +74,8 @@ class SCoeff(PhysCoefficient):
         val = super(SCoeff, self).EvalValue(x)
         return val
      
-data = [("lambda", VtableElement("lambda", type='array',
-         guilabel = "lambda",
-         default = 0.0, tip = "coefficient",))]
+data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
+         guilabel = "lambda", default = 0.0, tip = "coefficient",))]
      
 class WeakIntegration(Phys):
     vt_coeff = Vtable(data)
@@ -99,7 +100,7 @@ class WeakIntegration(Phys):
 
     def panel1_param(self):
         p = ["coeff. type", "S", 4,
-             {"style":wx.CB_READONLY, "choices": ["S", "V", "D", "M"]}]
+             {"style":wx.CB_READONLY, "choices": ["Scalar", "Vector", "Diagonal", "Matrix"]}]
 
         names = [x[0] for x in bilinintegs]
         p2 = ["integrator", names[0], 4,
@@ -122,34 +123,63 @@ class WeakIntegration(Phys):
         self.coeff_type = str(v[2])
         self.vt_coeff.import_panel_value(self, (v[3],))
         self.integrator =  str(v[4])                                 
-            
-    def has_bf_contribution(self, kfes):
-        return True
 
-    def add_bf_contribution(self, engine, a, real = True, kfes=0):      
-        c = self.vt.make_value_or_expression(self)    
+    def preprocess_params(self, engine):
+        self.vt_coeff.preprocess_params(self)
+        super(WeakIntegration, self).preprocess_params(engine)
+        
+    def add_contribution(self, engine, a, real = True, kfes=0):      
+        c = self.vt_coeff.make_value_or_expression(self)    
         if real:       
             dprint1("Add diffusion contribution(real)" + str(self._sel_index))
         else:
             dprint1("Add diffusion contribution(imag)" + str(self._sel_index))
-
-        c_coeff = CCoeff(2,  c[0],  self.get_root_phys().ind_vars,
+        dprint1("c", c)
+        dim = self.get_root_phys().geom_dim
+        cotype = self.coeff_type[0]
+        if cotype == 'S':
+             c_coeff = SCoeff(c[0],  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real)
-        self.add_integrator(engine, 'c', c_coeff,
-                            a.AddDomainIntegrator,
-                            mfem.DiffusionIntegrator)
-            
-class WeakLinIntegration(WeakIntegration):
-    pass
+        elif cotype == 'V':
+             c_coeff = VCoeff(dim, c[0],  self.get_root_phys().ind_vars,
+                              self._local_ns, self._global_ns,
+                              real = real)
+        elif cotype == 'M':
+             c_coeff = MCoeff(dim, c[0],  self.get_root_phys().ind_vars,
+                              self._local_ns, self._global_ns,
+                              real = real)
+        elif cotype == 'D':
+             c_coeff = DCoeff(dim, c[0],  self.get_root_phys().ind_vars,
+                              self._local_ns, self._global_ns,
+                              real = real)
+        integrator = getattr(mfem, self.integrator)
 
+        if isinstance(self, Bdry):
+            adder = a.AddBdrIntegrator
+        elif isinstance(self, Domain):
+            adder = a.AddDomainIntegrator
+        else:
+            assert False, "this class is not supported in weakform"
+        self.add_integrator(engine, 'c', c_coeff,
+                            adder, integrator)
+        
+    def add_bf_contribution(self, engine, a, real = True, kfes=0):
+        self.add_contribution(engine, a, real = real, kfes=kfes)    
+    def add_lf_contribution(self, engine, a, real = True, kfes=0):
+        self.add_contribution(engine, a, real = real, kfes=kfes)
+        
+class WeakLinIntegration(WeakIntegration):
+    def has_lf_contribution(self, kfes):
+        return True
+     
 class WeakBilinIntegration(WeakIntegration):
     def attribute_set(self, v):
         v = super(WeakBilinIntegration, self).attribute_set(v)
         v['paired_var'] = None  #(phys_name, index)
         return v
-     
     def get_panel1_value(self):
+        print("get_panel1_value")
         if self.paired_var is None:
             n = self.get_root_phys().dep_vars[0]
             p = self.get_root_phys().name()
@@ -162,6 +192,7 @@ class WeakBilinIntegration(WeakIntegration):
         var = n + " ("+p + ")"             
         v1 = [var]
         v2 = super(WeakBilinIntegration, self).get_panel1_value()
+        print v1, v2
         return v1 + v2
               
     def panel1_tip(self):
@@ -176,7 +207,6 @@ class WeakBilinIntegration(WeakIntegration):
 
         idx = names.index(str(v[0]).split("(")[0].strip())
         self.paired_var = (pnames[idx], pindex[idx])
-        
         super(WeakBilinIntegration, self).import_panel1_value(v[1:])       
    
     def panel1_param(self):
@@ -195,6 +225,9 @@ class WeakBilinIntegration(WeakIntegration):
         ll[-1] = p2
         return ll
         
+    def has_bf_contribution(self, kfes):
+        return True
+     
    
 
               

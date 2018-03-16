@@ -390,13 +390,15 @@ def surface(mesh, in_attr, filename = '', precision=8):
         node_ptx2[dof2_idx] = data 
         #nicePrint(len(dof2_idx))
 
-    #mesh.FinalizeTriMesh(1,1, True)
+    if use_parallel:
+        omesh = mfem.ParMesh(comm, omesh)
+
     if filename != '':
         if use_parallel:
             smyid = '{:0>6d}'.format(myid)
             filename = filename +'.'+smyid
         omesh.PrintToFile(filename, precision)
-
+        
     return omesh
 
 def volume(mesh, in_attr, filename = '', precision=8):
@@ -537,7 +539,9 @@ def volume(mesh, in_attr, filename = '', precision=8):
         node_ptx2[dof2_idx] = data 
         #nicePrint(len(dof2_idx))
 
-    #mesh.FinalizeTriMesh(1,1, True)
+    if use_parallel:
+        omesh = mfem.ParMesh(comm, omesh)
+        
     if filename != '':
         if use_parallel:
             smyid = '{:0>6d}'.format(myid)

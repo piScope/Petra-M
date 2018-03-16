@@ -1,5 +1,9 @@
+import petram.debug as debug
+dprint1, dprint2, dprint3 = debug.init_dprints('MeshExtension')
+
 class MeshExtInfo(dict):
     
+
     def __init__(self, *args, **kwargs):
         cut = set(kwargs.pop('cut', []))
         sel = set(kwargs.pop('sel', []))
@@ -45,6 +49,10 @@ class MeshExt(object):
         self.info.append(info)
         return len(self.info)-1
     
+    def add_default_info(self, j):
+        info = MeshExtInfo(base = j)
+        self.do_add_info(info)
+        
     def add_info(self, info):
         '''
         add info and return mesh index
@@ -67,19 +75,20 @@ def generate_emesh(emeshes, info):
     from petram.mesh.partial_mesh import surface, volume
     
     base_mesh = emeshes[info['base']]
+    dprint1(info)
     if info['dim'] == 3:
         if base_mesh.Dimension() == 3:         
             alldom = set(base_mesh.extended_connectivity['vol2surf'].keys())
             print('alldom', alldom)
-            if alldom == info['sel']: return m
-            if len(info['sel']) == 0: return m
+            if alldom == info['sel']: return base_mesh
+            if len(info['sel']) == 0: return base_mesh
         m = volume(base_mesh, list(info['sel']),
                    filename = 'par_part.mesh')
     elif info['dim'] == 2:
         if base_mesh.Dimension() == 2: 
             alldom = set(base_mesh.extended_connectivity['surf2line'].keys())
-            if alldom == info['sel']: return m
-            if len(info['sel']) == 0: return m            
+            if alldom == info['sel']: return base_mesh
+            if len(info['sel']) == 0: return base_mesh    
         m = surface(base_mesh, list(info['sel']),
                     filename = 'par_part.mesh')            
     elif info['dim'] == 1:                    
