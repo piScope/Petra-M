@@ -501,6 +501,17 @@ class PhysModule(Phys):
         v['sel_index'] = ['all']
         return v
      
+    def onVarNameChanged(self, evt):
+        evt.GetEventObject().TopLevelParent.OnRefreshTree()
+        
+    def get_var_suffix_var_name_panel(self):
+        from petram.pi.widgets import TextCtrlCallBack
+        a = ["dep. vars. suffix", self.dep_vars_suffix, 99, {'UI': TextCtrlCallBack,
+                                           'callback_method':self.onVarNameChanged}]      
+        b = ["dep. vars.", ','.join(self.dep_vars_base), 99, {'UI': TextCtrlCallBack,
+                                           'callback_method':self.onVarNameChanged}]
+        return a, b        
+     
     def panel1_param(self):
         return [["mesh num.",   self.mesh_idx, 400, {}],
                 ["element",self.element,  2,   {}],

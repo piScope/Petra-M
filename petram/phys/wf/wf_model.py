@@ -129,7 +129,7 @@ class WF(PhysModule):
         v["dep_vars_base_txt"] = 'u'
         v["is_complex_valued"] = False
         return v
-    
+
     def panel1_param(self):
         panels = super(WF, self).panel1_param()
         panels[1] = ["element", "H1", 4,
@@ -139,11 +139,12 @@ class WF(PhysModule):
                                  "ND_FECollection",
                                  "RT_FECollection",
                                  "DG_FECollection"]}]
+
+        a, b = self.get_var_suffix_var_name_panel()
         panels.extend([
                 ["indpendent vars.", self.ind_vars, 0, {}],
                 ["complex", self.is_complex_valued, 3, {"text":""}],
-                ["dep. vars. suffix", self.dep_vars_suffix, 0, {}],
-                ["dep. vars.", ','.join(self.dep_vars_base), 0, {}],
+                a, b, 
                 ["derived vars.", ','.join(self.der_vars), 2, {}],
                 ["predefined ns vars.", txt_predefined , 2, {}]])
         return panels

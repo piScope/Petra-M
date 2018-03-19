@@ -186,6 +186,7 @@ class WeakBilinIntegration(WeakIntegration):
     def attribute_set(self, v):
         v = super(WeakBilinIntegration, self).attribute_set(v)
         v['paired_var'] = None  #(phys_name, index)
+        v['use_symmetric'] = False                
         return v
     def get_panel1_value(self):
         print("get_panel1_value")
@@ -201,6 +202,7 @@ class WeakBilinIntegration(WeakIntegration):
         var = n + " ("+p + ")"             
         v1 = [var]
         v2 = super(WeakBilinIntegration, self).get_panel1_value()
+        v3 = [["make symmetric",  self.use_symmetric,   3, {"text":""}],  ]        
         return v1 + v2
               
     def panel1_tip(self):
@@ -215,8 +217,9 @@ class WeakBilinIntegration(WeakIntegration):
 
         idx = names.index(str(v[0]).split("(")[0].strip())
         self.paired_var = (pnames[idx], pindex[idx])
-        super(WeakBilinIntegration, self).import_panel1_value(v[1:])       
-   
+        super(WeakBilinIntegration, self).import_panel1_value(v[1:-1])       
+        self.use_symmetric = v[-1]
+        
     def panel1_param(self):
         mfem_physroot = self.get_root_phys().parent
         names, pnames, pindex = mfem_physroot.dependent_values()
@@ -225,7 +228,7 @@ class WeakBilinIntegration(WeakIntegration):
         ll1 = [["paired variable", "S", 4,
                 {"style":wx.CB_READONLY, "choices": names}]]
         ll2 = super(WeakBilinIntegration, self).panel1_param()
-        ll = ll1 + ll2
+        ll = ll1 + ll2 + [self.use_symmetric]
 
         return ll
         
