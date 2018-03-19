@@ -131,6 +131,8 @@ class Model(RestorableOrderedDict):
             self.update_attribute_set(kw = kwargs)
             self.init_attr = True
             
+    def get_info_str(self):
+        return ""
     def get_hook(self):
         if not hasattr(self, '_hook'): self._hook = None
         if self._hook is not None: return self._hook

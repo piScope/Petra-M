@@ -2,7 +2,8 @@ import wx
 from collections import OrderedDict
 import traceback
 from ifigure.utils.cbook import BuildPopUpMenu
-from ifigure.utils.edit_list import EditListPanel, EDITLIST_CHANGED,  EDITLIST_CHANGING
+from ifigure.utils.edit_list import EditListPanel, ScrolledEditListPanel
+from ifigure.utils.edit_list import EDITLIST_CHANGED,  EDITLIST_CHANGING
 from ifigure.utils.edit_list import EDITLIST_SETFOCUS
 from ifigure.widgets.miniframe_with_windowlist import MiniFrameWithWindowList
 from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList
@@ -24,8 +25,9 @@ class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
         txt = self.topwindow.model.GetItemText(indices)
 
         if item.has_ns():
-            if item.get_ns_name() is not None:
-                txt = txt + '(NS:'+item.ns_name + ')'
+            info =item.get_info_str()
+            if info != "":
+                txt = txt + "(" + info + ")"
         if hasattr(item, 'isGeom') and hasattr(item, '_newobjs'):
                 txt = txt + '('+','.join(item._newobjs) + ')'            
         return txt
@@ -342,7 +344,7 @@ class DlgEditModel(DialogWithWindowList):
         evt.Skip()
 
     def generate_panel(self, mm):
-        self.panels[mm.__class__] = (EditListPanel(self.p1, list =  mm.panel1_param(), 
+        self.panels[mm.__class__] = (ScrolledEditListPanel(self.p1, list =  mm.panel1_param(), 
                                                    tip=mm.panel1_tip()),
                                      EditListPanel(self.p2, list =  mm.panel2_param(),
                                                    tip=mm.panel2_tip()),

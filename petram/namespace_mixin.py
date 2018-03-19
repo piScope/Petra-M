@@ -20,6 +20,11 @@ class NS_mixin(object):
         a list of attribute copied to ns
         '''
         return []
+    
+    def get_info_str(self):
+        if self.ns_name is not None:
+            return 'NS:'+self.ns_name
+        return ""
         
     def reset_ns(self):
         self._global_ns = None

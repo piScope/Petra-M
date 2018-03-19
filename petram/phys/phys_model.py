@@ -200,7 +200,10 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     def __init__(self, *args, **kwargs):
         super(Phys, self).__init__(*args, **kwargs)
         NS_mixin.__init__(self, *args, **kwargs)
-        
+
+    def get_info_str(self):
+        return NS_mixin.get_info_str(self)
+     
     def attribute_set(self, v):
         v = super(Phys, self).attribute_set(v)
         self.vt.attribute_set(v)
@@ -235,7 +238,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         return False
 
     def get_restriction_array(self, engine, idx = None):
-        mesh = engine.meshes[self.get_root_phys().mesh_idx]
+        mesh = engine.meshes[self.get_root_phys().emesh_idx]
         intArray = mfem.intArray
 
         if isinstance(self, Domain):
@@ -459,6 +462,13 @@ class PhysModule(Phys):
     def __setstate__(self, state):
         Phys.__setstate__(self, state)
         if self.sel_index == 'all': self.sel_index = ['all']
+
+    def get_info_str(self):
+        txt = self.dep_vars
+        if NS_mixin.get_info_str(self) != "":
+            txt.append = NS_mixin.get_info_str(self)
+        return ",".join(txt)
+        
     @property
     def geom_dim(self):  # dim of geometry
         return len(self.ind_vars.split(','))       
@@ -571,6 +581,11 @@ class PhysModule(Phys):
      
     def is_complex(self):
         return False
+
+    def get_possible_child(self):
+        from petram.phys.aux_variable import AUX_Variable
+        from petram.phys.aux_operator import AUX_Operator        
+        return [AUX_Variable, AUX_Operator]
      
     def get_possible_pair(self):
         from projection import BdrProjection, DomainProjection

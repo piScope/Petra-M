@@ -14,6 +14,9 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         Model.__init__(self, *args, **kwargs)        
         NS_mixin.__init__(self, *args, **kwargs)
         
+    def get_info_str(self):
+        return NS_mixin.get_info_str(self)
+        
     def attribute_set(self, v):
         v['debug_level'] = 1
         super(MFEM_GeneralRoot, self).attribute_set(v)

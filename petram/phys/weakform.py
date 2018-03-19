@@ -81,8 +81,8 @@ data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
 class WeakIntegration(Phys):
     vt_coeff = Vtable(data)
     def attribute_set(self, v):
-        v['use_src_proj'] = True
-        v['use_dst_proj'] = True
+        v['use_src_proj'] = False
+        v['use_dst_proj'] = False
         v['coeff_type'] = 'S'
         v['integrator'] = 'MassIntegrator'
         self.vt_coeff.attribute_set(v)
@@ -201,7 +201,6 @@ class WeakBilinIntegration(WeakIntegration):
         var = n + " ("+p + ")"             
         v1 = [var]
         v2 = super(WeakBilinIntegration, self).get_panel1_value()
-        print v1, v2
         return v1 + v2
               
     def panel1_tip(self):
