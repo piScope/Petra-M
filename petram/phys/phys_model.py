@@ -192,6 +192,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     is_secondary_condition = False   # if true, there should be other
                                      # condtion assigned to the same
                                      # edge/face/domain
+
+    _has_4th_panel = True
+    
     vt   = Vtable(tuple())         
     vt2  = Vtable(tuple())         
     vt3  = Vtable(tuple())
@@ -212,6 +215,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         nl_config = dict()
         for k in self.nlterms: nl_config[k] = []
         v['nl_config'] = (False, nl_config)
+        v['timestep_config'] = [True, False, False]
         return v
         
     def get_possible_bdry(self):
@@ -281,6 +285,26 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     
     def has_extra_DoF(self, kfes=0):
         return False
+
+    def has_extra_DoF2(self, phys, kfes, jmatrix):
+        '''
+        subclass has to overwrite this if extra DoF can couple 
+        with other FES.
+        '''
+        if (phys == self.get_root_phys()) and (jmatrix == 0):
+           # if module set only has_extra_DoF, the extra variable
+           # couples only in the same Phys module and jmatrix == 0
+
+           # ToDo. Should add deprecated message
+           self.has_extra_DoF(kfes=kfes)
+        else:
+           return False           
+           
+    def extra_DoF_name(self):
+        '''
+        default DoF name
+        '''
+        return self.get_root_phys().dep_vars[0]+'_'+self.name()
 
     def update_param(self):
         ''' 
@@ -423,6 +447,24 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             return self.vt3.panel_tip()
         else:
             return self.vt3.panel_tip() +[None]
+
+    def panel4_param(self):
+        setting = {"text":' '}
+        ll = [['M(t)',     True,  3, setting],
+              ['M(t-dt)',  False, 3, setting],
+              ['M(t-2dt)', False, 3, setting]]
+        return ll
+     
+    def panel4_tip(self):
+        return None
+     
+    def import_panel4_value(self, value):
+        self.timestep_config[0] = value[0]
+        self.timestep_config[1] = value[1]
+        self.timestep_config[2] = value[2]
+        
+    def get_panel4_value(self):
+        return self.timestep_config[0:3]       
          
     @property
     def geom_dim(self):

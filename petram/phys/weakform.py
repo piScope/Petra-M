@@ -202,8 +202,8 @@ class WeakBilinIntegration(WeakIntegration):
         var = n + " ("+p + ")"             
         v1 = [var]
         v2 = super(WeakBilinIntegration, self).get_panel1_value()
-        v3 = [["make symmetric",  self.use_symmetric,   3, {"text":""}],  ]        
-        return v1 + v2
+        v3 = [self.use_symmetric]
+        return v1 + v2 + v3
               
     def panel1_tip(self):
         pass
@@ -228,7 +228,8 @@ class WeakBilinIntegration(WeakIntegration):
         ll1 = [["paired variable", "S", 4,
                 {"style":wx.CB_READONLY, "choices": names}]]
         ll2 = super(WeakBilinIntegration, self).panel1_param()
-        ll = ll1 + ll2 + [self.use_symmetric]
+        ll3 = [["make symmetric",  self.use_symmetric,   3, {"text":""}],  ]
+        ll = ll1 + ll2 + ll3
 
         return ll
         

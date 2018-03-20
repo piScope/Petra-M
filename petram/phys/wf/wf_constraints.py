@@ -70,7 +70,8 @@ class WF_common(object):
         return self.restrict_coeff(coeff, engine)
 
 class WF_WeakDomainBilinConstraint(WF_common, Domain, WeakBilinIntegration):
-    has_3rd_panel = True    
+    has_3rd_panel = True
+    _has_4th_panel = True                
     def __init__(self, **kwargs):
         super(WF_WeakDomainBilinConstraint, self).__init__(**kwargs)
         Domain.__init__(self, **kwargs)
@@ -84,7 +85,7 @@ class WF_WeakDomainBilinConstraint(WF_common, Domain, WeakBilinIntegration):
         return v
      
 class WF_WeakDomainLinConstraint(WF_common, Domain, WeakLinIntegration):
-    has_3rd_panel = True    
+    has_3rd_panel = True
     def __init__(self, **kwargs):
         super(WF_WeakDomainLinConstraint, self).__init__(**kwargs)
         Domain.__init__(self, **kwargs)

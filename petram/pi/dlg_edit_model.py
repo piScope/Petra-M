@@ -76,19 +76,23 @@ class DlgEditModel(DialogWithWindowList):
         self.p1 = wx.Panel(self.nb)
         self.p2 = wx.Panel(self.nb)
         self.p3 = wx.Panel(self.nb)
+        self.p4 = wx.Panel(self.nb)        
         self.nb.AddPage(self.p1, "Config.")
 #        self.nb.AddPage(self.p2, "Selection")
         self.p1.SetSizer(wx.BoxSizer(wx.HORIZONTAL))
         self.p2.SetSizer(wx.BoxSizer(wx.HORIZONTAL))
         self.p3.SetSizer(wx.BoxSizer(wx.HORIZONTAL))
+        self.p4.SetSizer(wx.BoxSizer(wx.HORIZONTAL))        
         
         self.p1sizer = wx.BoxSizer(wx.VERTICAL)
         self.p2sizer = wx.BoxSizer(wx.VERTICAL)
         self.p3sizer = wx.BoxSizer(wx.VERTICAL)
-        
+        self.p4sizer = wx.BoxSizer(wx.VERTICAL)        
+ 
         self.p1.GetSizer().Add(self.p1sizer, 1, wx.EXPAND)
         self.p2.GetSizer().Add(self.p2sizer, 1, wx.EXPAND)
         self.p3.GetSizer().Add(self.p3sizer, 1, wx.EXPAND)
+        self.p4.GetSizer().Add(self.p4sizer, 1, wx.EXPAND)        
         
         self.SetSizer(wx.BoxSizer(wx.VERTICAL))
         s = self.GetSizer()
@@ -221,20 +225,26 @@ class DlgEditModel(DialogWithWindowList):
 #        if not mm.__class__ in self.panels.keys():
 
         for k in self.panels.keys():
-            p1panel, p2panel, p3panel = self.panels[k]
+            p1panel, p2panel, p3panel, p4panel = self.panels[k]
             self.p1sizer.Detach(p1panel)
             self.p2sizer.Detach(p2panel)
             self.p3sizer.Detach(p3panel)
+            self.p4sizer.Detach(p4panel)            
             p1panel.Hide()
             p2panel.Hide()
             p3panel.Hide()
+            p4panel.Hide()            
         self.generate_panel(mm)
+
+        self._cpanels = self.panels[mm.__class__]
         
         if mm.has_2nd_panel:
             if self.nb.GetPageCount() == 1:
                self.nb.AddPage(self.p2, "Selection")
             p1panel = self.panels[mm.__class__][0]
             p2panel = self.panels[mm.__class__][1]
+            p3panel = self.panels[mm.__class__][2]
+            p4panel = self.panels[mm.__class__][3]                        
             self.p1sizer.Add(p1panel, 1, wx.EXPAND|wx.ALL, 1)
             self.p2sizer.Add(p2panel, 1, wx.EXPAND|wx.ALL, 1)
             p1panel.SetValue(mm.get_panel1_value())
@@ -246,12 +256,30 @@ class DlgEditModel(DialogWithWindowList):
             if mm.has_3rd_panel:
                 if self.nb.GetPageCount() == 2:
                     self.nb.AddPage(self.p3, "init/NL.")
-                p3panel = self.panels[mm.__class__][2]
+
                 self.p3sizer.Add(p3panel, 1, wx.EXPAND|wx.ALL, 1)
                 p3panel.SetValue(mm.get_panel3_value())
                 p3panel.Show()
                 self.p3.Layout()
+            else:
+                if self.nb.GetPageCount() > 3:  self.nb.RemovePage(3)            
+                if self.nb.GetPageCount() > 2:  self.nb.RemovePage(2)
+                p3panel.Hide()                                
+                
+            if mm.has_4th_panel:
+                if self.nb.GetPageCount() == 3:
+                    self.nb.AddPage(self.p4, "time dep.")
+                p4panel = self.panels[mm.__class__][3]
+                self.p4sizer.Add(p4panel, 1, wx.EXPAND|wx.ALL, 1)
+                p4panel.SetValue(mm.get_panel4_value())
+                p4panel.Show()                
+                #for c in p4panel.GetChildren(): c.Show()
+                self.p4.Layout()
+            else:
+                if self.nb.GetPageCount() > 3:  self.nb.RemovePage(3)            
+                p4panel.Hide()                
         else:
+            if self.nb.GetPageCount() > 3:  self.nb.RemovePage(3)            
             if self.nb.GetPageCount() > 2:  self.nb.RemovePage(2)
             if self.nb.GetPageCount() > 1:  self.nb.RemovePage(1)
             p1panel = self.panels[mm.__class__][0]
@@ -344,16 +372,22 @@ class DlgEditModel(DialogWithWindowList):
         evt.Skip()
 
     def generate_panel(self, mm):
-        self.panels[mm.__class__] = (ScrolledEditListPanel(self.p1, list =  mm.panel1_param(), 
-                                                   tip=mm.panel1_tip()),
+        if mm.__class__ in self.panels: return
+        self.panels[mm.__class__] = (ScrolledEditListPanel(self.p1,
+                                                           list =  mm.panel1_param(), 
+                                                           tip=mm.panel1_tip()),
                                      EditListPanel(self.p2, list =  mm.panel2_param(),
                                                    tip=mm.panel2_tip()),
                                      EditListPanel(self.p3, list =  mm.panel3_param(),
-                                                   tip=mm.panel3_tip()),)
+                                                   tip=mm.panel3_tip()),
+                                     EditListPanel(self.p4, list =  mm.panel4_param(),
+                                                   tip=mm.panel4_tip()),)
+        
     def update_panel_label(self, mm):
         self.panels[mm.__class__][0].SetLabel(mm.panel1_param())
         self.panels[mm.__class__][1].SetLabel(mm.panel2_param())
-        self.panels[mm.__class__][2].SetLabel(mm.panel3_param())        
+        self.panels[mm.__class__][2].SetLabel(mm.panel3_param())
+        self.panels[mm.__class__][3].SetLabel(mm.panel4_param())                
                              
     def OnEL_Changed(self, evt):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
@@ -387,6 +421,14 @@ class DlgEditModel(DialogWithWindowList):
                 v3 = elp3.GetValue()
                 viewer_update = mm.import_panel3_value(v3)
                 elp3.SetValue(mm.get_panel3_value())
+
+        if mm.has_4th_panel:                
+            p4children = self.p4sizer.GetChildren()
+            if len(p4children) > 0:
+                elp4 = p4children[0].GetWindow()
+                v4 = elp4.GetValue()
+                viewer_update = mm.import_panel4_value(v4)
+                elp4.SetValue(mm.get_panel4_value())
                 
         if phys is not None:
            viewer = self.GetParent()

@@ -121,6 +121,7 @@ class Model(RestorableOrderedDict):
     can_delete = True
     has_2nd_panel = True
     has_3rd_panel = False
+    _has_4th_panel = False    
     mustbe_firstchild =False  
 
     def __init__(self, **kwargs):
@@ -131,8 +132,13 @@ class Model(RestorableOrderedDict):
             self.update_attribute_set(kw = kwargs)
             self.init_attr = True
             
+    @property
+    def has_4th_panel(self):
+        return self.has_3rd_panel and self._has_4th_panel
+    
     def get_info_str(self):
         return ""
+    
     def get_hook(self):
         if not hasattr(self, '_hook'): self._hook = None
         if self._hook is not None: return self._hook

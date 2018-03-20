@@ -121,6 +121,8 @@ class StdSolver(Solver):
     
     def init_sol(self, engine):
         phys_targets = self.get_phys()
+        
+        engine.collect_dependent_vars(phys_targets)        
         for p in phys_targets:
             engine.run_mesh_extension(p)
             
