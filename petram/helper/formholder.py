@@ -2,6 +2,8 @@
    block of linear/bilinear forms
 
 '''
+from itertools import product
+
 class FormBlock(object):
     def __init__(self, shape, new=None, mixed_new=None):
         '''
@@ -9,17 +11,23 @@ class FormBlock(object):
                   stores scipy sparse or numpy array
                hypre
         '''
-        try;
-            r, c = shpae
-        except
-            r = shpae
-            c = 1
+        try:
+            x = len(shape)
+        except:
+            shape = [shape]
             
-        self.block = [[None]*c for x in range(r)]
+        if len(shape) == 2:
+            r, c = shape
+            self.block = [[None]*c for x in range(r)]
+            self.ndim = 2
+        elif len(shape) == 1:
+            r = shape[0]
+            c = 1
+            self.ndim = 1
+            self.block = [[None]*r]
         self._shape = (r,c)
-        
         self.allocator1 = new
-        if mixed_allocator is None:
+        if mixed_new is None:
             self.allocator2 = new
         else:
             self.allocator2 = mixed_new
@@ -40,15 +48,15 @@ class FormBlock(object):
         assert (self.allocator1 is None and self.allocator2 is None), "FormBlock must be fixed"
 
         all_forms = []
-        for i in self.shape[0]:
-            for j in self.shape[1]:
-                for key in self.block[r][c].keys():
-                     all_forms.append(self.block[r][c][key])
+        for r, c in product(range(self.shape[0]),range(self.shape[1])):
+            if self.block[r][c] is None: continue
+            for key in self.block[r][c].keys():
+                all_forms.append(self.block[r][c][key][0])
 
         return all_forms.__iter__()
 
     def __getitem__(self, idx):
-        if self.shape[1] != 1:
+        if self.ndim == 2:
             try:
                 r, c, projector = idx
             except:
@@ -72,12 +80,12 @@ class FormBlock(object):
                     form = self.allocator1(r)
                 else:
                     form = self.allocator2(r, c)                    
-                self.block[r][c][projector] = form
-        return self.block[r][c][projector]
+                self.block[r][c][projector] = [form, None]
+        return self.block[r][c][projector][0]
                                     
 
     def __setitem__(self, idx, v):
-        if self.shape[1] != 1:
+        if self.ndim == 2:
             try:
                 r, c, projector = idx
             except:
@@ -93,20 +101,71 @@ class FormBlock(object):
         
         if self.block[r][c] is None: self.block[r][c] = {}
         
-        self.block[r][c][projector] = v
+        self.block[r][c][projector] = [v, None]
 
+    def get_projections(self, idx):
+        if self.shape[1] != 1:
+            r, c = idx
+        else:
+            c = 0
+            r = idx
+        return self.block[r][c].keys()
+        
+    def get_matvec(self, idx):
+        if self.ndim == 2:
+            try:
+                r, c, projector = idx
+            except:
+                r, c = idx
+                projector = 1
+        else:
+            c = 0            
+            try:
+                r, projector = idx
+            except:
+                r = idx
+                projector = 1
+        return self.block[r][c][projector][1]
+    
+    def set_matvec(self, idx, v):
+        if self.ndim == 2:
+            try:
+                r, c, projector = idx
+            except:
+                r, c = idx
+                projector = 1
+        else:
+            c = 0            
+            try:
+                r, projector = idx
+            except:
+                r = idx
+                projector = 1
+        self.block[r][c][projector][1] = v               
+    
+                   
 
-def convertElement(Mreal, Mimag, i, j, converter, form2vector=None):
+def generateMatVect(M, converter1, converter2=None):
+    if converter2 is None: converter2 = converter1
+
+    for i, j in product(range(M.shape[0]),range(M.shape[1])):
+        projs = M.get_projections(i, j)
+        for p in projs:
+            form = M[i, j, p]
+            if i == j:
+                M.set_matvec(i, j, converter1(form))
+            else:
+                M.set_matvec(i, j, converter2(form))
+                
+def convertElement(Mreal, Mimag, i, j, converter):
     keys = set(Mreal.block[i][j].keys() + Mimag.block[i][j].keys())
 
     term = None
     for k in keys:
 
-        rform = Mreal.block[i][j][k] if k in Mreal.block[i][j] else None
-        iform = Mimag.block[i][j][k] if k in Mimag.block[i][j] else None
-        if form2vector is not None:
-            if rform is not None: rform = form2vector(rform, i)
-            if iform is not None: iform = form2vector(iform, i)             
+        rmatvec = Mreal.block[i][j][k][1] if k in Mreal.block[i][j] else None
+        imatvec = Mimag.block[i][j][k][1] if k in Mimag.block[i][j] else None
+
         m = converter(rform, iform)
         if k!=1:
             pos, projector = k

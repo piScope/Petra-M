@@ -242,13 +242,13 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         return False
 
     def get_restriction_array(self, engine, idx = None):
-        mesh = engine.meshes[self.get_root_phys().emesh_idx]
+        mesh = engine.emeshes[self.get_root_phys().emesh_idx]
         intArray = mfem.intArray
 
         if isinstance(self, Domain):
-            size = mesh.attributes.Size()
+            size = np.max(mesh.GetAttributeArray())
         else:
-            size = mesh.bdr_attributes.Size()
+            size = np.max(mesh.GetBdrAttributeArray())
      
         arr = [0]*size
         if idx is None: idx = self._sel_index
@@ -280,7 +280,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
            p = p.parent
         return p
      
-    def get_projection(self)
+    def get_projection(self):
         return 1
         
     def get_exter_NDoF(self, kfes=0):

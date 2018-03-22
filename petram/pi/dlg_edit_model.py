@@ -236,15 +236,12 @@ class DlgEditModel(DialogWithWindowList):
             p4panel.Hide()            
         self.generate_panel(mm)
 
-        self._cpanels = self.panels[mm.__class__]
+        self._cpanels = self.panels[mm.fullname()]
+        p1panel, p2panel, p3panel, p4panel = self.panels[mm.fullname()]               
         
         if mm.has_2nd_panel:
             if self.nb.GetPageCount() == 1:
                self.nb.AddPage(self.p2, "Selection")
-            p1panel = self.panels[mm.__class__][0]
-            p2panel = self.panels[mm.__class__][1]
-            p3panel = self.panels[mm.__class__][2]
-            p4panel = self.panels[mm.__class__][3]                        
             self.p1sizer.Add(p1panel, 1, wx.EXPAND|wx.ALL, 1)
             self.p2sizer.Add(p2panel, 1, wx.EXPAND|wx.ALL, 1)
             p1panel.SetValue(mm.get_panel1_value())
@@ -269,7 +266,6 @@ class DlgEditModel(DialogWithWindowList):
             if mm.has_4th_panel:
                 if self.nb.GetPageCount() == 3:
                     self.nb.AddPage(self.p4, "time dep.")
-                p4panel = self.panels[mm.__class__][3]
                 self.p4sizer.Add(p4panel, 1, wx.EXPAND|wx.ALL, 1)
                 p4panel.SetValue(mm.get_panel4_value())
                 p4panel.Show()                
@@ -282,7 +278,6 @@ class DlgEditModel(DialogWithWindowList):
             if self.nb.GetPageCount() > 3:  self.nb.RemovePage(3)            
             if self.nb.GetPageCount() > 2:  self.nb.RemovePage(2)
             if self.nb.GetPageCount() > 1:  self.nb.RemovePage(1)
-            p1panel = self.panels[mm.__class__][0]
             self.p1sizer.Add(p1panel, 1, wx.EXPAND|wx.ALL, 1)
             p1panel.SetValue(mm.get_panel1_value())
             p1panel.Show()
@@ -372,8 +367,7 @@ class DlgEditModel(DialogWithWindowList):
         evt.Skip()
 
     def generate_panel(self, mm):
-        if mm.__class__ in self.panels: return
-        self.panels[mm.__class__] = (ScrolledEditListPanel(self.p1,
+        self.panels[mm.fullname()] = (ScrolledEditListPanel(self.p1,
                                                            list =  mm.panel1_param(), 
                                                            tip=mm.panel1_tip()),
                                      EditListPanel(self.p2, list =  mm.panel2_param(),
@@ -384,10 +378,10 @@ class DlgEditModel(DialogWithWindowList):
                                                    tip=mm.panel4_tip()),)
         
     def update_panel_label(self, mm):
-        self.panels[mm.__class__][0].SetLabel(mm.panel1_param())
-        self.panels[mm.__class__][1].SetLabel(mm.panel2_param())
-        self.panels[mm.__class__][2].SetLabel(mm.panel3_param())
-        self.panels[mm.__class__][3].SetLabel(mm.panel4_param())                
+        self.panels[mm.fullname()][0].SetLabel(mm.panel1_param())
+        self.panels[mm.fullname()][1].SetLabel(mm.panel2_param())
+        self.panels[mm.fullname()][2].SetLabel(mm.panel3_param())
+        self.panels[mm.fullname()][3].SetLabel(mm.panel4_param())                
                              
     def OnEL_Changed(self, evt):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())

@@ -121,7 +121,7 @@ class StdSolver(Solver):
     
     def init_sol(self, engine):
         phys_targets = self.get_phys()
-        engine.set_formblocks(phys_target, 1)
+        engine.set_formblocks(phys_targets, 1)
 
         for p in phys_targets:
             engine.run_mesh_extension(p)

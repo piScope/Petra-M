@@ -4,7 +4,6 @@ import numpy as np
 import scipy.sparse
 from collections import OrderedDict
 from warnings import warn
-import   ifigure.widgets.dialog as dialog            
 
 import wx
 
@@ -46,7 +45,7 @@ class AUX_Variable(Phys):
     def attribute_set(self, v):
         v = super(AUX_Variable, self).attribute_set(v)
         v["variable_name"] = ""
-        v["aux_connection"] = OrderedDict({0: None})
+        v["aux_connection"] = OrderedDict({})
         v["jmatrix_config"] = None
         v = self.vt_diag_rhs.attribute_set(v)
         
@@ -68,7 +67,7 @@ class AUX_Variable(Phys):
         b2 = {"label": "-", "func": self.onRmConnection,
               "noexpand": True, "style": BU_EXACTFIT}#, "sendevent":True}
         
-        ll = [["name",   self.variable_name, 0, {}],]
+        ll = [["name"+" "*16,   self.variable_name, 0, {}],]
 
         ll.extend(self.vt_diag_rhs.panel_param(self))
         ll.append([None, None, 241, {'buttons':[b1,b2],
@@ -100,7 +99,7 @@ class AUX_Variable(Phys):
             ll.extend(ll1+ ll2)
 
         return ll
-    
+
     def import_panel1_value(self, v):
         mfem_physroot = self.get_root_phys().parent
         names, pnames, pindex = mfem_physroot.dependent_values()
@@ -166,11 +165,14 @@ class AUX_Variable(Phys):
         names = [n+" ("+p + ")" for n, p in zip(names, pnames)]
         
         keys = self.aux_connection.keys()
-        self.aux_connection[max(keys)+1] = (pnames[0], 0)
+        if len(keys) == 0:
+            self.aux_connection[0] = (pnames[0], 0)
+        else:
+            self.aux_connection[max(keys)+1] = (pnames[0], 0)
         evt.GetEventObject().TopLevelParent.OnItemSelChanged()
     
     def onRmConnection(self, evt):
-        if len(self._vt_array) < 2: return
+        if len(self._vt_array) < 1: return
         keys = self.aux_connection.keys()
         del self.aux_connection[keys[-1]]
         self._vt_array = self._vt_array[:-1]
