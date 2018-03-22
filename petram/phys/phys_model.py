@@ -279,6 +279,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         while isinstance(p.parent, Phys):
            p = p.parent
         return p
+     
+    def get_projection(self)
+        return 1
         
     def get_exter_NDoF(self, kfes=0):
         return 0
@@ -488,7 +491,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         else:
             assert  False, "Unknown coefficient type: " + str(type(coeff))
         adder(integrator(coeff))
-        
+
     def onItemSelChanged(self, evt):
         '''
         GUI response when model object is selected in
@@ -496,7 +499,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys',  self)
-
+    
 class PhysModule(Phys):
     hide_ns_menu = False
     dim_fixed = True # if ndim of physics is fixed

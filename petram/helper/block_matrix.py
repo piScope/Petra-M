@@ -4,7 +4,7 @@ Hypre with the same interface
 '''
 import numpy as np
 import scipy
-from scipy.sparse import coo_matrix, spmatrix, lil_matrix
+from scipy.sparse import coo_matrix, spmatrix, lil_matrix, csc_matrix
 
 from petram.mfem_config import use_parallel
 import mfem.common.chypre as chypre
@@ -130,6 +130,13 @@ class ScipyCoo(coo_matrix):
         PP = P.conj().transpose()
         return convert_to_ScipyCoo(PP.dot(self.dot(P)))
 
+    def conj(self, inplace = False):
+        if inplace:
+            np.conj(self.data, out=self.data)
+            return self
+        else:
+            return self.conj()
+
     def elimination_matrix(self, nonzeros):
         '''
         # P elimination matrix for column vector
@@ -207,7 +214,21 @@ class ScipyCoo(coo_matrix):
     def GetRowPartArray(self):
         return (0, self.shape[0], self.shape[0])
     GetPartitioningArray = GetRowPartArray
-     
+
+    def eliminate_RowCol(self, tdof):
+        csr = self.tocsr()
+        csr[tdof, :] = 0
+        csc = csr.tocsc()
+        Ae = csc_matrix(self.shape, dtype=self.dtype)
+        Ae[:, tdof] = csc[:,tdof]
+        lil = csr.tolil()
+        lil[tdof, tdof] = 1.
+        coo = lil.tocoo()
+        self.data = coo.data
+        self.row = coo.row
+        self.col = coo.col
+        return Ae.tocoo()
+       
 def convert_to_ScipyCoo(mat):
     if isinstance(mat, np.ndarray):
        mat = coo_matrix(mat)
@@ -307,7 +328,6 @@ class BlockMatrix(object):
                            for j in range(self.shape[1])]))
         return "\n".join(txt)+"\n"
 
-
     def format_nnz(self):
         txt = []
         for i in range(self.shape[0]):       
@@ -359,10 +379,10 @@ class BlockMatrix(object):
                        ret[i,j] = self[i, k].dot(mat[k, j])
                    else:
                        ret[i,j] = ret[i,j] + self[i, k].dot(mat[k, j])
-                   try:
-                       ret[i,j].shape
-                   except:
-                       ret[i,j] = coo_matrix([[ret[i,j]]]) 
+                   #try:
+                   #    ret[i,j].shape
+                   #except:
+                   #    ret[i,j] = coo_matrix([[ret[i,j]]]) 
         return ret
 
     def eliminate_empty_rowcol(self):
