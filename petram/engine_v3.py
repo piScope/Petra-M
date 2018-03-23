@@ -1255,9 +1255,9 @@ class Engine(object):
                 # extra can be none in MPI child nodes
                 # this is called so that we can use MPI
                 # in postprocess_extra in future
-                mm.postprocess_extra(None, t5, ret[key])
+                mm.postprocess_extra(None, t5, ret[extra_name])
             else:
-                mm.postprocess_extra(data, t5, ret[key])
+                mm.postprocess_extra(data, t5, ret[extra_name])
         return ret
 
     #

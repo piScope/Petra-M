@@ -486,16 +486,21 @@ class BlockMatrix(object):
         L = []
         idx = 0
         ret = BlockMatrix((self.shape[0], 1), kind = self.kind)
-        for i in range(self.shape[0]):        
-            l = self[i, i].shape[0]
+        print "self", self
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+               if self[i,j] is not None:
+                  l =  self[i, j].shape[0]
+                  break
+            print i, j, l
             L.append(l)
-            ref = self[i,i]
+            ref = self[i,j]
             if mat is not None:
                 v = mat[idx:idx+l, ksol]
             else:
                 v = None   # slave node (will recive data)
             idx = idx + l
-
+            print "v.shape", v.shape
             ret.set_element_from_central_mat(v, i, 0, ref)
 
         return ret

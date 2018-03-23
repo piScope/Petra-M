@@ -253,11 +253,12 @@ class AUX_Variable(Phys):
             t3 = IdentityPyMat(diag_size)
             if diag != 1:
                t3 *= diag
-        if t4 is not None:
-           t4 = np.atleast_1d(t4)
-           if self.get_root_phys().is_complex():
-              t4 = t4.astype(complex, copy = False)
-           if not self.get_root_phys().is_complex():              
-              if np.iscomplexobj(t4): t4 = t4.real
-           t4 = Array2PyVec(t4)
+               
+        if t4 is None: t4 = np.zeros(diag_size)
+        t4 = np.atleast_1d(t4)
+        if self.get_root_phys().is_complex():
+            t4 = t4.astype(complex, copy = False)
+        if not self.get_root_phys().is_complex():              
+            if np.iscomplexobj(t4): t4 = t4.real
+        t4 = Array2PyVec(t4)
         return (t1, t2, t3, t4, True)

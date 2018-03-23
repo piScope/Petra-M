@@ -215,8 +215,8 @@ class StdSolver(Solver):
 
     def store_sol(self, engine, solall, X, ksol = 0):
         phys_targets = self.get_phys()
-        print X
-        sol = X.reformat_central_mat(solall, ksol)
+        print "solall", solall.shape
+        sol = self.A.reformat_central_mat(solall, ksol)
         dprint1("X", X)
         dprint1("sol", sol)
         l = len(self.RHS)
