@@ -299,7 +299,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
            # couples only in the same Phys module and jmatrix == 0
 
            # ToDo. Should add deprecated message
-           self.has_extra_DoF(kfes=kfes)
+           return self.has_extra_DoF(kfes=kfes)
         else:
            return False           
            
@@ -334,7 +334,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         with other FES.
         '''
         if jmatrix == 0:
-           self.has_bf_contribution(kfes)
+           return self.has_bf_contribution(kfes)
         else:
            return False           
      
@@ -347,7 +347,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         with other FES.
         '''
         if jmatrix == 0:
-           self.has_lf_contribution(kfes)
+           return self.has_lf_contribution(kfes)
         else:
            return False           
      
@@ -362,7 +362,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         with other FES.
         '''
         if jmatrix == 0:
-           self.has_mixed_contribution()
+           return self.has_mixed_contribution()
         else:
            return False           
 

@@ -216,6 +216,8 @@ class ScipyCoo(coo_matrix):
     GetPartitioningArray = GetRowPartArray
 
     def eliminate_RowCol(self, tdof):
+        # tdof is intArray....
+        tdof = tdof.ToList()
         csr = self.tocsr()
         csr[tdof, :] = 0
         csc = csr.tocsc()
@@ -297,7 +299,9 @@ class BlockMatrix(object):
         ret = BlockMatrix(shape, kind = self.kind)
         for i in range(shape[0]):
             for j in range(shape[1]):
-                if self[i,j] is None:
+                if self[i,j] is None and v[i,j] is None:
+                    ret[i,j] = None                   
+                elif self[i,j] is None:
                     ret[i,j] = v[i,j]
                 elif v[i,j] is None:
                     ret[i,j] = self[i,j]
@@ -313,7 +317,9 @@ class BlockMatrix(object):
 
         for i in range(shape[0]):
            for j in range(shape[1]):
-                if self[i,j] is None:
+                if self[i,j] is None and v[i,j] is None:
+                    ret[i,j] = None                   
+                elif self[i,j] is None:
                     ret[i,j] = -v[i,j]
                 elif v[i,j] is None:
                     ret[i,j] = self[i,j]

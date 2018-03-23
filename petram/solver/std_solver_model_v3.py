@@ -145,8 +145,11 @@ class StdSolver(Solver):
         engine.run_assemble_mat(phys_targets)
         engine.run_assemble_rhs(phys_targets)
         blocks = engine.run_assemble_blocks()
+        A, X, RHS, Ae,  B = blocks
 
-        return blocks #A, X, RHS, Ae, X, B
+        self.A   = A
+        self.RHS = [RHS]
+        return blocks #
 
     '''
     def generate_linear_system(self, engine, blocks)
@@ -166,7 +169,7 @@ class StdSolver(Solver):
         self.B.append(blocks[1])
 
     def call_solver(self, engine, blocks):
-        A, X, RHS, Ae, X, B = blocks
+        A, X, RHS, Ae, B = blocks
         
         solver = self.get_active_solver()        
         phys_targets = self.get_phys()        
@@ -194,8 +197,10 @@ class StdSolver(Solver):
         if debug.debug_memory:
             dprint1("Block Matrix after shrink :\n",  M_block)
             dprint1(debug.format_memory_usage())
-            
-        AA, BB = engine.finalize_linearsystem(A, B, 
+
+        dprint1("A", self.A)
+        dprint1("RHS", self.RHS)        
+        AA, BB = engine.finalize_linearsystem(self.A, self.RHS, 
                                             not phys_real,
                                             format = ls_type)
         solall = solver.solve(engine, AA, BB)
@@ -203,18 +208,18 @@ class StdSolver(Solver):
         
         #if ls_type.endswith('_real'):
         if not phys_real and self.assemble_real:
-            solall = solver.real_to_complex(solall, M)
+            solall = solver.real_to_complex(solall, self.A)
         #PT = P.transpose()
 
         return solall
 
-    def store_sol(self, engine, solall, B, ksol = 0):
+    def store_sol(self, engine, solall, RHS, ksol = 0):
         phys_targets = self.get_phys()
-
-        sol = B.reformat_central_mat(solall, ksol)
-
+        
+        sol = RHS.reformat_central_mat(solall, ksol)
+        dprint1("RHS", RHS)
         dprint1(sol)
-        l = len(self.B)
+        l = len(self.RHS)
 
         sol, sol_extra = engine.split_sol_array(phys_targets, sol)
 
@@ -255,7 +260,7 @@ class StdSolver(Solver):
             blocks = self.assemble(engine)
             #self.generate_linear_system(blocks)
             solall = self.call_solver(engine, blocks)
-            extra_data = self.store_sol(engine, solall, blocks[1], 0)
+            extra_data = self.store_sol(engine, solall, blocks[2], 0)
             dprint1("Extra Data", extra_data)
             
         engine.remove_solfiles()

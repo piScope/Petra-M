@@ -369,7 +369,7 @@ class MUMPS(Solver):
             ret = self.solve_central_matrix(engine, A, b)
             return ret
 
-    def real_to_complex(self, solall, M):
+    def real_to_complex(self, solall, M=None):
         try:
            from mpi4py import MPI
            myid     = MPI.COMM_WORLD.rank

@@ -122,7 +122,6 @@ class FormBlock(object):
 
         for i, j in product(range(self.shape[0]),range(self.shape[1])):
             projs = self.get_projections(i, j)
-            print("debug", i, j, self.block[i][j])
             for p in projs:
                 form = self.block[i][j][p][0]
                 print form
@@ -143,8 +142,6 @@ def convertElement(Mreal, Mimag, i, j, converter):
                Mimag.get_projections(i,j))
 
     term = None
-    print "real", Mreal.block[i][j]
-    print "imag", Mimag.block[i][j]    
     for k in keys:
         if Mreal.block[i][j] is not None:
             rmatvec = Mreal.block[i][j][k][1] if k in Mreal.block[i][j] else None

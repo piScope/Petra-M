@@ -489,7 +489,7 @@ class Engine(object):
         Ae = self.eliminateBC(A, X[0], RHS)  # modify RHS and generate Ae
         self.apply_interp(A, RHS)            # A and RHS is modifedy by global DoF coupling P
 
-        return A, X, RHS, Ae, X, B
+        return A, X, RHS, Ae,  B
             
     #
     #  step 0: update mode param
@@ -620,7 +620,6 @@ class Engine(object):
             fi = os.path.join(path, fi)
             meshname = os.path.join(path, meshname)
 
-            print meshname, fr
             rgf.Assign(0.0)
             if igf is not None: igf.Assign(0.0)
             if not os.path.exists(meshname):
@@ -881,7 +880,7 @@ class Engine(object):
     def eliminateBC(self, A, X, RHS):
         nblock = A.shape[0]
         Ae = self.new_blockmatrix(A.shape)
-        
+
         for name in self.gl_ess_tdofs:
            gl_ess_tdof = self.gl_ess_tdofs[name]
            idx = self.dep_var_offset(name)
@@ -905,7 +904,7 @@ class Engine(object):
         #    print b, Me.dot(b)
         RHS = RHS - Ae.dot(X)
               
-    def apply_interp(A, RHS):
+    def apply_interp(self, A, RHS):
         ''''
         without interpolation, matrix become
               [ A    B ][x]   [b]
@@ -1202,7 +1201,7 @@ class Engine(object):
             if P is not None:
                 sol_section = (P.transpose()).dot(sol_section)
 
-            ifes = self.ifes[name]
+            ifes = self.ifes(name)
             s[ifes] = sol_section
 
         e = []    
@@ -1666,9 +1665,9 @@ class SerialEngine(Engine):
         return self.run_mesh_serial(meshmodel = meshmodel,
                                     skip_refine=skip_refine)
 
-    def run_assemble(self, phys_target=None, nterms=1):
+    def run_assemble_mat(self, phys_target=None):
         self.is_matrix_distributed = False       
-        return super(SerialEngine, self).run_assemble(phys_target=phys_target, nterms=nterms)
+        return super(SerialEngine, self).run_assemble_mat(phys_target=phys_target)
 
     def new_lf(self, fes):
         return  mfem.LinearForm(fes)
@@ -1842,7 +1841,7 @@ class SerialEngine(Engine):
     '''
     def collect_all_ess_tdof(self, phys, ess_tdofs):
         for name, ess_tdof in ess_tdofs:
-            self.gl_ess_tdofs[name] = ess_tdofs
+            self.gl_ess_tdofs[name] = ess_tdof
                                   
 
     def save_mesh(self):
@@ -1898,7 +1897,7 @@ class SerialEngine(Engine):
         # we dont eliminate essentiaal at this level...                 
         inta = mfem.intArray()
         m = self.new_matrix()
-        a.FormLinearSystem(inta, m)
+        a.FormSystemMatrix(inta, m)
         return m
 
     def a2Am(self, a):  # MixedBilinearSystem to matrix 
@@ -1978,9 +1977,9 @@ class ParallelEngine(Engine):
             m.GetEdgeVertexTable()                                   
             get_extended_connectivity(m)           
 
-    def run_assemble(self, phys_target=None, nterms=1):
+    def run_assemble_mat(self, phys_target=None):
         self.is_matrix_distributed = True       
-        return super(ParallelEngine, self).run_assemble(phys_target=phys_target, nterms=nterms)
+        return super(ParallelEngine, self).run_assemble(phys_target=phys_target)
      
     def new_lf(self, fes):
         return  mfem.ParLinearForm(fes)
@@ -2259,7 +2258,7 @@ class ParallelEngine(Engine):
         # we dont eliminate essentiaal at this level...                 
         inta = mfem.intArray()
         m = self.new_matrix()
-        a.FormLinearSystem(inta, m)
+        a.FormSystemMatrix(inta, m)
         return m
 
     def a2Am(self, a):  # MixedBilinearSystem to matrix 
