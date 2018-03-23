@@ -25,17 +25,17 @@ from petram.phys.vtable import VtableElement, Vtable
 
 
 import petram.debug
-dprint1, dprint2, dprint3 = petram.debug.init_dprints('AUXVariable')
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('AUX_Variable')
 from petram.helper.matrix_file import write_coo_matrix, write_vector
 
 #groups = ['Domain', 'Boundary', 'Edge', 'Point', 'Pair']
 groups = ['Domain', 'Boundary', 'Pair']
 
-data0 = [("oprt_diag", VtableElement("oprt_diag", type='array',
-                                      guilabel = "diag", default = "",
+data0 = [("oprt_diag", VtableElement("oprt_diag", type='complex',
+                                      guilabel = "diag", default = 0.0,
                                       tip = "oprator (diag)",)),
-         ("rhs_vec", VtableElement("rhs_vec", type='array',
-                                   guilabel = "rhs", default = "",
+         ("rhs_vec", VtableElement("rhs_vec", type='any',
+                                   guilabel = "rhs", default = "0.0",
                                    tip = "rhs vector",))]
 
 class AUX_Variable(Phys):
@@ -82,10 +82,10 @@ class AUX_Variable(Phys):
         for key in self.aux_connection:
             if len(self._vt_array) > key: continue
             sidx = str(key)
-            data = [("oprt1_"+sidx, VtableElement("oprt1_"+sidx, type='array',
+            data = [("oprt1_"+sidx, VtableElement("oprt1_"+sidx, type='any',
                                            guilabel = "operator1", default = "",
                                            tip = "oprator (horizontal)",)),
-                    ("oprt2_"+sidx, VtableElement("oprt2_"+sidx, type='array',
+                    ("oprt2_"+sidx, VtableElement("oprt2_"+sidx, type='any',
                                            guilabel = "operator2", default = "",
                                            tip = "oprator (vertical)",)),]
             vt = Vtable(data)
@@ -116,7 +116,6 @@ class AUX_Variable(Phys):
             #if len(self._vt_array) >= i: continue
             self._vt_array[i].import_panel_value(self,
                                                  v[(i_st+1):(i_st+3)])
-            print  v[i_st+1:i_st+3]
             i_st = i_st + 3
 
     def get_panel1_value(self):
@@ -178,17 +177,13 @@ class AUX_Variable(Phys):
         self._vt_array = self._vt_array[:-1]
         evt.GetEventObject().TopLevelParent.OnItemSelChanged()
     
-    def has_extra_DoF2(self, phys, kfes, jmatrix):
-        if self.jmatrix_config is None:
-            if jmatrix != 0: return False
+    def has_extra_DoF2(self, kfes, phys, jmatrix):       
+        if not self.timestep_config[jmatrix]: return False
 
         flag = False            
         for key in self.aux_connection:
             phys_name, kkfes = self.aux_connection[key]
             if (phys.name() == phys_name) and (kfes == kkfes): flag = True
-            if self.jmatrix_config is not None:
-               pass
-
             if flag: return True
         return False
      
@@ -197,5 +192,72 @@ class AUX_Variable(Phys):
         name = self.variable_name
         sol_extra[name] = sol.toarray()
 
-    def add_extra_contribution(self, engine, **kwargs):
-        pass
+    def preprocess_params(self, engine):
+        self.vt_diag_rhs.preprocess_params(self)
+        for vt in self._vt_array:
+           vt.preprocess_params(self)
+        super(AUX_Variable, self).preprocess_params(engine)
+
+
+    def _add_vt_array(self, sidx):
+        data = [("oprt1_"+sidx, VtableElement("oprt1_"+sidx, type='any',
+                                           guilabel = "operator1", default = "",
+                                           tip = "oprator (horizontal)",)),
+               ("oprt2_"+sidx, VtableElement("oprt2_"+sidx, type='any',
+                                           guilabel = "operator2", default = "",
+                                           tip = "oprator (vertical)",)),]
+        vt = Vtable(data)
+        self._vt_array.append(vt)
+        vt.preprocess_params(self)        
+        
+    def add_extra_contribution(self, engine, ess_tdof = None,
+                               kfes = 0, phys = None):
+
+        range = self.get_root_phys().dep_vars[kfes]
+        
+        diag, rhs_vec = self.vt_diag_rhs.make_value_or_expression(self)
+        for i, key in enumerate(self.aux_connection):        
+            if len(self._vt_array) < i+1:
+               self._add_vt_array(str(key))
+            opr1, opr2 = self._vt_array[i].make_value_or_expression(self)
+
+        t1 = None; t2 = None; t3=None; t4=None
+
+        from petram.helper.expression import Expression
+
+        name = phys.dep_vars[kfes]
+        fes = engine.fespaces[name]
+
+        diag_size = -1
+        if opr1 is not None or opr2 is not None:
+            if opr1 is not None:
+               assert isinstance(opr1, str), "operator1 must be an expression"               
+               expr = Expression(opr1, engine=engine, range=fes)
+               t1 = expr.assemble(g=self._global_ns)
+               diag_size = t1.shape[0]
+            if opr2 is not None:
+               assert isinstance(opr2, str), "operator1 must be an expression"                           
+               expr = Expression(opr2, engine=engine, range=fes, transpose=True)               
+               expr = Expression(opr2)
+               expr.set_engine(engine)
+               expr.set_range_space(fes)
+               t2 = expr.assemble(g=self._global_ns)
+               if diag_size > -1:
+                  assert diag_size == t2.shape[1], "t1 and t2 shapes are inconsistent"
+               diag_size = t2.shape[1]
+
+        from mfem.common.chypre import IdentityPyMat, Array2PyVec              
+        if diag is not None:
+            if not self.get_root_phys().is_complex():
+               diag = diag.real
+            t3 = IdentityPyMat(diag_size)
+            if diag != 1:
+               t3 *= diag
+        if t4 is not None:
+           t4 = np.atleast_1d(t4)
+           if self.get_root_phys().is_complex():
+              t4 = t4.astype(complex, copy = False)
+           if not self.get_root_phys().is_complex():              
+              if np.iscomplexobj(t4): t4 = t4.real
+           t4 = Array2PyVec(t4)
+        return (t1, t2, t3, t4, True)

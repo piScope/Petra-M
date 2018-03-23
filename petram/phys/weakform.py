@@ -189,7 +189,6 @@ class WeakBilinIntegration(WeakIntegration):
         v['use_symmetric'] = False                
         return v
     def get_panel1_value(self):
-        print("get_panel1_value")
         if self.paired_var is None:
             n = self.get_root_phys().dep_vars[0]
             p = self.get_root_phys().name()

@@ -289,7 +289,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     def has_extra_DoF(self, kfes=0):
         return False
 
-    def has_extra_DoF2(self, phys, kfes, jmatrix):
+    def has_extra_DoF2(self, kfes, phys, jmatrix):
         '''
         subclass has to overwrite this if extra DoF can couple 
         with other FES.

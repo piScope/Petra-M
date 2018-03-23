@@ -348,14 +348,18 @@ class Vtable_mixin(object):
 
     def eval_phys_expr(self, value, param,
                        chk_int = False, chk_complex = False, 
-                       chk_float = False, chk_array = False):
+                       chk_float = False, chk_array = False,
+                       chk_any = False):
         def dummy():
             pass
         if value.startswith('='):
             return dummy,  value.split('=')[1]
         else:
+            if value.strip()=='': return None, None
             x = eval(value, self._global_ns, self._local_ns)
-            if chk_int:
+            if chk_any:
+                pass
+            elif chk_int:
                 x = int(x)
             elif chk_complex:
                 x = complex(x)

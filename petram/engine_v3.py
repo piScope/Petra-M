@@ -756,19 +756,19 @@ class Engine(object):
             for phys2 in phys_target:
                 names = phys2.dep_vars      
                 for kfes, name in enumerate(names):
-                    if not mm.has_extra_DoF2(phys2, kfes, self.access_idx): continue
+                    if not mm.has_extra_DoF2(kfes, phys2, self.access_idx): continue
                     
                     gl_ess_tdof = self.gl_ess_tdofs[name]                    
                     tmp  = mm.add_extra_contribution(self,
-                                                         ess_tdof=gl_ess_tdof, 
-                                                         kfes = kfes,
-                                                         target = phys2)
+                                                     ess_tdof=gl_ess_tdof, 
+                                                     kfes = kfes,
+                                                     phys = phys2)
                     if tmp is None: continue
 
                     dep_var = names[kfes]
                     extra_name = mm.extra_DoF_name()
                     key = (extra_name, dep_var)
-                    if key in extras:
+                    if key in self.extras:
                         assert False, "extra with key= " + str(key) + " already exists."
                     self.extras[key] = tmp
                     self.extras_mm[key] = mm.fullpath()
@@ -903,7 +903,13 @@ class Engine(object):
         # essentailBC is stored in b
         #for b in B_blocks:
         #    print b, Me.dot(b)
-        RHS = RHS - Ae.dot(X)
+        try:
+           RHS = RHS - Ae.dot(X)
+        except:
+           print "RHS", RHS
+           print "Ae", Ae
+           print "X", X
+           raise
               
     def apply_interp(self, A, RHS):
         ''''
@@ -1637,7 +1643,7 @@ class Engine(object):
 
                for j in range(self.n_matrix):
                   for k in range(len(dv)):
-                      if not mm.has_extra_DoF2(phys, k, j): continue
+                      if not mm.has_extra_DoF2(k, phys, j): continue
                       
                       name = mm.extra_DoF_name()
                       if not name in extra_vars:

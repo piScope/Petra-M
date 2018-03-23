@@ -69,7 +69,7 @@ class WF_Essential(Bdry, Phys):
         dprint1('c0, v0', c0, vdim0)
         name =  self.get_root_phys().dep_vars[0]
         fes = engine.get_fes(self.get_root_phys(), name=name)
-        print name, fes
+
         vdim = fes.GetVDim()
         vvdim = -1
         

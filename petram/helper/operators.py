@@ -1,3 +1,5 @@
+import weakref
+
 from petram.mfem_config import use_parallel
 if use_parallel:
    import mfem.par as mfem
@@ -9,19 +11,21 @@ if use_parallel:
 else:
    import mfem.ser as mfem
 
-operators = {"integd":IntegD,
-             "ingegb":IntegB}
 class Operator(object):
     def __repr__(self):
         return self.__class__.__name__ + "("+",".join(self.sel)+")"
 
 class Operator(object):
     def __init__(self, **kwargs):
-        self.sel = kwargs.pop("sel", "all")
-
-    def __call__(self):
-        fespace = globals()["fespace"]
-        return self.assemble(fespace)
+        self._sel = kwargs.pop("sel", "all")
+        self._sel_mode = kwargs.pop("sel_mode", "domain")
+        self._fes1 = None
+        self._fes2 = None
+        self._engine = None
+        self._transpose = False
+        
+    def __call__(self, *args, **kwargs):
+        return self.assemble(*args, **kwargs )
     
     def assemble(self, fes):
         raise NotImplementedError("Subclass needs to implement this")
@@ -31,19 +35,18 @@ class Operator(object):
         intArray = mfem.intArray
 
         if isinstance(self, Domain):
-            size = mesh.attributes.Size()
+            size = np.max(mesh.GetAttributeArray())
         else:
-            size = mesh.bdr_attributes.Size()
+            size = np.max(mesh.GetBdrAttributeArray())
 
-
-        if self.sel[0] == "all":
+        if self._sel[0] == "all":
             arr = [0]*size
         else:
-            for k in self.sel: arr[k-1] = 1
+            for k in self._sel: arr[k-1] = 1
         return intArray(arr)
     
     def restrict_coeff(self, coeff, fes, vec = False, matrix=False):
-        if self.sel == 'all': return coeff
+        if self._sel == 'all': 
            return coeff
         arr = self.get_restriction_array(fes, idx)
         if vec:
@@ -54,35 +57,45 @@ class Operator(object):
             return mfem.RestrictedCoefficient(coeff, arr)
 
 
-class IntegD(Operator):
-    def assemble(self, engine, fes):
-        lf1 = engine.new_lf(fes)
-        one = mfem.ConstantCoefficient(1.0)        
-        coff = self.restrict_coeff(one, fes)
+    def process_kwargs(self, kwargs):
+        '''
+        kwargs in expression can overwrite this.
+        '''
+        fes1 = kwargs.pop('test', None)
+        fes2 = kwargs.pop('range', None)
+        self._sel_mode = kwargs.pop('sel_mode', self._sel_mode)
+        self._sel  = kwargs.pop('sel', self._sel)
+        if fes1 is not None: 
+           self._fes1 = weakref.ref(fes1)        
+        if fes2 is not None: 
+           self._fes2 = weakref.ref(fes2)        
         
-        intg = mfem.DomainLFIntegrator(coff)        
+class Integral(Operator):
+    def assemble(self, *args, **kwargs):
+        self.process_kwargs(kwargs)
+        if len(args)>0: self._sel_mode = args[0]
+        if len(args)>1: self._sel = args[1]
+        engine = self._engine()
+        lf1 = engine.new_lf(self._fes1())
+        one = mfem.ConstantCoefficient(1.0)        
+        coff = self.restrict_coeff(one, self._fes1())
+
+        if self._sel_mode == 'domain':
+            intg = mfem.DomainLFIntegrator(coff)
+        else:
+            intg = mfem.BoundaryLFIntegrator(coff)            
         lf1.AddDomainIntegrator(intg)
         lf1.Assemble()
         
-        from mfem.common.chypre import LF2PyVec, PyVec2PyMat,
-        v1 = LF2PyVec(lf1, None)
-        v1 = PyVec2PyMat(v1)        
+        from mfem.common.chypre import LF2PyVec, PyVec2PyMat, MfemVec2PyVec
+        v1 = MfemVec2PyVec(engine.b2B(lf1), None)
+        
+        if self._transpose:
+            v1 = PyVec2PyMat(v1)        
+        else:
+            v1 = PyVec2PyMat(v1.transpose())        
         return v1
     
-class IntegB(Operator):
-    def assemble(self, engine, fes):    
-        lf1i = engine.new_lf(fes)
-        one = mfem.ConstantCoefficient(1.0)        
-        coff = self.restrict_coeff(one, fes)
-        
-        intg = mfem.BoundaryLFIntegrator(coeff)
-        lf1.AddBoundaryIntegrator(intg)
-        lf1.Assemble()
-        lf1i = engine.new_lf(fes)
 
-        from mfem.common.chypre import LF2PyVec, PyVec2PyMat,
-        v1 = LF2PyVec(lf1, None)
-        v1 = PyVec2PyMat(v1)        
-        return v1
         
                  
