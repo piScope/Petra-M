@@ -218,12 +218,10 @@ class ScipyCoo(coo_matrix):
     def eliminate_RowCol(self, tdof):
         # tdof is intArray....
         tdof = tdof.ToList()
-        csr = self.tocsr()
-        csr[tdof, :] = 0
-        csc = csr.tocsc()
-        Ae = csc_matrix(self.shape, dtype=self.dtype)
-        Ae[:, tdof] = csc[:,tdof]
-        lil = csr.tolil()
+        lil = self.tolil()
+        lil[tdof, :] = 0
+        Ae = lil_matrix(self.shape, dtype=self.dtype)
+        Ae[:, tdof] = lil[:,tdof]
         lil[tdof, tdof] = 1.
         coo = lil.tocoo()
         self.data = coo.data
@@ -481,15 +479,15 @@ class BlockMatrix(object):
     def reformat_central_mat(self, mat, ksol):
         '''
         reformat central matrix into blockmatrix (columne vector)
-        so that matrix can be mumtipleid from the right of this 
+        so that matrix can be multiplied from the right of this 
 
         self is a block diagonal matrix
         '''
         L = []
         idx = 0
-        ret = BlockMatrix((self.shape[1], 1), kind = self.kind)
-        for i in range(self.shape[1]):        
-            l = self[i, i].shape[1]
+        ret = BlockMatrix((self.shape[0], 1), kind = self.kind)
+        for i in range(self.shape[0]):        
+            l = self[i, i].shape[0]
             L.append(l)
             ref = self[i,i]
             if mat is not None:

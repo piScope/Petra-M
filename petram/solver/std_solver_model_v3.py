@@ -213,22 +213,22 @@ class StdSolver(Solver):
 
         return solall
 
-    def store_sol(self, engine, solall, RHS, ksol = 0):
+    def store_sol(self, engine, solall, X, ksol = 0):
         phys_targets = self.get_phys()
-        
-        sol = RHS.reformat_central_mat(solall, ksol)
-        dprint1("RHS", RHS)
-        dprint1(sol)
+        print X
+        sol = X.reformat_central_mat(solall, ksol)
+        dprint1("X", X)
+        dprint1("sol", sol)
         l = len(self.RHS)
 
-        sol, sol_extra = engine.split_sol_array(phys_targets, sol)
+        sol, sol_extra = engine.split_sol_array(sol)
 
 
         # sol_extra = engine.gather_extra(sol_extra)                
 
         phys_target = self.get_phys()
-        engine.recover_sol(phys_target, matvecs, sol)
-        extra_data = engine.process_extra(phys_target, sol_extra)
+        engine.recover_sol(sol)
+        extra_data = engine.process_extra(sol_extra)
 
         return extra_data
             
@@ -260,7 +260,7 @@ class StdSolver(Solver):
             blocks = self.assemble(engine)
             #self.generate_linear_system(blocks)
             solall = self.call_solver(engine, blocks)
-            extra_data = self.store_sol(engine, solall, blocks[2], 0)
+            extra_data = self.store_sol(engine, solall, blocks[1][0], 0)
             dprint1("Extra Data", extra_data)
             
         engine.remove_solfiles()

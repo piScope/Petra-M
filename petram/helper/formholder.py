@@ -111,10 +111,19 @@ class FormBlock(object):
         if self.block[r][c] is None: return []
         return self.block[r][c].keys()
         
-    def get_matvec(self, r, c, p):
+    def get_matvec(self, r, c=0, p=1):
         return self.block[r][c][p][1]
     
-    def set_matvec(self, r, c, p, v):
+    def set_matvec(self, r, *args):
+        #set_matvec(self, r, c=0, p=1, v):
+        if len(args) < 1: assert False, "need  a value to set"
+        v = args[-1]
+        if len(args) == 2:
+            c=args[0]
+            p=1
+        if len(args) == 3:
+            c=args[0]
+            p=args[1]
         self.block[r][c][p][1] = v               
 
     def generateMatVec(self, converter1, converter2=None):
@@ -124,7 +133,6 @@ class FormBlock(object):
             projs = self.get_projections(i, j)
             for p in projs:
                 form = self.block[i][j][p][0]
-                print form
                 if form is not None:
                     if i == j:
                         self.set_matvec(i, j, p, converter1(form))

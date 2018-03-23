@@ -445,8 +445,10 @@ class Engine(object):
             for form in self.r_a: form.Assemble()
             for form in self.i_a: form.Assemble()
 
+            self.extras = {}
+            self.extras_mm = {}
             for phys in phys_target:               
-                self.assemble_extra(phys, phys_target)               
+                self.assemble_extra(phys, phys_target)
         return
 
     def run_assemble_rhs(self, phys_target = None):
@@ -749,7 +751,6 @@ class Engine(object):
         self.extras[phys] = extras
     '''
     def assemble_extra(self, phys, phys_target):
-        extras = {}
         for mm in phys.walk():
             if not mm.enabled: continue
             for phys2 in phys_target:
@@ -769,9 +770,9 @@ class Engine(object):
                     key = (extra_name, dep_var)
                     if key in extras:
                         assert False, "extra with key= " + str(key) + " already exists."
-                    extras[key] = tmp
-        self.extras = extras
-    
+                    self.extras[key] = tmp
+                    self.extras_mm[key] = mm.fullpath()
+                    
     def assemble_interp(self, phys):
         names = phys.dep_vars
         for name in names:
@@ -1190,16 +1191,17 @@ class Engine(object):
     #
     #  processing solution
     #
-    def split_sol_array(self, phys_target, sol):
+    def split_sol_array(self, sol):
 
         s = [None]*len(self.fes_vars)
-        for name in self.interps:
-            P, nonzeros, zeros = self.interps[name]
-
+        for name in self.fes_vars:
             j = self.dep_var_offset(name)
             sol_section = sol[j, 0]
-            if P is not None:
-                sol_section = (P.transpose()).dot(sol_section)
+
+            if name in self.interps:
+               P, nonzeros, zeros = self.interps[name]
+               if P is not None:
+                   sol_section = (P.transpose()).dot(sol_section)
 
             ifes = self.ifes(name)
             s[ifes] = sol_section
@@ -1210,7 +1212,7 @@ class Engine(object):
               e.append(sol[self.dep_var_offset(name)])
         return s, e
      
-    def recover_sol(self, phys_target, X, sol):
+    def recover_sol(self, sol):
 
         self.access_idx=0
         for k, s in enumerate(sol):
@@ -1218,39 +1220,38 @@ class Engine(object):
            ifes = self.ifes(name)
            idx  = self.dep_var_offset(name)
            s = s.toarray()
-           X[idx][0].Assign(s.real)
-           self.X2x(X[idx][0], r_x[ifes])
-           if i_x[ifes] is not None:
-               X[idx][1].Assign(s.imag)              
-               self.X2x(X[idx][1], i_x[ifes])
-           
-    def process_extra(self, phys_target, sol_extra):
+           X = self.r_x.get_matvec(ifes)
+           print s.shape
+           X.Assign(s.flatten().real)
+           self.X2x(X, self.r_x[ifes])
+           if self.i_x[ifes] is not None:
+               X = self.i_x.get_matvec(ifes)              
+               X.Assign(s.flatten().imag)              
+               self.X2x(X, self.i_x[ifes])
+           else:
+               dprint2("real value problem skipping i_x")
+               
+    def process_extra(self, sol_extra):
         ret = {}
         k = 0
-        for k, phys in enumerate(phys_target):
-            for name, extra in self.extras[phys]:
-               dataset = sol_extra[k]
-               key = phys.name()+ "." + name
-               ret[key] = {}
-               extra, mm_list = extra
-               mask = [False]*len(mm_list)
-               for kextra, v in enumerate(extra):
-                   t1, t2, t3, t4, t5 = v[0]
-                   mm = v[1]
-                   kk = mm_list.index(mm.fullname())
-                   
-                   if not t5: continue
-                   if mask[kk]: continue
-                   data = dataset[kk, 0]
-                   if data is None:
-                       # extra can be none in MPI child nodes
-                       # this is called so that we can use MPI
-                       # in postprocess_extra in future
-                       mm.postprocess_extra(None, t5, ret[key])
-                   else:
-                       mm.postprocess_extra(data, t5, ret[key])
-                   mask[kk] = True
+        extra_names = [name for name in self.dep_vars
+                       if not self.isFESvar(name)]
 
+        for extra_name, dep_name in self.extras.keys():
+            data = sol_extra[extra_names.index(extra_name)]
+            t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]
+            mm_path = self.extras_mm[(extra_name, dep_name)]
+            mm = self.model[mm_path]
+            ret[extra_name] = {}
+            
+            if not t5: continue
+            if data is None:
+                # extra can be none in MPI child nodes
+                # this is called so that we can use MPI
+                # in postprocess_extra in future
+                mm.postprocess_extra(None, t5, ret[key])
+            else:
+                mm.postprocess_extra(data, t5, ret[key])
         return ret
 
     #
@@ -1265,11 +1266,14 @@ class Engine(object):
         if save_parmesh:
             self.save_parmesh()
         if mesh_only: return mesh_filenames
-       
+
+        self.access_idx = 0
         for phys in phys_target:
-            emesh_idx = phys.emesh_idx 
-            for kfes, r_x, i_x in enum_fes(phys, self.r_x, self.i_x):
-                name = self.fespaces[phys][kfes][0]
+            emesh_idx = phys.emesh_idx
+            for name in phys.dep_vars:
+                ifes = self.ifes(name)
+                r_x = self.r_x[ifes]
+                i_x = self.i_x[ifes]            
                 self.save_solfile_fespace(name, emesh_idx, r_x, i_x)
      
     def save_extra_to_file(self, sol_extra):
@@ -1928,7 +1932,6 @@ class SerialEngine(Engine):
         return X
      
     def X2x(self, X, x): # RecoverFEMSolution
-        name = self.fes_vars[ifes]
         fes = x.FESpace()
         if fes.Conforming():
             pass
@@ -2287,7 +2290,6 @@ class ParallelEngine(Engine):
         return X
      
     def X2x(self, X, x): # RecoverFEMSolution
-        name = self.fes_vars[ifes]
         fes = x.FESpace()
         P = fes.GetConformingProlongation()
         x.SetSize(P.Height())
