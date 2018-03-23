@@ -469,7 +469,7 @@ class Engine(object):
             self.gather_essential_tdof(phys)
 
         for phys in phys_target:
-            self.fill_rhs(phys, phys_target)
+            self.fill_lf(phys)
 
         self.r_b.set_no_allocator()
         self.i_b.set_no_allocator() 
@@ -480,7 +480,7 @@ class Engine(object):
            
         return
 
-    def run_assemble_blocks(self, phys_target):
+    def run_assemble_blocks(self):
         
         M, B, X = self.prepare_blocks()
 
@@ -651,7 +651,7 @@ class Engine(object):
 
             for mm in phys.walk():
                 if not mm.enabled: continue
-                if not mm.has_bf_contribution(kfes):continue
+                if not mm.has_bf_contribution2(kfes, self.access_idx):continue
                 if len(mm._sel_index) == 0: continue
                 proj = mm.get_projection()
                 ra = self.r_a[ifes, ifes, proj]                
@@ -662,7 +662,7 @@ class Engine(object):
             ifes = self.ifes(name)
             for mm in phys.walk():
                 if not mm.enabled: continue
-                if not mm.has_bf_contribution(kfes):continue
+                if not mm.has_bf_contribution2(kfes, self.access_idx):continue
                 if len(mm._sel_index) == 0: continue
                 proj = mm.get_projection()                
                 ia = self.i_a[ifes, ifes, proj]                                
@@ -677,7 +677,7 @@ class Engine(object):
             rb.Assign(0.0)
             for mm in phys.walk():
                if not mm.enabled: continue
-               if not mm.has_lf_contribution(kfes): continue
+               if not mm.has_lf_contribution2(kfes, self.access_idx): continue
                if len(mm._sel_index) == 0: continue                          
                mm.add_lf_contribution(self, rb, real=True, kfes=kfes)
             
@@ -701,7 +701,7 @@ class Engine(object):
         
         for mm in phys.walk():
             if not mm.enabled: continue
-            if not mm.has_mixed_contribution():continue
+            if not mm.has_mixed_contribution2(self.access_idx):continue
             if len(mm._sel_index) == 0: continue
                           
             loc_list = mm.get_mixedbf_loc()
@@ -756,7 +756,7 @@ class Engine(object):
             for phys2 in phys_target:
                 names = phys2.dep_vars      
                 for kfes, name in enumerate(names):
-                    if not mm.has_extra_DoF2(kfes, phys2, self.access_idx): continue
+                    if not mm.has_extra_DoF2(phys2, kfes, self.access_idx): continue
                     
                     gl_ess_tdof = self.gl_ess_tdofs[name]                    
                     tmp  = mm.add_extra_contribution(self,
@@ -815,9 +815,9 @@ class Engine(object):
         return (M_block, B_block, X_block)
     
     def fill_M_B_X_blocks(self, M, B, X):
-        from petram.helper.formholder import convertElement, generateMaeVec
-        from mfem.common.chypre import BF2PyMat, LF2PyVect
-        from mfem.common.chypre import MfemVecPyVec        
+        from petram.helper.formholder import convertElement
+        from mfem.common.chypre import BF2PyMat, LF2PyVec
+        from mfem.common.chypre import MfemVec2PyVec, MfemMat2PyMat    
         from itertools import product
 
 
@@ -825,12 +825,12 @@ class Engine(object):
         for k in range(self.n_matrix):
             self.access_idx = k
             
-            generateMatVec(self.r_a, self.a2A, self.a2Am)
-            generateMatVec(self.i_a, self.a2A, self.a2Am)
+            self.r_a.generateMatVec(self.a2A, self.a2Am)
+            self.i_a.generateMatVec(self.a2A, self.a2Am)
             
             for i, j in product(range(nfes),range(nfes)):
-                m = convertElementToPyMat(self.r_a, self.i_a,
-                                          i, j, BF2PyMat)
+                m = convertElement(self.r_a, self.i_a,
+                                   i, j, MfemMat2PyMat)
                 r = self.dep_var_offset(self.fes_vars[i])
                 c = self.dep_var_offset(self.fes_vars[j])
                 M[k][r, c] = m
@@ -843,11 +843,11 @@ class Engine(object):
                 M[k][r, r] = t3
                 
         self.access_idx = 0
-        generateMatVec(self.r_b, self.b2B)
-        generateMatVec(self.i_b, self.b2B)            
+        self.r_b.generateMatVec(self.b2B)
+        self.i_b.generateMatVec(self.b2B)            
         for i in range(nfes):
-            v = convertElementToPyMat(self.r_b, self.i_b,
-                                      i, 0, LF2PyVec)
+            v = convertElement(self.r_b, self.i_b,
+                                      i, 0, MfemVec2PyVec)
             r = self.dep_var_offset(self.fes_vars[i])
             B[r] = v
         self.access_idx = 0            
@@ -859,32 +859,31 @@ class Engine(object):
         nfes = len(self.fes_vars)        
         for k in range(self.n_matrix):
             self.access_idx = k
-            generateMatVec(self.r_x, self.x2X)
-            generateMatVec(self.i_x, self.x2X)            
+            self.r_x.generateMatVec(self.x2X)
+            self.i_x.generateMatVec(self.x2X)            
             for i in range(nfes):                       
-                v = convertElementToPyMat(self.r_x, self.i_x,
+                v = convertElement(self.r_x, self.i_x,
                                           i, 0, MfemVec2PyVec)
                 r = self.dep_var_offset(self.fes_vars[i])
                 X[k][r] = v
         return M, B, X
-    def compute_rhs(M, B, X):
+     
+    def compute_rhs(self, M, B, X):
         '''
         M1*X1+M2*X2+...*Mn-1Xn-1 + B
         '''
+        RHS = B
         for i in range(1, self.n_matrix):
            self.access_idx = i
-           if RHS is None:
-              RHS = M[i].dot(X[i])
-           else: 
-              RHS = M[i].dot(X[i]) + RHS
-        RHS = RHS + B
+           RHS = M[i].dot(X[i]) + RHS
         return M[0], RHS
 
-    def eliminateBC(A, X, RHS):
+    def eliminateBC(self, A, X, RHS):
         nblock = A.shape[0]
-        Ae = eliminateBC_diag(A, B, RHS)
+        Ae = self.new_blockmatrix(A.shape)
         
-        for name, gl_ess_tdof in self.gl_ess_tdofs:
+        for name in self.gl_ess_tdofs:
+           gl_ess_tdof = self.gl_ess_tdofs[name]
            idx = self.dep_var_offset(name)
            if A[idx, idx] is not None:
               Ae[idx, idx] = A[idx, idx].eliminate_RowCol(gl_ess_tdof)
@@ -1906,10 +1905,9 @@ class SerialEngine(Engine):
         return self.a2A(a)
     
     def b2B(self, b):  # FormLinearSystem w/o elimination
-        name = self.fes_vars[ifes]
         fes = b.FESpace()
         B = mfem.Vector()
-        if fes.Conforming():
+        if not fes.Conforming():
             P = fes.GetConformingProlongation()
             R = fes.GetConformingRestriction()
             B.SetSize(P.Width())
@@ -1921,7 +1919,7 @@ class SerialEngine(Engine):
     def x2X(self, x):  # gridfunction to vector
         fes = x.FESpace()
         X = mfem.Vector()
-        if fes.Conforming():
+        if not fes.Conforming():
             P = fes.GetConformingProlongation()
             R = fes.GetConformingRestriction()
             X.SetSize(R.Height())
@@ -1930,16 +1928,16 @@ class SerialEngine(Engine):
             X.NewDataAndSize(x.GetData(), x.Size())
         return X
      
-    def X2x(self, x, ifes): # RecoverFEMSolution
+    def X2x(self, X, x): # RecoverFEMSolution
         name = self.fes_vars[ifes]
-        fes = self.fespaces[name]
-        X = mfem.Vector()
+        fes = x.FESpace()
         if fes.Conforming():
             pass
         else:
             P = fes.GetConformingProlongation()
             x.SetSize(P.Height())
             P.Mult(X, x)
+
             
 class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
@@ -2289,10 +2287,9 @@ class ParallelEngine(Engine):
         R.Mult(x, X)            
         return X
      
-    def X2x(self, x, ifes): # RecoverFEMSolution
+    def X2x(self, X, x): # RecoverFEMSolution
         name = self.fes_vars[ifes]
-        fes = self.fespaces[name]
-        X = mfem.ParVector()
+        fes = x.FESpace()
         P = fes.GetConformingProlongation()
         x.SetSize(P.Height())
         P.Mult(X, x)

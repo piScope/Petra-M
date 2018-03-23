@@ -328,15 +328,43 @@ class Phys(Model, Vtable_mixin, NS_mixin):
        
     def has_bf_contribution(self, kfes):
         return False
+    def has_bf_contribution2(self, kfes, jmatrix):     
+        '''
+        subclass has to overwrite this if extra DoF can couple 
+        with other FES.
+        '''
+        if jmatrix == 0:
+           self.has_bf_contribution(kfes)
+        else:
+           return False           
+     
     
     def has_lf_contribution(self, kfes):
         return False
+    def has_lf_contribution2(self, kfes, jmatrix):     
+        '''
+        subclass has to overwrite this if extra DoF can couple 
+        with other FES.
+        '''
+        if jmatrix == 0:
+           self.has_lf_contribution(kfes)
+        else:
+           return False           
      
     def has_interpolation_contribution(self, kfes):
         return False
      
     def has_mixed_contribution(self):
         return False
+    def has_mixed_contribution2(self, jmatrix):     
+        '''
+        subclass has to overwrite this if extra DoF can couple 
+        with other FES.
+        '''
+        if jmatrix == 0:
+           self.has_mixed_contribution()
+        else:
+           return False           
 
     def get_mixedbf_loc(self):
         '''

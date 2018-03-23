@@ -1,6 +1,10 @@
 '''
-   block of linear/bilinear forms
+   FormHolder is a block structure to maintain a biuch of lf, bf, and gf.
 
+   Each block can have a multiple bf/lf. So, each element is a dictionary, 
+   whose key is a projection operator. 
+   Value of dictionary is a two element list. The first one is lf/bf/gf,
+   and the second place is for Vector/Matrix 
 '''
 from itertools import product
 
@@ -103,70 +107,55 @@ class FormBlock(object):
         
         self.block[r][c][projector] = [v, None]
 
-    def get_projections(self, idx):
-        if self.shape[1] != 1:
-            r, c = idx
-        else:
-            c = 0
-            r = idx
+    def get_projections(self, r, c):
+        if self.block[r][c] is None: return []
         return self.block[r][c].keys()
         
-    def get_matvec(self, idx):
-        if self.ndim == 2:
-            try:
-                r, c, projector = idx
-            except:
-                r, c = idx
-                projector = 1
-        else:
-            c = 0            
-            try:
-                r, projector = idx
-            except:
-                r = idx
-                projector = 1
-        return self.block[r][c][projector][1]
+    def get_matvec(self, r, c, p):
+        return self.block[r][c][p][1]
     
-    def set_matvec(self, idx, v):
-        if self.ndim == 2:
-            try:
-                r, c, projector = idx
-            except:
-                r, c = idx
-                projector = 1
-        else:
-            c = 0            
-            try:
-                r, projector = idx
-            except:
-                r = idx
-                projector = 1
-        self.block[r][c][projector][1] = v               
-    
-                   
+    def set_matvec(self, r, c, p, v):
+        self.block[r][c][p][1] = v               
 
-def generateMatVect(M, converter1, converter2=None):
-    if converter2 is None: converter2 = converter1
+    def generateMatVec(self, converter1, converter2=None):
+        if converter2 is None: converter2 = converter1
 
-    for i, j in product(range(M.shape[0]),range(M.shape[1])):
-        projs = M.get_projections(i, j)
-        for p in projs:
-            form = M[i, j, p]
-            if i == j:
-                M.set_matvec(i, j, converter1(form))
-            else:
-                M.set_matvec(i, j, converter2(form))
+        for i, j in product(range(self.shape[0]),range(self.shape[1])):
+            projs = self.get_projections(i, j)
+            print("debug", i, j, self.block[i][j])
+            for p in projs:
+                form = self.block[i][j][p][0]
+                print form
+                if form is not None:
+                    if i == j:
+                        self.set_matvec(i, j, p, converter1(form))
+                    else:
+                        self.set_matvec(i, j, p, converter2(form))
+                else:
+                    self.set_matvec(i, j, p, None)
                 
 def convertElement(Mreal, Mimag, i, j, converter):
-    keys = set(Mreal.block[i][j].keys() + Mimag.block[i][j].keys())
+    '''
+    Generate PyVec/PyMat format data.
+    It takes two FormBlocks. One for real and the other for imag.
+    '''
+    keys = set(Mreal.get_projections(i,j)+
+               Mimag.get_projections(i,j))
 
     term = None
+    print "real", Mreal.block[i][j]
+    print "imag", Mimag.block[i][j]    
     for k in keys:
-
-        rmatvec = Mreal.block[i][j][k][1] if k in Mreal.block[i][j] else None
-        imatvec = Mimag.block[i][j][k][1] if k in Mimag.block[i][j] else None
-
-        m = converter(rform, iform)
+        if Mreal.block[i][j] is not None:
+            rmatvec = Mreal.block[i][j][k][1] if k in Mreal.block[i][j] else None
+        else:
+            rmatvec = None
+        if Mimag.block[i][j] is not None:
+            imatvec = Mimag.block[i][j][k][1] if k in Mimag.block[i][j] else None
+        else:
+            imatvec = None
+            
+        m = converter(rmatvec, imatvec)
         if k!=1:
             pos, projector = k
             if pos > 0:
@@ -177,4 +166,4 @@ def convertElement(Mreal, Mimag, i, j, converter):
             term = m
         else:
             term = term + m
-    return m
+    return term

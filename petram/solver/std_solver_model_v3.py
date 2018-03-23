@@ -144,7 +144,7 @@ class StdSolver(Solver):
         engine.run_verify_setting(phys_targets, self)
         engine.run_assemble_mat(phys_targets)
         engine.run_assemble_rhs(phys_targets)
-        blocks = engine.assemble_blocks()
+        blocks = engine.run_assemble_blocks()
 
         return blocks #A, X, RHS, Ae, X, B
 
