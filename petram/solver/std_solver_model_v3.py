@@ -145,11 +145,11 @@ class StdSolver(Solver):
         engine.run_assemble_mat(phys_targets)
         engine.run_assemble_rhs(phys_targets)
         blocks = engine.run_assemble_blocks()
-        A, X, RHS, Ae,  B = blocks
+        A, X, RHS, Ae, B = blocks
 
         self.A   = A
         self.RHS = [RHS]
-        return blocks #
+        return blocks # A, X, RHS, Ae, B
 
     '''
     def generate_linear_system(self, engine, blocks)

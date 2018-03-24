@@ -4,6 +4,7 @@ from os.path import dirname, basename, isfile, join
 import warnings
 import glob
 import parser
+import numbers
 
 import petram
 from petram.model import Model, Bdry, Domain
@@ -66,10 +67,12 @@ class Coefficient_Evaluator(object):
         if not flag:
             if isinstance(exprs, str):
                 exprs = [exprs]
-            elif isinstance(exprs, float):
-                exprs = [exprs]               
-            elif isinstance(exprs, long):
-                exprs = [exprs]
+            #elif isinstance(exprs, float):
+            #    exprs = [exprs]               
+            #elif isinstance(exprs, long):
+            #    exprs = [exprs]
+            elif isinstance(exprs, numbers.Number):
+                 exprs = [exprs]               
             else:
                pass
         if isinstance(exprs, list) and isinstance(exprs[0], list):
@@ -566,6 +569,7 @@ class PhysModule(Phys):
     def attribute_set(self, v):
         v = super(PhysModule, self).attribute_set(v)
         v["order"] = 1
+        v["vdim"] = 1        
         v["element"] = 'H1_FECollection'
         v["ndim"] = 2 #logical dimension (= ndim of mfem::Mesh)
         v["ind_vars"] = 'x, y'

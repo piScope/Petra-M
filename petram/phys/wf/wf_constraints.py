@@ -56,8 +56,15 @@ class WF_common(object):
         if not getattr(self, 'use_'+names[kfes]+'_init'): return
         
         f_name = self.vt3.make_value_or_expression(self)
-        if len(f_name) == 0:
-            coeff = InitValue(f_name[kfes],
+
+        el = self.get_root_phys().element
+        if el.startswith('H1') or el.startswith('L2'):
+            ll = self.get_root_phys().vdim
+        else:
+            ll = engine.emeshes[self.get_root_phys().emesh].Dimension()
+        print f_name
+        if ll == 1:
+            coeff = InitValue(f_name[0],
                        self.get_root_phys().ind_vars,
                        self._local_ns, self._global_ns,
                        real = real)

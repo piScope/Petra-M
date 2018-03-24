@@ -98,6 +98,7 @@ class WF_Essential(Bdry, Phys):
 
         
         if vdim == 1:
+           print c0
            coeff1 = SCoeff(c0[0], self.get_root_phys().ind_vars,
                            self._local_ns, self._global_ns,
                            real = real)

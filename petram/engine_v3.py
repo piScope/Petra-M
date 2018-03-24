@@ -488,7 +488,7 @@ class Engine(object):
 
         self.fill_M_B_X_blocks(M, B, X)
         A, RHS = self.compute_rhs(M, B, X)   # A = M[0], RHS = M[1:]*X[1:]+B
-        Ae = self.eliminateBC(A, X[0], RHS)  # modify RHS and generate Ae
+        Ae, RHS = self.eliminateBC(A, X[0], RHS)  # modify RHS and generate Ae
         self.apply_interp(A, RHS)            # A and RHS is modifedy by global DoF coupling P
 
         return A, X, RHS, Ae,  B
@@ -587,22 +587,25 @@ class Engine(object):
                     mm.apply_essential(self, igf, real = False, kfes = kfes)
 
     def apply_init_from_init_panel(self, phys):
-        for kfes, rgf, igf in enum_fes(phys, self.r_x, self.i_x):
-            tmp = self.new_gf(None, gf = rgf)
+        is_complex = phys.is_complex()
+        
+        for kfes, name in enumerate(phys.dep_vars):
+            ifes = self.ifes(name)
+            rfg = self.r_x[ifes]
+            ifg = self.i_x[ifes]
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = True, kfes = kfes)
                 if c is None: continue
-                tmp.ProjectCoefficient(c)                
-                rgf += tmp
-            if igf is None: continue
-            tmp *= 0.0
+                rfg.ProjectCoefficient(c)                
+                #rgf += tmp
+            if not is_complex: continue
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = False, kfes = kfes)
                 if c is None: continue
-                tmp.ProjectCoefficient(c)
-                igf += tmp
+                ifg.ProjectCoefficient(c)
+                #igf += tmp
 
     def apply_init_from_file(self, phys, init_path):
         '''
@@ -899,12 +902,13 @@ class Engine(object):
               if A[j, idx] is None: continue
               SM = A.get_squaremat_from_right(j, idx)
               Ae[j, idx] = A[j, idx].dot(SM)
-
+           RHS[idx].copy_element(gl_ess_tdof, X[idx])
         # essentailBC is stored in b
         #for b in B_blocks:
         #    print b, Me.dot(b)
         try:
            RHS = RHS - Ae.dot(X)
+           return Ae, RHS
         except:
            print "RHS", RHS
            print "Ae", Ae

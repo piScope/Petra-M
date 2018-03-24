@@ -222,13 +222,25 @@ class ScipyCoo(coo_matrix):
         lil[tdof, :] = 0
         Ae = lil_matrix(self.shape, dtype=self.dtype)
         Ae[:, tdof] = lil[:,tdof]
+        lil[:,tdof] = 0.0
         lil[tdof, tdof] = 1.
         coo = lil.tocoo()
         self.data = coo.data
         self.row = coo.row
         self.col = coo.col
         return Ae.tocoo()
-       
+     
+    def copy_element(self, tdof, m):
+        tdof = tdof.ToList()       
+        mlil = m.tolil()
+        value= mlil[tdof, 0]
+        slil = self.tolil()
+        slil[tdof, 0] = value
+        coo = slil.tocoo()
+        self.data = coo.data
+        self.row = coo.row
+        self.col = coo.col
+        
 def convert_to_ScipyCoo(mat):
     if isinstance(mat, np.ndarray):
        mat = coo_matrix(mat)
