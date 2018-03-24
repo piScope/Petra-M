@@ -80,7 +80,7 @@ class ScipyCoo(coo_matrix):
     def __sub__(self, other):
         ret = super(ScipyCoo, self).__sub__(other)
         return convert_to_ScipyCoo(ret)
-     
+
     def setDiag(self, idx, value=1.0):
         ret = self.tolil()
         for i in idx:
@@ -336,7 +336,7 @@ class BlockMatrix(object):
                 else:
                     ret[i,j] = self[i,j] - v[i,j]
         return ret
-
+     
     def __repr__(self):
         txt = ["BlockMatrix"+str(self.shape)]
         for i in range(self.shape[0]):

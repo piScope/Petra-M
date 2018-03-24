@@ -24,7 +24,7 @@ class Expression(object):
         fes2 = kwargs.pop('test', None)
         engine = kwargs.pop('engine', None)                     
         self._sel_mode = kwargs.pop("_sel_mode", "domain")
-        self._sel = kwargs.pop("_sel", "domain")
+        self._sel = kwargs.pop("_sel", "all")
         self._fes1 = None
         self._fes2 = None
         self._engine = None

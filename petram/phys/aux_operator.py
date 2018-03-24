@@ -4,7 +4,6 @@ import numpy as np
 import scipy.sparse
 from collections import OrderedDict
 from warnings import warn
-import   ifigure.widgets.dialog as dialog            
 
 import wx
 
@@ -108,7 +107,7 @@ class AUX_Operator(Phys):
         return False
      
     def get_exter_NDoF(self):
-        return 1
+        return 0
      
     def postprocess_extra(self, sol, flag, sol_extra):
         name = self.name()+'_' + str(self.port_idx)

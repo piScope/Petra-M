@@ -28,13 +28,17 @@ class FormBlock(object):
             r = shape[0]
             c = 1
             self.ndim = 1
-            self.block = [[None]*r]
+            self.block = [[None]*c for x in range(r)]
         self._shape = (r,c)
         self.allocator1 = new
         if mixed_new is None:
             self.allocator2 = new
         else:
             self.allocator2 = mixed_new
+            
+    def __repr__(self):
+        return "Formblock" + str(self._shape)
+    
     @property
     def shape(self):
         return self._shape
@@ -73,9 +77,8 @@ class FormBlock(object):
             except:
                 r = idx
                 projector = 1
-                        
         if self.block[r][c] is None: self.block[r][c] = {}
-        
+
         if not projector in self.block[r][c]:
             if self.allocator1 is None:
                 return None
@@ -145,6 +148,11 @@ def convertElement(Mreal, Mimag, i, j, converter):
     '''
     Generate PyVec/PyMat format data.
     It takes two FormBlocks. One for real and the other for imag.
+
+    M = sum(Opr*proj or proj*Opr), Opr is made from BilinearForms.
+  
+    We use the same data structure for lf/gf, for which projector
+    will be always 1.
     '''
     keys = set(Mreal.get_projections(i,j)+
                Mimag.get_projections(i,j))

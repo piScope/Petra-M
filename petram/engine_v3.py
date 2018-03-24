@@ -353,6 +353,9 @@ class Engine(object):
             self.run_update_param(phys)
         for phys in phys_target:
             self.initialize_phys(phys)
+        self.r_x.set_no_allocator()
+        self.i_x.set_no_allocator()            
+            
 
         from petram.helper.variables import Variables
         variables = Variables()
@@ -363,6 +366,7 @@ class Engine(object):
                 ifes = self.ifes(name)
                 rgf = self.r_x[ifes]
                 igf = self.i_x[ifes]
+                print name, rgf, igf
                 phys.add_variables(variables, name, rgf, igf)
 
         keys = self.model._variables.keys()
@@ -512,6 +516,7 @@ class Engine(object):
         flags = self.get_essential_bdr_flag(phys)
         self.get_essential_bdr_tofs(phys, flags)
 
+        # this loop alloates GridFunctions
         for j in range(self.n_matrix):
             self.access_idx = j
             is_complex = phys.is_complex()
@@ -520,8 +525,6 @@ class Engine(object):
                 void = self.r_x[ifes]
                 if is_complex:
                    void = self.i_x[ifes]
-            self.r_x.set_no_allocator()
-            self.i_x.set_no_allocator()            
     '''     
     def assemble_mat(self, phys, phys_target):
         
@@ -836,14 +839,17 @@ class Engine(object):
                                    i, j, MfemMat2PyMat)
                 r = self.dep_var_offset(self.fes_vars[i])
                 c = self.dep_var_offset(self.fes_vars[j])
-                M[k][r, c] = m
+
+                M[k][r,c] = m if M[k][r,c] is None else M[k][r,c] + m
+                
             for extra_name, dep_name in self.extras.keys():
                 r = self.dep_var_offset(extra_name)
                 c = self.dep_var_offset(dep_name)
                 t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]
-                M[k][r, c] = t1
-                M[k][c, r] = t2
-                M[k][r, r] = t3
+                
+                M[k][r,c] = t1 if M[k][r,c] is None else M[k][r,c]+t1
+                M[k][c,r] = t2 if M[k][c,r] is None else M[k][c,r]+t2
+                M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3
                 
         self.access_idx = 0
         self.r_b.generateMatVec(self.b2B)
@@ -1432,11 +1438,11 @@ class Engine(object):
         else:
             return self.fespaces[name]
 
-    def alloc_gf(self, idx):
+    def alloc_gf(self, idx, idx2=0):
         fes = self.fespaces[self.fes_vars[idx]]
         return self.new_gf(fes)
      
-    def alloc_lf(self, idx):
+    def alloc_lf(self, idx, idx2=0):
         fes = self.fespaces[self.fes_vars[idx]]
         return self.new_lf(fes)
 
@@ -1879,7 +1885,7 @@ class SerialEngine(Engine):
         return 'sol_extended.data'
 
     def get_true_v_sizes(self, phys):
-        fe_sizes = [self.fespaces[name].GetTrueVSize() for name in self.fes_vars]
+        fe_sizes = [self.fespaces[name].GetTrueVSize() for name in phys.dep_vars]
         dprint1('Number of finite element unknowns: '+  str(fe_sizes))
         return fe_sizes
 
@@ -2021,7 +2027,7 @@ class ParallelEngine(Engine):
         return BlockMatrix(shape, kind = 'hypre')
 
     def get_true_v_sizes(self, phys):
-        fe_sizes = [self.fespaces[name].GlobalTrueVSize() for name in self.fes_vars]       
+        fe_sizes = [self.fespaces[name].GlobalTrueVSize() for name in phys.dep_vars]       
         from mpi4py import MPI
         myid     = MPI.COMM_WORLD.rank        
         if (myid == 0):
