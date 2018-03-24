@@ -215,7 +215,7 @@ class ScipyCoo(coo_matrix):
         return (0, self.shape[0], self.shape[0])
     GetPartitioningArray = GetRowPartArray
 
-    def eliminate_RowCol(self, tdof):
+    def eliminate_RowsCols(self, tdof):
         # tdof is intArray....
         tdof = tdof.ToList()
         lil = self.tolil()
@@ -498,13 +498,11 @@ class BlockMatrix(object):
         L = []
         idx = 0
         ret = BlockMatrix((self.shape[0], 1), kind = self.kind)
-        print "self", self
         for i in range(self.shape[0]):
             for j in range(self.shape[1]):
                if self[i,j] is not None:
                   l =  self[i, j].shape[0]
                   break
-            print i, j, l
             L.append(l)
             ref = self[i,j]
             if mat is not None:
@@ -512,7 +510,6 @@ class BlockMatrix(object):
             else:
                 v = None   # slave node (will recive data)
             idx = idx + l
-            print "v.shape", v.shape
             ret.set_element_from_central_mat(v, i, 0, ref)
 
         return ret

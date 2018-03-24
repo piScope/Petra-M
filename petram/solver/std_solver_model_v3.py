@@ -215,10 +215,8 @@ class StdSolver(Solver):
 
     def store_sol(self, engine, solall, X, ksol = 0):
         phys_targets = self.get_phys()
-        print "solall", solall.shape
+
         sol = self.A.reformat_central_mat(solall, ksol)
-        dprint1("X", X)
-        dprint1("sol", sol)
         l = len(self.RHS)
 
         sol, sol_extra = engine.split_sol_array(sol)

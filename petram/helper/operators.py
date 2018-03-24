@@ -90,10 +90,10 @@ class Integral(Operator):
         from mfem.common.chypre import LF2PyVec, PyVec2PyMat, MfemVec2PyVec
         v1 = MfemVec2PyVec(engine.b2B(lf1), None)
         
-        if self._transpose:
-            v1 = PyVec2PyMat(v1)        
-        else:
-            v1 = PyVec2PyMat(v1.transpose())        
+
+        v1 = PyVec2PyMat(v1)
+        if not self._transpose:        
+            v1 = v1.transpose()
         return v1
     
 

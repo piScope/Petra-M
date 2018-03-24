@@ -134,6 +134,7 @@ class Engine(object):
         self.interps = {}
         self.projections = {}        
         self.gl_ess_tdofs = {n:[] for n in self.fes_vars}
+        self.ess_tdofs = {n:[] for n in self.fes_vars}        
         
         self._extras = {}
         
@@ -509,8 +510,7 @@ class Engine(object):
         true_v_sizes = self.get_true_v_sizes(phys)
         
         flags = self.get_essential_bdr_flag(phys)
-        ess_tdofs = self.get_essential_bdr_tofs(phys, flags)
-
+        self.get_essential_bdr_tofs(phys, flags)
 
         for j in range(self.n_matrix):
             self.access_idx = j
@@ -887,9 +887,10 @@ class Engine(object):
 
         for name in self.gl_ess_tdofs:
            gl_ess_tdof = self.gl_ess_tdofs[name]
+           ess_tdof = self.ess_tdofs[name]
            idx = self.dep_var_offset(name)
            if A[idx, idx] is not None:
-              Ae[idx, idx] = A[idx, idx].eliminate_RowCol(gl_ess_tdof)
+              Ae[idx, idx] = A[idx, idx].eliminate_RowsCols(ess_tdof)
               
            for j in range(nblock):
               if j == idx: continue
@@ -902,12 +903,12 @@ class Engine(object):
               if A[j, idx] is None: continue
               SM = A.get_squaremat_from_right(j, idx)
               Ae[j, idx] = A[j, idx].dot(SM)
-           RHS[idx].copy_element(gl_ess_tdof, X[idx])
-        # essentailBC is stored in b
-        #for b in B_blocks:
-        #    print b, Me.dot(b)
+           
         try:
            RHS = RHS - Ae.dot(X)
+           for name in self.gl_ess_tdofs:
+              gl_ess_tdof=self.gl_ess_tdofs[name]
+              RHS[idx].copy_element(gl_ess_tdof, X[idx])
            return Ae, RHS
         except:
            print "RHS", RHS
@@ -1231,7 +1232,6 @@ class Engine(object):
            idx  = self.dep_var_offset(name)
            s = s.toarray()
            X = self.r_x.get_matvec(ifes)
-           print s.shape
            X.Assign(s.flatten().real)
            self.X2x(X, self.r_x[ifes])
            if self.i_x[ifes] is not None:
@@ -1376,8 +1376,8 @@ class Engine(object):
 
     def gather_essential_tdof(self, phys):
         flags = self.get_essential_bdr_flag(phys)
-        ess_tdofs = self.get_essential_bdr_tofs(phys, flags)
-        self.collect_all_ess_tdof(phys, ess_tdofs)
+        self.get_essential_bdr_tofs(phys, flags)
+        self.collect_all_ess_tdof(phys)
                  
     def get_essential_bdr_flag(self, phys):
         flag = []
@@ -1397,14 +1397,13 @@ class Engine(object):
         return flag
 
     def get_essential_bdr_tofs(self, phys, flags):
-        ess_tdofs = []
         for name, ess_bdr in flags:
             ess_tdof_list = mfem.intArray()
             ess_bdr = mfem.intArray(ess_bdr)
             fespace = self.fespaces[name]
             fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list)
-            ess_tdofs.append((name, ess_tdof_list))
-        return ess_tdofs
+            self.ess_tdofs[name] = ess_tdof_list
+        return
 
     def allocate_fespace(self, phys):
         #
@@ -1853,10 +1852,8 @@ class SerialEngine(Engine):
             M = scipy.sparse.bmat([[M.real, -M.imag], [-M.imag, -M.real]], format='coo')
         return M
     '''
-    def collect_all_ess_tdof(self, phys, ess_tdofs):
-        for name, ess_tdof in ess_tdofs:
-            self.gl_ess_tdofs[name] = ess_tdof
-                                  
+    def collect_all_ess_tdof(self, phys):
+        self.gl_ess_tdofs = self.ess_tdofs
 
     def save_mesh(self):
         mesh_names = []
@@ -1992,7 +1989,7 @@ class ParallelEngine(Engine):
 
     def run_assemble_mat(self, phys_target=None):
         self.is_matrix_distributed = True       
-        return super(ParallelEngine, self).run_assemble(phys_target=phys_target)
+        return super(ParallelEngine, self).run_assemble_mat(phys_target=phys_target)
      
     def new_lf(self, fes):
         return  mfem.ParLinearForm(fes)
@@ -2220,14 +2217,15 @@ class ParallelEngine(Engine):
            sol0 = (P.transpose()).dot(sol0)
         return sol0
 
-    def collect_all_ess_tdof(self, phys, ess_tdofs, M = None):
+    def collect_all_ess_tdof(self, phys, M = None):
         from mpi4py import MPI
 
         gl_ess_tdofs = []
         for name in phys.dep_vars:
             fes = self.fespaces[name]
             
-        for name, tdof in ess_tdofs:
+        for name in self.ess_tdofs:
+            tdof = self.ess_tdofs[name]
             fes =  self.fespaces[name]
             data = (np.array(tdof.ToList()) +
                     fes.GetMyTDofOffset()).astype(np.int32)
@@ -2235,7 +2233,9 @@ class ParallelEngine(Engine):
             gl_ess_tdof = allgather_vector(data, MPI.INT)
             MPI.COMM_WORLD.Barrier()
             #gl_ess_tdofs.append((name, gl_ess_tdof))
-            self.gl_ess_tdofs[name] = gl_ess_tdof
+            ## TO-DO intArray must accept np.int32
+            tmp = [int(x) for x in gl_ess_tdof]
+            self.gl_ess_tdofs[name] = mfem.intArray(tmp)
      
     def mkdir(self, path):
         myid     = MPI.COMM_WORLD.rank                
@@ -2278,30 +2278,25 @@ class ParallelEngine(Engine):
         return self.a2A(a)
     
     def b2B(self, b):
-        fes = b.FESpace()        
-        B = mfem.ParVector()
-        
-        P = fes.GetConformingProlongation()
-        R = fes.GetConformingRestriction()
-        
+        fes = b.ParFESpace()
+        B = mfem.HypreParVector(fes)
+        P = fes.GetProlongationMatrix()       
         B.SetSize(fes.TrueVSize())
         P.MultTranspose(b, B)
 
         return B
      
-    def x2X(self, x, ifes):
-        fes = x.FESpace()               
-        X = mfem.ParVector()
-        P = fes.GetConformingProlongation()
-        R = fes.GetConformingRestriction()
-        
+    def x2X(self, x):
+        fes = x.ParFESpace()
+        X = mfem.HypreParVector(fes)        
+        R = fes.GetRestrictionMatrix()       
         X.SetSize(fes.TrueVSize())
         R.Mult(x, X)            
         return X
      
     def X2x(self, X, x): # RecoverFEMSolution
-        fes = x.FESpace()
-        P = fes.GetConformingProlongation()
+        fes = x.ParFESpace()
+        P = fes.GetProlongationMatrix()
         x.SetSize(P.Height())
         P.Mult(X, x)
      
