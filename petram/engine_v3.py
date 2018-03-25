@@ -863,10 +863,12 @@ class Engine(object):
             for extra_name, dep_name in self.extras.keys():
                 r = self.dep_var_offset(extra_name)
                 c = self.dep_var_offset(dep_name)
+
+                # t1,t2,t3,t4 = (horizontal, vertical, diag, rhs). 
                 t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]
                 
-                M[k][r,c] = t1 if M[k][r,c] is None else M[k][r,c]+t1
-                M[k][c,r] = t2 if M[k][c,r] is None else M[k][c,r]+t2
+                M[k][c,r] = t1 if M[k][c,r] is None else M[k][c,r]+t1
+                M[k][r,c] = t2 if M[k][r,c] is None else M[k][r,c]+t2
                 M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3
                                      
             for key in self.aux_ops.keys():
@@ -935,8 +937,7 @@ class Engine(object):
            for j in range(nblock):
               if j == idx: continue
               if A[idx, j] is None: continue
-              for i in gl_ess_tdof:
-                  A[idx, j].resetRow(gl_ess_tdof)
+              A[idx, j].resetRow(gl_ess_tdof)
                   
            for j in range(nblock):            
               if j == idx: continue
@@ -1216,7 +1217,8 @@ class Engine(object):
         self.is_assembled = True
         return M, B
      
-    def finalize_coo_matrix(self, M_block, is_complex, convert_real = False):     
+    def finalize_coo_matrix(self, M_block, is_complex, convert_real = False):
+        dprint1("A (in finalizie_coo_matrix) \n",  M_block)       
         if not convert_real:
             if is_complex:
                 M = M_block.get_global_coo(dtype='complex')           

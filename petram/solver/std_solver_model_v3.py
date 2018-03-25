@@ -17,7 +17,8 @@ class StdSolver(Solver):
         v['assemble_real'] = False
         v['save_parmesh'] = False        
         v['phys_model']   = ''
-        v['init_setting']   = ''        
+        v['init_setting']   = ''
+        v['use_profiler'] = False
         super(StdSolver, self).attribute_set(v)
         return v
     
@@ -31,7 +32,9 @@ class StdSolver(Solver):
                 ["convert to real matrix (complex prob.)",
                  self.assemble_real,  3, {"text":""}],
                 ["save parallel mesh",
-                 self.save_parmesh,  3, {"text":""}],]
+                 self.save_parmesh,  3, {"text":""}],
+                ["use cProfiler",
+                 self.use_profiler,  3, {"text":""}],]
 
     def get_panel1_value(self):
         return (self.init_setting,
@@ -39,7 +42,8 @@ class StdSolver(Solver):
                 self.clear_wdir,
                 self.init_only,               
                 self.assemble_real,
-                self.save_parmesh)    
+                self.save_parmesh,
+                self.use_profiler)        
     
     def import_panel1_value(self, v):
         self.init_setting = str(v[0])        
@@ -47,7 +51,8 @@ class StdSolver(Solver):
         self.clear_wdir = v[2]
         self.init_only = v[3]        
         self.assemble_real = v[4]
-        self.save_parmesh = v[5]        
+        self.save_parmesh = v[5]
+        self.use_profiler = v[6]                
 
     def get_editor_menus(self):
         return []
@@ -248,6 +253,10 @@ class StdSolver(Solver):
         engine.is_initialzied = False
         
     def run(self, engine):
+        if self.use_profiler:
+            import cProfile, pstats, StringIO
+            pr = cProfile.Profile()
+            pr.enable()        
         phys_target = self.get_phys()
         if self.clear_wdir:
             engine.remove_solfiles()
@@ -264,7 +273,15 @@ class StdSolver(Solver):
         engine.remove_solfiles()
         dprint1("writing sol files")
         self.save_solution(engine, extra_data)
-
+        
+        if self.use_profiler:
+            pr.disable()
+            s = StringIO.StringIO()
+            sortby = 'cumulative'
+            ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+            ps.print_stats()
+            print s.getvalue()
+            
         print(debug.format_memory_usage())
            
 

@@ -261,4 +261,17 @@ class AUX_Variable(Phys):
         if not self.get_root_phys().is_complex():              
             if np.iscomplexobj(t4): t4 = t4.real
         t4 = Array2PyVec(t4)
-        return (t1, t2, t3, t4, True)
+
+        '''
+        Format of extar.
+     
+        horizontal, vertical, diag, rhs, flag
+  
+        [M,  t1]   [  ]
+        [      ] = [  ]
+        [t2, t3]   [t4]
+
+        and it returns if Lagurangian will be saved.
+
+        '''
+        return (t2, t1, t3, t4, True)

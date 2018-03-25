@@ -83,26 +83,31 @@ class ScipyCoo(coo_matrix):
 
     def setDiag(self, idx, value=1.0):
         ret = self.tolil()
-        for i in idx:
-           ret[i,i] = value
+        idx = np.array(idx, dtype=int, copy=False)
+        ret[idx,idx] = value
+        #for i in idx:
+        #   ret[i,i] = value
         ret = ret.tocoo()
         self.data = ret.data
         self.row  = ret.row
         self.col  = ret.col
-        
+    '''    
     def resetDiagImag(self, idx):
         ret = self.tolil()
+
         for i in idx:
            ret[i,i] = ret[i,i].real
         ret = ret.tocoo()
         self.data = ret.data
         self.row  = ret.row
         self.col  = ret.col
-        
+    '''    
 
     def resetRow(self, rows):
         ret = self.tolil()
-        for r in rows: ret[r, :] = 0.0        
+        rows = np.array(rows, dtype=int, copy=False)
+        ret[rows, :] = 0.0                
+        #for r in rows: ret[r, :] = 0.0        
         ret = ret.tocoo()
         self.data = ret.data
         self.row  = ret.row
@@ -110,7 +115,9 @@ class ScipyCoo(coo_matrix):
        
     def resetCol(self, cols):
         ret = self.tolil()
-        for c in cols: ret[:, c] = 0.0        
+        cols = np.array(cols, dtype=int, copy=False)
+        ret[:, cols] = 0.0                
+        #for c in cols: 
         ret = ret.tocoo()
         self.data = ret.data
         self.row  = ret.row
@@ -227,8 +234,10 @@ class ScipyCoo(coo_matrix):
         self.data = coo.data
         self.row = coo.row
         self.col = coo.col
+        self.eliminate_zeros()
+        
         return Ae.tocoo()
-     
+        
     def copy_element(self, tdof, m):
         mlil = m.tolil()
         value= mlil[tdof, 0]
