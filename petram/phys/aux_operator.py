@@ -25,7 +25,7 @@ from petram.phys.vtable import VtableElement, Vtable
 
 
 import petram.debug
-dprint1, dprint2, dprint3 = petram.debug.init_dprints('AUXVariable')
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('AUX_Operator')
 from petram.helper.matrix_file import write_coo_matrix, write_vector
 
 #groups = ['Domain', 'Boundary', 'Edge', 'Point', 'Pair']
@@ -56,9 +56,9 @@ class AUX_Operator(Phys):
         dep_vars = self.get_root_phys().dep_vars
 
         
-        ll1 = [["paired variable", names[0], 4,
+        ll1 = [["trial space (Cols)", names[0], 4,
                 {"style":wx.CB_READONLY, "choices": names}],
-               ["source variable", dep_vars[0], 4,
+               ["test space (Rows)", dep_vars[0], 4,
                 {"style":wx.CB_READONLY, "choices": dep_vars}]]
 
         ll2 = self.vt_oprt.panel_param(self)
@@ -91,7 +91,6 @@ class AUX_Operator(Phys):
         
         v1 = [var, svar]
         v1.extend(self.vt_oprt.get_panel_value(self))
-        print v1
         return v1
         
     def panel2_param(self):
@@ -112,3 +111,50 @@ class AUX_Operator(Phys):
     def postprocess_extra(self, sol, flag, sol_extra):
         name = self.name()+'_' + str(self.port_idx)
         sol_extra[name] = sol.toarray()
+
+    def preprocess_params(self, engine):
+        self.vt_oprt.preprocess_params(self)
+        super(AUX_Operator, self).preprocess_params(engine)
+        
+
+    def has_aux_op(self, kfes, phys2, kfes2, access_idx):
+        if not self.check_jmatrix(access_idx): return False
+        
+        if kfes != self.src_var: return False
+        mfem_physroot = self.get_root_phys().parent
+
+        trialphys = mfem_physroot[self.paired_var[0]]
+        if trialphys != phys2: return False
+
+        if kfes2 != self.paired_var[1]: return False
+        return True
+    
+    def get_aux_op(self, engine, kfes1, phys2, kfes2,
+                   trial_ess_tdof=None,
+                   test_ess_tdof=None):
+
+        mfem_physroot = self.get_root_phys().parent
+        var_s = mfem_physroot[self.paired_var[0]].dep_vars
+        trialname = var_s[self.paired_var[1]]
+        testname = self.get_root_phys().dep_vars[self.src_var]
+
+        oprt = self.vt_oprt.make_value_or_expression(self)
+        oprt = oprt[0]
+        
+        dprint1(self.name() + ": Assembling Operator: ", oprt)
+        
+        from petram.helper.expression import Expression
+
+        fes1 = engine.fespaces[trialname]
+        fes2 = engine.fespaces[testname]        
+
+        diag_size = -1
+        if oprt is not None:
+           dprint1("Assembling Operator: ", oprt)
+           assert isinstance(oprt, str), "operator1 must be an expression"               
+           expr = Expression(oprt, engine=engine, trial=fes1, test=fes2,
+                             trial_ess_tdof = trial_ess_tdof,
+                             test_ess_tdof = test_ess_tdof)           
+           op = expr.assemble(g=self._global_ns)
+
+        return op

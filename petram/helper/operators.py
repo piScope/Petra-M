@@ -23,6 +23,8 @@ class Operator(object):
         self._fes2 = None
         self._engine = None
         self._transpose = False
+        self._trial_ess_tdof = None
+        self._test_ess_tdof = None
         
     def __call__(self, *args, **kwargs):
         return self.assemble(*args, **kwargs )
@@ -73,6 +75,10 @@ class Operator(object):
         
 class Integral(Operator):
     def assemble(self, *args, **kwargs):
+        '''
+        integral()
+        integral('boundary', [1,3])  # selection type and selection
+        '''
         self.process_kwargs(kwargs)
         if len(args)>0: self._sel_mode = args[0]
         if len(args)>1: self._sel = args[1]
@@ -83,8 +89,10 @@ class Integral(Operator):
 
         if self._sel_mode == 'domain':
             intg = mfem.DomainLFIntegrator(coff)
+        elif self._sel_mode == 'boundary':
+            intg = mfem.BoundaryLFIntegrator(coff)
         else:
-            intg = mfem.BoundaryLFIntegrator(coff)            
+            assert False, "Selection Type must be either domain or boundary"
         lf1.AddDomainIntegrator(intg)
         lf1.Assemble()
         
@@ -96,7 +104,43 @@ class Integral(Operator):
         if not self._transpose:        
             v1 = v1.transpose()
         return v1
-    
 
+class Identity(Operator):    
+    def assemble(self, *args, **kwargs):
+        self.process_kwargs(kwargs)
         
-                 
+        engine = self._engine()
+        fes1 = self._fes1()
+        fes2 = fes1 if self._fes2 is None else self._fes2()
+        if fes1 == fes2:
+            bf = engine.new_bf(fes1)
+            #one = mfem.ConstantCoefficient(0.0001)
+            #itg = mfem.MassIntegrator()
+            #bf.AddDomainIntegrator(itg)
+            bf.Assemble()
+            bf.Finalize()
+            mat = engine.a2A(bf)
+        else:
+            bf = engine.new_mixed_bf(fes1, fes2)
+            #one = mfem.ConstantCoefficient(0.0001)
+            #itg = mfem.MixedScalarMassIntegrator()
+            #bf.AddDomainIntegrator(itg)
+            bf.Assemble()
+            mat = engine.a2Am(bf)
+        mat.CopyRowStarts()
+        mat.CopyColStarts()
+            
+        from mfem.common.chypre import MfemMat2PyMat
+        m1 = MfemMat2PyMat(mat, None)
+        
+        if not use_parallel:
+            from petram.helper.block_matrix import convert_to_ScipyCoo
+            m1 = convert_to_ScipyCoo(m1)
+        shape = m1.shape
+        assert shape[0]==shape[1], "Identity Operator must be square"
+
+        idx = range(shape[0])
+        m1.setDiag(idx)
+        
+        return m1
+          

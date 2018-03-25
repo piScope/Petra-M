@@ -216,8 +216,7 @@ class ScipyCoo(coo_matrix):
     GetPartitioningArray = GetRowPartArray
 
     def eliminate_RowsCols(self, tdof):
-        # tdof is intArray....
-        tdof = tdof.ToList()
+        # tdof is list
         lil = self.tolil()
         lil[tdof, :] = 0
         Ae = lil_matrix(self.shape, dtype=self.dtype)
@@ -231,7 +230,6 @@ class ScipyCoo(coo_matrix):
         return Ae.tocoo()
      
     def copy_element(self, tdof, m):
-        tdof = tdof.ToList()       
         mlil = m.tolil()
         value= mlil[tdof, 0]
         slil = self.tolil()
@@ -366,6 +364,17 @@ class BlockMatrix(object):
     def print_true_nnz(self):
         print(self.format_ture_nnz())
 
+    def print_row_part(self):
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                if self[i, j] is not None:               
+                    print i, j, self[i,j].GetRowPartArray()
+    def print_col_part(self):
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                if self[i, j] is not None:               
+                    print i, j, self[i,j].GetColPartArray()
+
     def transpose(self):
         ret = BlockMatrix((self.shape[1], self.shape[0]), kind = self.kind)
         for i in range(self.shape[0]):
@@ -394,6 +403,7 @@ class BlockMatrix(object):
                    elif ret[i,j] is None:
                        ret[i,j] = self[i, k].dot(mat[k, j])
                    else:
+                       print self[i, k], mat[k, j]
                        ret[i,j] = ret[i,j] + self[i, k].dot(mat[k, j])
                    #try:
                    #    ret[i,j].shape

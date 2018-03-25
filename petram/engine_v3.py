@@ -366,7 +366,6 @@ class Engine(object):
                 ifes = self.ifes(name)
                 rgf = self.r_x[ifes]
                 igf = self.i_x[ifes]
-                print name, rgf, igf
                 phys.add_variables(variables, name, rgf, igf)
 
         keys = self.model._variables.keys()
@@ -454,6 +453,10 @@ class Engine(object):
             self.extras_mm = {}
             for phys in phys_target:               
                 self.assemble_extra(phys, phys_target)
+            self.aux_ops = {}
+            for phys in phys_target:               
+                self.assemble_aux_ops(phys, phys_target)
+                
         return
 
     def run_assemble_rhs(self, phys_target = None):
@@ -495,7 +498,6 @@ class Engine(object):
         A, RHS = self.compute_rhs(M, B, X)   # A = M[0], RHS = M[1:]*X[1:]+B
         Ae, RHS = self.eliminateBC(A, X[0], RHS)  # modify RHS and generate Ae
         self.apply_interp(A, RHS)            # A and RHS is modifedy by global DoF coupling P
-
         return A, X, RHS, Ae,  B
             
     #
@@ -779,6 +781,22 @@ class Engine(object):
                     self.extras[key] = tmp
                     self.extras_mm[key] = mm.fullpath()
                     
+    def assemble_aux_ops(self, phys, phys_target):
+        for mm in phys.walk():
+            if not mm.enabled: continue
+            names = phys.dep_vars           
+            for kfes1, name1 in enumerate(names):
+                for phys2 in phys_target:
+                    names2 = phys2.dep_vars
+                    for kfes2, name2 in enumerate(names2):
+                        if not mm.has_aux_op(kfes1, phys2, kfes2, self.access_idx): continue
+                        gl_ess_tdof1 = self.gl_ess_tdofs[name1]
+                        gl_ess_tdof2 = self.gl_ess_tdofs[name2]                    
+                        op = mm.get_aux_op(self, kfes1, phys2, kfes2,
+                                           test_ess_tdof=gl_ess_tdof1,
+                                           trial_ess_tdof=gl_ess_tdof2)
+                        self.aux_ops[(name1, name2, mm.fullpath())] = op
+
     def assemble_interp(self, phys):
         names = phys.dep_vars
         for name in names:
@@ -850,7 +868,15 @@ class Engine(object):
                 M[k][r,c] = t1 if M[k][r,c] is None else M[k][r,c]+t1
                 M[k][c,r] = t2 if M[k][c,r] is None else M[k][c,r]+t2
                 M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3
+                                     
+            for key in self.aux_ops.keys():
+                testname, trialname, mm_fullpath = key
+                r = self.dep_var_offset(testname)
+                c = self.dep_var_offset(trialname)
+                m = self.aux_ops[key]
+                M[k][r,c] = m if M[k][r,c] is None else M[k][r,c]+m
                 
+
         self.access_idx = 0
         self.r_b.generateMatVec(self.b2B)
         self.i_b.generateMatVec(self.b2B)            
@@ -864,7 +890,7 @@ class Engine(object):
             r = self.dep_var_offset(extra_name)
             t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]            
             B[r] = t4
-     
+
         nfes = len(self.fes_vars)        
         for k in range(self.n_matrix):
             self.access_idx = k
@@ -875,6 +901,14 @@ class Engine(object):
                                           i, 0, MfemVec2PyVec)
                 r = self.dep_var_offset(self.fes_vars[i])
                 X[k][r] = v
+        for k in range(self.n_matrix):
+           dprint1("M["+str(k)+"]")           
+           dprint1(M[k])
+        for k in range(self.n_matrix):
+           dprint1("X["+str(k)+"]")                      
+           dprint1(X[k])           
+        dprint1( "B", B)        
+
         return M, B, X
      
     def compute_rhs(self, M, B, X):
@@ -890,14 +924,14 @@ class Engine(object):
     def eliminateBC(self, A, X, RHS):
         nblock = A.shape[0]
         Ae = self.new_blockmatrix(A.shape)
-
+        
         for name in self.gl_ess_tdofs:
            gl_ess_tdof = self.gl_ess_tdofs[name]
            ess_tdof = self.ess_tdofs[name]
            idx = self.dep_var_offset(name)
            if A[idx, idx] is not None:
               Ae[idx, idx] = A[idx, idx].eliminate_RowsCols(ess_tdof)
-              
+
            for j in range(nblock):
               if j == idx: continue
               if A[idx, j] is None: continue
@@ -909,9 +943,9 @@ class Engine(object):
               if A[j, idx] is None: continue
               SM = A.get_squaremat_from_right(j, idx)
               Ae[j, idx] = A[j, idx].dot(SM)
-           
+
         try:
-           RHS = RHS - Ae.dot(X)
+           RHS = RHS - Ae.dot(X)           
            for name in self.gl_ess_tdofs:
               gl_ess_tdof=self.gl_ess_tdofs[name]
               RHS[idx].copy_element(gl_ess_tdof, X[idx])
@@ -1408,7 +1442,7 @@ class Engine(object):
             ess_bdr = mfem.intArray(ess_bdr)
             fespace = self.fespaces[name]
             fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list)
-            self.ess_tdofs[name] = ess_tdof_list
+            self.ess_tdofs[name] = ess_tdof_list.ToList()
         return
 
     def allocate_fespace(self, phys):
@@ -1917,8 +1951,9 @@ class SerialEngine(Engine):
         a.FormSystemMatrix(inta, m)
         return m
 
-    def a2Am(self, a):  # MixedBilinearSystem to matrix 
-        return self.a2A(a)
+    def a2Am(self, a):  # MixedBilinearSystem to matrix
+        a.ConformingAssemble()
+        return a.SpMat()
     
     def b2B(self, b):  # FormLinearSystem w/o elimination
         fes = b.FESpace()
@@ -2233,7 +2268,7 @@ class ParallelEngine(Engine):
         for name in self.ess_tdofs:
             tdof = self.ess_tdofs[name]
             fes =  self.fespaces[name]
-            data = (np.array(tdof.ToList()) +
+            data = (np.array(tdof) +
                     fes.GetMyTDofOffset()).astype(np.int32)
    
             gl_ess_tdof = allgather_vector(data, MPI.INT)
@@ -2241,7 +2276,7 @@ class ParallelEngine(Engine):
             #gl_ess_tdofs.append((name, gl_ess_tdof))
             ## TO-DO intArray must accept np.int32
             tmp = [int(x) for x in gl_ess_tdof]
-            self.gl_ess_tdofs[name] = mfem.intArray(tmp)
+            self.gl_ess_tdofs[name] = tmp
      
     def mkdir(self, path):
         myid     = MPI.COMM_WORLD.rank                
@@ -2280,8 +2315,9 @@ class ParallelEngine(Engine):
         a.FormSystemMatrix(inta, m)
         return m
 
-    def a2Am(self, a):  # MixedBilinearSystem to matrix 
-        return self.a2A(a)
+    def a2Am(self, a):  # MixedBilinearSystem to matrix
+        a.Finalize()
+        return a.ParallelAssemble()
     
     def b2B(self, b):
         fes = b.ParFESpace()

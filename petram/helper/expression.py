@@ -2,7 +2,8 @@ import parser
 import weakref
 
 import petram.helper.operators as ops
-operators = {"integral":ops.Integral,}
+operators = {"integral" :ops.Integral,
+             "identity":ops.Identity,}
 
 def get_operators():
     return {key: operators[key]() for key in operators}
@@ -20,15 +21,18 @@ def get_operators():
 class Expression(object):
     def __init__(self, expr, **kwargs):
         self._expr = expr
-        fes1 = kwargs.pop('range', None)
+        
+        engine = kwargs.pop('engine', None)                             
+        fes1 = kwargs.pop('trial', None)
         fes2 = kwargs.pop('test', None)
-        engine = kwargs.pop('engine', None)                     
         self._sel_mode = kwargs.pop("_sel_mode", "domain")
         self._sel = kwargs.pop("_sel", "all")
         self._fes1 = None
         self._fes2 = None
         self._engine = None
         self._transpose = False #false (horizontal vector if it is vector,,,)
+        self._trial_ess_tdof = kwargs.pop('trial_ess_tdof', None)
+        self._test_ess_tdof = kwargs.pop('test_ess_tdof', None)
         
         super(Expression, self).__init__()
         variables = []
@@ -37,7 +41,7 @@ class Expression(object):
         names = code.co_names
         self.co = code
 
-        if fes1 is not None: self.set_range_space(fes1)
+        if fes1 is not None: self.set_trial_space(fes1)
         if fes2 is not None: self.set_test_space(fes2)        
         if engine is not None: self.set_engine(engine)        
     @property
@@ -59,7 +63,7 @@ class Expression(object):
         return not isVariableType(g)
 
 
-    def set_range_space(self, fes):
+    def set_trial_space(self, fes):
         self._fes1 = weakref.ref(fes)
         
     def set_test_space(self, fes):
@@ -77,7 +81,9 @@ class Expression(object):
     def assemble(self, g=None):
         g = {} if g is None else g
         operators = get_operators()
-        attrs = ['_fes1', '_fes2', '_sel', '_sel_mode', '_engine', '_transpose']
+        attrs = ['_fes1', '_fes2', '_sel', '_sel_mode', '_engine', '_transpose',
+                 '_trial_ess_tdof','_test_ess_tdof']
+
         for op in operators:
             for attr in attrs:
                 setattr(operators[op], attr, getattr(self, attr))

@@ -232,15 +232,15 @@ class AUX_Variable(Phys):
         if opr1 is not None or opr2 is not None:
             if opr1 is not None:
                assert isinstance(opr1, str), "operator1 must be an expression"               
-               expr = Expression(opr1, engine=engine, range=fes)
+               expr = Expression(opr1, engine=engine, trial=fes)
                t1 = expr.assemble(g=self._global_ns)
                diag_size = t1.shape[0]
             if opr2 is not None:
-               assert isinstance(opr2, str), "operator1 must be an expression"                           
-               expr = Expression(opr2, engine=engine, range=fes, transpose=True)               
+               assert isinstance(opr2, str), "operator1 must be an expression"           
+               expr = Expression(opr2, engine=engine, trial=fes, transpose=True)               
                expr = Expression(opr2)
                expr.set_engine(engine)
-               expr.set_range_space(fes)
+               expr.set_trial_space(fes)
                t2 = expr.assemble(g=self._global_ns)
                if diag_size > -1:
                   assert diag_size == t2.shape[1], "t1 and t2 shapes are inconsistent"

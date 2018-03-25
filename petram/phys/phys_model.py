@@ -285,32 +285,6 @@ class Phys(Model, Vtable_mixin, NS_mixin):
      
     def get_projection(self):
         return 1
-        
-    def get_exter_NDoF(self, kfes=0):
-        return 0
-    
-    def has_extra_DoF(self, kfes=0):
-        return False
-
-    def has_extra_DoF2(self, kfes, phys, jmatrix):
-        '''
-        subclass has to overwrite this if extra DoF can couple 
-        with other FES.
-        '''
-        if (phys == self.get_root_phys()) and (jmatrix == 0):
-           # if module set only has_extra_DoF, the extra variable
-           # couples only in the same Phys module and jmatrix == 0
-
-           # ToDo. Should add deprecated message
-           return self.has_extra_DoF(kfes=kfes)
-        else:
-           return False           
-           
-    def extra_DoF_name(self):
-        '''
-        default DoF name
-        '''
-        return self.get_root_phys().dep_vars[0]+'_'+self.name()
 
     def update_param(self):
         ''' 
@@ -328,14 +302,45 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''   
         raise NotImplementedError(
              "you must specify this method in subclass")
+     
+    def get_exter_NDoF(self, kfes=0):
+        return 0
+    
+    def has_extra_DoF(self, kfes=0):
+        return False
+
+    def has_extra_DoF2(self, kfes, phys, jmatrix):
+        '''
+        subclass has to overwrite this if extra DoF can couple 
+        with other FES.
+        '''
+        if not self.check_jmatrix(jmatrix): return False
+        
+        if (phys == self.get_root_phys()) and (jmatrix == 0):
+           # if module set only has_extra_DoF, the extra variable
+           # couples only in the same Phys module and jmatrix == 0
+
+           # ToDo. Should add deprecated message
+           return self.has_extra_DoF(kfes=kfes)
+        else:
+           return False           
+           
+    def extra_DoF_name(self):
+        '''
+        default DoF name
+        '''
+        return self.get_root_phys().dep_vars[0]+'_'+self.name()
+
        
     def has_bf_contribution(self, kfes):
         return False
+     
     def has_bf_contribution2(self, kfes, jmatrix):     
         '''
         subclass has to overwrite this if extra DoF can couple 
         with other FES.
         '''
+        if not self.check_jmatrix(jmatrix): return False                
         if jmatrix == 0:
            return self.has_bf_contribution(kfes)
         else:
@@ -349,6 +354,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         subclass has to overwrite this if extra DoF can couple 
         with other FES.
         '''
+        if not self.check_jmatrix(jmatrix): return False                
         if jmatrix == 0:
            return self.has_lf_contribution(kfes)
         else:
@@ -364,10 +370,17 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         subclass has to overwrite this if extra DoF can couple 
         with other FES.
         '''
+        if not self.check_jmatrix(jmatrix): return False        
         if jmatrix == 0:
            return self.has_mixed_contribution()
         else:
-           return False           
+           return False
+
+    def has_aux_op(self, kfes, phys2, kfes2, access_idx):
+        return False
+
+    def check_jmatrix(self, jmatrix):
+        return self.timestep_config[jmatrix]
 
     def get_mixedbf_loc(self):
         '''
