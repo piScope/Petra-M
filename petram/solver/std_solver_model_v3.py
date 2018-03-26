@@ -131,11 +131,12 @@ class StdSolver(Solver):
         for p in phys_targets:
             engine.run_mesh_extension(p)
             
+        engine.run_alloc_sol(phys_targets)
+        
         inits = self.get_init_setting()
         if len(inits) == 0:
             # in this case alloate all fespace and initialize all
             # to zero
-            engine.run_alloc_sol(phys_targets)
             engine.run_apply_init(phys_targets, 0)
         else:
             for init in inits:

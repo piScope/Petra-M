@@ -721,17 +721,22 @@ class Engine(object):
                     idx1 = phys_offset + r
                     idx2 = phys_offset + c
                 else:
-                    idx1 = self.ifes[r]
-                    idx2 = self.ifes[c]                                      
+                    idx1 = self.ifes(r)
+                    idx2 = self.ifes(c)                                      
                 if loc[2] < 0:
                     idx1, idx2 = idx2, idx1
 
+                print "looking for ", idx1, idx2
                 bf =  self.r_a[idx1, idx2]
-                mm.add_mix_contribution(self, bf, r, c, is_trans, real = True)
+
+                ## ToDo fix this bool logic...;D
+                is_trans = (is_trans == -1)
+                is_conj  = (is_conj == -1)
+                mm.add_mix_contribution2(self, bf, r, c, is_trans, is_conj, real=True)
 
                 if is_complex:
                     bf =  self.i_a[idx1, idx2]
-                    mm.add_mix_contribution(self, bf, r, c, is_trans, real = False)
+                    mm.add_mix_contribution2(self, bf, r, c, is_trans, is_conj, real=False)
                   
     def fill_coupling(self, coupling, phys_target):
         raise NotImplementedError("Coupling is not supported")
@@ -1482,14 +1487,14 @@ class Engine(object):
         fes = self.fespaces[self.fes_vars[idx]]
         return self.new_lf(fes)
 
-    def alloc_bf(self, idx, idx2=0):
+    def alloc_bf(self, idx, idx2=None):
         fes = self.fespaces[self.fes_vars[idx]]
         return self.new_bf(fes)
 
-    def alloc_mbf(self, idx, idx2):
-        fes  = self.fespaces[self.fes_vars[idx]]
+    def alloc_mbf(self, idx1, idx2): #row col
+        fes1 = self.fespaces[self.fes_vars[idx1]]
         fes2 = self.fespaces[self.fes_vars[idx2]]
-        return self.new_mixed_bf(fes1, fes2)
+        return self.new_mixed_bf(fes2, fes1) # argument = trial, test
     '''     
     def allocate_gf(self, phys):
         #print("allocate_gf")

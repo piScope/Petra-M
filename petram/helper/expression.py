@@ -3,7 +3,8 @@ import weakref
 
 import petram.helper.operators as ops
 operators = {"integral" :ops.Integral,
-             "identity":ops.Identity,}
+             "identity":ops.Identity,
+             "projection":ops.Projection,}
 
 def get_operators():
     return {key: operators[key]() for key in operators}

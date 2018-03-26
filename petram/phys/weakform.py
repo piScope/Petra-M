@@ -47,32 +47,40 @@ linintegs = get_integrators('LinearOps')
  
 class MCoeff(MatrixPhysCoefficient):
     def __init__(self, *args, **kwargs):
+        self.conj = kwargs.pop('conj', False)
         super(MCoeff, self).__init__(*args, **kwargs)
     def EvalValue(self, x):
         val = super(MCoeff, self).EvalValue(x)
+        if self.conj: val=np.conj(val)                
         return val
      
 class DCoeff(MatrixPhysCoefficient):
     def __init__(self, *args, **kwargs):
+        self.conj = kwargs.pop('conj', False)       
         self.space_dim = args[0]
         super(DCoeff, self).__init__(*args, **kwargs)
     def EvalValue(self, x):
         val = super(DCoeff, self).EvalValue(x)
         val = np.diag(val)
+        if self.conj: val=np.conj(val)                
         return val.flatten()
     
 class VCoeff(VectorPhysCoefficient):
     def __init__(self, *args, **kwargs):
+        self.conj = kwargs.pop('conj', False)
         super(VCoeff, self).__init__(*args, **kwargs)
     def EvalValue(self, x):
         val = super(VCoeff, self).EvalValue(x)
+        if self.conj: val=np.conj(val)        
         return val
 
 class SCoeff(PhysCoefficient):
     def __init__(self, *args, **kwargs):
+        self.conj = kwargs.pop('conj', False)       
         super(SCoeff, self).__init__(*args, **kwargs)
     def EvalValue(self, x):
         val = super(SCoeff, self).EvalValue(x)
+        if self.conj: val=np.conj(val)
         return val
      
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
@@ -85,12 +93,15 @@ class WeakIntegration(Phys):
         v['use_dst_proj'] = False
         v['coeff_type'] = 'S'
         v['integrator'] = 'MassIntegrator'
+        v['test_idx'] = 0     #(index)
         self.vt_coeff.attribute_set(v)
         v = Phys.attribute_set(self, v)
         return v
      
     def get_panel1_value(self):
-        return [self.coeff_type,
+        dep_vars = self.get_root_phys().dep_vars                    
+        return [dep_vars[self.test_idx],
+                self.coeff_type,
                 self.vt_coeff.get_panel_value(self)[0],
                 self.integrator,
                 self.use_src_proj,
@@ -106,9 +117,12 @@ class WeakIntegration(Phys):
         names = [x[0] for x in self.itg_choice()]
         p2 = ["integrator", names[0], 4,
               {"style":wx.CB_READONLY, "choices": names}]
-             
+        
+        dep_vars = self.get_root_phys().dep_vars             
         panels = self.vt_coeff.panel_param(self)
-        ll = [ p,
+        ll = [["test space (Rows)", dep_vars[0], 4,
+               {"style":wx.CB_READONLY, "choices": dep_vars}],
+               p,
                panels[0],
                p2,
               ["use src proj.",  self.use_src_proj,   3, {"text":""}],
@@ -119,17 +133,19 @@ class WeakIntegration(Phys):
         return self.get_root_phys().is_complex_valued
               
     def import_panel1_value(self, v):
-        self.coeff_type = str(v[0])
-        self.vt_coeff.import_panel_value(self, (v[1],))
-        self.integrator =  str(v[2])
-        self.use_src_proj = v[3]
-        self.use_dst_proj = v[4]
+        dep_vars = self.get_root_phys().dep_vars                    
+        self.test_idx = dep_vars.index(str(v[0]))
+        self.coeff_type = str(v[1])
+        self.vt_coeff.import_panel_value(self, (v[2],))
+        self.integrator =  str(v[3])
+        self.use_src_proj = v[4]
+        self.use_dst_proj = v[5]
 
     def preprocess_params(self, engine):
         self.vt_coeff.preprocess_params(self)
         super(WeakIntegration, self).preprocess_params(engine)
         
-    def add_contribution(self, engine, a, real = True, kfes=0):      
+    def add_contribution(self, engine, a, real = True, is_trans=False, is_conj=False):
         c = self.vt_coeff.make_value_or_expression(self)    
         if real:       
             dprint1("Add "+self.integrator+ " contribution(real)" + str(self._sel_index))
@@ -141,21 +157,20 @@ class WeakIntegration(Phys):
         if cotype == 'S':
              c_coeff = SCoeff(c[0],  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
-                              real = real)
+                              real = real, conj=is_conj)
         elif cotype == 'V':
              c_coeff = VCoeff(dim, c[0],  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
-                              real = real)
+                              real = real, conj=is_conj)
         elif cotype == 'M':
              c_coeff = MCoeff(dim, c[0],  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
-                              real = real)
+                              real = real, conj=is_conj)
         elif cotype == 'D':
              c_coeff = DCoeff(dim, c[0],  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
-                              real = real)
+                              real = real, conj=is_conj)
         integrator = getattr(mfem, self.integrator)
-
         if isinstance(self, Bdry):
             adder = a.AddBdrIntegrator
         elif isinstance(self, Domain):
@@ -163,12 +178,15 @@ class WeakIntegration(Phys):
         else:
             assert False, "this class is not supported in weakform"
         self.add_integrator(engine, 'c', c_coeff,
-                            adder, integrator)
+                            adder, integrator, transpose=is_trans)
         
     def add_bf_contribution(self, engine, a, real = True, kfes=0):
-        self.add_contribution(engine, a, real = real, kfes=kfes)    
-    def add_lf_contribution(self, engine, a, real = True, kfes=0):
-        self.add_contribution(engine, a, real = real, kfes=kfes)
+        self.add_contribution(engine, a, real = real)
+    def add_lf_contribution(self, engine, b, real = True, kfes=0):
+        self.add_contribution(engine, b, real = real)
+    def add_mix_contribution2(self, engine, mbf, r, c,  is_trans, is_conj,
+                              real = True):
+        self.add_contribution(engine, mbf, real=real, is_trans=is_trans, is_conj=is_conj)
         
     def itg_choice(self):
         return []
@@ -186,7 +204,8 @@ class WeakBilinIntegration(WeakIntegration):
     def attribute_set(self, v):
         v = super(WeakBilinIntegration, self).attribute_set(v)
         v['paired_var'] = None  #(phys_name, index)
-        v['use_symmetric'] = False                
+        v['use_symmetric'] = False
+        v['use_conj'] = False                        
         return v
     def get_panel1_value(self):
         if self.paired_var is None:
@@ -201,7 +220,7 @@ class WeakBilinIntegration(WeakIntegration):
         var = n + " ("+p + ")"             
         v1 = [var]
         v2 = super(WeakBilinIntegration, self).get_panel1_value()
-        v3 = [self.use_symmetric]
+        v3 = [self.use_symmetric, self.use_conj]
         return v1 + v2 + v3
               
     def panel1_tip(self):
@@ -216,8 +235,9 @@ class WeakBilinIntegration(WeakIntegration):
 
         idx = names.index(str(v[0]).split("(")[0].strip())
         self.paired_var = (pnames[idx], pindex[idx])
-        super(WeakBilinIntegration, self).import_panel1_value(v[1:-1])       
-        self.use_symmetric = v[-1]
+        super(WeakBilinIntegration, self).import_panel1_value(v[1:-2])       
+        self.use_symmetric = v[-2]
+        self.use_conj = v[-1]        
         
     def panel1_param(self):
         mfem_physroot = self.get_root_phys().parent
@@ -227,14 +247,45 @@ class WeakBilinIntegration(WeakIntegration):
         ll1 = [["paired variable", "S", 4,
                 {"style":wx.CB_READONLY, "choices": names}]]
         ll2 = super(WeakBilinIntegration, self).panel1_param()
-        ll3 = [["make symmetric",  self.use_symmetric,   3, {"text":""}],  ]
+        ll3 = [["make symmetric",  self.use_symmetric,   3, {"text":""}],  
+               ["use  conjugate",  self.use_conj,   3, {"text":""}],  ]
         ll = ll1 + ll2 + ll3
 
         return ll
         
     def has_bf_contribution(self, kfes):
-        return True
+        mfem_physroot = self.get_root_phys().parent
+        var_s = mfem_physroot[self.paired_var[0]].dep_vars
+        trialname  = var_s[self.paired_var[1]]
+        testname = self.get_root_phys().dep_vars[self.test_idx]
+
+        return (trialname == testname)
      
-   
+    def has_mixed_contribution(self):
+        mfem_physroot = self.get_root_phys().parent
+        var_s = mfem_physroot[self.paired_var[0]].dep_vars
+        trialname  = var_s[self.paired_var[1]]
+        testname = self.get_root_phys().dep_vars[self.test_idx]
+
+        return (trialname != testname)        
+       
+    def get_mixedbf_loc(self):
+        mfem_physroot = self.get_root_phys().parent
+        var_s = mfem_physroot[self.paired_var[0]].dep_vars
+        trialname  = var_s[self.paired_var[1]]
+        testname = self.get_root_phys().dep_vars[self.test_idx]
+
+        loc = []
+        is_trans = 1
+        loc.append((testname, trialname, is_trans, 1))
+
+        if self.use_symmetric and not self.use_conj:
+             loc.append((testname, trialname, -1, -1))
+        if self.use_symmetric and self.use_conj:
+             loc.append((testname, trialname, -1, 1))
+        print("mix_loc", loc)
+        return loc
+           
+    
 
               

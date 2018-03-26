@@ -481,12 +481,11 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
     return map
 
 def gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                               trans2, tdof, tol, shape_type = 'scalar'):
+                               trans2, tol, shape_type = 'scalar'):
 
     if fes2 is None: fes2 = fes1
     if trans1 is None: trans1=notrans
     if trans2 is None: trans2=notrans
-    if tdof is None: tdof=[]
 
     mesh1= fes1.GetMesh()  
     mesh2= fes2.GetMesh()
@@ -555,7 +554,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
 
 
 def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
-                trans2=None, tdof=None, tol=1e-4):
+                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
     '''
     map DoF on surface to surface
 
@@ -569,7 +568,8 @@ def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
     if fes2 is None: fes2 = fes1
     if trans1 is None: trans1=notrans
     if trans2 is None: trans2=trans1
-    if tdof is None: tdof=[]
+    if tdof1 is None: tdof1=[]
+    if tdof2 is None: tdof2=[]    
                              
     map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
                                trans2, tdof, tol, shape_type = 'scalar')
@@ -578,12 +578,12 @@ def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
     
     map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                    k1all, k2all, sh1all, sh2all, elmap,
-                   trans1, trans2, tol, tdof, rstart)
+                   trans1, trans2, tol, tdof1, rstart)
 
     return map
 
 def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
-                trans2=None, tdof=None, tol=1e-4):
+                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
  
     '''
     map DoF on surface to surface
@@ -598,7 +598,8 @@ def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
     if fes2 is None: fes2 = fes1
     if trans1 is None: trans1=notrans
     if trans2 is None: trans2=trans1
-    if tdof is None: tdof=[]
+    if tdof1 is None: tdof1=[]
+    if tdof2 is None: tdof2=[]    
                              
     map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
                                trans2, tdof, tol, shape_type = 'vector')
@@ -607,7 +608,7 @@ def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
     
     map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                    k1all, k2all, sh1all, sh2all, elmap,
-                   trans1, trans2, tol, tdof, rstart)
+                   trans1, trans2, tol, tdof1, rstart)
 
     return map
  
@@ -615,7 +616,7 @@ def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
 # map_surface_rt = map_surface_nd
 # map_surface_l2 = map_surface_h1
 
-def projection_matrix(idx1,  idx2,  fes, tdof,
+def projection_matrix(idx1,  idx2,  fes, tdof, fes2=None, tdof2=None,
                       trans1=None, trans2 = None, dphase=0.0,
                       tol = 1e-7, mode = 'surface'):
     '''
@@ -632,7 +633,7 @@ def projection_matrix(idx1,  idx2,  fes, tdof,
         raise NotImplementedError("mapping for " + fec_name)
 
 
-    map = mapper(idx2, idx1, fes,  trans1=trans1, trans2=None, tdof=tdof,
+    map = mapper(idx2, idx1, fes, fes2=fes2, trans1=trans1, trans2=tran2, tdof=tdof,
                  tol=tol)
 
     iscomplex = False

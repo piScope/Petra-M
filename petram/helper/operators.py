@@ -60,29 +60,45 @@ class Operator(object):
             return mfem.RestrictedCoefficient(coeff, arr)
 
 
-    def process_kwargs(self, kwargs):
+    def process_kwargs(self, engine, kwargs):
         '''
         kwargs in expression can overwrite this.
         '''
         fes1 = kwargs.pop('test', None)
-        fes2 = kwargs.pop('range', None)
+        fes2 = kwargs.pop('trial', None)
         self._sel_mode = kwargs.pop('sel_mode', self._sel_mode)
         self._sel  = kwargs.pop('sel', self._sel)
-        if fes1 is not None: 
+        if fes1 is not None:
+           if isinstance(fes1, 'str'):
+               fes1 = engine.fespaces[fes]
            self._fes1 = weakref.ref(fes1)        
-        if fes2 is not None: 
+        if fes2 is not None:
+           if isinstance(fes2, 'str'):
+               fes2 = engine.fespaces[fes]
            self._fes2 = weakref.ref(fes2)        
-        
+
+    @property
+    def fes1(self):
+        return self._fes1()
+    @property
+    def fes2(self):
+        return self._fes2()
+    @property
+    def sel_mode(self):
+        return self._sel_mode
+    
 class Integral(Operator):
     def assemble(self, *args, **kwargs):
         '''
         integral()
         integral('boundary', [1,3])  # selection type and selection
         '''
-        self.process_kwargs(kwargs)
+        engine = self._engine()        
+        self.process_kwargs(engine, kwargs)
+        
         if len(args)>0: self._sel_mode = args[0]
         if len(args)>1: self._sel = args[1]
-        engine = self._engine()
+
         lf1 = engine.new_lf(self._fes1())
         one = mfem.ConstantCoefficient(1.0)        
         coff = self.restrict_coeff(one, self._fes1())
@@ -107,9 +123,10 @@ class Integral(Operator):
 
 class Identity(Operator):    
     def assemble(self, *args, **kwargs):
-        self.process_kwargs(kwargs)
-        
         engine = self._engine()
+        
+        self.process_kwargs(engine, kwargs)
+        
         fes1 = self._fes1()
         fes2 = fes1 if self._fes2 is None else self._fes2()
         if fes1 == fes2:
@@ -143,4 +160,115 @@ class Identity(Operator):
         m1.setDiag(idx)
         
         return m1
-          
+
+
+class Projection(Operator):
+    '''
+    DoF mapping (Dof of fes1 is mapped to fes2)
+ 
+    example
+    # map all booundary
+    projection("boundary", "all")     
+    # map domain 1
+    projection("domain", [1])         
+    # to give FEspace explicitly
+    projection("boundary", [3], trial="u", test="v")
+    # to project on a different location
+    projection("boundary", [1], src=[2], trans="(x, y, 0)", srctrans="(x, y, 0)")
+    '''
+    def assemble(self, *args, **kwargs):
+        self.process_kwargs(engine, kwargs)
+        
+        engine = self._engine()
+        trans1 = kwargs.pop("trans",   None)     # transformation of fes1 (or both)
+        trans2 = kwargs.pop("srctrans", trans1)  # transformation of fes2
+        srcsel = kwargs.pop("src", self._sel)    # transformation of fes2
+        tol    = kwargs.pop("tol", 1e-5)         # projectio tolerance
+
+        dim1 = self.fes1.GetMesh().Dimension()
+        dim2 = self.fes2.GetMesh().Dimension()        
+
+        projmode = ""
+        if dim1 == 3:
+           if sel_mode == "domain":
+               projmode = "volume"
+           elif sel_mode == "boundary":
+               projmode = "surface"
+        elif dim1 == 2:
+           if sel_mode == "domain":
+               projmode = "surface"
+           elif sel_mode == "boundary":
+               projmode = "edge"
+        elif dim1 == 1:
+           if sel_mode == "domain":
+               projmode = "edge"
+           elif sel_mode == "boundary":
+               projmode = "vertex"
+        assert projmode != "", "unknow projection mode"
+
+        from petram.helper.dof_map import projection_matrix as pm
+        from petram.helper.dof_map import notrans
+
+        sdim1 = self.fes1.GetMesh().SpaceDimension()
+        sdim2 = self.fes2.GetMesh().SpaceDimension()        
+
+        lns = {}
+        if trans1 is not None:
+            if sdim1 == 3:
+                trans1= ['def trans1(xyz):',
+                         '    import numpy as np',
+                         '    x = xyz[0]; y=xyz[1]; z=xyz[2]',
+                         '    return np.array(['+trans1+'])']
+            elif sdim1 == 2:
+                trans1= ['def trans1(xyz):',
+                         '    import numpy as np',
+                         '    x = xyz[0]; y=xyz[1]',
+                         '    return np.array(['+trans1+'])']
+            else: # sdim1 == 3  
+                trans1= ['def trans1(xyz):',
+                         '    import numpy as np',
+                         '    x = xyz[0]',
+                         '    return np.array(['+trans1+'])']
+            exec '\n'.join(trans1) in self._global_ns, lns
+        else:
+            trans1 = notrans
+            
+        if trans2 is not None:
+            if sdim2 == 3:
+                trans2 = ['def trans2(xyz):',
+                         '    import numpy as np',
+                         '    x = xyz[0]; y=xyz[1]; z=xyz[2]',
+                         '    return np.array(['+trans2+'])']
+            elif sdim2 == 2:
+                trans2 = ['def trans2(xyz):',
+                         '    import numpy as np',
+                         '    x = xyz[0]; y=xyz[1]',
+                         '    return np.array(['+trans2+'])']
+            else: # sdim1 == 3  
+                trans2 = ['def trans2(xyz):',
+                         '    import numpy as np',
+                         '    x = xyz[0]',
+                         '    return np.array(['+trans2+'])']
+        else:
+            trans2 = notrans
+                  
+        trans1 = lns['trans1']
+        trans2 = lns['trans2']        
+
+        M, row, col = pm(self._sel, srcsel, self.fes1, fes2=self.fes2,
+                        trans1=trans1, trans2=trans2,
+                        mode=sel_mode, tol=tol)
+        return M
+        
+# for now we assemble matrix whcih mapps essentials too...        
+#                        tdof1=self._test_ess_tdof,
+#                        tdof2=self._trial_ess_tdof)
+
+
+               
+               
+           
+
+        
+    
+    

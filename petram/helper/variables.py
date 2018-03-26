@@ -699,7 +699,9 @@ class GFScalarVariable(GridFunctionVariable):
                     return gf.GetFaceValues
             elif ndim == 2:
                 if isVector:
-                    return gf.GetVectorValues
+                    def func(i, side, ir, vals, tr, in_gf = gf):
+                        in_gf.GetVectorValues(i, ir, vals, tr)
+                    return func
                 else:
                     def func(i, side, ir, vals, tr, in_gf = gf):
                         in_gf.GetValues(i, ir, vals, tr)

@@ -549,11 +549,11 @@ class BlockMatrix(object):
                 from mpi4py import MPI
                 comm = MPI.COMM_WORLD
 
-                part = ref.GetColPartArray()
+                part = ref.GetRowPartArray()
                 v = comm.bcast(v)
                 start_row = part[0]
                 end_row = part[1]
-
+                print "part", part
                 v = np.ascontiguousarray(v[start_row:end_row])
                 if np.iscomplexobj(v):
                     rv = ToHypreParVec(v.real)    

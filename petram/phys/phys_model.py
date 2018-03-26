@@ -386,9 +386,13 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''
         r, c, and flag of MixedBilinearForm
         flag -1 :  use conjugate when building block matrix
+       
+        if r, c is int, it is offset in the physics module, a couple between
+        variables in the same module can use this mode. Otherwise, r and c
+        are the name of variables
         '''
         return []
-
+     
     def add_bf_contribution(self, engine, a, real=True, **kwargs):
         raise NotImplementedError(
              "you must specify this method in subclass")
@@ -437,7 +441,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         raise NotImplementedError(
              "you must specify this method in subclass")
 
-
+    def add_mix_contribution2(self, engine, a, r, c, is_trans, is_conj, real=True):
+        return self.add_mix_contribution(engine, a, r, c, is_trans, real=real)
+       
     def add_variables(self, solvar, n, solr, soli = None):
         '''
         add model variable so that a user can interept simulation 
@@ -522,7 +528,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         root_phys = self.get_root_phys()
         return root_phys.dim        
 
-    def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None):
+    def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None,
+                       transpose=False):
         if coeff is None: return
         if vt is None: vt = self.vt
         #if vt[name].ndim == 0:
@@ -534,7 +541,15 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)
         else:
             assert  False, "Unknown coefficient type: " + str(type(coeff))
-        adder(integrator(coeff))
+
+        itg = integrator(coeff)
+        
+        if transpose:
+           itg2 = mfem.TransposeIntegrator(itg)
+           itg2._link = itg
+           adder(itg2)
+        else:
+           adder(itg)           
 
     def onItemSelChanged(self, evt):
         '''

@@ -206,8 +206,14 @@ class WF(PhysModule):
         add_surf_normals(v, ind_vars)
 
         dep_vars = self.dep_vars
+        isVectorFE = (self.element.startswith("ND") or self.element.startswith("RT"))
+        
         for dep_var in dep_vars:
-            if name.startswith(dep_var):
-                add_scalar(v, dep_var, suffix, ind_vars, solr, soli)
+            if isVectorFE:
+                if name.startswith(dep_var):                
+                    add_components(v, dep_var, suffix, ind_vars, solr, soli)
+            else:
+                if name.startswith(dep_var):
+                    add_scalar(v, dep_var, suffix, ind_vars, solr, soli)
 
         return v
