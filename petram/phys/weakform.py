@@ -180,6 +180,7 @@ class WeakIntegration(Phys):
         self.add_integrator(engine, 'c', c_coeff,
                             adder, integrator, transpose=is_trans)
         
+        
     def add_bf_contribution(self, engine, a, real = True, kfes=0):
         self.add_contribution(engine, a, real = real)
     def add_lf_contribution(self, engine, b, real = True, kfes=0):

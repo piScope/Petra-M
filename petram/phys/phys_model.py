@@ -219,6 +219,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         for k in self.nlterms: nl_config[k] = []
         v['nl_config'] = (False, nl_config)
         v['timestep_config'] = [True, False, False]
+        v['timestep_weight'] = ["1", "0", "0"]        
         return v
         
     def get_possible_bdry(self):
@@ -316,7 +317,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''
         if not self.check_jmatrix(jmatrix): return False
         
-        if (phys == self.get_root_phys()) and (jmatrix == 0):
+        if (phys == self.get_root_phys()):
            # if module set only has_extra_DoF, the extra variable
            # couples only in the same Phys module and jmatrix == 0
 
@@ -340,12 +341,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         subclass has to overwrite this if extra DoF can couple 
         with other FES.
         '''
-        if not self.check_jmatrix(jmatrix): return False                
-        if jmatrix == 0:
-           return self.has_bf_contribution(kfes)
-        else:
-           return False           
-     
+        if not self.check_jmatrix(jmatrix): return False
+        return self.has_bf_contribution(kfes)        
     
     def has_lf_contribution(self, kfes):
         return False
@@ -354,11 +351,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         subclass has to overwrite this if extra DoF can couple 
         with other FES.
         '''
-        if not self.check_jmatrix(jmatrix): return False                
-        if jmatrix == 0:
-           return self.has_lf_contribution(kfes)
-        else:
-           return False           
+        if not self.check_jmatrix(jmatrix): return False
+        return self.has_lf_contribution(kfes)        
      
     def has_interpolation_contribution(self, kfes):
         return False
@@ -371,16 +365,23 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         with other FES.
         '''
         if not self.check_jmatrix(jmatrix): return False        
-        if jmatrix == 0:
-           return self.has_mixed_contribution()
-        else:
-           return False
+        return self.has_mixed_contribution()
 
-    def has_aux_op(self, kfes, phys2, kfes2, access_idx):
+    def has_aux_op(self, kfes, phys2, kfes2):
         return False
+     
+    def has_aux_op2(self, kfes, phys2, kfes2, jmatrix):
+        if not self.check_jmatrix(jmatrix): return False        
+        return self.has_aux_op(kfes, phys2, kfes2)
 
+    def set_matrix_weight(self, solver):
+        self._mat_weight = solver.get_matrix_weight(self.timestep_config, self.timestep_weight)
+        
+    def get_matrix_weight(self):
+        return self._mat_weight
+     
     def check_jmatrix(self, jmatrix):
-        return self.timestep_config[jmatrix]
+        return self._mat_weight[jmatrix] != 0
 
     def get_mixedbf_loc(self):
         '''
@@ -503,9 +504,12 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
     def panel4_param(self):
         setting = {"text":' '}
-        ll = [['M(t)',     True,  3, setting],
-              ['M(t-dt)',  False, 3, setting],
-              ['M(t-2dt)', False, 3, setting]]
+        ll = [['y(t)',   True, 3, setting],
+              ['dydt',   False, 3, setting],
+              ['dy2dt2', False, 3, setting],
+              ['M(t)',     "1", 0],
+              ['M(t-dt)',  "0", 0],
+              ['M(t-2dt)', "0", 0]]
         return ll
      
     def panel4_tip(self):
@@ -515,9 +519,13 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         self.timestep_config[0] = value[0]
         self.timestep_config[1] = value[1]
         self.timestep_config[2] = value[2]
+        self.timestep_weight[0] = value[3]
+        self.timestep_weight[1] = value[4]
+        self.timestep_weight[2] = value[5]
+        
         
     def get_panel4_value(self):
-        return self.timestep_config[0:3]       
+        return self.timestep_config[0:3]+self.timestep_weight[0:3]
          
     @property
     def geom_dim(self):
@@ -543,13 +551,14 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             assert  False, "Unknown coefficient type: " + str(type(coeff))
 
         itg = integrator(coeff)
+        itg._linked_coeff = coeff #make sure that coeff is not GCed.
         
         if transpose:
            itg2 = mfem.TransposeIntegrator(itg)
            itg2._link = itg
            adder(itg2)
         else:
-           adder(itg)           
+           adder(itg)
 
     def onItemSelChanged(self, evt):
         '''

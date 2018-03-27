@@ -118,8 +118,6 @@ class AUX_Operator(Phys):
         
 
     def has_aux_op(self, kfes, phys2, kfes2):
-        if not self.check_jmatrix(access_idx): return False
-        
         if kfes != self.src_var: return False
         mfem_physroot = self.get_root_phys().parent
 

@@ -344,6 +344,27 @@ class BlockMatrix(object):
                     ret[i,j] = self[i,j] - v[i,j]
         return ret
      
+    def __mul__(self, other):
+        shape = self.shape
+        ret = BlockMatrix(shape, kind = self.kind)
+
+        for i in range(shape[0]):
+           for j in range(shape[1]):
+                if self[i,j] is not None:
+                    ret[i,j] = self[i,j]*other
+        return ret
+     
+    def __neg__(self, other):
+        shape = self.shape
+        ret = BlockMatrix(shape, kind = self.kind)
+
+        for i in range(shape[0]):
+           for j in range(shape[1]):
+                if self[i,j] is not None:
+                    ret[i,j] = -self[i,j]
+        return ret
+     
+         
     def __repr__(self):
         txt = ["BlockMatrix"+str(self.shape)]
         for i in range(self.shape[0]):
@@ -553,7 +574,7 @@ class BlockMatrix(object):
                 v = comm.bcast(v)
                 start_row = part[0]
                 end_row = part[1]
-                print "part", part
+
                 v = np.ascontiguousarray(v[start_row:end_row])
                 if np.iscomplexobj(v):
                     rv = ToHypreParVec(v.real)    

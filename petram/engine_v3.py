@@ -136,7 +136,7 @@ class Engine(object):
         self.gl_ess_tdofs = {n:[] for n in self.fes_vars}
         self.ess_tdofs = {n:[] for n in self.fes_vars}        
         
-        self._extras = {}
+        self._extras = [None for i in range(n_mat)]
         
     @property
     def access_idx(self):
@@ -295,19 +295,33 @@ class Engine(object):
         for k in self.model['InitialValue'].keys():
             init = self.model['InitialValue'][k]
             init.preprocess_params(self)
+
+    def run_set_matrix_weight(self, phys_target, solver):
+        num_matrix = 0
+        for phys in phys_target:
+            for mm in phys.walk():
+                if not mm.enabled: continue
+                mm.set_matrix_weight(solver)
+
+                wt = np.array(mm.get_matrix_weight())
+                tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
+                num_matrix = max(tmp, num_matrix)
+        dprint1("number of matrix", num_matrix)
+        return num_matrix
             
     def run_verify_setting(self, phys_target, solver):
         for phys in phys_target:
             for mm in phys.walk():
                 if not mm.enabled: continue
                 error, txt, long_txt = mm.verify_setting()
-                assert error, mm.fullname() + ":" + long_txt 
+                assert error, mm.fullname() + ":" + long_txt
+
         for mm in solver.walk():
                 if not mm.enabled: continue
                 error, txt, long_txt = mm.verify_setting()           
                 assert error, mm.fullname() + ":" + long_txt
-            
-    #
+                
+
     #  mesh manipulation
     #
     def run_mesh_extension(self, phys):
@@ -435,8 +449,10 @@ class Engine(object):
 
         for phys in phys_target:       
             self.assemble_interp(phys)     ## global interpolation (periodic BC)
-            self.assemble_projection(phys) ## global interpolation (mesh coupling)        
-        
+            self.assemble_projection(phys) ## global interpolation (mesh coupling)
+
+
+        self.extras_mm = {}        
         for j in range(self.n_matrix):
             self.access_idx = j
             
@@ -448,9 +464,8 @@ class Engine(object):
             self.i_a.set_no_allocator()
             for form in self.r_a: form.Assemble()
             for form in self.i_a: form.Assemble()
-
-            self.extras = {}
-            self.extras_mm = {}
+            
+            self.extras = {}        
             for phys in phys_target:               
                 self.assemble_extra(phys, phys_target)
             self.aux_ops = {}
@@ -478,6 +493,7 @@ class Engine(object):
         for phys in phys_target:
             self.gather_essential_tdof(phys)
 
+        self.access_idx = 0
         for phys in phys_target:
             self.fill_lf(phys)
 
@@ -490,13 +506,14 @@ class Engine(object):
            
         return
 
-    def run_assemble_blocks(self):
+    def run_assemble_blocks(self, solver):
         
         M, B, X = self.prepare_blocks()
 
         self.fill_M_B_X_blocks(M, B, X)
-        A, RHS = self.compute_rhs(M, B, X)   # A = M[0], RHS = M[1:]*X[1:]+B
-        Ae, RHS = self.eliminateBC(A, X[0], RHS)  # modify RHS and generate Ae
+        A, RHS = solver.compute_A_rhs(M, B, X)      # solver determins A and RHS
+        A, Ae = self.fill_BCeliminate_matrix(A)     # generate Ae
+        RHS = self.eliminateBC(Ae, X[0], RHS)       # modify RHS and 
         self.apply_interp(A, RHS)            # A and RHS is modifedy by global DoF coupling P
         return A, X, RHS, Ae,  B
             
@@ -698,7 +715,7 @@ class Engine(object):
             ib.Assign(0.0)
             for mm in phys.walk():
                if not mm.enabled: continue
-               if not mm.has_lf_contribution(kfes): continue
+               if not mm.has_lf_contribution2(kfes, self.access_idx): continue
                if len(mm._sel_index) == 0: continue                          
                mm.add_lf_contribution(self, ib, real=False, kfes=kfes)
            
@@ -794,7 +811,7 @@ class Engine(object):
                 for phys2 in phys_target:
                     names2 = phys2.dep_vars
                     for kfes2, name2 in enumerate(names2):
-                        if not mm.has_aux_op(kfes1, phys2, kfes2, self.access_idx): continue
+                        if not mm.has_aux_op2(kfes1, phys2, kfes2, self.access_idx): continue
                         gl_ess_tdof1 = self.gl_ess_tdofs[name1]
                         gl_ess_tdof2 = self.gl_ess_tdofs[name2]                    
                         op = mm.get_aux_op(self, kfes1, phys2, kfes2,
@@ -918,17 +935,7 @@ class Engine(object):
 
         return M, B, X
      
-    def compute_rhs(self, M, B, X):
-        '''
-        M1*X1+M2*X2+...*Mn-1Xn-1 + B
-        '''
-        RHS = B
-        for i in range(1, self.n_matrix):
-           self.access_idx = i
-           RHS = M[i].dot(X[i]) + RHS
-        return M[0], RHS
-
-    def eliminateBC(self, A, X, RHS):
+    def fill_BCeliminate_matrix(self, A):
         nblock = A.shape[0]
         Ae = self.new_blockmatrix(A.shape)
         
@@ -949,18 +956,23 @@ class Engine(object):
               if A[j, idx] is None: continue
               SM = A.get_squaremat_from_right(j, idx)
               Ae[j, idx] = A[j, idx].dot(SM)
+        return A, Ae
 
+    def eliminateBC(self, Ae, X, RHS):
         try:
-           RHS = RHS - Ae.dot(X)           
-           for name in self.gl_ess_tdofs:
-              gl_ess_tdof=self.gl_ess_tdofs[name]
-              RHS[idx].copy_element(gl_ess_tdof, X[idx])
-           return Ae, RHS
+            RHS = RHS - Ae.dot(X)
         except:
-           print "RHS", RHS
-           print "Ae", Ae
-           print "X", X
-           raise
+            print "RHS", RHS
+            print "Ae", Ae
+            print "X", X
+            raise
+        for name in self.gl_ess_tdofs:
+            gl_ess_tdof = self.gl_ess_tdofs[name]
+            ess_tdof = self.ess_tdofs[name]
+            idx = self.dep_var_offset(name)
+            RHS[idx].copy_element(gl_ess_tdof, X[idx])
+            
+        return RHS
               
     def apply_interp(self, A, RHS):
         ''''
@@ -1061,6 +1073,7 @@ class Engine(object):
     #
     #  build linear system construction
     #
+    '''    
     def generate_linear_system(self, phys_target, matvecs, matvecs_c):
         dprint2('matrix format', format)
         blocks = self.prepare_blocks(phys_target)
@@ -1076,7 +1089,7 @@ class Engine(object):
         blocks = self.prepare_blocks()
         self.fill_block_rhs(phys_target, blocks, vecs, vecs_c)
         return blocks
-    '''
+
     def fill_block_matrix(self, phys_target, blocks, matvecs, matvecs_c):
         M_block, B_block,  Me_block = blocks
         # (step1) each FESpace is handled 
@@ -1198,29 +1211,35 @@ class Engine(object):
 
         return M_block2, B_blocks, P2
     '''     
-    def finalize_linearsystem(self, M_block, B_blocks, is_complex,
-                              format = 'coo'):
+    def finalize_matrix(self, M_block, is_complex,format = 'coo'):
         if format == 'coo': # coo either real or complex
             M = self.finalize_coo_matrix(M_block, is_complex)
-            B = [self.finalize_coo_rhs(b, is_complex) for b in B_blocks]
-            B = np.hstack(B)
             
         elif format == 'coo_real': # real coo converted from complex
             M = self.finalize_coo_matrix(M_block, is_complex,
                                             convert_real = True)
 
+        elif format == 'blk_interleave': # real coo converted from complex
+            M = M_block.get_global_blkmat_interleave()
+            
+        dprint2('exiting finalize_matrix')
+        self.is_assembled = True
+        return M
+     
+    def finalize_rhs(self,  B_blocks, is_complex, format = 'coo'):
+        if format == 'coo': # coo either real or complex
+            B = [self.finalize_coo_rhs(b, is_complex) for b in B_blocks]
+            B = np.hstack(B)
+            
+        elif format == 'coo_real': # real coo converted from complex
             B = [self.finalize_coo_rhs(b, is_complex,
                                    convert_real = True)
                     for b in B_blocks]
             B = np.hstack(B)
         elif format == 'blk_interleave': # real coo converted from complex
-            M = M_block.get_global_blkmat_interleave()
             B = [b.gather_blkvec_interleave() for b in B_blocks]
             
-        #S = self.finalize_flag(S_block)
-        dprint2('exiting finalize_linearsystem')
-        self.is_assembled = True
-        return M, B
+        return B
      
     def finalize_coo_matrix(self, M_block, is_complex, convert_real = False):
         dprint1("A (in finalizie_coo_matrix) \n",  M_block)       
@@ -2191,7 +2210,7 @@ class ParallelEngine(Engine):
             if t1 is not None: M[idx0,   idx1] = t1
             if t2 is not None: M[idx1,   idx0] = t2.transpose()
             if t3 is not None: M[idx1,   idx1] = t3
-
+    '''
     def fill_block_rhs_fespace(self, blocks, mv, interp, offset):
         from mpi4py import MPI
         myid     = MPI.COMM_WORLD.rank
@@ -2247,6 +2266,7 @@ class ParallelEngine(Engine):
            m = m.dot(P2.conj().transpose())        
            P2.conj() # set P2 back...
         return m
+    '''
     ''' 
     def finalize_coo_matrix(self, M_block, is_complex, convert_real = False):     
         if not convert_real:

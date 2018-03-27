@@ -4,27 +4,32 @@ import numpy as np
 from petram.model import Model
 from .solver_model import Solver
 import petram.debug as debug
-dprint1, dprint2, dprint3 = debug.init_dprints('StdSolver')
+dprint1, dprint2, dprint3 = debug.init_dprints("TimeDomainSolver")
 rprint = debug.regular_print('StdSolver')
 
-class StdSolver(Solver):
+class TimeDomainSolver(Solver):
     can_delete = True
     has_2nd_panel = False
 
     def attribute_set(self, v):
         v['clear_wdir'] = False
-        v['init_only'] = False   
+        v['init_only'] = False
+        v['st_et_nt'] = [0, 1, 0.1]
+        v['time_step'] = 0.01        
+        v['init_only'] = False           
         v['assemble_real'] = False
         v['save_parmesh'] = False        
         v['phys_model']   = ''
         v['init_setting']   = ''
         v['use_profiler'] = False
-        super(StdSolver, self).attribute_set(v)
+        super(TimeDomainSolver, self).attribute_set(v)
         return v
     
     def panel1_param(self):
         return [["Initial value setting",   self.init_setting,  0, {},],
                 ["physics model",   self.phys_model,  0, {},],
+                ["start/end/delta time ",  "",  0, {},],
+                ["time step",   "",  0, {},],                
                 ["clear working directory",
                  self.clear_wdir,  3, {"text":""}],
                 ["initialize solution only",
@@ -37,8 +42,11 @@ class StdSolver(Solver):
                  self.use_profiler,  3, {"text":""}],]
 
     def get_panel1_value(self):
+        st_et_nt = ", ".join([str(x) for x in self.st_et_nt])
         return (self.init_setting,
                 self.phys_model,
+                st_et_nt,
+                str(self.time_step),
                 self.clear_wdir,
                 self.init_only,               
                 self.assemble_real,
@@ -48,11 +56,15 @@ class StdSolver(Solver):
     def import_panel1_value(self, v):
         self.init_setting = str(v[0])        
         self.phys_model = str(v[1])
-        self.clear_wdir = v[2]
-        self.init_only = v[3]        
-        self.assemble_real = v[4]
-        self.save_parmesh = v[5]
-        self.use_profiler = v[6]                
+        tmp = str(v[2]).split(',')
+        st_et_nt = [tmp[0], tmp[1], ",".join(tmp[2:])]
+        self.st_et_nt = [eval(x) for x in st_et_nt]
+        self.time_step= float(v[3])
+        self.clear_wdir = v[4]
+        self.init_only = v[5]        
+        self.assemble_real = v[6]
+        self.save_parmesh = v[7]
+        self.use_profiler = v[8]                
 
     def get_editor_menus(self):
         return []
@@ -120,7 +132,7 @@ class StdSolver(Solver):
         num_matrix= engine.run_set_matrix_weight(phys_target, self)
         
         engine.set_formblocks(phys_target, num_matrix)
-
+        
         for p in phys_target:
             engine.run_mesh_extension(p)
             
@@ -138,14 +150,32 @@ class StdSolver(Solver):
         return 
 
     def get_matrix_weight(self, timestep_config, timestep_weight):
-        return [1, 0, 0]
+        dt = float(self.time_step)
+        lns = self.root()['General']._global_ns.copy()
+        lns['dt'] = dt
 
+        wt = [eval(x, lns) for x in timestep_weight]
+        dprint1("matrix weight", wt)
+        return wt
+    
     def compute_A_rhs(self, M, B, X):
         '''
-        M[0] x = B
+        M/dt u_1 + K u_1 = M/dt u_0 + b
         '''
-        RHS = B
-        return M[0], RHS
+        print "M, B, X", M, B, X
+        one_dt = 1/float(self.time_step)
+        MM = M[1]*one_dt
+        RHS = MM.dot(X[1]) + B
+        A = M[0]+ M[1]*one_dt
+        self.M = M
+        return A, RHS
+    
+    def compute_rhs(self, B, sol):
+        one_dt = 1/float(self.time_step)
+        MM = self.M[1]*one_dt
+        RHS = MM.dot(sol) + B
+        return RHS
+        
 
     def assemble(self, engine):
         phys_target = self.get_phys()
@@ -155,25 +185,12 @@ class StdSolver(Solver):
         blocks = engine.run_assemble_blocks(self)
         A, X, RHS, Ae, B = blocks
 
-        self.A   = A
-        self.RHS = [RHS]
         return blocks # A, X, RHS, Ae, B
 
-    '''
-    def generate_linear_system(self, engine, blocks)
-        phys_target = self.get_phys()
-        solver = self.get_active_solver()
-
-        blocks = engine.generate_linear_system(phys_target, blocks)
-        
-        # P: projection,  M:matrix, B: rhs, S: extra_flag
-        self.M, B, self.Me = blocks
-        self.B = [B]
-    '''
     def store_rhs(self, engine):
         phys_target = self.get_phys()
         vecs, vecs_c = engine.run_assemble_rhs(phys_target)
-        blocks = engine.generate_rhs(phys_target, vecs, vecs_c)
+        blocks = engine.generate_rhs(phys_targets, vecs, vecs_c)
         self.B.append(blocks[1])
 
     def call_solver(self, engine, blocks):
@@ -203,35 +220,42 @@ class StdSolver(Solver):
         #                                                   self.B, self.Me)
         
         if debug.debug_memory:
-            dprint1("Block Matrix after shrink :\n",  M_block)
             dprint1(debug.format_memory_usage())
 
-        dprint1("A", self.A)
-        dprint1("RHS", self.RHS)
+        st, et, nt = self.st_et_nt
+        print st, et, nt
+        dt = self.time_step
+        t = st
         
-        AA = engine.finalize_matrix(self.A, not phys_real, format = ls_type)
-        BB = engine.finalize_rhs(self.RHS, not phys_real, format = ls_type)
+        dprint1("A", A)
+        dprint1("RHS", RHS)
+        dprint1("time", t)
+        AA = engine.finalize_matrix(A, not phys_real, format = ls_type)
+        BB = engine.finalize_rhs([RHS], not phys_real, format = ls_type)
 
-        solall = solver.solve(engine, AA, BB)
-        #solall = np.zeros((M.shape[0], len(B_blocks))) # this will make fake data to skip solve step
-        
-        #if ls_type.endswith('_real'):
-        if not phys_real and self.assemble_real:
-            solall = solver.real_to_complex(solall, self.A)
+        counter = 0
+        while True:
+            solall = solver.solve(engine, AA, BB)
+            if not phys_real and self.assemble_real:
+                solall = solver.real_to_complex(solell, self.A)
+            t = t + dt
+            print t, et
+            counter += 1            
+            if t >= et: break
+            #if counter > 5: break
+            sol = A.reformat_central_mat(solall, 0)            
+            RHS = self.compute_rhs(B, sol)
+            RHS = engine.eliminateBC(Ae, X[1], RHS)
+            BB = engine.finalize_rhs([RHS], not phys_real, format = ls_type)
+
+
         #PT = P.transpose()
+        sol = A.reformat_central_mat(solall, 0)
+        
+        return sol
 
-        return solall
-
-    def store_sol(self, engine, solall, X, ksol = 0):
-        sol = self.A.reformat_central_mat(solall, ksol)
-        l = len(self.RHS)
-
+    def store_sol(self, engine, sol, X, ksol = 0):
         sol, sol_extra = engine.split_sol_array(sol)
-
-
-        # sol_extra = engine.gather_extra(sol_extra)                
-
-        phys_target = self.get_phys()
         engine.recover_sol(sol)
         extra_data = engine.process_extra(sol_extra)
 
@@ -268,8 +292,8 @@ class StdSolver(Solver):
         else:
             blocks = self.assemble(engine)
             #self.generate_linear_system(blocks)
-            solall = self.call_solver(engine, blocks)
-            extra_data = self.store_sol(engine, solall, blocks[1][0], 0)
+            sol = self.call_solver(engine, blocks)
+            extra_data = self.store_sol(engine, sol, blocks[1][0], 0)
             dprint1("Extra Data", extra_data)
             
         engine.remove_solfiles()
