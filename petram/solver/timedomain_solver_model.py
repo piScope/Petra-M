@@ -7,7 +7,7 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints("TimeDomainSolver")
 rprint = debug.regular_print('StdSolver')
 
-class TimeDomainSolver(Solver):
+class TimeDomain(Solver):
     can_delete = True
     has_2nd_panel = False
 
@@ -22,7 +22,7 @@ class TimeDomainSolver(Solver):
         v['phys_model']   = ''
         v['init_setting']   = ''
         v['use_profiler'] = False
-        super(TimeDomainSolver, self).attribute_set(v)
+        super(TimeDomain, self).attribute_set(v)
         return v
     
     def panel1_param(self):
@@ -239,8 +239,8 @@ class TimeDomainSolver(Solver):
             if not phys_real and self.assemble_real:
                 solall = solver.real_to_complex(solell, self.A)
             t = t + dt
-            print t, et
-            counter += 1            
+            counter += 1
+            dprint1("TimeStep ("+str(counter+1)+ "), t="+str(t))
             if t >= et: break
             #if counter > 5: break
             sol = A.reformat_central_mat(solall, 0)            
