@@ -37,11 +37,15 @@ data = [("axu_oprt", VtableElement("aux_oprt", type='any',
 
 class AUX_Operator(Phys):
     vt_oprt = Vtable(data)
+    has_3rd_panel = True
+    _has_4th_panel = True            
         
     def attribute_set(self, v):
         v = super(AUX_Operator, self).attribute_set(v)
         v['paired_var'] = None #(phys_name, index)
         v['src_var'] = 0     #(index)
+        v['use_symmetric'] = False
+        v['use_conj'] = False                        
         vv = self.vt_oprt.attribute_set({})
         for key in vv:
             if hasattr(self, key): vv[key] = getattr(self, key)
@@ -62,7 +66,10 @@ class AUX_Operator(Phys):
                 {"style":wx.CB_READONLY, "choices": dep_vars}]]
 
         ll2 = self.vt_oprt.panel_param(self)
-        return ll1+ ll2
+        ll3 = [["make symmetric",  self.use_symmetric,   3, {"text":""}],  
+               ["use  conjugate",  self.use_conj,   3, {"text":""}],  ]
+        
+        return ll1+ ll2 + ll3
 
     def import_panel1_value(self, v):
         print v
@@ -73,7 +80,9 @@ class AUX_Operator(Phys):
         self.paired_var = (pnames[idx], pindex[idx])
 
         self.src_var = self.get_root_phys().dep_vars.index(str(v[1]))
-        self.vt_oprt.import_panel_value(self, v[2:])
+        self.vt_oprt.import_panel_value(self, v[2:-2])
+        self.use_symmetric = v[-2]
+        self.use_conj = v[-1]        
 
     def get_panel1_value(self):
         if self.paired_var is None:
@@ -91,7 +100,8 @@ class AUX_Operator(Phys):
         
         v1 = [var, svar]
         v1.extend(self.vt_oprt.get_panel_value(self))
-        return v1
+        v3 = [self.use_symmetric, self.use_conj]        
+        return v1 + v3
         
     def panel2_param(self):
         return [[None, "Auxiriary varialbe is global",  2,   {}],]
@@ -117,23 +127,33 @@ class AUX_Operator(Phys):
         super(AUX_Operator, self).preprocess_params(engine)
         
 
-    def has_aux_op(self, kfes, phys2, kfes2):
-        if not self.check_jmatrix(access_idx): return False
-        
-        if kfes != self.src_var: return False
-        mfem_physroot = self.get_root_phys().parent
+    def has_aux_op(self, phys1, kfes, phys2, kfes2):
+        # check 
+        trialname2 = phys2.dep_vars[kfes2]
+        testname2 = phys1.dep_vars[kfes]
 
-        trialphys = mfem_physroot[self.paired_var[0]]
-        if trialphys != phys2: return False
+        mfem_physroot = self.get_root_phys().parent        
+        var_s = mfem_physroot[self.paired_var[0]].dep_vars
+        trialname = var_s[self.paired_var[1]]        
+        testname = self.get_root_phys().dep_vars[self.src_var]
 
-        if kfes2 != self.paired_var[1]: return False
-        return True
+        if (trialname == trialname2 and 
+            testname == testname2):
+            return True
+         
+        if (trialname == testname2 and 
+            testname == trialname2 and
+            self.use_symmetric):
+            return True           
+
+        return False
     
-    def get_aux_op(self, engine, kfes1, phys2, kfes2,
+    def get_aux_op(self, engine, phys1, kfes1, phys2, kfes2,
                    trial_ess_tdof=None,
                    test_ess_tdof=None):
 
         mfem_physroot = self.get_root_phys().parent
+        
         var_s = mfem_physroot[self.paired_var[0]].dep_vars
         trialname = var_s[self.paired_var[1]]
         testname = self.get_root_phys().dep_vars[self.src_var]
@@ -141,7 +161,6 @@ class AUX_Operator(Phys):
         oprt = self.vt_oprt.make_value_or_expression(self)
         oprt = oprt[0]
         
-        dprint1(self.name() + ": Assembling Operator: ", oprt)
         
         from petram.helper.expression import Expression
 
@@ -150,11 +169,19 @@ class AUX_Operator(Phys):
 
         diag_size = -1
         if oprt is not None:
-           dprint1("Assembling Operator: ", oprt)
+           dprint1(self.name() + "Assembling Operator: ", oprt)
            assert isinstance(oprt, str), "operator1 must be an expression"               
            expr = Expression(oprt, engine=engine, trial=fes1, test=fes2,
                              trial_ess_tdof = trial_ess_tdof,
                              test_ess_tdof = test_ess_tdof)           
            op = expr.assemble(g=self._global_ns)
+
+
+        trialname2 = phys2.dep_vars[kfes2]
+        
+        if testname == trialname2 and self.use_symmetric:
+           op = op.transpose()
+           if self.use_conj:
+              op = op.conj()
 
         return op

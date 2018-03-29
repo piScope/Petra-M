@@ -154,6 +154,12 @@ class Model(RestorableOrderedDict):
     def __repr__(self):
          return self.__class__.__name__+'('+self.name()+':'+','.join(self.keys()) + ')'
 
+    def __eq__(self, x):
+        try:
+            return x.fullpath() == self.fullpath()
+        except:
+            return False
+
     def attribute_set(self, v):
         v['enabled'] = True
         v['sel_readonly'] = False

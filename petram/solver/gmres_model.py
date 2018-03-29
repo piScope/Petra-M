@@ -1,4 +1,4 @@
-from .solver_model import Solver
+from .solver_model import LinearSolver
 import numpy as np
 
 import petram.debug as debug
@@ -14,7 +14,7 @@ else:
    import mfem.ser as mfem
    default_kind = 'scipy'
 
-class GMRES(Solver):
+class GMRES(LinearSolver):
     has_2nd_panel = False
     accept_complex = False
     def init_solver(self):
@@ -57,10 +57,9 @@ class GMRES(Solver):
     
     def verify_setting(self):
         if not self.parent.assemble_real:
-            root = self.root()
-            phys = root['Phys'][self.parent.phys_model]
-            if phys.is_complex:
-                return False, "Complex Problem not supported.", "AMS does not support complex problem"
+            for phys in self.get_phys():
+                if phys.is_complex():
+                    return False, "GMRES does not support complex.", "A complex problem must be converted to a real value problem"
         return True, "", ""
 
     def linear_system_type(self, assemble_real, phys_complex):

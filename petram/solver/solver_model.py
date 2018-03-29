@@ -49,4 +49,17 @@ class Solver(Model):
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys', self)
-        
+
+
+class LinearSolver(Model):
+    def get_phys(self):
+        return self.parent.get_phys()
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.set_view_mode('phys', self)
+    
+

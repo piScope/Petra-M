@@ -191,7 +191,6 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     der_vars_base = []
 
     has_essential = False
-    is_complex = False
     is_secondary_condition = False   # if true, there should be other
                                      # condtion assigned to the same
                                      # edge/face/domain
@@ -367,12 +366,12 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if not self.check_jmatrix(jmatrix): return False        
         return self.has_mixed_contribution()
 
-    def has_aux_op(self, kfes, phys2, kfes2):
+    def has_aux_op(self, phys1, kfes1, phys2, kfes2):
         return False
      
-    def has_aux_op2(self, kfes, phys2, kfes2, jmatrix):
+    def has_aux_op2(self, phys1, kfes1, phys2, kfes2, jmatrix):
         if not self.check_jmatrix(jmatrix): return False        
-        return self.has_aux_op(kfes, phys2, kfes2)
+        return self.has_aux_op(phys1, kfes1, phys2, kfes2)
 
     def set_matrix_weight(self, solver):
         self._mat_weight = solver.get_matrix_weight(self.timestep_config, self.timestep_weight)

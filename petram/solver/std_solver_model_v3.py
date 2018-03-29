@@ -206,7 +206,7 @@ class StdSolver(Solver):
             dprint1("Block Matrix after shrink :\n",  M_block)
             dprint1(debug.format_memory_usage())
 
-        dprint1("A", self.A)
+        dprint1("A", self.A, self.A.format_nnz())
         dprint1("RHS", self.RHS)
         
         AA = engine.finalize_matrix(self.A, not phys_real, format = ls_type)

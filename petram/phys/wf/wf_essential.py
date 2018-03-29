@@ -19,6 +19,13 @@ class WF_Essential(Bdry, Phys):
     def __init__(self, **kwargs):
         super(WF_Essential, self).__init__( **kwargs)
 
+    def attribute_set(self, v):
+        Bdry.attribute_set(self, v)
+        Phys.attribute_set(self, v)         
+        v['sel_readonly'] = False
+        v['sel_index'] = []
+        return v
+        
     @property
     def vt(self):
         root_phys = self.get_root_phys()

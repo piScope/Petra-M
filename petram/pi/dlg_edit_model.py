@@ -252,7 +252,7 @@ class DlgEditModel(DialogWithWindowList):
             self.p2.Layout()
             if mm.has_3rd_panel:
                 if self.nb.GetPageCount() == 2:
-                    self.nb.AddPage(self.p3, "init/NL.")
+                    self.nb.AddPage(self.p3, "Init/NL.")
 
                 self.p3sizer.Add(p3panel, 1, wx.EXPAND|wx.ALL, 1)
                 p3panel.SetValue(mm.get_panel3_value())
@@ -265,7 +265,7 @@ class DlgEditModel(DialogWithWindowList):
                 
             if mm.has_4th_panel:
                 if self.nb.GetPageCount() == 3:
-                    self.nb.AddPage(self.p4, "time dep.")
+                    self.nb.AddPage(self.p4, "Time Dep.")
                 self.p4sizer.Add(p4panel, 1, wx.EXPAND|wx.ALL, 1)
                 p4panel.SetValue(mm.get_panel4_value())
                 p4panel.Show()                

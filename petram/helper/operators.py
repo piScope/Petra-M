@@ -1,13 +1,13 @@
 import weakref
+import numpy as np
 
 from petram.mfem_config import use_parallel
 if use_parallel:
    import mfem.par as mfem
-   '''
    from mpi4py import MPI
    num_proc = MPI.COMM_WORLD.size
    myid     = MPI.COMM_WORLD.rank
-   '''
+   comm = MPI.COMM_WORLD   
 else:
    import mfem.ser as mfem
 
@@ -124,7 +124,6 @@ class Integral(Operator):
 class Identity(Operator):    
     def assemble(self, *args, **kwargs):
         engine = self._engine()
-        
         self.process_kwargs(engine, kwargs)
         
         fes1 = self._fes1()
@@ -144,8 +143,10 @@ class Identity(Operator):
             #bf.AddDomainIntegrator(itg)
             bf.Assemble()
             mat = engine.a2Am(bf)
-        mat.CopyRowStarts()
-        mat.CopyColStarts()
+
+        if use_parallel:
+            mat.CopyRowStarts()
+            mat.CopyColStarts()
             
         from mfem.common.chypre import MfemMat2PyMat
         m1 = MfemMat2PyMat(mat, None)
@@ -167,7 +168,8 @@ class Projection(Operator):
     DoF mapping (Dof of fes1 is mapped to fes2)
  
     example
-    # map all booundary
+    # selection mode is interpreted in the test fes.
+    # map all booundary 
     projection("boundary", "all")     
     # map domain 1
     projection("domain", [1])         
@@ -177,36 +179,50 @@ class Projection(Operator):
     projection("boundary", [1], src=[2], trans="(x, y, 0)", srctrans="(x, y, 0)")
     '''
     def assemble(self, *args, **kwargs):
+        engine = self._engine()        
         self.process_kwargs(engine, kwargs)
-        
-        engine = self._engine()
+        if len(args)>0: self._sel_mode = args[0]
+        if len(args)>1: self._sel = args[1]
+
         trans1 = kwargs.pop("trans",   None)     # transformation of fes1 (or both)
         trans2 = kwargs.pop("srctrans", trans1)  # transformation of fes2
         srcsel = kwargs.pop("src", self._sel)    # transformation of fes2
         tol    = kwargs.pop("tol", 1e-5)         # projectio tolerance
 
         dim1 = self.fes1.GetMesh().Dimension()
-        dim2 = self.fes2.GetMesh().Dimension()        
+        dim2 = self.fes2.GetMesh().Dimension()
 
         projmode = ""
-        if dim1 == 3:
-           if sel_mode == "domain":
+        if dim2 == 3:
+           if self.sel_mode == "domain":
                projmode = "volume"
-           elif sel_mode == "boundary":
+           elif self.sel_mode == "boundary":
                projmode = "surface"
-        elif dim1 == 2:
-           if sel_mode == "domain":
+        elif dim2 == 2:
+           if self.sel_mode == "domain":
                projmode = "surface"
-           elif sel_mode == "boundary":
+           elif self.sel_mode == "boundary":
                projmode = "edge"
-        elif dim1 == 1:
-           if sel_mode == "domain":
+        elif dim2 == 1:
+           if self.sel_mode == "domain":
                projmode = "edge"
-           elif sel_mode == "boundary":
+           elif self.sel_mode == "boundary":
                projmode = "vertex"
         assert projmode != "", "unknow projection mode"
 
-        from petram.helper.dof_map import projection_matrix as pm
+        if self._sel == 'all':
+            if self.sel_mode == "domain":
+                idx = np.unique(self.fes2.GetMesh().GetAttributeArray())
+            else:
+                idx = np.unique(self.fes2.GetMesh().GetBdrAttributeArray())
+            idx1 = list(idx)
+            idx2 = list(idx)
+        else:
+            idx1 = self._sel
+            idx2 = srcsel
+        if use_parallel:
+            idx1 =  list(set(sum(comm.allgather(idx1),[])))
+            idx2 =  list(set(sum(comm.allgather(idx2),[])))
         from petram.helper.dof_map import notrans
 
         sdim1 = self.fes1.GetMesh().SpaceDimension()
@@ -230,6 +246,7 @@ class Projection(Operator):
                          '    x = xyz[0]',
                          '    return np.array(['+trans1+'])']
             exec '\n'.join(trans1) in self._global_ns, lns
+            trans1 = lns['trans1']            
         else:
             trans1 = notrans
             
@@ -249,15 +266,18 @@ class Projection(Operator):
                          '    import numpy as np',
                          '    x = xyz[0]',
                          '    return np.array(['+trans2+'])']
+
+            trans2 = lns['trans2']                    
         else:
             trans2 = notrans
                   
-        trans1 = lns['trans1']
-        trans2 = lns['trans2']        
 
-        M, row, col = pm(self._sel, srcsel, self.fes1, fes2=self.fes2,
-                        trans1=trans1, trans2=trans2,
-                        mode=sel_mode, tol=tol)
+
+        from petram.helper.dof_map import projection_matrix as pm
+        # matrix to transfer unknown from trail to test
+        M, row, col = pm(idx2, idx1, self.fes2, [], fes2=self.fes1,
+                         trans1=trans2, trans2=trans1,
+                         mode=projmode, tol=tol, filldiag=False)
         return M
         
 # for now we assemble matrix whcih mapps essentials too...        

@@ -1,3 +1,17 @@
+'''
+    partial_mesh
+
+
+    generate a new mesh which contains only spedified domain/boundaries.
+
+    we want to assign boundary attribute number consistently.
+
+    MFEM currently does not have a mechanism to assign numbers
+    to ndim-2 and below elements.
+    We take this informatnion from extended_connectivity data
+    gathered when loading mesh. This way, edge(vertex) numbers
+    in 3D (2D) mesh is properied carrid over to surface. 
+'''
 import os
 import numpy as np
 
@@ -29,7 +43,8 @@ def _collect_data(index, mesh, mode, skip_vtx= False):
       nverts : num of vertices for each element
       base : element geometry base
     '''
-   
+
+    LEN = len
     if mode == 'bdr':
         GetXElementVertices = mesh.GetBdrElementVertices
         GetXBaseGeometry    = mesh.GetBdrElementBaseGeometry
@@ -49,19 +64,32 @@ def _collect_data(index, mesh, mode, skip_vtx= False):
     elif mode == 'edge':        
         GetXElementVertices = mesh.GetEdgeVertices
         GetXBaseGeometry    = lambda x: 1
-        attrs = mesh.GetAttributeArray()
         
         s2l = mesh.extended_connectivity['surf2line']
         l2e = mesh.extended_connectivity['line2edge']
         idx = sum([l2e[ea] for ea in index], [])
-        attrs =  np.hstack([[ea]*len(l2e[ea]) for ea in index]).astype(int)
+        if len(idx) == 0:
+            attrs = np.atleast_1d([]).astype(int)
+        else:
+            attrs = np.hstack([[ea]*len(l2e[ea]) for ea in index]).astype(int)
+        
+    elif mode == 'vertex':
+        v2v = mesh.extended_connectivity['vert2vert']       
+        GetXElementVertices = lambda x: v2v[x]
+        GetXBaseGeometry    = lambda x: 0
+        LEN    = lambda x: 1
+        idx = list(index)
+        if len(idx) == 0:
+            attrs =  np.atleast_1d([]).astype(int)
+        else:
+            attrs =  np.hstack([va for va in index]).astype(int)
            
     else:
        assert False, "Unknown mode (_collect_data) "+mode
 
     if len(idx) > 0:
         ivert = [GetXElementVertices(i) for i in idx]
-        nverts = np.array([len(x) for x in ivert], dtype=int)                 
+        nverts = np.array([LEN(x) for x in ivert], dtype=int)                 
         ivert = np.hstack(ivert).astype(int, copy=False)
         base = np.hstack([GetXBaseGeometry(i)
                           for i in idx]).astype(int, copy=False)
@@ -213,19 +241,183 @@ def _fill_mesh_bdr_elements(omesh, vtx, bindices, nbverts,
             assert False, "unsupported base geometry: " + str(bbase[i])
 
     for v in vtx: omesh.AddVertex(list(v))
-        
-def surface(mesh, in_attr, filename = '', precision=8):
+    
+def edge(mesh, in_attr, filename = '', precision=8):
     '''
     make a new mesh which contains only spedified boundaries.
 
-    we want to assign boundary attribute number consistently.
+    mesh must be 
+    if sdim == 3:
+       not supported
+    if dim == 2:
+       a boundary in 2D mesh
+    elif dim == 1:
+       a domain in 1D mesh
 
-    MFEM currently does not have a mechanism to assign numbers
-    to ndim-2 and below elements.
-    We take this informatnion from extended_connectivity data
-    gathered when loading mesh. This way, edge(vertex) numbers
-    in 3D (2D) mesh is properied carrid over to surface. 
 
+    in_attr : eihter
+    filename : an option to save the file 
+    return new surface mesh
+    '''
+    sdim = mesh.SpaceDimension()
+    dim = mesh.Dimension()
+    Nodal = mesh.GetNodalFESpace()
+    hasNodal = (Nodal is not None)    
+
+    if sdim == 3 and dim == 3:
+        mode = 'edge', 'vertex'       
+    elif sdim == 3 and dim == 2:
+        mode = 'bdr', 'vertex'
+    elif sdim == 2 and dim == 2:
+        mode = 'bdr', 'vertex'
+    elif sdim == 2 and dim == 1:
+        mode = 'dom', 'vertex'
+    else:
+        assert False, "unsupported mdoe"
+
+    idx, attrs, ivert, nverts, base = _collect_data(in_attr, mesh, mode[0])
+
+    l2v = mesh.extended_connectivity['line2vert']
+    in_eattr = np.unique(np.hstack([l2v[k] for k in in_attr]))
+    eidx, eattrs, eivert, neverts, ebase = _collect_data(in_eattr, mesh,
+                                                          mode[1])
+        
+    u, indices = np.unique(np.hstack((ivert, eivert)),
+                           return_inverse = True)
+    keelem = np.array([True]*len(eidx), dtype=bool)    
+    u_own = u
+    
+    if use_parallel:
+        shared_info = distribute_shared_entity(mesh)       
+        u_own, ivert, eivert = _gather_shared_vetex(mesh, u, shared_info,
+                                                   ivert, eivert)
+    Nvert = len(u)
+    if len(u_own) > 0:
+        vtx = np.vstack([mesh.GetVertexArray(i) for i in u_own])    
+    else:
+        vtx = np.array([]).reshape((-1, sdim))
+
+    if use_parallel:
+        #
+        # distribute vertex/element data
+        #
+        base = allgather_vector(base)
+        nverts = allgather_vector(nverts)
+        attrs = allgather_vector(attrs)
+        
+        ivert = allgather_vector(ivert)
+        eivert = allgather_vector(eivert)
+        
+        vtx = allgather_vector(vtx.flatten()).reshape(-1, sdim)
+
+        u, indices = np.unique(np.hstack([ivert,eivert]),
+                               return_inverse = True)
+
+        #
+        # take care of shared boundary (edge)
+        #
+        keelem, eattrs, neverts, ebase = (
+            _gather_shared_element(mesh, 'edge', shared_info, eidx,
+                                   keelem, eattrs,
+                                   neverts, ebase))
+        
+        
+    indices  = np.array([np.where(u == biv)[0][0] for biv in ivert])
+    eindices = np.array([np.where(u == biv)[0][0] for biv in eivert])
+
+    Nvert = len(vtx)
+    Nelem = len(attrs)    
+    Nbelem = len(eattrs)
+
+    if myid ==0: print("NV, NBE, NE: " +
+                       ",".join([str(x) for x in (Nvert, Nbelem, Nelem)]))
+    
+
+    omesh = mfem.Mesh(1, Nvert, Nelem, Nbelem, sdim)
+
+    _fill_mesh_elements(omesh, vtx, indices, nverts, attrs, base)
+    _fill_mesh_bdr_elements(omesh, vtx, eindices, neverts, eattrs,
+                            ebase, keelem)
+
+    omesh.FinalizeTopology()
+    omesh.Finalize(refine=False, fix_orientation=True)
+
+    if hasNodal:
+        assert False, "high order edge mesh is not supported"
+        '''
+        odim = omesh.Dimension()
+        print("odim, dim, sdim", odim, " ", dim, " ", sdim)
+        fec = Nodal.FEColl()
+        dNodal = mfem.FiniteElementSpace(omesh, fec, sdim)
+        omesh.SetNodalFESpace(dNodal)
+        omesh._nodal= dNodal
+
+        if sdim == 3:
+           if dim == 3:
+               GetXDofs        =  Nodal.GetBdrElementDofs
+               GetNX           =  Nodal.GetNBE
+           elif dim == 2:
+               GetXDofs        =  Nodal.GetElementDofs
+               GetNX           =  Nodal.GetNE               
+           else:
+               assert False, "not supported ndim 1" 
+           if odim == 3:
+               dGetXDofs       = dNodal.GetBdrElementDofs
+               dGetNX          = dNodal.GetNBE                              
+           elif odim == 2:
+               dGetXDofs       = dNodal.GetElementDofs
+               dGetNX          = dNodal.GetNE               
+           else:
+               assert False, "not supported ndim (3->1)" 
+        elif sdim == 2:
+           GetNX           =  Nodal.GetNE                          
+           dGetNX          = dNodal.GetNE                          
+           GetXDofs         =  Nodal.GetElementDofs
+           dGetXDofs        = dNodal.GetElementDofs
+           
+        DofToVDof        =  Nodal.DofToVDof
+        dDofToVDof       = dNodal.DofToVDof
+
+        #nicePrint(dGetNX(),',', GetNX())
+        nodes = mesh.GetNodes()
+        node_ptx1 = nodes.GetDataArray()
+
+        onodes = omesh.GetNodes()
+        node_ptx2 = onodes.GetDataArray()
+        #nicePrint(len(idx), idx)
+
+
+        if len(idx) > 0:
+           dof1_idx = np.hstack([[DofToVDof(i, d) for d in range(sdim)]
+                              for j in idx
+                              for i in GetXDofs(j)])
+           data = node_ptx1[dof1_idx]
+        else:
+           dof1_idx = np.array([])
+           data = np.array([])
+        if use_parallel: data  = allgather_vector(data)
+        if use_parallel: idx  = allgather_vector(idx)
+        #nicePrint(len(data), ',', len(idx))
+
+        dof2_idx = np.hstack([[dDofToVDof(i, d) for d in range(sdim)]
+                              for j in range(len(idx))
+                              for i in dGetXDofs(j)])
+        node_ptx2[dof2_idx] = data 
+        #nicePrint(len(dof2_idx))
+        '''
+    if use_parallel:
+        omesh = mfem.ParMesh(comm, omesh)
+
+    if filename != '':
+        if use_parallel:
+            smyid = '{:0>6d}'.format(myid)
+            filename = filename +'.'+smyid
+        omesh.PrintToFile(filename, precision)
+        
+    return omesh
+    
+def surface(mesh, in_attr, filename = '', precision=8):
+    '''
     mesh must be 
     if sdim == 3:
        a domain of   2D mesh
@@ -243,9 +435,14 @@ def surface(mesh, in_attr, filename = '', precision=8):
     Nodal = mesh.GetNodalFESpace()
     hasNodal = (Nodal is not None)    
 
-    if sdim == 3 and dim == 3: mode = 'bdr', 'edge'
-    elif sdim == 3 and dim == 2: mode = 'dom', 'bdr'
-    elif sdim == 2 and dim == 2: mode = 'dom', 'bdr'
+    if sdim == 3 and dim == 3:
+        mode = 'bdr', 'edge'
+    elif sdim == 3 and dim == 2:
+        mode = 'dom', 'bdr'
+    elif sdim == 2 and dim == 2:
+        mode = 'dom', 'bdr'
+    else:
+        assert False, "unsupported mdoe"
 
     idx, attrs, ivert, nverts, base = _collect_data(in_attr, mesh, mode[0])
 
@@ -312,20 +509,6 @@ def surface(mesh, in_attr, filename = '', precision=8):
     _fill_mesh_bdr_elements(omesh, vtx, eindices, neverts, eattrs,
                             ebase, keelem)
 
-    '''
-    for i in range(Nelem):
-        iv = indices[cnverts[i]:cnverts[i+1]]
-
-        if base[i] == 2:  # triangle
-            omesh.AddTri(list(iv), attrs[i])
-        elif base[i] == 3: # quad
-            omesh.AddQuad(list(iv), attrs[i])
-        else:
-            assert False, "unsupported base geometry: " + str(base[i])
-
-    for i in range(Nvert):
-         omesh.AddVertex(list(vtx[i]))
-    '''
     omesh.FinalizeTopology()
     omesh.Finalize(refine=False, fix_orientation=True)
 

@@ -25,7 +25,7 @@ class MeshExtInfo(dict):
     def set_cut(self, sel):
         self['cut']  = set([int(x) for x in sel])
 
-    def __cmp__(self, x):
+    def __eq__(self, x):
         for key in x:
             if not key in self: return False
             if x[key] != self[key]: return False
@@ -72,7 +72,7 @@ def generate_emesh(emeshes, info):
     apply menh manipulation defined by info to mesh
 
     '''
-    from petram.mesh.partial_mesh import surface, volume
+    from petram.mesh.partial_mesh import surface, volume, edge
     
     base_mesh = emeshes[info['base']]
     dprint1(info)
@@ -82,17 +82,19 @@ def generate_emesh(emeshes, info):
             print('alldom', alldom)
             if alldom == info['sel']: return base_mesh
             if len(info['sel']) == 0: return base_mesh
-        m = volume(base_mesh, list(info['sel']),
-                   filename = 'par_part.mesh')
+        m = volume(base_mesh, list(info['sel']), filename = 'par_part.mesh')
     elif info['dim'] == 2:
         if base_mesh.Dimension() == 2: 
             alldom = set(base_mesh.extended_connectivity['surf2line'].keys())
             if alldom == info['sel']: return base_mesh
             if len(info['sel']) == 0: return base_mesh    
-        m = surface(base_mesh, list(info['sel']),
-                    filename = 'par_part.mesh')            
-    elif info['dim'] == 1:                    
-        raise NotImplementedError, "emesh with " +str(info["dim"])
+        m = surface(base_mesh, list(info['sel']), filename = 'par_part.mesh')            
+    elif info['dim'] == 1:
+        if base_mesh.Dimension() == 1: 
+            alldom = set(base_mesh.extended_connectivity['line2vert'].keys())
+            if alldom == info['sel']: return base_mesh
+            if len(info['sel']) == 0: return base_mesh    
+        m = edge(base_mesh, list(info['sel']), filename = 'par_part.mesh')            
     else:
         raise NotImplementedError, "emesh with " +str(info["dim"])
     return m

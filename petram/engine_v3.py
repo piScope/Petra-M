@@ -469,8 +469,8 @@ class Engine(object):
             for phys in phys_target:               
                 self.assemble_extra(phys, phys_target)
             self.aux_ops = {}
-            for phys in phys_target:               
-                self.assemble_aux_ops(phys, phys_target)
+            #for phys in phys_target:               
+            self.assemble_aux_ops(phys_target)
                 
         return
 
@@ -803,18 +803,20 @@ class Engine(object):
                     self.extras[key] = tmp
                     self.extras_mm[key] = mm.fullpath()
                     
-    def assemble_aux_ops(self, phys, phys_target):
-        for mm in phys.walk():
-            if not mm.enabled: continue
-            names = phys.dep_vars           
+    def assemble_aux_ops(self, phys_target):
+        allmm = [mm for phys in phys_target for mm in phys.walk() if mm.is_enabled()]
+        for phys1 in phys_target:
+            names = phys1.dep_vars           
             for kfes1, name1 in enumerate(names):
                 for phys2 in phys_target:
                     names2 = phys2.dep_vars
                     for kfes2, name2 in enumerate(names2):
-                        if not mm.has_aux_op2(kfes1, phys2, kfes2, self.access_idx): continue
+                      for mm in allmm:
+                        if not mm.has_aux_op2(phys1, kfes1,
+                                              phys2, kfes2, self.access_idx): continue
                         gl_ess_tdof1 = self.gl_ess_tdofs[name1]
                         gl_ess_tdof2 = self.gl_ess_tdofs[name2]                    
-                        op = mm.get_aux_op(self, kfes1, phys2, kfes2,
+                        op = mm.get_aux_op(self, phys1, kfes1, phys2, kfes2,
                                            test_ess_tdof=gl_ess_tdof1,
                                            trial_ess_tdof=gl_ess_tdof2)
                         self.aux_ops[(name1, name2, mm.fullpath())] = op

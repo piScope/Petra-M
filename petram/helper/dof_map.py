@@ -50,6 +50,7 @@ else:
    num_proc = 1
    myid = 0
    def allgather(x): return [x]
+   nicePrint = dprint1
 
 mapper_debug = False
 gf_debug = False
@@ -81,6 +82,24 @@ def get_surface_mode(dim, sdim):
  
     if mode1 == '':
         assert False, "not supprint dim/sdim "+str(dim)+'/'+str(sdim)
+    return mode1
+
+def get_edge_mode(dim, sdim):
+    mode1 = ''
+    if sdim == 3:
+       if dim == 2: mode1 = 'Bdr'
+    elif sdim == 2:
+       if dim == 2: mode1 = 'Bdr'
+       if dim == 1: mode1 = 'Dom'       
+    if mode1 == '':
+        assert False, "not supprint dim/sdim "+str(dim)+'/'+str(sdim)
+    return mode1
+   
+def get_volume_mode(dim, sdim):
+    if sdim == 3 and dim == 3:
+        return 'Dom'
+    else:
+        assert False, "volume mapping must be 3d mesh"
     return mode1
 
 def find_element(fes, attr, mode = 'Bdr'):
@@ -481,7 +500,8 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
     return map
 
 def gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                               trans2, tol, shape_type = 'scalar'):
+                               trans2, tol, shape_type = 'scalar',
+                               mode = 'surface'):
 
     if fes2 is None: fes2 = fes1
     if trans1 is None: trans1=notrans
@@ -489,9 +509,16 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
 
     mesh1= fes1.GetMesh()  
     mesh2= fes2.GetMesh()
-                             
-    mode1 = get_surface_mode(mesh1.Dimension(), mesh1.SpaceDimension())
-    mode2 = get_surface_mode(mesh2.Dimension(), mesh2.SpaceDimension())
+    
+    if mode == 'volume':
+        mode1 = get_volume_mode(mesh1.Dimension(), mesh1.SpaceDimension())
+        mode2 = get_volume_mode(mesh2.Dimension(), mesh2.SpaceDimension())
+    elif mode == 'surface':
+        mode1 = get_surface_mode(mesh1.Dimension(), mesh1.SpaceDimension())
+        mode2 = get_surface_mode(mesh2.Dimension(), mesh2.SpaceDimension())
+    elif mode == 'edge':
+        mode1 = get_edge_mode(mesh1.Dimension(), mesh1.SpaceDimension())
+        mode2 = get_edge_mode(mesh2.Dimension(), mesh2.SpaceDimension())
 
     # collect data
     ibdr1 = find_element(fes1, idx1, mode = mode1)
@@ -518,7 +545,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
     try:
        k2all, pt2all, pto2all = zip(*arr2)
     except:
-       k1all, pt1all, pto1all = (), (), ()
+       k2all, pt2all, pto2all = (), (), ()
 
     if use_parallel:
        # share ibr2 (destination information among nodes...)
@@ -570,17 +597,53 @@ def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
     if trans2 is None: trans2=trans1
     if tdof1 is None: tdof1=[]
     if tdof2 is None: tdof2=[]    
-                             
+
+    tdof = tdof1 # ToDo support tdof2    
     map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                               trans2, tdof, tol, shape_type = 'scalar')
-    
+                                              trans2, tol, shape_type = 'scalar',
+                                              mode='surface')
+
+
     pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
-    
+
     map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                    k1all, k2all, sh1all, sh2all, elmap,
                    trans1, trans2, tol, tdof1, rstart)
 
     return map
+
+def map_edge_h1(idx1, idx2, fes1, fes2=None, trans1=None,
+                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
+    '''
+    map DoF on surface to surface
+
+      fes1: source finite element space
+      fes2: destination finite element space
+
+      idx1: surface attribute (Bdr for 3D/3D, Domain for 2D/3D or 2D/2D)
+
+    '''
+                             
+    if fes2 is None: fes2 = fes1
+    if trans1 is None: trans1=notrans
+    if trans2 is None: trans2=trans1
+    if tdof1 is None: tdof1=[]
+    if tdof2 is None: tdof2=[]    
+
+    tdof = tdof1 # ToDo support tdof2
+
+    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                                              trans2, tol, shape_type = 'scalar',
+                                              mode="edge")
+
+    
+    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
+    map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
+                   k1all, k2all, sh1all, sh2all, elmap,
+                   trans1, trans2, tol, tdof1, rstart)
+
+    return map
+ 
 
 def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
                    trans2=None, tdof1=None, tdof2=None, tol=1e-4):
@@ -600,9 +663,10 @@ def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
     if trans2 is None: trans2=trans1
     if tdof1 is None: tdof1=[]
     if tdof2 is None: tdof2=[]    
-                             
+
+    tdof = tdof1 # ToDo support tdof2    
     map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                               trans2, tdof, tol, shape_type = 'vector')
+                               trans2, tol, shape_type = 'vector')
     
     pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
     
@@ -616,9 +680,9 @@ def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
 # map_surface_rt = map_surface_nd
 # map_surface_l2 = map_surface_h1
 
-def projection_matrix(idx1,  idx2,  fes, tdof, fes2=None, tdof2=None,
+def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
                       trans1=None, trans2 = None, dphase=0.0,
-                      tol = 1e-7, mode = 'surface'):
+                      tol = 1e-7, mode = 'surface', filldiag=True):
     '''
      map: destinatiom mapping 
      smap: source mapping
@@ -629,12 +693,13 @@ def projection_matrix(idx1,  idx2,  fes, tdof, fes2=None, tdof2=None,
         mapper = map_surface_nd
     elif fec_name.startswith('H1') and mode == 'surface':
         mapper = map_surface_h1
+    elif fec_name.startswith('H1') and mode == 'edge':
+        mapper = map_edge_h1
     else:
-        raise NotImplementedError("mapping for " + fec_name)
+        raise NotImplementedError("mapping :" + fec_name + ", mode: " + mode)
 
-
-    map = mapper(idx2, idx1, fes, fes2=fes2, trans1=trans1, trans2=tran2, tdof=tdof,
-                 tol=tol)
+    map = mapper(idx2, idx1, fes, fes2=fes2, trans1=trans1, trans2=trans2, tdof1=tdof1,
+                 tdof2=tdof2, tol=tol)
 
     iscomplex = False
     if (dphase == 0.):
@@ -660,9 +725,10 @@ def projection_matrix(idx1,  idx2,  fes, tdof, fes2=None, tdof2=None,
         start_row = 0
         end_row = map.shape[0]
 
-    for i in range(map.shape[0]):
-        r = start_row+i
-        if not r in col: map[i, r] = 1.0
+    if filldiag:
+        for i in range(min(map.shape[0], map.shape[1])):
+            r = start_row+i
+            if not r in col: map[i, r] = 1.0
         
     from scipy.sparse import coo_matrix, csr_matrix
     if use_parallel:
@@ -673,7 +739,10 @@ def projection_matrix(idx1,  idx2,  fes, tdof, fes2=None, tdof2=None,
             m1 = csr_matrix(map.real, dtype=float)
             m2 = None
         from mfem.common.chypre import CHypreMat
-        M = CHypreMat(m1, m2)
+        start_col = fes2.GetMyTDofOffset()
+        end_col = fes2.GetMyTDofOffset() + fes2.GetTrueVSize()
+        col_starts = [start_col, end_col, map.shape[1]]
+        M = CHypreMat(m1, m2, col_starts=col_starts)
     else:
         from petram.helper.block_matrix import convert_to_ScipyCoo
 

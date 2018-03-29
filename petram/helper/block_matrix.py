@@ -378,7 +378,7 @@ class BlockMatrix(object):
            txt.append(str(i) +" : "+ ",  ".join([str(self[i,j].nnz)
                                                      if hasattr(self[i,j], "nnz") else "unknown"
                                                   for j in range(self.shape[1])]))
-        return "non-zero elements (nnz)\n" + "\n".join(txt)
+        return "\nnon-zero elements (nnz)\n" + "\n".join(txt)
         
     def print_nnz(self):
         print(self.format_nnz())

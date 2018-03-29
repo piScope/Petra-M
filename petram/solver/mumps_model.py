@@ -1,4 +1,4 @@
-from .solver_model import Solver
+from .solver_model import LinearSolver
 import numpy as np
 import scipy
 
@@ -7,7 +7,7 @@ dprint1, dprint2, dprint3 = debug.init_dprints('MUMPSModel')
 
 from petram.helper.matrix_file import write_matrix, write_vector, write_coo_matrix
 
-class MUMPS(Solver):
+class MUMPS(LinearSolver):
     has_2nd_panel = False
     accept_complex = True    
     def init_solver(self):
