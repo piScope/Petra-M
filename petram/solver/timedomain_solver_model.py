@@ -22,6 +22,7 @@ class TimeDomain(Solver):
         v['phys_model']   = ''
         v['init_setting']   = ''
         v['use_profiler'] = False
+        v['probe'] = ''
         super(TimeDomain, self).attribute_set(v)
         return v
     
@@ -29,7 +30,8 @@ class TimeDomain(Solver):
         return [["Initial value setting",   self.init_setting,  0, {},],
                 ["physics model",   self.phys_model,  0, {},],
                 ["start/end/delta time ",  "",  0, {},],
-                ["time step",   "",  0, {},],                
+                ["time step",   "",  0, {},],
+                ["probes",   self.probe,  0, {},],                
                 ["clear working directory",
                  self.clear_wdir,  3, {"text":""}],
                 ["initialize solution only",
@@ -47,6 +49,7 @@ class TimeDomain(Solver):
                 self.phys_model,
                 st_et_nt,
                 str(self.time_step),
+                self.probe,                
                 self.clear_wdir,
                 self.init_only,               
                 self.assemble_real,
@@ -60,11 +63,12 @@ class TimeDomain(Solver):
         st_et_nt = [tmp[0], tmp[1], ",".join(tmp[2:])]
         self.st_et_nt = [eval(x) for x in st_et_nt]
         self.time_step= float(v[3])
-        self.clear_wdir = v[4]
-        self.init_only = v[5]        
-        self.assemble_real = v[6]
-        self.save_parmesh = v[7]
-        self.use_profiler = v[8]                
+        self.probe = str(v[4])
+        self.clear_wdir = v[5]
+        self.init_only = v[7]        
+        self.assemble_real = v[7]
+        self.save_parmesh = v[8]
+        self.use_profiler = v[9]                
 
     def get_editor_menus(self):
         return []
@@ -155,7 +159,6 @@ class TimeDomain(Solver):
         lns['dt'] = dt
 
         wt = [eval(x, lns) for x in timestep_weight]
-        dprint1("matrix weight", wt)
         return wt
     
     def compute_A_rhs(self, M, B, X):
@@ -170,12 +173,11 @@ class TimeDomain(Solver):
         self.M = M
         return A, RHS
     
-    def compute_rhs(self, B, sol):
-        one_dt = 1/float(self.time_step)
+    def compute_rhs(self, B, sol, dt):
+        one_dt = 1/float(dt)
         MM = self.M[1]*one_dt
         RHS = MM.dot(sol) + B
         return RHS
-        
 
     def assemble(self, engine):
         phys_target = self.get_phys()
@@ -222,10 +224,19 @@ class TimeDomain(Solver):
         if debug.debug_memory:
             dprint1(debug.format_memory_usage())
 
+        probe_idx = [engine.dep_var_offset(x.strip()) for x in self.probe.split(',')]
+        probe_sig = [[] for x in range(len(probe_idx))]
+        
         st, et, nt = self.st_et_nt
-        print st, et, nt
         dt = self.time_step
+        try:
+            checkpoint = [x for x in nt]
+        except:
+            checkpoint = np.linspace(st, et, nt)
+        dprint1("checkpoint", checkpoint)        
+        icheckpoint = 0
         t = st
+        od = os.getcwd()
         
         dprint1("A", A)
         dprint1("RHS", RHS)
@@ -233,27 +244,80 @@ class TimeDomain(Solver):
         AA = engine.finalize_matrix(A, not phys_real, format = ls_type)
         BB = engine.finalize_rhs([RHS], not phys_real, format = ls_type)
 
+        datatype = 'Z' if (AA.dtype == 'complex') else 'D'
+        Solver = solver.create_solver_instance(datatype)
+        Solver.SetOperator(AA, dist = engine.is_matrix_distributed)
+
         counter = 0
         while True:
-            solall = solver.solve(engine, AA, BB)
+            #solall = solver.solve(engine, AA, BB)
+            dprint1("before multi")
+            dprint1(debug.format_memory_usage())
+            
+            solall = Solver.Mult(BB, case_base=engine.case_base)
+            engine.case_base += BB.shape[1]
+            
             if not phys_real and self.assemble_real:
                 solall = solver.real_to_complex(solell, self.A)
             t = t + dt
             counter += 1
-            dprint1("TimeStep ("+str(counter+1)+ "), t="+str(t))
+            dprint1("TimeStep ("+str(counter)+ "), t="+str(t))
             if t >= et: break
             #if counter > 5: break
-            sol = A.reformat_central_mat(solall, 0)            
-            RHS = self.compute_rhs(B, sol)
+            
+            dprint1("before reformat")
+            dprint1(debug.format_memory_usage())
+            
+            sol = A.reformat_central_mat(solall, 0)
+
+            dprint1("after reformat")
+            dprint1(debug.format_memory_usage())
+            for k, idx in enumerate(probe_idx):
+                probe_sig[k].append(sol[idx].toarray())
+                
+            if checkpoint[icheckpoint] < t:
+                 dprint1("writing checkpoint t=" + str(t) + "("+str(icheckpoint)+")")
+                 
+                 extra_data = self.store_sol(engine, sol, blocks[1][0], 0)
+                 path = os.path.join(od, 'checkpoint_' + str(icheckpoint))
+                 engine.mkdir(path) 
+                 os.chdir(path)
+                 engine.cleancwd() 
+                 self.save_solution(engine, extra_data)
+                 
+                 icheckpoint = icheckpoint+1
+            os.chdir(od)
+            dprint1("before compute_rhs")                                    
+            dprint1(debug.format_memory_usage())                
+            
+            RHS = self.compute_rhs(B, sol, self.time_step)
+
+            dprint1("before eliminateBC")                                    
+            dprint1(debug.format_memory_usage())
+            
             RHS = engine.eliminateBC(Ae, X[1], RHS)
             BB = engine.finalize_rhs([RHS], not phys_real, format = ls_type)
-
+            dprint1("end reformat")                                    
+            dprint1(debug.format_memory_usage())                
 
         #PT = P.transpose()
         sol = A.reformat_central_mat(solall, 0)
+
+        self.save_probe(probe_sig)
+        for sig in probe_sig:
+            print np.hstack(sig)
         
         return sol
 
+    def save_probe(self, probe_sig):
+        names = [x.strip() for x in self.probe.split(',')]
+        for name, sig in zip(names, probe_sig):
+            fid = open('probe_'+name+'.dat', 'w')
+            sig = np.hstack(sig)
+            for x in sig:
+                fid.write(str(x)+"\n")
+            fid.close()
+            
     def store_sol(self, engine, sol, X, ksol = 0):
         sol, sol_extra = engine.split_sol_array(sol)
         engine.recover_sol(sol)
@@ -276,7 +340,7 @@ class TimeDomain(Solver):
                                 save_parmesh = self.save_parmesh)
         if mesh_only: return
         engine.save_extra_to_file(extra_data)
-        engine.is_initialzied = False
+        #engine.is_initialzied = False
         
     def run(self, engine):
         if self.use_profiler:
@@ -291,9 +355,9 @@ class TimeDomain(Solver):
             extra_data = None
         else:
             blocks = self.assemble(engine)
-            #self.generate_linear_system(blocks)
             sol = self.call_solver(engine, blocks)
             extra_data = self.store_sol(engine, sol, blocks[1][0], 0)
+         
             dprint1("Extra Data", extra_data)
             
         engine.remove_solfiles()
