@@ -223,8 +223,33 @@ class ScipyCoo(coo_matrix):
     GetPartitioningArray = GetRowPartArray
 
     def eliminate_RowsCols(self, tdof):
-        # tdof is list
         lil = self.tolil()
+
+        idx = np.in1d(self.row, tdof)
+        self.data[idx] = 0
+        self.eliminate_zeros()
+
+        idx = np.in1d(self.col,tdof)
+
+        AeCol  = self.col[idx]
+        AeRow  = self.row[idx]
+        AeData = self.data[idx]                
+        Ae2 = coo_matrix((AeData, (AeRow, AeCol)),
+                         shape=self.shape, dtype=self.dtype)
+        
+        self.data[idx] = 0
+        lil2 = self.tolil()        
+        lil2[tdof, tdof] = 1.
+        coo = lil2.tocoo()
+        self.data = coo.data
+        self.row = coo.row
+        self.col = coo.col
+        self.eliminate_zeros()
+        return Ae2
+
+        '''
+        # this one is slower
+        # tdof is list
         lil[tdof, :] = 0
         Ae = lil_matrix(self.shape, dtype=self.dtype)
         Ae[:, tdof] = lil[:,tdof]
@@ -236,8 +261,11 @@ class ScipyCoo(coo_matrix):
         self.col = coo.col
         self.eliminate_zeros()
         
-        return Ae.tocoo()
-        
+        Ae = Ae.tocoo()
+        print "Ae-Ae2"
+        print Ae-Ae2
+        return Ae
+        '''
     def copy_element(self, tdof, m):
         mlil = m.tolil()
         value= mlil[tdof, 0]

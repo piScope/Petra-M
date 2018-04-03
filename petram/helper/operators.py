@@ -66,6 +66,7 @@ class Operator(object):
         '''
         fes1 = kwargs.pop('test', None)
         fes2 = kwargs.pop('trial', None)
+        self._transpose = kwargs.pop('transpose', self._transpose)
         self._sel_mode = kwargs.pop('sel_mode', self._sel_mode)
         self._sel  = kwargs.pop('sel', self._sel)
         if fes1 is not None:
@@ -162,7 +163,67 @@ class Identity(Operator):
         
         return m1
 
+class Delta(Operator):
+    '''
+    Delta function
 
+      delta(x)
+      delta(x, y)
+      delta(x, y, z)
+
+      delta(x, y, z, direction=[1,0,0]))
+    '''
+    def assemble(self, *args, **kwargs):
+        engine = self._engine()
+        direction = kwargs.pop("direction", 0)
+        
+        self.process_kwargs(engine, kwargs)
+
+        x = args[0]
+        y = args[1] if len(args)>1 else 0
+        z = args[2] if len(args)>2 else 0        
+        
+        sdim = self.fes1.GetMesh().SpaceDimension()
+        if direction == 0:
+            if sdim == 3:
+               d = mfem.DeltaCoefficient(x, y, z, 1)
+            elif sdim == 2:
+               d = mfem.DeltaCoefficient(x, y, 1)
+            elif sdim == 1:
+               d = mfem.DeltaCoefficient(x, 1)
+            else:
+                assert False, "unsupported dimension"
+            intg = mfem.DomainLFIntegrator(d)                
+        else:
+            dir = mfem.Vector(direction)
+            if sdim == 3:
+               d = mfem.VectorDeltaCoefficient(dir, x, y, z, 1)
+            elif sdim == 2:
+               d = mfem.VectorDeltaCoefficient(dir, x, y, 1)
+            elif sdim == 1:
+               d = mfem.VectorDeltaCoefficient(dir,x, 1)
+            else:
+                assert False, "unsupported dimension"
+                
+            if self.fes1.FEColl().Name().startswith('ND'):
+                intg = mfem.VectorFEDomainLFIntegrator(d)                
+            elif self.fes1.FEColl().Name().startswith('RT'):
+                intg = mfem.VectorFEDomainLFIntegrator(d)            
+            else:    
+                intg = mfem.VectorDomainLFIntegrator(d)                                
+
+        lf1 = engine.new_lf(self.fes1)
+        lf1.AddDomainIntegrator(intg)
+        lf1.Assemble()
+        
+        from mfem.common.chypre import LF2PyVec, PyVec2PyMat, MfemVec2PyVec
+        v1 = MfemVec2PyVec(engine.b2B(lf1), None)
+
+        v1 = PyVec2PyMat(v1)
+        if not self._transpose:        
+            v1 = v1.transpose()
+        return v1
+            
 class Projection(Operator):
     '''
     DoF mapping (Dof of fes1 is mapped to fes2)

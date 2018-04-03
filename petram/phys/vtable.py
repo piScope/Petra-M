@@ -353,7 +353,7 @@ class Vtable_mixin(object):
         def dummy():
             pass
         if value.startswith('='):
-            return dummy,  value.split('=')[1]
+            return dummy,  '='.join(value.split('=')[1:])
         else:
             if value.strip()=='': return None, None
             x = eval(value, self._global_ns, self._local_ns)

@@ -84,7 +84,7 @@ class EdgeNodalEvaluator(EvaluatorAgent):
         if len(emesh_idx) != 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
         if self.emesh_idx != emesh_idx[0]:
-             self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
+             self.preprocess_geometry(self.attrs, emesh_idx=emesh_idx[0])
         
         val = eval_at_nodals(self, expr, solvars, phys)
         if val is None: return None, None, None

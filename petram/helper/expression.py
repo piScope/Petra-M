@@ -4,7 +4,8 @@ import weakref
 import petram.helper.operators as ops
 operators = {"integral" :ops.Integral,
              "identity":ops.Identity,
-             "projection":ops.Projection,}
+             "projection":ops.Projection,
+             "delta":ops.Delta}
 
 def get_operators():
     return {key: operators[key]() for key in operators}
@@ -26,12 +27,14 @@ class Expression(object):
         engine = kwargs.pop('engine', None)                             
         fes1 = kwargs.pop('trial', None)
         fes2 = kwargs.pop('test', None)
+
         self._sel_mode = kwargs.pop("_sel_mode", "domain")
         self._sel = kwargs.pop("_sel", "all")
         self._fes1 = None
         self._fes2 = None
         self._engine = None
-        self._transpose = False #false (horizontal vector if it is vector,,,)
+        self._transpose = kwargs.pop('transpose', False)
+        #False (horizontal vector if it is vector,,,)        
         self._trial_ess_tdof = kwargs.pop('trial_ess_tdof', None)
         self._test_ess_tdof = kwargs.pop('test_ess_tdof', None)
         

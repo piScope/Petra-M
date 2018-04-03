@@ -236,13 +236,11 @@ class AUX_Variable(Phys):
                t1 = expr.assemble(g=self._global_ns)
                diag_size = t1.shape[0]
             if opr2 is not None:
-               assert isinstance(opr2, str), "operator1 must be an expression"           
-               expr = Expression(opr2, engine=engine, trial=fes, transpose=True)               
-               expr = Expression(opr2)
-               expr.set_engine(engine)
-               expr.set_trial_space(fes)
+               assert isinstance(opr2, str), "operator2 must be an expression"           
+               expr = Expression(opr2, engine=engine, trial=fes, transpose=True)   
                t2 = expr.assemble(g=self._global_ns)
                if diag_size > -1:
+                  print t1.shape, t2.shape
                   assert diag_size == t2.shape[1], "t1 and t2 shapes are inconsistent"
                diag_size = t2.shape[1]
 
@@ -250,9 +248,7 @@ class AUX_Variable(Phys):
         if diag is not None:
             if not self.get_root_phys().is_complex():
                diag = diag.real
-            t3 = IdentityPyMat(diag_size)
-            if diag != 1:
-               t3 *= diag
+            t3 = IdentityPyMat(diag_size, diag=diag)
                
         if t4 is None: t4 = np.zeros(diag_size)
         t4 = np.atleast_1d(t4)

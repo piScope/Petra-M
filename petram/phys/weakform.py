@@ -151,7 +151,7 @@ class WeakIntegration(Phys):
             dprint1("Add "+self.integrator+ " contribution(real)" + str(self._sel_index))
         else:
             dprint1("Add "+self.integrator+ " contribution(imag)" + str(self._sel_index))
-        dprint1("c", c)
+
         dim = self.get_root_phys().geom_dim
         cotype = self.coeff_type[0]
         if cotype == 'S':
@@ -284,7 +284,7 @@ class WeakBilinIntegration(WeakIntegration):
              loc.append((testname, trialname, -1, -1))
         if self.use_symmetric and self.use_conj:
              loc.append((testname, trialname, -1, 1))
-        print("mix_loc", loc)
+
         return loc
            
     
