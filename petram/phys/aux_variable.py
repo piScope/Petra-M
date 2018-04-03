@@ -41,7 +41,8 @@ data0 = [("oprt_diag", VtableElement("oprt_diag", type='complex',
 class AUX_Variable(Phys):
     vt_diag_rhs = Vtable(data0)
     has_3rd_panel = True
-    _has_4th_panel = True            
+    _has_4th_panel = True
+    
     def attribute_set(self, v):
         v = super(AUX_Variable, self).attribute_set(v)
         v["variable_name"] = ""
@@ -50,15 +51,44 @@ class AUX_Variable(Phys):
         v = self.vt_diag_rhs.attribute_set(v)
         
         if not hasattr(self, '_vt_array'): self._vt_array = []
-        for vt in self._vt_array:
+        for vt in self.vt_array:
+            v = vt.attribute_set(v)
+            #vv = vt.attribute_set({})
+            #for key in vv:
+            #    if hasattr(self, key): vv[key] = getattr(self, key)
+            #    v[key] = vv[key]
+        return v
+     
+    def save_attribute_set(self, skip_def_check):
+        attrs = super(AUX_Variable, self).save_attribute_set(skip_def_check)
+        for vt in self.vt_array:
             vv = vt.attribute_set({})
             for key in vv:
-                if hasattr(self, key): vv[key] = getattr(self, key)
-                v[key] = vv[key]
-        return v
+                if not key in attrs: attrs.append(key)
+        return attrs
 
     def extra_DoF_name(self):
         return self.variable_name
+
+    @property
+    def vt_array(self):
+        if not hasattr(self, 'aux_connection'):
+           self._vt_array = []
+           return self._vt_array
+        
+        if not hasattr(self, '_vt_array'): self._vt_array = []               
+        for key in self.aux_connection:
+            if len(self._vt_array) > key: continue
+            sidx = str(key)
+            data = [("oprt1_"+sidx, VtableElement("oprt1_"+sidx, type='any',
+                                           guilabel = "operator1", default = "",
+                                           tip = "oprator (horizontal)",)),
+                    ("oprt2_"+sidx, VtableElement("oprt2_"+sidx, type='any',
+                                           guilabel = "operator2", default = "",
+                                           tip = "oprator (vertical)",)),]
+            vt = Vtable(data)
+            self._vt_array.append(vt)
+        return self._vt_array
      
     def panel1_param(self):
         from wx import BU_EXACTFIT
@@ -77,7 +107,8 @@ class AUX_Variable(Phys):
         mfem_physroot = self.get_root_phys().parent
         names, pnames, pindex = mfem_physroot.dependent_values()
         names = [n+" ("+p + ")" for n, p in zip(names, pnames)]
-        
+
+        '''
         if not hasattr(self, '_vt_array'): self._vt_array = []        
         for key in self.aux_connection:
             if len(self._vt_array) > key: continue
@@ -90,7 +121,7 @@ class AUX_Variable(Phys):
                                            tip = "oprator (vertical)",)),]
             vt = Vtable(data)
             self._vt_array.append(vt)
-                    
+        '''            
         self.update_attribute_set()
         for j, key in enumerate(self.aux_connection):
             ll1 = [["paired variable", "S", 4,

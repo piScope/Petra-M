@@ -45,13 +45,20 @@ class AUX_Operator(Phys):
         v['paired_var'] = None #(phys_name, index)
         v['src_var'] = 0     #(index)
         v['use_symmetric'] = False
-        v['use_conj'] = False                        
+        v['use_conj'] = False
+        v = self.vt_oprt.attribute_set(v)
+        #vv = self.vt_oprt.attribute_set({})
+        #for key in vv:
+        #    if hasattr(self, key): vv[key] = getattr(self, key)
+        #    v[key] = vv[key]
+        return v
+    def save_attribute_set(self, skip_def_check):
+        attrs = super(AUX_Operator, self).save_attribute_set(skip_def_check)
         vv = self.vt_oprt.attribute_set({})
         for key in vv:
-            if hasattr(self, key): vv[key] = getattr(self, key)
-            v[key] = vv[key]
-        return v
-    
+           if not key in attrs: attrs.append(key)
+        return attrs
+        
     def panel1_param(self):
         mfem_physroot = self.get_root_phys().parent
         names, pnames, pindex = mfem_physroot.dependent_values()

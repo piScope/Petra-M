@@ -511,17 +511,13 @@ class Model(RestorableOrderedDict):
             idx = node.set_script_idx(idx=idx)
         return idx
 
-    def _generate_model_script(self, script = None,
-                               skip_def_check = False, dir = None):
-        # assigne script index if root node
-        if script is None:
-            self.set_script_idx()
-            script = []
-            script.append('obj1 = MFEM_ModelRoot()')
+    def save_attribute_set(self, skip_def_check):
+        ans = []
         for attr in self.attribute():
             defvalue = self.attribute_set(dict())
             value = self.attribute(attr)
             mycheck = True
+
             try:
                 mycheck = any(value != defvalue[attr])  # for numpy array
             except TypeError:
@@ -529,9 +525,23 @@ class Model(RestorableOrderedDict):
                     mycheck = value != defvalue[attr]
                 except:
                     pass
-            if mycheck or skip_def_check:
-                script.append(self._script_name + '.'+attr + ' = ' +
+            if mycheck or skip_def_check: ans.append(attr)
+        return ans
+    
+    def _generate_model_script(self, script = None,
+                               skip_def_check = False, dir = None):
+        # assigne script index if root node
+        if script is None:
+            self.set_script_idx()
+            script = []
+            script.append('obj1 = MFEM_ModelRoot()')
+
+        attrs = self.save_attribute_set(skip_def_check)
+        for attr in attrs:
+            value = self.attribute(attr)
+            script.append(self._script_name + '.'+attr + ' = ' +
                               value.__repr__())
+            
         if self.has_ns() and self.ns_name is not None:
             script.append(self._script_name + '.ns_name = "' +
                           self.ns_name + '"')
@@ -602,17 +612,22 @@ class Model(RestorableOrderedDict):
         script.append('')            
         for key in d2.keys():
             script.append('from '+d2[key] + ' import '+ key)
-    
+
+        script.append('from collections import OrderedDict')
+        
     def generate_script(self, skip_def_check = False, dir = None, nofile = False,
                         parallel = False, filename = 'model.py'):
         if dir is None: dir = os.getcwd()        
         script = []
-        if parallel:
-            script.append('import  petram.mfem_config as mfem_config')
-            script.append('mfem_config.use_parallel = True')
-        else:
-            script.append('import  petram.mfem_config as mfem_config')
-            script.append('mfem_config.use_parallel = False')
+        script.extend(['try:',
+                       '    from mpi4py import MPI',
+                       '    num_proc = MPI.COMM_WORLD.size',
+                       '    use_parallel=num_proc > 1',
+                       'except:',
+                       '    use_parallel=False',
+                       'import  petram.mfem_config as mfem_config',
+                       'mfem_config.use_parallel = use_parallel'])
+
         script.append('')
         script.append('debug_level = 0')        
         script.append('')
