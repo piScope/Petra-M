@@ -373,8 +373,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if not self.check_jmatrix(jmatrix): return False        
         return self.has_aux_op(phys1, kfes1, phys2, kfes2)
 
-    def set_matrix_weight(self, solver):
-        self._mat_weight = solver.get_matrix_weight(self.timestep_config, self.timestep_weight)
+    def set_matrix_weight(self, get_matrix_weight):
+        self._mat_weight = get_matrix_weight(self.timestep_config, self.timestep_weight)
         
     def get_matrix_weight(self):
         return self._mat_weight

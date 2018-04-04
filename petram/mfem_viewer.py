@@ -79,6 +79,7 @@ class MFEMViewer(BookViewer):
                  ("GLVIS",    self.onCallGlvis, None),
                  ("Function...",    self.onPlotExpr, None),
                  ("Solution ...",    self.onDlgPlotSol, None),
+                 ("Probe ...",    self.onDlgPlotProbe, None),                      
                  ("!", None, None),
                  ("+Solution", None, None, None, ID_SOL_FOLDER),
                  ("Reload Sol", None, None,), 
@@ -1054,10 +1055,10 @@ class MFEMViewer(BookViewer):
     def onDlgPlotSolClose(self, evt):
         self.plotsoldlg = None
         evt.Skip()
-        
-#    def doPlotSolBdr(self, value):
-#        self._doPlotSolBdr(value)
-        
+
+    def onDlgPlotProbe(self, evt):
+        pass
+    
     def onNewNS(self, evt):
         ret, txt = dialog.textentry(self, 
                                      "Enter namespace name", "New NS...", '')

@@ -137,3 +137,22 @@ else:
         pass
 
     
+def use_profiler(method):
+    def method2(self, *args, **kwargs):
+        if self.use_profiler:
+            import cProfile, pstats, StringIO
+            pr = cProfile.Profile()
+            pr.enable()
+
+        val =  method(self, *args, **kwargs)
+
+        if self.use_profiler:
+            pr.disable()
+            s = StringIO.StringIO()
+            sortby = 'cumulative'
+            ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+            ps.print_stats()
+            print s.getvalue()
+    return method2
+
+    

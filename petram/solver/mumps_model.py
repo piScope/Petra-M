@@ -1,4 +1,4 @@
-from .solver_model import LinearSolver
+from .solver_model import LinearSolverModel, LinearSolver
 import numpy as np
 import scipy
 import weakref
@@ -16,12 +16,12 @@ except:
 myid     = MPI.COMM_WORLD.rank
 nproc    = MPI.COMM_WORLD.size
 
-class MUMPS(LinearSolver):
+class MUMPS(LinearSolverModel):
     has_2nd_panel = False
     accept_complex = True
     def __init__(self):
         self.s = None
-        LinearSolver.__init__(self)
+        LinearSolverModel.__init__(self)
         
     def init_solver(self):
         pass
@@ -77,10 +77,11 @@ class MUMPS(LinearSolver):
         if assemble_real: return 'coo_real'
         return 'coo'
     
-    def create_solver_instance(self, datatype='D'):
+    def allocate_solver(self, datatype='D'):
         solver = MUMPSSolver(self)
         solver.AllocSolver(datatype)
         return solver
+    
     def solve(self, engine, A, b):
         
         datatype = "Z" if (A.dtype == 'complex') else "D"
@@ -113,7 +114,7 @@ class MUMPS(LinearSolver):
             return ret
 
             '''
-        solver = self.create_solver_instance(datatype)
+        solver = self.allocate_solver(datatype)
         solver.SetOperator(A, dist = engine.is_matrix_distributed)
         solall = solver.Mult(b, case_base=engine.case_base)
         return solall
@@ -130,12 +131,7 @@ class MUMPS(LinearSolver):
             self.s.finish()
         self.s = None
         
-    
-        
 class MUMPSSolver(LinearSolver):
-    def __init__(self, gui):
-        self.gui = gui
-        
     def set_ordering_flag(self, s):
         from petram.mfem_config import use_parallel
         gui = self.gui

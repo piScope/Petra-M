@@ -1,4 +1,4 @@
-from .solver_model import LinearSolver
+from .solver_model import LinearSolverModel, LinearSolver
 import numpy as np
 
 import petram.debug as debug
@@ -14,7 +14,7 @@ else:
    import mfem.ser as mfem
    default_kind = 'scipy'
 
-class GMRES(LinearSolver):
+class GMRES(LinearSolverModel):
     has_2nd_panel = False
     accept_complex = False
     def init_solver(self):
@@ -68,7 +68,60 @@ class GMRES(LinearSolver):
         #return None
 
 
-    def solve_parallel(self, engine, A, b):
+    def real_to_complex(self, solall, M):
+        if use_parallel:
+           from mpi4py import MPI
+           myid     = MPI.COMM_WORLD.rank
+
+
+           offset = M.RowOffsets().ToList()
+           of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o))) for o in offset]
+           if myid != 0: return           
+
+        else:
+           offset = M.RowOffsets()
+           of = offset.ToList()
+           
+        rows = M.NumRowBlocks()
+        s = solall.shape
+        nb = rows/2
+        i = 0
+        pt = 0
+        result = np.zeros((s[0]/2, s[1]), dtype='complex')
+        for j in range(nb):
+           l = of[i+1]-of[i]
+           result[pt:pt+l,:] = (solall[of[i]:of[i+1],:]
+                             +  1j*solall[of[i+1]:of[i+2],:])
+           i = i+2
+           pt = pt + l
+
+        return result
+
+    def allocate_solver(self, datatype='D'):
+        solver = GMRESSolver(self, int(self.maxiter),
+                             self.abstol, self.reltol, int(self.kdim))
+
+        #solver.AllocSolver(datatype)
+        return solver
+
+class GMRESSolver(LinearSolver):
+    def __init__(self, gui, maxiter, abstol, reltol, kdim):
+        self.maxiter = maxiter
+        self.abstol = abstol
+        self.reltol = reltol
+        self.kdim = kdim
+        LinearSolver.__init__(self, gui)
+
+    def SetOperator(self, opr, dist=False):
+        self.A = opr                     
+                             
+    def Mult(self, b, case_base=0):
+        if use_parallel:
+            return self.solve_parallel(self.A, b)
+        else:
+            return self.solve_serial(self.A, b)
+                             
+    def solve_parallel(self, A, b):
         from mpi4py import MPI
         myid     = MPI.COMM_WORLD.rank
         nproc    = MPI.COMM_WORLD.size
@@ -154,7 +207,7 @@ class GMRES(LinearSolver):
         else:
             return None
         
-    def solve_serial(self, engine, A, b):
+    def solve_serial(self, A, b):
 
         def get_block(Op, i, j):
             try:
@@ -165,7 +218,7 @@ class GMRES(LinearSolver):
         offset = A.RowOffsets()
         rows = A.NumRowBlocks()
         cols = A.NumColBlocks()
-        if self.write_mat:
+        if self.gui.write_mat:
            for i in range(cols):
               for j in range(rows):
                  m = get_block(A, i, j)
@@ -231,40 +284,6 @@ class GMRES(LinearSolver):
         sol = np.transpose(np.vstack(sol))
         return sol
     
-    def solve(self, engine, A, b):
-        if use_parallel:
-            return self.solve_parallel(engine, A, b)
-        else:
-            return self.solve_serial(engine, A, b)
 
-    def real_to_complex(self, solall, M):
-        if use_parallel:
-           from mpi4py import MPI
-           myid     = MPI.COMM_WORLD.rank
-
-
-           offset = M.RowOffsets().ToList()
-           of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o))) for o in offset]
-           if myid != 0: return           
-
-        else:
-           offset = M.RowOffsets()
-           of = offset.ToList()
-           
-        rows = M.NumRowBlocks()
-        s = solall.shape
-        nb = rows/2
-        i = 0
-        pt = 0
-        result = np.zeros((s[0]/2, s[1]), dtype='complex')
-        for j in range(nb):
-           l = of[i+1]-of[i]
-           result[pt:pt+l,:] = (solall[of[i]:of[i+1],:]
-                             +  1j*solall[of[i+1]:of[i+2],:])
-           i = i+2
-           pt = pt + l
-
-        return result
          
-
-     
+        

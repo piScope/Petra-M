@@ -1,8 +1,29 @@
 from petram.model import Model
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
+'''
 
+    Solver : Model Tree Object for solvers such as TimeDependent Solver
+
+    SolverInstance: an actual solver logic comes here
+       SolverInstance : base class for standard solver
+       TimeDependentSolverInstance : an actual solver logic comes here
+
+
+'''    
 class Solver(Model):
+    def attribute_set(self, v):
+        v['clear_wdir'] = False
+        v['init_only'] = False   
+        v['assemble_real'] = False
+        v['save_parmesh'] = False        
+        v['phys_model']   = ''
+        v['init_setting']   = ''
+        v['use_profiler'] = False
+        v['probe'] = ''
+        super(Solver, self).attribute_set(v)
+        return v
+    
     def get_phys(self):
         names = self.phys_model.split(',')
         names = [n.strip() for n in names if n.strip() != '']        
@@ -12,33 +33,6 @@ class Solver(Model):
         names = [n.strip() for n in names if n.strip() != '']        
         return [self.root()['InitialValue'][n] for n in names]
     
-    def assemble(self, engine):
-        raise NotImplementedError(
-             "you must specify this method in subclass")
-        
-    def run(self, engine):
-        raise NotImplementedError(
-             "you must specify this method in subclass")
-    
-    def postprocess(self, engine):
-        raise NotImplementedError(
-             "you must specify this method in subclass")
-
-    def set_parameters(self, names, params):
-        raise NotImplementedError(
-             "you must specify this method in subclass")
-    
-    def get_matrix_weight(self, timestep_config, timestep_weight):
-        raise NotImplementedError(
-             "you must specify this method in subclass")
-        
-    def compute_A_rhs(self, M, B, X):
-        '''
-        called from an engine to compute linear system from matrices/solutions.
-        '''
-        raise NotImplementedError(
-             "you must specify this method in subclass")
-        
     def get_active_solver(self, mm = None):
         for x in self.iter_enabled(): return x
 
@@ -49,11 +43,136 @@ class Solver(Model):
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys', self)
+        
+    def run(self, engine):
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+    
+
+class SolverInstance(object):
+    '''
+    Solver instance is where the logic of solving linear system
+    (time stepping, adaptation, non-linear...) is written.
+
+    It is not a model object. SolverModel will generate this
+    instance to do the actual solve step.
+    '''
+    def __init__(self, gui, engine):
+        self.gui = gui
+        self.engine = engine
+        self.sol = None
+        self.linearsolver_model= None # LinearSolverModel
+        self.linearsolver = None      # Actual LinearSolver        
+        self.probe = []
+        self.linearsolver_model = None
+        self.phys_real = True
+        self.ls_type = ''
+        
+        
+        self.set_linearsolver_model()
+        
+        
+    def get_phys(self):
+        names = self.gui.phys_model.split(',')
+        names = [n.strip() for n in names if n.strip() != '']
+
+        root = self.engine.model
+        return [root['Phys'][n] for n in names]
+    
+    def get_init_setting(self):
+
+        names = self.gui.init_setting.split(',')
+        names = [n.strip() for n in names if n.strip() != '']
+        
+        root = self.engine.model        
+        return [root['InitialValue'][n] for n in names]
+
+    def save_solution(self, ksol = 0, skip_mesh = False, 
+                      mesh_only = False, save_parmesh=False):
+                      
+        engine = self.engine
+        phys_target = self.get_phys()
+               
+        sol, sol_extra = engine.split_sol_array(self.sol)
+        engine.recover_sol(sol)
+        extra_data = engine.process_extra(sol_extra)
 
 
-class LinearSolver(Solver):
+        engine.save_sol_to_file(phys_target, 
+                                skip_mesh = skip_mesh,
+                                mesh_only = mesh_only,
+                                save_parmesh = save_parmesh)
+        if mesh_only: return
+        engine.save_extra_to_file(extra_data)
+        #engine.is_initialzied = False
+        
+    def set_linearsolver_model(self):
+        solver = self.gui.get_active_solver()      
+        phys_target = self.get_phys()
+        
+        self.linearsolver_model = solver
+        self.phys_real = all([not p.is_complex() for p in phys_target])        
+        self.ls_type = solver.linear_system_type(self.gui.assemble_real,
+                                                 self.phys_real)
+
+    def configure_probes(self, probe_txt):
+        from petram.sol.probe import Probe
+        if probe_txt.strip() != '':
+            probe_names = [x.strip() for x in probe_txt.split(',')]
+            probe_idx =  [self.engine.dep_var_offset(n) for n in probe_names]
+            for n, i in zip(probe_names, probe_idx):
+                self.probe.append(Probe(n, i))
+        
+    def solve(self):
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+
+    def compute_rhs(self, M, B, X):
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+
+    def compute_A(self, M, B, X):            
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+        
+class TimeDependentSolverInstance(SolverInstance):
+    def __init__(self, gui, engine):
+        self.st = 0.0
+        self.et = 1.0
+        self.checkpoint = [0, 0.5, 1.0]
+        self.time = 0.0
+        SolverInstance.__init__(self, gui, engine)
+        
+    def set_start(self, st):
+        self.st = st
+        
+    def set_end(self, et):
+        self.et = et
+
+    def set_timestep(self, time_step):
+        self.time_step = time_step
+        
+    def set_checkpoint(self, checkpoint):
+        self.checkpoint = checkpoint
+
+    def solve(self):
+        assert False, "time dependent solver does not have solve method. call step"
+        
+    def step(self):
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+
+'''
+
+    LinearSolverModel : Model Tree Object for linear solver
+    LinearSolver : an interface to actual solver
+
+
+'''    
+class LinearSolverModel(Model):
     def get_phys(self):
         return self.parent.get_phys()
+
     def onItemSelChanged(self, evt):
         '''
         GUI response when model object is selected in
@@ -61,112 +180,47 @@ class LinearSolver(Solver):
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys', self)
-
-    def create_solver_instance(self, datatype='D'):
+        
+    def linear_system_type(self, assemble_real, phys_real):
+        '''
+        ls_type: coo  (matrix in coo format : DMUMP or ZMUMPS)
+                 coo_real  (matrix in coo format converted from complex 
+                            matrix : DMUMPS)
+                 # below is a plan...
+                 blk (matrix made mfem:block operator)
+                 blk_real (matrix made mfem:block operator for complex
+                             problem)
+                          (unknowns are in the order of  R_fes1, R_fes2,... I_fes1, Ifes2...)
+                 blk_interleave (unknowns are in the order of  R_fes1, I_fes1, R_fes2, I_fes2,...)
+                 None(not supported)
+        '''
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+    def allocate_solver(self, datatype='D'):
         # datatype = S, D, C, Z
         raise NotImplementedError(
              "you must specify this method in subclass")
+
+    def real_to_complex(self, solall, M=None):
+        # method called when real value solver is used for complex value problem
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+        
+class LinearSolver(object):
+    '''
+    LinearSolver is an interface to linear solvers such as MUMPS.
+    It is generated by SolverInstan.
+    '''
+    def __init__(self, gui):
+        self.gui = gui
+        
     def SetOperator(self, opr, dist=False):
         # opr : operator (matrix)
         # dist: disributed matrix or not
         raise NotImplementedError(
              "you must specify this method in subclass")
-    def Mult(self, b):
+    def Mult(self, b, case_base=0):
         raise NotImplementedError(
              "you must specify this method in subclass")
 
-class TimeDependentSolver(object):
-    def Step(self, b, t, dt):
-        pass
-
-
-class AdaptiveTimeDependentSolver(object):
-    def __init__(self, solver_gui):
-        Solvers = {}
-        self.gui = solver_gui
-        
-    def Step(self, b, t, dt):
-        pass        
     
-
-class TimeSteping(object):
-    def __init__(self, ls_type):
-        self.ls_type = ls_type
-        
-    def SetOperator(self, AA):
-        self.solver.SetOperator(AA, dist = engine.is_matrix_distributed)
-
-    def EvalBB(self, Ae, X, RHS):
-        RHS = self.compute_rhs(B, sol, self.time_step)    
-        RHS = engine.eliminateBC(Ae, X[1], RHS)
-        BB = engine.finalize_rhs([RHS], not phys_real,
-                                      format = self.ls_type)
-
-        
-    def Step(engine, solver, t, dt):
-        dprint1("A", A)
-        dprint1("RHS", RHS)
-        dprint1("time", t)
-        AA = engine.finalize_matrix(A, not phys_real, format = ls_type)
-        BB = engine.finalize_rhs([RHS], not phys_real, format = ls_type)
-
-        datatype = 'Z' if (AA.dtype == 'complex') else 'D'
-        Solver = solver.create_solver_instance(datatype)
-
-
-        counter = 0
-        while True:
-            #solall = solver.solve(engine, AA, BB)
-            dprint1("before multi")
-            dprint1(debug.format_memory_usage())
-
-            
-            solall = Solver.Mult(BB, case_base=engine.case_base)
-            engine.case_base += BB.shape[1]
-            
-            if not phys_real and self.assemble_real:
-                solall = solver.real_to_complex(solell, self.A)
-            t = t + dt
-            counter += 1
-            dprint1("TimeStep ("+str(counter)+ "), t="+str(t))
-            if t >= et: break
-            #if counter > 5: break
-            
-            dprint1("before reformat")
-            dprint1(debug.format_memory_usage())
-            
-            sol = A.reformat_central_mat(solall, 0)
-
-            dprint1("after reformat")
-            dprint1(debug.format_memory_usage())
-            
-            if checkpoint[icheckpoint] < t:
-                 dprint1("writing checkpoint t=" + str(t) + "("+str(icheckpoint)+")")
-                 
-                 extra_data = self.store_sol(engine, sol, blocks[1][0], 0)
-                 path = os.path.join(od, 'checkpoint_' + str(icheckpoint))
-                 engine.mkdir(path) 
-                 os.chdir(path)
-                 engine.cleancwd() 
-                 self.save_solution(engine, extra_data)
-                 
-                 icheckpoint = icheckpoint+1
-            os.chdir(od)
-            dprint1("before compute_rhs")                                    
-            dprint1(debug.format_memory_usage())                
-            
-            RHS = self.compute_rhs(B, sol, self.time_step)
-
-            dprint1("before eliminateBC")                                    
-            dprint1(debug.format_memory_usage())
-            
-            RHS = engine.eliminateBC(Ae, X[1], RHS)
-            BB = engine.finalize_rhs([RHS], not phys_real, format = ls_type)
-            dprint1("end reformat")                                    
-            dprint1(debug.format_memory_usage())                
-
-        #PT = P.transpose()
-        sol = A.reformat_central_mat(solall, 0)
-        
-        return sol
-           

@@ -297,12 +297,13 @@ class Engine(object):
             init = self.model['InitialValue'][k]
             init.preprocess_params(self)
 
-    def run_set_matrix_weight(self, phys_target, solver):
+    def run_set_matrix_weight(self, phys_target, get_matrix_weight):
+        # get_matrix_weight: solver method to evaulate matrix weight
         num_matrix = 0
         for phys in phys_target:
             for mm in phys.walk():
                 if not mm.enabled: continue
-                mm.set_matrix_weight(solver)
+                mm.set_matrix_weight(get_matrix_weight)
 
                 wt = np.array(mm.get_matrix_weight())
                 tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
@@ -507,16 +508,17 @@ class Engine(object):
            
         return
 
-    def run_assemble_blocks(self, solver):
+    def run_assemble_blocks(self, compute_A, compute_rhs):
         
         M, B, X = self.prepare_blocks()
 
         self.fill_M_B_X_blocks(M, B, X)
-        A, RHS = solver.compute_A_rhs(M, B, X)      # solver determins A and RHS
+        A = compute_A(M, B, X)          # solver determins A
+        RHS = compute_rhs(M, B, X)      # solver determins RHS
         A, Ae = self.fill_BCeliminate_matrix(A)     # generate Ae
         RHS = self.eliminateBC(Ae, X[0], RHS)       # modify RHS and 
         self.apply_interp(A, RHS)            # A and RHS is modifedy by global DoF coupling P
-        return A, X, RHS, Ae,  B
+        return A, X, RHS, Ae,  B,  M
             
     #
     #  step 0: update mode param
@@ -923,11 +925,18 @@ class Engine(object):
             self.access_idx = k
             self.r_x.generateMatVec(self.x2X)
             self.i_x.generateMatVec(self.x2X)            
-            for i in range(nfes):                       
-                v = convertElement(self.r_x, self.i_x,
-                                          i, 0, MfemVec2PyVec)
-                r = self.dep_var_offset(self.fes_vars[i])
-                X[k][r] = v
+            for dep_var in self.dep_vars:
+                if self.isFESvar(dep_var):
+                    i = self.ifes(dep_var)
+                    v = convertElement(self.r_x, self.i_x,
+                                       i, 0, MfemVec2PyVec)
+                    r = self.dep_var_offset(dep_var)
+                    X[k][r] = v
+                else:
+                    pass 
+                    # For now, it leaves as None for Lagrange Multipler?
+                    # May need to allocate zeros...
+                   
         for k in range(self.n_matrix):
            dprint1("M["+str(k)+"]")           
            dprint1(M[k])
@@ -1272,7 +1281,7 @@ class Engine(object):
     #  processing solution
     #
     def split_sol_array(self, sol):
-
+        print sol
         s = [None]*len(self.fes_vars)
         for name in self.fes_vars:
             j = self.dep_var_offset(name)
@@ -1324,6 +1333,11 @@ class Engine(object):
             ret[extra_name] = {}
             
             if not t5: continue
+            if data is not None:            
+                ret[extra_name][mm.extra_DoF_name()] = data.toarray()
+            else:
+                pass
+            '''
             if data is None:
                 # extra can be none in MPI child nodes
                 # this is called so that we can use MPI
@@ -1331,6 +1345,7 @@ class Engine(object):
                 mm.postprocess_extra(None, t5, ret[extra_name])
             else:
                 mm.postprocess_extra(data, t5, ret[extra_name])
+            '''
         return ret
 
     #

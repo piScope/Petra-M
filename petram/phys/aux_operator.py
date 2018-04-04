@@ -125,14 +125,9 @@ class AUX_Operator(Phys):
     def get_exter_NDoF(self):
         return 0
      
-    def postprocess_extra(self, sol, flag, sol_extra):
-        name = self.name()+'_' + str(self.port_idx)
-        sol_extra[name] = sol.toarray()
-
     def preprocess_params(self, engine):
         self.vt_oprt.preprocess_params(self)
         super(AUX_Operator, self).preprocess_params(engine)
-        
 
     def has_aux_op(self, phys1, kfes, phys2, kfes2):
         # check 
