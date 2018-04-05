@@ -93,11 +93,11 @@ def write_coo_matrix(file, A):
 
     fid = open(file+smyid, 'w')
     if is_complex:
-        for r,c,a in zip(A.row, A.col, A.data):
-            txt = [str(int(r)), str(int(c)), "{0:.5g}".format(a.real), "{0:.5g}".format(a.imag)]
-            fid.write(' '.join(txt) + "\n")
+        txt = [' '.join([str(int(r)), str(int(c)), "{0:.5g}".format(a.real),
+               "{0:.5g}".format(a.imag)]) for r,c,a in zip(A.row, A.col, A.data)]
+        fid.write('\n'.join(txt) + "\n")
     else:
-        for r,c,a in zip(A.row, A.col, A.data):
-            txt = [str(r), str(c), "{0:.5g}".format(a)]
-            fid.write(' '.join(txt) + "\n")
+        txt = [' '.join([str(int(r)), str(int(c)), "{0:.5g}".format(a.real),
+               "{0:.5g}".format(a.imag)]) for r,c,a in zip(A.row, A.col, A.data)]
+        fid.write('\n'.join(txt) + "\n")
     fid.close()

@@ -181,7 +181,7 @@ class StandardSolver(SolverInstance):
         #linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         #solall = linearsolver.Mult(BB, case_base=0)
             
-        if not self.phys_real and self.assemble_real:
+        if not self.phys_real and self.gui.assemble_real:
             solall = solver.real_to_complex(solell, A)
         
         self.sol = A.reformat_central_mat(solall, 0)

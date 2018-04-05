@@ -33,6 +33,9 @@ else:
    import mfem.ser as mfem
    myid = 0
 
+def isParMesh(mesh):
+    return hasattr(mesh, 'GetNGroups')
+    
 def _collect_data(index, mesh, mode, skip_vtx= False):
     '''
     collect  index : attribute
@@ -287,7 +290,7 @@ def edge(mesh, in_attr, filename = '', precision=8):
     keelem = np.array([True]*len(eidx), dtype=bool)    
     u_own = u
     
-    if use_parallel:
+    if isParMesh(mesh):
         shared_info = distribute_shared_entity(mesh)       
         u_own, ivert, eivert = _gather_shared_vetex(mesh, u, shared_info,
                                                    ivert, eivert)
@@ -297,7 +300,7 @@ def edge(mesh, in_attr, filename = '', precision=8):
     else:
         vtx = np.array([]).reshape((-1, sdim))
 
-    if use_parallel:
+    if isParMesh(mesh):       
         #
         # distribute vertex/element data
         #
@@ -405,11 +408,11 @@ def edge(mesh, in_attr, filename = '', precision=8):
         node_ptx2[dof2_idx] = data 
         #nicePrint(len(dof2_idx))
         '''
-    if use_parallel:
+    if isParMesh(mesh):              
         omesh = mfem.ParMesh(comm, omesh)
 
     if filename != '':
-        if use_parallel:
+        if isParMesh(mesh):                         
             smyid = '{:0>6d}'.format(myid)
             filename = filename +'.'+smyid
         omesh.PrintToFile(filename, precision)
@@ -457,7 +460,7 @@ def surface(mesh, in_attr, filename = '', precision=8):
     keelem = np.array([True]*len(eidx), dtype=bool)    
     u_own = u
     
-    if use_parallel:
+    if isParMesh(mesh):                                
         shared_info = distribute_shared_entity(mesh)       
         u_own, ivert, eivert = _gather_shared_vetex(mesh, u, shared_info,
                                                    ivert, eivert)
@@ -467,7 +470,7 @@ def surface(mesh, in_attr, filename = '', precision=8):
     else:
         vtx = np.array([]).reshape((-1, sdim))
 
-    if use_parallel:
+    if isParMesh(mesh):
         #
         # distribute vertex/element data
         #
@@ -563,8 +566,8 @@ def surface(mesh, in_attr, filename = '', precision=8):
         else:
            dof1_idx = np.array([])
            data = np.array([])
-        if use_parallel: data  = allgather_vector(data)
-        if use_parallel: idx  = allgather_vector(idx)
+        if isParMesh(mesh): data  = allgather_vector(data)
+        if isParMesh(mesh): idx  = allgather_vector(idx)
         #nicePrint(len(data), ',', len(idx))
 
         dof2_idx = np.hstack([[dDofToVDof(i, d) for d in range(sdim)]
@@ -573,11 +576,11 @@ def surface(mesh, in_attr, filename = '', precision=8):
         node_ptx2[dof2_idx] = data 
         #nicePrint(len(dof2_idx))
 
-    if use_parallel:
+    if isParMesh(mesh):
         omesh = mfem.ParMesh(comm, omesh)
 
     if filename != '':
-        if use_parallel:
+        if isParMesh(mesh):       
             smyid = '{:0>6d}'.format(myid)
             filename = filename +'.'+smyid
         omesh.PrintToFile(filename, precision)
@@ -624,7 +627,7 @@ def volume(mesh, in_attr, filename = '', precision=8):
     kbelem = np.array([True]*len(bidx), dtype=bool)
     u_own = u
     
-    if use_parallel:
+    if isParMesh(mesh):       
         shared_info = distribute_shared_entity(mesh)       
         u_own, ivert, bivert = _gather_shared_vetex(mesh, u, shared_info,
                                                    ivert, bivert)
@@ -634,7 +637,7 @@ def volume(mesh, in_attr, filename = '', precision=8):
     else:
         vtx = np.array([]).reshape((-1, sdim))
 
-    if use_parallel:
+    if isParMesh(mesh):              
         #
         # distribute vertex/element data
         #
@@ -712,8 +715,8 @@ def volume(mesh, in_attr, filename = '', precision=8):
         else:
            dof1_idx = np.array([])
            data = np.array([])
-        if use_parallel: data  = allgather_vector(data)
-        if use_parallel: idx  = allgather_vector(idx)
+        if isParMesh(mesh): data  = allgather_vector(data)
+        if isParMesh(mesh): idx  = allgather_vector(idx)
         #nicePrint(len(data), ',', len(idx))
 
         dof2_idx = np.hstack([[dDofToVDof(i, d) for d in range(sdim)]
@@ -722,11 +725,11 @@ def volume(mesh, in_attr, filename = '', precision=8):
         node_ptx2[dof2_idx] = data 
         #nicePrint(len(dof2_idx))
 
-    if use_parallel:
+    if isParMesh(mesh):
         omesh = mfem.ParMesh(comm, omesh)
         
     if filename != '':
-        if use_parallel:
+        if isParMesh(mesh):
             smyid = '{:0>6d}'.format(myid)
             filename = filename +'.'+smyid
         omesh.PrintToFile(filename, precision)

@@ -220,6 +220,12 @@ class Engine(object):
            idx = mm.get_root_phys().mesh_idx
         return self.meshes[idx]
      
+    def get_smesh(self, idx = 0, mm = None):
+        if len(self.smeshes) == 0: return None
+        if mm is not None:
+           idx = mm.get_root_phys().mesh_idx
+        return self.smeshes[idx]
+     
     def get_emesh(self, idx = 0, mm = None):
         if len(self.emeshes) == 0: return None
         if mm is not None:
@@ -266,9 +272,18 @@ class Engine(object):
                 node.read_ns_script_data(dir = dir)
         self.build_ns()
 
-        self.run_mesh()
-        self.run_preprocess()
+        self.run_preprocess()  # this must run when mesh is serial
         
+        self.run_mesh() # make ParMesh and Par-Extended-Mesh
+
+        from petram.mfem_config import use_parallel
+        if use_parallel:        
+            self.emeshes = []
+            for k in self.model['Phys'].keys():
+                phys = self.model['Phys'][k]
+                self.run_mesh_extension(phys)
+                self.allocate_fespace(phys)
+                
         solver = model["Solver"].get_active_solvers()
         return solver
      
@@ -369,8 +384,11 @@ class Engine(object):
             self.run_update_param(phys)
         for phys in phys_target:
             self.initialize_phys(phys)
-        self.r_x.set_no_allocator()
-        self.i_x.set_no_allocator()            
+            
+        for j in range(self.n_matrix):
+            self.access_idx = j
+            self.r_x.set_no_allocator()
+            self.i_x.set_no_allocator()            
             
 
         from petram.helper.variables import Variables
@@ -509,14 +527,13 @@ class Engine(object):
         return
 
     def run_assemble_blocks(self, compute_A, compute_rhs):
-        
         M, B, X = self.prepare_blocks()
 
         self.fill_M_B_X_blocks(M, B, X)
         A = compute_A(M, B, X)          # solver determins A
         RHS = compute_rhs(M, B, X)      # solver determins RHS
         A, Ae = self.fill_BCeliminate_matrix(A)     # generate Ae
-        RHS = self.eliminateBC(Ae, X[0], RHS)       # modify RHS and 
+        RHS = self.eliminateBC(Ae, X[0], RHS)       # modify RHS and
         self.apply_interp(A, RHS)            # A and RHS is modifedy by global DoF coupling P
         return A, X, RHS, Ae,  B,  M
             
@@ -617,7 +634,6 @@ class Engine(object):
         for kfes, name in enumerate(phys.dep_vars):
             ifes = self.ifes(name)
             rfg = self.r_x[ifes]
-            ifg = self.i_x[ifes]
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = True, kfes = kfes)
@@ -625,6 +641,7 @@ class Engine(object):
                 rfg.ProjectCoefficient(c)                
                 #rgf += tmp
             if not is_complex: continue
+            ifg = self.i_x[ifes]            
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = False, kfes = kfes)
@@ -640,8 +657,13 @@ class Engine(object):
         '''
         mesh_idx = phys.emesh_idx
         names = phys.dep_vars
-        
-        for kfes, rgf, igf in enum_fes(phys, self.r_x, self.i_x):
+        for kfes, name in enumerate(phys.dep_vars):
+            ifes = self.ifes(name)
+            rfg = self.r_x[ifes]
+            if phys.is_complex():
+                ifg = self.i_x[ifes]
+            else:
+                ifg = None
             fr, fi, meshname = self.solfile_name(names[kfes],
                                                          emesh_idx)
             path = os.path.expanduser(init_path)
@@ -913,14 +935,15 @@ class Engine(object):
                                       i, 0, MfemVec2PyVec)
             r = self.dep_var_offset(self.fes_vars[i])
             B[r] = v
-
+            
         self.access_idx = 0            
         for extra_name, dep_name in self.extras.keys():
             r = self.dep_var_offset(extra_name)
             t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]            
             B[r] = t4
 
-        nfes = len(self.fes_vars)        
+        nfes = len(self.fes_vars)
+
         for k in range(self.n_matrix):
             self.access_idx = k
             self.r_x.generateMatVec(self.x2X)
@@ -936,7 +959,7 @@ class Engine(object):
                     pass 
                     # For now, it leaves as None for Lagrange Multipler?
                     # May need to allocate zeros...
-                   
+        '''
         for k in range(self.n_matrix):
            dprint1("M["+str(k)+"]")           
            dprint1(M[k])
@@ -944,7 +967,7 @@ class Engine(object):
            dprint1("X["+str(k)+"]")                      
            dprint1(X[k])           
         dprint1( "B", B)        
-
+        '''
         return M, B, X
      
     def fill_BCeliminate_matrix(self, A):
@@ -1223,13 +1246,13 @@ class Engine(object):
 
         return M_block2, B_blocks, P2
     '''     
-    def finalize_matrix(self, M_block, is_complex,format = 'coo'):
+    def finalize_matrix(self, M_block, is_complex,format = 'coo', verbose=True):
         if format == 'coo': # coo either real or complex
-            M = self.finalize_coo_matrix(M_block, is_complex)
+            M = self.finalize_coo_matrix(M_block, is_complex, verbose=verbose)
             
         elif format == 'coo_real': # real coo converted from complex
             M = self.finalize_coo_matrix(M_block, is_complex,
-                                            convert_real = True)
+                                            convert_real = True, verbose=verbose)
 
         elif format == 'blk_interleave': # real coo converted from complex
             M = M_block.get_global_blkmat_interleave()
@@ -1238,14 +1261,14 @@ class Engine(object):
         self.is_assembled = True
         return M
      
-    def finalize_rhs(self,  B_blocks, is_complex, format = 'coo'):
+    def finalize_rhs(self,  B_blocks, is_complex, format = 'coo', verbose=True):
         if format == 'coo': # coo either real or complex
-            B = [self.finalize_coo_rhs(b, is_complex) for b in B_blocks]
+            B = [self.finalize_coo_rhs(b, is_complex, verbose=verbose) for b in B_blocks]
             B = np.hstack(B)
             
         elif format == 'coo_real': # real coo converted from complex
             B = [self.finalize_coo_rhs(b, is_complex,
-                                   convert_real = True)
+                                       convert_real = True, verbose=verbose)
                     for b in B_blocks]
             B = np.hstack(B)
         elif format == 'blk_interleave': # real coo converted from complex
@@ -1253,8 +1276,9 @@ class Engine(object):
             
         return B
      
-    def finalize_coo_matrix(self, M_block, is_complex, convert_real = False):
-        dprint1("A (in finalizie_coo_matrix) \n",  M_block)       
+    def finalize_coo_matrix(self, M_block, is_complex, convert_real = False,
+                            verbose=True):
+        if verbose: dprint1("A (in finalizie_coo_matrix) \n",  M_block)       
         if not convert_real:
             if is_complex:
                 M = M_block.get_global_coo(dtype='complex')           
@@ -1269,19 +1293,23 @@ class Engine(object):
         return M
 
     def finalize_coo_rhs(self, b, is_complex,
-                     convert_real = False):
-        dprint1("b (in finalizie_coo_rhs) \n",  b)
+                         convert_real = False,
+                         verbose=True):
+        if verbose: dprint1("b (in finalizie_coo_rhs) \n",  b)
         B = b.gather_densevec()
         if convert_real:
-             B = np.vstack((B.real, B.imag))           
+             B = np.vstack((B.real, B.imag))
              # (this one make matrix symmetric)           
              # B = np.vstack((B.real, -B.imag))
+        else:
+           if not is_complex:
+              pass
+             # B = B.astype(float)
         return B
     #
     #  processing solution
     #
     def split_sol_array(self, sol):
-        print sol
         s = [None]*len(self.fes_vars)
         for name in self.fes_vars:
             j = self.dep_var_offset(name)
@@ -1346,6 +1374,7 @@ class Engine(object):
             else:
                 mm.postprocess_extra(data, t5, ret[extra_name])
             '''
+        dprint1("extra", ret)
         return ret
 
     #
@@ -2042,7 +2071,8 @@ class ParallelEngine(Engine):
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
         from petram.mesh.mesh_extension import MeshExt
         from petram.mesh.mesh_utils import  get_extended_connectivity
-    
+
+
         self.meshes = []
         self.emeshes = []
         self.emesh_data = MeshExt()

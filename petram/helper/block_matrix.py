@@ -331,7 +331,7 @@ class BlockMatrix(object):
                 if v.isComplex(): self.complex = True                       
             elif v is None:
                 pass
-            else:   
+            else:
                 v = convert_to_ScipyCoo(v)
                 if np.iscomplexobj(v): self.complex = True        
         self.block[r][c] = v

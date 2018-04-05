@@ -1,6 +1,7 @@
 from petram.model import Model
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
+
 '''
 
     Solver : Model Tree Object for solvers such as TimeDependent Solver
@@ -71,7 +72,6 @@ class SolverInstance(object):
         
         self.set_linearsolver_model()
         
-        
     def get_phys(self):
         names = self.gui.phys_model.split(',')
         names = [n.strip() for n in names if n.strip() != '']
@@ -106,6 +106,10 @@ class SolverInstance(object):
         engine.save_extra_to_file(extra_data)
         #engine.is_initialzied = False
         
+    def save_probe(self):
+        for p in self.probe:
+            p.write_file()
+        
     def set_linearsolver_model(self):
         solver = self.gui.get_active_solver()      
         phys_target = self.get_phys()
@@ -134,7 +138,7 @@ class SolverInstance(object):
     def compute_A(self, M, B, X):            
         raise NotImplementedError(
              "you must specify this method in subclass")
-        
+    
 class TimeDependentSolverInstance(SolverInstance):
     def __init__(self, gui, engine):
         self.st = 0.0

@@ -5,7 +5,6 @@ from petram.model import Model
 from .solver_model import Solver
 
 import petram.debug as debug
-
 dprint1, dprint2, dprint3 = debug.init_dprints("TimeDomainSolver")
 rprint = debug.regular_print('StdSolver')
 
@@ -273,9 +272,10 @@ class TimeDomain(Solver):
         instance.set_checkpoint(np.linspace(st, et, nt))
         instance.set_timestep(self.time_step)
 
+        finished = instance.init(self.init_only)
+        
         instance.configure_probes(self.probe)
 
-        finished = instance.init(self.init_only)
         while not finished:
             finished = instance.step()
 
@@ -283,7 +283,7 @@ class TimeDomain(Solver):
                                skip_mesh = False, 
                                mesh_only = False,
                                save_parmesh=self.save_parmesh)
-        
+        instance.save_probe()        
         print(debug.format_memory_usage())
 
 
@@ -385,7 +385,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             assert False, "pre_assmeble must have been called"
             
         if self.counter == 0:
-            A, X, RHS, Ae, B, M = self.blocks        
+            A, X, RHS, Ae, B, M = self.blocks
             AA = engine.finalize_matrix(A, not self.phys_real, format = self.ls_type)
             BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type)
             self.write_checkpoint_solution()
@@ -419,12 +419,14 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.sol = A.reformat_central_mat(solall, 0)
 
         for p in self.probe:
-            p.append_sol(sol, t)
+            p.append_sol(self.sol, self.time)
                 
         if self.checkpoint[self.icheckpoint] < self.time:
             self.write_checkpoint_solution()
             self.icheckpoint += 1
             
+        dprint1("TimeStep ("+str(self.counter)+ "), t="+str(self.time)+"...done.")
+        dprint1(debug.format_memory_usage())        
         return self.time >= self.et
 
     def write_checkpoint_solution(self):
@@ -438,7 +440,125 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.save_solution()
         os.chdir(od)        
 
-                      
+class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
+    def __init__(self, gui, engine):
+        FirstOrderBackwardEuler.__init__(self, gui, engine)
+        self.linearsolver  = {}
+        self.blocks1 = {}
+        self.sol1 = None
+        self.sol2 = None
+        self._time_step1 = 0
+        self._time_step2 = -1
+
+    @property
+    def time_step1(self):
+        return (self.time_step_base)* 2**self._time_step1
+    @property
+    def time_step2(self):
+        return (self.time_step_base)* 2**self._time_step2
+    
+    def set_timestep(self, time_step):
+        self.time_step = time_step
+        self.time_step_base = time_step
+        
+    def assemble(self,idt=None):
+        if idt is None:
+            FirstOrderBackwardEuler.assemble(self)
+        else:    
+            self.blocks1[idt] = self.engine.run_assemble_blocks(self.compute_A, self.compute_rhs)
+            self.blocks = None
+        
+    def step(self):
+        dprint1("Entering step", self.time_step1)
+        def get_A_BB(mode, sol):
+            if sol is None: sol = self.sol
+            idt = self._time_step1 if mode == 0 else self._time_step2
+            dt  = self.time_step1 if mode == 0 else self.time_step2
+            self.time_step = dt            
+            if not idt in self.blocks1:
+                self.assemble(idt = idt)
+                A, X, RHS, Ae, B, M = self.blocks1[idt]
+                AA = engine.finalize_matrix(A, not self.phys_real,
+                                            format = self.ls_type, verbose=False)
+                BB = engine.finalize_rhs([RHS], not self.phys_real,
+                                         format = self.ls_type, verbose=False)
+                if self.ls_type.startswith('coo'):
+                    datatype = 'Z' if (AA.dtype == 'complex') else 'D'
+                else:
+                    datatype = 'D'
+                self.linearsolver[idt]  = self.linearsolver_model.allocate_solver(datatype)
+                self.linearsolver[idt].SetOperator(AA, dist = engine.is_matrix_distributed)
+                print "AA.dtype", AA.dtype
+            else:
+                A, X, RHS, Ae, B, M = self.blocks1[idt]
+                RHS = self.compute_rhs(M, B, [sol])
+                RHS = engine.eliminateBC(Ae, X[1], RHS)
+                BB = engine.finalize_rhs([RHS], not self.phys_real,
+                                         format = self.ls_type, verbose=False)
+            return A, BB
+            
+        engine = self.engine
+
+        if not self.pre_assembled:
+            assert False, "pre_assmeble must have been called"
+            
+        A, BB = get_A_BB(0, self.sol1)
+        solall = self.linearsolver[self._time_step1].Mult(BB)
+        sol1 = A.reformat_central_mat(solall, 0)
+
+        A, BB = get_A_BB(1, self.sol2)
+        solall2 = self.linearsolver[self._time_step2].Mult(BB)
+        sol2 = A.reformat_central_mat(solall2, 0)
+        print "check sample2 (1)", [p.current_value(sol2) for p in self.probe]
+        A, BB = get_A_BB(1, sol2)
+        solall2 = self.linearsolver[self._time_step2].Mult(BB)
+        sol2 = A.reformat_central_mat(solall2, 0)
+        print "check sample2 (1)", [p.current_value(sol2) for p in self.probe]        
+
+        sample1 = np.hstack([p.current_value(sol1) for p in self.probe]).flatten()
+        sample2 = np.hstack([p.current_value(sol2) for p in self.probe]).flatten()
+        
+        from petram.mfem_config import use_parallel
+        if use_parallel:
+             from petram.helper.mpi_recipes import allgather, allgather_vector
+             sample1 = allgather_vector(np.atleast_1d(sample1))
+             sample2 = allgather_vector(np.atleast_1d(sample2))
+             
+        delta=np.abs(sample1-sample2)/np.abs(sample1+sample2)*2
+    
+        threshold = 0.01
+        if delta > threshold:
+            dprint1("delta is too large ", delta, sample1, sample2)
+            self._time_step1 -= 1
+            self._time_step2 -= 1
+            dprint1("next try....", self.time_step1, self.time_step2)
+            return False
+        elif delta < threshold/8:        
+            self._time_step1 += 1
+            self._time_step2 += 1
+            dprint1("next try....", self.time_step1, self.time_step2)
+        dprint1("delta good  ", delta, sample1, sample2)        
+        if not self.phys_real and self.assemble_real:
+            assert False, "this has to be debugged (convertion from real to complex)"
+            solall = self.linearsolver_model.real_to_complex(solell, A)
+            
+        self.time = self.time + self.time_step1
+        self.counter += 1
+        
+        self.sol = A.reformat_central_mat(solall, 0)
+        self.sol1 = self.sol
+        self.sol2 = self.sol        
+
+        for p in self.probe:
+            p.append_sol(self.sol, self.time)
+                
+        if self.checkpoint[self.icheckpoint] < self.time:
+            self.write_checkpoint_solution()
+            self.icheckpoint += 1
+
+        dprint1("TimeStep ("+str(self.counter)+ "), t="+str(self.time)+"...done.")
+        #return True       
+        return self.time >= self.et
                       
 
 

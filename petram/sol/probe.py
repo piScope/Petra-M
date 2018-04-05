@@ -33,7 +33,9 @@ class Probe(object):
         self.finalized = False
 
     def write_file(self, filename = None):
-        if not self.finalized: self.finalize()
+        if not self.finalized:
+            valid = self.finalize()
+        if not valid: return
         
         if filename is None:
             filename = 'probe_'+self.name + smyid
@@ -47,16 +49,24 @@ class Probe(object):
         fid.close()
 
     def append_sol(self, sol, t):
-        self.sig.append(sol[self.idx].toarray().flatten())
+        self.sig.append(np.atleast_1d(sol[self.idx].toarray().flatten()))
         self.t.append(t)
+
+    def current_value(self, sol):
+        return np.atleast_1d(sol[self.idx].toarray().flatten())
         
     def print_signal(self):
-        if not self.finalized: self.finalize()
-
-        print(sig)
+        if not self.finalized:
+            self.finalize()
         
     def finalize(self):
-        self.sig = np.vstack(self.sig)
-        self.time= np.hstack(self.t)
+        if len(self.sig) == 0:
+            self.sig = -1
+            self.valid = False
+        else:
+            self.sig = np.vstack(self.sig)
+            self.time= np.hstack(self.t)                    
+            self.valid = True
         self.finalized = True
+        return self.valid
         

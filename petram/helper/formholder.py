@@ -7,6 +7,7 @@
    and the second place is for Vector/Matrix 
 '''
 from itertools import product
+import numpy as np
 
 class FormBlock(object):
     def __init__(self, shape, new=None, mixed_new=None):
@@ -167,7 +168,6 @@ def convertElement(Mreal, Mimag, i, j, converter):
             imatvec = Mimag.block[i][j][k][1] if k in Mimag.block[i][j] else None
         else:
             imatvec = None
-            
         m = converter(rmatvec, imatvec)
         if k!=1:
             pos, projector = k
