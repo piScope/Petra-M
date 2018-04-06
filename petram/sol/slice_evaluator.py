@@ -155,8 +155,11 @@ class SliceEvaluator(EvaluatorAgent):
         if self.vertices is None: return None, None, None
 
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
-        if len(emesh_idx) != 1:
+        if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
+        if len(emesh_idx) < 1:
+            assert False, "expression is defined on any mesh"
+            
         if self.emesh_idx != emesh_idx[0]:
              self.preprocess_geometry(self.attrs, plane=self.plane,
                                       emesh_idx=emesh_idx[0])

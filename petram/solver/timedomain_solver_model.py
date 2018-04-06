@@ -264,7 +264,7 @@ class TimeDomain(Solver):
         if self.clear_wdir:
             engine.remove_solfiles()
 
-        instance = FirstOrderBackwardEuler(self, engine)
+        instance = FirstOrderBackwardEulerAT(self, engine)
         
         st, et, nt = self.st_et_nt
         instance.set_start(st)
@@ -396,6 +396,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             dprint1("before eliminateBC")                                    
             dprint1(debug.format_memory_usage())
             RHS = engine.eliminateBC(Ae, X[1], RHS)
+            RHS = engine.apply_interp(RHS=RHS)            
             BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type)
 
         if self.linearsolver is None:
@@ -493,6 +494,7 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
                 A, X, RHS, Ae, B, M = self.blocks1[idt]
                 RHS = self.compute_rhs(M, B, [sol])
                 RHS = engine.eliminateBC(Ae, X[1], RHS)
+                RHS = engine.apply_interp(RHS=RHS)
                 BB = engine.finalize_rhs([RHS], not self.phys_real,
                                          format = self.ls_type, verbose=False)
             return A, BB
@@ -501,7 +503,7 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
 
         if not self.pre_assembled:
             assert False, "pre_assmeble must have been called"
-            
+
         A, BB = get_A_BB(0, self.sol1)
         solall = self.linearsolver[self._time_step1].Mult(BB)
         sol1 = A.reformat_central_mat(solall, 0)

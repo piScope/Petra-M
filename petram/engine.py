@@ -74,6 +74,9 @@ class Engine(object):
         self._isFESvar = []
 
         self.alloc_flag = {}
+        self.max_bdrattr = -1
+        self.max_attr = -1        
+        
         # place holder : key is base physics modules, such as EM3D1...
         #
         # for example : self.r_b['EM3D1'] = [LF for E, LF for psi]
@@ -298,7 +301,7 @@ class Engine(object):
     def run_preprocess(self, ns_folder = None, data_folder = None):
         if ns_folder is not None:
            self.preprocess_ns(ns_folder, data_folder)
-               
+
         from .model import Domain, Bdry               
         for k in self.model['Phys'].keys():
             phys = self.model['Phys'][k]
@@ -534,7 +537,7 @@ class Engine(object):
         RHS = compute_rhs(M, B, X)      # solver determins RHS
         A, Ae = self.fill_BCeliminate_matrix(A)     # generate Ae
         RHS = self.eliminateBC(Ae, X[0], RHS)       # modify RHS and
-        self.apply_interp(A, RHS)            # A and RHS is modifedy by global DoF coupling P
+        A, RHS = self.apply_interp(A, RHS)  # A and RHS is modifedy by global DoF coupling P
         return A, X, RHS, Ae,  B,  M
             
     #
@@ -1009,7 +1012,7 @@ class Engine(object):
             
         return RHS
               
-    def apply_interp(self, A, RHS):
+    def apply_interp(self, A=None, RHS=None):
         ''''
         without interpolation, matrix become
               [ A    B ][x]   [b]
@@ -1028,27 +1031,32 @@ class Engine(object):
             P, nonzeros, zeros = self.interps[name]
             if P is None: continue
             
-            
-            shape = A.shape               
-            A1 = A[idx,idx]
-            A1 = A1.rap(P.transpose())
-            A1.setDiag(zeros, 1.0)
-            A[idx, idx] = A1
+            if A is not None:
+               shape = A.shape               
+               A1 = A[idx,idx]
+               A1 = A1.rap(P.transpose())
+               A1.setDiag(zeros, 1.0)
+               A[idx, idx] = A1
 
-            PP = P.conj(inplace=True)
-            for i in range(shape[1]):
-                if idx == i: continue
-                if A[idx,i] is not None:
-                    A[idx,i] = PP.dot(A[idx,i])
+               PP = P.conj(inplace=True)
+               for i in range(shape[1]):
+                   if idx == i: continue
+                   if A[idx,i] is not None:
+                       A[idx,i] = PP.dot(A[idx,i])
 
-            P = PP.conj(inplace=True)                        
-            for i in range(shape[0]):
-                if idx == i: continue
-                if A[i,idx] is not None:
-                    A[i, idx] = A[i, idx].dot(t2)
+               P = PP.conj(inplace=True)                        
+               for i in range(shape[0]):
+                   if idx == i: continue
+                   if A[i,idx] is not None:
+                       A[i, idx] = A[i, idx].dot(t2)
+            if RHS is not None:
+                RHS[idx] = P.conj(inplace=True).dot(RHS[idx])
+                P.conj(inplace=True)
 
-            RHS[idx] = P.conj(inplace=True).dot(RHS[idx])
-            P.conj(inplace=True)
+        
+        if A is not None and RHS is not None: return A, RHS
+        if A is not None : return A, 
+        if RHS is not None: return RHS
 
     '''        
     def call_FormLinearSystem(self, phys, ess_tdofs, matvec):
@@ -1666,7 +1674,11 @@ class Engine(object):
                         if o.isRefinement and skip_refine: continue
                         if hasattr(o, 'run') and target is not None:
                             self.meshes[idx] = o.run(target)
+        self.max_bdrattr = -1
+        self.max_attr = -1        
         for m in self.meshes:
+            self.max_bdrattr = np.max([self.max_bdrattr, max(m.GetBdrAttributeArray())])
+            self.max_attr = np.max([self.max_attr, max(m.GetAttributeArray())])
             m.ReorientTetMesh()
             m.GetEdgeVertexTable()                                   
             get_extended_connectivity(m)           
@@ -2090,6 +2102,10 @@ class ParallelEngine(Engine):
                     if not o.enabled: continue
                     if isinstance(o, MeshFile):
                         smesh = o.run()
+                        self.max_bdrattr = np.max([self.max_bdrattr,
+                                                   max(smesh.GetBdrAttributeArray())])
+                        self.max_attr = np.max([self.max_attr,
+                                                max(smesh.GetAttributeArray())])
                         self.meshes[idx] = mfem.ParMesh(MPI.COMM_WORLD, smesh)
                         target = self.meshes[idx]
                     else:
@@ -2123,6 +2139,7 @@ class ParallelEngine(Engine):
         return gf
                
     def new_fespace(self,mesh, fec):
+        print "new_fespace", mesh
         if mesh.__class__.__name__ == 'ParMesh':
             return  mfem.ParFiniteElementSpace(mesh, fec)
         else:
@@ -2336,8 +2353,8 @@ class ParallelEngine(Engine):
         from mpi4py import MPI
 
         gl_ess_tdofs = []
-        for name in phys.dep_vars:
-            fes = self.fespaces[name]
+        #for name in phys.dep_vars:
+        #    fes = self.fespaces[name]
             
         for name in self.ess_tdofs:
             tdof = self.ess_tdofs[name]

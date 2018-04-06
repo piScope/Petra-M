@@ -461,7 +461,7 @@ class BlockMatrix(object):
                    elif ret[i,j] is None:
                        ret[i,j] = self[i, k].dot(mat[k, j])
                    else:
-                       print self[i, k], mat[k, j]
+                       print "dot is called here", self[i, k], mat[k, j]
                        ret[i,j] = ret[i,j] + self[i, k].dot(mat[k, j])
                    #try:
                    #    ret[i,j].shape

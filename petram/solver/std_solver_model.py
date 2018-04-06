@@ -113,7 +113,7 @@ class StandardSolver(SolverInstance):
         
         for p in phys_target:
             engine.run_mesh_extension(p)
-            
+        
         engine.run_alloc_sol(phys_target)
         
         inits = self.get_init_setting()
@@ -182,7 +182,7 @@ class StandardSolver(SolverInstance):
         #solall = linearsolver.Mult(BB, case_base=0)
             
         if not self.phys_real and self.gui.assemble_real:
-            solall = solver.real_to_complex(solell, A)
+            solall = self.linearsolver_model.real_to_complex(solall, AA)
         
         self.sol = A.reformat_central_mat(solall, 0)
         return True

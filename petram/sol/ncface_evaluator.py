@@ -165,9 +165,10 @@ class NCFaceEvaluator(EvaluatorAgent):
         refine = kwargs.pop("refine", 1)        
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
         print("emesh_idx", emesh_idx)        
-        if len(emesh_idx) != 1:
+        if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
-        
+        if len(emesh_idx) < 1:
+            assert False, "expression is defined on any mesh"
 
         if (refine != self.refine or self.emesh_idx != emesh_idx[0]):
              self.refine = refine

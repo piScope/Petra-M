@@ -79,24 +79,24 @@ def generate_emesh(emeshes, info):
     if info['dim'] == 3:
         if base_mesh.Dimension() == 3:         
             alldom = set(base_mesh.extended_connectivity['vol2surf'].keys())
-            print('alldom', alldom)
             if alldom == info['sel']: return base_mesh
             if len(info['sel']) == 0: return base_mesh
+        dprint1("calling volume")
         m = volume(base_mesh, list(info['sel']), filename = 'par_part.mesh')
     elif info['dim'] == 2:
         if base_mesh.Dimension() == 2: 
             alldom = set(base_mesh.extended_connectivity['surf2line'].keys())
             if alldom == info['sel']: return base_mesh
-            if len(info['sel']) == 0: return base_mesh    
+            if len(info['sel']) == 0: return base_mesh
+        dprint1("calling volume")            
         m = surface(base_mesh, list(info['sel']), filename = 'par_part.mesh')            
     elif info['dim'] == 1:
         if base_mesh.Dimension() == 1: 
             alldom = set(base_mesh.extended_connectivity['line2vert'].keys())
             if alldom == info['sel']: return base_mesh
-            if len(info['sel']) == 0: return base_mesh    
+            if len(info['sel']) == 0: return base_mesh
+        dprint1("calling edge")                        
         m = edge(base_mesh, list(info['sel']), filename = 'par_part.mesh')            
     else:
         raise NotImplementedError, "emesh with " +str(info["dim"])
     return m
-                
-    

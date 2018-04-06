@@ -10,6 +10,11 @@ if use_parallel:
    from mfem.common.parcsr_extra import *
    import mfem.par as mfem
    default_kind = 'hypre'
+   
+   from mpi4py import MPI                               
+   num_proc = MPI.COMM_WORLD.size
+   myid     = MPI.COMM_WORLD.rank
+   smyid = '{:0>6d}'.format(myid)   
 else:
    import mfem.ser as mfem
    default_kind = 'scipy'
@@ -135,6 +140,17 @@ class GMRESSolver(LinearSolver):
 
         offset = A.RowOffsets()
         rows = A.NumRowBlocks()
+        cols = A.NumColBlocks()        
+        if self.gui.write_mat:
+           for i in range(cols):
+              for j in range(rows):
+                 m = get_block(A, i, j)
+                 if m is None: continue
+                 m.Print('matrix_'+str(i)+'_'+str(j))
+           for i, bb  in enumerate(b):
+              for j in range(rows):
+                 v = bb.GetBlock(j)
+                 v.Print('rhs_'+str(i)+'_'+str(j)+'.'+smyid)
 
         M = mfem.BlockDiagonalPreconditioner(offset)
 
@@ -144,9 +160,17 @@ class GMRESSolver(LinearSolver):
         #M1.iterative_mode = False
         #M.SetDiagonalBlock(0, M1)
         A0 = get_block(A, 0, 0)   
-        invA0 = mfem.HypreDiagScale(A0)
+        #invA0 = mfem.HypreDiagScale(A0)
+        invA0 = mfem.HypreSmoother(A0)
+        invA0.SetType(mfem.HypreSmoother.GS)
         invA0.iterative_mode = False
         M.SetDiagonalBlock(0, invA0)
+        A0 = get_block(A, 1, 1)   
+        #invA0 = mfem.HypreDiagScale(A0)
+        invA0 = mfem.HypreSmoother(A0)
+        invA0.SetType(mfem.HypreSmoother.GS)
+        invA0.iterative_mode = False
+        M.SetDiagonalBlock(1, invA0)
 
         '''
         if offset.Size() > 2:
@@ -235,6 +259,10 @@ class GMRESSolver(LinearSolver):
         M1 = mfem.GSSmoother(get_block(A, 0, 0))
         M1.iterative_mode = False
         M.SetDiagonalBlock(0, M1)
+        M2 = mfem.GSSmoother(get_block(A, 1, 1))
+        M2.iterative_mode = False
+        M.SetDiagonalBlock(1, M2)
+        
         '''
         if offset.Size() > 2:
             B =  get_block(A, 1, 0)
