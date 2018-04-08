@@ -222,30 +222,36 @@ class ScipyCoo(coo_matrix):
         return (0, self.shape[0], self.shape[0])
     GetPartitioningArray = GetRowPartArray
 
-    def eliminate_RowsCols(self, tdof):
-        lil = self.tolil()
-
-        idx = np.in1d(self.row, tdof)
-        self.data[idx] = 0
-        self.eliminate_zeros()
-
+    def eliminate_RowsCols(self, tdof, inplace=True):
+        print("inplace flag off copying matrix")
+        # A + Ae style elimination
         idx = np.in1d(self.col,tdof)
+        idx2 = np.in1d(self.row,tdof)        
+        diag = self.diagonal()[tdof]-1
 
-        AeCol  = self.col[idx]
-        AeRow  = self.row[idx]
-        AeData = self.data[idx]                
+        aidx = np.logical_or(idx, idx2)
+        AeCol  = self.col[aidx]
+        AeRow  = self.row[aidx]
+        AeData = self.data[aidx]
         Ae2 = coo_matrix((AeData, (AeRow, AeCol)),
                          shape=self.shape, dtype=self.dtype)
+        Ae2c = Ae2.tocsr()
+        Ae2c[tdof, tdof] = diag
+        Ae2 = Ae2c.tocoo()
+
+        if not inplace: target = self.copy()
+        else: target=self
         
-        self.data[idx] = 0
-        lil2 = self.tolil()        
+        target.data[idx] = 0        
+        target.data[idx2] = 0
+        target.eliminate_zeros()
+        lil2 = target.tolil()        
         lil2[tdof, tdof] = 1.
         coo = lil2.tocoo()
-        self.data = coo.data
-        self.row = coo.row
-        self.col = coo.col
-        self.eliminate_zeros()
-        return Ae2
+        target.data = coo.data
+        target.row = coo.row
+        target.col = coo.col
+        return Ae2, target
 
         '''
         # this one is slower
@@ -433,6 +439,24 @@ class BlockMatrix(object):
                 if self[i, j] is not None:               
                     print i, j, self[i,j].GetColPartArray()
 
+    def save_to_file(self, file):
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                name = file +'_'+str(i)+'_'+str(j)
+                v = self[i,j]
+                if isinstance(v, chypre.CHypreMat):
+                    m = v.get_local_coo()
+                    write_coo_matrix(name, m)
+                elif isinstance(v, chypre.CHypreVec):
+                    m = coo_matrix(v.toarray()).transpose()
+                    write_coo_matrix(name, m)
+                elif isinstance(v, ScipyCoo):
+                    write_coo_matrix(name, v)                   
+                elif v is None:
+                   continue
+                else:
+                   assert False, "Don't know how to write file for "+str(type(v))
+
     def transpose(self):
         ret = BlockMatrix((self.shape[1], self.shape[0]), kind = self.kind)
         for i in range(self.shape[0]):
@@ -461,7 +485,7 @@ class BlockMatrix(object):
                    elif ret[i,j] is None:
                        ret[i,j] = self[i, k].dot(mat[k, j])
                    else:
-                       print "dot is called here", self[i, k], mat[k, j]
+                       #print "dot is called here", self[i, k], mat[k, j]
                        ret[i,j] = ret[i,j] + self[i, k].dot(mat[k, j])
                    #try:
                    #    ret[i,j].shape
@@ -469,6 +493,20 @@ class BlockMatrix(object):
                    #    ret[i,j] = coo_matrix([[ret[i,j]]]) 
         return ret
 
+    def get_block_id(self, ignore_none=True):
+        blocks = sum(self.block, [])
+        if ignore_none:
+            return [id(b) for b in blocks if b is not None]
+        else:
+            return [id(b) for b in blocks]
+         
+    def check_shared_id(self, target):
+        ids = target.get_block_id()       
+        for i in range(self.shape[0]):
+           for j in range(self.shape[1]):
+               if self[i, j] is None: continue
+               if id(self[i,j]) in ids: print i, j, "shared"
+        
     def eliminate_empty_rowcol(self):
         '''
         collect empty row first. (no global communicaiton this step)

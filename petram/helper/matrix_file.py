@@ -92,12 +92,23 @@ def write_coo_matrix(file, A):
         is_complex = False
 
     fid = open(file+smyid, 'w')
+    rc = np.vstack((A.row, A.col)).transpose()
+    tmp = sorted([(k, tuple(x)) for k, x in enumerate(rc)], key=lambda x:x[1])
+    idx = np.array([x[0] for x in tmp])
+    if len(idx) == 0:
+        fid.close()
+        return
+    
+    row = A.row[idx]
+    col = A.col[idx]
+    data = A.data[idx]    
+
     if is_complex:
         txt = [' '.join([str(int(r)), str(int(c)), "{0:.5g}".format(a.real),
-               "{0:.5g}".format(a.imag)]) for r,c,a in zip(A.row, A.col, A.data)]
+               "{0:.5g}".format(a.imag)]) for r,c,a in zip(row, col, data)]
         fid.write('\n'.join(txt) + "\n")
     else:
         txt = [' '.join([str(int(r)), str(int(c)), "{0:.5g}".format(a.real),
-               "{0:.5g}".format(a.imag)]) for r,c,a in zip(A.row, A.col, A.data)]
+               "{0:.5g}".format(a.imag)]) for r,c,a in zip(row, col, data)]
         fid.write('\n'.join(txt) + "\n")
     fid.close()

@@ -82,189 +82,13 @@ class TimeDomain(Solver):
         except ImportError:
             pass
         return choice
-    '''
-    def init_sol(self, engine):
-        phys_target = self.get_phys()
-        num_matrix= engine.run_set_matrix_weight(phys_target, self)
-        
-        engine.set_formblocks(phys_target, num_matrix)
-        
-        for p in phys_target:
-            engine.run_mesh_extension(p)
-            
-        engine.run_alloc_sol(phys_target)
-        
-        inits = self.get_init_setting()
-        if len(inits) == 0:
-            # in this case alloate all fespace and initialize all
-            # to zero
-            engine.run_apply_init(phys_target, 0)
-        else:
-            for init in inits:
-                init.run(engine)
-        engine.run_apply_essential(phys_target)
-        return 
 
-    def get_matrix_weight(self, timestep_config, timestep_weight):
-        dt = float(self.time_step)
-        lns = self.root()['General']._global_ns.copy()
-        lns['dt'] = dt
-
-        wt = [eval(x, lns) for x in timestep_weight]
-        return wt
-    
-    def compute_A_rhs(self, M, B, X):
-        #M/dt u_1 + K u_1 = M/dt u_0 + b
-        print "M, B, X", M, B, X
-        one_dt = 1/float(self.time_step)
-        MM = M[1]*one_dt
-        RHS = MM.dot(X[1]) + B
-        A = M[0]+ M[1]*one_dt
-        self.M = M
-        return A, RHS
-    
-    def compute_rhs(self, B, sol, dt):
-        one_dt = 1/float(dt)
-        MM = self.M[1]*one_dt
-        RHS = MM.dot(sol) + B
-        return RHS
-
-    def assemble(self, engine):
-        phys_target = self.get_phys()
-        engine.run_verify_setting(phys_target, self)
-        engine.run_assemble_mat(phys_target)
-        engine.run_assemble_rhs(phys_target)
-        blocks = engine.run_assemble_blocks(self)
-        A, X, RHS, Ae, B = blocks
-
-        return blocks # A, X, RHS, Ae, B
-
-    def store_rhs(self, engine):
-        phys_target = self.get_phys()
-        vecs, vecs_c = engine.run_assemble_rhs(phys_target)
-        blocks = engine.generate_rhs(phys_targets, vecs, vecs_c)
-        self.B.append(blocks[1])
-
-    def call_solver(self, engine, blocks):
-        A, X, RHS, Ae, B = blocks
-        
-        solver = self.get_active_solver()        
-        phys_target = self.get_phys()        
-        phys_real = all([not p.is_complex() for p in phys_target])
-        ls_type = solver.linear_system_type(self.assemble_real,
-                                            phys_real)
-        
-        #ls_type: coo  (matrix in coo format : DMUMP or ZMUMPS)
-        #         coo_real  (matrix in coo format converted from complex 
-        #                    matrix : DMUMPS)
-        # below is a plan...
-        #         blk (matrix made mfem:block operator)
-        #         blk_real (matrix made mfem:block operator for complex
-        #                     problem)
-        #                  (unknowns are in the order of  R_fes1, R_fes2,... I_fes1, Ifes2...)
-        #         blk_interleave (unknowns are in the order of  R_fes1, I_fes1, R_fes2, I_fes2,...)
-        #         None(not supported)
-        #if debug.debug_memory:
-        #    dprint1("Block Matrix before shring :\n",  self.M)
-        #    dprint1(debug.format_memory_usage())                
-        #M_block, B_blocks, P = engine.eliminate_and_shrink(self.M,
-        #                                                   self.B, self.Me)
-        
-        if debug.debug_memory:
-            dprint1(debug.format_memory_usage())
-
-        from petram.sol.probe import Probe
-        probe_names = [x.strip() for x in self.probe.split(',')]
-        probe_idx =  [engine.dep_var_offset(n) for n in probe_names]
-        probes = [Probe(n, i) for n, i in zip(probe_names, probe_idx)]
-        
-        st, et, nt = self.st_et_nt
-        dt = self.time_step
-        try:
-            checkpoint = [x for x in nt]
-        except:
-            checkpoint = np.linspace(st, et, nt)
-        dprint1("checkpoint", checkpoint)        
-        icheckpoint = 0
-        t = st
-        od = os.getcwd()
-        
-        dprint1("A", A)
-        dprint1("RHS", RHS)
-        dprint1("time", t)
-        AA = engine.finalize_matrix(A, not phys_real, format = ls_type)
-        BB = engine.finalize_rhs([RHS], not phys_real, format = ls_type)
-
-        datatype = 'Z' if (AA.dtype == 'complex') else 'D'
-        Solver = solver.create_solver_instance(datatype)
-        Solver.SetOperator(AA, dist = engine.is_matrix_distributed)
-
-        counter = 0
-        while True:
-            #solall = solver.solve(engine, AA, BB)
-            dprint1("before multi")
-            dprint1(debug.format_memory_usage())
-            
-            solall = Solver.Mult(BB, case_base=engine.case_base)
-            engine.case_base += BB.shape[1]
-            
-            if not phys_real and self.assemble_real:
-                solall = solver.real_to_complex(solell, self.A)
-            t = t + dt
-            counter += 1
-            dprint1("TimeStep ("+str(counter)+ "), t="+str(t))
-            if t >= et: break
-            #if counter > 5: break
-            
-            dprint1("before reformat")
-            dprint1(debug.format_memory_usage())
-            
-            sol = A.reformat_central_mat(solall, 0)
-
-            dprint1("after reformat")
-            dprint1(debug.format_memory_usage())
-            for p in probes:
-                p.append_sol(sol, t)
-                
-            if checkpoint[icheckpoint] < t:
-                 dprint1("writing checkpoint t=" + str(t) + "("+str(icheckpoint)+")")
-                 
-                 extra_data = self.store_sol(engine, sol, blocks[1][0], 0)
-                 path = os.path.join(od, 'checkpoint_' + str(icheckpoint))
-                 engine.mkdir(path) 
-                 os.chdir(path)
-                 engine.cleancwd() 
-                 self.save_solution(engine, extra_data)
-                 
-                 icheckpoint = icheckpoint+1
-            os.chdir(od)
-            dprint1("before compute_rhs")                                    
-            dprint1(debug.format_memory_usage())                
-            
-            RHS = self.compute_rhs(B, sol, self.time_step)
-
-            dprint1("before eliminateBC")                                    
-            dprint1(debug.format_memory_usage())
-            
-            RHS = engine.eliminateBC(Ae, X[1], RHS)
-            BB = engine.finalize_rhs([RHS], not phys_real, format = ls_type)
-            dprint1("end reformat")                                    
-            dprint1(debug.format_memory_usage())                
-
-        #PT = P.transpose()
-        sol = A.reformat_central_mat(solall, 0)
-
-        for p in probes:
-            p.write_file()
-
-        return sol
-    '''            
     @debug.use_profiler
     def run(self, engine):
         if self.clear_wdir:
             engine.remove_solfiles()
 
-        instance = FirstOrderBackwardEulerAT(self, engine)
+        instance = FirstOrderBackwardEuler(self, engine)
         
         st, et, nt = self.st_et_nt
         instance.set_start(st)
@@ -360,11 +184,10 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         '''
         M/dt u_1 + K u_1 = M/dt u_0 + b
         '''
-        print "M, B, X", M, B, X
+        #print "M, B, X", M, B, X
         one_dt = 1/float(self.time_step)
         MM = M[1]*one_dt
         A = M[0]+ M[1]*one_dt
-        self.M = M
         return A
     
     def compute_rhs(self, M, B, X):
@@ -374,7 +197,10 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         return RHS
         
     def assemble(self):
-        self.blocks = self.engine.run_assemble_blocks(self.compute_A, self.compute_rhs)
+        self.blocks = self.engine.run_assemble_blocks(self.compute_A,
+                                                      self.compute_rhs,
+                                                      inplace=False)                
+
         #A, X, RHS, Ae, B, M = blocks
         self.assembled = True
         
@@ -463,12 +289,18 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
         self.time_step_base = time_step
         
     def assemble(self,idt=None):
+        flag = False
         if idt is None:
-            FirstOrderBackwardEuler.assemble(self)
-        else:    
-            self.blocks1[idt] = self.engine.run_assemble_blocks(self.compute_A, self.compute_rhs)
+            idt = 0
+            flag = True
+        self.blocks1[idt] = self.engine.run_assemble_blocks(self.compute_A,
+                                                            self.compute_rhs,
+                                                            inplace=False)        
+        if flag:
+            self.blocks = self.blocks1[0]
+        else:
             self.blocks = None
-        
+            
     def step(self):
         dprint1("Entering step", self.time_step1)
         def get_A_BB(mode, sol):
@@ -479,24 +311,27 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
             if not idt in self.blocks1:
                 self.assemble(idt = idt)
                 A, X, RHS, Ae, B, M = self.blocks1[idt]
-                AA = engine.finalize_matrix(A, not self.phys_real,
-                                            format = self.ls_type, verbose=False)
                 BB = engine.finalize_rhs([RHS], not self.phys_real,
                                          format = self.ls_type, verbose=False)
+            else:
+                A, X, RHS, Ae, B, M = self.blocks1[idt]
+                if self.counter != 0:
+                    # recompute RHS
+                    RHS = self.compute_rhs(M, B, [sol])
+                    RHS = engine.eliminateBC(Ae, X[1], RHS)
+                    RHS = engine.apply_interp(RHS=RHS)
+                BB = engine.finalize_rhs([RHS], not self.phys_real,
+                                         format = self.ls_type, verbose=False)
+            if not idt in self.linearsolver:
+                AA = engine.finalize_matrix(A, not self.phys_real,
+                                            format = self.ls_type, verbose=False)
                 if self.ls_type.startswith('coo'):
                     datatype = 'Z' if (AA.dtype == 'complex') else 'D'
                 else:
                     datatype = 'D'
                 self.linearsolver[idt]  = self.linearsolver_model.allocate_solver(datatype)
                 self.linearsolver[idt].SetOperator(AA, dist = engine.is_matrix_distributed)
-                print "AA.dtype", AA.dtype
-            else:
-                A, X, RHS, Ae, B, M = self.blocks1[idt]
-                RHS = self.compute_rhs(M, B, [sol])
-                RHS = engine.eliminateBC(Ae, X[1], RHS)
-                RHS = engine.apply_interp(RHS=RHS)
-                BB = engine.finalize_rhs([RHS], not self.phys_real,
-                                         format = self.ls_type, verbose=False)
+                
             return A, BB
             
         engine = self.engine
@@ -510,6 +345,7 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
 
         A, BB = get_A_BB(1, self.sol2)
         solall2 = self.linearsolver[self._time_step2].Mult(BB)
+
         sol2 = A.reformat_central_mat(solall2, 0)
         print "check sample2 (1)", [p.current_value(sol2) for p in self.probe]
         A, BB = get_A_BB(1, sol2)
@@ -539,6 +375,7 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
             self._time_step1 += 1
             self._time_step2 += 1
             dprint1("next try....", self.time_step1, self.time_step2)
+
         dprint1("delta good  ", delta, sample1, sample2)        
         if not self.phys_real and self.assemble_real:
             assert False, "this has to be debugged (convertion from real to complex)"
@@ -559,7 +396,7 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
             self.icheckpoint += 1
 
         dprint1("TimeStep ("+str(self.counter)+ "), t="+str(self.time)+"...done.")
-        #return True       
+        return True       
         return self.time >= self.et
                       
 

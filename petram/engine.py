@@ -460,7 +460,8 @@ class Engine(object):
     def run_apply_essential(self, phys_target):
         for phys in phys_target:
             self.gather_essential_tdof(phys)
-
+        self.collect_all_ess_tdof()
+        
         for j in range(self.n_matrix):
             self.access_idx = j
             for phys in phys_target:
@@ -515,6 +516,7 @@ class Engine(object):
 
         for phys in phys_target:
             self.gather_essential_tdof(phys)
+        self.collect_all_ess_tdof()            
 
         self.access_idx = 0
         for phys in phys_target:
@@ -529,15 +531,40 @@ class Engine(object):
            
         return
 
-    def run_assemble_blocks(self, compute_A, compute_rhs):
+    def run_assemble_blocks(self, compute_A, compute_rhs,
+                            inplace = True):
+        '''
+        assemble M, B, X blockmatrices.
+
+        in parallel, inplace = False makes sure that blocks in A and RHS  
+        are not shared by M, B, X
+        '''
         M, B, X = self.prepare_blocks()
 
         self.fill_M_B_X_blocks(M, B, X)
+        #B.save_to_file("B")
+        #M[0].save_to_file("M0")        
+        #M[1].save_to_file("M1")
+        #X[0].save_to_file("X0")
+        
         A = compute_A(M, B, X)          # solver determins A
         RHS = compute_rhs(M, B, X)      # solver determins RHS
-        A, Ae = self.fill_BCeliminate_matrix(A)     # generate Ae
+                      
+        #for m in M: 
+        #    A.check_shared_id(m)
+        #for x in X: 
+        #    B.check_shared_id(x)
+        
+        #RHS.save_to_file("RHSbefore")                
+        A, Ae = self.fill_BCeliminate_matrix(A, inplace=inplace)     # generate Ae
+        #M[0].save_to_file("M0there")                        
+        #Ae.save_to_file("Ae")
         RHS = self.eliminateBC(Ae, X[0], RHS)       # modify RHS and
         A, RHS = self.apply_interp(A, RHS)  # A and RHS is modifedy by global DoF coupling P
+        #M[0].save_to_file("M0there2")                        
+        #M[1].save_to_file("M1")
+        #X[0].save_to_file("X0")
+        #RHS.save_to_file("RHS")                
         return A, X, RHS, Ae,  B,  M
             
     #
@@ -973,16 +1000,18 @@ class Engine(object):
         '''
         return M, B, X
      
-    def fill_BCeliminate_matrix(self, A):
+    def fill_BCeliminate_matrix(self, A, inplace=True):
         nblock = A.shape[0]
         Ae = self.new_blockmatrix(A.shape)
-        
         for name in self.gl_ess_tdofs:
            gl_ess_tdof = self.gl_ess_tdofs[name]
            ess_tdof = self.ess_tdofs[name]
            idx = self.dep_var_offset(name)
            if A[idx, idx] is not None:
-              Ae[idx, idx] = A[idx, idx].eliminate_RowsCols(ess_tdof)
+              Ae[idx, idx], A[idx,idx] = A[idx, idx].eliminate_RowsCols(ess_tdof,
+                                                                        inplace=inplace)
+              
+              #print "index", idx, idx, name, len(ess_tdof)
 
            for j in range(nblock):
               if j == idx: continue
@@ -993,12 +1022,20 @@ class Engine(object):
               if j == idx: continue
               if A[j, idx] is None: continue
               SM = A.get_squaremat_from_right(j, idx)
+              SM.setDiag(gl_ess_tdof)              
               Ae[j, idx] = A[j, idx].dot(SM)
+              A[j, idx].resetCol(gl_ess_tdof)
         return A, Ae
 
     def eliminateBC(self, Ae, X, RHS):
         try:
-            RHS = RHS - Ae.dot(X)
+            AeX = Ae.dot(X)
+            for name in self.gl_ess_tdofs:
+               gl_ess_tdof = self.gl_ess_tdofs[name]
+               idx = self.dep_var_offset(name)
+               if AeX[idx, 0] is not None:
+                    AeX[idx, 0].resetRow(gl_ess_tdof)                  
+            RHS = RHS - AeX
         except:
             print "RHS", RHS
             print "Ae", Ae
@@ -1498,7 +1535,7 @@ class Engine(object):
     def gather_essential_tdof(self, phys):
         flags = self.get_essential_bdr_flag(phys)
         self.get_essential_bdr_tofs(phys, flags)
-        self.collect_all_ess_tdof(phys)
+
                  
     def get_essential_bdr_flag(self, phys):
         flag = []
@@ -1976,7 +2013,7 @@ class SerialEngine(Engine):
             M = scipy.sparse.bmat([[M.real, -M.imag], [-M.imag, -M.real]], format='coo')
         return M
     '''
-    def collect_all_ess_tdof(self, phys):
+    def collect_all_ess_tdof(self):
         self.gl_ess_tdofs = self.ess_tdofs
 
     def save_mesh(self):
@@ -2139,7 +2176,6 @@ class ParallelEngine(Engine):
         return gf
                
     def new_fespace(self,mesh, fec):
-        print "new_fespace", mesh
         if mesh.__class__.__name__ == 'ParMesh':
             return  mfem.ParFiniteElementSpace(mesh, fec)
         else:
@@ -2349,10 +2385,10 @@ class ParallelEngine(Engine):
            sol0 = (P.transpose()).dot(sol0)
         return sol0
 
-    def collect_all_ess_tdof(self, phys, M = None):
+    def collect_all_ess_tdof(self, M = None):
         from mpi4py import MPI
 
-        gl_ess_tdofs = []
+        #gl_ess_tdofs = []
         #for name in phys.dep_vars:
         #    fes = self.fespaces[name]
             
