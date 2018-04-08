@@ -42,7 +42,7 @@ class Probe(object):
             
         fid = open(filename, 'w')
         fid.write("format : 0\n")
-        print self.sig.shape, self.time.shape
+
         for x, t in zip(self.sig, self.time):
            txt = ', '.join([str(xx) for xx in x])
            fid.write(str(t) + ', '+ txt +"\n")

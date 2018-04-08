@@ -812,28 +812,6 @@ class Engine(object):
     def fill_coupling(self, coupling, phys_target):
         raise NotImplementedError("Coupling is not supported")
   
-
-    '''
-    def assemble_extra(self, phys):
-        names = phys.dep_vars      
-        extras = []
-        mm_list = []
-        
-        for kfes, gl_ess_tdof in enum_fes(phys, self.gl_ess_tdofs):
-            extra = []
-            for mm in phys.walk():
-                if not mm.enabled: continue           
-                if mm.has_extra_DoF(kfes):
-                    tmp  = mm.add_extra_contribution(self,
-                                                     ess_tdof=gl_ess_tdof, 
-                                                     kfes = kfes)
-                    if tmp is None: continue
-                    extra.append((tmp, mm,) )
-                    if not mm.fullname() in mm_list:
-                       mm_list.append(mm.fullname())
-            extras.append((names[kfes], (extra, mm_list)))
-        self.extras[phys] = extras
-    '''
     def assemble_extra(self, phys, phys_target):
         for mm in phys.walk():
             if not mm.enabled: continue
@@ -1647,7 +1625,7 @@ class Engine(object):
         else:
             i_b = [(name, None)  for name, fes in self.fespaces[phys]]
         self.i_b[phys] = i_b
-    '''
+
     def allocate_matvec(self, phys):
         #print("allocate_matvec")       
         is_complex = phys.is_complex()
@@ -1661,7 +1639,7 @@ class Engine(object):
         ret.append([mfem.Vector()  for name, fes in self.fespaces[phys]])
         ret.append([self.new_matrix()  for name, fes in self.fespaces[phys]])
         return ret # r_X, r_B, r_A, i_X, i_B, i_A
-
+    '''
     def build_ns(self):
         for node in self.model.walk():
            if node.has_ns():
@@ -1869,7 +1847,7 @@ class SerialEngine(Engine):
 
     def new_fespace(self, mesh, fec):
         return  mfem.FiniteElementSpace(mesh, fec)
-     
+    ''' 
     def fill_block_matrix_fespace(self, blocks, mv,
                                         gl_ess_tdof, interp,
                                         offset, convert_real = False):
@@ -1937,11 +1915,10 @@ class SerialEngine(Engine):
             if t2 is not None: M[kk+offsete,   offset] = t2.transpose()
             if t3 is not None: M[kk+offsete, kk+offsete] = t3                
 
-            '''
-            M[k+1+offset, offset] = t2
-            M[offset, k+1+offset] = t1
-            M[k+1+offset, k+1+offset] = t3
-            '''
+            #M[k+1+offset, offset] = t2
+            #M[offset, k+1+offset] = t1
+            #M[k+1+offset, k+1+offset] = t3
+
             #t4 = np.zeros(t2.shape[0])+t4 (t4 should be vector...)
             #t5 = [t5]*(t2.shape[0])
 
@@ -2000,7 +1977,7 @@ class SerialEngine(Engine):
         if P2 is not None:
            m = m.dot(P2.conj().transpose())
         return m
-
+    '''
     ''' 
     def finalize_coo_matrix(self, M_block, is_complex, convert_real = False):
         if not convert_real:

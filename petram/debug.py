@@ -118,8 +118,16 @@ import resource
 def format_memory_usage(point="memory usage"):
     usage=resource.getrusage(resource.RUSAGE_SELF)
     return '''%s: usertime=%s systime=%s mem=%s mb
-           '''%(point,usage[0],usage[1],
-                (usage[2]*resource.getpagesize())/1000000.0 )
+           '''%(point,usage[0],usage[1], memory_usage_resource())
+#                (usage[2]*resource.getpagesize())/1000000.0 )
+def memory_usage_resource():
+    import resource, sys
+    rusage_denom = 1024.
+    if sys.platform == 'darwin':
+        # ... it seems that in OSX the output is different units ...
+        rusage_denom = rusage_denom * rusage_denom
+    mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / rusage_denom
+    return mem
 
 try:
     import guppy
