@@ -8,8 +8,9 @@ class CommWorld(object):
     def bcast(self, *args, **kwargs):
         pass
     
-class MPI(object):
+class MPIclass(object):
     def __init__(self, *args, **kwargs):
         self.COMM_WORLD = CommWorld()
+MPI = MPIclass()        
 
         
