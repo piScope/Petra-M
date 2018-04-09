@@ -574,9 +574,13 @@ def find_corner(mesh):
     if myid == 0:
         vtx = vtx.reshape(-1, sdim)
         tmp = sorted([(k, tuple(x)) for k, x in enumerate(vtx)], key=lambda x:x[1])
-        vtx = np.vstack([x[1] for x in tmp])
-        u_own = np.hstack([[u_own[x[0]] for x in tmp]]).astype(int)
-        ivert=np.arange(len(vtx), dtype=int)+1
+        if len(tmp) > 0:
+            vtx = np.vstack([x[1] for x in tmp])
+            u_own = np.hstack([[u_own[x[0]] for x in tmp]]).astype(int)
+            ivert=np.arange(len(vtx), dtype=int)+1
+        else:
+            u_own = np.atleast_1d([])
+            ivert = np.atleast_1d([])                        
 
     if use_parallel:
         #if myid != 0:

@@ -102,14 +102,14 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
 
     if 'vertex' in cells:
         vert = np.atleast_2d(np.squeeze(X[cells['vertex']]))
-        print('vert here', vert)
-        obj= viewer.plot(vert[:,0],
-                    vert[:,1],
-                    vert[:,2], 'ok',
-                    array_idx = cell_data['vertex'][geo_phys],
-                    linewidth = 0)
-        obj.rename('point')
-        obj._artists[0].set_gl_hl_use_array_idx(True)
+        if len(vert) > 0:
+            obj= viewer.plot(vert[:,0],
+                             vert[:,1],
+                             vert[:,2], 'ok',
+                             array_idx = cell_data['vertex'][geo_phys],
+                             linewidth = 0)
+            obj.rename('point')
+            obj._artists[0].set_gl_hl_use_array_idx(True)
     viewer.set_sel_mode(viewer.get_sel_mode())
 
 def oplot_meshed(viewer,  ret):
