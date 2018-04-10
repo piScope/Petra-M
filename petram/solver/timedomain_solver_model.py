@@ -14,16 +14,25 @@ class TimeDomain(Solver):
 
     def attribute_set(self, v):
         v['st_et_nt'] = [0, 1, 0.1]
-        v['time_step'] = 0.01        
+        v['time_step'] = 0.01
+        v['ts_method'] = "Backward Eular"
+        v['abe_minstep']= 0.01
+        v['abe_maxstep']= 1.0
+        
         super(TimeDomain, self).attribute_set(v)
         return v
     
     def panel1_param(self):
+        elp_be =  [["dt", "", 0, {}],]
+        elp_abe =  [["min. dt", "", 0, {}],
+                    ["max. dt", "", 0, {}],]                
         return [["Initial value setting",   self.init_setting,  0, {},],
                 ["physics model",   self.phys_model,  0, {},],
                 ["start/end/delta time ",  "",  0, {},],
-                ["time step",   "",  0, {},],
-                ["probes",   self.probe,  0, {},],                
+                ["probes",   self.probe,  0, {},],                                
+                [None, None, 34, ({'text':'method','choices': ["Backward Eular", "Adaptive BE"], 'call_fit':False},
+                                  {'elp':elp_be},
+                                  {'elp':elp_abe},)],                                 
                 ["clear working directory",
                  self.clear_wdir,  3, {"text":""}],
                 ["initialize solution only",
@@ -35,18 +44,23 @@ class TimeDomain(Solver):
                 ["use cProfiler",
                  self.use_profiler,  3, {"text":""}],]
 
+
     def get_panel1_value(self):
         st_et_nt = ", ".join([str(x) for x in self.st_et_nt])
         return (self.init_setting,
                 self.phys_model,
                 st_et_nt,
-                str(self.time_step),
-                self.probe,                
+                self.probe,                                
+                [self.ts_method,
+                 [str(self.time_step),],
+                 [str(self.abe_minstep), str(self.abe_maxstep),],
+                ],
                 self.clear_wdir,
                 self.init_only,               
                 self.assemble_real,
                 self.save_parmesh,
-                self.use_profiler)        
+                self.use_profiler,)
+
     
     def import_panel1_value(self, v):
         self.init_setting = str(v[0])        
@@ -54,13 +68,17 @@ class TimeDomain(Solver):
         tmp = str(v[2]).split(',')
         st_et_nt = [tmp[0], tmp[1], ",".join(tmp[2:])]
         self.st_et_nt = [eval(x) for x in st_et_nt]
-        self.time_step= float(v[3])
-        self.probe = str(v[4])
+        self.probe = str(v[3])
         self.clear_wdir = v[5]
         self.init_only = v[7]        
         self.assemble_real = v[7]
         self.save_parmesh = v[8]
-        self.use_profiler = v[9]                
+        self.use_profiler = v[9]
+        
+        self.ts_method = str(v[4][0])
+        self.time_step= float(v[4][1][0])
+        self.abe_minstep= float(v[4][2][0])
+        self.abe_maxstep= float(v[4][2][1])                
 
     def get_possible_child(self):
         choice = []
@@ -88,13 +106,22 @@ class TimeDomain(Solver):
         if self.clear_wdir:
             engine.remove_solfiles()
 
-        instance = FirstOrderBackwardEuler(self, engine)
-        
         st, et, nt = self.st_et_nt
+        
+        if self.ts_method == 'Backward Eular':
+            instance = FirstOrderBackwardEuler(self, engine)
+            instance.set_timestep(self.time_step)
+        elif self.ts_method == "Adaptive BE":
+            instance = FirstOrderBackwardEulerAT(self, engine)
+            instance.set_timestep(self.abe_minstep)
+            instance.set_maxtimestep(self.abe_maxstep)
+        else:
+            assert False, "unknown stepping method: "+ self.ts_method
+            
         instance.set_start(st)
         instance.set_end(et)
         instance.set_checkpoint(np.linspace(st, et, nt))
-        instance.set_timestep(self.time_step)
+
 
         finished = instance.init(self.init_only)
         
@@ -123,7 +150,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.assembled = False
         self.counter = 0
         self.icheckpoint = 0
-
+        
     def init(self, init_only=False):
         self.time = self.st
         if self.time == self.et: return True
@@ -276,7 +303,10 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
         self.sol2 = None
         self._time_step1 = 0
         self._time_step2 = -1
+        self.maxstep = 0
 
+    def set_maxtimestep(self, dt):
+        self.max_timestep = dt
     @property
     def time_step1(self):
         return (self.time_step_base)* 2**self._time_step1
@@ -303,7 +333,7 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
             
     def step(self):
         dprint1("Entering step", self.time_step1)
-        def get_A_BB(mode, sol):
+        def get_A_BB(mode, sol, recompute_rhs=False):
             if sol is None: sol = self.sol
             idt = self._time_step1 if mode == 0 else self._time_step2
             dt  = self.time_step1 if mode == 0 else self.time_step2
@@ -315,7 +345,7 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
                                          format = self.ls_type, verbose=False)
             else:
                 A, X, RHS, Ae, B, M = self.blocks1[idt]
-                if self.counter != 0:
+                if self.counter != 0 or recompute_rhs:
                     # recompute RHS
                     RHS = self.compute_rhs(M, B, [sol])
                     RHS = engine.eliminateBC(Ae, X[1], RHS)
@@ -342,13 +372,14 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
         A, BB = get_A_BB(0, self.sol1)
         solall = self.linearsolver[self._time_step1].Mult(BB)
         sol1 = A.reformat_central_mat(solall, 0)
-
+        print "check sample1 (0)", [p.current_value(sol1) for p in self.probe]
+        
         A, BB = get_A_BB(1, self.sol2)
         solall2 = self.linearsolver[self._time_step2].Mult(BB)
-
         sol2 = A.reformat_central_mat(solall2, 0)
         print "check sample2 (1)", [p.current_value(sol2) for p in self.probe]
-        A, BB = get_A_BB(1, sol2)
+        
+        A, BB = get_A_BB(1, sol2, recompute_rhs=True)
         solall2 = self.linearsolver[self._time_step2].Mult(BB)
         sol2 = A.reformat_central_mat(solall2, 0)
         print "check sample2 (1)", [p.current_value(sol2) for p in self.probe]        
@@ -362,21 +393,21 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
              sample1 = allgather_vector(np.atleast_1d(sample1))
              sample2 = allgather_vector(np.atleast_1d(sample2))
              
-        delta=np.abs(sample1-sample2)/np.abs(sample1+sample2)*2
+        delta=np.mean(np.abs(sample1-sample2)/np.abs(sample1+sample2)*2)
     
         threshold = 0.01
         if delta > threshold:
-            dprint1("delta is too large ", delta, sample1, sample2)
-            self._time_step1 -= 1
-            self._time_step2 -= 1
-            dprint1("next try....", self.time_step1, self.time_step2)
-            return False
-        elif delta < threshold/8:        
-            self._time_step1 += 1
-            self._time_step2 += 1
-            dprint1("next try....", self.time_step1, self.time_step2)
-
-        dprint1("delta good  ", delta, sample1, sample2)        
+            dprint1("delta is large ", delta, sample1, sample2)
+            if self._time_step1 > 0:
+                self._time_step1 -= 1
+                self._time_step2 -= 1
+                dprint1("next try....", self.time_step1, self.time_step2)
+                return False                
+            else:
+                dprint1("delta may be too large, but restricted by min time step")                
+        else:
+            dprint1("delta good  ", delta, sample1, sample2)
+        
         if not self.phys_real and self.assemble_real:
             assert False, "this has to be debugged (convertion from real to complex)"
             solall = self.linearsolver_model.real_to_complex(solell, A)
@@ -396,7 +427,14 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
             self.icheckpoint += 1
 
         dprint1("TimeStep ("+str(self.counter)+ "), t="+str(self.time)+"...done.")
-        return True       
+        if delta < threshold/4:
+            dt_test = (self.time_step_base)* 2**(self._time_step1 + 1)
+            if self.max_timestep >  dt_test:
+                 self._time_step1 += 1
+                 self._time_step2 += 1
+                 dprint1("next try....", self.time_step1, self.time_step2)
+            else:
+                 dprint1("delta is small, but restricted by max time step")
         return self.time >= self.et
                       
 

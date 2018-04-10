@@ -120,13 +120,13 @@ class GMRESSolver(LinearSolver):
     def SetOperator(self, opr, dist=False):
         self.A = opr                     
                              
-    def Mult(self, b, case_base=0):
+    def Mult(self, b, x=None, case_base=0):
         if use_parallel:
-            return self.solve_parallel(self.A, b)
+            return self.solve_parallel(self.A, b, x)
         else:
-            return self.solve_serial(self.A, b)
+            return self.solve_serial(self.A, b, x)
                              
-    def solve_parallel(self, A, b):
+    def solve_parallel(self, A, b, x):
         from mpi4py import MPI
         myid     = MPI.COMM_WORLD.rank
         nproc    = MPI.COMM_WORLD.size
@@ -212,9 +212,12 @@ class GMRESSolver(LinearSolver):
            rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
            rowstarts = np.hstack((0, np.cumsum(rows)))
            dprint1(rowstarts)
-           x = mfem.BlockVector(offset)
-           x.Assign(0.0)
-           solver.Mult(bb, x)
+           xx = mfem.BlockVector(offset)
+           if x is None:
+              xx.Assign(0.0)
+           else:
+              assert False, "must implement this"
+           solver.Mult(bb, xx)
            s = []
            for i in range(offset.Size()-1):
                v = x.GetBlock(i).GetDataArray()
@@ -305,9 +308,12 @@ class GMRESSolver(LinearSolver):
         solver.SetPrintLevel(1)
 
         for bb in b:
-           x = mfem.Vector(bb.Size())
-           x.Assign(0.0)
-           solver.Mult(bb, x)
+           xx = mfem.Vector(bb.Size())
+           if x is None:
+              xx.Assign(0.0)
+           else:
+              assert False, "must implement this"
+           solver.Mult(bb, xx)
            sol.append(x.GetDataArray().copy())
         sol = np.transpose(np.vstack(sol))
         return sol

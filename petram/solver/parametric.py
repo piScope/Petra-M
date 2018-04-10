@@ -3,6 +3,7 @@ import traceback
 import gc
 
 from petram.model import Model
+from petram.solver.solver_model import Solver
 from petram.namespace_mixin import NS_mixin
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Parametric')
@@ -11,7 +12,7 @@ format_memory_usage = debug.format_memory_usage
 assembly_methods = {'Full assemble': 0,
                     'Reuse matrix' : 1}
 
-class Parametric(Model, NS_mixin):
+class Parametric(Solver, NS_mixin):
     '''
     parametric sweep of some model paramter
     and run solver
@@ -20,9 +21,9 @@ class Parametric(Model, NS_mixin):
     has_2nd_panel = False
     
     def __init__(self, *args, **kwargs):
-        super(Parametric, self).__init__(*args, **kwargs)
+        Solver.__init__(self, *args, **kwargs)
         NS_mixin.__init__(self, *args, **kwargs)
-    
+        
     def init_solver(self):
         pass
 
@@ -83,8 +84,108 @@ class Parametric(Model, NS_mixin):
 
     def get_default_ns(self):
         from petram.solver.parametric_scanner import Scan
-        return {'Scan': Scan} 
-    
+        return {'Scan': Scan}
+
+
+    @debug.use_profiler
+    def run(self, engine):
+        if self.clear_wdir:
+            engine.remove_solfiles()
+
+        scanner = self.get_scanner()
+        if scanner is None: return
+        
+        solvers = self.get_inner_solvers()
+        phys_models = []
+        for s in solvers:
+            for p in s.get_phys():
+                if not p in phys_models: phys_models.append(p)
+        scanner.set_phys_models(phys_models)
+
+        instances = []
+        od = os.getcwd()
+        
+        for ksolver, s in enumerate(solvers):
+            instance = s.allocate_solver_instance(engine)
+            finished = instance.init(s.init_only)
+            if finished: return
+
+            linearsolver = instance.allocate_linearsolver(s.is_complex)
+            A, X, RHS, Ae, B, M = instance.blocks        
+            AA = engine.finalize_matrix(A, not instance.phys_real,
+                                        format = instance.ls_type)
+            linearsolver.SetOperator(AA,
+                                     dist = engine.is_matrix_distributed)
+            instances.append((instance, linearsolver))            
+
+        for kcase, case in enumerate(scanner):
+            for ksolver, s in enumerate(solvers):
+                instance, linearsolver = instances[ksolver]
+                ls_type = instance.ls_type
+                phys_real = not s.is_complex()
+                A, X, RHS, Ae, B, M = instance.blocks
+                
+                if self.assembly_method == 0:
+                    # DO FULL ASSEMBLE:
+                    if kcase != 0:
+                        phys_target = instance.get_phys()                        
+                        engine.set_formblocks(phys_target, engine.n_matrix)
+                        engine.run_alloc_sol(phys_target)
+                        inits = s.get_init_setting()
+                        if len(inits) == 0:
+                             # in this case alloate all fespace and initialize all
+                             # to zero
+                             engine.run_apply_init(phys_target, 0)
+                        else:
+                            for init in inits:
+                                init.run(engine)
+                        engine.run_apply_essential(phys_target)
+                        instance.assemble()
+                        AA = engine.finalize_matrix(A, not phys_real,
+                                           format = ls_type)
+                        linearsolver.SetOperator(AA,
+                                                  dist = engine.is_matrix_distributed)
+                
+                    RHS = instance.blocks[2]        
+                elif self.assembly_method == 1:
+                    # ASSEMBLE RHS only
+                    if kcase != 0:
+                        instance.assemble_rhs()
+                        A, X, RHS, Ae, B, M = instance.blocks                        
+                        RHS = instance.compute_rhs(M, B, X)
+                        RHS = engine.eliminateBC(Ae, X[-1], RHS)
+                        RHS = engine.apply_interp(RHS=RHS)
+                else:
+                    assert False, "Unknown assembly mode..."
+                    
+                BB = engine.finalize_rhs([RHS], not phys_real,
+                                             format = ls_type)
+                solall = linearsolver.Mult(BB, case_base=kcase)
+                
+                if not phys_real and self.assemble_real:
+                    oprt = linearsolver.oprt
+                    solall = instance.linearsolver_model.real_to_complex(solall,
+                                                                         oprt)
+        
+                instance.sol = A.reformat_central_mat(solall, 0)
+
+                path = os.path.join(od, 'case' + str(kcase))
+                if ksolver == 0:
+                    engine.mkdir(path) 
+                    os.chdir(path)
+                    engine.cleancwd() 
+                else:
+                    os.chdir(path)
+        
+                instance.save_solution(ksol = 0,
+                               skip_mesh = False, 
+                               mesh_only = False,
+                               save_parmesh=self.save_parmesh)
+
+        print(debug.format_memory_usage())
+
+        
+'''    
     def run_method_0(self, solver, engine, kcase, ksolver,
                      isFirst):
         
@@ -188,4 +289,4 @@ class Parametric(Model, NS_mixin):
                 #dprint1(gc.garbage)
 
         os.chdir(od)
-
+'''

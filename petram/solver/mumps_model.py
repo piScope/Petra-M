@@ -206,7 +206,6 @@ class MUMPSSolver(LinearSolver):
     def SetOperator(self, A, dist):
         from petram.ext.mumps.mumps_solve import i_array, JOB_1_2_3
         gui = self.gui
-        
         s = self.s
         if dist:
             dprint1("SetOperator distributed matrix")
@@ -243,6 +242,8 @@ class MUMPSSolver(LinearSolver):
 
             s.set_icntl(14,  200)
             s.set_icntl(2, 1)
+
+            self.dataset = (A.data, row, col)
         else:
             A = A.tocoo(False)#.astype('complex')
             import petram.ext.mumps.mumps_solve as mumps_solve
@@ -269,6 +270,7 @@ class MUMPSSolver(LinearSolver):
                 s.set_irn(i_array(row))
                 s.set_jcn(i_array(col))            
                 s.set_a(self.data_array(A.data))
+                self.dataset = (A.data, row, col)                
             s.set_icntl(14,  50)
             s.set_icntl(6,  5)    # column permutation
 
@@ -294,7 +296,7 @@ class MUMPSSolver(LinearSolver):
         s.run()
     
 
-    def Mult(self, b, case_base=0):
+    def Mult(self, b, x=None, case_base=0):
         #self.SetOperator(A, b, True, engine)
         gui = self.gui
         s = self.s

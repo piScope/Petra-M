@@ -566,7 +566,18 @@ class Engine(object):
         #X[0].save_to_file("X0")
         #RHS.save_to_file("RHS")                
         return A, X, RHS, Ae,  B,  M
-            
+     
+    def run_update_B_blocks(self):
+        '''
+        assemble M, B, X blockmatrices.
+
+        in parallel, inplace = False makes sure that blocks in A and RHS  
+        are not shared by M, B, X
+        '''
+        B = self.prepare_B_blocks()
+        self.fill_B_blocks(B)
+
+        return B
     #
     #  step 0: update mode param
     #
@@ -808,7 +819,23 @@ class Engine(object):
                 if is_complex:
                     bf =  self.i_a[idx1, idx2]
                     mm.add_mix_contribution2(self, bf, r, c, is_trans, is_conj, real=False)
-                  
+                    
+    def update_bf(self):
+        fes_vars = self.fes_vars       
+        for j in range(self.n_matrix):
+            self.access_idx = j
+            for name in self.fes_vars:
+                ifes = self.ifes(name)
+                projs = self.r_a.get_projections(ifes, ifes)
+                fes = self.fespaces[name]
+                for p in projs:
+                    ra = self.r_a[ifes, ifes, p]
+                    ra.Update(fes)
+                projs = self.i_a.get_projections(ifes, ifes)
+                for p in projs:
+                    ia = self.i_a[ifes, ifes, p]
+                    ia.Update(fes)
+       
     def fill_coupling(self, coupling, phys_target):
         raise NotImplementedError("Coupling is not supported")
   
@@ -893,13 +920,17 @@ class Engine(object):
         B_block = self.new_blockmatrix((size, 1))
         X_block = [self.new_blockmatrix((size, 1))  for i in range(self.n_matrix)]
         return (M_block, B_block, X_block)
+
+    def prepare_B_blocks(self):
+        size = len(self.dep_vars)                         
+        B_block = self.new_blockmatrix((size, 1))
+        return B_block
     
     def fill_M_B_X_blocks(self, M, B, X):
         from petram.helper.formholder import convertElement
         from mfem.common.chypre import BF2PyMat, LF2PyVec
         from mfem.common.chypre import MfemVec2PyVec, MfemMat2PyMat    
         from itertools import product
-
 
         nfes = len(self.fes_vars)
         for k in range(self.n_matrix):
@@ -950,8 +981,6 @@ class Engine(object):
             t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]            
             B[r] = t4
 
-        nfes = len(self.fes_vars)
-
         for k in range(self.n_matrix):
             self.access_idx = k
             self.r_x.generateMatVec(self.x2X)
@@ -967,17 +996,29 @@ class Engine(object):
                     pass 
                     # For now, it leaves as None for Lagrange Multipler?
                     # May need to allocate zeros...
-        '''
-        for k in range(self.n_matrix):
-           dprint1("M["+str(k)+"]")           
-           dprint1(M[k])
-        for k in range(self.n_matrix):
-           dprint1("X["+str(k)+"]")                      
-           dprint1(X[k])           
-        dprint1( "B", B)        
-        '''
         return M, B, X
      
+    def fill_B_blocks(self, B):
+        from petram.helper.formholder import convertElement
+        from mfem.common.chypre import MfemVec2PyVec
+       
+        nfes = len(self.fes_vars)
+        
+        self.access_idx = 0
+        self.r_b.generateMatVec(self.b2B)
+        self.i_b.generateMatVec(self.b2B)            
+        for i in range(nfes):
+            v = convertElement(self.r_b, self.i_b,
+                                      i, 0, MfemVec2PyVec)
+            r = self.dep_var_offset(self.fes_vars[i])
+            B[r] = v
+            
+        self.access_idx = 0            
+        for extra_name, dep_name in self.extras.keys():
+            r = self.dep_var_offset(extra_name)
+            t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]            
+            B[r] = t4
+       
     def fill_BCeliminate_matrix(self, A, inplace=True):
         nblock = A.shape[0]
         Ae = self.new_blockmatrix(A.shape)

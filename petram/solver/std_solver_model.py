@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 from petram.model import Model
-from .solver_model import Solver
+from petram.solver.solver_model import Solver
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('StdSolver')
 rprint = debug.regular_print('StdSolver')
@@ -70,6 +70,13 @@ class StdSolver(Solver):
         except ImportError:
             pass
         return choice
+
+    def allocate_solver_instance(self, engine):
+        if self.clear_wdir:
+            engine.remove_solfiles()
+
+        instance = StandardSolver(self, engine)
+        return instance
     
     @debug.use_profiler
     def run(self, engine):
@@ -135,13 +142,13 @@ class StandardSolver(SolverInstance):
             return True
         else:
             return False
-          
 
     def compute_A(self, M, B, X):
         '''
         M[0] x = B
         '''
         return M[0]
+    
     def compute_rhs(self, M, B, X):
         '''
         M[0] x = B
@@ -157,6 +164,16 @@ class StandardSolver(SolverInstance):
         self.blocks = self.engine.run_assemble_blocks(self.compute_A, self.compute_rhs)
         #A, X, RHS, Ae, B, M = blocks
         self.assembled = True
+        
+    def assemble_rhs(self):
+        engine = self.engine
+        phys_target = self.get_phys()
+        engine.run_assemble_rhs(phys_target)
+        B = self.engine.run_update_B_blocks()
+        blocks = list(self.blocks)
+        blocks[4] = B
+        self.blocks = tuple(blocks)
+        self.assembled = True
 
     def solve(self):
         engine = self.engine
@@ -168,13 +185,8 @@ class StandardSolver(SolverInstance):
         AA = engine.finalize_matrix(A, not self.phys_real, format = self.ls_type)
         BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type)
 
-        if self.ls_type.startswith('coo'):
-            datatype = 'Z' if (AA.dtype == 'complex') else 'D'
-        else:
-            datatype = 'D'
-            
-        linearsolver  = self.linearsolver_model.allocate_solver(datatype)
-        
+        linearsolver = self.allocate_linearsolver(AA.dtype == 'complex')
+
         linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)        
         solall = linearsolver.Mult(BB, case_base=0)
         

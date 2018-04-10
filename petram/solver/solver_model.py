@@ -29,6 +29,14 @@ class Solver(Model):
         names = self.phys_model.split(',')
         names = [n.strip() for n in names if n.strip() != '']        
         return [self.root()['Phys'][n] for n in names]
+
+    def is_complex(self):
+        phys = self.get_phys()
+        is_real = all([p.is_complex() for p in phys])
+        if is_real: return False
+        if self.assemble_real: return False
+        return  True
+        
     def get_init_setting(self):
         names = self.init_setting.split(',')
         names = [n.strip() for n in names if n.strip() != '']        
@@ -126,6 +134,15 @@ class SolverInstance(object):
             probe_idx =  [self.engine.dep_var_offset(n) for n in probe_names]
             for n, i in zip(probe_names, probe_idx):
                 self.probe.append(Probe(n, i))
+
+    def allocate_linearsolver(self, is_complex):
+        if self.ls_type.startswith('coo'):
+            datatype = 'Z' if (is_complex) else 'D'
+        else:
+            datatype = 'D'
+            
+        linearsolver  = self.linearsolver_model.allocate_solver(datatype)
+        return linearsolver
         
     def solve(self):
         raise NotImplementedError(
