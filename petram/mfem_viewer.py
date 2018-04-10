@@ -76,7 +76,6 @@ class MFEMViewer(BookViewer):
                  ("!", None, None),                 
                  ("!", None, None),
                  ("+Plot", None, None),
-                 ("GLVIS",    self.onCallGlvis, None),
                  ("Function...",    self.onPlotExpr, None),
                  ("Solution ...",    self.onDlgPlotSol, None),
                  ("Probe ...",    self.onDlgPlotProbe, None),                      
@@ -972,9 +971,6 @@ class MFEMViewer(BookViewer):
                 obj.set_suppress(False)
         self.draw()
         
-    def onCallGlvis(self, evt):
-        self.model.scripts.helpers.call_glvis.RunT()
-
     def _onDlgPlotExprClose(self, evt):
         wx.GetApp().rm_palette(self.plotexprdlg)        
         self.plotexprdlg.Destroy()                        
