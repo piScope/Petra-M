@@ -579,7 +579,7 @@ class PhysModule(Phys):
     def get_info_str(self):
         txt = self.dep_vars
         if NS_mixin.get_info_str(self) != "":
-            txt.append = NS_mixin.get_info_str(self)
+            txt.append(NS_mixin.get_info_str(self))
         return ",".join(txt)
         
     @property
