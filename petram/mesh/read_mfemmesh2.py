@@ -26,7 +26,7 @@ def extract_refined_mesh_data2(mesh, refine = None):
 
     from refined_mfem_geom import get_geom
 
-    ptx = []; ivx3 = None; 
+    ptx = []; ivx3 = None; ptx3 = []
     if len(idx3) != 0:
         base = mesh.GetElementBaseGeometry(idx3[0])
         gt = mesh.GetElementTransformation        
@@ -113,7 +113,7 @@ def extract_refined_mesh_data2(mesh, refine = None):
     idx2 = range(mesh.GetNBE())
     attr2, ptx2, ivx2, ivxe2, attrx2 = get_geom(idx2, 2, base, gt, battrs,
                                                 sdim, refine)
-    cells['line_x'] = ivx
+    cells['line_x'] = ivx2
     cell_data['line_x'] = {}                        
     cell_data['line_x']['physical'] = attrx2
     cell_data['X_refined_edge']=ptx2

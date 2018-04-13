@@ -264,12 +264,23 @@ class Phys(Model, Vtable_mixin, NS_mixin):
            return coeff
         arr = self.get_restriction_array(engine, idx)
 #        arr.Print()
-        if vec:
-            return mfem.VectorRestrictedCoefficient(coeff, arr)
-        elif matrix:
-            return mfem.MatrixRestrictedCoefficient(coeff, arr)           
+        ret = []; flag = False
+        
+        if not isinstance(coeff, tuple):
+           flag = True
+           coeff = [coeff]
+        for c in coeff:
+            if vec:
+                ret.append(mfem.VectorRestrictedCoefficient(c, arr))
+            elif matrix:
+                ret.append(mfem.MatrixRestrictedCoefficient(c, arr))
+            else:
+                ret.append(mfem.RestrictedCoefficient(c, arr))
+                
+        if not flag:
+            return tuple(ret)
         else:
-            return mfem.RestrictedCoefficient(coeff, arr)
+            return ret[0]
 
     def get_essential_idx(self, idx):
         '''
@@ -541,16 +552,18 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if coeff is None: return
         if vt is None: vt = self.vt
         #if vt[name].ndim == 0:
-        if isinstance(coeff, mfem.Coefficient):
+        if not isinstance(coeff, tuple): coeff = (coeff, )
+        
+        if isinstance(coeff[0], mfem.Coefficient):
             coeff = self.restrict_coeff(coeff, engine, idx=idx)
-        elif isinstance(coeff, mfem.VectorCoefficient):          
+        elif isinstance(coeff[0], mfem.VectorCoefficient):          
             coeff = self.restrict_coeff(coeff, engine, vec = True, idx=idx)
-        elif isinstance(coeff, mfem.MatrixCoefficient):                     
+        elif isinstance(coeff[0], mfem.MatrixCoefficient):                     
             coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)
         else:
             assert  False, "Unknown coefficient type: " + str(type(coeff))
 
-        itg = integrator(coeff)
+        itg = integrator(*coeff)
         itg._linked_coeff = coeff #make sure that coeff is not GCed.
         
         if transpose:
@@ -602,7 +615,20 @@ class PhysModule(Phys):
         
     def goem_signature(self):
         pass
-       
+     
+    @property
+    def fes_type(self):
+        '''
+        H1 
+        H1v2 (vector dim)
+        ND
+        RT
+        '''
+        ret = self.element[:2]
+        if self.vdim > 1:
+           ret = ret + 'v'+str(self.vdim)
+        return ret
+           
     def attribute_set(self, v):
         v = super(PhysModule, self).attribute_set(v)
         v["order"] = 1
@@ -627,9 +653,9 @@ class PhysModule(Phys):
         return a, b        
      
     def panel1_param(self):
-        return [["mesh num.",   self.mesh_idx, 400, {}],
-                ["element",self.element,  2,   {}],
-                ["order",  self.order,    400, {}],]
+        return [["mesh num.", self.mesh_idx,  400,  {}],
+                ["element",   self.element,   2,    {}],
+                ["order",     self.order,     400,  {}],]
      
     def panel1_tip(self):
         return ["index of mesh", "element type", "element order"]

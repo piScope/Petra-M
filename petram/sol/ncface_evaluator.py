@@ -158,17 +158,17 @@ class NCFaceEvaluator(EvaluatorAgent):
         self.ptx = np.vstack(ptx)
         self.ridx = np.vstack(ridx)
         self.ifaces = np.hstack(ifaces)
-        print  emesh_idx
+
         self.emesh_idx = emesh_idx
         
     def eval(self, expr, solvars, phys, **kwargs):
         refine = kwargs.pop("refine", 1)        
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
-        print("emesh_idx", emesh_idx)        
+
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
         if len(emesh_idx) < 1:
-            assert False, "expression is defined on any mesh"
+            assert False, "expression is not defined on any mesh"
 
         if (refine != self.refine or self.emesh_idx != emesh_idx[0]):
              self.refine = refine

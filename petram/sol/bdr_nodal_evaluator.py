@@ -70,7 +70,7 @@ def process_iverts2nodals(mesh, iverts):
             'wverts' : wverts}
 
 def edge_detect(index):
-    print("edge_detect", index.shape)
+    #print("edge_detect", index.shape)
     store = []
     def check_pair(store, a, b):
         a1 = min(a,b)
@@ -208,13 +208,13 @@ class BdrNodalEvaluator(EvaluatorAgent):
     def eval(self, expr, solvars, phys, **kwargs):
         
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
-        print("emesh_idx", emesh_idx)
+        #print("emesh_idx", emesh_idx)
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
         if len(emesh_idx) < 1:
-            assert False, "expression is defined on any mesh"
+            assert False, "expression is not defined on any mesh"
         if self.emesh_idx != emesh_idx[0]:
-             print("process geom", emesh_idx[0])                         
+             #print("process geom", emesh_idx[0])                         
              self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
 
              

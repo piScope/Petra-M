@@ -27,7 +27,7 @@ def extract_refined_mesh_data3(mesh, refine = None):
     
     from refined_mfem_geom import get_geom
 
-    ptx = []; ivx3 = None
+    ptx = []; ivx3 = None; ptx3 = []
     if len(idx3) != 0:
         base = mesh.GetBdrElementBaseGeometry(idx3[0])
         gt = mesh.GetBdrElementTransformation        
@@ -114,19 +114,20 @@ def extract_refined_mesh_data3(mesh, refine = None):
     
     ### process refined edges
     # all mfem edge index
-    idx2 = np.hstack([l2e[key] for key in l2e])
-    attr22 = cell_data['line']['physical']
-    attr2 = {i:attr22[k]  for k, i in enumerate(idx2)}    
+    if len(l2e.keys()) > 0:
+        idx2 = np.hstack([l2e[key] for key in l2e])
+        attr22 = cell_data['line']['physical']
+        attr2 = {i:attr22[k]  for k, i in enumerate(idx2)}    
 
-    base = 1
-    gt = mesh.GetEdgeTransformation
-    attr2, ptx2, ivx2, ivxe2, attrx2 = get_geom(idx2, 2, base, gt, attr2,
+        base = 1
+        gt = mesh.GetEdgeTransformation
+        attr2, ptx2, ivx2, ivxe2, attrx2 = get_geom(idx2, 2, base, gt, attr2,
                                                 sdim, refine)
 
-    cells['line_x'] = ivx2
-    cell_data['line_x'] = {}                        
-    cell_data['line_x']['physical'] = attrx2
-    cell_data['X_refined_edge']=ptx2
+        cells['line_x'] = ivx2
+        cell_data['line_x'] = {}                        
+        cell_data['line_x']['physical'] = attrx2
+        cell_data['X_refined_edge']=ptx2
 
     iedge2bb = None # is it used?        
     #print "X", X.shape

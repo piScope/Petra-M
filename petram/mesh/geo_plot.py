@@ -95,9 +95,9 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
         array_idx = cell_data['line_x'][geo_phys]
         call_solid2(viewer, 'edge', verts, elem_idx, array_idx)        
 
-    elif 'line' in cells:
+    elif 'line' in cells and len(cells['line']) > 0:
         verts, elem_idx, array_idx = expand_vertex_data(X, cells['line'],
-                                       cell_data['line'][geo_phys])
+                                                           cell_data['line'][geo_phys])
         call_solid2(viewer, 'edge', verts, elem_idx, array_idx)                
 
     if 'vertex' in cells:

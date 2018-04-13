@@ -1585,6 +1585,8 @@ class Engine(object):
     def allocate_fespace(self, phys):
         #
         for name, elem in phys.get_fec():
+            vdim = phys.vdim
+            
             dprint1("allocate_fespace: " + name)
             mesh = self.emeshes[phys.emesh_idx]
             fec = getattr(mfem, elem)
@@ -1597,7 +1599,10 @@ class Engine(object):
             f = fec(phys.order, sdim)
             self.fec[name] = f
 
-            fes = self.new_fespace(mesh, f)
+            if name.startswith('RT'): vdim = 1
+            if name.startswith('ND'): vdim = 1
+            
+            fes = self.new_fespace(mesh, f, vdim)
             mesh.GetEdgeVertexTable()
             self.fespaces[name] = fes
 
@@ -1886,8 +1891,8 @@ class SerialEngine(Engine):
         from petram.helper.block_matrix import BlockMatrix
         return BlockMatrix(shape, kind = 'scipy')
 
-    def new_fespace(self, mesh, fec):
-        return  mfem.FiniteElementSpace(mesh, fec)
+    def new_fespace(self, mesh, fec, vdim):
+        return  mfem.FiniteElementSpace(mesh, fec, vdim)
     ''' 
     def fill_block_matrix_fespace(self, blocks, mv,
                                         gl_ess_tdof, interp,
@@ -2193,11 +2198,12 @@ class ParallelEngine(Engine):
         if init: gf.Assign(0.0)
         return gf
                
-    def new_fespace(self,mesh, fec):
+    def new_fespace(self,mesh, fec, vdim):
         if mesh.__class__.__name__ == 'ParMesh':
-            return  mfem.ParFiniteElementSpace(mesh, fec)
+            return  mfem.ParFiniteElementSpace(mesh, fec, vdim)
         else:
-            return  mfem.FiniteElementSpace(mesh, fec)
+            return  mfem.FiniteElementSpace(mesh, fec, vdim)
+         
     def new_matrix(self, init = True):
         return  mfem.HypreParMatrix()
 
