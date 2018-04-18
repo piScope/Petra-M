@@ -36,7 +36,9 @@ def get_integrators(filename):
     domains = [[x.strip() for x in l[1].split(',')] for l in lines]
     ranges  = [[x.strip() for x in l[2].split(',')] for l in lines]
     def x(txt):
-        return [x for x in txt if x=="M" or x=="D" or x=="V" or x=="S"]    
+        xx = [x.strip() for x in txt.split(",")]
+        return xx
+     
     coeffs  = [x(l[3])  for l in lines]
     dims    = [[int(x.strip()[0]) for x in l[6].split(',')]  for l in lines]
 
@@ -76,12 +78,20 @@ class VCoeff(VectorPhysCoefficient):
 
 class SCoeff(PhysCoefficient):
     def __init__(self, *args, **kwargs):
+        self.component = kwargs.pop('component', None)
         self.conj = kwargs.pop('conj', False)       
         super(SCoeff, self).__init__(*args, **kwargs)
     def EvalValue(self, x):
         val = super(SCoeff, self).EvalValue(x)
-        if self.conj: val=np.conj(val)
-        return val
+        if self.component is None:
+            if self.conj: val=np.conj(val)
+            return val
+        else:
+            if len(val.shape) == 0: val = [val]
+            if self.conj: val=np.conj(val)[self.component]
+            return val[self.component]
+           
+               
      
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
          guilabel = "lambda", default = 0.0, tip = "coefficient",))]
@@ -152,12 +162,33 @@ class WeakIntegration(Phys):
         else:
             dprint1("Add "+self.integrator+ " contribution(imag)" + str(self._sel_index))
 
-        dim = self.get_root_phys().geom_dim
         cotype = self.coeff_type[0]
+
+        if self.get_root_phys().vdim > 1:
+            dim = self.get_root_phys().vdim
+        else:
+            el_name = self.get_root_phys().element
+            if el_name.startswith("ND"):
+                dim = self.get_root_phys().geom_dim
+            elif el_name.startswith("RT"):
+                dim = self.get_root_phys().geom_dim
+            else:
+                dim = 1  #H1 scalar (this case does not exist..)
+                
         if cotype == 'S':
-             c_coeff = SCoeff(c[0],  self.get_root_phys().ind_vars,
+             for b in self.itg_choice():
+                if b[0] == self.integrator: break
+             if not "S*2" in b[3]: 
+                 c_coeff = SCoeff(c[0],  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
+             else: # so far this is only for an elastic integrator 
+                 c_coeff = (SCoeff(c[0],  self.get_root_phys().ind_vars,
+                                   self._local_ns, self._global_ns,
+                                   real = real, conj=is_conj, component=0),
+                            SCoeff(c[0],  self.get_root_phys().ind_vars,
+                                   self._local_ns, self._global_ns,
+                                   real = real, conj=is_conj, component=1))
         elif cotype == 'V':
              c_coeff = VCoeff(dim, c[0],  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
@@ -172,7 +203,7 @@ class WeakIntegration(Phys):
                               real = real, conj=is_conj)
         integrator = getattr(mfem, self.integrator)
         if isinstance(self, Bdry):
-            adder = a.AddBdrIntegrator
+            adder = a.AddBoundaryIntegrator
         elif isinstance(self, Domain):
             adder = a.AddDomainIntegrator
         else:
@@ -195,12 +226,19 @@ class WeakIntegration(Phys):
 class WeakLinIntegration(WeakIntegration):
     def has_lf_contribution(self, kfes):
         return True
+     
     def itg_choice(self):
-        return linintegs
+        t = self.get_root_phys().fes_type
+        if len(t)>2 and t[2] == "v":
+           t = t[:3]
+        return [b for b in linintegs if t in b[1]]
      
 class WeakBilinIntegration(WeakIntegration):
     def itg_choice(self):
-        return bilinintegs
+        t = self.get_root_phys().fes_type
+        if len(t)>2 and t[2] == "v":
+           t = t[:3]
+        return [b for b in bilinintegs if t in b[1]]
    
     def attribute_set(self, v):
         v = super(WeakBilinIntegration, self).attribute_set(v)
@@ -208,6 +246,7 @@ class WeakBilinIntegration(WeakIntegration):
         v['use_symmetric'] = False
         v['use_conj'] = False                        
         return v
+     
     def get_panel1_value(self):
         if self.paired_var is None:
             n = self.get_root_phys().dep_vars[0]

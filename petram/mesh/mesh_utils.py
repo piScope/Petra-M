@@ -314,7 +314,10 @@ def find_edge_corner(mesh):
             seen[iiv] += 1
         corners[key] = [kk for kk in seen if seen[kk]==1]
 
-    u = np.unique(np.hstack([corners[key]
+    if len(corners.keys()) == 0:
+       u = np.atleast_1d([]).astype(int)
+    else:
+       u = np.unique(np.hstack([corners[key]
                   for key in corners])).astype(int, copy=False)
 
     # collect vertex on each node and gather to node 0
@@ -346,10 +349,14 @@ def find_edge_corner(mesh):
         vtx = vtx.reshape(-1, sdim)
         #print('vtx shape', vtx.shape)
         tmp = sorted([(k, tuple(x)) for k, x in enumerate(vtx)], key=lambda x:x[1])
-        vtx = np.vstack([x[1] for x in tmp])
-        u_own = np.hstack([[u_own[x[0]] for x in tmp]]).astype(int)
-        ivert=np.arange(len(vtx), dtype=int)+1
-
+        if len(tmp) > 0:
+            vtx = np.vstack([x[1] for x in tmp])
+            u_own = np.hstack([[u_own[x[0]] for x in tmp]]).astype(int)
+            ivert=np.arange(len(vtx), dtype=int)+1
+        else:
+            vtx = np.atleast_1d([]).astype(float)
+            u_own = np.atleast_1d([]).astype(int)
+            u_own = np.atleast_1d([]).astype(int)
     if use_parallel:
         #if myid != 0:
         #    u_own = None; vtx = None
@@ -579,8 +586,8 @@ def find_corner(mesh):
             u_own = np.hstack([[u_own[x[0]] for x in tmp]]).astype(int)
             ivert=np.arange(len(vtx), dtype=int)+1
         else:
-            u_own = np.atleast_1d([])
-            ivert = np.atleast_1d([])                        
+            u_own = np.atleast_1d([]).astype(int)
+            ivert = np.atleast_1d([]).astype(int)
 
     if use_parallel:
         #if myid != 0:
@@ -675,9 +682,12 @@ def populate_plotdata(mesh, table, cells, cell_data):
 
     kedge = []
 
-    kedge = np.array(sum([[key]*len(l2e[key]) for key in l2e], [])).astype(int)
-    iverts = np.vstack([mesh.GetEdgeVertices(ie)
+    if len(l2e.keys()) > 0:
+        kedge = np.array(sum([[key]*len(l2e[key]) for key in l2e], [])).astype(int)
+        iverts = np.vstack([mesh.GetEdgeVertices(ie)
                         for key in l2e for ie in l2e[key]])
+    else:
+        iverts = np.atleast_1d([]).astype(int)        
     cells['line'] = table[iverts]
     cell_data['line']['physical'] = np.array(kedge)
 

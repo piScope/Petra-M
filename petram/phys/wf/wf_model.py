@@ -90,15 +90,21 @@ class WF(PhysModule):
     
     @property 
     def dep_vars_base(self):
-        return self.dep_vars_base_txt.split(',')
+        if self.vdim > 1:
+            return ["".join(self.dep_vars_base_txt.split(','))]
+        else:
+            return self.dep_vars_base_txt.split(',')
 
     @property 
     def der_vars(self):
         names = []
-        for t in self.dep_vars:
-            names.append(t+'x')
-            names.append(t+'y')            
-        return names
+        if self.vdim > 1:
+            return self.dep_vars_base_txt.split(',')
+        else:        
+            for t in self.dep_vars:
+                for x in self.ind_vars.split(","):
+                    names.append(t+x.strip())
+            return names
 
     def postprocess_after_add(self, engine):
         try:
@@ -118,7 +124,8 @@ class WF(PhysModule):
     
     def get_fec(self):
         v = self.dep_vars
-        return [(v[0], self.element),]
+        v = "_".join(v)
+        return [(v, self.element)]
     
     def attribute_set(self, v):
         v = super(WF, self).attribute_set(v)
@@ -128,6 +135,7 @@ class WF(PhysModule):
         v["dep_vars_suffix"] = ''
         v["dep_vars_base_txt"] = 'u'
         v["is_complex_valued"] = False
+        v["vdim"] = 1
         return v
 
     def panel1_param(self):
@@ -150,7 +158,7 @@ class WF(PhysModule):
         return panels
                       
     def get_panel1_value(self):
-        names  =  ', '.join(self.dep_vars_base)
+        names  =  self.dep_vars_base_txt
         names2  = ', '.join(self.der_vars)
         val =  super(WF, self).get_panel1_value()
                       
@@ -161,11 +169,26 @@ class WF(PhysModule):
     
                       
     def import_panel1_value(self, v):
+        import ifigure.widgets.dialog as dialog
+        
         v = super(WF, self).import_panel1_value(v)
         self.ind_vars =  str(v[0])
         self.is_complex_valued = bool(v[1])
         self.dep_vars_suffix =  str(v[2])
+        if len(v[3].split(',')) > 1:
+            if (self.element.startswith('RT') or
+                self.element.startswith('ND')):
+                dialog.showtraceback(parent = None,
+                                     txt="RT/ND element can not be vectorized",
+                                     title="Error",
+                                     traceback="No vector dim for RT/ND")
+                self.element = "H1_FECollection"
         self.dep_vars_base_txt = ','.join([x.strip() for x in str(v[3]).split(',')])
+        print v[3], str(v[3]).split(',')
+        if self.element.startswith("H1") or self.element.startswith("L2"):
+            self.vdim = len(str(v[3]).split(','))
+        else:
+            self.vdim = 1
 
     def get_possible_domain(self):
         from wf_constraints import WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint
@@ -194,7 +217,8 @@ class WF(PhysModule):
         from petram.helper.variables import add_components
         from petram.helper.variables import add_expression
         from petram.helper.variables import add_surf_normals
-        from petram.helper.variables import add_constant      
+        from petram.helper.variables import add_constant
+        from petram.helper.variables import GFScalarVariable        
 
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
         suffix = self.dep_vars_suffix
@@ -209,11 +233,15 @@ class WF(PhysModule):
         isVectorFE = (self.element.startswith("ND") or self.element.startswith("RT"))
         
         for dep_var in dep_vars:
+            if not name.startswith(dep_var): continue
             if isVectorFE:
-                if name.startswith(dep_var):                
                     add_components(v, dep_var, suffix, ind_vars, solr, soli)
             else:
-                if name.startswith(dep_var):
-                    add_scalar(v, dep_var, suffix, ind_vars, solr, soli)
-
+                if self.vdim == 1:
+                    if name.startswith(dep_var):
+                        add_scalar(v, dep_var, suffix, ind_vars, solr, soli)
+                else:
+                    names = self.dep_vars_base_txt.split(',')
+                    for k, n in enumerate(names):
+                        v[n] = GFScalarVariable(solr, soli, comp=k+1)
         return v

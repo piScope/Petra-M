@@ -695,12 +695,20 @@ class GFScalarVariable(GridFunctionVariable):
             if ndim == 3:
                 if isVector:
                     return gf.GetFaceVectorValues
+                elif gf.VectorDim()>1:
+                    def func(i, side, ir, vals, tr, in_gf = gf):
+                        in_gf.GetFaceValues(i, side, ir, vals, tr, vdim=self.comp)
+                    return func
                 else:
                     return gf.GetFaceValues
             elif ndim == 2:
                 if isVector:
                     def func(i, side, ir, vals, tr, in_gf = gf):
                         in_gf.GetVectorValues(i, ir, vals, tr)
+                    return func
+                elif gf.VectorDim()>1:
+                    def func(i, side, ir, vals, tr, in_gf = gf):
+                        in_gf.GetValues(i, ir, vals, tr, vdim=self.comp-1)
                     return func
                 else:
                     def func(i, side, ir, vals, tr, in_gf = gf):
@@ -712,7 +720,7 @@ class GFScalarVariable(GridFunctionVariable):
             return None
         
         getvalr = get_method(self.gfr, ndim, isVector)
-        getvali = get_method(self.gfi, ndim, isVector)        
+        getvali = get_method(self.gfi, ndim, isVector)
             
         for i, gtype,  in zip(ifaces, gtypes):
             ir = irs[gtype]

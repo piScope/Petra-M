@@ -212,6 +212,7 @@ class DlgPlotSol(DialogWithWindowList):
                   "choices":[str(x+1) for x in range(10)]}
             
             ll = [['Expression', '', 0, {}],
+                  ['Offset (x, y, z)', '0, 0, 0', 0, {}],                  
                   ['Boundary Index', text, 0, {}],
                   ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
@@ -589,17 +590,28 @@ class DlgPlotSol(DialogWithWindowList):
     #    
     #   Boundary value ('Bdr' tab)
     #
+    '''
+    ll = [['Expression', '', 0, {}],
+                  ['Offset (x, y, z)', '0, 0, 0', 0, {}],                  
+                  ['Boundary Index', text, 0, {}],
+                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                                           'choices': choices}],      
+                  [None, False, 3, {"text":'dynamic extenstion'}],
+                  [None, True, 3, {"text":'merge solutions'}],
+                  ['Refine', 1, 104, s4],            
+                  [None, True, 3, {"text":'averaging'}],]
+    '''
     @run_in_piScope_thread    
     def onApplyBdr(self, evt):
         value = self.elps['Bdr'] .GetValue()
         expr = str(value[0]).strip()
         
-        if value[3]:
+        if value[4]:
             from ifigure.widgets.wave_viewer import WaveViewer
             cls = WaveViewer
         else:
             cls = None
-        refine = int(value[5])
+        refine = int(value[6])
         data, battrs = self.eval_bdr(mode = 'plot', refine=refine)
         if data is None: return
         self.post_threadend(self.make_plot_bdr, data, battrs,
@@ -696,10 +708,10 @@ class DlgPlotSol(DialogWithWindowList):
         value = self.elps['Bdr'] .GetValue()
         
         expr = str(value[0]).strip()
-        battrs = str(value[1])
-        phys_path = value[2]
+        battrs = str(value[2])
+        phys_path = value[3]
         if mode == 'plot':
-            do_merge1 = value[4]
+            do_merge1 = value[5]
             do_merge2 = True
         elif mode == 'integ':
             do_merge1 = True
@@ -708,15 +720,34 @@ class DlgPlotSol(DialogWithWindowList):
             do_merge1 = False
             do_merge2 = False
                   
-        average = value[6]
-        data, battrs = self.evaluate_sol_bdr(expr, battrs, phys_path,
+        average = value[7]
+        data, battrs2 = self.evaluate_sol_bdr(expr, battrs, phys_path,
                                              do_merge1, do_merge2,
                                              export_type = export_type,
                                              refine = refine,
                                              average = average)
-
+        uvw = str(value[1]).split(',')
+        if len(uvw) == 3:
+            for kk, expr in enumerate(uvw):
+                try:
+                    u = float(expr.strip())
+                    isfloat=True
+                except:
+                    isfloat=False                    
+                    u, battrs2 = self.evaluate_sol_bdr(expr.strip(),
+                                                       battrs, phys_path,
+                                                       do_merge1, do_merge2,
+                                                       export_type = export_type,
+                                                       refine = refine,
+                                                       average = average)
+                for k, datasets in enumerate(data):
+                    if isfloat:
+                        datasets[0][:,kk] += u
+                    else:
+                        datasets[0][:,kk] += u[k][1]
+                
         if data is None: return None, None
-        return data, battrs
+        return data, battrs2
         
 
     #    
