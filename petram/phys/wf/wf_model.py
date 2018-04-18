@@ -98,10 +98,13 @@ class WF(PhysModule):
     @property 
     def der_vars(self):
         names = []
-        for t in self.dep_vars:
-            for x in self.ind_vars.split(","):
-                names.append(t+x.strip())
-        return names
+        if self.vdim > 1:
+            return self.dep_vars_base_txt.split(',')
+        else:        
+            for t in self.dep_vars:
+                for x in self.ind_vars.split(","):
+                    names.append(t+x.strip())
+            return names
 
     def postprocess_after_add(self, engine):
         try:
