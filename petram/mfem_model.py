@@ -133,6 +133,7 @@ class MFEM_PhysRoot(Model):
             for mm in phys.walk():
                 if not mm.enabled: continue                
                 for j in range(num_matrix):
+                  for k in range(len(dv)):                    
                       for phys2 in phys_target:
                           if not phys2.enabled: continue
                           if not mm.has_extra_DoF2(k, phys2, j): continue

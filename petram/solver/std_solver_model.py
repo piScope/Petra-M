@@ -190,7 +190,14 @@ class StandardSolver(SolverInstance):
         linearsolver.SetOperator(AA,
                                  dist = engine.is_matrix_distributed,
                                  name = depvars)
-        solall = linearsolver.Mult(BB, case_base=0)
+        
+        if linearsolver.is_iterative:
+            XX = engine.finalize_x(X[0], RHS,  not self.phys_real,
+                                   format = self.ls_type)
+        else:
+            XX = None
+        
+        solall = linearsolver.Mult(BB, x=XX, case_base=0)
         
         #linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         #solall = linearsolver.Mult(BB, case_base=0)

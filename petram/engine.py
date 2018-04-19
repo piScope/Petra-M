@@ -1312,6 +1312,7 @@ class Engine(object):
         return M
      
     def finalize_rhs(self,  B_blocks, is_complex, format = 'coo', verbose=True):
+        print "rhs", B_blocks
         if format == 'coo': # coo either real or complex
             B = [self.finalize_coo_rhs(b, is_complex, verbose=verbose) for b in B_blocks]
             B = np.hstack(B)
@@ -1325,6 +1326,14 @@ class Engine(object):
             B = [b.gather_blkvec_interleave() for b in B_blocks]
             
         return B
+     
+    def finalize_x(self,  X_block, RHS, is_complex, format = 'coo', verbose=True):
+        if format == 'blk_interleave': # real coo converted from complex
+            X = X_block.gather_blkvec_interleave(size_hint=RHS)
+        else:
+            assert False, "unsupported format for X"
+        
+        return X
      
     def finalize_coo_matrix(self, M_block, is_complex, convert_real = False,
                             verbose=True):

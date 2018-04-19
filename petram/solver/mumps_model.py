@@ -19,6 +19,7 @@ nproc    = MPI.COMM_WORLD.size
 class MUMPS(LinearSolverModel):
     has_2nd_panel = False
     accept_complex = True
+    is_iterative = False    
     def __init__(self):
         self.s = None
         LinearSolverModel.__init__(self)
@@ -131,6 +132,7 @@ class MUMPS(LinearSolverModel):
         self.s = None
         
 class MUMPSSolver(LinearSolver):
+    is_iterative = False
     def set_ordering_flag(self, s):
         from petram.mfem_config import use_parallel
         gui = self.gui

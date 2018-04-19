@@ -49,7 +49,7 @@ class GMRES(LinearSolverModel):
         names = [x[0] for x in  self.preconditioners]
         for n in all_dep_vars:
            if not n in names:
-              self.preconditioners.append((n, ['GS', 'GS']))
+              self.preconditioners.append((n, ['None', 'None']))
         return (long(self.log_level), long(self.maxiter),
                 self.reltol, self.abstol, long(self.kdim),
                 self.preconditioners, self.write_mat)
@@ -126,6 +126,7 @@ class GMRES(LinearSolverModel):
         return solver
 
 class GMRESSolver(LinearSolver):
+    is_iterative = True
     def __init__(self, gui, maxiter, abstol, reltol, kdim):
         self.maxiter = maxiter
         self.abstol = abstol
@@ -231,11 +232,14 @@ class GMRESSolver(LinearSolver):
            if x is None:
               xx.Assign(0.0)
            else:
-              assert False, "must implement this"
+              xx = x
+              #for j in range(cols):
+              #   dprint1(x.GetBlock(j).Size())
+              #   dprint1(x.GetBlock(j).GetDataArray())
+              #assert False, "must implement this"
            solver.Mult(bb, xx)
            s = []
            for i in range(offset.Size()-1):
-               print(i, x, xx)
                v = xx.GetBlock(i).GetDataArray()
                vv = gather_vector(v)
                if myid == 0:
@@ -340,11 +344,15 @@ class GMRESSolver(LinearSolver):
         solver.SetPrintLevel(1)
 
         for bb in b:
-           xx = mfem.Vector(bb.Size())
-           if x is None:
+           if x is None:           
+              xx = mfem.Vector(bb.Size())
               xx.Assign(0.0)
            else:
-              assert False, "must implement this"
+              xx = x
+              #for j in range(cols):
+              #   print x.GetBlock(j).Size()
+              #   print x.GetBlock(j).GetDataArray()                 
+              #assert False, "must implement this"
            solver.Mult(bb, xx)
            sol.append(xx.GetDataArray().copy())
         sol = np.transpose(np.vstack(sol))

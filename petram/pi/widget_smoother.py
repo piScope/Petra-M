@@ -121,7 +121,6 @@ class WidgetSmoother(wx.Panel):
         return self._value
 
     def SetValue(self, value):
-        print "set value", value        
         self.pg.ClearPage(0)
         self.pg.SelectPage(0)
         self.prop_names = []
