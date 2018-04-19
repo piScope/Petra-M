@@ -1,6 +1,8 @@
 from .solver_model import LinearSolverModel, LinearSolver
 import numpy as np
 
+from petram.pi.widget_smoother import WidgetSmoother
+
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('GMRESModel')
 
@@ -31,13 +33,20 @@ class GMRES(LinearSolverModel):
                 ["rel. tol",    self.reltol,  300,  {}],
                 ["abs. tol.",   self.abstol,  300, {}],
                 ["restart(kdim)", self.kdim,     400, {}],
-                ["preconditioner", self.preconditioner,     0, {}],
+                [None, None, 99, {"UI":WidgetSmoother, "span":(1,2)}],
                 ["write matrix",  self.write_mat,   3, {"text":""}],]     
     
     def get_panel1_value(self):
+        num_matrix = self.parent.get_num_matrix() # this will set _mat_weight
+        all_dep_vars = self.root()['Phys'].all_dependent_vars(num_matrix)
+        
+        names = [x[0] for x in  self.preconditioners]
+        for n in all_dep_vars:
+           if not n in names:
+              self.preconditioners.append((n, ('GS', 'GS')))
         return (long(self.log_level), long(self.maxiter),
                 self.reltol, self.abstol, long(self.kdim),
-                self.preconditioner, self.write_mat)
+                self.preconditioners, self.write_mat)
     
     def import_panel1_value(self, v):
         self.log_level = long(v[0])
@@ -45,7 +54,7 @@ class GMRES(LinearSolverModel):
         self.reltol = v[2]
         self.abstol = v[3]
         self.kdim = long(v[4])
-        self.preconditioner = v[5]
+        self.preconditioners = v[5]
         self.write_mat = bool(v[6])
         
     def attribute_set(self, v):
@@ -57,6 +66,7 @@ class GMRES(LinearSolverModel):
         v['kdim'] =   50
         v['printit'] = 1
         v['preconditioner'] = ''
+        v['preconditioners'] = []        
         v['write_mat'] = False        
         return v
     

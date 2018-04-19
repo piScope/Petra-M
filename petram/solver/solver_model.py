@@ -52,6 +52,14 @@ class Solver(Model):
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys', self)
+
+    def get_num_matrix(self, phys_target=None):
+        return self.root()['Phys'].get_num_matrix(self.get_matrix_weight,
+                                           phys_target)
+
+    def get_matrix_weight(self):
+        raise NotImplementedError(
+             "you must specify this method in subclass")
         
     def run(self, engine):
         raise NotImplementedError(

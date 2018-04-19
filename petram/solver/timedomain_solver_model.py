@@ -100,6 +100,14 @@ class TimeDomain(Solver):
         except ImportError:
             pass
         return choice
+    
+    def get_matrix_weight(self, timestep_config, timestep_weight):
+        dt = float(self.time_step)
+        lns = self.engine.model['General']._global_ns.copy()
+        lns['dt'] = dt
+
+        wt = [eval(x, lns) for x in timestep_weight]
+        return wt
 
     @debug.use_profiler
     def run(self, engine):
@@ -160,7 +168,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         engine = self.engine
                       
         phys_target = self.get_phys()
-        num_matrix= engine.run_set_matrix_weight(phys_target, self.get_matrix_weight)
+        num_matrix= self.gui.get_num_matrix(phys_target)
         
         engine.set_formblocks(phys_target, num_matrix)
         
@@ -181,7 +189,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         
         self.pre_assemble()
         self.assemble()
-        A, X, RHS, Ae, B, M = self.blocks        
+        A, X, RHS, Ae, B, M, depvars = self.blocks        
         self.sol = X[0]
         
         if init_only:
@@ -190,14 +198,6 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         else:
             return False
                       
-    def get_matrix_weight(self, timestep_config, timestep_weight):
-        dt = float(self.time_step)
-        lns = self.engine.model['General']._global_ns.copy()
-        lns['dt'] = dt
-
-        wt = [eval(x, lns) for x in timestep_weight]
-        return wt
-
     def pre_assemble(self):
         engine = self.engine
         phys_target = self.get_phys()
@@ -228,7 +228,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
                                                       self.compute_rhs,
                                                       inplace=False)                
 
-        #A, X, RHS, Ae, B, M = blocks
+        #A, X, RHS, Ae, B, M, depvars = blocks
         self.assembled = True
         
     def step(self):
@@ -238,13 +238,13 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             assert False, "pre_assmeble must have been called"
             
         if self.counter == 0:
-            A, X, RHS, Ae, B, M = self.blocks
+            A, X, RHS, Ae, B, M, depvars = self.blocks
             AA = engine.finalize_matrix(A, not self.phys_real, format = self.ls_type)
             BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type)
             self.write_checkpoint_solution()
             self.icheckpoint += 1
         else:
-            A, X, RHS, Ae, B, M = self.blocks                    
+            A, X, RHS, Ae, B, M, depvars = self.blocks                    
             RHS = self.compute_rhs(M, B, [self.sol])
             dprint1("before eliminateBC")                                    
             dprint1(debug.format_memory_usage())
@@ -340,11 +340,11 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
             self.time_step = dt            
             if not idt in self.blocks1:
                 self.assemble(idt = idt)
-                A, X, RHS, Ae, B, M = self.blocks1[idt]
+                A, X, RHS, Ae, B, M, depvars = self.blocks1[idt]
                 BB = engine.finalize_rhs([RHS], not self.phys_real,
                                          format = self.ls_type, verbose=False)
             else:
-                A, X, RHS, Ae, B, M = self.blocks1[idt]
+                A, X, RHS, Ae, B, M, depvars = self.blocks1[idt]
                 if self.counter != 0 or recompute_rhs:
                     # recompute RHS
                     RHS = self.compute_rhs(M, B, [sol])

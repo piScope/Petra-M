@@ -340,21 +340,22 @@ class DlgEditModel(DialogWithWindowList):
             else:
                 if not hasattr(mm, '_phys_sel_index') or mm.sel_index == 'all':
                     engine.assign_sel_index(mm)
-                
-                if mm.dim == 3:
-                    viewer.canvas.toolbar.ClickP1Button('domain')                    
-                    viewer.highlight_domain(mm._phys_sel_index)
-                    viewer._dom_bdr_sel = (mm._phys_sel_index, [], [], [])                    
-                elif mm.dim == 2:
-                    viewer.canvas.toolbar.ClickP1Button('face')                    
-                    viewer.highlight_face(mm._phys_sel_index)
-                    viewer._dom_bdr_sel = ([], mm._phys_sel_index, [], [])
-                elif mm.dim == 1:
-                    viewer.canvas.toolbar.ClickP1Button('edge')                    
-                    viewer.highlight_edge(mm._phys_sel_index)
-                    viewer._dom_bdr_sel = ([], [], mm._phys_sel_index, [],)
-                else:
-                    pass
+                if hasattr(mm, '_phys_sel_index'):
+                    # need this if in case mesh is not loaded....
+                    if mm.dim == 3:
+                        viewer.canvas.toolbar.ClickP1Button('domain')                    
+                        viewer.highlight_domain(mm._phys_sel_index)
+                        viewer._dom_bdr_sel = (mm._phys_sel_index, [], [], [])                    
+                    elif mm.dim == 2:
+                        viewer.canvas.toolbar.ClickP1Button('face')                    
+                        viewer.highlight_face(mm._phys_sel_index)
+                        viewer._dom_bdr_sel = ([], mm._phys_sel_index, [], [])
+                    elif mm.dim == 1:
+                        viewer.canvas.toolbar.ClickP1Button('edge')                    
+                        viewer.highlight_edge(mm._phys_sel_index)
+                        viewer._dom_bdr_sel = ([], [], mm._phys_sel_index, [],)
+                    else:
+                        pass
         else:
             pass
         if evt is not None:
