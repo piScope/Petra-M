@@ -32,10 +32,10 @@ class Solver(Model):
 
     def is_complex(self):
         phys = self.get_phys()
-        is_real = all([p.is_complex() for p in phys])
-        if is_real: return False
+        is_complex = any([p.is_complex() for p in phys])
+        if is_complex: return True
         if self.assemble_real: return False
-        return  True
+        return is_complex
         
     def get_init_setting(self):
         names = self.init_setting.split(',')
@@ -134,6 +134,7 @@ class SolverInstance(object):
         self.phys_real = all([not p.is_complex() for p in phys_target])        
         self.ls_type = solver.linear_system_type(self.gui.assemble_real,
                                                  self.phys_real)
+        print 'Here', self.gui.assemble_real,  self.phys_real, self.ls_type
 
     def configure_probes(self, probe_txt):
         from petram.sol.probe import Probe
@@ -243,9 +244,10 @@ class LinearSolver(object):
     def __init__(self, gui):
         self.gui = gui
         
-    def SetOperator(self, opr, dist=False):
+    def SetOperator(self, opr, dist=False, name=None):
         # opr : operator (matrix)
         # dist: disributed matrix or not
+        # name: name of variables in block operator
         raise NotImplementedError(
              "you must specify this method in subclass")
     def Mult(self, b, case_base=0):

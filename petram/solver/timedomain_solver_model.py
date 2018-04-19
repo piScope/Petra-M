@@ -258,7 +258,8 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             else:
                 datatype = 'D'
             self.linearsolver  = self.linearsolver_model.allocate_solver(datatype)
-            self.linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
+            self.linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed,
+                                          name = depvars)
 
         solall = self.linearsolver.Mult(BB, case_base=engine.case_base)
         engine.case_base += BB.shape[1]
@@ -360,7 +361,9 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
                 else:
                     datatype = 'D'
                 self.linearsolver[idt]  = self.linearsolver_model.allocate_solver(datatype)
-                self.linearsolver[idt].SetOperator(AA, dist = engine.is_matrix_distributed)
+                self.linearsolver[idt].SetOperator(AA,
+                                                   dist = engine.is_matrix_distributed,
+                                                   name = depvars)
                 
             return A, BB
             

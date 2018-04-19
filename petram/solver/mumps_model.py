@@ -83,7 +83,6 @@ class MUMPS(LinearSolverModel):
         return solver
     
     def solve(self, engine, A, b):
-        
         datatype = "Z" if (A.dtype == 'complex') else "D"
         '''        
         if reuse_factor:
@@ -170,7 +169,7 @@ class MUMPSSolver(LinearSolver):
         from petram.ext.mumps.mumps_solve import DMUMPS, d_to_list
         from petram.ext.mumps.mumps_solve import ZMUMPS, z_to_list
         from petram.ext.mumps.mumps_solve import i_array, JOB_1_2_3
-        
+
         if datatype == 'Z':
             from petram.ext.mumps.mumps_solve import z_array as data_array
             from petram.ext.mumps.mumps_solve import z_to_list as to_list
@@ -203,7 +202,7 @@ class MUMPSSolver(LinearSolver):
             s.set_icntl(3,  6)            
             s.set_icntl(4,  6)
         
-    def SetOperator(self, A, dist):
+    def SetOperator(self, A, dist, name=None):
         from petram.ext.mumps.mumps_solve import i_array, JOB_1_2_3
         gui = self.gui
         s = self.s

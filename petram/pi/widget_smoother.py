@@ -10,10 +10,11 @@ from ifigure.ifigure_config import icondir
 bmp1=wx.Bitmap(os.path.join(icondir, '16x16', 'smode.png'))
 bmp2=wx.Bitmap(os.path.join(icondir, '16x16', 'pmode.png'))
 
-HypreSmoother = ["Jacobi", "l1Jacobi", "l1GS", "l1GStr", 
+HypreSmoother = ["None", "Jacobi", "l1Jacobi", "l1GS", "l1GStr", 
                 "lumpedJacobi", "GS", "Chebyshev", "Taubin",
                 "FIR"]
-SparseSmoother = ["Jacobi", "l1Jacobi", "lumpedJacobi", "GS",]
+SparseSmoother = ["None", "Jacobi", "l1Jacobi", "lumpedJacobi",
+                  "GS", "forwardGS", "backwrdGS"]
 
 class SmootherChoiceProperty(wxpg.StringProperty):
     def __init__(self, label, name=wxpg.PG_LABEL, value='', 
@@ -88,8 +89,8 @@ class WidgetSmoother(wx.Panel):
         self.pg.Bind( wxpg.EVT_PG_PAGE_CHANGED, self.OnPropGridPageChange )
         self.pg.Bind( wxpg.EVT_PG_CHANGED, self.OnPropGridChange )
         
-        value = [('E1', ('GS', 'GS'),),
-                 ('V1', ('GS', 'Jacobi'))]
+        value = [('E1', ['GS', 'GS'],),
+                 ('V1', ['GS', 'Jacobi'])]
 
         self.SetValue(value)
 
@@ -105,21 +106,22 @@ class WidgetSmoother(wx.Panel):
         self.set_column_title()
         
     def OnPropGridChange(self, evt):
-        print self.GetTopLevelParent()
-        wx.CallAfter(self.GetTopLevelParent().Show)
+        p = evt.GetProperty()
+        index = self.pg.GetSelectedPage()
+        name = p.GetName()
+        newvalue = p.GetValueAsString()
 
+        for n, v in self._value:
+            if n == name: v[index] = str(newvalue)
+        evt.Skip()
+        self.GetParent().send_event(self, evt)        
+        wx.CallAfter(self.GetTopLevelParent().Show)
+        
     def GetValue(self):
-        value = []
-        for n in self.prop_names:
-           self.pg.SelectPage(0)
-           pgp1 = self.pg.GetPropertyByName(n)
-           self.pg.SelectPage(1)
-           pgp2 = self.pg.GetPropertyByName(n)
-           value.append((n, (str(pgp1.GetValue()), 
-                             str(pgp2.GetValue()))))
-        return tuple(value)
+        return self._value
 
     def SetValue(self, value):
+        print "set value", value        
         self.pg.ClearPage(0)
         self.pg.SelectPage(0)
         self.prop_names = []
@@ -136,6 +138,7 @@ class WidgetSmoother(wx.Panel):
                                                   choices = HypreSmoother))
             pgp.SetValue(v[1])
         self.set_column_title()
+        self._value = value
 
 '''
 from petram.pi.widget_smoother import WidgetSmoother

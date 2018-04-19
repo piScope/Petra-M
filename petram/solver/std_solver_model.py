@@ -186,9 +186,10 @@ class StandardSolver(SolverInstance):
         AA = engine.finalize_matrix(A, not self.phys_real, format = self.ls_type)
         BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type)
 
-        linearsolver = self.allocate_linearsolver(AA.dtype == 'complex')
-
-        linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)        
+        linearsolver = self.allocate_linearsolver(self.gui.is_complex())
+        linearsolver.SetOperator(AA,
+                                 dist = engine.is_matrix_distributed,
+                                 name = depvars)
         solall = linearsolver.Mult(BB, case_base=0)
         
         #linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
