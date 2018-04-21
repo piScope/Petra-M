@@ -497,7 +497,11 @@ class MFEMViewer(BookViewer):
         
     def load_mesh(self):
         if self.engine is None: self.start_engine()
-        od = self.model.param.getvar('mfem_model')            
+        od = self.model.param.getvar('mfem_model')
+
+        import wx
+        projfile=wx.GetApp().TopWindow.proj.getvar('filename')
+        od.model_path = os.path.dirname(projfile)
         self.engine.set_model(od)
         cdir = os.getcwd()
         

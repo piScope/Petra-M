@@ -126,7 +126,6 @@ class MFEM_PhysRoot(Model):
         
         for phys in phys_target:
             if not phys.enabled: continue            
-            dep_vars  = []
             dv = phys.dep_vars
             dep_vars.extend(dv)
             extra_vars = []
@@ -137,7 +136,6 @@ class MFEM_PhysRoot(Model):
                       for phys2 in phys_target:
                           if not phys2.enabled: continue
                           if not mm.has_extra_DoF2(k, phys2, j): continue
-                          print "passed", k, phys2, j
                           name = mm.extra_DoF_name()
                           if not name in extra_vars:
                               extra_vars.append(name)
@@ -243,6 +241,7 @@ class MFEM_ModelRoot(Model):
         v['_variables'] = Variables()
         v['enabled'] = True
         v['root_path'] = ''
+        v['model_path'] = ''        
         return v
     
     def set_root_path(self, path):

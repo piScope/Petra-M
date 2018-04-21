@@ -122,7 +122,8 @@ class Model(RestorableOrderedDict):
     has_2nd_panel = True
     has_3rd_panel = False
     _has_4th_panel = False    
-    mustbe_firstchild =False  
+    mustbe_firstchild =False
+    always_new_panel = True
 
     def __init__(self, **kwargs):
         super(Model, self).__init__()
@@ -619,7 +620,8 @@ class Model(RestorableOrderedDict):
                         parallel = False, filename = 'model.py'):
         if dir is None: dir = os.getcwd()        
         script = []
-        script.extend(['try:',
+        script.extend(['import os',
+                       'try:',
                        '    from mpi4py import MPI',
                        '    num_proc = MPI.COMM_WORLD.size',
                        '    use_parallel=num_proc > 1',

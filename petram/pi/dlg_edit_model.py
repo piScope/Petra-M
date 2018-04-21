@@ -368,7 +368,10 @@ class DlgEditModel(DialogWithWindowList):
         evt.Skip()
 
     def generate_panel(self, mm):
-        self.panels[mm.fullname()] = (ScrolledEditListPanel(self.p1,
+        if mm.fullname() in self.panels and not mm.always_new_panel:
+            self.update_panel_label(mm)
+        else:
+            self.panels[mm.fullname()] = (ScrolledEditListPanel(self.p1,
                                                            list =  mm.panel1_param(), 
                                                            tip=mm.panel1_tip()),
                                      EditListPanel(self.p2, list =  mm.panel2_param(),
@@ -379,10 +382,10 @@ class DlgEditModel(DialogWithWindowList):
                                                    tip=mm.panel4_tip()),)
         
     def update_panel_label(self, mm):
-        self.panels[mm.fullname()][0].SetLabel(mm.panel1_param())
-        self.panels[mm.fullname()][1].SetLabel(mm.panel2_param())
-        self.panels[mm.fullname()][2].SetLabel(mm.panel3_param())
-        self.panels[mm.fullname()][3].SetLabel(mm.panel4_param())                
+        self.panels[mm.fullname()][0].update_label(mm.panel1_param())
+        self.panels[mm.fullname()][1].update_label(mm.panel2_param())
+        self.panels[mm.fullname()][2].update_label(mm.panel3_param())
+        self.panels[mm.fullname()][3].update_label(mm.panel4_param())                
                              
     def OnEL_Changed(self, evt):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())

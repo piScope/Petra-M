@@ -92,6 +92,7 @@ class WidgetSmoother(wx.Panel):
         value = [('E1', ['GS', 'GS'],),
                  ('V1', ['GS', 'Jacobi'])]
 
+        print "Generating panel"
         self.SetValue(value)
 
 
@@ -113,14 +114,15 @@ class WidgetSmoother(wx.Panel):
 
         for n, v in self._value:
             if n == name: v[index] = str(newvalue)
-        evt.Skip()
+        #evt.Skip()
         self.GetParent().send_event(self, evt)        
-        wx.CallAfter(self.GetTopLevelParent().Show)
+        #wx.CallAfter(self.GetTopLevelParent().Show)
         
     def GetValue(self):
         return self._value
 
     def SetValue(self, value):
+        selp = self.pg.GetSelectedPage()        
         self.pg.ClearPage(0)
         self.pg.SelectPage(0)
         self.prop_names = []
@@ -136,9 +138,10 @@ class WidgetSmoother(wx.Panel):
             pgp = self.pg.Append(SmootherChoiceProperty(name, 
                                                   choices = HypreSmoother))
             pgp.SetValue(v[1])
-        self.set_column_title()
-        self._value = value
 
+        self._value = value
+        self.pg.SelectPage(selp)
+        self.set_column_title()        
 '''
 from petram.pi.widget_smoother import WidgetSmoother
 ll = [[None, None, 99, {"UI":WidgetSmoother, "span":(1,2)}],]

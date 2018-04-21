@@ -78,7 +78,7 @@ class WF_Essential(Bdry, Phys):
                            real = real)
 
         assert not (vvdim != -1 and vdim > 1), "Wrong setting...(vvdim != -1 and vdim > 1)"
-        print vvdim, vdim, method, coeff1
+        #print vvdim, vdim, method, coeff1
         if vvdim == -1:
             method(coeff1, mfem.intArray(bdr_attr))
         else:

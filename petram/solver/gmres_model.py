@@ -31,6 +31,7 @@ SparseSmootherCls = {"Jacobi": (mfem.DSmoother, 0),
 class GMRES(LinearSolverModel):
     has_2nd_panel = False
     accept_complex = False
+    always_new_panel = False    
     def init_solver(self):
         pass
     

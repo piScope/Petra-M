@@ -95,7 +95,7 @@ class MeshFile(Mesh):
         
     def panel1_param(self):
         return [["Path",   self.path,  200, {}],
-                ["", "replacement rule: {petram}=$PetraM, {mfem}=PyMFEM, {home}=~"  ,2, None],
+                ["", "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir."  ,2, None],
                 ["Generate edges",    self.generate_edges == 1,  3, {"text":""}],
                 ["Refine",    self.refine==1 ,  3, {"text":""}],
                 ["FixOrientation",    self.fix_orientation ,  3, {"text":""}]]
@@ -133,6 +133,8 @@ class MeshFile(Mesh):
             path = path.replace('{petram}', PetraM_PATH)
         if path.find('{home}') != -1:
             path = path.replace('{home}', HOME)
+        if path.find('{model}') != -1:
+            path = path.replace('{model}', self.root().model_path)
 
         if not os.path.isabs(path):
             path1 = os.path.join(os.getcwd(), path)
