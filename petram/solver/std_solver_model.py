@@ -78,6 +78,10 @@ class StdSolver(Solver):
         instance = StandardSolver(self, engine)
         return instance
     
+    def get_matrix_weight(self, timestep_config, timestep_weight):
+        return [1, 0, 0]            
+        
+    
     @debug.use_profiler
     def run(self, engine):
         if self.clear_wdir:
@@ -108,13 +112,10 @@ class StandardSolver(SolverInstance):
         self.assembled = False
          
     def init(self, init_only=False):
-        def get_matrix_weight(timestep_config, timestep_weight):
-            return [1, 0, 0]            
-        
         engine = self.engine
                       
         phys_target = self.get_phys()
-        num_matrix= engine.run_set_matrix_weight(phys_target, get_matrix_weight)
+        num_matrix= self.gui.get_num_matrix(phys_target)
         
         engine.set_formblocks(phys_target, num_matrix)
         
@@ -134,7 +135,7 @@ class StandardSolver(SolverInstance):
         engine.run_apply_essential(phys_target)
         
         self.assemble()
-        A, X, RHS, Ae, B, M = self.blocks        
+        A, X, RHS, Ae, B, M, depvars = self.blocks        
         self.sol = X[0]
         
         if init_only:
@@ -162,7 +163,7 @@ class StandardSolver(SolverInstance):
         engine.run_assemble_mat(phys_target)
         engine.run_assemble_rhs(phys_target)
         self.blocks = self.engine.run_assemble_blocks(self.compute_A, self.compute_rhs)
-        #A, X, RHS, Ae, B, M = blocks
+        #A, X, RHS, Ae, B, M, names = blocks
         self.assembled = True
         
     def assemble_rhs(self):
@@ -181,14 +182,22 @@ class StandardSolver(SolverInstance):
         if not self.assembled:
             assert False, "assmeble must have been called"
             
-        A, X, RHS, Ae, B, M = self.blocks        
+        A, X, RHS, Ae, B, M, depvars = self.blocks        
         AA = engine.finalize_matrix(A, not self.phys_real, format = self.ls_type)
         BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type)
 
-        linearsolver = self.allocate_linearsolver(AA.dtype == 'complex')
-
-        linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)        
-        solall = linearsolver.Mult(BB, case_base=0)
+        linearsolver = self.allocate_linearsolver(self.gui.is_complex())
+        linearsolver.SetOperator(AA,
+                                 dist = engine.is_matrix_distributed,
+                                 name = depvars)
+        
+        if linearsolver.is_iterative:
+            XX = engine.finalize_x(X[0], RHS,  not self.phys_real,
+                                   format = self.ls_type)
+        else:
+            XX = None
+        
+        solall = linearsolver.Mult(BB, x=XX, case_base=0)
         
         #linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         #solall = linearsolver.Mult(BB, case_base=0)

@@ -3,7 +3,11 @@
     Model Tree to stroe MFEM model parameters
 
 '''
+import numpy as np
 from petram.model import Model
+
+import petram.debug as debug
+dprint1, dprint2, dprint3 = debug.init_dprints('MFEMModel')
 
 from petram.namespace_mixin import NS_mixin
 class MFEM_GeneralRoot(Model, NS_mixin):
@@ -92,6 +96,53 @@ class MFEM_PhysRoot(Model):
         pindex = sum([range(len(c.dep_vars)) for c in self.iter_enabled()], [])
 
         return names, pnames, pindex
+    
+    def get_num_matrix(self, get_matrix_weight, phys_target = None):
+        # get_matrix_weight: solver method to evaulate matrix weight
+        if phys_target is None:
+             phys_target = [self[k] for k in self]
+             
+        num_matrix = 0
+        for phys in phys_target:
+            for mm in phys.walk():
+                if not mm.enabled: continue
+                mm.set_matrix_weight(get_matrix_weight)
+
+                wt = np.array(mm.get_matrix_weight())
+                tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
+                num_matrix = max(tmp, num_matrix)
+        dprint1("number of matrix", num_matrix)
+        return num_matrix
+            
+
+    def all_dependent_vars(self, num_matrix):
+        '''
+        FES variable + extra variable
+        '''
+        dep_vars  = []
+        isFesvars_g = []
+        
+        phys_target = [self[k] for k in self]
+        
+        for phys in phys_target:
+            if not phys.enabled: continue            
+            dv = phys.dep_vars
+            dep_vars.extend(dv)
+            extra_vars = []
+            for mm in phys.walk():
+                if not mm.enabled: continue                
+                for j in range(num_matrix):
+                  for k in range(len(dv)):                    
+                      for phys2 in phys_target:
+                          if not phys2.enabled: continue
+                          if not mm.has_extra_DoF2(k, phys2, j): continue
+                          name = mm.extra_DoF_name()
+                          if not name in extra_vars:
+                              extra_vars.append(name)
+                    
+            dep_vars.extend(extra_vars)
+        return dep_vars
+    
 
 class MFEM_InitRoot(Model):    
     can_delete = False
@@ -190,6 +241,7 @@ class MFEM_ModelRoot(Model):
         v['_variables'] = Variables()
         v['enabled'] = True
         v['root_path'] = ''
+        v['model_path'] = ''        
         return v
     
     def set_root_path(self, path):

@@ -315,20 +315,6 @@ class Engine(object):
             init = self.model['InitialValue'][k]
             init.preprocess_params(self)
 
-    def run_set_matrix_weight(self, phys_target, get_matrix_weight):
-        # get_matrix_weight: solver method to evaulate matrix weight
-        num_matrix = 0
-        for phys in phys_target:
-            for mm in phys.walk():
-                if not mm.enabled: continue
-                mm.set_matrix_weight(get_matrix_weight)
-
-                wt = np.array(mm.get_matrix_weight())
-                tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
-                num_matrix = max(tmp, num_matrix)
-        dprint1("number of matrix", num_matrix)
-        return num_matrix
-            
     def run_verify_setting(self, phys_target, solver):
         for phys in phys_target:
             for mm in phys.walk():
@@ -565,7 +551,7 @@ class Engine(object):
         #M[1].save_to_file("M1")
         #X[0].save_to_file("X0")
         #RHS.save_to_file("RHS")                
-        return A, X, RHS, Ae,  B,  M
+        return A, X, RHS, Ae,  B,  M, self.dep_vars[:]
      
     def run_update_B_blocks(self):
         '''
@@ -1340,6 +1326,14 @@ class Engine(object):
             
         return B
      
+    def finalize_x(self,  X_block, RHS, is_complex, format = 'coo', verbose=True):
+        if format == 'blk_interleave': # real coo converted from complex
+            X = X_block.gather_blkvec_interleave(size_hint=RHS)
+        else:
+            assert False, "unsupported format for X"
+        
+        return X
+     
     def finalize_coo_matrix(self, M_block, is_complex, convert_real = False,
                             verbose=True):
         if verbose: dprint1("A (in finalizie_coo_matrix) \n",  M_block)       
@@ -1832,11 +1826,13 @@ class Engine(object):
 
                for j in range(self.n_matrix):
                   for k in range(len(dv)):
-                      if not mm.has_extra_DoF2(k, phys, j): continue
+                      for phys2 in phys_target:
+                          if not phys2.enabled: continue                         
+                          if not mm.has_extra_DoF2(k, phys2, j): continue
                       
-                      name = mm.extra_DoF_name()
-                      if not name in extra_vars:
-                         extra_vars.append(name)
+                          name = mm.extra_DoF_name()
+                          if not name in extra_vars:
+                              extra_vars.append(name)
             dep_vars.extend(extra_vars)
             isFesvars.extend([False]*len(extra_vars))
             

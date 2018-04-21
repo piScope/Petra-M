@@ -6,7 +6,12 @@ from .solver_model import Solver
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints("TimeDomainSolver")
-rprint = debug.regular_print('StdSolver')
+rprint = debug.regular_print('TimeDependentSolver')
+
+
+from petram.solver.std_solver_model import StdSolver
+class DerivedValue(StdSolver):
+    pass
 
 class TimeDomain(Solver):
     can_delete = True
@@ -43,7 +48,6 @@ class TimeDomain(Solver):
                  self.save_parmesh,  3, {"text":""}],
                 ["use cProfiler",
                  self.use_profiler,  3, {"text":""}],]
-
 
     def get_panel1_value(self):
         st_et_nt = ", ".join([str(x) for x in self.st_et_nt])
@@ -99,7 +103,16 @@ class TimeDomain(Solver):
             choice.append(SpSparse)
         except ImportError:
             pass
+        choice.append(DerivedValue)
         return choice
+    
+    def get_matrix_weight(self, timestep_config, timestep_weight):
+        dt = float(self.time_step)
+        lns = self.root()['General']._global_ns.copy()
+        lns['dt'] = dt
+
+        wt = [eval(x, lns) for x in timestep_weight]
+        return wt
 
     @debug.use_profiler
     def run(self, engine):
@@ -160,7 +173,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         engine = self.engine
                       
         phys_target = self.get_phys()
-        num_matrix= engine.run_set_matrix_weight(phys_target, self.get_matrix_weight)
+        num_matrix= self.gui.get_num_matrix(phys_target)
         
         engine.set_formblocks(phys_target, num_matrix)
         
@@ -181,7 +194,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         
         self.pre_assemble()
         self.assemble()
-        A, X, RHS, Ae, B, M = self.blocks        
+        A, X, RHS, Ae, B, M, depvars = self.blocks        
         self.sol = X[0]
         
         if init_only:
@@ -190,14 +203,6 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         else:
             return False
                       
-    def get_matrix_weight(self, timestep_config, timestep_weight):
-        dt = float(self.time_step)
-        lns = self.engine.model['General']._global_ns.copy()
-        lns['dt'] = dt
-
-        wt = [eval(x, lns) for x in timestep_weight]
-        return wt
-
     def pre_assemble(self):
         engine = self.engine
         phys_target = self.get_phys()
@@ -228,7 +233,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
                                                       self.compute_rhs,
                                                       inplace=False)                
 
-        #A, X, RHS, Ae, B, M = blocks
+        #A, X, RHS, Ae, B, M, depvars = blocks
         self.assembled = True
         
     def step(self):
@@ -238,19 +243,22 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             assert False, "pre_assmeble must have been called"
             
         if self.counter == 0:
-            A, X, RHS, Ae, B, M = self.blocks
-            AA = engine.finalize_matrix(A, not self.phys_real, format = self.ls_type)
-            BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type)
+            A, X, RHS, Ae, B, M, depvars = self.blocks
+            AA = engine.finalize_matrix(A, not self.phys_real, format = self.ls_type,
+                                        verbose=False)
+            BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type,
+                                     verbose=False)
             self.write_checkpoint_solution()
             self.icheckpoint += 1
         else:
-            A, X, RHS, Ae, B, M = self.blocks                    
+            A, X, RHS, Ae, B, M, depvars = self.blocks                    
             RHS = self.compute_rhs(M, B, [self.sol])
             dprint1("before eliminateBC")                                    
             dprint1(debug.format_memory_usage())
             RHS = engine.eliminateBC(Ae, X[1], RHS)
             RHS = engine.apply_interp(RHS=RHS)            
-            BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type)
+            BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type,
+                                     verbose=False)
 
         if self.linearsolver is None:
             if self.ls_type.startswith('coo'):
@@ -258,7 +266,8 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             else:
                 datatype = 'D'
             self.linearsolver  = self.linearsolver_model.allocate_solver(datatype)
-            self.linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
+            self.linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed,
+                                          name = depvars)
 
         solall = self.linearsolver.Mult(BB, case_base=engine.case_base)
         engine.case_base += BB.shape[1]
@@ -340,11 +349,11 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
             self.time_step = dt            
             if not idt in self.blocks1:
                 self.assemble(idt = idt)
-                A, X, RHS, Ae, B, M = self.blocks1[idt]
+                A, X, RHS, Ae, B, M, depvars = self.blocks1[idt]
                 BB = engine.finalize_rhs([RHS], not self.phys_real,
                                          format = self.ls_type, verbose=False)
             else:
-                A, X, RHS, Ae, B, M = self.blocks1[idt]
+                A, X, RHS, Ae, B, M, depvars = self.blocks1[idt]
                 if self.counter != 0 or recompute_rhs:
                     # recompute RHS
                     RHS = self.compute_rhs(M, B, [sol])
@@ -360,7 +369,9 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
                 else:
                     datatype = 'D'
                 self.linearsolver[idt]  = self.linearsolver_model.allocate_solver(datatype)
-                self.linearsolver[idt].SetOperator(AA, dist = engine.is_matrix_distributed)
+                self.linearsolver[idt].SetOperator(AA,
+                                                   dist = engine.is_matrix_distributed,
+                                                   name = depvars)
                 
             return A, BB
             

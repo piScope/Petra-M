@@ -19,6 +19,7 @@ nproc    = MPI.COMM_WORLD.size
 class MUMPS(LinearSolverModel):
     has_2nd_panel = False
     accept_complex = True
+    is_iterative = False    
     def __init__(self):
         self.s = None
         LinearSolverModel.__init__(self)
@@ -83,7 +84,6 @@ class MUMPS(LinearSolverModel):
         return solver
     
     def solve(self, engine, A, b):
-        
         datatype = "Z" if (A.dtype == 'complex') else "D"
         '''        
         if reuse_factor:
@@ -132,6 +132,7 @@ class MUMPS(LinearSolverModel):
         self.s = None
         
 class MUMPSSolver(LinearSolver):
+    is_iterative = False
     def set_ordering_flag(self, s):
         from petram.mfem_config import use_parallel
         gui = self.gui
@@ -170,7 +171,7 @@ class MUMPSSolver(LinearSolver):
         from petram.ext.mumps.mumps_solve import DMUMPS, d_to_list
         from petram.ext.mumps.mumps_solve import ZMUMPS, z_to_list
         from petram.ext.mumps.mumps_solve import i_array, JOB_1_2_3
-        
+
         if datatype == 'Z':
             from petram.ext.mumps.mumps_solve import z_array as data_array
             from petram.ext.mumps.mumps_solve import z_to_list as to_list
@@ -203,7 +204,7 @@ class MUMPSSolver(LinearSolver):
             s.set_icntl(3,  6)            
             s.set_icntl(4,  6)
         
-    def SetOperator(self, A, dist):
+    def SetOperator(self, A, dist, name=None):
         from petram.ext.mumps.mumps_solve import i_array, JOB_1_2_3
         gui = self.gui
         s = self.s
@@ -307,7 +308,7 @@ class MUMPSSolver(LinearSolver):
                  case_base = case_base + b.shape[1]
             else: case_base = None
             case_base = MPI.COMM_WORLD.bcast(case_base, root=0)
-        if myid == 0:                
+        if myid == 0:
             s.set_lrhs_nrhs(b.shape[0], b.shape[1])
             bstack = np.hstack(np.transpose(b))
             s.set_rhs(self.data_array(bstack))
@@ -327,4 +328,65 @@ class MUMPSSolver(LinearSolver):
             sol = np.transpose(sol.reshape(-1, len(b)))
             return sol
 
-    
+from petram.mfem_config import use_parallel
+if use_parallel:
+   from petram.helper.mpi_recipes import *
+   from mfem.common.parcsr_extra import *
+   import mfem.par as mfem
+else:
+   import mfem.ser as mfem
+
+class MUMPSPreconditioner(mfem.PyOperator):
+    def __init__(self, A0, gui=None):
+        mfem.PyOperator.__init__(self, A0.Height())
+        self.gui = gui
+        self.SetOperator(A0)
+
+    def SetOperator(self, opr):
+        if isinstance(opr, mfem.SparseMatrix):
+            from mfem.common.sparse_utils import sparsemat_to_scipycsr
+            coo_opr = sparsemat_to_scipycsr(opr, float).tocoo()
+            self.solver = MUMPSSolver(self.gui)
+            self.solver.AllocSolver("D")
+            self.solver.SetOperator(coo_opr, False)
+            self.row_part = [-1,-1]
+        else:
+            from mfem.common.parcsr_extra import ToScipyCoo
+            from scipy.sparse import coo_matrix
+            lcoo = ToScipyCoo(opr)
+            shape = (opr.GetGlobalNumRows(), opr.GetGlobalNumCols())
+            gcoo = coo_matrix(shape)
+            gcoo.data = lcoo.data
+            gcoo.row = lcoo.row + opr.GetRowPartArray()[0]
+            gcoo.col = lcoo.col
+            self.solver = MUMPSSolver(self.gui)
+            self.solver.AllocSolver("D")
+            self.solver.SetOperator(gcoo, True)
+            self.is_parallel=True            
+            self.row_part = opr.GetRowPartArray()
+            
+    def Mult(self, x, y):
+        # in the parallel enviroment, we need to collect x and
+        # redistribute y
+        # we keep RowPart array from opr since here y is
+        # vector not ParVector even in the parallel env.
+        if self.row_part[0] == -1:
+            xx = np.atleast_2d(x.GetDataArray()).transpose()
+        else:
+            from mpi4py import MPI
+            comm = MPI.COMM_WORLD
+            from petram.helper.mpi_recipes import gather_vector
+            xx = gather_vector(x.GetDataArray())
+            if myid == 0:
+                xx = np.atleast_2d(xx).transpose()
+        
+        s=self.solver.Mult(xx)
+        
+        if self.row_part[0] != -1:
+            from mpi4py import MPI
+            comm = MPI.COMM_WORLD
+            s = comm.bcast(s)
+            s = s[self.row_part[0]:self.row_part[1]]
+            
+        y.Assign(s.flatten())
+     

@@ -740,7 +740,15 @@ class DlgPlotSol(DialogWithWindowList):
                                                        export_type = export_type,
                                                        refine = refine,
                                                        average = average)
+                data = [list(x) for x in data]
                 for k, datasets in enumerate(data):
+                    if datasets[0].shape[1]==2:
+                        datasets[0] = np.hstack((datasets[0],
+                                                 np.zeros((datasets[0].shape[0], 1))))
+                    elif datasets[0].shape[1]==1:
+                        datasets[0] = np.hstack((datasets[0],
+                                                 np.zeros((datasets[0].shape[0], 2))))
+                        
                     if isfloat:
                         datasets[0][:,kk] += u
                     else:

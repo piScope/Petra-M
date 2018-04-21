@@ -787,11 +787,14 @@ class BlockMatrix(object):
         return roffsets, coffsets
 
     def get_local_partitioning_v(self, convert_real = True,
-                                       interleave = True):
+                                 interleave = True, size_hint = None ):
         '''
         build matrix in coordinate format
         '''
         roffset = np.zeros(self.shape[0], dtype=int)
+        if size_hint is not None:
+           hint_shape = size_hint.shape
+           #print "called with hint:", hint_shape, self.shape    
         for i in range(self.shape[0]):
             for j in range(self.shape[1]):
                 if self[i, j] is not None:
@@ -800,6 +803,15 @@ class BlockMatrix(object):
                        roffset[i] != rp[1] - rp[0]):
                         assert False, 'row partitioning is not consistent'
                    roffset[i] = rp[1] - rp[0]
+                elif size_hint is not None:
+                   for k in range(hint_shape[1]):
+                      if size_hint[i, k] is not None:
+                         rp = size_hint[i,k].GetPartitioningArray()
+                         if (roffset[i] != 0 and
+                             roffset[i] != rp[1] - rp[0]):
+                             assert False, 'row partitioning is not consistent'
+                         roffset[i] = rp[1] - rp[0]
+                   
         #coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
         if self.complex and convert_real:
             if interleave:
@@ -810,7 +822,7 @@ class BlockMatrix(object):
         roffsets = np.hstack([0, np.cumsum(roffset)])
         return roffsets
      
-    def gather_blkvec_interleave(self):
+    def gather_blkvec_interleave(self, size_hint = None):
         '''
         Construct MFEM::BlockVector
 
@@ -822,7 +834,8 @@ class BlockMatrix(object):
         '''
         
         roffsets = self.get_local_partitioning_v(convert_real=True,
-                                                 interleave=True)
+                                                 interleave=True,
+                                                 size_hint = size_hint)
         dprint1("roffsets(vector)", roffsets)
         offset = mfem.intArray(list(roffsets))
         
@@ -847,7 +860,8 @@ class BlockMatrix(object):
                         vec.GetBlock(ii+1).Assign(np.imag(arr))
                 else:
                     assert False, "not implemented, "+ str(type(self[i,0]))
-                
+            else:
+                vec.GetBlock(ii).Assign(0)
             ii = ii + 2 if self.complex else ii+1
 
         return vec
