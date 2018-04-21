@@ -18,13 +18,15 @@ if use_parallel:
 else:
    import mfem.ser as mfem
    default_kind = 'scipy'
-   
-SparseSmootherCls = {"Jacobi": ("DSmoother", 0),
-                     "l1Jacobi": ("DSmoother", 1),
-                     "lumpedJacobi": ("DSmoother", 2),
-                     "GS": ("GSSmoother", 0),
-                     "forwardGS": ("GSSmoother", 1),
-                     "backwardGS": ("GSSmoother", 2),}                                          
+
+from petram.solver.mumps_model import MUMPSPreconditioner   
+SparseSmootherCls = {"Jacobi": (mfem.DSmoother, 0),
+                     "l1Jacobi": (mfem.DSmoother, 1),
+                     "lumpedJacobi": (mfem.DSmoother, 2),
+                     "GS": (mfem.GSSmoother, 0),
+                     "forwardGS": (mfem.GSSmoother, 1),
+                     "backwardGS": (mfem.GSSmoother, 2),
+                     "MUMPS": (MUMPSPreconditioner, None),}                                          
 
 class GMRES(LinearSolverModel):
     has_2nd_panel = False
@@ -124,6 +126,19 @@ class GMRES(LinearSolverModel):
 
         #solver.AllocSolver(datatype)
         return solver
+     
+    def get_possible_child(self):
+        '''
+        Preconditioners....
+        '''
+        choice = []
+        try:
+            from petram.solver.mumps_model import MUMPS
+            choice.append(MUMPS)
+        except ImportError:
+            pass
+        return choice
+     
 
 class GMRESSolver(LinearSolver):
     is_iterative = True
@@ -181,9 +196,16 @@ class GMRESSolver(LinearSolver):
         for k, n in enumerate(name):
            prc = prcs[n][1]
            if prc == "None": continue
+           name = "".join([tmp for tmp in prc if not tmp.isdigit()])           
            A0 = get_block(A, k, k)
-           invA0 = mfem.HypreSmoother(A0)
-           invA0.SetType(getattr(mfem.HypreSmoother, prc))
+
+           if hasattr(mfem.HypreSmoother, prc):
+               invA0 = mfem.HypreSmoother(A0)
+               invA0.SetType(getattr(mfem.HypreSmoother, prc))
+           else:
+               cls = SparseSmootherCls[name][0]
+               invA0 = cls(A0, gui=self.gui[prc])
+               
            invA0.iterative_mode = False
            M.SetDiagonalBlock(k, invA0)
            
@@ -294,10 +316,14 @@ class GMRESSolver(LinearSolver):
            
            prc = prcs[n][0]
            if prc == "None": continue
+           name = "".join([tmp for tmp in prc if not tmp.isdigit()])
            A0 = get_block(A, k, k)
-           cls = getattr(mfem, SparseSmootherCls[prc][0])
-           arg = SparseSmootherCls[prc][1]           
-           invA0 = cls(A0, arg)
+           cls = SparseSmootherCls[name][0]
+           arg = SparseSmootherCls[name][1]
+           if arg is None:
+               invA0 = cls(A0, gui=self.gui[prc])
+           else:
+               invA0 = cls(A0, arg)
            invA0.iterative_mode = False
            M.SetDiagonalBlock(k, invA0)
 

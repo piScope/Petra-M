@@ -43,7 +43,9 @@ class Solver(Model):
         return [self.root()['InitialValue'][n] for n in names]
     
     def get_active_solver(self, mm = None):
-        for x in self.iter_enabled(): return x
+        for x in self.iter_enabled():
+            if isinstance(x, LinearSolverModel):
+               return x
 
     def onItemSelChanged(self, evt):
         '''

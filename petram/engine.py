@@ -1312,7 +1312,6 @@ class Engine(object):
         return M
      
     def finalize_rhs(self,  B_blocks, is_complex, format = 'coo', verbose=True):
-        print "rhs", B_blocks
         if format == 'coo': # coo either real or complex
             B = [self.finalize_coo_rhs(b, is_complex, verbose=verbose) for b in B_blocks]
             B = np.hstack(B)

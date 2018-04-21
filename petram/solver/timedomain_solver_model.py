@@ -6,7 +6,12 @@ from .solver_model import Solver
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints("TimeDomainSolver")
-rprint = debug.regular_print('StdSolver')
+rprint = debug.regular_print('TimeDependentSolver')
+
+
+from petram.solver.std_solver_model import StdSolver
+class DerivedValue(StdSolver):
+    pass
 
 class TimeDomain(Solver):
     can_delete = True
@@ -43,7 +48,6 @@ class TimeDomain(Solver):
                  self.save_parmesh,  3, {"text":""}],
                 ["use cProfiler",
                  self.use_profiler,  3, {"text":""}],]
-
 
     def get_panel1_value(self):
         st_et_nt = ", ".join([str(x) for x in self.st_et_nt])
@@ -99,11 +103,12 @@ class TimeDomain(Solver):
             choice.append(SpSparse)
         except ImportError:
             pass
+        choice.append(DerivedValue)
         return choice
     
     def get_matrix_weight(self, timestep_config, timestep_weight):
         dt = float(self.time_step)
-        lns = self.engine.model['General']._global_ns.copy()
+        lns = self.root()['General']._global_ns.copy()
         lns['dt'] = dt
 
         wt = [eval(x, lns) for x in timestep_weight]
@@ -239,8 +244,10 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             
         if self.counter == 0:
             A, X, RHS, Ae, B, M, depvars = self.blocks
-            AA = engine.finalize_matrix(A, not self.phys_real, format = self.ls_type)
-            BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type)
+            AA = engine.finalize_matrix(A, not self.phys_real, format = self.ls_type,
+                                        verbose=False)
+            BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type,
+                                     verbose=False)
             self.write_checkpoint_solution()
             self.icheckpoint += 1
         else:
@@ -250,7 +257,8 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             dprint1(debug.format_memory_usage())
             RHS = engine.eliminateBC(Ae, X[1], RHS)
             RHS = engine.apply_interp(RHS=RHS)            
-            BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type)
+            BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type,
+                                     verbose=False)
 
         if self.linearsolver is None:
             if self.ls_type.startswith('coo'):

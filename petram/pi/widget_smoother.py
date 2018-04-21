@@ -12,9 +12,9 @@ bmp2=wx.Bitmap(os.path.join(icondir, '16x16', 'pmode.png'))
 
 HypreSmoother = ["None", "Jacobi", "l1Jacobi", "l1GS", "l1GStr", 
                 "lumpedJacobi", "GS", "Chebyshev", "Taubin",
-                "FIR"]
+                 "FIR", "MUMPS"]
 SparseSmoother = ["None", "Jacobi", "l1Jacobi", "lumpedJacobi",
-                  "GS", "forwardGS", "backwrdGS"]
+                  "GS", "forwardGS", "backwrdGS", "MUMPS"]
 
 class SmootherChoiceProperty(wxpg.StringProperty):
     def __init__(self, label, name=wxpg.PG_LABEL, value='', 
