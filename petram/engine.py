@@ -76,6 +76,7 @@ class Engine(object):
         self.alloc_flag = {}
         self.max_bdrattr = -1
         self.max_attr = -1        
+        self.sol_extra = None
         
         # place holder : key is base physics modules, such as EM3D1...
         #
@@ -682,15 +683,16 @@ class Engine(object):
         if init_path is "", then file is read from cwd.
         if file is not found, then it zeroes the gf
         '''
-        mesh_idx = phys.emesh_idx
+        dprint1("apply_init_from_file", phys, init_path)
+        emesh_idx = phys.emesh_idx
         names = phys.dep_vars
         for kfes, name in enumerate(phys.dep_vars):
             ifes = self.ifes(name)
-            rfg = self.r_x[ifes]
+            rgf = self.r_x[ifes]
             if phys.is_complex():
-                ifg = self.i_x[ifes]
+                igf = self.i_x[ifes]
             else:
-                ifg = None
+                igf = None
             fr, fi, meshname = self.solfile_name(names[kfes],
                                                          emesh_idx)
             path = os.path.expanduser(init_path)
@@ -698,7 +700,7 @@ class Engine(object):
             fr = os.path.join(path, fr)
             fi = os.path.join(path, fi)
             meshname = os.path.join(path, meshname)
-
+            print meshname
             rgf.Assign(0.0)
             if igf is not None: igf.Assign(0.0)
             if not os.path.exists(meshname):
@@ -718,7 +720,10 @@ class Engine(object):
                soli = mfem.GridFunction(m, str(fi))
                if soli.Size() != igf.Size():
                    assert False, "Solution file (imag) has different length!!!"
-               igf += soli               
+               igf += soli
+               
+        self.sol_extra = self.load_extra_to_file(init_path)
+        print self.sol_extra
     #
     #  Step 2  fill matrix/rhs elements
     #
@@ -914,7 +919,7 @@ class Engine(object):
     
     def fill_M_B_X_blocks(self, M, B, X):
         from petram.helper.formholder import convertElement
-        from mfem.common.chypre import BF2PyMat, LF2PyVec
+        from mfem.common.chypre import BF2PyMat, LF2PyVec, Array2PyVec
         from mfem.common.chypre import MfemVec2PyVec, MfemMat2PyMat    
         from itertools import product
 
@@ -972,16 +977,22 @@ class Engine(object):
             self.r_x.generateMatVec(self.x2X)
             self.i_x.generateMatVec(self.x2X)            
             for dep_var in self.dep_vars:
+                r = self.dep_var_offset(dep_var)
                 if self.isFESvar(dep_var):
                     i = self.ifes(dep_var)
                     v = convertElement(self.r_x, self.i_x,
                                        i, 0, MfemVec2PyVec)
-                    r = self.dep_var_offset(dep_var)
                     X[k][r] = v
                 else:
-                    pass 
-                    # For now, it leaves as None for Lagrange Multipler?
-                    # May need to allocate zeros...
+                    if self.sol_extra is not None:
+                       for key in self.sol_extra:
+                          if dep_var in self.sol_extra[key]:
+                             value = self.sol_extra[key][dep_var]
+                             X[k][r]=Array2PyVec(value)
+                    else:
+                        pass
+                        # For now, it leaves as None for Lagrange Multipler?
+                        # May need to allocate zeros...
         return M, B, X
      
     def fill_B_blocks(self, B):
@@ -1466,14 +1477,44 @@ class Engine(object):
                 #  data must be NdArray
                 #  dataname : "E1.E_out"
                 fid.write('name : ' + name + '.' + str(k) +'\n')
-                fid.write('size : ' + str(data.size) +'\n')
-                fid.write('dim : ' + str(data.ndim) +'\n')            
                 if data.ndim == 0:
+                    fid.write('size : ' + str(data.size) +'\n')
+                    fid.write('dim : ' + str(data.ndim) +'\n')
+                    fid.write('dtype: ' + str(data.dtype) +'\n')                                
                     fid.write(str(0) + ' ' + str(data) +'\n')
                 else:
+                    data = data.flatten()
+                    sol_extra[name][k] = data
+                    fid.write('size : ' + str(data.size) +'\n')
+                    fid.write('dim : ' + str(data.ndim) +'\n')
+                    fid.write('dtype: ' + str(data.dtype) +'\n')                    
                     for kk, d in enumerate(data):
                          fid.write(str(kk) + ' ' + str(d) +'\n')
         fid.close()
+        self.sol_extra = sol_extra # keep it for future reuse
+        
+    def load_extra_to_file(self, init_path):
+        sol_extra = {}
+        path = os.path.join(init_path, self.extrafile_name())
+        fid = open(path, 'r')
+        line = fid.readline()
+        while line:
+            if line.startswith('name'):
+               name, name2 = line.split(':')[1].strip().split('.')
+               if not name in sol_extra: sol_extra[name]={}
+            size  = long(fid.readline().split(':')[1].strip())
+            dim   = long(fid.readline().split(':')[1].strip())
+            dtype = fid.readline().split(':')[1].strip()
+            if dtype.startswith('complex'):
+                data = [complex(fid.readline().split(' ')[1]) for k in range(size)]
+                data = np.array(data, dtype=dtype)
+            else:
+                data = [float(fid.readline().split(' ')[1]) for k in range(size)]
+                data = np.array(data, dtype=dtype)
+            sol_extra[name][name2] = data
+            line = fid.readline()    
+        fid.close()
+        return sol_extra
 
     #
     #  helper methods

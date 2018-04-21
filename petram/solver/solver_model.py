@@ -136,7 +136,6 @@ class SolverInstance(object):
         self.phys_real = all([not p.is_complex() for p in phys_target])        
         self.ls_type = solver.linear_system_type(self.gui.assemble_real,
                                                  self.phys_real)
-        print 'Here', self.gui.assemble_real,  self.phys_real, self.ls_type
 
     def configure_probes(self, probe_txt):
         from petram.sol.probe import Probe
