@@ -115,7 +115,7 @@ class TimeDomain(Solver):
         return wt
 
     @debug.use_profiler
-    def run(self, engine):
+    def run(self, engine, is_first=True):
         if self.clear_wdir:
             engine.remove_solfiles()
 

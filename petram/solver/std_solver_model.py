@@ -83,7 +83,7 @@ class StdSolver(Solver):
         
     
     @debug.use_profiler
-    def run(self, engine):
+    def run(self, engine, is_first = True):
         if self.clear_wdir:
             engine.remove_solfiles()
 
@@ -92,10 +92,13 @@ class StdSolver(Solver):
         # We dont use probe..(no need...)
         #instance.configure_probes(self.probe)
 
-        #self.init_only = True
-        finished = instance.init(self.init_only)
-        while not finished:
-            finished = instance.solve()
+        if is_first:
+            instance.init()
+        
+        if self.init_only:
+            instance.save_solution()
+        else:
+            instance.solve()
 
         instance.save_solution(ksol = 0,
                                skip_mesh = False, 
@@ -142,12 +145,6 @@ class StandardSolver(SolverInstance):
         A, X, RHS, Ae, B, M, depvars = self.blocks        
         self.sol = X[0]
         
-        if init_only:
-            self.save_solution()            
-            return True
-        else:
-            return False
-
     def compute_A(self, M, B, X):
         '''
         M[0] x = B
@@ -181,15 +178,15 @@ class StandardSolver(SolverInstance):
     def solve(self):
         engine = self.engine
 
-        if not self.assembled:
-            assert False, "assmeble must have been called"
+        #if not self.assembled:
+        #    assert False, "assmeble must have been called"
             
         A, X, RHS, Ae, B, M, depvars = self.blocks
         mask = engine.get_block_mask(self.gui.get_target_phys())
         depvars = [x for i, x in enumerate(depvars) if mask[i]]
         
         AA = engine.finalize_matrix(A, mask, not self.phys_real, format = self.ls_type)
-        BB = engine.finalize_rhs([RHS], mask, not self.phys_real, format = self.ls_type)
+        BB = engine.finalize_rhs([RHS], A ,X[0], mask, not self.phys_real, format = self.ls_type)
 
         linearsolver = self.allocate_linearsolver(self.gui.is_complex())
         linearsolver.SetOperator(AA,

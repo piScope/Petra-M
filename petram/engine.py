@@ -1325,22 +1325,32 @@ class Engine(object):
         self.is_assembled = True
         return M
      
-    def finalize_rhs(self,  B_blocks, mask, is_complex, format = 'coo', verbose=True):
-        B_blocks = [b.get_subblock(mask, [True]) for b in B_blocks]
+    def finalize_rhs(self,  B_blocks, M_block, X_block,
+                     mask, is_complex, format = 'coo', verbose=True):
+        #
+        #  RHS = B - A[not solved]*X[not solved]
+        #
+        inv_mask = [not x for x in mask]
+        MM = M_block.get_subblock(mask, inv_mask)
+        XX = X_block.get_subblock(inv_mask, [True])
+        xx = MM.dot(XX)
+        
+        B_blocks = [b.get_subblock(mask, [True]) - xx for b in B_blocks]
+        
         
         if format == 'coo': # coo either real or complex
-            B = [self.finalize_coo_rhs(b, is_complex, verbose=verbose) for b in B_blocks]
-            B = np.hstack(B)
+            BB = [self.finalize_coo_rhs(b, is_complex, verbose=verbose) for b in B_blocks]
+            BB = np.hstack(BB)
             
         elif format == 'coo_real': # real coo converted from complex
-            B = [self.finalize_coo_rhs(b, is_complex,
+            BB = [self.finalize_coo_rhs(b, is_complex,
                                        convert_real = True, verbose=verbose)
                     for b in B_blocks]
-            B = np.hstack(B)
+            BB = np.hstack(BB)
         elif format == 'blk_interleave': # real coo converted from complex
-            B = [b.gather_blkvec_interleave() for b in B_blocks]
+            BB = [b.gather_blkvec_interleave() for b in B_blocks]
             
-        return B
+        return BB
      
     def finalize_x(self,  X_block, RHS, mask, is_complex,
                    format = 'coo', verbose=True):
