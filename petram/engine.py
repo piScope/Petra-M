@@ -552,7 +552,8 @@ class Engine(object):
         #M[1].save_to_file("M1")
         #X[0].save_to_file("X0")
         #RHS.save_to_file("RHS")                
-        return A, X, RHS, Ae,  B,  M, self.dep_vars[:]
+        self.assembled_blocks = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
+        return self.assembled_blocks
      
     def run_update_B_blocks(self):
         '''
@@ -1307,7 +1308,9 @@ class Engine(object):
 
         return M_block2, B_blocks, P2
     '''     
-    def finalize_matrix(self, M_block, is_complex,format = 'coo', verbose=True):
+    def finalize_matrix(self, M_block, mask,is_complex,format = 'coo',
+                        verbose=True):
+        M_block = M_block.get_subblock(mask, mask)       
         if format == 'coo': # coo either real or complex
             M = self.finalize_coo_matrix(M_block, is_complex, verbose=verbose)
             
@@ -1322,7 +1325,9 @@ class Engine(object):
         self.is_assembled = True
         return M
      
-    def finalize_rhs(self,  B_blocks, is_complex, format = 'coo', verbose=True):
+    def finalize_rhs(self,  B_blocks, mask, is_complex, format = 'coo', verbose=True):
+        B_blocks = [b.get_subblock(mask, [True]) for b in B_blocks]
+        
         if format == 'coo': # coo either real or complex
             B = [self.finalize_coo_rhs(b, is_complex, verbose=verbose) for b in B_blocks]
             B = np.hstack(B)
@@ -1337,7 +1342,10 @@ class Engine(object):
             
         return B
      
-    def finalize_x(self,  X_block, RHS, is_complex, format = 'coo', verbose=True):
+    def finalize_x(self,  X_block, RHS, mask, is_complex,
+                   format = 'coo', verbose=True):
+        X_block = X_block.get_subblock(mask, [True])
+        RHS = RHS.get_subblock(mask, [True])
         if format == 'blk_interleave': # real coo converted from complex
             X = X_block.gather_blkvec_interleave(size_hint=RHS)
         else:
@@ -1843,6 +1851,23 @@ class Engine(object):
            assert False, "Variable " + name + " not used in the model"
         idx = self._dep_vars.index(name)
         return self._isFESvar[idx]
+     
+    def get_block_mask(self, phys_target=None):
+
+        all_phys = [self.model['Phys'][k] for k in self.model['Phys']
+                    if self.model['Phys'].enabled]
+        if phys_target is None:
+           phys_target = all_phys
+           
+        self.collect_dependent_vars()
+        mask = [False]*len(self._dep_vars)
+
+        for phys in phys_target:
+           idx = all_phys.index(phys)
+           for name in self._dep_var_grouped[idx]:
+               offset = self.dep_var_offset(name)
+               mask[offset] = True
+        return mask
         
     def collect_dependent_vars(self, phys_target=None):
         if phys_target is None:

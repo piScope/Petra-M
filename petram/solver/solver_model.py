@@ -26,10 +26,15 @@ class Solver(Model):
         return v
     
     def get_phys(self):
+        # gather enabled phys
+        phys_root = self.root()['Phys']
+        return[phys_root[key] for key in phys_root if phys_root[key].enabled] 
+
+    def get_target_phys(self):
         names = self.phys_model.split(',')
         names = [n.strip() for n in names if n.strip() != '']        
         return [self.root()['Phys'][n] for n in names]
-
+    
     def is_complex(self):
         phys = self.get_phys()
         is_complex = any([p.is_complex() for p in phys])
@@ -91,12 +96,11 @@ class SolverInstance(object):
         self.set_linearsolver_model()
         
     def get_phys(self):
-        names = self.gui.phys_model.split(',')
-        names = [n.strip() for n in names if n.strip() != '']
+        return self.gui.get_phys()
 
-        root = self.engine.model
-        return [root['Phys'][n] for n in names]
-    
+    def get_target_phys(self):
+        return self.gui.get_target_phys()        
+        
     def get_init_setting(self):
 
         names = self.gui.init_setting.split(',')

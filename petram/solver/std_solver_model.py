@@ -110,7 +110,11 @@ class StandardSolver(SolverInstance):
     def __init__(self, gui, engine):
         SolverInstance.__init__(self, gui, engine)
         self.assembled = False
-         
+
+    @property
+    def blocks(self):
+        return self.engine.assembled_blocks
+        
     def init(self, init_only=False):
         engine = self.engine
                       
@@ -162,7 +166,7 @@ class StandardSolver(SolverInstance):
         engine.run_verify_setting(phys_target, self.gui)
         engine.run_assemble_mat(phys_target)
         engine.run_assemble_rhs(phys_target)
-        self.blocks = self.engine.run_assemble_blocks(self.compute_A, self.compute_rhs)
+        self.engine.run_assemble_blocks(self.compute_A, self.compute_rhs)
         #A, X, RHS, Ae, B, M, names = blocks
         self.assembled = True
         
@@ -171,9 +175,7 @@ class StandardSolver(SolverInstance):
         phys_target = self.get_phys()
         engine.run_assemble_rhs(phys_target)
         B = self.engine.run_update_B_blocks()
-        blocks = list(self.blocks)
-        blocks[4] = B
-        self.blocks = tuple(blocks)
+        self.blocks[4] = B
         self.assembled = True
 
     def solve(self):
@@ -182,9 +184,12 @@ class StandardSolver(SolverInstance):
         if not self.assembled:
             assert False, "assmeble must have been called"
             
-        A, X, RHS, Ae, B, M, depvars = self.blocks        
-        AA = engine.finalize_matrix(A, not self.phys_real, format = self.ls_type)
-        BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type)
+        A, X, RHS, Ae, B, M, depvars = self.blocks
+        mask = engine.get_block_mask(self.gui.get_target_phys())
+        depvars = [x for i, x in enumerate(depvars) if mask[i]]
+        
+        AA = engine.finalize_matrix(A, mask, not self.phys_real, format = self.ls_type)
+        BB = engine.finalize_rhs([RHS], mask, not self.phys_real, format = self.ls_type)
 
         linearsolver = self.allocate_linearsolver(self.gui.is_complex())
         linearsolver.SetOperator(AA,
@@ -192,7 +197,7 @@ class StandardSolver(SolverInstance):
                                  name = depvars)
         
         if linearsolver.is_iterative:
-            XX = engine.finalize_x(X[0], RHS,  not self.phys_real,
+            XX = engine.finalize_x(X[0], RHS, mask, not self.phys_real,
                                    format = self.ls_type)
         else:
             XX = None
@@ -205,7 +210,8 @@ class StandardSolver(SolverInstance):
         if not self.phys_real and self.gui.assemble_real:
             solall = self.linearsolver_model.real_to_complex(solall, AA)
         
-        self.sol = A.reformat_central_mat(solall, 0)
+        A.reformat_central_mat(solall, 0, X[0], mask)
+        self.sol = X[0]
         return True
 
 

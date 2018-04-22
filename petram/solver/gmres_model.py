@@ -49,10 +49,13 @@ class GMRES(LinearSolverModel):
         num_matrix = self.parent.get_num_matrix() # this will set _mat_weight
         all_dep_vars = self.root()['Phys'].all_dependent_vars(num_matrix)
         
-        names = [x[0] for x in  self.preconditioners]
+        prec = [x for x in  self.preconditioners if x[0] in all_dep_vars]        
+        names = [x[0] for x in  prec]
         for n in all_dep_vars:
            if not n in names:
-              self.preconditioners.append((n, ['None', 'None']))
+              prec.append((n, ['None', 'None']))
+        self.preconditioners = prec
+        
         return (long(self.log_level), long(self.maxiter),
                 self.reltol, self.abstol, long(self.kdim),
                 self.preconditioners, self.write_mat)
