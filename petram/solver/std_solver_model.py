@@ -182,7 +182,7 @@ class StandardSolver(SolverInstance):
         #    assert False, "assmeble must have been called"
             
         A, X, RHS, Ae, B, M, depvars = self.blocks
-        mask = engine.get_block_mask(self.gui.get_target_phys())
+        mask = self.fes_mask
         depvars = [x for i, x in enumerate(depvars) if mask[i]]
         
         AA = engine.finalize_matrix(A, mask, not self.phys_real, format = self.ls_type)

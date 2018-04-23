@@ -134,13 +134,14 @@ class TimeDomain(Solver):
         instance.set_start(st)
         instance.set_end(et)
         instance.set_checkpoint(np.linspace(st, et, nt))
-
+        
         if is_first:
             finished = instance.init(self.init_only)
         else:
             finished = False
             
         instance.configure_probes(self.probe)
+        instance.set_fes_mask()
         while not finished:
             finished = instance.step()
 
@@ -164,6 +165,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.assembled = False
         self.counter = 0
         self.icheckpoint = 0
+
         
     def init(self, init_only=False):
         self.time = self.st
@@ -203,7 +205,25 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             return True
         else:
             return False
-                      
+        
+    def set_fes_mask(self):
+        super(FirstOrderBackwardEuler, self).set_fes_mask()
+        phys_target = self.get_target_phys()
+        time_deriv_vars = []
+        for phys in phys_target:
+           dep_vars0 = phys.dep_vars0
+           dep_vars = phys.dep_vars
+           for x in dep_vars:
+               if not x in dep_vars0: time_deriv_vars.append(x)
+        self.time_deriv_vars = time_deriv_vars
+        
+        #self.fes_dt_mask = [False]*len(self.fes_mask)
+        #for name in time_deriv_vars:
+        #     offset = self.engine.dep_var_offset(name)
+        #     self.fes_dt_mask[offset] = True
+
+        dprint1("time deivatives to be computed", time_deriv_vars)
+        
     def pre_assemble(self):
         engine = self.engine
         phys_target = self.get_phys()
@@ -239,7 +259,8 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         
     def step(self):
         engine = self.engine
-        mask = engine.get_block_mask(self.gui.get_target_phys())
+        mask = self.fes_mask
+
         
         if not self.pre_assembled:
             assert False, "pre_assmeble must have been called"
@@ -291,11 +312,19 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.time = self.time + self.time_step
         self.counter += 1
         
-        A.reformat_central_mat(solall, 0, X[-1], mask)
+        A.reformat_central_mat(solall, 0, X[0], mask)
         self.sol = X[-1]
 
+        for name in self.time_deriv_vars:
+            offset1 = self.engine.dep_var_offset(name)       # vt
+            offset2 = self.engine.dep_var_offset(name[:-1])  # v      
+            X[0][offset1, 0] = (X[0][offset2, 0]-X[-1][offset2, 0])*(1./self.time_step)
+            
         for p in self.probe:
-            p.append_sol(X[-1], self.time)
+            p.append_sol(X[0], self.time)
+
+        # swap X[0] and X[-1] for next computing
+        tmp = X[0]; X[0] = X[-1]; X[-1]=tmp
                 
         if self.checkpoint[self.icheckpoint] < self.time:
             self.write_checkpoint_solution()
