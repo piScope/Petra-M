@@ -437,6 +437,7 @@ class DlgEditModel(DialogWithWindowList):
                
         if viewer_update:
             mm.update_after_ELChanged(self)
+        self.tree.RefreshItems()            
         evt.Skip()
 
     def OnEL_Changing(self, evt):

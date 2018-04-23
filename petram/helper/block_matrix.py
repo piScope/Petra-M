@@ -292,7 +292,7 @@ def convert_to_ScipyCoo(mat):
     return mat
 
 class BlockMatrix(object):
-    def __init__(self, shape, kind = default_kind):
+    def __init__(self, shape, kind = default_kind, complex=False):
         '''
         kind : scipy
                   stores scipy sparse or numpy array
@@ -301,8 +301,9 @@ class BlockMatrix(object):
         self.block = [[None]*shape[1] for x in range(shape[0])]
         self.kind  = kind
         self.shape = shape
-        self.complex = False
+        self.complex = complex
 
+        
     def __getitem__(self, idx):
         try:
             r, c = idx
@@ -492,7 +493,17 @@ class BlockMatrix(object):
                    #except:
                    #    ret[i,j] = coo_matrix([[ret[i,j]]]) 
         return ret
-
+     
+    def get_subblock(self, mask1, mask2):
+        ret = BlockMatrix((sum(mask1), sum(mask2)), kind=self.kind,
+                         complex = self.complex)
+        imask1 = [x for x in range(len(mask1)) if mask1[x]]
+        imask2 = [x for x in range(len(mask2)) if mask2[x]]
+        for i, ii in enumerate(imask1):
+            for j, jj in enumerate(imask2):          
+                ret[i, j]=self[ii, jj]
+        return ret
+                         
     def get_block_id(self, ignore_none=True):
         blocks = sum(self.block, [])
         if ignore_none:
@@ -594,7 +605,7 @@ class BlockMatrix(object):
 
         return ret, P2
 
-    def reformat_central_mat(self, mat, ksol):
+    def reformat_central_mat(self, mat, ksol, ret, mask):
         '''
         reformat central matrix into blockmatrix (columne vector)
         so that matrix can be multiplied from the right of this 
@@ -603,9 +614,10 @@ class BlockMatrix(object):
         '''
         L = []
         idx = 0
-        ret = BlockMatrix((self.shape[0], 1), kind = self.kind)
-        for i in range(self.shape[0]):
-            for j in range(self.shape[1]):
+        imask = [x for x in range(len(mask)) if mask[x]]
+        
+        for i in imask:
+            for j in imask:
                if self[i,j] is not None:
                   l =  self[i, j].shape[0]
                   break

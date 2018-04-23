@@ -125,7 +125,7 @@ class MFEM_PhysRoot(Model):
         phys_target = [self[k] for k in self]
         
         for phys in phys_target:
-            if not phys.enabled: continue            
+            #if not phys.enabled: continue            
             dv = phys.dep_vars
             dep_vars.extend(dv)
             extra_vars = []
@@ -134,7 +134,7 @@ class MFEM_PhysRoot(Model):
                 for j in range(num_matrix):
                   for k in range(len(dv)):                    
                       for phys2 in phys_target:
-                          if not phys2.enabled: continue
+                          #if not phys2.enabled: continue
                           if not mm.has_extra_DoF2(k, phys2, j): continue
                           name = mm.extra_DoF_name()
                           if not name in extra_vars:

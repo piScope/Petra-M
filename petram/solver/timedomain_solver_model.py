@@ -115,7 +115,7 @@ class TimeDomain(Solver):
         return wt
 
     @debug.use_profiler
-    def run(self, engine):
+    def run(self, engine, is_first=True):
         if self.clear_wdir:
             engine.remove_solfiles()
 
@@ -134,12 +134,14 @@ class TimeDomain(Solver):
         instance.set_start(st)
         instance.set_end(et)
         instance.set_checkpoint(np.linspace(st, et, nt))
-
-
-        finished = instance.init(self.init_only)
         
+        if is_first:
+            finished = instance.init(self.init_only)
+        else:
+            finished = False
+            
         instance.configure_probes(self.probe)
-
+        instance.set_fes_mask()
         while not finished:
             finished = instance.step()
 
@@ -163,6 +165,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.assembled = False
         self.counter = 0
         self.icheckpoint = 0
+
         
     def init(self, init_only=False):
         self.time = self.st
@@ -202,7 +205,25 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             return True
         else:
             return False
-                      
+        
+    def set_fes_mask(self):
+        super(FirstOrderBackwardEuler, self).set_fes_mask()
+        phys_target = self.get_target_phys()
+        time_deriv_vars = []
+        for phys in phys_target:
+           dep_vars0 = phys.dep_vars0
+           dep_vars = phys.dep_vars
+           for x in dep_vars:
+               if not x in dep_vars0: time_deriv_vars.append(x)
+        self.time_deriv_vars = time_deriv_vars
+        
+        #self.fes_dt_mask = [False]*len(self.fes_mask)
+        #for name in time_deriv_vars:
+        #     offset = self.engine.dep_var_offset(name)
+        #     self.fes_dt_mask[offset] = True
+
+        dprint1("time deivatives to be computed", time_deriv_vars)
+        
     def pre_assemble(self):
         engine = self.engine
         phys_target = self.get_phys()
@@ -238,28 +259,35 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         
     def step(self):
         engine = self.engine
+        mask = self.fes_mask
 
+        
         if not self.pre_assembled:
             assert False, "pre_assmeble must have been called"
             
         if self.counter == 0:
             A, X, RHS, Ae, B, M, depvars = self.blocks
-            AA = engine.finalize_matrix(A, not self.phys_real, format = self.ls_type,
+            AA = engine.finalize_matrix(A, mask,
+                                        not self.phys_real, format = self.ls_type,
                                         verbose=False)
-            BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type,
+            BB = engine.finalize_rhs([RHS], A, X[-1], mask,
+                                     not self.phys_real, format = self.ls_type,
                                      verbose=False)
             self.write_checkpoint_solution()
             self.icheckpoint += 1
         else:
             A, X, RHS, Ae, B, M, depvars = self.blocks                    
-            RHS = self.compute_rhs(M, B, [self.sol])
+            #RHS = self.compute_rhs(M, B, [self.sol])
+            RHS = self.compute_rhs(M, B, X)
             dprint1("before eliminateBC")                                    
             dprint1(debug.format_memory_usage())
             RHS = engine.eliminateBC(Ae, X[1], RHS)
             RHS = engine.apply_interp(RHS=RHS)            
-            BB = engine.finalize_rhs([RHS], not self.phys_real, format = self.ls_type,
+            BB = engine.finalize_rhs([RHS], A, X[-1], mask,
+                                     not self.phys_real, format = self.ls_type,
                                      verbose=False)
-
+            
+        depvars = [x for i, x in enumerate(depvars) if mask[i]]
         if self.linearsolver is None:
             if self.ls_type.startswith('coo'):
                 datatype = 'Z' if (AA.dtype == 'complex') else 'D'
@@ -269,8 +297,13 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             self.linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed,
                                           name = depvars)
 
-        solall = self.linearsolver.Mult(BB, case_base=engine.case_base)
-        engine.case_base += BB.shape[1]
+        if self.linearsolver.is_iterative:
+            XX = engine.finalize_x(X[-1], RHS, mask, not self.phys_real,
+                                   format = self.ls_type)
+        else:
+            XX = None
+        solall = self.linearsolver.Mult(BB, x=XX, case_base=engine.case_base)
+        engine.case_base += len(BB)
             
         if not self.phys_real and self.assemble_real:
             assert False, "this has to be debugged (convertion from real to complex)"
@@ -279,10 +312,19 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.time = self.time + self.time_step
         self.counter += 1
         
-        self.sol = A.reformat_central_mat(solall, 0)
+        A.reformat_central_mat(solall, 0, X[0], mask)
+        self.sol = X[-1]
 
+        for name in self.time_deriv_vars:
+            offset1 = self.engine.dep_var_offset(name)       # vt
+            offset2 = self.engine.dep_var_offset(name[:-1])  # v      
+            X[0][offset1, 0] = (X[0][offset2, 0]-X[-1][offset2, 0])*(1./self.time_step)
+            
         for p in self.probe:
-            p.append_sol(self.sol, self.time)
+            p.append_sol(X[0], self.time)
+
+        # swap X[0] and X[-1] for next computing
+        tmp = X[0]; X[0] = X[-1]; X[-1]=tmp
                 
         if self.checkpoint[self.icheckpoint] < self.time:
             self.write_checkpoint_solution()

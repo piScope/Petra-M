@@ -86,14 +86,26 @@ class WF(PhysModule):
     @property
     def dep_vars(self):
         ret = self.dep_vars_base
-        return [x + self.dep_vars_suffix for x in ret]
+        ret = [x + self.dep_vars_suffix for x in ret]        
+        if self.generate_dt_fespace:
+            ret = ret+ [x + "t"+ self.dep_vars_suffix for x in ret]        
+        return ret
     
     @property 
     def dep_vars_base(self):
         if self.vdim > 1:
-            return ["".join(self.dep_vars_base_txt.split(','))]
+            val = ["".join(self.dep_vars_base_txt.split(','))]
         else:
-            return self.dep_vars_base_txt.split(',')
+            val =  self.dep_vars_base_txt.split(',')
+        return val
+    
+    @property 
+    def dep_vars0(self):
+        if self.vdim > 1:
+            val = ["".join(self.dep_vars_base_txt.split(','))]
+        else:
+            val =  self.dep_vars_base_txt.split(',')
+        return [x + self.dep_vars_suffix for x in val]            
 
     @property 
     def der_vars(self):
@@ -124,8 +136,7 @@ class WF(PhysModule):
     
     def get_fec(self):
         v = self.dep_vars
-        v = "_".join(v)
-        return [(v, self.element)]
+        return [(vv, self.element) for vv in v]
     
     def attribute_set(self, v):
         v = super(WF, self).attribute_set(v)
@@ -154,7 +165,8 @@ class WF(PhysModule):
                 ["complex", self.is_complex_valued, 3, {"text":""}],
                 a, b, 
                 ["derived vars.", ','.join(self.der_vars), 2, {}],
-                ["predefined ns vars.", txt_predefined , 2, {}]])
+                ["predefined ns vars.", txt_predefined , 2, {}],
+                ["generate d/dt...", self.generate_dt_fespace, 3, {"text":' '}],])
         return panels
                       
     def get_panel1_value(self):
@@ -164,7 +176,8 @@ class WF(PhysModule):
                       
         val.extend([self.ind_vars, self.is_complex_valued,
                     self.dep_vars_suffix,
-                     names, names2, txt_predefined])
+                     names, names2, txt_predefined,
+                     self.generate_dt_fespace])
         return val
     
                       
@@ -189,6 +202,7 @@ class WF(PhysModule):
             self.vdim = len(str(v[3]).split(','))
         else:
             self.vdim = 1
+        self.generate_dt_fespace = bool(v[6])
 
     def get_possible_domain(self):
         from wf_constraints import WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint

@@ -63,7 +63,7 @@ class WidgetSmoother(wx.Panel):
         sizer1.Add(sizer2, 1, wx.EXPAND)
         self.pg = wxpg.PropertyGridManager(self,
                         style=wxpg.PG_SPLITTER_AUTO_CENTER |
-                              wxpg.PG_AUTO_SORT|
+                              #wxpg.PG_AUTO_SORT|
                               #wxpg.PG_DESCRIPTION |
                               wxpg.PG_TOOLBAR)
         self.pg.AddPage("Serial", bmp=bmp1)
