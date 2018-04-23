@@ -886,20 +886,37 @@ class DlgPlotSol(DialogWithWindowList):
 
         allxyz = np.vstack([udata[0] for udata in u])
         dx = np.max(allxyz[:,0])-np.min(allxyz[:,0])
-        dy = np.max(allxyz[:,1])-np.min(allxyz[:,1])
-        dz = np.max(allxyz[:,2])-np.min(allxyz[:,2])        
+        if allxyz.shape[1]>1:
+            dy = np.max(allxyz[:,1])-np.min(allxyz[:,1])
+        else:
+            dy = dx*0.
+        if allxyz.shape[1]>2:           
+            dz = np.max(allxyz[:,2])-np.min(allxyz[:,2])
+        else:
+            dz = dy*0.
         length = np.max((dx, dy, dz))/20.
         
         for udata, vdata, wdata in zip(u, v, w):
            xyz = udata[0]
+               
            u = udata[1]
            v = vdata[1]
            w = wdata[1]
 
            ll = np.min([xyz.shape[0]-1,int(value[7])])
            idx = np.linspace(0, xyz.shape[0]-1,ll).astype(int)
-           viewer.quiver3d(xyz[idx,0], xyz[idx,1], xyz[idx,2],
-                           u[idx], v[idx], w[idx],
+           
+           x = xyz[idx,0]
+           if xyz.shape[1]>1:
+               y = xyz[idx,1]
+           else:
+               y = x*0.
+           if xyz.shape[1]>2:
+               y = xyz[idx,2]
+           else:
+               z = x*0.
+               
+           viewer.quiver3d(x, y, z, u[idx], v[idx], w[idx],
                            length = length)
 
         viewer.update(True)

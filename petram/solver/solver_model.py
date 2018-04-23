@@ -183,6 +183,7 @@ class TimeDependentSolverInstance(SolverInstance):
         self.et = 1.0
         self.checkpoint = [0, 0.5, 1.0]
         self.time = 0.0
+        self.child_instance = []
         SolverInstance.__init__(self, gui, engine)
         
     def set_start(self, st):
@@ -197,6 +198,9 @@ class TimeDependentSolverInstance(SolverInstance):
     def set_checkpoint(self, checkpoint):
         self.checkpoint = checkpoint
 
+    def add_child_instance(self, instance):
+        self.child_instance.append(instance)
+        
     def solve(self):
         assert False, "time dependent solver does not have solve method. call step"
         

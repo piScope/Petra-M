@@ -33,8 +33,11 @@ def get_integrators(filename):
     lines = [l for l in lines if not l.startswith('#')]
     lines = [l.split("|")[1:] for l in lines]
     names = [l[0].strip() for l in lines]
-    domains = [[x.strip() for x in l[1].split(',')] for l in lines]
-    ranges  = [[x.strip() for x in l[2].split(',')] for l in lines]
+    domains = [[x.strip() for x in l[1].split(',') if x.strip()!=''] for l in lines]
+    ranges  = [[x.strip() for x in l[2].split(',') if x.strip()!=''] for l in lines]
+    for trial, test in zip(domains, ranges):
+        if len(test) == 0:
+           for x in trial: test.append(x)
     def x(txt):
         xx = [x.strip() for x in txt.split(",")]
         return xx
@@ -113,9 +116,9 @@ class WeakIntegration(Phys):
         return [dep_vars[self.test_idx],
                 self.coeff_type,
                 self.vt_coeff.get_panel_value(self)[0],
-                self.integrator,
-                self.use_src_proj,
-                self.use_dst_proj,]
+                self.integrator,]
+                #self.use_src_proj,
+                #self.use_dst_proj,]
               
     def panel1_tip(self):
         pass
@@ -134,9 +137,9 @@ class WeakIntegration(Phys):
                {"style":wx.CB_READONLY, "choices": dep_vars}],
                p,
                panels[0],
-               p2,
-              ["use src proj.",  self.use_src_proj,   3, {"text":""}],
-              ["use dst proj.",  self.use_dst_proj,   3, {"text":""}],  ]
+               p2,]
+              #["use src proj.",  self.use_src_proj,   3, {"text":""}],
+              #["use dst proj.",  self.use_dst_proj,   3, {"text":""}],  ]
         return ll
      
     def is_complex(self):
@@ -148,8 +151,8 @@ class WeakIntegration(Phys):
         self.coeff_type = str(v[1])
         self.vt_coeff.import_panel_value(self, (v[2],))
         self.integrator =  str(v[3])
-        self.use_src_proj = v[4]
-        self.use_dst_proj = v[5]
+        #self.use_src_proj = v[4]
+        #self.use_dst_proj = v[5]
 
     def preprocess_params(self, engine):
         self.vt_coeff.preprocess_params(self)
@@ -238,7 +241,7 @@ class WeakBilinIntegration(WeakIntegration):
         t = self.get_root_phys().fes_type
         if len(t)>2 and t[2] == "v":
            t = t[:3]
-        return [b for b in bilinintegs if t in b[1]]
+        return [b for b in bilinintegs if t in b[2]]
    
     def attribute_set(self, v):
         v = super(WeakBilinIntegration, self).attribute_set(v)

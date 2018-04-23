@@ -94,7 +94,8 @@ class StdSolver(Solver):
 
         if is_first:
             instance.init()
-        
+            
+        instance.set_fes_mask()        
         if self.init_only:
             instance.save_solution()
         else:
@@ -113,7 +114,7 @@ class StandardSolver(SolverInstance):
     def __init__(self, gui, engine):
         SolverInstance.__init__(self, gui, engine)
         self.assembled = False
-
+        self.linearsolver = None
     @property
     def blocks(self):
         return self.engine.assembled_blocks
@@ -175,7 +176,7 @@ class StandardSolver(SolverInstance):
         self.blocks[4] = B
         self.assembled = True
 
-    def solve(self):
+    def solve(self, update_operator = True):
         engine = self.engine
 
         #if not self.assembled:
@@ -184,12 +185,22 @@ class StandardSolver(SolverInstance):
         A, X, RHS, Ae, B, M, depvars = self.blocks
         mask = self.fes_mask
         depvars = [x for i, x in enumerate(depvars) if mask[i]]
-        
-        AA = engine.finalize_matrix(A, mask, not self.phys_real, format = self.ls_type)
-        BB = engine.finalize_rhs([RHS], A ,X[0], mask, not self.phys_real, format = self.ls_type)
 
-        linearsolver = self.allocate_linearsolver(self.gui.is_complex())
-        linearsolver.SetOperator(AA,
+        if update_operator:
+            AA = engine.finalize_matrix(A, mask, not self.phys_real,
+                                    format = self.ls_type)
+        BB = engine.finalize_rhs([RHS], A ,X[0], mask, not self.phys_real,
+                                 format = self.ls_type)
+
+
+        if self.linearsolver is None:
+            linearsolver = self.allocate_linearsolver(self.gui.is_complex())
+            self.linearsolver = linearsolver
+        else:
+            linearsolver = self.linearsolver
+
+        if update_operator:            
+            linearsolver.SetOperator(AA,
                                  dist = engine.is_matrix_distributed,
                                  name = depvars)
         
@@ -209,6 +220,7 @@ class StandardSolver(SolverInstance):
         
         A.reformat_central_mat(solall, 0, X[0], mask)
         self.sol = X[0]
+
         return True
 
 
