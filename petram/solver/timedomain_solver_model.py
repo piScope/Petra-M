@@ -11,7 +11,11 @@ rprint = debug.regular_print('TimeDependentSolver')
 
 from petram.solver.std_solver_model import StdSolver
 class DerivedValue(StdSolver):
-    pass
+    def allocate_instance(self, engine):
+        from petram.solver.std_solver_model import StandardSolver        
+        instance = StandardSolver(self, engine)
+        instance.set_fes_mask()        
+        return instance
 
 class TimeDomain(Solver):
     can_delete = True
@@ -113,7 +117,11 @@ class TimeDomain(Solver):
 
         wt = [eval(x, lns) for x in timestep_weight]
         return wt
-
+    
+    def derived_value_solver(self):
+        return [self[key] for key in self
+                if isinstance(self[key],DerivedValue)]
+    
     @debug.use_profiler
     def run(self, engine, is_first=True):
         if self.clear_wdir:
@@ -142,6 +150,11 @@ class TimeDomain(Solver):
             
         instance.configure_probes(self.probe)
         instance.set_fes_mask()
+        
+        for solver in self.derived_value_solver():
+            child = solver.allocate_instance(engine)
+            instance.add_child_instance(child)
+        
         while not finished:
             finished = instance.step()
 
@@ -309,9 +322,6 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             assert False, "this has to be debugged (convertion from real to complex)"
             solall = self.linearsolver_model.real_to_complex(solell, A)
             
-        self.time = self.time + self.time_step
-        self.counter += 1
-        
         A.reformat_central_mat(solall, 0, X[0], mask)
         self.sol = X[-1]
 
@@ -319,10 +329,16 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             offset1 = self.engine.dep_var_offset(name)       # vt
             offset2 = self.engine.dep_var_offset(name[:-1])  # v      
             X[0][offset1, 0] = (X[0][offset2, 0]-X[-1][offset2, 0])*(1./self.time_step)
-            
+
+        for child in self.child_instance:
+            # for now update_operator is True only for the first run.
+            child.solve(update_operator = (self.counter == 0))
+
+        self.time = self.time + self.time_step
+        self.counter += 1
         for p in self.probe:
             p.append_sol(X[0], self.time)
-
+            
         # swap X[0] and X[-1] for next computing
         tmp = X[0]; X[0] = X[-1]; X[-1]=tmp
                 
