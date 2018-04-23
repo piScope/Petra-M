@@ -254,8 +254,8 @@ class GMRESSolver(LinearSolver):
            rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
            rowstarts = np.hstack((0, np.cumsum(rows)))
            dprint1("rowstarts/offser",rowstarts, offset.ToList())
-           xx = mfem.BlockVector(offset)
-           if x is None:
+           if x is None:           
+              xx = mfem.BlockVector(offset)
               xx.Assign(0.0)
            else:
               xx = x

@@ -218,7 +218,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         for k in self.nlterms: nl_config[k] = []
         v['nl_config'] = (False, nl_config)
         v['timestep_config'] = [True, False, False]
-        v['timestep_weight'] = ["1", "0", "0"]        
+        v['timestep_weight'] = ["1", "0", "0"]
         return v
         
     def get_possible_bdry(self):
@@ -520,7 +520,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
               ['dy2dt2', False, 3, setting],
               ['M(t)',     "1", 0],
               ['M(t-dt)',  "0", 0],
-              ['M(t-2dt)', "0", 0]]
+              ['M(t-2dt)', "0", 0],]
         return ll
      
     def panel4_tip(self):
@@ -534,9 +534,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         self.timestep_weight[1] = value[4]
         self.timestep_weight[2] = value[5]
         
-        
     def get_panel4_value(self):
-        return self.timestep_config[0:3]+self.timestep_weight[0:3]
+        return (self.timestep_config[0:3]+self.timestep_weight[0:3])
          
     @property
     def geom_dim(self):
@@ -639,6 +638,10 @@ class PhysModule(Phys):
         v["dep_vars_suffix"] = ''
         v["mesh_idx"] = 0
         v['sel_index'] = ['all']
+        
+        # subclass can use this flag to generate FESpace for time derivative
+        # see WF_model
+        v['generate_dt_fespace'] = False
         return v
      
     def onVarNameChanged(self, evt):
@@ -718,7 +721,11 @@ class PhysModule(Phys):
     def dep_vars_base(self, name):
         raise NotImplementedError(
              "you must specify this method in subclass")
-
+    @property      
+    def dep_vars0(self):
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+     
     def dep_var_index(self, name):
         return self.dep_vars.index(name)
 

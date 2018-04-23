@@ -1874,7 +1874,11 @@ class Engine(object):
 
         for phys in phys_target:
            idx = all_phys.index(phys)
-           for name in self._dep_var_grouped[idx]:
+           dep_vars0 = phys.dep_vars0
+           dep_vars = phys.dep_vars
+           extra_vars = [x for x in self._dep_var_grouped[idx]
+                        if not x in dep_vars]
+           for name in dep_vars0+extra_vars:
                offset = self.dep_var_offset(name)
                mask[offset] = True
         return mask
