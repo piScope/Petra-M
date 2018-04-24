@@ -120,7 +120,7 @@ class TimeDomain(Solver):
     
     def derived_value_solver(self):
         return [self[key] for key in self
-                if isinstance(self[key],DerivedValue)]
+                if isinstance(self[key],DerivedValue) and self[key].enabled]
     
     @debug.use_profiler
     def run(self, engine, is_first=True):
@@ -321,13 +321,13 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         if not self.phys_real and self.assemble_real:
             assert False, "this has to be debugged (convertion from real to complex)"
             solall = self.linearsolver_model.real_to_complex(solell, A)
-            
+
         A.reformat_central_mat(solall, 0, X[0], mask)
-        self.sol = X[-1]
+
 
         for name in self.time_deriv_vars:
             offset1 = self.engine.dep_var_offset(name)       # vt
-            offset2 = self.engine.dep_var_offset(name[:-1])  # v      
+            offset2 = self.engine.dep_var_offset(name[:-1])  # v
             X[0][offset1, 0] = (X[0][offset2, 0]-X[-1][offset2, 0])*(1./self.time_step)
 
         for child in self.child_instance:
@@ -341,6 +341,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             
         # swap X[0] and X[-1] for next computing
         tmp = X[0]; X[0] = X[-1]; X[-1]=tmp
+        self.sol = X[-1]
                 
         if self.checkpoint[self.icheckpoint] < self.time:
             self.write_checkpoint_solution()

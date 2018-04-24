@@ -1865,7 +1865,7 @@ class Engine(object):
     def get_block_mask(self, phys_target=None):
 
         all_phys = [self.model['Phys'][k] for k in self.model['Phys']
-                    if self.model['Phys'].enabled]
+                    if self.model['Phys'][k].enabled]
         if phys_target is None:
            phys_target = all_phys
            
@@ -1873,14 +1873,14 @@ class Engine(object):
         mask = [False]*len(self._dep_vars)
 
         for phys in phys_target:
-           idx = all_phys.index(phys)
-           dep_vars0 = phys.dep_vars0
-           dep_vars = phys.dep_vars
-           extra_vars = [x for x in self._dep_var_grouped[idx]
-                        if not x in dep_vars]
-           for name in dep_vars0+extra_vars:
-               offset = self.dep_var_offset(name)
-               mask[offset] = True
+            idx = all_phys.index(phys)
+            dep_vars0 = phys.dep_vars0
+            dep_vars = phys.dep_vars
+            extra_vars = [x for x in self._dep_var_grouped[idx]
+                         if not x in dep_vars]
+            for name in dep_vars0+extra_vars:
+                offset = self.dep_var_offset(name)
+                mask[offset] = True
         return mask
         
     def collect_dependent_vars(self, phys_target=None):

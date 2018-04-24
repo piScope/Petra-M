@@ -325,7 +325,7 @@ class ExpressionVariable(Variable):
         if idx is None: idx = []
         for n in self.names:
             if (n in g and isinstance(g[n], Variable)):
-                idx = get_emesh_idx(self, idx=idx, g = g)
+                idx = g[n].get_emesh_idx(idx=idx, g = g)
         return idx
     
     def nodal_values(self, iele = None, el2v = None, locs = None,
@@ -613,9 +613,11 @@ class GridFunctionVariable(Variable):
         if idx is None: idx = []
         gf_real, gf_imag = self.deriv_args
         if gf_real is not None:
-            idx.append(gf_real._emesh_idx)
+            if not gf_real._emesh_idx in idx:
+                idx.append(gf_real._emesh_idx)
         elif gf_imag is not None:
-            idx.append(gf_imag._emesh_idx)
+            if not gf_imag._emesh_idx in idx:            
+                idx.append(gf_imag._emesh_idx)
         else:
             pass
             

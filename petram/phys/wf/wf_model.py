@@ -88,7 +88,7 @@ class WF(PhysModule):
         ret = self.dep_vars_base
         ret = [x + self.dep_vars_suffix for x in ret]        
         if self.generate_dt_fespace:
-            ret = ret+ [x + "t"+ self.dep_vars_suffix for x in ret]        
+            ret = ret+ [x + "t" for x in ret]        
         return ret
     
     @property 
@@ -245,15 +245,14 @@ class WF(PhysModule):
 
         dep_vars = self.dep_vars
         isVectorFE = (self.element.startswith("ND") or self.element.startswith("RT"))
-        
+        print "add solvar", name, dep_vars
         for dep_var in dep_vars:
-            if not name.startswith(dep_var): continue
+            if name != dep_var: continue
             if isVectorFE:
-                    add_components(v, dep_var, suffix, ind_vars, solr, soli)
+                    add_components(v, dep_var, "", ind_vars, solr, soli)
             else:
                 if self.vdim == 1:
-                    if name.startswith(dep_var):
-                        add_scalar(v, dep_var, suffix, ind_vars, solr, soli)
+                    add_scalar(v, dep_var, "", ind_vars, solr, soli)
                 else:
                     names = self.dep_vars_base_txt.split(',')
                     for k, n in enumerate(names):
