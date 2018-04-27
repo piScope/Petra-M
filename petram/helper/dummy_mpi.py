@@ -1,7 +1,7 @@
 class CommWorld(object):
     def __init__(self):
-        self.rank = 1
-        self.myid = 0
+        self.size = 1
+        self.rank = 0
         
     def Barrier(self):
         pass
