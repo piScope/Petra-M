@@ -501,7 +501,8 @@ class MFEMViewer(BookViewer):
 
         import wx
         projfile=wx.GetApp().TopWindow.proj.getvar('filename')
-        od.model_path = os.path.dirname(projfile)
+        if projfile is not None:
+            od.model_path = os.path.dirname(projfile)
         self.engine.set_model(od)
         cdir = os.getcwd()
         
