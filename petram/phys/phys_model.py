@@ -1,4 +1,3 @@
-import wx
 import numpy as np
 from os.path import dirname, basename, isfile, join
 import warnings
@@ -673,12 +672,12 @@ class PhysModule(Phys):
         return v[3:]
      
     def panel2_param(self):
-
+        import wx           
         if self.geom_dim == 3:
            choice = ("Volume", "Surface", "Edge")
         elif self.geom_dim == 2:
            choice = ("Surface", "Edge")
-           
+
         p = ["Type", choice[0], 4,
              {"style":wx.CB_READONLY, "choices": choice}]
         if self.dim_fixed:

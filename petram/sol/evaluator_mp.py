@@ -140,13 +140,15 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             self.solfiles = None
             
     def set_model(self, model_path):
-        from petram.engine import SerialEngine
-        s = SerialEngine(modelfile = model_path)
-        s.run_config()
-        s.run_mesh()
-        s.assign_sel_index()        
-        
-        self.model_real = s.model
+        try:
+            from petram.engine import SerialEngine
+            s = SerialEngine(modelfile = model_path)
+            s.run_config()
+            s.run_mesh()
+            s.assign_sel_index()        
+            self.model_real = s.model
+        except:
+             print(traceback.format_exc())
         super(EvaluatorMPChild, self).set_model(s.model)
 
     def call_preprocesss_geometry(self, attr, **kwargs):
