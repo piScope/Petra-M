@@ -492,6 +492,7 @@ class DlgPlotSol(DialogWithWindowList):
             
         data, data_x, battrs = self.eval_edge(mode = 'plot')
         if data is None: return
+
         self.post_threadend(self.make_plot_edge, data, battrs,
                             data_x = data_x,
                             cls = cls, expr = expr, expr_x = expr_x)
@@ -582,6 +583,7 @@ class DlgPlotSol(DialogWithWindowList):
         if expr_x != '':
             data_x, void = self.evaluate_sol_edge(expr_x, battrs, phys_path,
                                                     do_merge1, True)
+            if data_x is None: return None, None, None
         else:
             data_x = None
         return data, data_x, battrs

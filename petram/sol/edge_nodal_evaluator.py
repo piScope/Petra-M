@@ -63,7 +63,19 @@ class EdgeNodalEvaluator(EvaluatorAgent):
                 if attr in eattrs:
                     iverts.append(list(mesh.GetBdrElement(i).GetVerticesArray()))
                     #d[attr].extend(mesh.GetBdrElement(i).GetVerticesArray())
-
+        elif mesh.Dimension() == 1:
+            kbdr = mesh.GetAttributeArray()
+            if eattrs == 'all': eattrs = np.unique(kbdr)
+            iverts = []
+            #d = defaultdict(list)
+            for i in range(mesh.GetNE()):
+                attr = mesh.GetAttribute(i)
+                if attr in eattrs:
+                    iverts.append(list(mesh.GetElement(i).GetVerticesArray()))
+                    #d[attr].extend(mesh.GetBdrElement(i).GetVerticesArray())
+        else:
+            assert False, "Unsupported dim"
+            
         self.ibeles = None # can not use boundary variable in this evaulator
         self.emesh_idx = emesh_idx
         
@@ -83,11 +95,13 @@ class EdgeNodalEvaluator(EvaluatorAgent):
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
-        if len(emesh_idx) < 1:
-            assert False, "expression is not defined on any mesh"
+        #if len(emesh_idx) < 1:
+        #    assert False, "expression is not defined on any mesh"
+        #(this could happen when expression is pure geometryical like "x+y")                
             
-        if self.emesh_idx != emesh_idx[0]:
-             self.preprocess_geometry(self.attrs, emesh_idx=emesh_idx[0])
+        if len(emesh_idx) == 1:
+            if self.emesh_idx != emesh_idx[0]:
+                 self.preprocess_geometry(self.attrs, emesh_idx=emesh_idx[0])
         
         val = eval_at_nodals(self, expr, solvars, phys)
         if val is None: return None, None, None

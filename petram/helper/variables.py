@@ -324,7 +324,7 @@ class ExpressionVariable(Variable):
     def get_emesh_idx(self, idx = None, g = None):
         if idx is None: idx = []
         for n in self.names:
-            if (n in g and isinstance(g[n], Variable)):
+            if n in g and isinstance(g[n], Variable):
                 idx = g[n].get_emesh_idx(idx=idx, g = g)
         return idx
     
@@ -385,7 +385,7 @@ class ExpressionVariable(Variable):
         for n in self.names:
             if (n in g and isinstance(g[n], Variable)):
                 l[n] = g[n].ncface_values(ifaces = ifaces, irs = irs,
-                                          gtypes = gtypes, locs = ptx,
+                                          gtypes = gtypes, locs = locs,
                                           attr1 = attr1, attr2 = attr2, 
                                           g = g, **kwargs)
                 ll_name.append(n)

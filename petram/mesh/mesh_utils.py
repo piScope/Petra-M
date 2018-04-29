@@ -652,10 +652,12 @@ def get_extended_connectivity(mesh):
         l2v, l2e, v2v = find_corner(mesh)
         
     else:
+        lp = bdr_loop(mesh)        
         v2s = None; s2l = None
-        l2e = bdr_loop(mesh)
-        l2v = None
-        v2v = None
+        l2e = {k:k for k in lp.keys()}
+        l2v = bdr_loop(mesh)
+        v = np.unique(np.hstack([lp[k] for k in lp.keys()]))
+        v2v = {k:k for k in v}
     from mfem.common.mpi_debug import nicePrint, niceCall                
     #nicePrint('s2l', s2l)
     mesh.extended_connectivity = {}

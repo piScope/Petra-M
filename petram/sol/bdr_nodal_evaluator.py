@@ -105,7 +105,7 @@ def get_emesh_idx(obj, expr, solvars, phys):
     idx = []   
     for n in names:
        if (n in g and isinstance(g[n], Variable)):
-           idx = g[n].get_emesh_idx(idx, g=g[n])
+           idx = g[n].get_emesh_idx(idx, g=g)
     return idx
        
     
@@ -211,11 +211,14 @@ class BdrNodalEvaluator(EvaluatorAgent):
         #print("emesh_idx", emesh_idx)
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
-        if len(emesh_idx) < 1:
-            assert False, "expression is not defined on any mesh"
-        if self.emesh_idx != emesh_idx[0]:
-             #print("process geom", emesh_idx[0])                         
-             self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
+        #if len(emesh_idx) < 1:
+        #    assert False, "expression is not defined on any mesh"
+        #(this could happen when expression is pure geometryical like "x+y")
+
+        if len(emesh_idx) == 1:        
+            if self.emesh_idx != emesh_idx[0]:
+                 #print("process geom", emesh_idx[0])                         
+                 self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
 
              
         val = eval_at_nodals(self, expr, solvars, phys)

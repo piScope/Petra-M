@@ -722,6 +722,8 @@ class PhysModule(Phys):
              "you must specify this method in subclass")
     @property      
     def dep_vars0(self):
+        # solver uses this method to find dep_vars to construct linear system
+        # used (for example) to omit d/dt term from FESspace variables
         raise NotImplementedError(
              "you must specify this method in subclass")
      
@@ -796,6 +798,9 @@ class PhysModule(Phys):
         elif self.dim == 1: kk = 'line2vert'                   
         else: assert False, "not supported"
         d = mesh.extended_connectivity[kk]
+        
+        if d is None:
+           return [], []
         
         dom_choice = d.keys()
         bdr_choice = sum([list(d[x]) for x in d], [])
