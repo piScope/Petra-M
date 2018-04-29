@@ -33,6 +33,45 @@ else:
     # dummy class
     class ParMesh(object):
         pass
+    
+def extract_mesh_data_1D(mesh):
+    nv = mesh.GetNV()
+    X = np.vstack([mesh.GetVertexArray(k) for k in range(nv)])
+    if X.shape[1] == 2:
+        X = np.hstack((X, np.zeros((X.shape[0],1))))
+    elif X.shape[1] == 1:
+        X = np.hstack((X, np.zeros((X.shape[0],2))))
+        
+    cells = {}
+    cell_data = {}
+
+    attrs = mesh.GetAttributeArray()
+    lverts = []; lattr=[]
+    for attr in np.unique(attrs):
+        idx = np.where(attrs == attr)[0]
+        for i in idx:
+            lverts.append(mesh.GetElementVertices(i))
+        lattr.extend([attr]*len(idx))
+        
+    cells['line'] = np.array(lverts)
+    cell_data['line'] = {}
+    cell_data['line']['physical'] = np.array(lattr).flatten()
+
+    vverts = []; vattr=[]    
+    for ibe in range(mesh.GetNBE()):
+        battr = mesh.GetBdrAttribute(ibe)
+        vattr.append(battr)
+        vverts.append(mesh.GetBdrElementVertices(ibe))
+    cells['vertex'] = np.array(vverts)
+    cell_data['vertex'] = {}    
+    cell_data['vertex']['physical'] = np.array(vattr).flatten()
+
+    from petram.mesh.mesh_utils import get_extended_connectivity
+    
+    if not hasattr(mesh, 'extended_connectivity'):
+        get_extended_connectivity(mesh)
+    
+    return X, cells, cell_data, [None, None], None
 
 def extract_mesh_data(mesh, refine = 1):
     if isinstance(mesh, ParMesh):
@@ -60,7 +99,8 @@ def extract_mesh_data(mesh, refine = 1):
 
         attrs = mesh.GetAttributeArray()        
     else:
-        assert False, "1D mesh not supported"
+        return extract_mesh_data_1D(mesh)
+
     nvert = np.array([len(x) for x in ivert0])
     idx3 = np.where(nvert == 3)[0]
     idx4 = np.where(nvert == 4)[0]

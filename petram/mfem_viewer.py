@@ -430,14 +430,17 @@ class MFEMViewer(BookViewer):
             idx, objs = self._getSelectedIndex(mode='edge')                        
             s = _s_v_loop[0]
             connected_surf = []
-            for i in idx:
-               for k in s.keys():
-                   if i in s[k]: connected_surf.append(k)
-            connected_suf = list(set(connected_surf))            
-            status_txt = ('Edge: '+ ','.join([str(x) for x in idx]) + '(Face: ' +
+            if s is not None: ## in case line loop is defined...(2D/3D)
+               for i in idx:
+                  for k in s.keys():
+                      if i in s[k]: connected_surf.append(k)
+               connected_suf = list(set(connected_surf))
+               sf = connected_suf               
+               status_txt = ('Edge: '+ ','.join([str(x) for x in idx]) + '(Face: ' +
                         ','.join([str(x) for x in connected_suf]) + ')')
+            else:
+               status_txt = 'Edge: '+ ','.join([str(x) for x in idx])
 
-            sf = connected_suf
             se = idx
             
         elif self._sel_mode == 'point':
@@ -457,10 +460,11 @@ class MFEMViewer(BookViewer):
                 elif len(idx) == 2:
                     x, y, z = point.getvar('x', 'y', 'z')
                     ii1 = np.where(aidx == idx[0])[0][0]
-                    ii2 = np.where(aidx == idx[1])[0][0]                    
-                    t = (" (delta = "+ str(x[ii1] - x[ii2]) + ", " + 
-                                      str(y[ii1] - y[ii2]) + ", " + 
-                                      str(z[ii1] - z[ii2]) + ")")
+                    ii2 = np.where(aidx == idx[1])[0][0]
+                    dx = x[ii1] - x[ii2]; dy = y[ii1] - y[ii2]; dz = z[ii1] - z[ii2]
+                    dd = np.sqrt(dx**2+dy**2+dz**2)
+                    t = (" (delta = "+ str(dx) + ", " + str(dy) + ", "+str(dz) +
+                            ", dist. = " + str(dd))
                     status_txt = status_txt + t
                 else:
                     pass

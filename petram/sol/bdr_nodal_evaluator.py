@@ -105,7 +105,7 @@ def get_emesh_idx(obj, expr, solvars, phys):
     idx = []   
     for n in names:
        if (n in g and isinstance(g[n], Variable)):
-           idx = g[n].get_emesh_idx(idx, g=g[n])
+           idx = g[n].get_emesh_idx(idx, g=g)
     return idx
        
     

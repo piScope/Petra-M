@@ -179,7 +179,6 @@ class WF(PhysModule):
                      names, names2, txt_predefined,
                      self.generate_dt_fespace])
         return val
-    
                       
     def import_panel1_value(self, v):
         import ifigure.widgets.dialog as dialog
@@ -213,18 +212,6 @@ class WF(PhysModule):
         from wf_essential import WF_Essential
         return [WF_Essential, WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint]
     
-    '''
-    def get_possible_edge(self):
-        from wf_constraints       import WF_Edge
-        return [WeakIntegration]
-    
-    def get_possible_point(self):
-        from wf_constraints       import WF_Point
-        return [WeakIntegration]
-    def get_possible_pair(self):
-        return []
-    '''
-
     def add_variables(self, v, name, solr, soli = None):
         from petram.helper.variables import add_coordinates
         from petram.helper.variables import add_scalar

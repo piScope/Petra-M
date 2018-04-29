@@ -723,6 +723,8 @@ class PhysModule(Phys):
              "you must specify this method in subclass")
     @property      
     def dep_vars0(self):
+        # solver uses this method to find dep_vars to construct linear system
+        # used (for example) to omit d/dt term from FESspace variables
         raise NotImplementedError(
              "you must specify this method in subclass")
      

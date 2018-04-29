@@ -49,7 +49,7 @@ class MeshGroup(Model):
     has_2nd_panel = False
     isMeshGroup = True    
     def get_possible_child(self):
-        return [MeshFile, UniformRefinement]
+        return [MeshFile, Mesh1D, UniformRefinement]
      
     def onItemSelChanged(self, evt):
         '''
@@ -68,6 +68,7 @@ class MeshGroup(Model):
         
 MFEMMesh = MeshGroup
 
+   
 class MeshFile(Mesh):
     isRefinement = False   
     has_2nd_panel = False        
@@ -88,7 +89,7 @@ class MeshFile(Mesh):
         v = super(MeshFile, self).attribute_set(v)
         v['path'] = ''
         v['generate_edges'] = 1
-        v['refine'] = 1
+        v['refine'] = True
         v['fix_orientation'] = True
 
         return v
@@ -155,6 +156,59 @@ class MeshFile(Mesh):
         try:
            mesh.GetNBE()
            return mesh
+        except:
+           return None
+        
+class Mesh1D(MeshFile):
+    isRefinement = False   
+    has_2nd_panel = False        
+
+    def attribute_set(self, v):
+        v = super(Mesh1D, self).attribute_set(v)
+        v['length'] = 1
+        v['nsegs'] = 100
+        v['length_txt'] = "1"
+        v['nsegs_txt'] = "100"
+        v['refine'] = 1
+        v['fix_orientation'] = True
+        return v
+        
+    def panel1_param(self):
+        def check_int_array(txt, param, w):
+            try:
+               val  = [int(x) for x in txt.split(',')]
+               return True
+            except:
+               return False
+            
+        return [["Length",   self.length_txt,  0, {"validator":check_int_array}],
+                ["N segments",   self.nsegs_txt,  0, {"validator":check_int_array}],
+                [None, "Note: use comma separated integer to generate a multisegments mesh",   2, {}],]
+
+    def get_panel1_value(self):
+        return (self.length_txt, self.nsegs_txt, None)
+    
+    def import_panel1_value(self, v):
+        self.length_txt = str(v[0])
+        self.nsegs_txt = str(v[1])
+        
+        try:
+            self.length = [int(x) for x in self.length_txt.split(',')]
+            self.nsegs= [int(x) for x in self.nsegs_txt.split(',')]
+        except:
+            pass
+
+    def run(self, mesh = None):
+
+        from petram.mesh.make_mesh1d import straight_line_mesh
+
+        m = straight_line_mesh(self.length, self.nsegs,
+                              filename='',
+                              refine = self.refine == 1,
+                              fix_orientation = self.fix_orientation)
+        try:
+           m.GetNBE()
+           return m
         except:
            return None
         
