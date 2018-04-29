@@ -799,6 +799,9 @@ class PhysModule(Phys):
         else: assert False, "not supported"
         d = mesh.extended_connectivity[kk]
         
+        if d is None:
+           return [], []
+        
         dom_choice = d.keys()
         bdr_choice = sum([list(d[x]) for x in d], [])
             

@@ -157,11 +157,13 @@ class SliceEvaluator(EvaluatorAgent):
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
-        if len(emesh_idx) < 1:
-            assert False, "expression is not defined on any mesh"
+        #if len(emesh_idx) < 1:
+        #    assert False, "expression is not defined on any mesh"
+        #(this could happen when expression is pure geometryical like "x+y")
             
-        if self.emesh_idx != emesh_idx[0]:
-             self.preprocess_geometry(self.attrs, plane=self.plane,
+        if len(emesh_idx) == 1:
+            if self.emesh_idx != emesh_idx[0]:
+                self.preprocess_geometry(self.attrs, plane=self.plane,
                                       emesh_idx=emesh_idx[0])
         
 
