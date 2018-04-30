@@ -33,7 +33,7 @@ def convert_sel_txt(txt, g):
     if txt.strip() == '':
         arr = []
     else:
-        arr =  tuple(eval(txt, g))
+        arr =  list(np.atleast_1d(eval(txt, g)))
     return  arr
 
 
