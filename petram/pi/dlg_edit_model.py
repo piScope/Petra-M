@@ -166,6 +166,8 @@ class DlgEditModel(DialogWithWindowList):
                                 ('To...', self.OnMoveItemTo, None),
                                 ('!', None, None),]
             menus = menus + [('Delete', self.OnDeleteItemFromModel, None)]
+        if mm.can_rename:
+            menus = menus + [('Rename...', self.OnRenameItem, None)]            
         if menus[-1][0] != '---':
              menus = menus + [('---', None, None)]
                                     
@@ -214,6 +216,17 @@ class DlgEditModel(DialogWithWindowList):
         text = self.model.GetItemText(indices)
         del mm.parent[text]   
         self.tree.RefreshItems()
+
+    def OnRenameItem(self, evt):    
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+
+        from ifigure.widgets.dialog import textentry
+        ret, name = textentry(parent=self, message='Enter new name', title='Rename',
+                         def_string=mm.name()+'_renamed',)
+        if not ret: return
+        mm.rename(name)
+        self.tree.RefreshItems()        
 
     def OnRefreshTree(self, evt=None):
         self.tree.RefreshItems()

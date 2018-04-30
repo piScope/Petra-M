@@ -195,6 +195,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                                      # edge/face/domain
 
     _has_4th_panel = True
+    can_rename = True
     
     vt   = Vtable(tuple())         
     vt2  = Vtable(tuple())         
@@ -582,7 +583,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 class PhysModule(Phys):
     hide_ns_menu = False
     dim_fixed = True # if ndim of physics is fixed
-
+    can_rename = False
+    
     def __setstate__(self, state):
         Phys.__setstate__(self, state)
         if self.sel_index == 'all': self.sel_index = ['all']

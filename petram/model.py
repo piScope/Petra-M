@@ -17,6 +17,26 @@ from functools import reduce
 
 from petram.namespace_mixin import NS_mixin
 
+def validate_sel(value, obj, w):
+    g = obj._global_ns
+    try:
+        value = eval(value, g)
+        return True
+    except:
+        return False
+
+def convert_sel_txt(txt, g):
+    if txt.strip() == 'remaining':
+        return ['remaining']
+    if txt.strip() == 'all':
+        return ['all']
+    if txt.strip() == '':
+        arr = []
+    else:
+        arr =  tuple(eval(txt, g))
+    return  arr
+
+
 class Restorable(object):
     def __init__(self):
         self._requires_restoration = False
@@ -124,6 +144,7 @@ class Model(RestorableOrderedDict):
     _has_4th_panel = False    
     mustbe_firstchild =False
     always_new_panel = True
+    can_rename = False
 
     def __init__(self, **kwargs):
         super(Model, self).__init__()
@@ -164,10 +185,21 @@ class Model(RestorableOrderedDict):
     def attribute_set(self, v):
         v['enabled'] = True
         v['sel_readonly'] = False
-        v['sel_index'] = ['remaining']
+        v['sel_index'] = []
+        if (hasattr(self, 'sel_index') and
+            not hasattr(self, 'sel_index_txt')):
+            v['sel_index_txt'] = ', '.join([str(x) for x in self.sel_index])
+        elif not hasattr(self, 'sel_index_txt'):
+            v['sel_index_txt'] = ''
         return v
 
     def process_sel_index(self, choice = None):
+        try:
+            arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
+            self.sel_index = arr            
+        except:
+            assert False, "failed to convert "+self.sel_index_txt
+        
         if len(self.sel_index) == 1 and self.sel_index[0] == 'remaining':
             self._sel_index = []
             return None
@@ -368,7 +400,7 @@ class Model(RestorableOrderedDict):
         pass
 
     def get_panel2_value(self):
-        return (','.join([str(x) for x in self.sel_index]),)
+        return (self.sel_index_txt,)
     
     def get_panel3_value(self):
         pass
@@ -386,10 +418,16 @@ class Model(RestorableOrderedDict):
         '''
         return value : gui_update_request
         '''
+        print "import_panel2_value(self, v)"
         if not self.sel_readonly:
-           arr =  str(v[0]).split(',')
-           arr = [x for x in arr if x.strip() != '']
-           self.sel_index = arr
+            print v
+            self.sel_index_txt = str(v[0])       
+            try:
+                arr = convert_sel_txt(str(v[0]), self._global_ns)
+                self.sel_index = arr            
+            except:
+                pass
+        print self.sel_index_txt
         return False
     
     def import_panel3_value(self, v):
@@ -437,7 +475,27 @@ class Model(RestorableOrderedDict):
         if self._parent is None: return 'root'
         for k in self._parent.keys():
             if self._parent[k] is self: return k
-   
+        return "No Parent"
+            
+    def rename(self, new_name):
+        if self.name()=='root':
+            assert False, "can't rename root"
+            
+        new_cnt = []
+        for key in self._parent.keys():
+            if self._parent[key] is self:
+                new_cnt.append((new_name, self._parent[key]))
+            else:
+                new_cnt.append((key, self._parent[key]))
+
+        parent = self._parent
+        for key in self._parent.keys():
+            parent[key]._parent = None
+            del parent[key]
+
+        for key, value in new_cnt:
+            parent[key] = value
+                               
     def split_digits(self):
         '''
         split tailing digits
@@ -670,7 +728,7 @@ class Model(RestorableOrderedDict):
     
     def figure_data_name(self):
         return self.name()
-    
+
 class Bdry(Model):
     can_delete = True
     is_essential = False
@@ -684,7 +742,9 @@ class Bdry(Model):
     
     def panel2_param(self):
         return [["Boundary",  'remaining',  0, {'changing_event': True,
-                                                'setfocus_event': True}] ]
+                                                'setfocus_event': True,
+                                                 'validator': validate_sel,
+                                                 'validator_param':self}] ]
 
 class Pair(Model):
     can_delete = True
@@ -694,6 +754,9 @@ class Pair(Model):
         v['sel_readonly'] = False
         v['src_index'] = []
         v['sel_index'] = []
+        v['src_index_txt'] = ''
+        v['sel_index_txt'] = ''
+        
         return v
         
     def get_possible_child(self):
@@ -701,9 +764,13 @@ class Pair(Model):
 
     def panel2_param(self):
         return [["Source",  '',  0, {'changing_event':True, 
-                                     'setfocus_event':True}],
+                                     'setfocus_event':True,
+                                     'validator': validate_sel,
+                                     'validator_param':self}],
                 ["Destination",  '',  0, {'changing_event':True,
-                                         'setfocus_event':True}],]
+                                          'setfocus_event':True,
+                                          'validator': validate_sel,
+                                          'validator_param':self}], ]
 
     def panel2_sel_labels(self):
         return ['source', 'destination']
@@ -733,18 +800,38 @@ class Pair(Model):
         return ans
         
     def get_panel2_value(self):
-        return (','.join([str(x) for x in self.src_index]),
-                ','.join([str(x) for x in self.sel_index]),)
+        return (self.src_index_txt, self.sel_index_txt)
     
     def import_panel2_value(self, v):
-        arr =  str(v[0]).split(',')
-        arr = [x for x in arr if x.strip() != '']
-        self.src_index = arr
-        arr =  str(v[1]).split(',')
-        arr = [x for x in arr if x.strip() != '']
-        self.sel_index = arr
+        
+        self.src_index_txt = str(v[0])       
+        self.sel_index_txt = str(v[1])
+
+        try:
+            arr = convert_sel_txt(str(v[0]), self._global_ns)
+            self.src_index = arr            
+        except:
+            pass
+        try:
+            arr = convert_sel_txt(str(v[1]), self._global_ns)
+            self.sel_index = arr            
+        except:
+            pass
+        return False
         
     def process_sel_index(self,  choice = None):
+        try:
+            arr = convert_sel_txt(self.src_index_txt, self._global_ns)
+            self.src_index = arr            
+        except:
+            assert False, "failed to convert "+self.src_index_txt
+
+        try:
+            arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
+            self.sel_index = arr            
+        except:
+            assert False, "failed to convert "+self.sel_index_txt
+        
         if len(self.sel_index) == 0:
             self._sel_index = []            
         elif self.sel_index[0] == '':            
@@ -785,7 +872,9 @@ class Domain(Model):
     
     def panel2_param(self):
         return [["Domain",  'remaining',  0, {'changing_event':True,
-                                              'setfocus_event':True}, ]]          
+                                              'setfocus_event':True,
+                                              'validator': validate_sel,
+                                              'validator_param':self}], ]
       
 class Edge(Model):
     can_delete = True
@@ -800,7 +889,10 @@ class Edge(Model):
     
     def panel2_param(self):
         return [["Edge",  'remaining',  0, {'changing_event':True, 
-                                            'setfocus_event':True}, ]]      
+                                            'setfocus_event':True,
+                                            'validator': validate_sel,
+                                            'validator_param':self}], ]
+    
 class Point(Model):
     can_delete = True
     is_essential = False        
@@ -814,6 +906,8 @@ class Point(Model):
     
     def panel2_param(self):
         return [["Point",  'remaining',  0, {'changing_event':True,
-                                             'setfocus_event':True}, ]]
+                                             'setfocus_event':True,
+                                             'validator': validate_sel,
+                                             'validator_param':self}], ]
 
         

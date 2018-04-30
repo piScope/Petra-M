@@ -17,7 +17,8 @@ import mfem.common.chypre as chypre
 from mfem.common.parcsr_extra import ToScipyCoo
 from mfem.common.mpi_debug import nicePrint
 
-from petram.model import Domain, Bdry, ModelDict
+from petram.model import Domain, Bdry#, ModelDict
+
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Engine')
 from petram.helper.matrix_file import write_coo_matrix, write_vector
