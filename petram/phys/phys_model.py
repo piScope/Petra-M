@@ -196,6 +196,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
     _has_4th_panel = True
     can_rename = True
+
+    # matrix element can be time-dependent
+    can_timedpendent = False        
     
     vt   = Vtable(tuple())         
     vt2  = Vtable(tuple())         
@@ -208,7 +211,14 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
     def get_info_str(self):
         return NS_mixin.get_info_str(self)
-     
+
+    @property
+    def update_flag(self):
+        return self._update_flag
+    @update_flag.setter
+    def update_flag(self, prop):
+        self._update_flag = getattr(self, prop)
+        
     def attribute_set(self, v):
         v = super(Phys, self).attribute_set(v)
         self.vt.attribute_set(v)
@@ -219,6 +229,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         v['nl_config'] = (False, nl_config)
         v['timestep_config'] = [True, False, False]
         v['timestep_weight'] = ["1", "0", "0"]
+        v['isTimeDependent'] = False
         return v
         
     def get_possible_bdry(self):
@@ -386,7 +397,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         return self.has_aux_op(phys1, kfes1, phys2, kfes2)
 
     def set_matrix_weight(self, get_matrix_weight):
-        self._mat_weight = get_matrix_weight(self.timestep_config, self.timestep_weight)
+        # self._mat_weight = get_matrix_weight(self.timestep_config,
+        #                                      self.timestep_weight)
+        self._mat_weight = get_matrix_weight(self.timestep_config)
         
     def get_matrix_weight(self):
         return self._mat_weight
@@ -515,12 +528,13 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
     def panel4_param(self):
         setting = {"text":' '}
-        ll = [['y(t)',   True, 3, setting],
-              ['dydt',   False, 3, setting],
-              ['dy2dt2', False, 3, setting],
-              ['M(t)',     "1", 0],
-              ['M(t-dt)',  "0", 0],
-              ['M(t-2dt)', "0", 0],]
+        ll = [['', True,  3, {"text": "y(t)"}],
+              ['', False, 3, {"text": "dy/dt"}],
+              ['', False, 3, {"text": "dy2/dt2"}],
+              ['', False, 3, {"text": "Time dependent"}],]
+#              ['M(t)',     "1", 0],
+#              ['M(t-dt)',  "0", 0],
+#              ['M(t-2dt)', "0", 0],]
         return ll
      
     def panel4_tip(self):
@@ -530,12 +544,13 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         self.timestep_config[0] = value[0]
         self.timestep_config[1] = value[1]
         self.timestep_config[2] = value[2]
-        self.timestep_weight[0] = value[3]
-        self.timestep_weight[1] = value[4]
-        self.timestep_weight[2] = value[5]
+        self.isTimeDependent = value[3]
+        #self.timestep_weight[0] = value[3]
+        #self.timestep_weight[1] = value[4]
+        #self.timestep_weight[2] = value[5]
         
     def get_panel4_value(self):
-        return (self.timestep_config[0:3]+self.timestep_weight[0:3])
+        return (self.timestep_config[0:3]+[self.isTimeDependent])
          
     @property
     def geom_dim(self):

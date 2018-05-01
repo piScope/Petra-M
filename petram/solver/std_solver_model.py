@@ -78,7 +78,7 @@ class StdSolver(Solver):
         instance = StandardSolver(self, engine)
         return instance
     
-    def get_matrix_weight(self, timestep_config, timestep_weight):
+    def get_matrix_weight(self, timestep_config):#, timestep_weight):
         return [1, 0, 0]            
         
     

@@ -110,12 +110,12 @@ class TimeDomain(Solver):
         choice.append(DerivedValue)
         return choice
     
-    def get_matrix_weight(self, timestep_config, timestep_weight):
-        dt = float(self.time_step)
-        lns = self.root()['General']._global_ns.copy()
-        lns['dt'] = dt
-
-        wt = [eval(x, lns) for x in timestep_weight]
+    def get_matrix_weight(self, timestep_config):
+        #timestep_weight):
+        #dt = float(self.time_step)
+        #lns = self.root()['General']._global_ns.copy()
+        #lns['dt'] = dt
+        wt = [1 if x else 0 for x in timestep_config]
         return wt
     
     def derived_value_solver(self):
@@ -237,13 +237,17 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
 
         dprint1("time deivatives to be computed", time_deriv_vars)
         
-    def pre_assemble(self):
+    def pre_assemble(self, update=False):
         engine = self.engine
         phys_target = self.get_phys()
-        engine.run_verify_setting(phys_target, self.gui)
-        engine.run_assemble_mat(phys_target)
-        engine.run_assemble_rhs(phys_target)
+        if not update:
+            engine.run_verify_setting(phys_target, self.gui)
+            
+        isUpdated1 = engine.run_assemble_mat(phys_target, update=update)
+        isUpdated2 = engine.run_assemble_rhs(phys_target, update=update)
+        
         self.pre_assembled = True
+        return isUpdated2 or isUpdated2
 
 
     def compute_A(self, M, B, X):
@@ -262,10 +266,11 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         RHS = MM.dot(X[-1]) + B
         return RHS
         
-    def assemble(self):
+    def assemble(self, update=False):
         self.blocks = self.engine.run_assemble_blocks(self.compute_A,
                                                       self.compute_rhs,
-                                                      inplace=False)                
+                                                      inplace=False,
+                                                      update=update)                
 
         #A, X, RHS, Ae, B, M, depvars = blocks
         self.assembled = True
@@ -289,6 +294,10 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             self.write_checkpoint_solution()
             self.icheckpoint += 1
         else:
+            engine.set_update_flag('TimeDependent')
+            self.pre_assemble(update=True)
+            self.assemble(update=True)
+            
             A, X, RHS, Ae, B, M, depvars = self.blocks                    
             #RHS = self.compute_rhs(M, B, [self.sol])
             RHS = self.compute_rhs(M, B, X)
@@ -326,8 +335,8 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
 
 
         for name in self.time_deriv_vars:
-            offset1 = self.engine.dep_var_offset(name)       # vt
-            offset2 = self.engine.dep_var_offset(name[:-1])  # v
+            offset1 = engine.dep_var_offset(name)       # vt
+            offset2 = engine.dep_var_offset(name[:-1])  # v
             X[0][offset1, 0] = (X[0][offset2, 0]-X[-1][offset2, 0])*(1./self.time_step)
 
         for child in self.child_instance:
@@ -342,6 +351,11 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         # swap X[0] and X[-1] for next computing
         tmp = X[0]; X[0] = X[-1]; X[-1]=tmp
         self.sol = X[-1]
+        
+        sol, sol_extra = engine.split_sol_array(self.sol)
+        engine.recover_sol(sol)
+        ## ToDo. Provide a way to use Lagrange multipler in model
+        extra_data = engine.process_extra(sol_extra)
                 
         if self.checkpoint[self.icheckpoint] < self.time:
             self.write_checkpoint_solution()
