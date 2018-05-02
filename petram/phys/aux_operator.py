@@ -5,8 +5,6 @@ import scipy.sparse
 from collections import OrderedDict
 from warnings import warn
 
-import wx
-
 from petram.mfem_config import use_parallel
 if use_parallel:
    from petram.helper.mpi_recipes import *
@@ -60,6 +58,8 @@ class AUX_Operator(Phys):
         return attrs
         
     def panel1_param(self):
+        import wx
+      
         mfem_physroot = self.get_root_phys().parent
         names, pnames, pindex = mfem_physroot.dependent_values()
         names = [n+" ("+p + ")" for n, p in zip(names, pnames)]

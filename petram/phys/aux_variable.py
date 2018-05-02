@@ -5,8 +5,6 @@ import scipy.sparse
 from collections import OrderedDict
 from warnings import warn
 
-import wx
-
 from petram.mfem_config import use_parallel
 if use_parallel:
    from petram.helper.mpi_recipes import *
@@ -91,7 +89,9 @@ class AUX_Variable(Phys):
         return self._vt_array
      
     def panel1_param(self):
+        import wx       
         from wx import BU_EXACTFIT
+        
         b1 = {"label": "+", "func": self.onAddConnection,
               "noexpand": True, "style": BU_EXACTFIT}#, "sendevent":True}
         b2 = {"label": "-", "func": self.onRmConnection,

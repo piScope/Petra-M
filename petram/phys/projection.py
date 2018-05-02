@@ -5,7 +5,6 @@
 '''
 import os
 import numpy as np
-import wx
 
 from petram.phys.phys_model import Phys
 from petram.phys.phys_model  import PhysCoefficient
@@ -58,6 +57,7 @@ class DoFProjection(Pair, Phys):
         return v
     
     def panel1_param(self):
+        import wx
         names = self.get_root_phys().dep_vars
         ll = [["FESpace", "S", 4,
                {"style":wx.CB_READONLY, "choices": names}]]
