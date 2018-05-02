@@ -78,7 +78,11 @@ class Engine(object):
         self.max_bdrattr = -1
         self.max_attr = -1        
         self.sol_extra = None
+        self.sol = None
         
+        # assembled block [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]        
+        self.assembled_blocks = [None]*7
+
         # place holder : key is base physics modules, such as EM3D1...
         #
         # for example : self.r_b['EM3D1'] = [LF for E, LF for psi]
@@ -482,7 +486,7 @@ class Engine(object):
                 
         return
 
-    def run_assemble_rhs(self, phys_target = None, update=False):
+    def run_assemble_b(self, phys_target = None, update=False):
         '''
         assemble only RHS
  
@@ -518,9 +522,13 @@ class Engine(object):
         for r, c, form in self.i_b:
             if self.mask_B[r]: form.Assemble()
 
-           
         return
-
+     
+    def run_fill_X_block(self):
+        X = self.prepare_X_block()
+        X = self.fill_X_block(X)
+        self.assembled_blocks[1] = X
+        
     def run_assemble_blocks(self, compute_A, compute_rhs,
                             inplace = True, update=False):
         '''
@@ -534,9 +542,11 @@ class Engine(object):
            B = self.assembled_blocks[4]
            X = self.assembled_blocks[1]
         else:
-           M, B, X = self.prepare_blocks()
+           M, B = self.prepare_M_B_blocks()
+           X = self.assembled_blocks[1]           
         
-        self.fill_M_B_X_blocks(M, B, X, update=update)
+        M, B, M_changed = self.fill_M_B_blocks(M, B, update=update)
+
         #B.save_to_file("B")
         #M[0].save_to_file("M0")        
         #M[1].save_to_file("M1")
@@ -550,7 +560,7 @@ class Engine(object):
         #for x in X: 
         #    B.check_shared_id(x)
         
-        #RHS.save_to_file("RHSbefore")                
+        #RHS.save_to_file("RHSbefore")
         A, Ae = self.fill_BCeliminate_matrix(A, inplace=inplace)     # generate Ae
         #M[0].save_to_file("M0there")                        
         #Ae.save_to_file("Ae")
@@ -560,8 +570,15 @@ class Engine(object):
         #M[1].save_to_file("M1")
         #X[0].save_to_file("X0")
         #RHS.save_to_file("RHS")                
-        self.assembled_blocks = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
-        return self.assembled_blocks
+        self.assembled_blocks[0] = A
+        self.assembled_blocks[1] = X
+        self.assembled_blocks[2] = RHS
+        self.assembled_blocks[3] = Ae
+        self.assembled_blocks[4] = B
+        self.assembled_blocks[5] = M
+        self.assembled_blocks[6] = self.dep_vars[:]   
+        #= [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
+        return self.assembled_blocks, M_changed
      
     def run_update_B_blocks(self):
         '''
@@ -963,19 +980,23 @@ class Engine(object):
     #
     #  step3 : generate block matrices/vectors
     #
-    def prepare_blocks(self):
+    def prepare_M_B_blocks(self):
         size = len(self.dep_vars)                         
         M_block = [self.new_blockmatrix((size, size)) for i in range(self.n_matrix)]
         B_block = self.new_blockmatrix((size, 1))
+        return (M_block, B_block)
+     
+    def prepare_X_block(self):
+        size = len(self.dep_vars)                         
         X_block = [self.new_blockmatrix((size, 1))  for i in range(self.n_matrix)]
-        return (M_block, B_block, X_block)
+        return X_block
 
     def prepare_B_blocks(self):
         size = len(self.dep_vars)                         
         B_block = self.new_blockmatrix((size, 1))
         return B_block
     
-    def fill_M_B_X_blocks(self, M, B, X, update=False):
+    def fill_M_B_blocks(self, M, B, update=False):
         from petram.helper.formholder import convertElement
         from mfem.common.chypre import BF2PyMat, LF2PyVec, Array2PyVec
         from mfem.common.chypre import MfemVec2PyVec, MfemMat2PyMat    
@@ -983,14 +1004,20 @@ class Engine(object):
 
         #print 'mask_M', self.mask_M
         #print 'mask_B', self.mask_B
+
         if update:
+            M_changed = False
             L = len(self.dep_vars)
             for k in range(self.n_matrix):
                 for i, j in product(range(L),range(L)):
-                    if self.mask_M[k, i, j]: M[k][i, j] = None
+                    if self.mask_M[k, i, j]:
+                       M[k][i, j] = None
+                       M_changed = True
             for i in range(L):
                 if self.mask_B[i]: B[i] = None
-                    
+        else:
+            M_changed = True
+            
         nfes = len(self.fes_vars)
         for k in range(self.n_matrix):
             self.access_idx = k
@@ -1052,8 +1079,14 @@ class Engine(object):
             t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]            
             B[r] = t4
 
-        if update: return M, B, X
+        return M, B, M_changed
         
+    def fill_X_block(self, X):
+        from petram.helper.formholder import convertElement
+        from mfem.common.chypre import BF2PyMat, LF2PyVec, Array2PyVec
+        from mfem.common.chypre import MfemVec2PyVec, MfemMat2PyMat    
+        from itertools import product
+       
         for k in range(self.n_matrix):
             self.access_idx = k
             self.r_x.generateMatVec(self.x2X)
@@ -1075,7 +1108,7 @@ class Engine(object):
                         pass
                         # For now, it leaves as None for Lagrange Multipler?
                         # May need to allocate zeros...
-        return M, B, X
+        return X
      
     def fill_B_blocks(self, B):
         from petram.helper.formholder import convertElement

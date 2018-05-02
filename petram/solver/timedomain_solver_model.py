@@ -144,6 +144,7 @@ class TimeDomain(Solver):
         instance.set_checkpoint(np.linspace(st, et, nt))
         
         if is_first:
+            self.prepare_form_sol_variables(engine)            
             finished = instance.init(self.init_only)
         else:
             finished = False
@@ -156,7 +157,7 @@ class TimeDomain(Solver):
             instance.add_child_instance(child)
         
         while not finished:
-            finished = instance.step()
+            finished = instance.step(is_first)
 
         instance.save_solution(ksol = 0,
                                skip_mesh = False, 
@@ -187,8 +188,9 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.counter = 0
         self.icheckpoint = 0
         engine = self.engine
-                      
         phys_target = self.get_phys()
+        
+        '''                   
         num_matrix= self.gui.get_num_matrix(phys_target)
         
         engine.set_formblocks(phys_target, num_matrix)
@@ -197,7 +199,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             engine.run_mesh_extension(p)
             
         engine.run_alloc_sol(phys_target)
-        
+        '''        
         inits = self.get_init_setting()
         if len(inits) == 0:
             # in this case alloate all fespace and initialize all
@@ -208,15 +210,16 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
                 init.run(engine)
         engine.run_apply_essential(phys_target)
         
-        self.pre_assemble()
-        self.assemble()
-        A, X, RHS, Ae, B, M, depvars = self.blocks        
-        self.sol = X[0]
+
+        self.sol = self.blocks[1][0]   # X[0]
+        engine.sol = self.blocks[1][0]
         
         if init_only:
             self.write_checkpoint_solution()
             return True
         else:
+            self.pre_assemble()
+            self.assemble()
             return False
         
     def set_fes_mask(self):
@@ -244,7 +247,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             engine.run_verify_setting(phys_target, self.gui)
             
         isUpdated1 = engine.run_assemble_mat(phys_target, update=update)
-        isUpdated2 = engine.run_assemble_rhs(phys_target, update=update)
+        isUpdated2 = engine.run_assemble_b(phys_target, update=update)
         
         self.pre_assembled = True
         return isUpdated2 or isUpdated2
@@ -263,41 +266,48 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
     def compute_rhs(self, M, B, X):
         one_dt = 1/float(self.time_step)
         MM = M[1]*one_dt
-        RHS = MM.dot(X[-1]) + B
+        RHS = MM.dot(self.engine.sol) + B
         return RHS
-        
+
     def assemble(self, update=False):
-        self.blocks = self.engine.run_assemble_blocks(self.compute_A,
-                                                      self.compute_rhs,
-                                                      inplace=False,
-                                                      update=update)                
+        blocks, M_changed = self.engine.run_assemble_blocks(self.compute_A,
+                                        self.compute_rhs,
+                                        inplace=False,
+                                        update=update)                
 
         #A, X, RHS, Ae, B, M, depvars = blocks
         self.assembled = True
+        return M_changed
         
-    def step(self):
+    def step(self, is_first):
         engine = self.engine
         mask = self.fes_mask
-
         
-        if not self.pre_assembled:
-            assert False, "pre_assmeble must have been called"
+        #if not self.pre_assembled:
+        #    assert False, "pre_assmeble must have been called"
             
-        if self.counter == 0:
-            A, X, RHS, Ae, B, M, depvars = self.blocks
+        if not (self.counter == 0 and is_first):
+            engine.set_update_flag('TimeDependent')
+            self.pre_assemble(update=True)
+            M_changed = self.assemble(update=True)
+        else:
+            M_changed = True
+            
+        A, X, RHS, Ae, B, M, depvars = self.blocks
+        if M_changed:
             AA = engine.finalize_matrix(A, mask,
                                         not self.phys_real, format = self.ls_type,
                                         verbose=False)
-            BB = engine.finalize_rhs([RHS], A, X[-1], mask,
+        BB = engine.finalize_rhs([RHS], A, X[-1], mask,
                                      not self.phys_real, format = self.ls_type,
                                      verbose=False)
+
+        if self.counter == 0:
+            self.sol = engine.sol
             self.write_checkpoint_solution()
             self.icheckpoint += 1
-        else:
-            engine.set_update_flag('TimeDependent')
-            self.pre_assemble(update=True)
-            self.assemble(update=True)
-            
+
+        '''    
             A, X, RHS, Ae, B, M, depvars = self.blocks                    
             #RHS = self.compute_rhs(M, B, [self.sol])
             RHS = self.compute_rhs(M, B, X)
@@ -308,7 +318,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             BB = engine.finalize_rhs([RHS], A, X[-1], mask,
                                      not self.phys_real, format = self.ls_type,
                                      verbose=False)
-            
+        '''
         depvars = [x for i, x in enumerate(depvars) if mask[i]]
         if self.linearsolver is None:
             if self.ls_type.startswith('coo'):
@@ -316,9 +326,12 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             else:
                 datatype = 'D'
             self.linearsolver  = self.linearsolver_model.allocate_solver(datatype)
+            M_changed = True
+            
+        if M_changed:
             self.linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed,
                                           name = depvars)
-
+            
         if self.linearsolver.is_iterative:
             XX = engine.finalize_x(X[-1], RHS, mask, not self.phys_real,
                                    format = self.ls_type)
@@ -351,6 +364,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         # swap X[0] and X[-1] for next computing
         tmp = X[0]; X[0] = X[-1]; X[-1]=tmp
         self.sol = X[-1]
+        engine.sol = self.sol
         
         sol, sol_extra = engine.split_sol_array(self.sol)
         engine.recover_sol(sol)

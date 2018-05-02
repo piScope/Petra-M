@@ -61,13 +61,32 @@ class Solver(Model):
         viewer.set_view_mode('phys', self)
 
     def get_num_matrix(self, phys_target=None):
-        return self.root()['Phys'].get_num_matrix(self.get_matrix_weight,
-                                           phys_target)
-
+        solver_root = self.root()['Solver']
+        num = []
+        for k in self.root()['Solver'].keys():
+            mm = self.root()['Solver'][k]
+            if not mm.enabled: continue
+            num.append(self.root()['Phys'].get_num_matrix(mm.get_matrix_weight,
+                                           phys_target))
+        print "get_num_matrix!!!!", num
+        return max(num)
+    
+    def prepare_form_sol_variables(self, engine):
+        phys_target = self.get_phys()
+        num_matrix= self.get_num_matrix(phys_target)
+        
+        engine.set_formblocks(phys_target, num_matrix)
+        
+        for p in phys_target:
+            engine.run_mesh_extension(p)
+            
+        engine.run_alloc_sol(phys_target)
+        engine.run_fill_X_block()
+        
     def get_matrix_weight(self):
         raise NotImplementedError(
              "you must specify this method in subclass")
-        
+    
     def run(self, engine):
         raise NotImplementedError(
              "you must specify this method in subclass")
@@ -99,7 +118,11 @@ class SolverInstance(object):
         return self.gui.get_phys()
 
     def get_target_phys(self):
-        return self.gui.get_target_phys()        
+        return self.gui.get_target_phys()
+    
+    @property
+    def blocks(self):
+        return self.engine.assembled_blocks
         
     def get_init_setting(self):
 
@@ -150,6 +173,7 @@ class SolverInstance(object):
 
     def configure_probes(self, probe_txt):
         from petram.sol.probe import Probe
+        dprint1("configure probes: "+probe_txt)
         if probe_txt.strip() != '':
             probe_names = [x.strip() for x in probe_txt.split(',')]
             probe_idx =  [self.engine.dep_var_offset(n) for n in probe_names]

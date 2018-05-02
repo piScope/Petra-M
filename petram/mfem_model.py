@@ -214,7 +214,7 @@ class MFEM_SolverRoot(Model):
     
     def is_viewmode_grouphead(self):
         return True
-    
+
 try:    
    from petram.geom.geom_model import MFEM_GeomRoot
    has_geom = True
