@@ -286,15 +286,16 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         #if not self.pre_assembled:
         #    assert False, "pre_assmeble must have been called"
             
-        if not (self.counter == 0 and is_first):
+        if (self.counter == 0 and is_first):
+            M_changed = True
+        else:
             engine.set_update_flag('TimeDependent')
             self.pre_assemble(update=True)
             M_changed = self.assemble(update=True)
-        else:
-            M_changed = True
             
         A, X, RHS, Ae, B, M, depvars = self.blocks
-        if M_changed:
+        
+        if M_changed or self.counter == 0:
             AA = engine.finalize_matrix(A, mask,
                                         not self.phys_real, format = self.ls_type,
                                         verbose=False)
