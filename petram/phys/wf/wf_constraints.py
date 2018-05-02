@@ -32,7 +32,8 @@ class InitValueV(VectorPhysCoefficient):
        else: val =  v.imag
        return val
 
-class WF_common(object):   
+class WF_common(object):
+    can_timedpendent = True
     @property
     def vt3(self):
         names = self.get_root_phys().dep_vars_base

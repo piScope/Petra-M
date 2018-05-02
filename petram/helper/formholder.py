@@ -36,7 +36,9 @@ class FormBlock(object):
             self.allocator2 = new
         else:
             self.allocator2 = mixed_new
-            
+
+        self.no_allocation = False
+        
     def __repr__(self):
         return "Formblock" + str(self._shape)
     
@@ -46,25 +48,34 @@ class FormBlock(object):
     
     def set_allocator(self, alloc):
         self.allocator1 = alloc
+        
     def set_mixed_allocator(self, alloc):
         self.allocator2 = alloc
         
-    def set_no_allocator(self):        
-        self.allocator1 = None
-        self.allocator2 = None
+    def set_no_allocator(self):
+        self.no_allocation = True
+        #self.allocator1 = None
+        #self.allocator2 = None
 
     def __iter__(self):
-        assert (self.allocator1 is None and self.allocator2 is None), "FormBlock must be fixed"
+        assert self.no_allocation, "FormBlock must be fixed"
 
         all_forms = []
         for r, c in product(range(self.shape[0]),range(self.shape[1])):
             if self.block[r][c] is None: continue
             for key in self.block[r][c].keys():
-                all_forms.append(self.block[r][c][key][0])
+                all_forms.append((r, c, self.block[r][c][key][0]))
 
         return all_forms.__iter__()
 
     def __getitem__(self, idx):
+        r, c, projector = self.allocate_block(idx)
+        if not projector in self.block[r][c]:
+            return None
+
+        return self.block[r][c][projector][0]
+
+        '''
         if self.ndim == 2:
             try:
                 r, c, projector = idx
@@ -81,7 +92,7 @@ class FormBlock(object):
         if self.block[r][c] is None: self.block[r][c] = {}
 
         if not projector in self.block[r][c]:
-            if self.allocator1 is None:
+            if self.no_allocation:
                 return None
             else:
                 if r == c:
@@ -89,9 +100,8 @@ class FormBlock(object):
                 else:
                     form = self.allocator2(r, c)                    
                 self.block[r][c][projector] = [form, None]
-        return self.block[r][c][projector][0]
+        '''
                                     
-
     def __setitem__(self, idx, v):
         if self.ndim == 2:
             try:
@@ -110,6 +120,38 @@ class FormBlock(object):
         if self.block[r][c] is None: self.block[r][c] = {}
         
         self.block[r][c][projector] = [v, None]
+        
+    def allocate_block(self, idx, reset = False):
+        if self.ndim == 2:
+            try:
+                r, c, projector = idx
+            except:
+                r, c = idx
+                projector = 1
+        else:
+            c = 0            
+            try:
+                r, projector = idx
+            except:
+                r = idx
+                projector = 1
+        if self.block[r][c] is None: self.block[r][c] = {}
+
+        if reset:
+            del self.block[r][c][projector]
+        if not projector in self.block[r][c]:
+            if self.no_allocation and not reset:
+                pass
+            else:
+                if r == c:
+                    form = self.allocator1(r)
+                else:
+                    form = self.allocator2(r, c)                    
+                self.block[r][c][projector] = [form, None]
+        return r, c, projector
+                
+    def renew(self, idx):                
+        self.allocate_block(idx, reset=True)
 
     def get_projections(self, r, c):
         if self.block[r][c] is None: return []

@@ -78,7 +78,7 @@ class StdSolver(Solver):
         instance = StandardSolver(self, engine)
         return instance
     
-    def get_matrix_weight(self, timestep_config, timestep_weight):
+    def get_matrix_weight(self, timestep_config):#, timestep_weight):
         return [1, 0, 0]            
         
     
@@ -93,6 +93,7 @@ class StdSolver(Solver):
         #instance.configure_probes(self.probe)
 
         if is_first:
+            self.prepare_form_sol_variables(engine)
             instance.init()
             
         instance.set_fes_mask()        
@@ -105,7 +106,7 @@ class StdSolver(Solver):
                                skip_mesh = False, 
                                mesh_only = False,
                                save_parmesh=self.save_parmesh)
-        
+        engine.sol = instance.sol        
         print(debug.format_memory_usage())
 
 from petram.solver.solver_model import SolverInstance
@@ -121,17 +122,17 @@ class StandardSolver(SolverInstance):
         
     def init(self, init_only=False):
         engine = self.engine
-                      
         phys_target = self.get_phys()
-        num_matrix= self.gui.get_num_matrix(phys_target)
         
+        '''
+        num_matrix= self.gui.get_num_matrix(phys_target)
         engine.set_formblocks(phys_target, num_matrix)
         
         for p in phys_target:
             engine.run_mesh_extension(p)
         
         engine.run_alloc_sol(phys_target)
-        
+        '''        
         inits = self.get_init_setting()
         if len(inits) == 0:
             # in this case alloate all fespace and initialize all
@@ -141,10 +142,12 @@ class StandardSolver(SolverInstance):
             for init in inits:
                 init.run(engine)
         engine.run_apply_essential(phys_target)
-        
+
+        if init_only:
+            self.sol = self.blocks[1][0]
+            engine.sol = self.blocks[1][0]
+            
         self.assemble()
-        A, X, RHS, Ae, B, M, depvars = self.blocks        
-        self.sol = X[0]
         
     def compute_A(self, M, B, X):
         '''
@@ -163,7 +166,9 @@ class StandardSolver(SolverInstance):
         phys_target = self.get_phys()
         engine.run_verify_setting(phys_target, self.gui)
         engine.run_assemble_mat(phys_target)
-        engine.run_assemble_rhs(phys_target)
+        engine.run_assemble_b(phys_target)
+        engine.run_fill_X_block()
+        
         self.engine.run_assemble_blocks(self.compute_A, self.compute_rhs)
         #A, X, RHS, Ae, B, M, names = blocks
         self.assembled = True
@@ -171,7 +176,7 @@ class StandardSolver(SolverInstance):
     def assemble_rhs(self):
         engine = self.engine
         phys_target = self.get_phys()
-        engine.run_assemble_rhs(phys_target)
+        engine.run_assemble_b(phys_target)
         B = self.engine.run_update_B_blocks()
         self.blocks[4] = B
         self.assembled = True

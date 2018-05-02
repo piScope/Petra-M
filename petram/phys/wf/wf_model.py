@@ -232,7 +232,7 @@ class WF(PhysModule):
 
         dep_vars = self.dep_vars
         isVectorFE = (self.element.startswith("ND") or self.element.startswith("RT"))
-        print "add solvar", name, dep_vars
+
         for dep_var in dep_vars:
             if name != dep_var: continue
             if isVectorFE:
