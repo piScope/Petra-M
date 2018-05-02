@@ -68,7 +68,6 @@ class Solver(Model):
             if not mm.enabled: continue
             num.append(self.root()['Phys'].get_num_matrix(mm.get_matrix_weight,
                                            phys_target))
-        print "get_num_matrix!!!!", num
         return max(num)
     
     def prepare_form_sol_variables(self, engine):
