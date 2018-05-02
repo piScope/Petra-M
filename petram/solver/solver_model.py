@@ -182,12 +182,22 @@ class TimeDependentSolverInstance(SolverInstance):
         self.st = 0.0
         self.et = 1.0
         self.checkpoint = [0, 0.5, 1.0]
-        self.time = 0.0
+        self._time = 0.0
         self.child_instance = []
         SolverInstance.__init__(self, gui, engine)
+
+    @property
+    def time(self):
+        return self._time
+    
+    @time.setter
+    def time(self, value):
+        self._time = value
+        self.engine.model['General']._global_ns['t']=value
         
     def set_start(self, st):
         self.st = st
+        self.time = st
         
     def set_end(self, et):
         self.et = et
