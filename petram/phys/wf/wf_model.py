@@ -7,7 +7,6 @@
 
 '''
 import numpy as np
-import wx
 
 from petram.model import Domain, Bdry, Point, Pair
 from petram.phys.phys_model import Phys, PhysModule
@@ -150,6 +149,7 @@ class WF(PhysModule):
         return v
 
     def panel1_param(self):
+        import wx        
         panels = super(WF, self).panel1_param()
         panels[1] = ["element", "H1", 4,
                      {"style":wx.CB_READONLY, 
