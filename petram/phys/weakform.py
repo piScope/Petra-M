@@ -5,7 +5,7 @@
 '''
 import os
 import numpy as np
-import wx
+
 
 from petram.phys.phys_model import Phys
 from petram.phys.phys_model  import PhysCoefficient
@@ -124,6 +124,7 @@ class WeakIntegration(Phys):
         pass
 
     def panel1_param(self):
+        import wx       
         p = ["coeff. type", "S", 4,
              {"style":wx.CB_READONLY, "choices": ["Scalar", "Vector", "Diagonal", "Matrix"]}]
 
@@ -283,6 +284,8 @@ class WeakBilinIntegration(WeakIntegration):
         self.use_conj = v[-1]        
         
     def panel1_param(self):
+        import wx
+        
         mfem_physroot = self.get_root_phys().parent
         names, pnames, pindex = mfem_physroot.dependent_values()
         names = [n+" ("+p + ")" for n, p in zip(names, pnames)]
