@@ -146,7 +146,6 @@ class StandardSolver(SolverInstance):
         if init_only:
             self.sol = self.blocks[1][0]
             engine.sol = self.blocks[1][0]
-            
         self.assemble()
         
     def compute_A(self, M, B, X):

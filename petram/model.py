@@ -191,6 +191,8 @@ class Model(RestorableOrderedDict):
             v['sel_index_txt'] = ', '.join([str(x) for x in self.sel_index])
         elif not hasattr(self, 'sel_index_txt'):
             v['sel_index_txt'] = ''
+        else:
+            v['sel_index_txt'] = ''
         return v
 
     def process_sel_index(self, choice = None):
@@ -641,8 +643,10 @@ class Model(RestorableOrderedDict):
         script.append('')        
         script.append('solvers = eng.preprocess_modeldata()')
         script.append('')
+        script.append('is_first = True')        
         script.append('for s in solvers:')
-        script.append('    s.run(eng)')
+        script.append('    s.run(eng, is_first=is_first)')
+        script.append('    is_first=False')
         
         return script
 

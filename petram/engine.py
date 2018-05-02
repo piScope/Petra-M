@@ -460,7 +460,8 @@ class Engine(object):
             self.assemble_projection(phys) ## global interpolation (mesh coupling)
 
 
-        self.extras_mm = {}        
+        self.extras_mm = {}
+
         for j in range(self.n_matrix):
             self.access_idx = j
             
@@ -741,7 +742,7 @@ class Engine(object):
         for kfes, name in enumerate(phys.dep_vars):
             if not mask[kfes]: continue           
             ifes = self.ifes(name)
-
+   
             for mm in phys.walk():
                 if not mm.enabled: continue
                 if not mm.has_bf_contribution2(kfes, self.access_idx):continue
@@ -1471,6 +1472,7 @@ class Engine(object):
             if p.mesh_idx < 0: continue
             mesh = self.meshes[p.mesh_idx]
             if mesh is None: continue
+            
             if len(p.sel_index) == 0: continue
 
             dom_choice, bdr_choice = p.get_dom_bdr_choice(self.meshes[p.mesh_idx])
