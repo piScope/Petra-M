@@ -248,9 +248,9 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             
         isUpdated1 = engine.run_assemble_mat(phys_target, update=update)
         isUpdated2 = engine.run_assemble_b(phys_target, update=update)
-        
+        print "isUpdated:", isUpdated1, isUpdated2
         self.pre_assembled = True
-        return isUpdated2 or isUpdated2
+        return (isUpdated1 or isUpdated2)
 
 
     def compute_A(self, M, B, X):
@@ -308,18 +308,6 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             self.write_checkpoint_solution()
             self.icheckpoint += 1
 
-        '''    
-            A, X, RHS, Ae, B, M, depvars = self.blocks                    
-            #RHS = self.compute_rhs(M, B, [self.sol])
-            RHS = self.compute_rhs(M, B, X)
-            dprint1("before eliminateBC")                                    
-            dprint1(debug.format_memory_usage())
-            RHS = engine.eliminateBC(Ae, X[1], RHS)
-            RHS = engine.apply_interp(RHS=RHS)            
-            BB = engine.finalize_rhs([RHS], A, X[-1], mask,
-                                     not self.phys_real, format = self.ls_type,
-                                     verbose=False)
-        '''
         depvars = [x for i, x in enumerate(depvars) if mask[i]]
         if self.linearsolver is None:
             if self.ls_type.startswith('coo'):

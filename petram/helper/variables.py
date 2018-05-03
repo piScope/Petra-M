@@ -658,7 +658,6 @@ class GFScalarVariable(GridFunctionVariable):
             if self.func_i is None:
                 v = mfem.Vector()                
                 self.func_r.Eval(v, self.T, self.ip)
-                #print "returning ", self.comp
                 return v.GetDataArray()[self.comp-1]
             else:
                 v1 = mfem.Vector()
@@ -800,6 +799,7 @@ class GFVectorVariable(GridFunctionVariable):
             if self.func_i is None:
                 v = mfem.Vector()                
                 self.func_r.Eval(v, self.T, self.ip)
+                print v.GetDataArray()
                 return v.GetDataArray().copy()
             else:
                 v1 = mfem.Vector()

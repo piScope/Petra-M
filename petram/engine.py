@@ -473,10 +473,15 @@ class Engine(object):
             self.i_a.set_no_allocator()
             
             for r, c, form in self.r_a:
-               if self.mask_M[j, r, c]:
+               r1 = self.dep_var_offset(self.fes_vars[r])
+               c1 = self.dep_var_offset(self.fes_vars[c])
+               if self.mask_M[j, r1, c1]:
                   form.Assemble()
+                  
             for r, c, form in self.i_a:
-               if self.mask_M[j, r, c]: form.Assemble()               
+               r1 = self.dep_var_offset(self.fes_vars[r])
+               c1 = self.dep_var_offset(self.fes_vars[c])
+               if self.mask_M[j, r1, c1]: form.Assemble()
             
             self.extras = {}        
             for phys in phys_target:               
@@ -485,7 +490,7 @@ class Engine(object):
             #for phys in phys_target:               
             self.assemble_aux_ops(phys_target)
                 
-        return
+        return np.any(self.mask_M)
 
     def run_assemble_b(self, phys_target = None, update=False):
         '''
@@ -516,14 +521,18 @@ class Engine(object):
 
         self.r_b.set_no_allocator()
         self.i_b.set_no_allocator()
-        
+
         for r, c, form in self.r_b:
-            if self.mask_B[r]: form.Assemble()           
+            name = self.fes_vars[r]
+            offset = self.dep_var_offset(name)
+            if self.mask_B[offset]: form.Assemble()           
 
         for r, c, form in self.i_b:
-            if self.mask_B[r]: form.Assemble()
-
-        return
+            name = self.fes_vars[r]
+            offset = self.dep_var_offset(name)
+            if self.mask_B[offset]: form.Assemble()
+            
+        return np.any(self.mask_B)
      
     def run_fill_X_block(self):
         X = self.prepare_X_block()
@@ -1859,7 +1868,7 @@ class Engine(object):
         from petram.helper.variables import Variables
         variables = Variables()
         
-        self.access_idx = -1        
+        self.access_idx = 0      
         for phys in phys_target:
             for name in phys.dep_vars:
                 ifes = self.ifes(name)
