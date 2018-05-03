@@ -410,7 +410,7 @@ class Engine(object):
         #  3: load file
         #  4: do nothing
         for j in range(self.n_matrix):
-           self.access_idx = j                      
+           self.access_idx = j
            for phys in phys_target:
               names = phys.dep_vars
               if mode == 0:
@@ -425,7 +425,7 @@ class Engine(object):
                       ifes = self.ifes(name)
                       rgf = self.r_x[ifes]
                       igf = self.i_x[ifes]
-                      rgf.Assign(init_value)                      
+                      rgf.Assign(init_value)
                       if igf is not None: igf.Assign(init_value)
               elif mode == 2: # apply Einit
                   self.apply_init_from_init_panel(phys)
@@ -1361,7 +1361,11 @@ class Engine(object):
         k = 0
         extra_names = [name for name in self.dep_vars
                        if not self.isFESvar(name)]
-
+        
+        if self.extras is None:
+            # when init_only with fixed initial is chosen
+            return ret
+         
         for extra_name, dep_name in self.extras.keys():
             data = sol_extra[extra_names.index(extra_name)]
             t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]

@@ -94,14 +94,14 @@ class StdSolver(Solver):
 
         if is_first:
             self.prepare_form_sol_variables(engine)
-            instance.init()
-            
-        instance.set_fes_mask()        
-        if self.init_only:
-            instance.save_solution()
-        else:
-            instance.solve()
+            instance.init(self.init_only)
 
+        instance.set_fes_mask()
+        
+        if not self.init_only:
+            instance.solve()            
+#            instance.save_solution()
+#        else:
         instance.save_solution(ksol = 0,
                                skip_mesh = False, 
                                mesh_only = False,
@@ -142,10 +142,12 @@ class StandardSolver(SolverInstance):
             for init in inits:
                 init.run(engine)
         engine.run_apply_essential(phys_target)
-
+        engine.run_fill_X_block()
+        
         if init_only:
             self.sol = self.blocks[1][0]
             engine.sol = self.blocks[1][0]
+            return 
         self.assemble()
         
     def compute_A(self, M, B, X):

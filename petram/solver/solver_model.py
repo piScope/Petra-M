@@ -80,7 +80,7 @@ class Solver(Model):
             engine.run_mesh_extension(p)
             
         engine.run_alloc_sol(phys_target)
-        engine.run_fill_X_block()
+#        engine.run_fill_X_block()
         
     def get_matrix_weight(self):
         raise NotImplementedError(
@@ -143,8 +143,9 @@ class SolverInstance(object):
                       
         engine = self.engine
         phys_target = self.get_phys()
-               
+
         sol, sol_extra = engine.split_sol_array(self.sol)
+
         engine.recover_sol(sol)
         extra_data = engine.process_extra(sol_extra)
 

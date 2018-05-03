@@ -78,7 +78,7 @@ class TimeDomain(Solver):
         self.st_et_nt = [eval(x) for x in st_et_nt]
         self.probe = str(v[3])
         self.clear_wdir = v[5]
-        self.init_only = v[7]        
+        self.init_only = v[6]        
         self.assemble_real = v[7]
         self.save_parmesh = v[8]
         self.use_profiler = v[9]
@@ -209,7 +209,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             for init in inits:
                 init.run(engine)
         engine.run_apply_essential(phys_target)
-        
+        engine.run_fill_X_block()        
 
         self.sol = self.blocks[1][0]   # X[0]
         engine.sol = self.blocks[1][0]
