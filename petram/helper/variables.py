@@ -799,7 +799,6 @@ class GFVectorVariable(GridFunctionVariable):
             if self.func_i is None:
                 v = mfem.Vector()                
                 self.func_r.Eval(v, self.T, self.ip)
-                print v.GetDataArray()
                 return v.GetDataArray().copy()
             else:
                 v1 = mfem.Vector()
