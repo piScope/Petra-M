@@ -150,11 +150,13 @@ class StandardSolver(SolverInstance):
             return 
         self.assemble()
         
-    def compute_A(self, M, B, X):
+    def compute_A(self, M, B, X, mask_M, mask_B):
         '''
         M[0] x = B
+
+        return A and isAnew
         '''
-        return M[0]
+        return M[0], True
     
     def compute_rhs(self, M, B, X):
         '''

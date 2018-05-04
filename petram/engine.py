@@ -551,9 +551,12 @@ class Engine(object):
            M = self.assembled_blocks[5]
            B = self.assembled_blocks[4]
            X = self.assembled_blocks[1]
+           Ae = self.assembled_blocks[3]
+           A = self.assembled_blocks[0]
         else:
            M, B = self.prepare_M_B_blocks()
-           X = self.assembled_blocks[1]           
+           X = self.assembled_blocks[1]
+           Ae = None
         
         M, B, M_changed = self.fill_M_B_blocks(M, B, update=update)
 
@@ -562,8 +565,16 @@ class Engine(object):
         #M[1].save_to_file("M1")
         #X[0].save_to_file("X0")
         
-        A = compute_A(M, B, X)          # solver determins A
-        RHS = compute_rhs(M, B, X)      # solver determins RHS
+        A2, isAnew = compute_A(M, B, X,
+                              self.mask_M,
+                              self.mask_B)  # solver determins A
+        if isAnew:
+            # generate Ae and eliminated A
+            A, Ae = self.fill_BCeliminate_matrix(A2,
+                                             inplace=inplace,
+                                             update=update)     
+        
+        RHS = compute_rhs(M, B, X)          # solver determins RHS
                       
         #for m in M: 
         #    A.check_shared_id(m)
@@ -571,7 +582,6 @@ class Engine(object):
         #    B.check_shared_id(x)
         
         #RHS.save_to_file("RHSbefore")
-        A, Ae = self.fill_BCeliminate_matrix(A, inplace=inplace)     # generate Ae
         #M[0].save_to_file("M0there")                        
         #Ae.save_to_file("Ae")
         RHS = self.eliminateBC(Ae, X[0], RHS)       # modify RHS and
@@ -579,14 +589,10 @@ class Engine(object):
         #M[0].save_to_file("M0there2")                        
         #M[1].save_to_file("M1")
         #X[0].save_to_file("X0")
-        #RHS.save_to_file("RHS")                
-        self.assembled_blocks[0] = A
-        self.assembled_blocks[1] = X
-        self.assembled_blocks[2] = RHS
-        self.assembled_blocks[3] = Ae
-        self.assembled_blocks[4] = B
-        self.assembled_blocks[5] = M
-        self.assembled_blocks[6] = self.dep_vars[:]   
+        #RHS.save_to_file("RHS")
+        
+        self.assembled_blocks = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
+        
         #= [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
         return self.assembled_blocks, M_changed
      
@@ -1141,31 +1147,33 @@ class Engine(object):
             t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]            
             B[r] = t4
        
-    def fill_BCeliminate_matrix(self, A, inplace=True):
+    def fill_BCeliminate_matrix(self, A, inplace=True, update=False):
         nblock = A.shape[0]
         Ae = self.new_blockmatrix(A.shape)
+
         for name in self.gl_ess_tdofs:
            gl_ess_tdof = self.gl_ess_tdofs[name]
            ess_tdof = self.ess_tdofs[name]
            idx = self.dep_var_offset(name)
            if A[idx, idx] is not None:
-              Ae[idx, idx], A[idx,idx] = A[idx, idx].eliminate_RowsCols(ess_tdof,
-                                                                        inplace=inplace)
-              
-              #print "index", idx, idx, name, len(ess_tdof)
+              Aee, A[idx,idx] = A[idx, idx].eliminate_RowsCols(ess_tdof,
+                                                               inplace=inplace)
+              Ae[idx, idx] = Aee
 
            for j in range(nblock):
               if j == idx: continue
               if A[idx, j] is None: continue
-              A[idx, j].resetRow(gl_ess_tdof)
+              A[idx, j] = A[idx, j].resetRow(gl_ess_tdof, inplace=inplace)
                   
            for j in range(nblock):            
               if j == idx: continue
               if A[j, idx] is None: continue
               SM = A.get_squaremat_from_right(j, idx)
-              SM.setDiag(gl_ess_tdof)              
+              SM.setDiag(gl_ess_tdof)
+
               Ae[j, idx] = A[j, idx].dot(SM)
-              A[j, idx].resetCol(gl_ess_tdof)
+              A[j, idx]=A[j, idx].resetCol(gl_ess_tdof, inplace=inplace)
+
         return A, Ae
 
     def eliminateBC(self, Ae, X, RHS):
@@ -1619,62 +1627,7 @@ class Engine(object):
         fes1 = self.fespaces[self.fes_vars[idx1]]
         fes2 = self.fespaces[self.fes_vars[idx2]]
         return self.new_mixed_bf(fes2, fes1) # argument = trial, test
-    '''     
-    def allocate_gf(self, phys):
-        #print("allocate_gf")
-        
-        is_complex = phys.is_complex()
-        r_x = [(name, self.new_gf(fes))  for name, fes in self.fespaces[phys]]
-        self.r_x[phys] = r_x
-        if is_complex:
-            i_x = [(name, self.new_gf(fes))  for name, fes
-                   in self.fespaces[phys]]
-        else:
-            i_x = [(name, None)  for name, fes
-                   in self.fespaces[phys]]
-        self.i_x[phys] = i_x
-        
-    def allocate_bf(self, phys):
-        #print("allocate_bf")
-        
-        is_complex = phys.is_complex()
-        r_a = [(name, self.new_bf(fes))  for name, fes in self.fespaces[phys]]
-        self.r_a[phys] = r_a
- 
-        if is_complex:
-            i_a = [(name, self.new_bf(fes))  for name, fes
-                   in self.fespaces[phys]]
-        else:
-            i_a = [(name, None)  for name, fes
-                   in self.fespaces[phys]]
-        self.i_a[phys] = i_a            
-    def allocate_lf(self, phys):
-        #print("allocate_lf")
-        
-        is_complex = phys.is_complex()
-        r_b = [(name, self.new_lf(fes))  for name, fes in self.fespaces[phys]]
-        self.r_b[phys] = r_b
- 
-        if is_complex:
-            i_b = [(name, self.new_lf(fes))  for name, fes in self.fespaces[phys]]
-        else:
-            i_b = [(name, None)  for name, fes in self.fespaces[phys]]
-        self.i_b[phys] = i_b
-
-    def allocate_matvec(self, phys):
-        #print("allocate_matvec")       
-        is_complex = phys.is_complex()
-        ret = []
-        ret.append([mfem.Vector()  for name, fes in self.fespaces[phys]])
-        ret.append([mfem.Vector()  for name, fes in self.fespaces[phys]])
-        ret.append([self.new_matrix()  for name, fes in self.fespaces[phys]])
-        if not is_complex: return ret  # r_X, r_B, r_A
-
-        ret.append([mfem.Vector()  for name, fes in self.fespaces[phys]])
-        ret.append([mfem.Vector()  for name, fes in self.fespaces[phys]])
-        ret.append([self.new_matrix()  for name, fes in self.fespaces[phys]])
-        return ret # r_X, r_B, r_A, i_X, i_B, i_A
-    '''
+    
     def build_ns(self):
         for node in self.model.walk():
            if node.has_ns():
@@ -1935,149 +1888,7 @@ class SerialEngine(Engine):
 
     def new_fespace(self, mesh, fec, vdim):
         return  mfem.FiniteElementSpace(mesh, fec, vdim)
-    ''' 
-    def fill_block_matrix_fespace(self, blocks, mv,
-                                        gl_ess_tdof, interp,
-                                        offset, convert_real = False):
-        M, B, Me = blocks
-
-        if len(mv) == 6:
-            r_X, r_B, r_A, i_X, i_B, i_A = mv 
-            is_complex = True
-        else:
-            r_X, r_B, r_A = mv ; i_A = None
-            is_complex = False
-
-        A1 = chypre.MfemMat2PyMat(r_A, i_A)
-        M[offset, offset] = A1;  A1 = M[offset, offset]
-        # this looks silly.. it actually convert A1 to ScipyCoo
-        A1.resetDiagImag(gl_ess_tdof)
-        # fix diagonal since they are set 1+1j. Serial version does not set
-        # diagnal one. Here, it only set imaringary part to zero.
-        
-        P, nonzeros, zeros = interp
-        if P is not None:
-           PP = P.conj()           
-           A1 = A1.rap(P.transpose())
-           A1.setDiag(zeros, 1.0)
-        
-        M[offset, offset] = A1
-
-        all_extras = [(key, self.extras[phys][key])  for phys in self.extras
-                       for key in self.extras[phys]]
-                      
-        for key, v in all_extras:
-            dep_var, extra_name = key
-            idx0 = self.dep_var_offset(dep_var)
-            idx1 = self.dep_var_offset(extra_name)                      
-            t1, t2, t3, t4, t5 = v[0]
-            mm = v[1]
-            kk = mm_list.index(mm.fullname())
-            if t1 is not None:
-               dprint2("extra matrix nnz before elimination (t1), kfes="+str(k),
-                    len(t1.nonzero()[0]))
-            if t2 is not None:
-               dprint2("extra matrix nnz before elimination (t2), kfes="+str(k),
-                    len(t2.nonzero()[0]))
-
-            if isinstance(t1, np.ndarray) or isinstance(t2, np.ndarray):
-                if P is not None:               
-                   if t1 is not None: t1 = PP.dot(t1)
-                   #if t2 is not None: t2 = P.dot(t2.transpose()).transpose()
-                   if t2 is not None: t2 = P.dot(t2)
-            else:
-                if t1 is not None:
-                   #t1 = t1.tolil()
-                   if P is not None:
-                      #for i in  zeros:
-                      #    t1[:, i] = 0.0
-                      t1 = PP.dot(t1)#.tolil()                      
-                if t2 is not None:
-                   #t2 = t2.tolil()
-                   if P is not None:
-                       #for i in  zeros:
-                       #    t2[i, :] = 0.0
-                       #t2 = P.dot(t2.transpose()).transpose().tolil()
-                       t2 = P.dot(t2)
-            if t1 is not None: M[offset,   kk+offsete] = t1
-            if t2 is not None: M[kk+offsete,   offset] = t2.transpose()
-            if t3 is not None: M[kk+offsete, kk+offsete] = t3                
-
-            #M[k+1+offset, offset] = t2
-            #M[offset, k+1+offset] = t1
-            #M[k+1+offset, k+1+offset] = t3
-
-            #t4 = np.zeros(t2.shape[0])+t4 (t4 should be vector...)
-            #t5 = [t5]*(t2.shape[0])
-
-        return 
-
-    def fill_block_rhs_fespace(self, blocks, mv, interp, offset):
-
-        M, B, Me = blocks
-        if len(mv) == 6:
-            r_X, r_B, r_A, i_X, i_B, i_A = mv 
-            is_complex = True
-        else:
-            r_X, r_B, r_A = mv ; i_B = None
-            is_complex = False
-
-        P, nonzeros, zeros = interp
-
-        b1 = chypre.MfemVec2PyVec(r_B, i_B)
-        
-        if P is not None:
-           PP = P.conj()
-           b1 = PP.dot(b1)
-           
-        B[offset] = b1
-        
-        all_extras = [(key, self.extras[phys][key])  for phys in self.extras
-                       for key in self.extras[phys]]
-                      
-        for key, v in all_extras:
-            dep_var, extra_name = key
-            idx0 = self.dep_var_offset(dep_var)
-            idx1 = self.dep_var_offset(extra_name)                      
-            t1, t2, t3, t4, t5 = v[0]
-            mm = v[1]
-            kk = mm_list.index(mm.fullname())
-            if t4 is None: continue
-            try:
-                void = len(t4)
-                t4 = t4
-            except:
-                raise ValueError("This is not supported")                
-                t4 = np.zeros(t2.shape[0])+t4
-            B[idx1] = t4
-
-    def fill_block_from_mixed(self, loc,  m, interp1, interp2):
-        if loc[2]  == -1:
-           m = m.transpose()
-        if loc[3]  == -1:
-           m = m.conj()
-
-        P1, nonzeros, zeros = interp1[1]
-        P2, nonzeros, zeros = interp2[1]
-
-        if P1 is not None:
-           m = P1.dot(m)
-        if P2 is not None:
-           m = m.dot(P2.conj().transpose())
-        return m
-    '''
-    ''' 
-    def finalize_coo_matrix(self, M_block, is_complex, convert_real = False):
-        if not convert_real:
-            if is_complex:
-                M = M_block.get_global_coo(dtype='complex')           
-            else:
-                M = M_block.get_global_coo(dtype='float')                          
-        else:
-            M = M_block.get_global_coo(dtype='complex')                      
-            M = scipy.sparse.bmat([[M.real, -M.imag], [-M.imag, -M.real]], format='coo')
-        return M
-    '''
+     
     def collect_all_ess_tdof(self):
         self.gl_ess_tdofs = self.ess_tdofs
 

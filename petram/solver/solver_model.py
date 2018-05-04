@@ -158,6 +158,7 @@ class SolverInstance(object):
         engine.save_extra_to_file(extra_data)
         #engine.is_initialzied = False
         
+        
     def save_probe(self):
         for p in self.probe:
             p.write_file()
@@ -197,7 +198,8 @@ class SolverInstance(object):
         raise NotImplementedError(
              "you must specify this method in subclass")
 
-    def compute_A(self, M, B, X):            
+    def compute_A(self, M, B, X, mask_M, mask_B):
+        # must return A and isAnew        
         raise NotImplementedError(
              "you must specify this method in subclass")
     

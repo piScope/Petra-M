@@ -103,25 +103,32 @@ class ScipyCoo(coo_matrix):
         self.col  = ret.col
     '''    
 
-    def resetRow(self, rows):
+    def resetRow(self, rows, inplace=True):
         ret = self.tolil()
         rows = np.array(rows, dtype=int, copy=False)
         ret[rows, :] = 0.0                
-        #for r in rows: ret[r, :] = 0.0        
         ret = ret.tocoo()
-        self.data = ret.data
-        self.row  = ret.row
-        self.col  = ret.col
+        
+        if inplace:
+            self.data = ret.data
+            self.row  = ret.row
+            self.col  = ret.col
+            return self
+        else:
+            return ret
        
-    def resetCol(self, cols):
+    def resetCol(self, cols, inplace=True):
         ret = self.tolil()
         cols = np.array(cols, dtype=int, copy=False)
         ret[:, cols] = 0.0                
         #for c in cols: 
         ret = ret.tocoo()
-        self.data = ret.data
-        self.row  = ret.row
-        self.col  = ret.col
+        if inplace:
+            self.data = ret.data
+            self.row  = ret.row
+            self.col  = ret.col
+        else:
+            return ret
      
     def selectRows(self, nonzeros):
         m = self.tocsr()
@@ -239,8 +246,10 @@ class ScipyCoo(coo_matrix):
         Ae2c[tdof, tdof] = diag
         Ae2 = Ae2c.tocoo()
 
-        if not inplace: target = self.copy()
-        else: target=self
+        if inplace:
+            target=self
+        else:
+            target = self.copy()
         
         target.data[idx] = 0        
         target.data[idx2] = 0

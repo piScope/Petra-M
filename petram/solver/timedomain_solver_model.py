@@ -253,7 +253,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         return (isUpdated1 or isUpdated2)
 
 
-    def compute_A(self, M, B, X):
+    def compute_A(self, M, B, X, mask_M, mask_B):
         '''
         M/dt u_1 + K u_1 = M/dt u_0 + b
         '''
@@ -261,7 +261,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         one_dt = 1/float(self.time_step)
         MM = M[1]*one_dt
         A = M[0]+ M[1]*one_dt
-        return A
+        return A, np.any(mask_M)
     
     def compute_rhs(self, M, B, X):
         one_dt = 1/float(self.time_step)
