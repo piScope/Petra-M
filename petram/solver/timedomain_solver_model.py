@@ -252,7 +252,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         MM = M[1]*one_dt
         A = M[0]+ M[1]*one_dt
         return A, np.any(mask_M)
-    
+
     def compute_rhs(self, M, B, X):
         one_dt = 1/float(self.time_step)
         MM = M[1]*one_dt
@@ -346,9 +346,9 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         tmp = X[0]; X[0] = X[-1]; X[-1]=tmp
         self.sol = X[-1]
         engine.sol = self.sol
-        
+        print "engine sol", engine.sol[0]
         sol, sol_extra = engine.split_sol_array(self.sol)
-        engine.recover_sol(sol)
+        engine.recover_sol(sol, access_idx=-1)
         ## ToDo. Provide a way to use Lagrange multipler in model
         extra_data = engine.process_extra(sol_extra)
                 

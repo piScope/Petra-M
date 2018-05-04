@@ -656,7 +656,7 @@ class Engine(object):
                 if not mm.enabled: continue
                 if not mm.has_essential: continue
                 if len(mm.get_essential_idx(kfes)) == 0: continue
-                if not mm.update_flag: continue
+                if update and not mm.update_flag: continue
                 self.mask_X[self.access_idx, self.dep_var_offset(name)] = True
                 mm.apply_essential(self, rgf, real = True, kfes = kfes)
                 if igf is not None:
@@ -1117,7 +1117,7 @@ class Engine(object):
             self.i_x.generateMatVec(self.x2X)            
             for dep_var in self.dep_vars:
                 r = self.dep_var_offset(dep_var)
-                if not self.mask_M[k, r]: continue
+                if not self.mask_X[k, r]: continue
                 if self.isFESvar(dep_var):
                     i = self.ifes(dep_var)
                     v = convertElement(self.r_x, self.i_x,
@@ -1364,9 +1364,9 @@ class Engine(object):
               e.append(sol[self.dep_var_offset(name)])
         return s, e
      
-    def recover_sol(self, sol):
+    def recover_sol(self, sol, access_idx=0):
 
-        self.access_idx=0
+        self.access_idx=access_idx
         for k, s in enumerate(sol):
            name = self.fes_vars[k]
            ifes = self.ifes(name)

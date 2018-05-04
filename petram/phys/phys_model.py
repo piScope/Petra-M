@@ -528,10 +528,14 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
     def panel4_param(self):
         setting = {"text":' '}
-        ll = [['', True,  3, {"text": "y(t)"}],
-              ['', False, 3, {"text": "dy/dt"}],
-              ['', False, 3, {"text": "dy2/dt2"}],
-              ['', False, 3, {"text": "Time dependent"}],]
+        if self.has_essential:
+           ll = [['', False, 3, {"text": "Time dependent"}],]
+
+        else:
+           ll = [['', True,  3, {"text": "y(t)"}],
+                 ['', False, 3, {"text": "dy/dt"}],
+                 ['', False, 3, {"text": "dy2/dt2"}],
+                 ['', False, 3, {"text": "Time dependent"}],]
 #              ['M(t)',     "1", 0],
 #              ['M(t-dt)',  "0", 0],
 #              ['M(t-2dt)', "0", 0],]
@@ -541,16 +545,23 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         return None
      
     def import_panel4_value(self, value):
-        self.timestep_config[0] = value[0]
-        self.timestep_config[1] = value[1]
-        self.timestep_config[2] = value[2]
-        self.isTimeDependent = value[3]
+        if self.has_essential:
+           self.isTimeDependent = value[0]
+
+        else:
+           self.timestep_config[0] = value[0]
+           self.timestep_config[1] = value[1]
+           self.timestep_config[2] = value[2]
+           self.isTimeDependent = value[3]
         #self.timestep_weight[0] = value[3]
         #self.timestep_weight[1] = value[4]
         #self.timestep_weight[2] = value[5]
         
     def get_panel4_value(self):
-        return (self.timestep_config[0:3]+[self.isTimeDependent])
+        if self.has_essential:
+            return [self.isTimeDependent]
+        else:
+            return (self.timestep_config[0:3]+[self.isTimeDependent])
          
     @property
     def geom_dim(self):

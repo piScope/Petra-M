@@ -420,16 +420,13 @@ class Model(RestorableOrderedDict):
         '''
         return value : gui_update_request
         '''
-        print "import_panel2_value(self, v)"
         if not self.sel_readonly:
-            print v
             self.sel_index_txt = str(v[0])       
             try:
                 arr = convert_sel_txt(str(v[0]), self._global_ns)
                 self.sel_index = arr            
             except:
                 pass
-        print self.sel_index_txt
         return False
     
     def import_panel3_value(self, v):
