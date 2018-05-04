@@ -84,6 +84,7 @@ class SCoeff(PhysCoefficient):
         self.component = kwargs.pop('component', None)
         self.conj = kwargs.pop('conj', False)       
         super(SCoeff, self).__init__(*args, **kwargs)
+
     def EvalValue(self, x):
         val = super(SCoeff, self).EvalValue(x)
         if self.component is None:
@@ -184,7 +185,7 @@ class WeakIntegration(Phys):
         if cotype == 'S':
              for b in self.itg_choice():
                 if b[0] == self.integrator: break
-             if not "S*2" in b[3]: 
+             if not "S*2" in b[3]:
                  c_coeff = SCoeff(c[0],  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)

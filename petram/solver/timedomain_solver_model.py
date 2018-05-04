@@ -238,7 +238,6 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             
         isUpdated1 = engine.run_assemble_mat(phys_target, update=update)
         isUpdated2 = engine.run_assemble_b(phys_target, update=update)
-        print "isUpdated:", isUpdated1, isUpdated2
         self.pre_assembled = True
         return (isUpdated1 or isUpdated2)
 
@@ -346,7 +345,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         tmp = X[0]; X[0] = X[-1]; X[-1]=tmp
         self.sol = X[-1]
         engine.sol = self.sol
-        print "engine sol", engine.sol[0]
+
         sol, sol_extra = engine.split_sol_array(self.sol)
         engine.recover_sol(sol, access_idx=-1)
         ## ToDo. Provide a way to use Lagrange multipler in model
