@@ -437,7 +437,11 @@ class Engine(object):
                   raise NotImplementedError(
                             "unknown init mode")
             
-    def run_apply_essential(self, phys_target):
+    def run_apply_essential(self, phys_target, update=False):
+        L = len(self.dep_vars)       
+        self.mask_X = np.array([not update]*L*self.n_matrix,
+                                dtype=bool).reshape(-1, L)
+       
         for phys in phys_target:
             self.gather_essential_tdof(phys)
         self.collect_all_ess_tdof()
@@ -445,7 +449,7 @@ class Engine(object):
         for j in range(self.n_matrix):
             self.access_idx = j
             for phys in phys_target:
-                self.apply_essential(phys)
+                self.apply_essential(phys, update=update)
 
     def run_assemble_mat(self, phys_target=None, update=False):
         #for phys in phys_target:
@@ -534,8 +538,11 @@ class Engine(object):
             
         return np.any(self.mask_B)
      
-    def run_fill_X_block(self):
-        X = self.prepare_X_block()
+    def run_fill_X_block(self, update=False):
+        if update:
+            X = self.assembled_blocks[1]
+        else:
+            X = self.prepare_X_block()
         X = self.fill_X_block(X)
         self.assembled_blocks[1] = X
         
@@ -638,12 +645,10 @@ class Engine(object):
     #
     #  Step 1  set essential and initial values to the solution vector.
     #
-    def apply_essential(self, phys):       
-        is_complex = phys.is_complex()       
+    def apply_essential(self, phys, update=False):       
+        is_complex = phys.is_complex()
+        
         for kfes, name in enumerate(phys.dep_vars):
-            #rgf.Assign(0.0)
-            #if igf is not None:
-            #   igf.Assign(0.0)
             ifes = self.ifes(name)
             rgf = self.r_x[ifes]
             igf = None if not is_complex else self.i_x[ifes]
@@ -651,6 +656,8 @@ class Engine(object):
                 if not mm.enabled: continue
                 if not mm.has_essential: continue
                 if len(mm.get_essential_idx(kfes)) == 0: continue
+                if not mm.update_flag: continue
+                self.mask_X[self.access_idx, self.dep_var_offset(name)] = True
                 mm.apply_essential(self, rgf, real = True, kfes = kfes)
                 if igf is not None:
                     mm.apply_essential(self, igf, real = False, kfes = kfes)
@@ -1105,10 +1112,12 @@ class Engine(object):
        
         for k in range(self.n_matrix):
             self.access_idx = k
+
             self.r_x.generateMatVec(self.x2X)
             self.i_x.generateMatVec(self.x2X)            
             for dep_var in self.dep_vars:
                 r = self.dep_var_offset(dep_var)
+                if not self.mask_M[k, r]: continue
                 if self.isFESvar(dep_var):
                     i = self.ifes(dep_var)
                     v = convertElement(self.r_x, self.i_x,

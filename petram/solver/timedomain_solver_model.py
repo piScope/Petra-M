@@ -190,16 +190,6 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         engine = self.engine
         phys_target = self.get_phys()
         
-        '''                   
-        num_matrix= self.gui.get_num_matrix(phys_target)
-        
-        engine.set_formblocks(phys_target, num_matrix)
-        
-        for p in phys_target:
-            engine.run_mesh_extension(p)
-            
-        engine.run_alloc_sol(phys_target)
-        '''        
         inits = self.get_init_setting()
         if len(inits) == 0:
             # in this case alloate all fespace and initialize all
@@ -290,6 +280,8 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             M_changed = True
         else:
             engine.set_update_flag('TimeDependent')
+            engine.run_apply_essential(self.get_phys(), update=True)
+            engine.run_fill_X_block(update=True)        
             self.pre_assemble(update=True)
             M_changed = self.assemble(update=True)
             
