@@ -160,11 +160,13 @@ class WeakIntegration(Phys):
         super(WeakIntegration, self).preprocess_params(engine)
         
     def add_contribution(self, engine, a, real = True, is_trans=False, is_conj=False):
-        c = self.vt_coeff.make_value_or_expression(self)    
+        c = self.vt_coeff.make_value_or_expression(self)
+        if isinstance(c, str): c = [c]
+        
         if real:       
-            dprint1("Add "+self.integrator+ " contribution(real)" + str(self._sel_index))
+            dprint1("Add "+self.integrator+ " contribution(real)" + str(self._sel_index), "c", c)
         else:
-            dprint1("Add "+self.integrator+ " contribution(imag)" + str(self._sel_index))
+            dprint1("Add "+self.integrator+ " contribution(imag)" + str(self._sel_index), "c", c)
 
         cotype = self.coeff_type[0]
 

@@ -190,16 +190,6 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         engine = self.engine
         phys_target = self.get_phys()
         
-        '''                   
-        num_matrix= self.gui.get_num_matrix(phys_target)
-        
-        engine.set_formblocks(phys_target, num_matrix)
-        
-        for p in phys_target:
-            engine.run_mesh_extension(p)
-            
-        engine.run_alloc_sol(phys_target)
-        '''        
         inits = self.get_init_setting()
         if len(inits) == 0:
             # in this case alloate all fespace and initialize all
@@ -262,7 +252,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         MM = M[1]*one_dt
         A = M[0]+ M[1]*one_dt
         return A, np.any(mask_M)
-    
+
     def compute_rhs(self, M, B, X):
         one_dt = 1/float(self.time_step)
         MM = M[1]*one_dt
@@ -290,6 +280,8 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             M_changed = True
         else:
             engine.set_update_flag('TimeDependent')
+            engine.run_apply_essential(self.get_phys(), update=True)
+            engine.run_fill_X_block(update=True)        
             self.pre_assemble(update=True)
             M_changed = self.assemble(update=True)
             
@@ -354,9 +346,9 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         tmp = X[0]; X[0] = X[-1]; X[-1]=tmp
         self.sol = X[-1]
         engine.sol = self.sol
-        
+        print "engine sol", engine.sol[0]
         sol, sol_extra = engine.split_sol_array(self.sol)
-        engine.recover_sol(sol)
+        engine.recover_sol(sol, access_idx=-1)
         ## ToDo. Provide a way to use Lagrange multipler in model
         extra_data = engine.process_extra(sol_extra)
                 

@@ -18,6 +18,8 @@ from petram.phys.vtable import VtableElement, Vtable
 class WF_Essential(Bdry, Phys):
     has_essential = True
     nlterms = []
+    can_timedpendent = True
+    has_3rd_panel = True            
     def __init__(self, **kwargs):
         super(WF_Essential, self).__init__( **kwargs)
 
@@ -88,13 +90,14 @@ class WF_Essential(Bdry, Phys):
          
     def apply_essential(self, engine, gf, real = False, kfes = 0):
         if kfes > 0: return
-        if real:       
-            dprint1("Apply Ess.(real)" + str(self._sel_index))
-        else:
-            dprint1("Apply Ess.(imag)" + str(self._sel_index))
-            
         c0, vdim0 = self.vt.make_value_or_expression(self)
-        dprint1('c0, v0', c0, vdim0)
+        if isinstance(c0, str): c0 = [c0]        
+        
+        if real:       
+            dprint1("Apply Ess.(real)" + str(self._sel_index), 'c0, v0', c0, vdim0)
+        else:
+            dprint1("Apply Ess.(imag)" + str(self._sel_index), 'c0, v0', c0, vdim0)
+            
         name =  self.get_root_phys().dep_vars[0]
         fes = engine.get_fes(self.get_root_phys(), name=name)
 

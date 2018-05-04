@@ -127,6 +127,7 @@ class ScipyCoo(coo_matrix):
             self.data = ret.data
             self.row  = ret.row
             self.col  = ret.col
+            return self
         else:
             return ret
      
