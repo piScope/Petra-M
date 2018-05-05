@@ -100,8 +100,8 @@ class SliceEvaluator(EvaluatorAgent):
             f1 = np.abs(f[i1]); f2 = np.abs(f[i2])
             v = (v1*f2 + v2*f1)/(f1 + f2)
             vertices[itri, k, :] = v
-            mat[itri*3+k, ivv[i1]] = np.abs(f1)/(f1+f2)
-            mat[itri*3+k, ivv[i2]] = np.abs(f2)/(f1+f2)
+            mat[itri*3+k, ivv[i1]] = np.abs(f2)/(f1+f2)
+            mat[itri*3+k, ivv[i2]] = np.abs(f1)/(f1+f2)
 
         itri = 0
         for iel, f in zip(ieles, f_values):
