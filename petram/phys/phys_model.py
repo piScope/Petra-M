@@ -845,8 +845,10 @@ class PhysModule(Phys):
              bdr_choice = list(set(sum(allgather(bdr_choice),[])))
              #nicePrint("dom choice", dom_choice)
              #nicePrint("bdr choice", bdr_choice)
-             
-        return dom_choice, bdr_choice
+         
+        # return unique list    
+        return list(set(dom_choice)), list(set(bdr_choice)), 
+        #return dom_choice, bdr_choice
 
 
         
