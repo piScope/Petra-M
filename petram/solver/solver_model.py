@@ -11,8 +11,45 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
        TimeDependentSolverInstance : an actual solver logic comes here
 
 
-'''    
-class Solver(Model):
+'''
+class SolverBase(Model):
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.set_view_mode('phys', self)
+
+class SolveStep(SolverBase):
+    def get_possible_child(self):
+        ret = self.parent.get_possible_child()
+        # last element is SolveStep, 
+        return ret[:-1]
+    
+    def get_phys(self):
+        phys_root = self.root()['Phys']        
+        ret = []
+        for k in self.keys():
+            for x in self[k].get_target_phys():
+                if not x in ret: ret.append(x)
+        return ret
+    
+    def get_active_solvers(self):
+        return [x for x in self.iter_enabled()]
+
+    def run(self, engine, is_first = True):
+        solvers = self.get_active_solvers()
+        
+        is_first = True
+        for solver in solvers:
+             solver.run(engine, is_first=is_first)        
+             is_first = False
+             engine.add_FESvariable_to_NS(self.get_phys()) 
+             engine.store_x()
+        
+        
+class Solver(SolverBase):
     def attribute_set(self, v):
         v['clear_wdir'] = False
         v['init_only'] = False   
@@ -26,9 +63,7 @@ class Solver(Model):
         return v
     
     def get_phys(self):
-        # gather enabled phys
-        phys_root = self.root()['Phys']
-        return[phys_root[key] for key in phys_root if phys_root[key].enabled] 
+        return self.parent.get_phys()
 
     def get_target_phys(self):
         names = self.phys_model.split(',')
@@ -52,19 +87,11 @@ class Solver(Model):
             if isinstance(x, LinearSolverModel):
                return x
 
-    def onItemSelChanged(self, evt):
-        '''
-        GUI response when model object is selected in
-        the dlg_edit_model
-        '''
-        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.set_view_mode('phys', self)
-
     def get_num_matrix(self, phys_target=None):
-        solver_root = self.root()['Solver']
+        solver_root = self.get_solve_root()
         num = []
-        for k in self.root()['Solver'].keys():
-            mm = self.root()['Solver'][k]
+        for k in solver_root.keys():
+            mm = solver_root[k]
             if not mm.enabled: continue
             num.append(self.root()['Phys'].get_num_matrix(mm.get_matrix_weight,
                                            phys_target))
@@ -81,12 +108,21 @@ class Solver(Model):
             
         engine.run_alloc_sol(phys_target)
 #        engine.run_fill_X_block()
-        
+
+    def get_solve_root(self):
+        obj = self
+        solver_root = self.root()['Solver']
+
+        while (not isinstance(obj, SolveStep) and
+               obj is not solver_root):
+            obj = obj.parent
+        return obj
+    
     def get_matrix_weight(self):
         raise NotImplementedError(
              "you must specify this method in subclass")
     
-    def run(self, engine):
+    def run(self, engine, is_first = True):        
         raise NotImplementedError(
              "you must specify this method in subclass")
     
@@ -134,8 +170,9 @@ class SolverInstance(object):
     def set_fes_mask(self):
         # mask defines which FESspace will be solved by
         # a linear solver.
-        target_phys = self.get_target_phys()
-        mask = self.engine.get_block_mask(target_phys)
+        all_phys = self.get_phys()        
+        phys_target = self.get_target_phys()
+        mask = self.engine.get_block_mask(all_phys, phys_target)
         self.fes_mask = mask
 
     def save_solution(self, ksol = 0, skip_mesh = False, 
@@ -251,19 +288,11 @@ class TimeDependentSolverInstance(SolverInstance):
 
 
 '''    
-class LinearSolverModel(Model):
+class LinearSolverModel(SolverBase):
     is_iterative = True    
     def get_phys(self):
         return self.parent.get_phys()
 
-    def onItemSelChanged(self, evt):
-        '''
-        GUI response when model object is selected in
-        the dlg_edit_model
-        '''
-        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.set_view_mode('phys', self)
-        
     def linear_system_type(self, assemble_real, phys_real):
         '''
         ls_type: coo  (matrix in coo format : DMUMP or ZMUMPS)

@@ -343,7 +343,7 @@ def edge(mesh, in_attr, filename = '', precision=8):
                             ebase, keelem)
 
     omesh.FinalizeTopology()
-    omesh.Finalize(refine=False, fix_orientation=True)
+    omesh.Finalize(refine=True, fix_orientation=True)
 
     if hasNodal:
         assert False, "high order edge mesh is not supported"
@@ -513,7 +513,7 @@ def surface(mesh, in_attr, filename = '', precision=8):
                             ebase, keelem)
 
     omesh.FinalizeTopology()
-    omesh.Finalize(refine=False, fix_orientation=True)
+    omesh.Finalize(refine=True, fix_orientation=True)
 
     if hasNodal:
         odim = omesh.Dimension()
@@ -681,7 +681,7 @@ def volume(mesh, in_attr, filename = '', precision=8):
                             bbase, kbelem)
    
     omesh.FinalizeTopology()
-    omesh.Finalize(refine=False, fix_orientation=True)
+    omesh.Finalize(refine=True, fix_orientation=True)
 
     if hasNodal:
         odim = omesh.Dimension()

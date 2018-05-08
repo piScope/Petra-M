@@ -181,6 +181,11 @@ class Engine(object):
     @i_x.setter
     def i_x(self, v):
         self._i_x[self._access_idx] = v
+
+    def store_x(self):
+        self._r_x_old = self._r_x
+        self._i_x_old = self._i_x
+        self._fes_vars_old = self._fes_vars
         
     @property
     def extras(self):
@@ -350,6 +355,7 @@ class Engine(object):
         phys.emesh_idx = idx
         if len(self.emeshes) <= idx: 
             m = generate_emesh(self.emeshes, info)
+            m.ReorientTetMesh()
             self.emeshes.extend([None]*(1+idx-len(self.emeshes)))
             self.emeshes[idx] = m
         
@@ -385,11 +391,6 @@ class Engine(object):
             self.r_x.set_no_allocator()
             self.i_x.set_no_allocator()            
             
-
-        from petram.helper.variables import Variables
-        variables = Variables()
-        
-        self.add_FESvariable_to_NS(phys_target, verbose = True)
 
         self.is_initialized = True
         
@@ -432,11 +433,13 @@ class Engine(object):
               elif mode == 3:
                   self.apply_init_from_file(phys, init_path)              
               elif mode == 4:
-                  pass
+                  self.apply_init_from_previous(names)
               else: #
                   raise NotImplementedError(
                             "unknown init mode")
-            
+
+        self.add_FESvariable_to_NS(phys_target, verbose = True)
+        
     def run_apply_essential(self, phys_target, update=False):
         L = len(self.dep_vars)       
         self.mask_X = np.array([not update]*L*self.n_matrix,
@@ -682,7 +685,33 @@ class Engine(object):
                 if c is None: continue
                 ifg.ProjectCoefficient(c)
                 #igf += tmp
-
+                
+    def apply_init_from_previous(self, names):
+       
+        for name in names:
+            if not name in self._fes_vars_old: continue
+            
+            ifes_old = self._fes_vars_old.index(name)
+            rgf_old = self._r_x_old[0][ifes_old]
+            igf_old = self._i_x_old[0][ifes_old]
+            
+            for j in range(self.n_matrix):
+                self.access_idx = j
+                
+                ifes = self.ifes(name)
+                rgf = self.r_x[ifes]
+                igf = self.i_x[ifes]
+                
+                rgf.Assign(rgf_old)
+                if igf is not None and igf_old is not None:
+                    igf.Assign(igf_old)
+                elif igf_old is None:
+                    if igf is not None:
+                       igf.Assign(0.0)
+                       dprint1("New FESvar is complex while the previous one is real")
+                else:
+                    pass
+       
     def apply_init_from_file(self, phys, init_path):
         '''
         read initial gridfunction from solution
@@ -1687,7 +1716,8 @@ class Engine(object):
                         if hasattr(o, 'run') and target is not None:
                             self.meshes[idx] = o.run(target)
         self.max_bdrattr = -1
-        self.max_attr = -1        
+        self.max_attr = -1
+
         for m in self.meshes:
             self.max_bdrattr = np.max([self.max_bdrattr, max(m.GetBdrAttributeArray())])
             self.max_attr = np.max([self.max_attr, max(m.GetAttributeArray())])
@@ -1760,14 +1790,14 @@ class Engine(object):
         idx = self._dep_vars.index(name)
         return self._isFESvar[idx]
      
-    def get_block_mask(self, phys_target=None):
+    def get_block_mask(self, all_phys, phys_target):
 
-        all_phys = [self.model['Phys'][k] for k in self.model['Phys']
-                    if self.model['Phys'][k].enabled]
-        if phys_target is None:
-           phys_target = all_phys
-           
-        self.collect_dependent_vars()
+        #all_phys = [self.model['Phys'][k] for k in self.model['Phys']
+        #            if self.model['Phys'][k].enabled]
+        #if phys_target is None:
+        #   phys_target = all_phys
+        #self.collect_dependent_vars()
+       
         mask = [False]*len(self._dep_vars)
 
         for phys in phys_target:
@@ -1827,6 +1857,13 @@ class Engine(object):
         dprint1("is FEspace variable?", self._isFESvar)
 
     def add_FESvariable_to_NS(self, phys_target, verbose = False):
+        '''
+        bring FESvariable to NS so that it is available in matrix assembly.
+        note:
+            if SolveStep is used. This overwrite the FESvaialbe from the
+            previous SolveStep. In order to use values from the previous step,
+            a user needs to load in using InitSetting
+        '''
         from petram.helper.variables import Variables
         variables = Variables()
         
@@ -1839,12 +1876,15 @@ class Engine(object):
                 phys.add_variables(variables, name, rgf, igf)
 
         keys = self.model._variables.keys()
-        self.model._variables.clear()
+        #self.model._variables.clear()
         if verbose:
             dprint1("===  List of variables ===")
             dprint1(variables)
         for k in variables.keys():
-           self.model._variables[k] = variables[k]
+            #if k in self.model._variables:
+            #   dprint1("Note : FES variable from previous step exists, but overwritten. \n" +
+            #           "Use InitSetting to load value from previous SolveStep: ", k)               
+            self.model._variables[k] = variables[k]
 
     def set_update_flag(self, mode):
         for k in self.model['Phys'].keys():
@@ -2014,7 +2054,7 @@ class ParallelEngine(Engine):
         if meshmodel is None:
             parent = self.model['Mesh']
             children =  [parent[g] for g in parent.keys()
-                         if isinstance(parent[g], MFEMMesh)]
+                         if isinstance(parent[g], MFEMMesh) and parent[g].enabled]
             for idx, child in enumerate(children):
                 self.meshes.append(None)
                 if not child.enabled: continue

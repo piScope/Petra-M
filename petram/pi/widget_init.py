@@ -19,7 +19,7 @@ class InitSettingPanel(wx.Panel):
         rb2 = wx.RadioButton(self, wx.ID_ANY, "Use Value")
         rb3 = wx.RadioButton(self, wx.ID_ANY, "Use init panel value")
         rb4 = wx.RadioButton(self, wx.ID_ANY, "From File")
-        rb5 = wx.RadioButton(self, wx.ID_ANY, "No initializetion")        
+        rb5 = wx.RadioButton(self, wx.ID_ANY, "From Previous SolveStep")        
 
         self.rbs = [rb1, rb2, rb3, rb4, rb5]
 
