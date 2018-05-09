@@ -73,9 +73,15 @@ class Solver(SolverBase):
     def is_complex(self):
         phys = self.get_phys()
         is_complex = any([p.is_complex() for p in phys])
-        if is_complex: return True
-        if self.assemble_real: return False
+        if self.assemble_real: return False        
+        #if is_complex: return True
         return is_complex
+    
+    def is_converted_from_complex(self):
+        phys = self.get_phys()
+        is_complex = any([p.is_complex() for p in phys])
+        if is_complex and self.assemble_real: return True
+        return False
         
     def get_init_setting(self):
         names = self.init_setting.split(',')

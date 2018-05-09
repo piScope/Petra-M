@@ -37,8 +37,7 @@ def run_parallel(path='', nproc = 1, debug=0, thread=True):
     from petram.helper.driver_path import parallel as driver
 
     mfem_path = petram.__path__[0]
-    args = ['mpirun', '-n', str(nproc), driver, str(path), 
-             os.path.dirname(mfem_path), str(debug)]
+    args = ['mpirun', '-n', str(nproc), driver, str(path),  str(debug)]
     p = sp.Popen(args, stdout=sp.PIPE, stderr=sp.STDOUT)
 
     if thread:
