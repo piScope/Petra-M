@@ -194,18 +194,19 @@ class DlgEditModel(DialogWithWindowList):
         base, num = mm.split_digits()
         parent = mm.parent
 
-#        mm._parent = None
         import cPickle as pickle
         newmm = pickle.loads(pickle.dumps(mm))
-#        mm._parent = parent
+
         index = parent.keys().index(name)
         nums = []
         for key in parent.keys():
            print key, base
-           base0 = ''.join([k for k in key if not k.isdigit()])
+           #base0 = ''.join([k for k in key if not k.isdigit()])
+           base0, num = parent[key].split_digits()           
            if base0 != base: continue
            print nums
-           nums.append(int(''.join([k for k in key if k.isdigit()])))
+           #nums.append(int(''.join([k for k in key if k.isdigit()])))
+           nums.append(int(num))
         
         parent.insert_item(index+1, base+str(long(max(nums))+1), newmm)
         self.tree.RefreshItems()        

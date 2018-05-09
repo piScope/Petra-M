@@ -715,6 +715,7 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
     row = m_coo.row
     col = m_coo.col
     col = np.unique(col)
+    print map.shape, row.shape
     
     if use_parallel:
         start_row = fes.GetMyTDofOffset()
