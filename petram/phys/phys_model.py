@@ -260,9 +260,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         intArray = mfem.intArray
 
         if isinstance(self, Domain):
-            size = engine.max_attr
+            size = max(np.max(mesh.attributes.ToList()), engine.max_attr)
         else:
-            size = engine.max_bdrattr
+            size = max(np.max(mesh.bdr_attributes.ToList()), engine.max_bdrattr)
 
         #print("get_restriction_array", self, self._sel_index, size)
         arr = [0]*size

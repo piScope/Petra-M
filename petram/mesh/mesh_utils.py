@@ -6,6 +6,9 @@ from petram.helper.global_named_list import GlobalNamedList
 
 debug = False
 
+import petram.debug
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('mesh utils')
+
 def distribute_shared_entity(pmesh):
     '''
     distribute entitiy numbering in master (owner) process
@@ -143,6 +146,7 @@ def find_edge_corner(mesh):
     iattr= mesh.GetBdrAttributeArray()  # min of this array is 1
     nattr = np.max(iattr)        
     nb = mesh.GetNBE()
+
     if mesh.GetNBE() == 0:    
         return {}, {}, {}, {}
     

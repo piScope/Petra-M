@@ -189,12 +189,18 @@ class GMRESSolver(LinearSolver):
               for j in range(rows):
                  v = bb.GetBlock(j)
                  v.Print('rhs_'+str(i)+'_'+str(j)+'.'+smyid)
+           if x is not None:
+              for j in range(rows):
+                 xx = x.GetBlock(j)
+                 xx.Print('x_'+str(i)+'_'+str(j)+'.'+smyid)
+              
 
         M = mfem.BlockDiagonalPreconditioner(offset)
         
         prcs = dict(self.gui.preconditioners)
         name = self.Aname
-        if self.gui.parent.is_complex():
+        assert not self.gui.parent.is_complex(), "can not solve complex"
+        if self.gui.parent.is_converted_from_complex():
            name = sum([[n, n] for n in name], [])
            
         for k, n in enumerate(name):
@@ -306,7 +312,8 @@ class GMRESSolver(LinearSolver):
 
         prcs = dict(self.gui.preconditioners)
         name = self.Aname
-        if self.gui.parent.is_complex():
+        assert not self.gui.parent.is_complex(), "can not solve complex"
+        if self.gui.parent.is_converted_from_complex():
            name = sum([[n, n] for n in name], [])
 
            

@@ -95,6 +95,8 @@ class StdSolver(Solver):
         if is_first:
             self.prepare_form_sol_variables(engine)
             instance.init(self.init_only)
+        else:
+            instance.update()
 
         instance.set_fes_mask()
         
@@ -122,7 +124,7 @@ class StandardSolver(SolverInstance):
         
     def init(self, init_only=False):
         engine = self.engine
-        phys_target = self.get_phys()
+        phys_all = self.get_phys()
         
         '''
         num_matrix= self.gui.get_num_matrix(phys_target)
@@ -137,11 +139,13 @@ class StandardSolver(SolverInstance):
         if len(inits) == 0:
             # in this case alloate all fespace and initialize all
             # to zero
-            engine.run_apply_init(phys_target, 0)
+            engine.run_apply_init(phys_all, 0)
         else:
             for init in inits:
                 init.run(engine)
-        engine.run_apply_essential(phys_target)
+                
+        target_phys = self.get_target_phys()
+        engine.run_apply_essential(target_phys)
         engine.run_fill_X_block()
         
         if init_only:
@@ -149,7 +153,7 @@ class StandardSolver(SolverInstance):
             engine.sol = self.blocks[1][0]
             return 
         self.assemble()
-        
+
     def compute_A(self, M, B, X, mask_M, mask_B):
         '''
         M[0] x = B
@@ -166,7 +170,8 @@ class StandardSolver(SolverInstance):
 
     def assemble(self):
         engine = self.engine
-        phys_target = self.get_phys()
+        phys_target = self.get_target_phys()
+        #phys_target = self.get_phys()
         engine.run_verify_setting(phys_target, self.gui)
         engine.run_assemble_mat(phys_target)
         engine.run_assemble_b(phys_target)

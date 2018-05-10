@@ -914,7 +914,7 @@ class DlgPlotSol(DialogWithWindowList):
            else:
                y = x*0.
            if xyz.shape[1]>2:
-               y = xyz[idx,2]
+               z = xyz[idx,2]
            else:
                z = x*0.
                

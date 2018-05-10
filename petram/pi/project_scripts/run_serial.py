@@ -42,7 +42,8 @@ def run_serial(path='', debug=1, thread =  True):
     from petram.helper.driver_path import serial as driver
 
     mfem_path = petram.__path__[0]
-    args = [driver, str(path), os.path.dirname(mfem_path), str(debug)]
+    #args = [driver, str(path), os.path.dirname(mfem_path), str(debug)]
+    args = [driver, str(path), str(debug)]
     p = sp.Popen(args, stdout=sp.PIPE, stderr=sp.STDOUT)
 
     line = ''

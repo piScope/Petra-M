@@ -199,7 +199,9 @@ class MFEM_SolverRoot(Model):
         from solver.std_solver_model import StdSolver
         from solver.timedomain_solver_model import TimeDomain
         from solver.parametric import Parametric
-        return [StdSolver, Parametric, TimeDomain]
+        from solver.solver_model import SolveStep
+        
+        return [StdSolver, Parametric, TimeDomain, SolveStep]
     
     def get_active_solvers(self, mm = None):
         return [x for x in self.iter_enabled()]
@@ -214,6 +216,14 @@ class MFEM_SolverRoot(Model):
     
     def is_viewmode_grouphead(self):
         return True
+    
+    def get_phys(self):
+        phys_root = self.root()['Phys']        
+        ret = []
+        for k in self.keys():
+            for x in self[k].get_target_phys():
+                if not x in ret: ret.append(x)
+        return ret
 
 try:    
    from petram.geom.geom_model import MFEM_GeomRoot
