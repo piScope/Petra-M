@@ -113,8 +113,9 @@ class WF_Essential(Bdry, Phys):
       
         fec_name = fes.FEColl().Name()
         
-        mesh = engine.get_mesh(mm = self)        
+        mesh = engine.get_emesh(mm = self)        
         ibdr = mesh.bdr_attributes.ToList()
+
         bdr_attr = [0]*mesh.bdr_attributes.Max()
         for idx in self._sel_index:
             bdr_attr[idx-1] = 1

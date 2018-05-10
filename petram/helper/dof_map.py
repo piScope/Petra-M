@@ -549,6 +549,8 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
 
     if use_parallel:
        # share ibr2 (destination information among nodes...)
+       ct2 = np.atleast_1d(ct2).reshape(-1, ct1.shape[1])
+       nicePrint("ct2", ct2)
        ct2 =  allgather_vector(ct2, MPI.DOUBLE)
        fesize1 = fes1.GetTrueVSize()
        fesize2 = fes2.GlobalTrueVSize()
@@ -715,7 +717,7 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
     row = m_coo.row
     col = m_coo.col
     col = np.unique(col)
-    print map.shape, row.shape
+
     
     if use_parallel:
         start_row = fes.GetMyTDofOffset()

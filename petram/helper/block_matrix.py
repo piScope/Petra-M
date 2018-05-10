@@ -874,7 +874,10 @@ class BlockMatrix(object):
                 if isinstance(self[i,0], chypre.CHypreVec):
                     vec.GetBlock(ii).Assign(self[i,0][0].GetDataArray())
                     if self.complex:
-                        vec.GetBlock(ii+1).Assign(self[i,0][1].GetDataArray())
+                       if self[i,0][1] is not None:
+                           vec.GetBlock(ii+1).Assign(self[i,0][1].GetDataArray())
+                       else:
+                           vec.GetBlock(ii+1).Assign(0.0)
                 elif isinstance(self[i,0], ScipyCoo):
                     arr =np.atleast_1d( self[i,0].toarray().squeeze())
                     vec.GetBlock(ii).Assign(np.real(arr))
