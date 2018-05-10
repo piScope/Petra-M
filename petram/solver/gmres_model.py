@@ -189,6 +189,11 @@ class GMRESSolver(LinearSolver):
               for j in range(rows):
                  v = bb.GetBlock(j)
                  v.Print('rhs_'+str(i)+'_'+str(j)+'.'+smyid)
+           if x is not None:
+              for j in range(rows):
+                 xx = x.GetBlock(j)
+                 xx.Print('x_'+str(i)+'_'+str(j)+'.'+smyid)
+              
 
         M = mfem.BlockDiagonalPreconditioner(offset)
         

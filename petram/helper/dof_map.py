@@ -550,7 +550,6 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
     if use_parallel:
        # share ibr2 (destination information among nodes...)
        ct2 = np.atleast_1d(ct2).reshape(-1, ct1.shape[1])
-       nicePrint("ct2", ct2)
        ct2 =  allgather_vector(ct2, MPI.DOUBLE)
        fesize1 = fes1.GetTrueVSize()
        fesize2 = fes2.GlobalTrueVSize()
