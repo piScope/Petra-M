@@ -84,6 +84,7 @@ class StdSolver(Solver):
     
     @debug.use_profiler
     def run(self, engine, is_first = True):
+        dprint1("Entering run", self.fullpath())
         if self.clear_wdir:
             engine.remove_solfiles()
 
@@ -171,6 +172,7 @@ class StandardSolver(SolverInstance):
     def assemble(self):
         engine = self.engine
         phys_target = self.get_target_phys()
+        dprint1("in assemble", phys_target)
         #phys_target = self.get_phys()
         engine.run_verify_setting(phys_target, self.gui)
         engine.run_assemble_mat(phys_target)

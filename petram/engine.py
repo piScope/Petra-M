@@ -473,6 +473,7 @@ class Engine(object):
             self.access_idx = j
             
             for phys in phys_target:
+                print "!!!", phys
                 self.fill_bf(phys, update)
                 self.fill_mixed(phys, update)
 
@@ -789,15 +790,16 @@ class Engine(object):
                     
         for args in renewargs:
             self.r_a.renew(args)
-        
+
         for kfes, name in enumerate(phys.dep_vars):
             if not mask[kfes]: continue           
             ifes = self.ifes(name)
-   
+
             for mm in phys.walk():
                 if not mm.enabled: continue
                 if not mm.has_bf_contribution2(kfes, self.access_idx):continue
                 if len(mm._sel_index) == 0: continue
+
                 proj = mm.get_projection()
                 ra = self.r_a[ifes, ifes, proj]                
                 mm.add_bf_contribution(self, ra, real = True, kfes = kfes)

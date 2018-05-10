@@ -31,13 +31,29 @@ class SolveStep(SolverBase):
         phys_root = self.root()['Phys']        
         ret = []
         for k in self.keys():
+            if not self[k].enabled: continue
             for x in self[k].get_target_phys():
                 if not x in ret: ret.append(x)
         return ret
+
+    def get_target_phys(self):
+        return []
     
     def get_active_solvers(self):
         return [x for x in self.iter_enabled()]
+    
+    @property
+    def has_num_matrix(self):
+        return False
+    
+    def get_num_matrix(self, phys_target=None):    
+        raise NotImplementedError(
+             "you must specify this method in subclass")
 
+    def get_matrix_weight(self, timestep_config):
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+    
     def run(self, engine, is_first = True):
         solvers = self.get_active_solvers()
         
@@ -93,12 +109,17 @@ class Solver(SolverBase):
             if isinstance(x, LinearSolverModel):
                return x
 
+    @property
+    def has_num_matrix(self):
+        return True
+    
     def get_num_matrix(self, phys_target=None):
         solver_root = self.get_solve_root()
         num = []
         for k in solver_root.keys():
             mm = solver_root[k]
             if not mm.enabled: continue
+            if not mm.has_num_matrix: continue
             num.append(self.root()['Phys'].get_num_matrix(mm.get_matrix_weight,
                                            phys_target))
         return max(num)
