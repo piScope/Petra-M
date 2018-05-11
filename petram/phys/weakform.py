@@ -56,7 +56,7 @@ class MCoeff(MatrixPhysCoefficient):
         super(MCoeff, self).__init__(*args, **kwargs)
     def EvalValue(self, x):
         val = super(MCoeff, self).EvalValue(x)
-        if self.conj: val=np.conj(val)                
+        if self.conj: val=np.conj(val)
         return val
      
 class DCoeff(MatrixPhysCoefficient):
@@ -64,11 +64,13 @@ class DCoeff(MatrixPhysCoefficient):
         self.conj = kwargs.pop('conj', False)       
         self.space_dim = args[0]
         super(DCoeff, self).__init__(*args, **kwargs)
+        
     def EvalValue(self, x):
-        val = super(DCoeff, self).EvalValue(x)
+        from petram.phys.phys_model import Coefficient_Evaluator
+        val = Coefficient_Evaluator.EvalValue(self, x)
         val = np.diag(val)
         if self.conj: val=np.conj(val)                
-        return val.flatten()
+        return val
     
 class VCoeff(VectorPhysCoefficient):
     def __init__(self, *args, **kwargs):
@@ -175,13 +177,15 @@ class WeakIntegration(Phys):
             dim = self.get_root_phys().vdim
         else:
             el_name = self.get_root_phys().element
+            dim = self.get_root_phys().geom_dim
+            '''
             if el_name.startswith("ND"):
-                dim = self.get_root_phys().geom_dim
+                dim = self.get_root_phys().geom_dim            
             elif el_name.startswith("RT"):
                 dim = self.get_root_phys().geom_dim
             else:
                 dim = 1  #H1 scalar (this case does not exist..)
-                
+            '''    
         if cotype == 'S':
              for b in self.itg_choice():
                 if b[0] == self.integrator: break
