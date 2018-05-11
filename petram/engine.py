@@ -473,7 +473,6 @@ class Engine(object):
             self.access_idx = j
             
             for phys in phys_target:
-                print "!!!", phys
                 self.fill_bf(phys, update)
                 self.fill_mixed(phys, update)
 
