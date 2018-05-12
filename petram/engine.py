@@ -1755,15 +1755,59 @@ class Engine(object):
         raise NotImplementedError(
              "you must specify this method in subclass")
      
-    def solfile_name(self, name, mesh_idx):
+    def solfile_suffix(self, name, mesh_idx):
         raise NotImplementedError(
              "you must specify this method in subclass")
-     
+
+    def solfile_name(self, name, mesh_idx,
+                     namer = 'solr', namei = 'soli' ):
+        fnamer = '_'.join((namer, name, str(mesh_idx)))
+        fnamei = '_'.join((namei, name, str(mesh_idx)))
+
+        return fnamer, fnamei
+
+    def clear_solmesh_files(self, header):
+        try:
+            from mpi4py import MPI
+        except:
+            from petram.helper.dummy_mpi import MPI
+        myid     = MPI.COMM_WORLD.rank
+        nproc    = MPI.COMM_WORLD.size
+
+        MPI.COMM_WORLD.Barrier()
+        if myid == 0:
+            for f in os.listdir("."):
+                if f.startswith(header): os.remove(f)
+        MPI.COMM_WORLD.Barrier()
+       
     def save_solfile_fespace(self, name, mesh_idx, r_x, i_x):
-        fnamer, fnamei, meshname = self.solfile_name(name, mesh_idx)
+        fnamer, fnamei = self.solfile_name(name, mesh_idx)
+        suffix=self.solfile_suffix()
+
+        fnamer = fnamer+suffix
+        fnamei = fnamei+suffix
+
+        self.clear_solmesh_files(fnamer)
+        self.clear_solmesh_files(fnamei)
+        
         r_x.SaveToFile(fnamer, 8)
         if i_x is not None:
             i_x.SaveToFile(fnamei, 8)
+
+    def save_mesh(self):
+        mesh_names = []
+        suffix=self.solfile_suffix()
+        
+        for k, mesh in enumerate(self.emeshes):
+            if mesh is None: continue
+            
+            header = 'solmesh_' + str(k)
+            self.clear_solmesh_files(header)
+            
+            name = header+suffix            
+            mesh.PrintToFile(name, 8)
+            mesh_names.append(name)
+        return mesh_names
 
     @property   ### ALL dependent variables including Lagrange multipliers
     def dep_vars(self):
@@ -1942,6 +1986,7 @@ class SerialEngine(Engine):
     def collect_all_ess_tdof(self):
         self.gl_ess_tdofs = self.ess_tdofs
 
+    '''
     def save_mesh(self):
         mesh_names = []
         for k, mesh in enumerate(self.emeshes):
@@ -1950,18 +1995,14 @@ class SerialEngine(Engine):
             mesh.PrintToFile(name, 8)
             mesh_names.append(name)
         return mesh_names
-
+    '''
     def save_parmesh(self):
         # serial engine does not do anything
         return
-
-    def solfile_name(self, name, mesh_idx,
-                     namer = 'solr', namei = 'soli' ):
-        fnamer = '_'.join((namer, name, str(mesh_idx)))
-        fnamei = '_'.join((namei, name, str(mesh_idx)))
-        mesh_name  =  "solmesh_"+str(mesh_idx)              
-        return fnamer, fnamei, mesh_name
-
+     
+    def solfile_suffix(self):
+        return ""
+     
     def extrafile_name(self):
         return 'sol_extended.data'
 
@@ -2123,6 +2164,8 @@ class ParallelEngine(Engine):
                dprint1('Number of finite element unknowns: '+  str(fe_sizes))
         return fe_sizes
      
+
+    '''
     def save_mesh(self):
         from mpi4py import MPI                               
         num_proc = MPI.COMM_WORLD.size
@@ -2136,6 +2179,7 @@ class ParallelEngine(Engine):
             mesh.PrintToFile(mesh_name, 8)
             mesh_names.append(mesh_name)
         return mesh_names
+    '''
      
     def save_parmesh(self):
         from mpi4py import MPI                               
@@ -2150,18 +2194,13 @@ class ParallelEngine(Engine):
             mesh.ParPrintToFile(mesh_name, 8)
         return
      
-    def solfile_name(self, name, mesh_idx,
-                     namer = 'solr', namei = 'soli' ):
+    def solfile_suffix(self):
         from mpi4py import MPI                               
         num_proc = MPI.COMM_WORLD.size
         myid     = MPI.COMM_WORLD.rank
         smyid = '{:0>6d}'.format(myid)
-       
-        fnamer = '_'.join((namer, name, str(mesh_idx)))+"."+smyid
-        fnamei = '_'.join((namei, name, str(mesh_idx)))+"."+smyid
-        mesh_name  =  "solmesh_"+str(mesh_idx)+"."+smyid        
-        return fnamer, fnamei, mesh_name
-
+        return "."+smyid
+     
     def extrafile_name(self):
         from mpi4py import MPI                               
         num_proc = MPI.COMM_WORLD.size
