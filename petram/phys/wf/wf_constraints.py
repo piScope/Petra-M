@@ -162,31 +162,37 @@ class WF_WeakEdgeLinConstraint(WF_common, Edge, WeakLinIntegration):
         v['sel_readonly'] = False
         v['sel_index'] = []
         return v
+     
+from petram.phys.weakform import WeakLinDeltaIntegration, WeakBilinDeltaIntegration
 
-class WF_WeakPointBilinConstraint(WF_common, Point, WeakBilinIntegration):
+class WF_WeakPointBilinConstraint(WF_common, Point, WeakBilinDeltaIntegration):
     has_3rd_panel = True        
     def __init__(self, **kwargs):
-        super(WF_WekaPointBilinConstraint, self).__init__(**kwargs)        
+        super(WF_WeakPointBilinConstraint, self).__init__(**kwargs)        
         Point.__init__(self, **kwargs)
-        WeakIntegration.__init__(self)
+        WeakBilinDeltaIntegration.__init__(self)
 
     def attribute_set(self, v):
         Point.attribute_set(self, v)
-        WeakBilinIntegration.attribute_set(self, v)
-        v['sel_readonly'] = False
-        v['sel_index'] = []
+        WeakBilinDeltaIntegration.attribute_set(self, v)
+        v['sel_readonly'] = True
+        v['sel_index'] = ['all']
+        v['sel_index_txt'] = '["all"]'        
         return v
      
-class WF_WeakPointLinConstraint(WF_common, Point, WeakLinIntegration):
+class WF_WeakPointLinConstraint(WF_common, Point, WeakLinDeltaIntegration):
     has_3rd_panel = True        
     def __init__(self, **kwargs):
-        super(WF_WekaPointLinConstraint, self).__init__(**kwargs)        
+        super(WF_WeakPointLinConstraint, self).__init__(**kwargs)        
         Point.__init__(self, **kwargs)
-        WeakLinIntegration.__init__(self)
+        WeakLinDeltaIntegration.__init__(self)
 
     def attribute_set(self, v):
         Point.attribute_set(self, v)
-        WeakLinIntegration.attribute_set(self, v)
-        v['sel_readonly'] = False
-        v['sel_index'] = []
+        WeakLinDeltaIntegration.attribute_set(self, v)
+        v['sel_readonly'] = True
+        v['sel_index'] = ['all']
+        v['sel_index_txt'] = '["all"]'                        
         return v
+
+     

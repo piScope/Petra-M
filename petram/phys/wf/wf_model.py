@@ -212,6 +212,11 @@ class WF(PhysModule):
         from wf_essential import WF_Essential
         return [WF_Essential, WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint]
     
+    def get_possible_point(self):
+        from wf_constraints import WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint
+        #from wf_essential import WF_Essential
+        return [WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint]
+    
     def add_variables(self, v, name, solr, soli = None):
         from petram.helper.variables import add_coordinates
         from petram.helper.variables import add_scalar
