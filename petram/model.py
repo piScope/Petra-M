@@ -206,7 +206,7 @@ class Model(RestorableOrderedDict):
             self._sel_index = []
             return None
         elif len(self.sel_index) == 1 and self.sel_index[0] == 'all':
-            self._sel_index = []
+            self._sel_index = list(choice)
             return -1
         elif len(self.sel_index) == 0:
             self._sel_index = []            
@@ -577,9 +577,14 @@ class Model(RestorableOrderedDict):
             mycheck = True
 
             try:
-                mycheck = any(value != defvalue[attr])  # for numpy array
+                mycheck = value != defvalue[attr]  # for numpy array
+                if isinstance(mycheck, np.ndarray):
+                    mycheck = mycheck.any()
+                else:
+                    mycheck = any(mycheck)
             except TypeError:
                 try:
+                    print type(value), value, type(defvalue[attr]), defvalue[attr]
                     mycheck = value != defvalue[attr]
                 except:
                     pass

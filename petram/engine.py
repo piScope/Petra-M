@@ -17,15 +17,11 @@ import mfem.common.chypre as chypre
 from mfem.common.parcsr_extra import ToScipyCoo
 from mfem.common.mpi_debug import nicePrint
 
-from petram.model import Domain, Bdry#, ModelDict
+from petram.model import Domain, Bdry, Point, Pair
 
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Engine')
 from petram.helper.matrix_file import write_coo_matrix, write_vector
-
-
-#groups = ['Domain', 'Boundary', 'Edge', 'Point', 'Pair']
-groups = ['Domain', 'Boundary', 'Pair']
 
 
 def iter_phys(phys_targets, *args):
@@ -1467,10 +1463,16 @@ class Engine(object):
                 r_x = self.r_x[ifes]
                 i_x = self.i_x[ifes]
                 self.save_solfile_fespace(name, emesh_idx, r_x, i_x)
+                
+    def extrafile_name(self):
+        return 'sol_extended.data'
      
     def save_extra_to_file(self, sol_extra):
         if sol_extra is None: return
-        fid = open(self.extrafile_name(), 'w')
+        
+        extrafile_name = self.extrafile_name()+self.solfile_suffix()
+
+        fid = open(extrafile_name, 'w')
         for name in sol_extra.keys():
             for k in sol_extra[name].keys():
                 data = sol_extra[name][k]
@@ -1495,7 +1497,10 @@ class Engine(object):
         
     def load_extra_to_file(self, init_path):
         sol_extra = {}
-        path = os.path.join(init_path, self.extrafile_name())
+        extrafile_name = self.extrafile_name()+self.solfile_suffix()
+        
+        path = os.path.join(init_path, extrafile_name)
+        
         fid = open(path, 'r')
         line = fid.readline()
         while line:
@@ -1540,9 +1545,11 @@ class Engine(object):
             p._phys_sel_index = dom_choice
             self.do_assign_sel_index(p, dom_choice, Domain)
             self.do_assign_sel_index(p, bdr_choice, Bdry)
-     
+            self.do_assign_sel_index(p, dom_choice, Point)
+            
     def do_assign_sel_index(self, m, choice, cls):
-        dprint1("## setting _sel_index (1-based number): "+m.fullname())
+        dprint1("## setting _sel_index (1-based number): " + cls.__name__ +
+                ":" + m.fullname())
         #_sel_index is 0-base array
         def _walk_physics(node):
             yield node
@@ -1550,15 +1557,18 @@ class Engine(object):
                 yield node[k]
         rem = None
         checklist = [True]*len(choice)
+        
         for node in m.walk():
            if not isinstance(node, cls): continue
            if not node.enabled: continue
            ret = node.process_sel_index(choice)
+           
            if ret is None:
               if rem is not None: rem._sel_index = []
               rem = node
            elif ret == -1:
               node._sel_index = choice
+              dprint1(node.fullname(), node._sel_index)              
            else:
               dprint1(node.fullname(), ret)
               for k in ret:
@@ -1755,7 +1765,7 @@ class Engine(object):
         raise NotImplementedError(
              "you must specify this method in subclass")
      
-    def solfile_suffix(self, name, mesh_idx):
+    def solfile_suffix(self):
         raise NotImplementedError(
              "you must specify this method in subclass")
 
@@ -1784,11 +1794,11 @@ class Engine(object):
         fnamer, fnamei = self.solfile_name(name, mesh_idx)
         suffix=self.solfile_suffix()
 
-        fnamer = fnamer+suffix
-        fnamei = fnamei+suffix
-
         self.clear_solmesh_files(fnamer)
         self.clear_solmesh_files(fnamei)
+        
+        fnamer = fnamer+suffix
+        fnamei = fnamei+suffix
         
         r_x.SaveToFile(fnamer, 8)
         if i_x is not None:
@@ -2002,10 +2012,10 @@ class SerialEngine(Engine):
      
     def solfile_suffix(self):
         return ""
-     
+    ''' 
     def extrafile_name(self):
         return 'sol_extended.data'
-
+    '''
     def get_true_v_sizes(self, phys):
         fe_sizes = [self.fespaces[name].GetTrueVSize() for name in phys.dep_vars]
         dprint1('Number of finite element unknowns: '+  str(fe_sizes))
@@ -2200,7 +2210,7 @@ class ParallelEngine(Engine):
         myid     = MPI.COMM_WORLD.rank
         smyid = '{:0>6d}'.format(myid)
         return "."+smyid
-     
+    ''' 
     def extrafile_name(self):
         from mpi4py import MPI                               
         num_proc = MPI.COMM_WORLD.size
@@ -2208,7 +2218,7 @@ class ParallelEngine(Engine):
         smyid = '{:0>6d}'.format(myid)
        
         return 'sol_extended.data.'+smyid
-
+    '''
     def fill_block_matrix_fespace(self, blocks, mv,
                                         gl_ess_tdof, interp,
                                         offset, convert_real = False):

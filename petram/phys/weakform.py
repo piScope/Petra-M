@@ -190,6 +190,7 @@ class WeakIntegration(Phys):
              for b in self.itg_choice():
                 if b[0] == self.integrator: break
              if not "S*2" in b[3]:
+                 print "here!!!", c[0]
                  c_coeff = SCoeff(c[0],  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
@@ -339,6 +340,138 @@ class WeakBilinIntegration(WeakIntegration):
 
         return loc
            
-    
+def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=False):
+    self = obj
+    c = self.vt_coeff.make_value_or_expression(self)
+    if isinstance(c, str): c = [c]
+        
+    if real:       
+       dprint1("Add "+self.integrator+ " delta (real)" + str(self._sel_index), "c", c)
+    else:
+       dprint1("Add "+self.integrator+ " delta(imag)" + str(self._sel_index), "c", c)
 
+    cotype = self.coeff_type[0]
+
+    if self.get_root_phys().vdim > 1:
+        dim = self.get_root_phys().vdim
+    else:
+        el_name = self.get_root_phys().element
+        dim = self.get_root_phys().geom_dim
+    sdim = self.get_root_phys().geom_dim        
+ 
+    integrator = getattr(mfem, self.integrator)
+    adder = a.AddDomainIntegrator
+            
+    for pos in self.pos_value:
+        args = list(pos[:sdim])
+        if cotype == 'S':
+             for b in self.itg_choice():
+                if b[0] == self.integrator: break
+               
+             if not "S*2" in b[3]:
+                 if real:
+                     args.append(float(np.array(c[0])[0].real))
+                 else:
+                     args.append(float(np.array(c[0])[0].imag))
+                 print "args", args    
+                 if args[-1] != 0:
+                     d = mfem.DeltaCoefficient(*args)
+                     adder(integrator(d))
+             else: # so far this is only for an elastic integrator
+                 if real:
+                     args.append(float(np.array(c[0])[0].real))
+                 else:
+                     args.append(float(np.array(c[0])[0].imag))
+                 d1 = mfem.DeltaCoefficient(*args)
+                 if real:
+                     args.append(float(np.array(c[0])[1].real))
+                 else:
+                     args.append(float(np.array(c[0])[1].imag))
+                 d2 = mfem.DeltaCoefficient(*args)
+                 adder(integrator(d1, d2))                 
+
+        elif cotype == 'V':
+            if real:
+                direction = np.array(c[0]).real
+            else:
+                direction = np.array(c[0]).imag              
+            args.append(1.0)
+            dir = mfem.Vector(direction)
+            d = mfem.VectorDeltaCoefficient(dir, *args)
+            adder(integrator(d))            
+        else:
+            assert False, "M and D are not supported for delta coefficient"
+        
+def validate_sel(value, obj, w):
+    g = obj._global_ns
+    try:
+        value = eval(value, g)
+        pos = np.atleast_2d(value)
+        return True
+    except:
+        return False
+   
+class WeakLinDeltaIntegration(WeakLinIntegration): 
+    def panel2_param(self):
+        return [["Position",  "[[0,0,0],]",  0, {'changing_event': True,
+                                                'setfocus_event': True,
+                                                 'validator': validate_pos,
+                                                 'validator_param':self}] ]
+    def import_panel2_value(self, v):
+        self.sel_index = ['all']
+        self.sel_index_txt = '["all"]'                
+        self.pos_txt = v[0]
+        g = self._global_ns
+        try:
+            value = eval(v[0], g)
+            self.pos_value = np.atleast_2d(value)
+        except:
+            import traceback
+            traceback.print_exc()
+            pass
+         
+    def attribute_set(self, v):
+        v = super(WeakLinDeltaIntegration, self).attribute_set(v)
+        v['pos_txt'] = "[[ 0,0,0,],]"
+        v['pos_value'] = np.array([[ 0,0, 0,],])
+        return v
+     
+    def get_panel2_value(self):
+        return (self.pos_txt,)
+   
+    def add_contribution(self, engine, a, real = True, is_trans=False, is_conj=False):
+        add_delta_contribution(self, engine, a, real = real, is_trans=is_trans,
+                               is_conj = is_conj)
+        
+class WeakBilinDeltaIntegration(WeakBilinIntegration):
+    def panel2_param(self):
+        return [["Position",  "[[0,0,0],]",  0, {'changing_event': True,
+                                                 'setfocus_event': True,
+                                                 'validator': validate_pos,
+                                                 'validator_param':self}] ]
+    def import_panel2_value(self, v):
+        self.sel_index = ['all']
+        self.sel_index_txt = '["all"]'        
+        self.pos_txt = v[0]
+        g = self._global_ns
+        try:
+            value = eval(v[0], g)
+            self.pos_value = np.atleast_2d(value)
+        except:
+            import traceback
+            traceback.print_exc()
+            pass
+
+    def attribute_set(self, v):
+        v = super(WeakBilinDeltaIntegration, self).attribute_set(v)
+        v['pos_txt'] = "[[ 0,0,0,],]"
+        v['pos_value'] = np.array([[ 0,0, 0,],])
+        return v
+     
+    def get_panel2_value(self):
+        return (self.pos_txt,)
+   
+    def add_contribution(self, engine, a, real = True, is_trans=False, is_conj=False):
+        add_delta_contribution(self, engine, a, real = real, is_trans=is_trans,
+                               is_conj = is_conj)
               
