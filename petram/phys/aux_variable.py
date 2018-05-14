@@ -280,13 +280,16 @@ class AUX_Variable(Phys):
             if not self.get_root_phys().is_complex():
                diag = diag.real
             t3 = IdentityPyMat(diag_size, diag=diag)
-               
+
+        # all node does do the same job, but Array2PyVec will use the data from
+        # root node.
         if t4 is None: t4 = np.zeros(diag_size)
-        t4 = np.atleast_1d(t4)
+        t4 = np.atleast_1d(rhs_vec)
         if self.get_root_phys().is_complex():
             t4 = t4.astype(complex, copy = False)
         if not self.get_root_phys().is_complex():              
             if np.iscomplexobj(t4): t4 = t4.real
+
         t4 = Array2PyVec(t4)
 
         '''
