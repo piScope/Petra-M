@@ -440,6 +440,14 @@ class WeakLinDeltaIntegration(WeakLinIntegration):
         return (self.pos_txt,)
    
     def add_contribution(self, engine, a, real = True, is_trans=False, is_conj=False):
+        g = self._global_ns
+        try:
+            value = eval(self.pos_txt, g)
+            self.pos_value = np.atleast_2d(value)
+        except:
+            import traceback
+            traceback.print_exc()
+            raise
         add_delta_contribution(self, engine, a, real = real, is_trans=is_trans,
                                is_conj = is_conj)
         
@@ -460,7 +468,6 @@ class WeakBilinDeltaIntegration(WeakBilinIntegration):
         except:
             import traceback
             traceback.print_exc()
-            pass
 
     def attribute_set(self, v):
         v = super(WeakBilinDeltaIntegration, self).attribute_set(v)
@@ -472,6 +479,14 @@ class WeakBilinDeltaIntegration(WeakBilinIntegration):
         return (self.pos_txt,)
    
     def add_contribution(self, engine, a, real = True, is_trans=False, is_conj=False):
+        g = self._global_ns
+        try:
+            value = eval(self.pos_txt, g)
+            self.pos_value = np.atleast_2d(value)
+        except:
+            import traceback
+            traceback.print_exc()
+            raise
         add_delta_contribution(self, engine, a, real = real, is_trans=is_trans,
                                is_conj = is_conj)
               
