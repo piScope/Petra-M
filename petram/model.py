@@ -577,14 +577,17 @@ class Model(RestorableOrderedDict):
             mycheck = True
 
             try:
-                mycheck = value != defvalue[attr]  # for numpy array
-                if isinstance(mycheck, np.ndarray):
-                    mycheck = mycheck.any()
-                else:
-                    mycheck = any(mycheck)
+                #print attr, type(value), value, type(defvalue[attr]), defvalue[attr]   
+                if type(value) != type(defvalue[attr]):
+                    mycheck = True
+                else:# for numpy array
+                    mycheck = value != defvalue[attr]  # for numpy array
+                    if isinstance(mycheck, np.ndarray):
+                        mycheck = mycheck.any()
+                    else:
+                        mycheck = any(mycheck)
             except TypeError:
                 try:
-                    print type(value), value, type(defvalue[attr]), defvalue[attr]
                     mycheck = value != defvalue[attr]
                 except:
                     pass

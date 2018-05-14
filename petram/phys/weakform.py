@@ -190,7 +190,6 @@ class WeakIntegration(Phys):
              for b in self.itg_choice():
                 if b[0] == self.integrator: break
              if not "S*2" in b[3]:
-                 print "here!!!", c[0]
                  c_coeff = SCoeff(c[0],  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
@@ -215,8 +214,10 @@ class WeakIntegration(Phys):
                               real = real, conj=is_conj)
         integrator = getattr(mfem, self.integrator)
         if isinstance(self, Bdry):
+            #print "Bdry Integrator"
             adder = a.AddBoundaryIntegrator
         elif isinstance(self, Domain):
+            #print "Domain Integrator"
             adder = a.AddDomainIntegrator
         else:
             assert False, "this class is not supported in weakform"
@@ -373,7 +374,6 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
                      args.append(float(np.array(c[0])[0].real))
                  else:
                      args.append(float(np.array(c[0])[0].imag))
-                 print "args", args    
                  if args[-1] != 0:
                      d = mfem.DeltaCoefficient(*args)
                      adder(integrator(d))
