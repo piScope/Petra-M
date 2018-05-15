@@ -35,10 +35,10 @@ def process_iverts2nodals(mesh, iverts):
 
     # then get unique set of elements relating to the verts.
     vert2el = mesh.GetVertexToElementTable()
-
+    print 'iverts_f', list(iverts_f)
     ieles = np.hstack([vert2el.GetRowList(i) for i in iverts_f])
     ieles = np.unique(ieles)
-
+    print 'ieles', list(ieles)
     # map from element -> (element's vert index, ivert_f index)
     elvert2facevert = [None]*len(ieles)
     elvertloc = [None]*len(ieles)
@@ -105,6 +105,8 @@ def get_emesh_idx(obj, expr, solvars, phys):
     idx = []   
     for n in names:
        if (n in g and isinstance(g[n], Variable)):
+           for nn in g[n].dependency:
+              idx = g[nn].get_emesh_idx(idx, g=g)
            idx = g[n].get_emesh_idx(idx, g=g)
     return idx
        
@@ -138,7 +140,13 @@ def eval_at_nodals(obj, expr, solvars, phys):
     ll_value = []
     var_g2 = var_g.copy()
 
+    new_names = []
     for n in names:
+       if (n in g and isinstance(g[n], Variable)):
+           new_names.extend(g[n].dependency)
+           new_names.append(n)
+
+    for n in new_names:
        if (n in g and isinstance(g[n], Variable)):
            if not g[n] in obj.knowns:
               obj.knowns[g[n]] = (
@@ -151,7 +159,8 @@ def eval_at_nodals(obj, expr, solvars, phys):
                                     wverts = obj.wverts,
                                     mesh = obj.mesh(),
                                     iverts_f = obj.iverts_f,
-                                    g  = g))
+                                    g  = g,
+                                    knowns = obj.knowns))
            #ll[n] = self.knowns[g[n]]
            ll_name.append(n)
            ll_value.append(obj.knowns[g[n]])

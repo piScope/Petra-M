@@ -49,8 +49,14 @@ def eval_on_faces(obj, expr, solvars, phys):
     ll_name = []
     ll_value = []
     var_g2 = var_g.copy()
-
+    
+    new_names = []
     for n in names:
+       if (n in g and isinstance(g[n], Variable)):
+           new_names.extend(g[n].dependency)
+           new_names.append(n)
+
+    for n in new_names:
        if (n in g and isinstance(g[n], Variable)):
            if not g[n] in obj.knowns:
               obj.knowns[g[n]] = (
@@ -60,7 +66,8 @@ def eval_on_faces(obj, expr, solvars, phys):
                                      locs  = obj.ptx,
                                      attr1 = obj.elattr1,
                                      attr2 = obj.elattr2, 
-                                     g = g, mesh = obj.mesh()[obj.emesh_idx]))
+                                     g = g, knowns = obj.knowns,
+                                     mesh = obj.mesh()[obj.emesh_idx]))
            ll_name.append(n)
            ll_value.append(obj.knowns[g[n]])
        elif (n in g):
