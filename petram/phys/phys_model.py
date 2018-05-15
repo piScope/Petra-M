@@ -93,6 +93,8 @@ class Coefficient_Evaluator(object):
                for n in names:
                   if n in g and isinstance(g[n], Variable):
                        self.variables.append((n, g[n]))
+                       for nn in g[n].dependency:
+                           self.variables.append((nn, g[nn]))                          
                self.co.append(code)
            else:
                self.co.append(expr)

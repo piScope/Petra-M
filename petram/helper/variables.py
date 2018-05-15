@@ -48,16 +48,20 @@ else:
     import mfem.ser as mfem
 
 class _decorator(object):
-    def float(self, func):
-        obj = PyFunctionVariable(func, complex = False)
-        return obj
-    def complex(self, func):
-        obj = PyFunctionVariable(func, complex = True)
-        return obj
-    def array(self, complex=False, shape = (1,)):
+    def float(self, dependency=None):
+        def dec(func):
+            obj = PyFunctionVariable(func, complex = False, dependency=dependency)
+            return obj
+        return dec
+    def complex(self, dependency=None):
+        def dec(func):        
+            obj = PyFunctionVariable(func, complex = True, dependency=dependency)
+            return obj
+        return dec
+    def array(self, complex=False, shape = (1,), dependency=None):
         def dec(func):
             #print "inside dec", complex, shape
-            obj = PyFunctionVariable(func, complex = complex, shape = shape)
+            obj = PyFunctionVariable(func, complex = complex, shape = shape, dependency=dependency)
             return obj
         return dec
         
@@ -101,8 +105,12 @@ class Variable(object):
     '''
     define everything which we define algebra
     '''
-    def __init__(self, complex=False):
+    def __init__(self, complex=False, dependency=None):
         self.complex = complex
+
+        # dependency stores a list of Finite Element space discrite variable
+        # names whose set_point has to be called
+        self.dependency=[] if dependency is None else dependency
 
     def __add__(self, other):
         if isinstance(other, Variable):
@@ -530,8 +538,8 @@ class DomainVariable(Variable):
         
         
 class PyFunctionVariable(Variable):
-    def __init__(self, func, complex=False, shape = tuple()):
-        super(PyFunctionVariable, self).__init__(complex = complex)
+    def __init__(self, func, complex=False, shape = tuple(), dependency=None):
+        super(PyFunctionVariable, self).__init__(complex = complex, dependency=dependency)
         self.func = func
         self.t = None
         self.x = (0,0,0)
@@ -552,10 +560,13 @@ class PyFunctionVariable(Variable):
         return np.array(self.func(*args), copy=False)
        
     def nodal_values(self, iele = None, el2v = None, locs = None,
-                     wverts = None, elvertloc = None, **kwargs):
+                     wverts = None, elvertloc = None, g=None, knowns =None,
+                     **kwargs):
                      # elattr = None, el2v = None,
                      # wverts = None, locs = None, g = None
         if locs is None: return
+        if g is None: g = {}
+        if knowns is None: knowns = WKD()       
 
         size = len(wverts)        
         shape = [size] + list(self.shape)
@@ -563,10 +574,17 @@ class PyFunctionVariable(Variable):
         dtype = np.complex if self.complex else np.float
         ret = np.zeros(shape, dtype = dtype)
         wverts = np.zeros(size)
+        
         for kk, m, loc in zip(iele, el2v, elvertloc):
             if kk < 0: continue
             for pair, xyz in zip(m, loc):
                 idx = pair[1]
+                for n in self.dependency:
+                    g[n].local_value = knowns[g[n]][idx]
+                    # putting the dependency variable to functions global.
+                    # this may not ideal, since there is potential danger
+                    # of name conflict?
+                    self.func.func_globals[n] = g[n]
                 ret[idx] = ret[idx] + self.func(*xyz)
                 wverts[idx] = wverts[idx] + 1
         ret = np.stack([x for x in ret if x is not None])
@@ -582,10 +600,19 @@ class PyFunctionVariable(Variable):
     
     def ncface_values(self, ifaces = None, irs = None, gtypes = None,
                       g=None, attr1 = None, attr2 = None, locs = None,
-                      **kwargs):
+                      knowns=None, **kwargs):
         if locs is None: return
+        if g is None: g = {}
+        if knowns is None: knowns = WKD()       
+        
         dtype = np.complex if self.complex else np.float
-        ret = [self.func(*xyz) for xyz in locs]
+
+        ret = [None]*len(locs)
+        for idx, xyz in enumerate(locs):
+            for n in self.dependency:
+                g[n].local_value = knowns[g[n]][idx]
+                self.func.func_globals[n] = g[n]                
+            ret[idx] = self.func(*xyz) 
         ret = np.stack(ret).astype(dtype, copy=False)
         return ret
 
@@ -608,6 +635,22 @@ class GridFunctionVariable(Variable):
         self.T = T
         self.ip = ip
         self.t = t
+        self.set_local_from_T_ip()
+        
+    @property
+    def local_value(self):
+        return self._local_value
+
+    @local_value.setter
+    def local_value(self, value):
+        self._local_value = value
+        
+    def __call__(self):
+        return self._local_value
+    
+    def set_local_from_T_ip(self):
+        self.local_value = self.eval_local_from_T_ip()
+        
         
     def get_emesh_idx(self, idx = None, g=None):
         if idx is None: idx = []
@@ -651,8 +694,9 @@ class GFScalarVariable(GridFunctionVariable):
             else:
                 self.func_i = None
         self.isDerived = True
-        self.extra = extra            
-    def __call__(self):
+        self.extra = extra
+        
+    def eval_local_from_T_ip(self):        
         if not self.isDerived: self.set_funcs()
         if self.isVectorFE:        
             if self.func_i is None:
@@ -685,7 +729,9 @@ class GFScalarVariable(GridFunctionVariable):
         for kk, m in zip(iele, el2v):
             if kk < 0: continue            
             values = mfem.doubleArray()
+            print kk, self.comp
             self.gfr.GetNodalValues(kk, values, self.comp)
+            print values.ToList()
             for k, idx in m:
                 ret[idx] = ret[idx] + values[k]
             if self.gfi is not None:
@@ -793,7 +839,7 @@ class GFVectorVariable(GridFunctionVariable):
         self.isDerived = True
         self.extra = extra
 
-    def __call__(self):
+    def eval_local_from_T_ip(self):        
         if not self.isDerived: self.set_funcs()
         if self.isVectorFE:
             if self.func_i is None:
