@@ -6,7 +6,7 @@ from petram.model import Pair, Bdry
 from petram.phys.phys_model  import Phys
 
 import petram.debug as debug
-dprint1, dprint2, dprint3 = debug.init_dprints('EM3D_Floquet')
+dprint1, dprint2, dprint3 = debug.init_dprints('WF_PAIRS')
 
 from petram.mfem_config import use_parallel
 
@@ -24,17 +24,6 @@ else:
 
 '''
    Map DoF from src surface (s1) to dst surface (s2)
-   
-   s1 and s2 should be plain.
-
-   axis of rotation from s1 to s2 should be perpdicular to
-   normal vectors of s1 and s2.
-
-   Twist is not considered?
-
-   For a fineite (non 0, non 180) complex phase difference
-   compulex conjugate is returned, to force Lagrange multiplier
-   real
 '''
 def make_mapper(txt, g, indvars):
     lns = {}
@@ -70,11 +59,17 @@ class WF_PeriodicCommon(Pair, Phys):
         v['weight_txt']= "1"
         v['tol'] = 1e-4
         v['map_mode'] = "surface"
+        v['fes_idx'] = 0
         super(WF_PeriodicCommon, self).attribute_set(v)
         return v
         
     def panel1_param(self):
-        return [['dst mapping ',  self.dstmap_txt, 0, {'validator': validate_mapper,
+        import wx
+        dep_vars = self.get_root_phys().dep_vars
+        
+        return [["constriained FEspace", dep_vars[0], 4,
+                 {"style":wx.CB_READONLY, "choices": dep_vars}],
+                ['dst mapping ',  self.dstmap_txt, 0, {'validator': validate_mapper,
                                                         'validator_param':self}],
                 ['src mapping ',  self.srcmap_txt, 0,  {'validator': validate_mapper,
                                                         'validator_param':self}],
@@ -84,15 +79,20 @@ class WF_PeriodicCommon(Pair, Phys):
 #                ["use Lagrange multiplier",   self.use_multiplier,  3, {"text":""}],]     
 
     def get_panel1_value(self):
+        dep_vars = self.get_root_phys().dep_vars                            
         txt = ", ".join([x+"_dst = "+x+"_src" for x in self.get_root_phys().dep_vars])
-        return (self.dstmap_txt, self.srcmap_txt, self.weight_txt,
+        
+        return (dep_vars[self.fes_idx], 
+                self.dstmap_txt, self.srcmap_txt, self.weight_txt,
                 self.tol_txt, txt)
 
     def import_panel1_value(self, v):
-        self.dstmap_txt = str(v[0])
-        self.srcmap_txt = str(v[1])
-        self.weight_txt  = str(v[2])        
-        self.tol_txt  = str(v[3])
+        dep_vars = self.get_root_phys().dep_vars                    
+        self.fes_idx = dep_vars.index(str(v[0]))
+        self.dstmap_txt = str(v[1])
+        self.srcmap_txt = str(v[2])
+        self.weight_txt  = str(v[3])        
+        self.tol_txt  = str(v[4])
 
     def make_mapper(self):
         g = self._global_ns
@@ -132,7 +132,7 @@ class WF_PeriodicCommon(Pair, Phys):
         return False
 
     def has_interpolation_contribution(self, kfes = 0):
-        return True
+        return kfes == self.fes_idx
 
     def add_interpolation_contribution(self, engine, ess_tdof=None, kfes = 0):
         dprint1("Add interpolation contribution(real)" + str(self._sel_index))
@@ -173,8 +173,8 @@ class WF_PeriodicCommon(Pair, Phys):
         from petram.helper.dof_map import projection_matrix
         M, r, c = projection_matrix(src, dst, fes, ess_tdof, fes2=fes,
                                     trans1 = dst_mapper, trans2=src_mapper,
-                                    dphase = weight,
-                                    tol = self.tol, mode = mode)
+                                    weight = weight, tol = self.tol, mode = mode)
+
         return M, r, c
         
 class WF_PeriodicBdr(WF_PeriodicCommon, Bdry):
