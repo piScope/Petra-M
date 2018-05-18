@@ -1269,7 +1269,7 @@ class Engine(object):
                for i in range(shape[0]):
                    if idx == i: continue
                    if A[i,idx] is not None:
-                       A[i, idx] = A[i, idx].dot(t2)
+                       A[i, idx] = A[i, idx].dot(P)
             if RHS is not None:
                 RHS[idx] = P.conj(inplace=True).dot(RHS[idx])
                 P.conj(inplace=True)

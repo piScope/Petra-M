@@ -682,7 +682,7 @@ def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
 # map_surface_l2 = map_surface_h1
 
 def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
-                      trans1=None, trans2 = None, dphase=0.0,
+                      trans1=None, trans2 = None, dphase=0.0, weight = None,
                       tol = 1e-7, mode = 'surface', filldiag=True):
     '''
      map: destinatiom mapping 
@@ -702,15 +702,22 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
     map = mapper(idx2, idx1, fes, fes2=fes2, trans1=trans1, trans2=trans2, tdof1=tdof1,
                  tdof2=tdof2, tol=tol)
 
-    iscomplex = False
-    if (dphase == 0.):
-        pass
-    elif (dphase == 180.):
-        map = -map
+
+    if weight is None:
+        iscomplex = False       
+        if (dphase == 0.):
+            pass
+        elif (dphase == 180.):
+            map = -map
+        else:
+            iscomplex = True
+            map = map.astype(complex)        
+            map *= np.exp(-1j*np.pi/180*dphase)
     else:
-        iscomplex = True
-        map = map.astype(complex)        
-        map *= np.exp(-1j*np.pi/180*dphase)
+        iscomplex = np.iscomplexobj(weight)
+        if iscomplex:
+            map = map.astype(complex)        
+            map *= weight
       
     m_coo = map.tocoo()
     row = m_coo.row

@@ -217,6 +217,11 @@ class WF(PhysModule):
         #from wf_essential import WF_Essential
         return [WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint]
     
+    def get_possible_pair(self):
+        from wf_pairs import WF_PeriodicBdr
+        #periodic bc
+        return [WF_PeriodicBdr]
+    
     def add_variables(self, v, name, solr, soli = None):
         from petram.helper.variables import add_coordinates
         from petram.helper.variables import add_scalar

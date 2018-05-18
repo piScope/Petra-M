@@ -35,10 +35,10 @@ def process_iverts2nodals(mesh, iverts):
 
     # then get unique set of elements relating to the verts.
     vert2el = mesh.GetVertexToElementTable()
-    print 'iverts_f', list(iverts_f)
+    #print 'iverts_f', list(iverts_f)
     ieles = np.hstack([vert2el.GetRowList(i) for i in iverts_f])
     ieles = np.unique(ieles)
-    print 'ieles', list(ieles)
+    #print 'ieles', list(ieles)
     # map from element -> (element's vert index, ivert_f index)
     elvert2facevert = [None]*len(ieles)
     elvertloc = [None]*len(ieles)

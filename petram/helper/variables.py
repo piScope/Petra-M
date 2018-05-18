@@ -611,6 +611,9 @@ class PyFunctionVariable(Variable):
         for idx, xyz in enumerate(locs):
             for n in self.dependency:
                 g[n].local_value = knowns[g[n]][idx]
+                # putting the dependency variable to functions global.
+                # this may not ideal, since there is potential danger
+                # of name conflict?
                 self.func.func_globals[n] = g[n]                
             ret[idx] = self.func(*xyz) 
         ret = np.stack(ret).astype(dtype, copy=False)
@@ -729,9 +732,8 @@ class GFScalarVariable(GridFunctionVariable):
         for kk, m in zip(iele, el2v):
             if kk < 0: continue            
             values = mfem.doubleArray()
-            print kk, self.comp
             self.gfr.GetNodalValues(kk, values, self.comp)
-            print values.ToList()
+            
             for k, idx in m:
                 ret[idx] = ret[idx] + values[k]
             if self.gfi is not None:
