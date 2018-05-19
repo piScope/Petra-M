@@ -144,10 +144,9 @@ def find_edge_corner(mesh):
     get_edges = mesh.GetBdrElementEdges
     get_attr  = mesh.GetBdrAttribute
     iattr= mesh.GetBdrAttributeArray()  # min of this array is 1
-    nattr = np.max(iattr)        
+    nattr = 0 if iattr.size == 0 else np.max(iattr)        
     nb = mesh.GetNBE()
-
-    if mesh.GetNBE() == 0:    
+    if mesh.GetNBE() == 0 and nprc == 1:    
         return {}, {}, {}, {}
     
 
