@@ -97,9 +97,9 @@ class StdSolver(Solver):
             self.prepare_form_sol_variables(engine)
             instance.init(self.init_only)
         else:
-            instance.update()
-
-        instance.set_fes_mask()
+            pass
+            #instance.update()
+        instance.set_blk_mask()      
         
         if not self.init_only:
             instance.solve()            
@@ -145,7 +145,8 @@ class StandardSolver(SolverInstance):
             for init in inits:
                 init.run(engine)
                 
-        target_phys = self.get_target_phys()
+        # use get_phys to apply essential to all phys in solvestep
+        target_phys = self.get_phys()
         engine.run_apply_essential(target_phys)
         engine.run_fill_X_block()
         
@@ -171,7 +172,8 @@ class StandardSolver(SolverInstance):
 
     def assemble(self):
         engine = self.engine
-        phys_target = self.get_target_phys()
+        phys_target = self.get_phys()
+        # use get_phys to apply essential to all phys in solvestep        
         dprint1("in assemble", phys_target)
         #phys_target = self.get_phys()
         engine.run_verify_setting(phys_target, self.gui)
@@ -198,7 +200,7 @@ class StandardSolver(SolverInstance):
         #    assert False, "assmeble must have been called"
             
         A, X, RHS, Ae, B, M, depvars = self.blocks
-        mask = self.fes_mask
+        mask = self.blk_mask
         depvars = [x for i, x in enumerate(depvars) if mask[i]]
 
         if update_operator:
