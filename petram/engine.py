@@ -545,7 +545,7 @@ class Engine(object):
         X = self.fill_X_block(X)
         self.assembled_blocks[1] = X
         
-    def run_assemble_blocks(self, compute_A, compute_rhs,
+    def run_assemble_blocks(self, compute_A, compute_rhs, 
                             inplace = True, update=False):
         '''
         assemble M, B, X blockmatrices.
@@ -590,8 +590,8 @@ class Engine(object):
         #RHS.save_to_file("RHSbefore")
         #M[0].save_to_file("M0there")                        
         #Ae.save_to_file("Ae")
-        RHS = self.eliminateBC(Ae, X[0], RHS)       # modify RHS and
-        A, RHS = self.apply_interp(A, RHS)  # A and RHS is modifedy by global DoF coupling P
+        RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
+        A, RHS = self.apply_interp(A, RHS)     # A and RHS is modifedy by global DoF coupling P
         #M[0].save_to_file("M0there2")                        
         #M[1].save_to_file("M1")
         #X[0].save_to_file("X0")
@@ -1215,8 +1215,8 @@ class Engine(object):
         try:
             AeX = Ae.dot(X)
             for name in self.gl_ess_tdofs:
+               idx = self.dep_var_offset(name)               
                gl_ess_tdof = self.gl_ess_tdofs[name]
-               idx = self.dep_var_offset(name)
                if AeX[idx, 0] is not None:
                     AeX[idx, 0].resetRow(gl_ess_tdof)                  
             RHS = RHS - AeX
@@ -1226,9 +1226,9 @@ class Engine(object):
             print "X", X
             raise
         for name in self.gl_ess_tdofs:
+            idx = self.dep_var_offset(name)                          
             gl_ess_tdof = self.gl_ess_tdofs[name]
             ess_tdof = self.ess_tdofs[name]
-            idx = self.dep_var_offset(name)
             RHS[idx].copy_element(gl_ess_tdof, X[idx])
             
         return RHS
@@ -1269,7 +1269,7 @@ class Engine(object):
                for i in range(shape[0]):
                    if idx == i: continue
                    if A[i,idx] is not None:
-                       A[i, idx] = A[i, idx].dot(t2)
+                       A[i, idx] = A[i, idx].dot(P)
             if RHS is not None:
                 RHS[idx] = P.conj(inplace=True).dot(RHS[idx])
                 P.conj(inplace=True)

@@ -466,8 +466,16 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                    num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[0],2], m[0,1], num2)
                    num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[1],2], m[1,1], num2)
             else:
-                # to do support three vectors
-                raise AssertionError("more than two dofs at same place")
+                 print pt1, pt2
+                 '''
+                 newk1 = k1all[k0] #(i local DoF, global DoF)
+                 sh1 = sh1all[k0]           
+                 pto2 = pto2all[k2]
+                 newk2 = k2all[k2]
+                 sh2 = sh2all[k2]
+                 '''
+                 # to do support three vectors
+                 raise AssertionError("more than two dofs at same place")
         subvdofs2.extend([s for k, v, s in newk2])
 
     num_entry = num1 + num2
@@ -676,13 +684,44 @@ def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
                    trans1, trans2, tol, tdof1, rstart)
 
     return map
+
+def map_volume_nd(idx1, idx2, fes1, fes2=None, trans1=None,
+                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
+ 
+    '''
+    map DoF on surface to surface
+
+      fes1: source finite element space
+      fes2: destination finite element space
+
+      idx1: surface attribute (Bdr for 3D/3D, Domain for 2D/3D or 2D/2D)
+
+    '''
+                             
+    if fes2 is None: fes2 = fes1
+    if trans1 is None: trans1=notrans
+    if trans2 is None: trans2=trans1
+    if tdof1 is None: tdof1=[]
+    if tdof2 is None: tdof2=[]    
+
+    tdof = tdof1 # ToDo support tdof2    
+    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                                              trans2, tol, shape_type = 'vector',
+                                              mode="volume")
+    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
+    
+    map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
+                   k1all, k2all, sh1all, sh2all, elmap,
+                   trans1, trans2, tol, tdof1, rstart)
+
+    return map
  
 # ToDO test these
 # map_surface_rt = map_surface_nd
 # map_surface_l2 = map_surface_h1
 
 def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
-                      trans1=None, trans2 = None, dphase=0.0,
+                      trans1=None, trans2 = None, dphase=0.0, weight = None,
                       tol = 1e-7, mode = 'surface', filldiag=True):
     '''
      map: destinatiom mapping 
@@ -694,6 +733,8 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
         mapper = map_surface_nd
     elif fec_name.startswith('H1') and mode == 'surface':
         mapper = map_surface_h1
+    elif fec_name.startswith('ND') and mode == 'volume':
+        mapper = map_volume_nd
     elif fec_name.startswith('H1') and mode == 'edge':
         mapper = map_edge_h1
     else:
@@ -702,15 +743,22 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
     map = mapper(idx2, idx1, fes, fes2=fes2, trans1=trans1, trans2=trans2, tdof1=tdof1,
                  tdof2=tdof2, tol=tol)
 
-    iscomplex = False
-    if (dphase == 0.):
-        pass
-    elif (dphase == 180.):
-        map = -map
+
+    if weight is None:
+        iscomplex = False       
+        if (dphase == 0.):
+            pass
+        elif (dphase == 180.):
+            map = -map
+        else:
+            iscomplex = True
+            map = map.astype(complex)        
+            map *= np.exp(-1j*np.pi/180*dphase)
     else:
-        iscomplex = True
-        map = map.astype(complex)        
-        map *= np.exp(-1j*np.pi/180*dphase)
+        iscomplex = np.iscomplexobj(weight)
+        if iscomplex:
+            map = map.astype(complex)        
+        map *= -weight
       
     m_coo = map.tocoo()
     row = m_coo.row

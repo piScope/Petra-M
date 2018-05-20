@@ -14,7 +14,7 @@ class DerivedValue(StdSolver):
     def allocate_instance(self, engine):
         from petram.solver.std_solver_model import StandardSolver        
         instance = StandardSolver(self, engine)
-        instance.set_fes_mask()        
+        instance.set_blk_mask()        
         return instance
 
 class TimeDomain(Solver):
@@ -144,13 +144,13 @@ class TimeDomain(Solver):
         instance.set_checkpoint(np.linspace(st, et, nt))
         
         if is_first:
-            self.prepare_form_sol_variables(engine)            
+            self.prepare_form_sol_variables(engine)
             finished = instance.init(self.init_only)
         else:
             finished = False
             
+        instance.set_blk_mask()                        
         instance.configure_probes(self.probe)
-        instance.set_fes_mask()
         
         for solver in self.derived_value_solver():
             child = solver.allocate_instance(engine)
@@ -212,8 +212,8 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             self.assemble()
             return False
         
-    def set_fes_mask(self):
-        super(FirstOrderBackwardEuler, self).set_fes_mask()
+    def set_blk_mask(self):
+        super(FirstOrderBackwardEuler, self).set_blk_mask()
         phys_target = self.get_target_phys()
         time_deriv_vars = []
         for phys in phys_target:
@@ -270,7 +270,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         
     def step(self, is_first):
         engine = self.engine
-        mask = self.fes_mask
+        mask = self.blk_mask
         
         #if not self.pre_assembled:
         #    assert False, "pre_assmeble must have been called"

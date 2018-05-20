@@ -194,13 +194,13 @@ class SolverInstance(object):
         root = self.engine.model        
         return [root['InitialValue'][n] for n in names]
 
-    def set_fes_mask(self):
+    def set_blk_mask(self):
         # mask defines which FESspace will be solved by
         # a linear solver.
         all_phys = self.get_phys()        
         phys_target = self.get_target_phys()
         mask = self.engine.get_block_mask(all_phys, phys_target)
-        self.fes_mask = mask
+        self.blk_mask = mask
 
     def save_solution(self, ksol = 0, skip_mesh = False, 
                       mesh_only = False, save_parmesh=False):
