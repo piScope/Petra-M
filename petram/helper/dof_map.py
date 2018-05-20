@@ -224,10 +224,10 @@ def resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2):
                 minidx =  np.where(dist.flatten() == np.min(dist.flatten()))[0]
                 #dprint1("distances", np.min(dist),fdist[isort[:25]])
                 while all(k2all[:,:,2].flatten()[minidx] == -1):
-                    dprint1("distances (non -1 exists?)", fdist[minidx],
+                    dprint2("distances (non -1 exists?)", fdist[minidx],
                             k2all[:,:,2].flatten()[minidx])
                     minidx = np.hstack((minidx, isort[len(minidx)]))
-                dprint1("distances", np.min(dist),fdist[minidx],
+                dprint2("distances", np.min(dist),fdist[minidx],
                         fdist[isort[:len(minidx)+1]])                    
                 dprint2("minidx",  minidx, k2all[:,:,2].flatten()[minidx])
                 for i in minidx:
@@ -235,7 +235,7 @@ def resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2):
                        subvdof2[kk] = k2all[:,:,2].flatten()[i]
 
         if check:
-             dprint1('resolved dof', k2all[k2][:,2])
+             dprint2('resolved dof', k2all[k2][:,2])
              if -1 in subvdof2: 
                  assert False, "failed to resolve shadow DoF"
     return k2all
@@ -278,14 +278,14 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
 
             dist = np.sum((pt2-p)**2, 1)
             d = np.where(dist == np.min(dist))[0]
-            if myid == 1: dprint1('min_dist', np.min(dist))
+            if myid == 1: dprint2('min_dist', np.min(dist))
 
             if len(d) == 1:
                d = d[0]
                s1 = sh1[newk1[k, 0]]
                s2 = sh2[newk2[d, 0]]
                #dprint1("case1 ", s1, s2) this looks all 1
-               if s1/s2 < 0: dprint1("not positive")
+               if s1/s2 < 0: dprint2("not positive")
                #if myid == 1: print(newk1[d][2]-rstart, newk2[k][2])
                value = np.around(s1/s2, decimals)               
                if newk1[k,2] != -1: 
@@ -465,17 +465,56 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                    num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[1],2], m[1,0], num2)
                    num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[0],2], m[0,1], num2)
                    num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[1],2], m[1,1], num2)
+                   
+            elif len(d) == 3:
+                dd = np.argsort(np.sum((pt1 - p)**2, 1))
+                   
+                p1 = [pto1[dd[i]] for i in [0, 1, 2]]
+                p2 = [pto2[d[i]]  for i in [0, 1, 2]]                       
+
+                delta = np.sum(np.std(p1[0], 0))/np.sum(np.std(sh1, 0))/10.
+                 
+                v1 = [trans1(p1[i]) - trans1(p1[i] + delta*sh1[newk1[dd[i], 0]])
+                       for i in [0, 1, 2]]
+                v2 = [trans2(p2[i]) - trans2(p2[i] + delta*sh2[newk2[d[i], 0]])
+                       for i in [0, 1, 2]]
+                       
+                v1 = [v1[i]*np.sign(newk1[dd[i], 1] +0.5) for i in [0, 1, 2]]
+                v2 = [v2[i]*np.sign(newk2[d[i], 1]  +0.5) for i in [0, 1, 2]]
+
+                s = np.sign(newk1[k,1] +0.5)*np.sign(newk2[d,1] + 0.5)
+                def vnorm(v):
+                    return v/np.sqrt(np.sum(v**2))
+                v1n = [vnorm(v) for v in v1]
+                v2n = [vnorm(v) for v in v2]
+                
+                m1 = np.transpose(np.vstack(v1))
+                m2 = np.transpose(np.vstack(v2))
+                m = np.dot(np.linalg.inv(m1), m2)
+                m = np.around(np.linalg.inv(m), decimals = decimals)
+                num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[0],2], m[0,0], num2)
+                num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[1],2], m[1,0], num2)
+                num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[2],2], m[2,0], num2)
+                                  
+                num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[0],2], m[0,1], num2)
+                num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[1],2], m[1,1], num2)
+                num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[2],2], m[2,1], num2)
+                                  
+                num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[0],2], m[0,2], num2)
+                num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[1],2], m[1,2], num2)
+                num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[2],2], m[2,2], num2)
+                                  
             else:
-                 print pt1, pt2
-                 '''
+                print pt1, pt2
+                '''
                  newk1 = k1all[k0] #(i local DoF, global DoF)
                  sh1 = sh1all[k0]           
                  pto2 = pto2all[k2]
                  newk2 = k2all[k2]
                  sh2 = sh2all[k2]
-                 '''
-                 # to do support three vectors
-                 raise AssertionError("more than two dofs at same place")
+                '''
+                # to do support three vectors
+                raise AssertionError("more than three dofs at same place")
         subvdofs2.extend([s for k, v, s in newk2])
 
     num_entry = num1 + num2
@@ -588,8 +627,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
 
     return  map, data, map_1_2, rstart    
 
-
-def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
+def map_xxx_h1(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
                    trans2=None, tdof1=None, tdof2=None, tol=1e-4):
     '''
     map DoF on surface to surface
@@ -601,6 +639,35 @@ def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
 
     '''
                              
+    if fes2 is None: fes2 = fes1
+    if trans1 is None: trans1=notrans
+    if trans2 is None: trans2=trans1
+    if tdof1 is None: tdof1=[]
+    if tdof2 is None: tdof2=[]    
+
+    tdof = tdof1 # ToDo support tdof2    
+    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                                              trans2, tol, shape_type = 'scalar',
+                                              mode=xxx)
+
+
+    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
+
+    map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
+                   k1all, k2all, sh1all, sh2all, elmap,
+                   trans1, trans2, tol, tdof1, rstart)
+
+    return map
+def map_volume_h1(*args, **kwargs):
+    return map_xxx_h1('volume', *args, **kwargs)
+def map_surface_h1(*args, **kwargs):
+    return map_xxx_h1('surface', *args, **kwargs)
+def map_edge_h1(*args, **kwargs):
+    return map_xxx_h1('edge', *args, **kwargs)
+
+''' 
+def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
+                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
     if fes2 is None: fes2 = fes1
     if trans1 is None: trans1=notrans
     if trans2 is None: trans2=trans1
@@ -623,16 +690,6 @@ def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
 
 def map_edge_h1(idx1, idx2, fes1, fes2=None, trans1=None,
                    trans2=None, tdof1=None, tdof2=None, tol=1e-4):
-    '''
-    map DoF on surface to surface
-
-      fes1: source finite element space
-      fes2: destination finite element space
-
-      idx1: surface attribute (Bdr for 3D/3D, Domain for 2D/3D or 2D/2D)
-
-    '''
-                             
     if fes2 is None: fes2 = fes1
     if trans1 is None: trans1=notrans
     if trans2 is None: trans2=trans1
@@ -652,40 +709,8 @@ def map_edge_h1(idx1, idx2, fes1, fes2=None, trans1=None,
                    trans1, trans2, tol, tdof1, rstart)
 
     return map
- 
-
-def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
-                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
- 
-    '''
-    map DoF on surface to surface
-
-      fes1: source finite element space
-      fes2: destination finite element space
-
-      idx1: surface attribute (Bdr for 3D/3D, Domain for 2D/3D or 2D/2D)
-
-    '''
-                             
-    if fes2 is None: fes2 = fes1
-    if trans1 is None: trans1=notrans
-    if trans2 is None: trans2=trans1
-    if tdof1 is None: tdof1=[]
-    if tdof2 is None: tdof2=[]    
-
-    tdof = tdof1 # ToDo support tdof2    
-    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                               trans2, tol, shape_type = 'vector')
-    
-    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
-    
-    map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
-                   k1all, k2all, sh1all, sh2all, elmap,
-                   trans1, trans2, tol, tdof1, rstart)
-
-    return map
-
-def map_volume_nd(idx1, idx2, fes1, fes2=None, trans1=None,
+''' 
+def map_xxx_nd(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
                    trans2=None, tdof1=None, tdof2=None, tol=1e-4):
  
     '''
@@ -707,6 +732,33 @@ def map_volume_nd(idx1, idx2, fes1, fes2=None, trans1=None,
     tdof = tdof1 # ToDo support tdof2    
     map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
                                               trans2, tol, shape_type = 'vector',
+                                              mode=xxx)
+    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
+    
+    map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
+                   k1all, k2all, sh1all, sh2all, elmap,
+                   trans1, trans2, tol, tdof1, rstart)
+
+    return map
+def map_volume_nd(*args, **kwargs):
+    return map_xxx_nd('volume', *args, **kwargs)
+def map_surface_h1(*args, **kwargs):
+    return map_xxx_nd('surface', *args, **kwargs)
+def map_edge_h1(*args, **kwargs):
+    return map_xxx_nd('edge', *args, **kwargs)
+''' 
+def map_volume_nd(idx1, idx2, fes1, fes2=None, trans1=None,
+                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
+ 
+    if fes2 is None: fes2 = fes1
+    if trans1 is None: trans1=notrans
+    if trans2 is None: trans2=trans1
+    if tdof1 is None: tdof1=[]
+    if tdof2 is None: tdof2=[]    
+
+    tdof = tdof1 # ToDo support tdof2    
+    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                                              trans2, tol, shape_type = 'vector',
                                               mode="volume")
     pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
     
@@ -715,6 +767,29 @@ def map_volume_nd(idx1, idx2, fes1, fes2=None, trans1=None,
                    trans1, trans2, tol, tdof1, rstart)
 
     return map
+
+def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
+                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
+ 
+                             
+    if fes2 is None: fes2 = fes1
+    if trans1 is None: trans1=notrans
+    if trans2 is None: trans2=trans1
+    if tdof1 is None: tdof1=[]
+    if tdof2 is None: tdof2=[]    
+
+    tdof = tdof1 # ToDo support tdof2    
+    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                               trans2, tol, shape_type = 'vector')
+    
+    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
+    
+    map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
+                   k1all, k2all, sh1all, sh2all, elmap,
+                   trans1, trans2, tol, tdof1, rstart)
+
+    return map
+'''
  
 # ToDO test these
 # map_surface_rt = map_surface_nd
@@ -729,12 +804,16 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
     '''
     fec_name = fes.FEColl().Name()
 
-    if fec_name.startswith('ND') and mode == 'surface':
+    if fec_name.startswith('ND') and mode == 'volume':
+        mapper = map_volume_nd
+    elif fec_name.startswith('ND') and mode == 'surface':
         mapper = map_surface_nd
+    elif fec_name.startswith('ND') and mode == 'edg':
+        mapper = map_edge_nd
+    elif fec_name.startswith('H1') and mode == 'volume':
+        mapper = map_volume_h1
     elif fec_name.startswith('H1') and mode == 'surface':
         mapper = map_surface_h1
-    elif fec_name.startswith('ND') and mode == 'volume':
-        mapper = map_volume_nd
     elif fec_name.startswith('H1') and mode == 'edge':
         mapper = map_edge_h1
     else:
