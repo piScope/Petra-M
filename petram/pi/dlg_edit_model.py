@@ -200,7 +200,6 @@ class DlgEditModel(DialogWithWindowList):
         index = parent.keys().index(name)
         nums = []
         for key in parent.keys():
-           print key, base
            #base0 = ''.join([k for k in key if not k.isdigit()])
            base0, num = parent[key].split_digits()           
            if base0 != base: continue

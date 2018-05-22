@@ -501,7 +501,7 @@ class Model(RestorableOrderedDict):
         '''
         name = self.name()
         l = -1
-        if not name[l].isdigit(): name, '0'
+        if not name[l].isdigit(): return name, '0'
 
         while name[l].isdigit(): l =l-1
         l = l+1
