@@ -10,7 +10,7 @@ from itertools import product
 import numpy as np
 
 class FormBlock(object):
-    def __init__(self, shape, new=None, mixed_new=None):
+    def __init__(self, shape, new=None, mixed_new=None, diag=None):
         '''
         kind : scipy
                   stores scipy sparse or numpy array
@@ -31,6 +31,7 @@ class FormBlock(object):
             self.ndim = 1
             self.block = [[None]*c for x in range(r)]
         self._shape = (r,c)
+        self._diag = diag
         self.allocator1 = new
         if mixed_new is None:
             self.allocator2 = new
@@ -45,6 +46,9 @@ class FormBlock(object):
     @property
     def shape(self):
         return self._shape
+    @proeperty
+    def diag(self):
+        return self._diag
     
     def set_allocator(self, alloc):
         self.allocator1 = alloc
@@ -75,33 +79,6 @@ class FormBlock(object):
 
         return self.block[r][c][projector][0]
 
-        '''
-        if self.ndim == 2:
-            try:
-                r, c, projector = idx
-            except:
-                r, c = idx
-                projector = 1
-        else:
-            c = 0            
-            try:
-                r, projector = idx
-            except:
-                r = idx
-                projector = 1
-        if self.block[r][c] is None: self.block[r][c] = {}
-
-        if not projector in self.block[r][c]:
-            if self.no_allocation:
-                return None
-            else:
-                if r == c:
-                    form = self.allocator1(r)
-                else:
-                    form = self.allocator2(r, c)                    
-                self.block[r][c][projector] = [form, None]
-        '''
-                                    
     def __setitem__(self, idx, v):
         if self.ndim == 2:
             try:
@@ -143,7 +120,7 @@ class FormBlock(object):
             if self.no_allocation and not reset:
                 pass
             else:
-                if r == c:
+                if self._diag[r] == c:
                     form = self.allocator1(r)
                 else:
                     form = self.allocator2(r, c)                    
@@ -180,7 +157,7 @@ class FormBlock(object):
             for p in projs:
                 form = self.block[i][j][p][0]
                 if form is not None:
-                    if i == j:
+                    if self._diag[i] == j:
                         self.set_matvec(i, j, p, converter1(form))
                     else:
                         self.set_matvec(i, j, p, converter2(form))

@@ -123,14 +123,17 @@ class Engine(object):
         self.collect_dependent_vars(phys_range, range_space=True)
         
         n_fes  = len(self.fes_vars)
-        n_rfes = len(self.r_fes_vars)        
+        n_rfes = len(self.r_fes_vars)
+        diag = [self.r_fes_vars.index(n) for n in self.fes_vars]
         n_mat = self.n_matrix
         
         self._matrix_blocks = [None for k in range(n_mat)]
         
-        self._r_a = [FormBlock((n_fes, n_rfes), new = self.alloc_bf, mixed_new=self.alloc_mbf)
+        self._r_a = [FormBlock((n_fes, n_rfes), diag=diag,
+                               new = self.alloc_bf, mixed_new=self.alloc_mbf)
                      for k in range(n_mat)]
-        self._i_a = [FormBlock((n_fes, n_rfes),new = self.alloc_bf, mixed_new=self.alloc_mbf)
+        self._i_a = [FormBlock((n_fes, n_rfes), diag=diag,
+                               new = self.alloc_bf, mixed_new=self.alloc_mbf)
                      for k in range(n_mat)]
         self._r_x = [FormBlock(n_rfes, new = self.alloc_gf) for k in range(n_mat)]
         self._i_x = [FormBlock(n_rfes, new = self.alloc_gf) for k in range(n_mat)]
@@ -480,13 +483,13 @@ class Engine(object):
             
             for r, c, form in self.r_a:
                r1 = self.dep_var_offset(self.fes_vars[r])
-               c1 = self.dep_var_offset(self.fes_vars[c])
+               c1 = self.r_dep_var_offset(self.r_fes_vars[c])
                if self.mask_M[j, r1, c1]:
                   form.Assemble()
                   
             for r, c, form in self.i_a:
                r1 = self.dep_var_offset(self.fes_vars[r])
-               c1 = self.dep_var_offset(self.fes_vars[c])
+               c1 = self.r_dep_var_offset(self.r_fes_vars[c])
                if self.mask_M[j, r1, c1]: form.Assemble()
             
             self.extras = {}        
@@ -874,6 +877,9 @@ class Engine(object):
        
         renewflag = {}
         fillflag = {}
+        phys_offset  = self.phys_offsets(phys)[0]
+        rphys_offset = self.r_phys_offsets(phys)[0]
+        
         for mm in phys.walk():
             if not mm.enabled: continue
             if not mm.has_mixed_contribution2(self.access_idx):continue
@@ -885,10 +891,10 @@ class Engine(object):
                 r, c, is_trans, is_conj= loc
                 if isinstance(r, int):
                     idx1 = phys_offset + r
-                    idx2 = phys_offset + c
+                    idx2 = rphys_offset + c
                 else:
                     idx1 = self.ifes(r)
-                    idx2 = self.ifes(c)                                      
+                    idx2 = self.r_ifes(c)                                      
                 if loc[2] < 0:
                     idx1, idx2 = idx2, idx1
 
@@ -903,8 +909,7 @@ class Engine(object):
         is_complex = phys.is_complex()
         mixed_bf = {}
         tasks = {}
-        phys_offset = self.phys_offsets(phys)[0]
-        
+
         for idx1, idx2 in renewflag:
             self.r_a.renew(idx1, idx2)
             if is_complex:
@@ -921,10 +926,10 @@ class Engine(object):
                 r, c, is_trans, is_conj= loc
                 if isinstance(r, int):
                     idx1 = phys_offset + r
-                    idx2 = phys_offset + c
+                    idx2 = rphys_offset + c
                 else:
                     idx1 = self.ifes(r)
-                    idx2 = self.ifes(c)                                      
+                    idx2 = self.r_ifes(c)                                      
                 if loc[2] < 0:
                     idx1, idx2 = idx2, idx1
                     
@@ -1061,27 +1066,30 @@ class Engine(object):
 
         if update:
             M_changed = False
-            L = len(self.dep_vars)
+            R = len(self.dep_vars)
+            C = len(self.r_dep_vars)            
             for k in range(self.n_matrix):
-                for i, j in product(range(L),range(L)):
+                for i, j in product(range(R),range(C)):
                     if self.mask_M[k, i, j]:
                        M[k][i, j] = None
                        M_changed = True
-            for i in range(L):
+            for i in range(R):
                 if self.mask_B[i]: B[i] = None
         else:
             M_changed = True
             
         nfes = len(self.fes_vars)
+        nrfes = len(self.r_fes_vars)        
         for k in range(self.n_matrix):
             self.access_idx = k
             
             self.r_a.generateMatVec(self.a2A, self.a2Am)
             self.i_a.generateMatVec(self.a2A, self.a2Am)
             
-            for i, j in product(range(nfes),range(nfes)):
+            for i, j in product(range(nfes),range(nrfes)):
+               
                 r = self.dep_var_offset(self.fes_vars[i])
-                c = self.dep_var_offset(self.fes_vars[j])
+                c = self.r_dep_var_offset(self.r_fes_vars[j])
                 
                 if update and not self.mask_M[k, r, c]: continue
                                           
@@ -1092,7 +1100,7 @@ class Engine(object):
                 
             for extra_name, dep_name in self.extras.keys():
                 r = self.dep_var_offset(extra_name)
-                c = self.dep_var_offset(dep_name)
+                c = self.r_dep_var_offset(dep_name)
                 
                 if update and not self.mask_M[k, r, c]: continue
                 
@@ -1106,14 +1114,15 @@ class Engine(object):
             for key in self.aux_ops.keys():
                 testname, trialname, mm_fullpath = key
                 r = self.dep_var_offset(testname)
-                c = self.dep_var_offset(trialname)
+                c = self.r_dep_var_offset(trialname)
                 
                 if update and not self.mask_M[k, r, c]: continue
                 
                 m = self.aux_ops[key]
                 M[k][r,c] = m if M[k][r,c] is None else M[k][r,c]+m
                 
-
+        self.fill_B_blocks(B, update=update)
+        '''
         self.access_idx = 0
         self.r_b.generateMatVec(self.b2B)
         self.i_b.generateMatVec(self.b2B)            
@@ -1132,8 +1141,32 @@ class Engine(object):
             
             t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]            
             B[r] = t4
-
+        '''
         return M, B, M_changed
+     
+    def fill_B_blocks(self, B, update=False):
+        from petram.helper.formholder import convertElement
+        from mfem.common.chypre import MfemVec2PyVec
+
+        nfes = len(self.fes_vars)        
+        self.access_idx = 0        
+        self.r_b.generateMatVec(self.b2B)
+        self.i_b.generateMatVec(self.b2B)            
+        for i in range(nfes):
+            r = self.dep_var_offset(self.fes_vars[i])
+            if update and not self.mask_B[r]: continue            
+
+            v = convertElement(self.r_b, self.i_b,
+                                      i, 0, MfemVec2PyVec)
+            B[r] = v
+            
+        self.access_idx = 0            
+        for extra_name, dep_name in self.extras.keys():
+            r = self.dep_var_offset(extra_name)
+            if update and not self.mask_B[r]: continue
+            
+            t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]            
+            B[r] = t4
         
     def fill_X_block(self, X):
         from petram.helper.formholder import convertElement
@@ -1166,53 +1199,35 @@ class Engine(object):
                         # May need to allocate zeros...
         return X
      
-    def fill_B_blocks(self, B):
-        from petram.helper.formholder import convertElement
-        from mfem.common.chypre import MfemVec2PyVec
-       
-        nfes = len(self.fes_vars)
-        
-        self.access_idx = 0
-        self.r_b.generateMatVec(self.b2B)
-        self.i_b.generateMatVec(self.b2B)            
-        for i in range(nfes):
-            v = convertElement(self.r_b, self.i_b,
-                                      i, 0, MfemVec2PyVec)
-            r = self.dep_var_offset(self.fes_vars[i])
-            B[r] = v
-            
-        self.access_idx = 0            
-        for extra_name, dep_name in self.extras.keys():
-            r = self.dep_var_offset(extra_name)
-            t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]            
-            B[r] = t4
-       
     def fill_BCeliminate_matrix(self, A, inplace=True, update=False):
-        nblock = A.shape[0]
+        nblock1 = A.shape[0]
+        nblock2 = A.shape[1]        
+        
         Ae = self.new_blockmatrix(A.shape)
 
         for name in self.gl_ess_tdofs:
            gl_ess_tdof = self.gl_ess_tdofs[name]
            ess_tdof = self.ess_tdofs[name]
-           idx = self.dep_var_offset(name)
-           if A[idx, idx] is not None:
-              Aee, A[idx,idx] = A[idx, idx].eliminate_RowsCols(ess_tdof,
-                                                               inplace=inplace)
-              Ae[idx, idx] = Aee
+           idx1 = self.dep_var_offset(name)
+           idx2 = self.r_dep_var_offset(name)           
+           if A[idx1, idx2] is not None:
+              Aee, A[idx, idx2] = A[idx, idx2].eliminate_RowsCols(ess_tdof,
+                                                                  inplace=inplace)
+              Ae[idx, diag[idx]] = Aee
 
-           for j in range(nblock):
-              if j == idx: continue
+           for j in range(nblock2):
+              if j == idx2: continue
               if A[idx, j] is None: continue
               A[idx, j] = A[idx, j].resetRow(gl_ess_tdof, inplace=inplace)
                   
-           for j in range(nblock):            
-              if j == idx: continue
-              if A[j, idx] is None: continue
-              SM = A.get_squaremat_from_right(j, idx)
+           for j in range(nblock2):            
+              if j == idx2: continue
+              if A[j, idx2] is None: continue
+              SM = A.get_squaremat_from_right(j, idx2)
               SM.setDiag(gl_ess_tdof)
 
-              Ae[j, idx] = A[j, idx].dot(SM)
-              A[j, idx]=A[j, idx].resetCol(gl_ess_tdof, inplace=inplace)
+              Ae[j, idx2] = A[j, idx2].dot(SM)
+              A[j, idx2]=A[j, idx2].resetCol(gl_ess_tdof, inplace=inplace)
 
         return A, Ae
 
@@ -1230,6 +1245,7 @@ class Engine(object):
             print "Ae", Ae
             print "X", X
             raise
+         
         for name in self.gl_ess_tdofs:
             idx = self.dep_var_offset(name)                          
             gl_ess_tdof = self.gl_ess_tdofs[name]
@@ -1253,30 +1269,31 @@ class Engine(object):
              x  = P^t y
         '''
         for name in self.interps:
-            idx = self.dep_var_offset(name)
+            idx1 = self.dep_var_offset(name)
+            idx2 = self.r_dep_var_offset(name)            
             P, nonzeros, zeros = self.interps[name]
             if P is None: continue
             
             if A is not None:
                shape = A.shape               
-               A1 = A[idx,idx]
+               A1 = A[idx1,idx2]
                A1 = A1.rap(P.transpose())
                A1.setDiag(zeros, 1.0)
-               A[idx, idx] = A1
+               A[idx1, idx2] = A1
 
                PP = P.conj(inplace=True)
                for i in range(shape[1]):
-                   if idx == i: continue
-                   if A[idx,i] is not None:
-                       A[idx,i] = PP.dot(A[idx,i])
+                   if idx1 == i: continue
+                   if A[idx1,i] is not None:
+                       A[idx1,i] = PP.dot(A[idx1,i])
 
                P = PP.conj(inplace=True)                        
                for i in range(shape[0]):
-                   if idx == i: continue
-                   if A[i,idx] is not None:
-                       A[i, idx] = A[i, idx].dot(P)
+                   if idx2 == i: continue
+                   if A[i,idx2] is not None:
+                       A[i, idx2] = A[i, idx2].dot(P)
             if RHS is not None:
-                RHS[idx] = P.conj(inplace=True).dot(RHS[idx])
+                RHS[idx1] = P.conj(inplace=True).dot(RHS[idx1])
                 P.conj(inplace=True)
 
         
