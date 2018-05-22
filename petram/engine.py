@@ -93,7 +93,7 @@ class Engine(object):
     def n_matrix(self, i):
         self._num_matrix= i
         
-    def set_formblocks(self, phys_target, n_matrix):
+    def set_formblocks(self, phys_target, phys_range, n_matrix):
         '''
         This version assembles a linear system as follows
 
@@ -120,18 +120,20 @@ class Engine(object):
         
         self.n_matrix = n_matrix
         self.collect_dependent_vars(phys_target)
+        self.collect_dependent_vars(phys_range, range_space=True)
         
-        n_fes = len(self.fes_vars)
+        n_fes  = len(self.fes_vars)
+        n_rfes = len(self.r_fes_vars)        
         n_mat = self.n_matrix
         
         self._matrix_blocks = [None for k in range(n_mat)]
         
-        self._r_a = [FormBlock((n_fes, n_fes), new = self.alloc_bf, mixed_new=self.alloc_mbf)
+        self._r_a = [FormBlock((n_fes, n_rfes), new = self.alloc_bf, mixed_new=self.alloc_mbf)
                      for k in range(n_mat)]
-        self._i_a = [FormBlock((n_fes, n_fes),new = self.alloc_bf, mixed_new=self.alloc_mbf)
+        self._i_a = [FormBlock((n_fes, n_rfes),new = self.alloc_bf, mixed_new=self.alloc_mbf)
                      for k in range(n_mat)]
-        self._r_x = [FormBlock(n_fes, new = self.alloc_gf) for k in range(n_mat)]
-        self._i_x = [FormBlock(n_fes, new = self.alloc_gf) for k in range(n_mat)]
+        self._r_x = [FormBlock(n_rfes, new = self.alloc_gf) for k in range(n_mat)]
+        self._i_x = [FormBlock(n_rfes, new = self.alloc_gf) for k in range(n_mat)]
         
         self.r_b = FormBlock(n_fes, new = self.alloc_lf)
         self.i_b = FormBlock(n_fes, new = self.alloc_lf)
@@ -398,7 +400,7 @@ class Engine(object):
         return  self.is_initialized
 
            
-    def run_apply_init(self, phys_target, mode,
+    def run_apply_init(self, phys_range, mode,
                        init_value=0.0, init_path=''):
         # mode
         #  0: zero
@@ -408,20 +410,20 @@ class Engine(object):
         #  4: do nothing
         for j in range(self.n_matrix):
            self.access_idx = j
-           for phys in phys_target:
+           for phys in phys_range:
               names = phys.dep_vars
               if mode == 0:
                   for name in names:
-                      ifes = self.ifes(name)
-                      rgf = self.r_x[ifes]
-                      igf = self.i_x[ifes]
+                      r_ifes = self.r_ifes(name)
+                      rgf = self.r_x[r_ifes]
+                      igf = self.i_x[r_ifes]
                       rgf.Assign(0.0)
                       if igf is not None: igf.Assign(0.0)
               elif mode == 1:
                   for name in names:
-                      ifes = self.ifes(name)
-                      rgf = self.r_x[ifes]
-                      igf = self.i_x[ifes]
+                      r_ifes = self.r_ifes(name)
+                      rgf = self.r_x[r_ifes]
+                      igf = self.i_x[r_ifes]
                       rgf.Assign(init_value)
                       if igf is not None: igf.Assign(init_value)
               elif mode == 2: # apply Einit
@@ -454,9 +456,10 @@ class Engine(object):
         #for phys in phys_target:
         #    self.gather_essential_tdof(phys)
        
-        L = len(self.dep_vars)
-        self.mask_M = np.array([not update]*L*L*self.n_matrix,
-                                dtype=bool).reshape(-1, L, L)
+        R = len(self.dep_vars)
+        C = len(self.r_dep_vars)        
+        self.mask_M = np.array([not update]*R*C*self.n_matrix,
+                                dtype=bool).reshape(-1, R, C)
 
         for phys in phys_target:       
             self.assemble_interp(phys)     ## global interpolation (periodic BC)
@@ -636,10 +639,10 @@ class Engine(object):
             self.access_idx = j
             is_complex = phys.is_complex()
             for n in phys.dep_vars:
-                ifes = self.ifes(n)
-                void = self.r_x[ifes]
+                r_ifes = self.r_ifes(n)
+                void = self.r_x[r_ifes]
                 if is_complex:
-                   void = self.i_x[ifes]
+                   void = self.i_x[r_ifes]
                    
     #
     #  Step 1  set essential and initial values to the solution vector.
@@ -648,8 +651,8 @@ class Engine(object):
         is_complex = phys.is_complex()
         
         for kfes, name in enumerate(phys.dep_vars):
-            ifes = self.ifes(name)
-            rgf = self.r_x[ifes]
+            r_ifes = self.r_ifes(name)
+            rgf = self.r_x[r_ifes]
             igf = None if not is_complex else self.i_x[ifes]
             for mm in phys.walk():
                 if not mm.enabled: continue
@@ -665,8 +668,8 @@ class Engine(object):
         is_complex = phys.is_complex()
         
         for kfes, name in enumerate(phys.dep_vars):
-            ifes = self.ifes(name)
-            rfg = self.r_x[ifes]
+            rifes = self.rifes(name)
+            rfg = self.r_x[rifes]
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = True, kfes = kfes)
@@ -674,7 +677,7 @@ class Engine(object):
                 rfg.ProjectCoefficient(c)                
                 #rgf += tmp
             if not is_complex: continue
-            ifg = self.i_x[ifes]            
+            ifg = self.i_x[rifes]            
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = False, kfes = kfes)
@@ -694,9 +697,9 @@ class Engine(object):
             for j in range(self.n_matrix):
                 self.access_idx = j
                 
-                ifes = self.ifes(name)
-                rgf = self.r_x[ifes]
-                igf = self.i_x[ifes]
+                r_ifes = self.r_ifes(name)
+                rgf = self.r_x[r_ifes]
+                igf = self.i_x[r_ifes]
                 
                 rgf.Assign(rgf_old)
                 if igf is not None and igf_old is not None:
@@ -718,10 +721,10 @@ class Engine(object):
         emesh_idx = phys.emesh_idx
         names = phys.dep_vars
         for kfes, name in enumerate(phys.dep_vars):
-            ifes = self.ifes(name)
-            rgf = self.r_x[ifes]
+            r_ifes = self.r_ifes(name)
+            rgf = self.r_x[r_ifes]
             if phys.is_complex():
-                igf = self.i_x[ifes]
+                igf = self.i_x[r_ifes]
             else:
                 igf = None
             fr, fi, meshname = self.solfile_name(names[kfes],
@@ -766,7 +769,8 @@ class Engine(object):
             mask = [False]*len(phys.dep_vars)
 
             for kfes, name in enumerate(phys.dep_vars):
-                ifes = self.ifes(name)
+                ifes  = self.ifes(name)
+                rifes = self.r_ifes(name)                
                 for mm in phys.walk():
                     if not mm.enabled: continue
                     if not mm.has_bf_contribution2(kfes, self.access_idx):continue
@@ -774,9 +778,9 @@ class Engine(object):
                     if not mm.update_flag: continue
                     proj = mm.get_projection()
                     mask[kfes] = True
-                    renewargs.append((ifes, ifes, proj))
+                    renewargs.append((ifes, r_ifes, proj))
                     self.mask_M[self.access_idx, self.dep_var_offset(name),
-                                self.dep_var_offset(name)] = True
+                                self.r_dep_var_offset(name)] = True
                     
         else:
             mask = [True]*len(phys.dep_vars)
@@ -788,15 +792,15 @@ class Engine(object):
 
         for kfes, name in enumerate(phys.dep_vars):
             if not mask[kfes]: continue           
-            ifes = self.ifes(name)
-
+            ifes  = self.ifes(name)
+            rifes = self.r_ifes(name)                
             for mm in phys.walk():
                 if not mm.enabled: continue
                 if not mm.has_bf_contribution2(kfes, self.access_idx):continue
                 if len(mm._sel_index) == 0: continue
 
                 proj = mm.get_projection()
-                ra = self.r_a[ifes, ifes, proj]                
+                ra = self.r_a[ifes, rifes, proj]                
                 mm.add_bf_contribution(self, ra, real = True, kfes = kfes)
             
         if not is_complex: return
@@ -808,12 +812,13 @@ class Engine(object):
             if not mask[kfes]: continue
             
             ifes = self.ifes(name)
+            rifes = self.r_ifes(name)                            
             for mm in phys.walk():
                 if not mm.enabled: continue
                 if not mm.has_bf_contribution2(kfes, self.access_idx):continue
                 if len(mm._sel_index) == 0: continue
                 proj = mm.get_projection()                
-                ia = self.i_a[ifes, ifes, proj]                                
+                ia = self.i_a[ifes, r_ifes, proj]                                
                 mm.add_bf_contribution(self, ia, real = False, kfes = kfes)
         
             
@@ -1141,11 +1146,11 @@ class Engine(object):
 
             self.r_x.generateMatVec(self.x2X)
             self.i_x.generateMatVec(self.x2X)            
-            for dep_var in self.dep_vars:
-                r = self.dep_var_offset(dep_var)
+            for dep_var in self.r_dep_vars:
+                r = self.r_dep_var_offset(dep_var)
                 if not self.mask_X[k, r]: continue
-                if self.isFESvar(dep_var):
-                    i = self.ifes(dep_var)
+                if self.r_isFESvar(dep_var):
+                    i = self.r_ifes(dep_var)
                     v = convertElement(self.r_x, self.i_x,
                                        i, 0, MfemVec2PyVec)
                     X[k][r] = v
@@ -1825,10 +1830,20 @@ class Engine(object):
     @property   ### ALL finite element space variables
     def fes_vars(self):
         return self._fes_vars
+     
+    @property   ### ALL dependent variables including Lagrange multipliers
+    def r_dep_vars(self):
+        return self._rdep_vars
+    @property   ### ALL finite element space variables
+    def r_fes_vars(self):
+        return self._rfes_vars
                
     def ifes(self, name):
         return self._fes_vars.index(name)
-           
+
+    def r_ifes(self, name):
+        return self._rfes_vars.index(name)
+     
     def phys_offsets(self, phys):
         name = phys.dep_vars[0]
         idx0 = self._dep_vars.index(name)
@@ -1844,6 +1859,22 @@ class Engine(object):
            assert False, "Variable " + name + " not used in the model"
         idx = self._dep_vars.index(name)
         return self._isFESvar[idx]
+     
+    def r_phys_offsets(self, phys):
+        name = phys.rdep_vars[0]
+        idx0 = self._rdep_vars.index(name)
+        for names in self._rdep_var_grouped:
+           if name in names: l = len(names)
+        return range(idx0, idx0+l)
+
+    def r_dep_var_offset(self, name):
+        return self._rdep_vars.index(name)       
+     
+    def r_isFESvar(self, name):
+        if not name in self._rdep_vars:
+           assert False, "Variable " + name + " not used in the model"
+        idx = self._rdep_vars.index(name)
+        return self._risFESvar[idx]
      
     def get_block_mask(self, all_phys, phys_target):
 
@@ -1866,7 +1897,7 @@ class Engine(object):
                 mask[offset] = True
         return mask
         
-    def collect_dependent_vars(self, phys_target=None):
+    def collect_dependent_vars(self, phys_target=None, range_space=False):
         if phys_target is None:
            phys_target = [self.model['Phys'][k] for k in self.model['Phys']
                           if self.model['Phys'].enabled]
@@ -1901,15 +1932,24 @@ class Engine(object):
             
             dep_vars_g.append(dep_vars)
             isFesvars_g.append(isFesvars)
-            
-        self._dep_vars = sum(dep_vars_g, [])
-        self._dep_var_grouped = dep_vars_g
-        self._isFESvar = sum(isFesvars_g, [])
-        self._isFESvar_grouped = isFesvars_g
-        self._fes_vars = [x for x, flag in zip(self._dep_vars, self._isFESvar) if flag]
 
-        dprint1("dependent variables", self._dep_vars)
-        dprint1("is FEspace variable?", self._isFESvar)
+        if range_space:
+            self._rdep_vars = sum(dep_vars_g, [])
+            self._rdep_var_grouped = dep_vars_g
+            self._risFESvar = sum(isFesvars_g, [])
+            self._risFESvar_grouped = isFesvars_g
+            self._rfes_vars = [x for x, flag in zip(self._dep_vars, self._isFESvar) if flag]
+            dprint1("dependent variables(range)", self._rdep_vars)
+            dprint1("is FEspace variable?(range)", self._risFESvar)
+
+        else:
+            self._dep_vars = sum(dep_vars_g, [])
+            self._dep_var_grouped = dep_vars_g
+            self._isFESvar = sum(isFesvars_g, [])
+            self._isFESvar_grouped = isFesvars_g
+            self._fes_vars = [x for x, flag in zip(self._dep_vars, self._isFESvar) if flag]
+            dprint1("dependent variables", self._dep_vars)
+            dprint1("is FEspace variable?", self._isFESvar)
 
     def add_FESvariable_to_NS(self, phys_target, verbose = False):
         '''

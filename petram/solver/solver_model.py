@@ -22,19 +22,57 @@ class SolverBase(Model):
         viewer.set_view_mode('phys', self)
 
 class SolveStep(SolverBase):
+    def attribute_set(self, v):
+        #v['init_only'] = False           
+        v['phys_model']   = ''
+        v['init_setting']   = ''        
+        super(SolveStep, self).attribute_set(v)
+        return v
+    
+    def panel1_param(self):
+        return [["Initial value setting",   self.init_setting,  0, {},],
+                ["physics model(blank=auto)",   self.phys_model,  0, {},],]
+#                ["initialize solution only",
+#                 self.init_only,  3, {"text":""}], ]
+               
+
+    def get_panel1_value(self):
+        return (self.init_setting, self.phys_model, )
+    
+    def import_panel1_value(self, v):
+        self.init_setting = v[0]        
+        self.phys_model   = v[1]
+#        self.init_only    = v[2]
+        
     def get_possible_child(self):
         ret = self.parent.get_possible_child()
         # last element is SolveStep, 
         return ret[:-1]
     
     def get_phys(self):
-        phys_root = self.root()['Phys']        
-        ret = []
+        #
+        #  phys for rhs and rows of M
+        #
+        phys_root = self.root()['Phys']
+        ret = []        
         for k in self.keys():
             if not self[k].enabled: continue
             for x in self[k].get_target_phys():
                 if not x in ret: ret.append(x)
         return ret
+        
+    def get_phys_range(self):
+        #
+        #  phys for X and col of M
+        #
+        phys_root = self.root()['Phys']
+        ret = []        
+        if self.phys_model.strip() ==  '':
+            return self.get_phys()
+        else;
+            names = self.phys_model.split(',')
+            names = [n.strip() for n in names if n.strip() != '']        
+            return [phys_root[n] for n in names]
 
     def get_target_phys(self):
         return []
@@ -54,8 +92,53 @@ class SolveStep(SolverBase):
         raise NotImplementedError(
              "you must specify this method in subclass")
     
+    def prepare_form_sol_variables(self, engine):
+        phys_target = self.get_phys()
+        phys_range = self.get_phys_range()                
+        num_matrix= self.get_num_matrix(phys_target)
+        
+        engine.set_formblocks(phys_target, phys_range, num_matrix)
+        
+        for p in phys_target:
+            engine.run_mesh_extension(p)
+            
+        engine.run_alloc_sol(phys_range)
+#        engine.run_fill_X_block()
+
+    def init(self, init_only=False):
+        engine = self.engine
+        phys_target = self.get_phys()
+        phys_range = self.get_phys_range()        
+        
+        inits = self.get_init_setting()
+        if len(inits) == 0:
+            # in this case alloate all fespace and initialize all
+            # to zero
+            engine.run_apply_init(phys_range, 0)
+        else:
+            for init in inits:
+                init.run(engine)
+                
+        # use get_phys to apply essential to all phys in solvestep
+        engine.run_apply_essential(phys_target)
+        engine.run_fill_X_block()
+        
+        #if init_only:
+        #    self.sol = self.blocks[1][0]
+        #    engine.sol = self.blocks[1][0]
+        #    return 
+        self.assemble()
+
     def run(self, engine, is_first = True):
         solvers = self.get_active_solvers()
+
+        # initialize and assemble here
+
+        # in run method..
+        #   std solver : make sub block matrix and solve
+        #   time-domain solver : do step
+        self.prepare_form_sol_variables(engine)
+        self.init(self.init_only)
         
         is_first = True
         for solver in solvers:
@@ -68,11 +151,11 @@ class SolveStep(SolverBase):
 class Solver(SolverBase):
     def attribute_set(self, v):
         v['clear_wdir'] = False
-        v['init_only'] = False   
+        #v['init_only'] = False   
         v['assemble_real'] = False
         v['save_parmesh'] = False        
         v['phys_model']   = ''
-        v['init_setting']   = ''
+        #v['init_setting']   = ''
         v['use_profiler'] = False
         v['probe'] = ''
         super(Solver, self).attribute_set(v)
@@ -80,6 +163,9 @@ class Solver(SolverBase):
     
     def get_phys(self):
         return self.parent.get_phys()
+    
+    def get_phys_range(self):
+        return self.parent.get_phys_range()
 
     def get_target_phys(self):
         names = self.phys_model.split(',')
@@ -124,17 +210,6 @@ class Solver(SolverBase):
                                            phys_target))
         return max(num)
     
-    def prepare_form_sol_variables(self, engine):
-        phys_target = self.get_phys()
-        num_matrix= self.get_num_matrix(phys_target)
-        
-        engine.set_formblocks(phys_target, num_matrix)
-        
-        for p in phys_target:
-            engine.run_mesh_extension(p)
-            
-        engine.run_alloc_sol(phys_target)
-#        engine.run_fill_X_block()
 
     def get_solve_root(self):
         obj = self
@@ -181,6 +256,9 @@ class SolverInstance(object):
 
     def get_target_phys(self):
         return self.gui.get_target_phys()
+    
+    def get_phys_range(self):
+        return self.gui.get_phys_range()
     
     @property
     def blocks(self):

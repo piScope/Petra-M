@@ -196,12 +196,12 @@ class MFEM_SolverRoot(Model):
     has_2nd_panel = False    
     def get_possible_child(self):
         from solver.solinit_model import SolInit
-        from solver.std_solver_model import StdSolver
-        from solver.timedomain_solver_model import TimeDomain
-        from solver.parametric import Parametric
+        #from solver.std_solver_model import StdSolver
+        #from solver.timedomain_solver_model import TimeDomain
+        #from solver.parametric import Parametric
         from solver.solver_model import SolveStep
         
-        return [StdSolver, Parametric, TimeDomain, SolveStep]
+        return [SolveStep]
     
     def get_active_solvers(self, mm = None):
         return [x for x in self.iter_enabled()]
