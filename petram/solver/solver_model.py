@@ -331,7 +331,7 @@ class SolverInstance(object):
     def set_linearsolver_model(self):
         solver = self.gui.get_active_solver()
         if solver is None:
-             assert False, "No linear solver is chosen"
+             assert False, "Linear solver is not chosen"
         phys_target = self.get_phys()
         
         self.linearsolver_model = solver

@@ -209,7 +209,7 @@ class StandardSolver(SolverInstance):
             
         A, X, RHS, Ae, B, M, depvars = self.blocks
         mask = self.blk_mask
-        depvars = [x for i, x in enumerate(depvars) if mask[i]]
+        depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
 
         if update_operator:
             AA = engine.finalize_matrix(A, mask, not self.phys_real,
@@ -243,7 +243,7 @@ class StandardSolver(SolverInstance):
         if not self.phys_real and self.gui.assemble_real:
             solall = self.linearsolver_model.real_to_complex(solall, AA)
         
-        A.reformat_central_mat(solall, 0, X[0], mask)
+        A.reformat_central_mat(solall, 0, X[0], mask[0])
         self.sol = X[0]
 
         return True

@@ -218,7 +218,7 @@ class Engine(object):
         items = []
 
         for k in model['Mesh'].keys():
-            if  not hasattr(model['Mesh'][k], 'isMeshGroup'):
+            if not hasattr(model['Mesh'][k], 'isMeshGroup'):
                 if g is None:
                     name = model['Mesh'].add_item('MeshGroup', MeshGroup)
                     g = model['Mesh'][name]
@@ -228,6 +228,25 @@ class Engine(object):
             del model['Mesh'][name]
             model['Mesh']['MeshGroup1'][name] = obj
 
+        # convert old model which does not use SolveStep...
+        from petram.solver.solver_model import SolveStep
+        solk = model['Solver'].keys()
+        flag = any([not isinstance(model['Solver'][k], SolveStep) for k in solk])
+        print flag
+        if flag:
+            box = None
+            for k in solk:
+                if not isinstance(model['Solver'][k], SolveStep):
+                    print "moving ", k
+                    if box is None:
+                        name = model['Solver'].add_item('SolveStep', SolveStep)
+                        box = model['Solver'][name]
+                    obj = model['Solver'][k]
+                    del model['Solver'][k]
+                    box.add_itemobj(k, obj, nosuffix=True)
+                else:
+                    box = None
+            
 
     def get_mesh(self, idx = 0, mm = None):
         if len(self.meshes) == 0: return None

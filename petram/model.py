@@ -344,14 +344,17 @@ class Model(RestorableOrderedDict):
     def postprocess_after_add(self, engine):
         pass
     
-    def add_itemobj(self, txt, obj):
+    def add_itemobj(self, txt, obj, nosuffix=False):
         
         m = []
         for k in self.keys():
             if k.startswith(txt):
                 m.append(long(k[len(txt):]))
         if len(m) == 0:
-           name = txt+str(1)
+           if nosuffix:
+               name = txt
+           else:
+               name = txt+str(1)
         else:
            name = txt + str(max(m)+1)
         self[name] = obj
