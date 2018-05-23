@@ -163,7 +163,6 @@ class AUX_Operator(Phys):
         oprt = self.vt_oprt.make_value_or_expression(self)
         oprt = oprt[0]
         
-        
         from petram.helper.expression import Expression
 
         fes1 = engine.fespaces[trialname]
@@ -171,7 +170,7 @@ class AUX_Operator(Phys):
 
         diag_size = -1
         if oprt is not None:
-           dprint1(self.name() + "Assembling Operator: ", oprt)
+           dprint1(self.name() + " Assembling Operator: ", oprt)
            assert isinstance(oprt, str), "operator1 must be an expression"               
            expr = Expression(oprt, engine=engine, trial=fes1, test=fes2,
                              trial_ess_tdof = trial_ess_tdof,

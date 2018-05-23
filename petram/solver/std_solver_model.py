@@ -18,6 +18,7 @@ class StdSolver(Solver):
     def panel1_param(self):
         return [#["Initial value setting",   self.init_setting,  0, {},],
                 ["physics model",   self.phys_model,  0, {},],
+                ["initialize solution only", self.init_only,  3, {"text":""}], 
                 ["clear working directory",
                  self.clear_wdir,  3, {"text":""}],
                 ["convert to real matrix (complex prob.)",
@@ -30,6 +31,7 @@ class StdSolver(Solver):
     def get_panel1_value(self):
         return (#self.init_setting,
                 self.phys_model,
+                self.init_only, 
                 self.clear_wdir,
                 self.assemble_real,
                 self.save_parmesh,
@@ -38,11 +40,12 @@ class StdSolver(Solver):
     def import_panel1_value(self, v):
         #self.init_setting = str(v[0])        
         self.phys_model = str(v[0])
-        self.clear_wdir = v[1]
-        #self.init_only = v[3]        
-        self.assemble_real = v[2]
-        self.save_parmesh = v[3]
-        self.use_profiler = v[4]                
+        self.init_only = v[1]                
+        self.clear_wdir = v[2]
+
+        self.assemble_real = v[3]
+        self.save_parmesh = v[4]
+        self.use_profiler = v[5]                
 
     def get_editor_menus(self):
         return []
@@ -100,7 +103,10 @@ class StdSolver(Solver):
         '''
         instance.set_blk_mask()      
         
-        if not self.init_only:
+        if self.init_only:
+            engine.sol = engine.assembled_blocks[1][0]
+            instance.sol = engine.sol
+        else:
             if is_first: instance.assemble()            
             instance.solve()            
 #            instance.save_solution()
@@ -179,7 +185,7 @@ class StandardSolver(SolverInstance):
         dprint1("in assemble", phys_target)
 
         engine.run_verify_setting(phys_target, self.gui)
-        engine.run_assemble_mat(phys_target)
+        engine.run_assemble_mat(phys_target, phys_range)
         engine.run_assemble_b(phys_target)
         engine.run_fill_X_block()
         

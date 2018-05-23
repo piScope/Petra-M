@@ -46,7 +46,7 @@ class FormBlock(object):
     @property
     def shape(self):
         return self._shape
-    @proeperty
+    @property
     def diag(self):
         return self._diag
     
@@ -120,7 +120,7 @@ class FormBlock(object):
             if self.no_allocation and not reset:
                 pass
             else:
-                if self._diag[r] == c:
+                if self._diag is None or self._diag[r] == c:
                     form = self.allocator1(r)
                 else:
                     form = self.allocator2(r, c)                    
@@ -157,7 +157,7 @@ class FormBlock(object):
             for p in projs:
                 form = self.block[i][j][p][0]
                 if form is not None:
-                    if self._diag[i] == j:
+                    if self._diag is None or self._diag[i] == j:
                         self.set_matvec(i, j, p, converter1(form))
                     else:
                         self.set_matvec(i, j, p, converter2(form))

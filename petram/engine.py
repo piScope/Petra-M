@@ -121,7 +121,7 @@ class Engine(object):
         self.n_matrix = n_matrix
         self.collect_dependent_vars(phys_target)
         self.collect_dependent_vars(phys_range, range_space=True)
-        
+
         n_fes  = len(self.fes_vars)
         n_rfes = len(self.r_fes_vars)
         diag = [self.r_fes_vars.index(n) for n in self.fes_vars]
@@ -147,7 +147,7 @@ class Engine(object):
         self.ess_tdofs = {n:[] for n in self.fes_vars}        
         
         self._extras = [None for i in range(n_mat)]
-        
+
     @property
     def access_idx(self):
         return self._access_idx
@@ -423,12 +423,18 @@ class Engine(object):
                       rgf.Assign(0.0)
                       if igf is not None: igf.Assign(0.0)
               elif mode == 1:
+                  if np.iscomplexobj(init_value):
+                     rinit=init_value.real
+                     iinit=init_value.imag
+                  else:
+                     rinit=float(init_value)
+                     iinit=0.0                                        
                   for name in names:
                       r_ifes = self.r_ifes(name)
                       rgf = self.r_x[r_ifes]
                       igf = self.i_x[r_ifes]
-                      rgf.Assign(init_value)
-                      if igf is not None: igf.Assign(init_value)
+                      rgf.Assign(rinit)
+                      if igf is not None: igf.Assign(iinit)
               elif mode == 2: # apply Einit
                   self.apply_init_from_init_panel(phys)
               elif mode == 3:
@@ -439,23 +445,26 @@ class Engine(object):
                   raise NotImplementedError(
                             "unknown init mode")
 
-        self.add_FESvariable_to_NS(phys_target, verbose = True)
+        self.add_FESvariable_to_NS(phys_range, verbose = True)
         
-    def run_apply_essential(self, phys_target, update=False):
-        L = len(self.dep_vars)       
+    def run_apply_essential(self, phys_target, phys_range, update=False):
+        L = len(self.r_dep_vars)       
         self.mask_X = np.array([not update]*L*self.n_matrix,
                                 dtype=bool).reshape(-1, L)
-       
-        for phys in phys_target:
+
+        self.gl_ess_tdofs = {n:[] for n in self.fes_vars}
+        self.ess_tdofs = {n:[] for n in self.fes_vars}        
+        
+        for phys in phys_range:
             self.gather_essential_tdof(phys)
         self.collect_all_ess_tdof()
-        
+
         for j in range(self.n_matrix):
             self.access_idx = j
             for phys in phys_target:
                 self.apply_essential(phys, update=update)
 
-    def run_assemble_mat(self, phys_target=None, update=False):
+    def run_assemble_mat(self, phys_target, phys_range, update=False):
         #for phys in phys_target:
         #    self.gather_essential_tdof(phys)
        
@@ -494,10 +503,10 @@ class Engine(object):
             
             self.extras = {}        
             for phys in phys_target:               
-                self.assemble_extra(phys, phys_target)
+                self.assemble_extra(phys, phys_range)
             self.aux_ops = {}
             #for phys in phys_target:               
-            self.assemble_aux_ops(phys_target)
+            self.assemble_aux_ops(phys_target, phys_range)
                 
         return np.any(self.mask_M)
 
@@ -520,10 +529,10 @@ class Engine(object):
         for phys in phys_target:
             self.run_update_param(phys)
 
-        for phys in phys_target:
-            self.gather_essential_tdof(phys)
-        self.collect_all_ess_tdof()            
-
+        #for phys in phys_target:
+        #    self.gather_essential_tdof(phys)
+        #self.collect_all_ess_tdof()            
+        
         self.access_idx = 0
         for phys in phys_target:
             self.fill_lf(phys, update)
@@ -662,7 +671,7 @@ class Engine(object):
                 if not mm.has_essential: continue
                 if len(mm.get_essential_idx(kfes)) == 0: continue
                 if update and not mm.update_flag: continue
-                self.mask_X[self.access_idx, self.dep_var_offset(name)] = True
+                self.mask_X[self.access_idx, self.r_dep_var_offset(name)] = True
                 mm.apply_essential(self, rgf, real = True, kfes = kfes)
                 if igf is not None:
                     mm.apply_essential(self, igf, real = False, kfes = kfes)
@@ -964,10 +973,10 @@ class Engine(object):
     def fill_coupling(self, coupling, phys_target):
         raise NotImplementedError("Coupling is not supported")
   
-    def assemble_extra(self, phys, phys_target):
+    def assemble_extra(self, phys, phys_range):
         for mm in phys.walk():
             if not mm.enabled: continue
-            for phys2 in phys_target:
+            for phys2 in phys_range:
                 names = phys2.dep_vars      
                 for kfes, name in enumerate(names):
                     if not mm.has_extra_DoF2(kfes, phys2, self.access_idx): continue
@@ -987,12 +996,12 @@ class Engine(object):
                     self.extras[key] = tmp
                     self.extras_mm[key] = mm.fullpath()
                     
-    def assemble_aux_ops(self, phys_target):
+    def assemble_aux_ops(self, phys_target, phys_range):
         allmm = [mm for phys in phys_target for mm in phys.walk() if mm.is_enabled()]
         for phys1 in phys_target:
             names = phys1.dep_vars           
             for kfes1, name1 in enumerate(names):
-                for phys2 in phys_target:
+                for phys2 in phys_range:
                     names2 = phys2.dep_vars
                     for kfes2, name2 in enumerate(names2):
                       for mm in allmm:
@@ -1040,13 +1049,14 @@ class Engine(object):
     #  step3 : generate block matrices/vectors
     #
     def prepare_M_B_blocks(self):
-        size = len(self.dep_vars)                         
-        M_block = [self.new_blockmatrix((size, size)) for i in range(self.n_matrix)]
-        B_block = self.new_blockmatrix((size, 1))
+        size1 = len(self.dep_vars)
+        size2 = len(self.r_dep_vars)                                 
+        M_block = [self.new_blockmatrix((size1, size2)) for i in range(self.n_matrix)]
+        B_block = self.new_blockmatrix((size1, 1))
         return (M_block, B_block)
      
     def prepare_X_block(self):
-        size = len(self.dep_vars)                         
+        size = len(self.r_dep_vars)                         
         X_block = [self.new_blockmatrix((size, 1))  for i in range(self.n_matrix)]
         return X_block
 
@@ -1206,21 +1216,24 @@ class Engine(object):
         Ae = self.new_blockmatrix(A.shape)
 
         for name in self.gl_ess_tdofs:
+           # we do elimination only for the varialbes to be solved
+           if not name in self._dep_vars: continue
+           
            gl_ess_tdof = self.gl_ess_tdofs[name]
            ess_tdof = self.ess_tdofs[name]
            idx1 = self.dep_var_offset(name)
            idx2 = self.r_dep_var_offset(name)           
            if A[idx1, idx2] is not None:
-              Aee, A[idx, idx2] = A[idx, idx2].eliminate_RowsCols(ess_tdof,
+              Aee, A[idx1, idx2] = A[idx1, idx2].eliminate_RowsCols(ess_tdof,
                                                                   inplace=inplace)
-              Ae[idx, diag[idx]] = Aee
+              Ae[idx1, idx2] = Aee
 
            for j in range(nblock2):
               if j == idx2: continue
-              if A[idx, j] is None: continue
-              A[idx, j] = A[idx, j].resetRow(gl_ess_tdof, inplace=inplace)
+              if A[idx1, j] is None: continue
+              A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof, inplace=inplace)
                   
-           for j in range(nblock2):            
+           for j in range(nblock1):            
               if j == idx2: continue
               if A[j, idx2] is None: continue
               SM = A.get_squaremat_from_right(j, idx2)
@@ -1235,6 +1248,8 @@ class Engine(object):
         try:
             AeX = Ae.dot(X)
             for name in self.gl_ess_tdofs:
+               if not name in self._dep_vars: continue
+               
                idx = self.dep_var_offset(name)               
                gl_ess_tdof = self.gl_ess_tdofs[name]
                if AeX[idx, 0] is not None:
@@ -1247,6 +1262,8 @@ class Engine(object):
             raise
          
         for name in self.gl_ess_tdofs:
+            if not name in self._dep_vars: continue
+            
             idx = self.dep_var_offset(name)                          
             gl_ess_tdof = self.gl_ess_tdofs[name]
             ess_tdof = self.ess_tdofs[name]
@@ -1306,7 +1323,9 @@ class Engine(object):
     #
     def finalize_matrix(self, M_block, mask,is_complex,format = 'coo',
                         verbose=True):
-        M_block = M_block.get_subblock(mask, mask)       
+
+        M_block = M_block.get_subblock(mask[0], mask[1])
+
         if format == 'coo': # coo either real or complex
             M = self.finalize_coo_matrix(M_block, is_complex, verbose=verbose)
             
@@ -1326,12 +1345,13 @@ class Engine(object):
         #
         #  RHS = B - A[not solved]*X[not solved]
         #
-        inv_mask = [not x for x in mask]
-        MM = M_block.get_subblock(mask, inv_mask)
+        inv_mask = [not x for x in mask[1]]
+        MM = M_block.get_subblock(mask[0], inv_mask)
         XX = X_block.get_subblock(inv_mask, [True])
+
         xx = MM.dot(XX)
         
-        B_blocks = [b.get_subblock(mask, [True]) - xx for b in B_blocks]
+        B_blocks = [b.get_subblock(mask[0], [True]) - xx for b in B_blocks]
         
         
         if format == 'coo': # coo either real or complex
@@ -1350,8 +1370,8 @@ class Engine(object):
      
     def finalize_x(self,  X_block, RHS, mask, is_complex,
                    format = 'coo', verbose=True):
-        X_block = X_block.get_subblock(mask, [True])
-        RHS = RHS.get_subblock(mask, [True])
+        X_block = X_block.get_subblock(mask[1], [True])
+        RHS = RHS.get_subblock(mask[0], [True])
         if format == 'blk_interleave': # real coo converted from complex
             X = X_block.gather_blkvec_interleave(size_hint=RHS)
         else:
@@ -1683,7 +1703,7 @@ class Engine(object):
             return self.fespaces[name]
 
     def alloc_gf(self, idx, idx2=0):
-        fes = self.fespaces[self.fes_vars[idx]]
+        fes = self.fespaces[self.r_fes_vars[idx]]
         return self.new_gf(fes)
      
     def alloc_lf(self, idx, idx2=0):
@@ -1696,7 +1716,7 @@ class Engine(object):
 
     def alloc_mbf(self, idx1, idx2): #row col
         fes1 = self.fespaces[self.fes_vars[idx1]]
-        fes2 = self.fespaces[self.fes_vars[idx2]]
+        fes2 = self.fespaces[self.r_fes_vars[idx2]]
         return self.new_mixed_bf(fes2, fes1) # argument = trial, test
     
     def build_ns(self):
@@ -1878,7 +1898,7 @@ class Engine(object):
         return self._isFESvar[idx]
      
     def r_phys_offsets(self, phys):
-        name = phys.rdep_vars[0]
+        name = phys.dep_vars[0]
         idx0 = self._rdep_vars.index(name)
         for names in self._rdep_var_grouped:
            if name in names: l = len(names)
@@ -1893,24 +1913,35 @@ class Engine(object):
         idx = self._rdep_vars.index(name)
         return self._risFESvar[idx]
      
-    def get_block_mask(self, all_phys, phys_target):
+    def get_block_mask(self, all_phys, phys_target, use_range = False):
 
         #all_phys = [self.model['Phys'][k] for k in self.model['Phys']
         #            if self.model['Phys'][k].enabled]
         #if phys_target is None:
         #   phys_target = all_phys
         #self.collect_dependent_vars()
-       
-        mask = [False]*len(self._dep_vars)
+
+        if use_range:
+            mask = [False]*len(self._rdep_vars)
+        else:
+            mask = [False]*len(self._dep_vars)
 
         for phys in phys_target:
             idx = all_phys.index(phys)
             dep_vars0 = phys.dep_vars0
             dep_vars = phys.dep_vars
-            extra_vars = [x for x in self._dep_var_grouped[idx]
+            if use_range:
+                extra_vars = [x for x in self._rdep_var_grouped[idx]
                          if not x in dep_vars]
+            else:
+                extra_vars = [x for x in self._dep_var_grouped[idx]
+                         if not x in dep_vars]
+                
             for name in dep_vars0+extra_vars:
-                offset = self.dep_var_offset(name)
+                if use_range:
+                    offset = self.r_dep_var_offset(name)
+                else:
+                    offset = self.dep_var_offset(name)
                 mask[offset] = True
         return mask
         
@@ -1955,7 +1986,7 @@ class Engine(object):
             self._rdep_var_grouped = dep_vars_g
             self._risFESvar = sum(isFesvars_g, [])
             self._risFESvar_grouped = isFesvars_g
-            self._rfes_vars = [x for x, flag in zip(self._dep_vars, self._isFESvar) if flag]
+            self._rfes_vars = [x for x, flag in zip(self._rdep_vars, self._risFESvar) if flag]
             dprint1("dependent variables(range)", self._rdep_vars)
             dprint1("is FEspace variable?(range)", self._risFESvar)
 
@@ -1968,7 +1999,7 @@ class Engine(object):
             dprint1("dependent variables", self._dep_vars)
             dprint1("is FEspace variable?", self._isFESvar)
 
-    def add_FESvariable_to_NS(self, phys_target, verbose = False):
+    def add_FESvariable_to_NS(self, phys_range, verbose = False):
         '''
         bring FESvariable to NS so that it is available in matrix assembly.
         note:
@@ -1980,11 +2011,11 @@ class Engine(object):
         variables = Variables()
         
         self.access_idx = 0      
-        for phys in phys_target:
+        for phys in phys_range:
             for name in phys.dep_vars:
-                ifes = self.ifes(name)
-                rgf = self.r_x[ifes]
-                igf = self.i_x[ifes]
+                rifes = self.r_ifes(name)
+                rgf = self.r_x[rifes]
+                igf = self.i_x[rifes]
                 phys.add_variables(variables, name, rgf, igf)
 
         keys = self.model._variables.keys()
@@ -2018,9 +2049,9 @@ class SerialEngine(Engine):
         return self.run_mesh_serial(meshmodel = meshmodel,
                                     skip_refine=skip_refine)
 
-    def run_assemble_mat(self, phys_target=None, update=False):
+    def run_assemble_mat(self, phys_target, phys_range, update=False):
         self.is_matrix_distributed = False       
-        return super(SerialEngine, self).run_assemble_mat(phys_target=phys_target,
+        return super(SerialEngine, self).run_assemble_mat(phys_target, phys_range,
                                                           update=update)
 
     def new_lf(self, fes):
@@ -2188,9 +2219,10 @@ class ParallelEngine(Engine):
             m.GetEdgeVertexTable()                                   
             get_extended_connectivity(m)           
 
-    def run_assemble_mat(self, phys_target=None, update=False):
+    def run_assemble_mat(self, phys_target, phys_range, update=False):
         self.is_matrix_distributed = True       
-        return super(ParallelEngine, self).run_assemble_mat(phys_target=phys_target,
+        return super(ParallelEngine, self).run_assemble_mat(phys_target,
+                                                            phys_range,
                                                             update=update)
      
     def new_lf(self, fes):

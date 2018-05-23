@@ -46,8 +46,9 @@ class GMRES(LinearSolverModel):
                 ["write matrix",  self.write_mat,   3, {"text":""}],]     
     
     def get_panel1_value(self):
-        num_matrix = self.parent.get_num_matrix() # this will set _mat_weight
-        all_dep_vars = self.root()['Phys'].all_dependent_vars(num_matrix)
+        # this will set _mat_weight
+        num_matrix = self.parent.parent.get_num_matrix(self.get_phys()) 
+        all_dep_vars = self.root()['Phys'].all_dependent_vars(num_matrix, self.get_phys())
         
         prec = [x for x in  self.preconditioners if x[0] in all_dep_vars]        
         names = [x[0] for x in  prec]

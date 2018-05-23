@@ -742,9 +742,9 @@ def map_xxx_nd(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     return map
 def map_volume_nd(*args, **kwargs):
     return map_xxx_nd('volume', *args, **kwargs)
-def map_surface_h1(*args, **kwargs):
+def map_surface_nd(*args, **kwargs):
     return map_xxx_nd('surface', *args, **kwargs)
-def map_edge_h1(*args, **kwargs):
+def map_edge_nd(*args, **kwargs):
     return map_xxx_nd('edge', *args, **kwargs)
 ''' 
 def map_volume_nd(idx1, idx2, fes1, fes2=None, trans1=None,
@@ -808,7 +808,7 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
         mapper = map_volume_nd
     elif fec_name.startswith('ND') and mode == 'surface':
         mapper = map_surface_nd
-    elif fec_name.startswith('ND') and mode == 'edg':
+    elif fec_name.startswith('ND') and mode == 'edge':
         mapper = map_edge_nd
     elif fec_name.startswith('H1') and mode == 'volume':
         mapper = map_volume_h1
