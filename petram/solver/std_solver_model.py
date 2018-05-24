@@ -79,7 +79,11 @@ class StdSolver(Solver):
         return instance
     
     def get_matrix_weight(self, timestep_config):#, timestep_weight):
-        return [1, 0, 0]            
+        if timestep_config[0]:
+            return [1, 0, 0]
+        else:
+            return [0, 0, 0]
+
         
     
     @debug.use_profiler

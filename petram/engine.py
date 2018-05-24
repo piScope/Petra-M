@@ -1432,7 +1432,9 @@ class Engine(object):
     #
     def split_sol_array(self, sol):
         s = [None]*len(self.r_fes_vars)
+        #nicePrint("sol", sol, self._rdep_vars)
         for name in self.fes_vars:
+            #print name
             j = self.r_dep_var_offset(name)
             sol_section = sol[j, 0]
 
@@ -1448,11 +1450,14 @@ class Engine(object):
         for name in self.dep_vars:
            if not self.isFESvar(name):
               e.append(sol[self.dep_var_offset(name)])
+        #nicePrint(s, e)
         return s, e
      
     def recover_sol(self, sol, access_idx=0):
 
         self.access_idx=access_idx
+        #nicePrint(self.r_fes_vars)
+        #nicePrint(self.fes_vars)
         for k, s in enumerate(sol):
            if s is None: continue # None=linear solver didnot solve this value, so no update
            name = self.r_fes_vars[k]
@@ -1460,7 +1465,8 @@ class Engine(object):
            ridx  = self.r_dep_var_offset(name)
            s = s.toarray()
            X = self.r_x.get_matvec(r_ifes)
-
+           #nicePrint("size", s.shape, X.Size())
+           
            X.Assign(s.flatten().real)
            self.X2x(X, self.r_x[r_ifes])
            if self.i_x[r_ifes] is not None:
