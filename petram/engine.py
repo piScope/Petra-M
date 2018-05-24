@@ -75,6 +75,9 @@ class Engine(object):
         self.max_attr = -1        
         self.sol_extra = None
         self.sol = None
+
+        self._r_x_old = {}
+        self._i_x_old = {}
         
         # assembled block [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]        
         self.assembled_blocks = [None]*7
@@ -184,10 +187,10 @@ class Engine(object):
         self._i_x[self._access_idx] = v
 
     def store_x(self):
-        self._r_x_old = self._r_x
-        self._i_x_old = self._i_x
-        self._fes_vars_old = self._fes_vars
-        
+        for k, name in enumerate(self.r_fes_vars):
+           self._r_x_old[name] = self._r_x[0][k]
+           self._i_x_old[name] = self._i_x[0][k]
+           
     @property
     def extras(self):
         return self._extras[self._access_idx]
@@ -719,11 +722,10 @@ class Engine(object):
     def apply_init_from_previous(self, names):
        
         for name in names:
-            if not name in self._fes_vars_old: continue
-            
-            ifes_old = self._fes_vars_old.index(name)
-            rgf_old = self._r_x_old[0][ifes_old]
-            igf_old = self._i_x_old[0][ifes_old]
+            assert name in self._r_x_old, name + " is not available from previous (real)"
+            assert name in self._i_x_old, name + " is not available from previous (imag)"
+            rgf_old = self._r_x_old[name]
+            igf_old = self._i_x_old[name]
             
             for j in range(self.n_matrix):
                 self.access_idx = j
@@ -1367,11 +1369,8 @@ class Engine(object):
         inv_mask = [not x for x in mask[1]]
         MM = M_block.get_subblock(mask[0], inv_mask)
         XX = X_block.get_subblock(inv_mask, [True])
-
         xx = MM.dot(XX)
-        
         B_blocks = [b.get_subblock(mask[0], [True]) - xx for b in B_blocks]
-        
         
         if format == 'coo': # coo either real or complex
             BB = [self.finalize_coo_rhs(b, is_complex, verbose=verbose) for b in B_blocks]
@@ -1432,9 +1431,9 @@ class Engine(object):
     #  processing solution
     #
     def split_sol_array(self, sol):
-        s = [None]*len(self.fes_vars)
+        s = [None]*len(self.r_fes_vars)
         for name in self.fes_vars:
-            j = self.dep_var_offset(name)
+            j = self.r_dep_var_offset(name)
             sol_section = sol[j, 0]
 
             if name in self.interps:
@@ -1442,7 +1441,7 @@ class Engine(object):
                if P is not None:
                    sol_section = (P.transpose()).dot(sol_section)
 
-            ifes = self.ifes(name)
+            ifes = self.r_ifes(name)
             s[ifes] = sol_section
 
         e = []    
@@ -1455,17 +1454,19 @@ class Engine(object):
 
         self.access_idx=access_idx
         for k, s in enumerate(sol):
-           name = self.fes_vars[k]
-           ifes = self.ifes(name)
-           idx  = self.dep_var_offset(name)
+           if s is None: continue # None=linear solver didnot solve this value, so no update
+           name = self.r_fes_vars[k]
+           r_ifes = self.r_ifes(name)
+           ridx  = self.r_dep_var_offset(name)
            s = s.toarray()
-           X = self.r_x.get_matvec(ifes)
+           X = self.r_x.get_matvec(r_ifes)
+
            X.Assign(s.flatten().real)
-           self.X2x(X, self.r_x[ifes])
-           if self.i_x[ifes] is not None:
-               X = self.i_x.get_matvec(ifes)              
+           self.X2x(X, self.r_x[r_ifes])
+           if self.i_x[r_ifes] is not None:
+               X = self.i_x.get_matvec(r_ifes)
                X.Assign(s.flatten().imag)              
-               self.X2x(X, self.i_x[ifes])
+               self.X2x(X, self.i_x[r_ifes])
            else:
                dprint2("real value problem skipping i_x")
                
@@ -1520,7 +1521,7 @@ class Engine(object):
         for phys in phys_target:
             emesh_idx = phys.emesh_idx
             for name in phys.dep_vars:
-                ifes = self.ifes(name)
+                ifes = self.r_ifes(name)
                 r_x = self.r_x[ifes]
                 i_x = self.i_x[ifes]
                 self.save_solfile_fespace(name, emesh_idx, r_x, i_x)

@@ -341,7 +341,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             assert False, "this has to be debugged (convertion from real to complex)"
             solall = self.linearsolver_model.real_to_complex(solell, A)
 
-        A.reformat_central_mat(solall, 0, X[0], mask[0])
+        A.reformat_central_mat(solall, 0, X[0], mask)
 
 
         for name in self.time_deriv_vars:

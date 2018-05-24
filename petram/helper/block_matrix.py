@@ -624,21 +624,23 @@ class BlockMatrix(object):
         '''
         L = []
         idx = 0
-        imask = [x for x in range(len(mask)) if mask[x]]
-        
-        for i in imask:
-            for j in imask:
+        imask = [x for x in range(len(mask[0])) if mask[0][x]]
+        jmask = [x for x in range(len(mask[1])) if mask[1][x]]        
+
+        for j in jmask:
+            for i in imask:
                if self[i,j] is not None:
                   l =  self[i, j].shape[0]
                   break
             L.append(l)
             ref = self[i,j]
+
             if mat is not None:
                 v = mat[idx:idx+l, ksol]
             else:
                 v = None   # slave node (will recive data)
             idx = idx + l
-            ret.set_element_from_central_mat(v, i, 0, ref)
+            ret.set_element_from_central_mat(v, j, 0, ref)
 
         return ret
 

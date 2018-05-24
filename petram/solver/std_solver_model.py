@@ -217,7 +217,6 @@ class StandardSolver(SolverInstance):
         BB = engine.finalize_rhs([RHS], A ,X[0], mask, not self.phys_real,
                                  format = self.ls_type)
 
-
         if self.linearsolver is None:
             linearsolver = self.allocate_linearsolver(self.gui.is_complex())
             self.linearsolver = linearsolver
@@ -242,8 +241,8 @@ class StandardSolver(SolverInstance):
             
         if not self.phys_real and self.gui.assemble_real:
             solall = self.linearsolver_model.real_to_complex(solall, AA)
-        
-        A.reformat_central_mat(solall, 0, X[0], mask[0])
+
+        A.reformat_central_mat(solall, 0, X[0], mask)
         self.sol = X[0]
 
         return True

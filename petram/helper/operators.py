@@ -11,13 +11,18 @@ if use_parallel:
 else:
    import mfem.ser as mfem
 
+import petram.debug as debug
+dprint1, dprint2, dprint3 = debug.init_dprints("Operators")
+rprint = debug.regular_print('Operators')
+
 class Operator(object):
     def __repr__(self):
         return self.__class__.__name__ + "("+",".join(self.sel)+")"
 
 class Operator(object):
     def __init__(self, **kwargs):
-        self._sel = kwargs.pop("sel", "all")
+        self._sel  = kwargs.pop("sel", "all")
+        self._ssel = kwargs.pop("src", "all")        
         self._sel_mode = kwargs.pop("sel_mode", "domain")
         self._fes1 = None
         self._fes2 = None
@@ -68,7 +73,8 @@ class Operator(object):
         fes2 = kwargs.pop('trial', None)
         self._transpose = kwargs.pop('transpose', self._transpose)
         self._sel_mode = kwargs.pop('sel_mode', self._sel_mode)
-        self._sel  = kwargs.pop('sel', self._sel)
+        self._sel   = kwargs.pop('sel', self._sel)
+        self._ssel  = kwargs.pop('src', self._ssel)        
         if fes1 is not None:
            if isinstance(fes1, 'str'):
                fes1 = engine.fespaces[fes]
@@ -247,7 +253,7 @@ class Projection(Operator):
 
         trans1 = kwargs.pop("trans",   None)     # transformation of fes1 (or both)
         trans2 = kwargs.pop("srctrans", trans1)  # transformation of fes2
-        srcsel = kwargs.pop("src", self._sel)    # transformation of fes2
+        srcsel = kwargs.pop("src", self._ssel)    # source idx
         tol    = kwargs.pop("tol", 1e-5)         # projectio tolerance
 
         dim1 = self.fes1.GetMesh().Dimension()
@@ -271,19 +277,43 @@ class Projection(Operator):
                projmode = "vertex"
         assert projmode != "", "unknow projection mode"
 
-        if self._sel == 'all':
+        if self._sel == 'all' and self._ssel == 'all':
             if self.sel_mode == "domain":
-                idx = np.unique(self.fes2.GetMesh().GetAttributeArray())
+                idx1 = np.unique(self.fes1.GetMesh().GetAttributeArray())
+                idx2 = np.unique(self.fes2.GetMesh().GetAttributeArray())                
             else:
-                idx = np.unique(self.fes2.GetMesh().GetBdrAttributeArray())
+                idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
+                idx2 = np.unique(self.fes2.GetMesh().GetBdrAttributeArray())
+            idx = np.intersect1d(idx1, idx2)
             idx1 = list(idx)
             idx2 = list(idx)
+            
+        elif self._ssel == 'all':
+            if self.sel_mode == "domain":
+                idx2 = np.unique(self.fes2.GetMesh().GetAttributeArray())
+            else:
+                idx2 = np.unique(self.fes2.GetMesh().GetBdrAttributeArray())
+            idx1 = self._sel
+            idx2 = list(idx2)
+            
+        elif self._sel == 'all':
+            if self.sel_mode == "domain":
+                idx1 = np.unique(self.fes1.GetMesh().GetAttributeArray())
+            else:
+                idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
+            idx1 = list(idx1)
+            idx2 = srcsel
+            
         else:
             idx1 = self._sel
             idx2 = srcsel
+            
         if use_parallel:
             idx1 =  list(set(sum(comm.allgather(idx1),[])))
             idx2 =  list(set(sum(comm.allgather(idx2),[])))
+
+        dprint1("projection index ", idx1, idx2)
+        
         from petram.helper.dof_map import notrans
 
         sdim1 = self.fes1.GetMesh().SpaceDimension()
