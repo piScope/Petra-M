@@ -115,6 +115,7 @@ class DlgEditModel(DialogWithWindowList):
         self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)        
         self._focus_idx = None
         self._focus_obj = None
+        self._copied_item = None
         self.SetSize((600,400))
         
     def OnChildFocus(self, evt):
@@ -158,7 +159,15 @@ class DlgEditModel(DialogWithWindowList):
             else:
                menus = menus + [('Enable', self.OnEnableItem, None)]
             menus = menus + [('Duplicate', self.OnDuplicateItemFromModel, 
-                              None)]
+                              None),
+                             ('Copy', self.OnCopyItemFromModel, 
+                              None),]
+
+        if (self._copied_item is not None and
+             self._copied_item[1].__class__ in mm.get_possible_child()):
+                  menus = menus + [('Paste Item', self.OnPasteItemToModel, 
+                                     None)]
+        if mm.can_delete:            
             if not mm.mustbe_firstchild:
                menus = menus + [('+Move...', None, None),
                                 ('Up', self.OnMoveItemUp, None),
@@ -186,6 +195,28 @@ class DlgEditModel(DialogWithWindowList):
         import wx
         app = wx.GetApp().TopWindow
         app.shell.lvar[mm.name()] = mm
+        
+    def OnCopyItemFromModel(self, evt):
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+        name = mm.name()
+        base, num = mm.split_digits()
+
+        import cPickle as pickle
+        self._copied_item = (base, pickle.loads(pickle.dumps(mm)))
+
+    def OnPasteItemToModel(self, evt):
+        if self._copied_item is None: return
+        
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+        if not self._copied_item[1].__class__ in mm.get_possible_child():
+            print("Cannot paste "+self._copied_item[1].__class__.__name__)
+            return
+                             
+        mm.add_itemobj(*self._copied_item)
+        self.tree.RefreshItems()
+        self.OnEvalNS(evt)                             
 
     def OnDuplicateItemFromModel(self, evt):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
@@ -208,7 +239,8 @@ class DlgEditModel(DialogWithWindowList):
            nums.append(int(num))
         
         parent.insert_item(index+1, base+str(long(max(nums))+1), newmm)
-        self.tree.RefreshItems()        
+        self.tree.RefreshItems()
+        self.OnEvalNS(evt)
         
     def OnDeleteItemFromModel(self, evt):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())

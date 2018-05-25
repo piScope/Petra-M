@@ -62,6 +62,9 @@ class SolveStep(SolverBase):
             if not self[k].enabled: continue
             for x in self[k].get_target_phys():
                 if not x in ret: ret.append(x)
+            for s in self[k].get_child_solver():
+                for x in s.get_target_phys():
+                    if not x in ret: ret.append(x)
         return ret
         
     def get_phys_range(self):
@@ -182,6 +185,9 @@ class Solver(SolverBase):
         names = self.phys_model.split(',')
         names = [n.strip() for n in names if n.strip() != '']        
         return [self.root()['Phys'][n] for n in names]
+    
+    def get_child_solver(self):
+        return []
     
     def is_complex(self):
         phys = self.get_phys()

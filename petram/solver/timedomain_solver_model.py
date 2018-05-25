@@ -35,7 +35,7 @@ class TimeDomain(Solver):
         elp_be =  [["dt", "", 0, {}],]
         elp_abe =  [["min. dt", "", 0, {}],
                     ["max. dt", "", 0, {}],]                
-        return [["Initial value setting",   self.init_setting,  0, {},],
+        return [#["Initial value setting",   self.init_setting,  0, {},],
                 ["physics model",   self.phys_model,  0, {},],
                 ["start/end/delta time ",  "",  0, {},],
                 ["probes",   self.probe,  0, {},],                                
@@ -55,7 +55,7 @@ class TimeDomain(Solver):
 
     def get_panel1_value(self):
         st_et_nt = ", ".join([str(x) for x in self.st_et_nt])
-        return (self.init_setting,
+        return (#self.init_setting,
                 self.phys_model,
                 st_et_nt,
                 self.probe,                                
@@ -71,22 +71,22 @@ class TimeDomain(Solver):
 
     
     def import_panel1_value(self, v):
-        self.init_setting = str(v[0])        
-        self.phys_model = str(v[1])
-        tmp = str(v[2]).split(',')
+        #self.init_setting = str(v[0])        
+        self.phys_model = str(v[0])
+        tmp = str(v[1]).split(',')
         st_et_nt = [tmp[0], tmp[1], ",".join(tmp[2:])]
         self.st_et_nt = [eval(x) for x in st_et_nt]
-        self.probe = str(v[3])
-        self.clear_wdir = v[5]
-        self.init_only = v[6]        
-        self.assemble_real = v[7]
-        self.save_parmesh = v[8]
-        self.use_profiler = v[9]
+        self.probe = str(v[2])
+        self.clear_wdir = v[4]
+        self.init_only = v[5]        
+        self.assemble_real = v[6]
+        self.save_parmesh = v[7]
+        self.use_profiler = v[8]
         
-        self.ts_method = str(v[4][0])
-        self.time_step= float(v[4][1][0])
-        self.abe_minstep= float(v[4][2][0])
-        self.abe_maxstep= float(v[4][2][1])                
+        self.ts_method = str(v[3][0])
+        self.time_step= float(v[3][1][0])
+        self.abe_minstep= float(v[3][2][0])
+        self.abe_maxstep= float(v[3][2][1])                
 
     def get_possible_child(self):
         choice = []
@@ -117,6 +117,9 @@ class TimeDomain(Solver):
         #lns['dt'] = dt
         wt = [1 if x else 0 for x in timestep_config]
         return wt
+
+    def get_child_solver(self):
+        return self.derived_value_solver()
     
     def derived_value_solver(self):
         return [self[key] for key in self

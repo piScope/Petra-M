@@ -235,7 +235,6 @@ class Engine(object):
         from petram.solver.solver_model import SolveStep
         solk = model['Solver'].keys()
         flag = any([not isinstance(model['Solver'][k], SolveStep) for k in solk])
-        print flag
         if flag:
             box = None
             for k in solk:
