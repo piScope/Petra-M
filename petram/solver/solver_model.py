@@ -22,19 +22,63 @@ class SolverBase(Model):
         viewer.set_view_mode('phys', self)
 
 class SolveStep(SolverBase):
+    has_2nd_panel = False    
+    def attribute_set(self, v):
+        v['phys_model']   = ''
+        v['init_setting']   = ''        
+        super(SolveStep, self).attribute_set(v)
+        return v
+    
+    def panel1_param(self):
+        return [["Initial value setting",   self.init_setting,  0, {},],
+                ["physics model(blank=auto)",   self.phys_model,  0, {},],]
+#                ["initialize solution only",
+#                 self.init_only,  3, {"text":""}], ]
+               
+
+    def get_panel1_value(self):
+        return (self.init_setting, self.phys_model, )
+    
+    def import_panel1_value(self, v):
+        self.init_setting = v[0]        
+        self.phys_model   = v[1]
+#        self.init_only    = v[2]
+        
     def get_possible_child(self):
-        ret = self.parent.get_possible_child()
-        # last element is SolveStep, 
-        return ret[:-1]
+        #from solver.solinit_model import SolInit
+        from petram.solver.std_solver_model import StdSolver
+        from petram.solver.timedomain_solver_model import TimeDomain
+        from petram.solver.parametric import Parametric
+        
+        return [StdSolver, TimeDomain, Parametric]
     
     def get_phys(self):
-        phys_root = self.root()['Phys']        
-        ret = []
+        #
+        #  phys for rhs and rows of M
+        #
+        phys_root = self.root()['Phys']
+        ret = []        
         for k in self.keys():
             if not self[k].enabled: continue
             for x in self[k].get_target_phys():
                 if not x in ret: ret.append(x)
+            for s in self[k].get_child_solver():
+                for x in s.get_target_phys():
+                    if not x in ret: ret.append(x)
         return ret
+        
+    def get_phys_range(self):
+        #
+        #  phys for X and col of M
+        #
+        phys_root = self.root()['Phys']
+        ret = []        
+        if self.phys_model.strip() ==  '':
+            return self.get_phys()
+        else:
+            names = self.phys_model.split(',')
+            names = [n.strip() for n in names if n.strip() != '']        
+            return [phys_root[n] for n in names]
 
     def get_target_phys(self):
         return []
@@ -42,20 +86,73 @@ class SolveStep(SolverBase):
     def get_active_solvers(self):
         return [x for x in self.iter_enabled()]
     
-    @property
-    def has_num_matrix(self):
-        return False
+    def get_num_matrix(self, phys_target):
+        num = []
+        for k in self.keys():
+            mm = self[k]
+            if not mm.enabled: continue
+            num.append(self.root()['Phys'].get_num_matrix(mm.get_matrix_weight,
+                                           phys_target))
+        return max(num)
     
-    def get_num_matrix(self, phys_target=None):    
-        raise NotImplementedError(
-             "you must specify this method in subclass")
-
     def get_matrix_weight(self, timestep_config):
         raise NotImplementedError(
              "you must specify this method in subclass")
     
+    def prepare_form_sol_variables(self, engine):
+        solvers = self.get_active_solvers()
+        
+        phys_target = self.get_phys()
+        phys_range = self.get_phys_range()
+        
+        num_matrix= self.get_num_matrix(phys_target)
+        
+        engine.set_formblocks(phys_target, phys_range, num_matrix)
+        
+        for p in phys_target:
+            engine.run_mesh_extension(p)
+            
+        engine.run_alloc_sol(phys_range)
+#        engine.run_fill_X_block()
+
+    def get_init_setting(self):
+        names = self.init_setting.split(',')
+        names = [n.strip() for n in names if n.strip() != '']        
+        return [self.root()['InitialValue'][n] for n in names]
+
+    def init(self, engine):
+        phys_target = self.get_phys()
+        phys_range = self.get_phys_range()        
+        
+        inits = self.get_init_setting()
+        if len(inits) == 0:
+            # in this case alloate all fespace and initialize all
+            # to zero
+            engine.run_apply_init(phys_range, 0)
+        else:
+            for init in inits:
+                init.run(engine)
+                
+        # use get_phys to apply essential to all phys in solvestep
+        engine.run_apply_essential(phys_target, phys_range)
+        engine.run_fill_X_block()
+        
+        #if init_only:
+        #    self.sol = self.blocks[1][0]
+        #    engine.sol = self.blocks[1][0]
+        #    return 
+        #self.assemble()
+
     def run(self, engine, is_first = True):
         solvers = self.get_active_solvers()
+
+        # initialize and assemble here
+
+        # in run method..
+        #   std solver : make sub block matrix and solve
+        #   time-domain solver : do step
+        self.prepare_form_sol_variables(engine)
+        self.init(engine)
         
         is_first = True
         for solver in solvers:
@@ -72,7 +169,7 @@ class Solver(SolverBase):
         v['assemble_real'] = False
         v['save_parmesh'] = False        
         v['phys_model']   = ''
-        v['init_setting']   = ''
+        #v['init_setting']   = ''
         v['use_profiler'] = False
         v['probe'] = ''
         super(Solver, self).attribute_set(v)
@@ -80,11 +177,17 @@ class Solver(SolverBase):
     
     def get_phys(self):
         return self.parent.get_phys()
+    
+    def get_phys_range(self):
+        return self.parent.get_phys_range()
 
     def get_target_phys(self):
         names = self.phys_model.split(',')
         names = [n.strip() for n in names if n.strip() != '']        
         return [self.root()['Phys'][n] for n in names]
+    
+    def get_child_solver(self):
+        return []
     
     def is_complex(self):
         phys = self.get_phys()
@@ -100,15 +203,23 @@ class Solver(SolverBase):
         return False
         
     def get_init_setting(self):
+        raise NotImplementedError(
+             "bug should not need this method")
+        '''
         names = self.init_setting.split(',')
         names = [n.strip() for n in names if n.strip() != '']        
         return [self.root()['InitialValue'][n] for n in names]
-    
+        '''
     def get_active_solver(self, mm = None):
         for x in self.iter_enabled():
             if isinstance(x, LinearSolverModel):
                return x
 
+    def get_num_matrix(self, phys_target=None):    
+        raise NotImplementedError(
+             "bug should not need this method")
+
+    '''
     @property
     def has_num_matrix(self):
         return True
@@ -123,18 +234,7 @@ class Solver(SolverBase):
             num.append(self.root()['Phys'].get_num_matrix(mm.get_matrix_weight,
                                            phys_target))
         return max(num)
-    
-    def prepare_form_sol_variables(self, engine):
-        phys_target = self.get_phys()
-        num_matrix= self.get_num_matrix(phys_target)
-        
-        engine.set_formblocks(phys_target, num_matrix)
-        
-        for p in phys_target:
-            engine.run_mesh_extension(p)
-            
-        engine.run_alloc_sol(phys_target)
-#        engine.run_fill_X_block()
+    '''
 
     def get_solve_root(self):
         obj = self
@@ -182,6 +282,9 @@ class SolverInstance(object):
     def get_target_phys(self):
         return self.gui.get_target_phys()
     
+    def get_phys_range(self):
+        return self.gui.get_phys_range()
+    
     @property
     def blocks(self):
         return self.engine.assembled_blocks
@@ -199,8 +302,12 @@ class SolverInstance(object):
         # a linear solver.
         all_phys = self.get_phys()        
         phys_target = self.get_target_phys()
-        mask = self.engine.get_block_mask(all_phys, phys_target)
-        self.blk_mask = mask
+        mask1 = self.engine.get_block_mask(all_phys, phys_target)
+
+        all_phys = self.get_phys_range()                
+        mask2 = self.engine.get_block_mask(all_phys, phys_target, use_range=True)
+        
+        self.blk_mask = (mask1, mask2)
 
     def save_solution(self, ksol = 0, skip_mesh = False, 
                       mesh_only = False, save_parmesh=False):
@@ -228,7 +335,9 @@ class SolverInstance(object):
             p.write_file()
         
     def set_linearsolver_model(self):
-        solver = self.gui.get_active_solver()      
+        solver = self.gui.get_active_solver()
+        if solver is None:
+             assert False, "Linear solver is not chosen"
         phys_target = self.get_phys()
         
         self.linearsolver_model = solver

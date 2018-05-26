@@ -624,22 +624,23 @@ class BlockMatrix(object):
         '''
         L = []
         idx = 0
-        imask = [x for x in range(len(mask)) if mask[x]]
+        imask = [x for x in range(len(mask[0])) if mask[0][x]]
+        jmask = [x for x in range(len(mask[1])) if mask[1][x]]        
         
-        for i in imask:
-            for j in imask:
+        for j in jmask:
+            for i in imask:
                if self[i,j] is not None:
-                  l =  self[i, j].shape[0]
+                  l =  self[i, j].shape[1]
                   break
             L.append(l)
             ref = self[i,j]
+
             if mat is not None:
                 v = mat[idx:idx+l, ksol]
             else:
                 v = None   # slave node (will recive data)
             idx = idx + l
-            ret.set_element_from_central_mat(v, i, 0, ref)
-
+            ret.set_element_from_central_mat(v, j, 0, ref)
         return ret
 
     def set_element_from_central_mat(self, v, i, j, ref):
@@ -658,12 +659,12 @@ class BlockMatrix(object):
                 from mpi4py import MPI
                 comm = MPI.COMM_WORLD
 
-                part = ref.GetRowPartArray()
+                part = ref.GetColPartArray()
                 v = comm.bcast(v)
-                start_row = part[0]
-                end_row = part[1]
+                start_col = part[0]
+                end_col = part[1]
 
-                v = np.ascontiguousarray(v[start_row:end_row])
+                v = np.ascontiguousarray(v[start_col:end_col])
                 if np.iscomplexobj(v):
                     rv = ToHypreParVec(v.real)    
                     iv = ToHypreParVec(v.imag)    

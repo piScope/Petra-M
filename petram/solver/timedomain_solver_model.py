@@ -35,7 +35,7 @@ class TimeDomain(Solver):
         elp_be =  [["dt", "", 0, {}],]
         elp_abe =  [["min. dt", "", 0, {}],
                     ["max. dt", "", 0, {}],]                
-        return [["Initial value setting",   self.init_setting,  0, {},],
+        return [#["Initial value setting",   self.init_setting,  0, {},],
                 ["physics model",   self.phys_model,  0, {},],
                 ["start/end/delta time ",  "",  0, {},],
                 ["probes",   self.probe,  0, {},],                                
@@ -55,7 +55,7 @@ class TimeDomain(Solver):
 
     def get_panel1_value(self):
         st_et_nt = ", ".join([str(x) for x in self.st_et_nt])
-        return (self.init_setting,
+        return (#self.init_setting,
                 self.phys_model,
                 st_et_nt,
                 self.probe,                                
@@ -71,22 +71,22 @@ class TimeDomain(Solver):
 
     
     def import_panel1_value(self, v):
-        self.init_setting = str(v[0])        
-        self.phys_model = str(v[1])
-        tmp = str(v[2]).split(',')
+        #self.init_setting = str(v[0])        
+        self.phys_model = str(v[0])
+        tmp = str(v[1]).split(',')
         st_et_nt = [tmp[0], tmp[1], ",".join(tmp[2:])]
         self.st_et_nt = [eval(x) for x in st_et_nt]
-        self.probe = str(v[3])
-        self.clear_wdir = v[5]
-        self.init_only = v[6]        
-        self.assemble_real = v[7]
-        self.save_parmesh = v[8]
-        self.use_profiler = v[9]
+        self.probe = str(v[2])
+        self.clear_wdir = v[4]
+        self.init_only = v[5]        
+        self.assemble_real = v[6]
+        self.save_parmesh = v[7]
+        self.use_profiler = v[8]
         
-        self.ts_method = str(v[4][0])
-        self.time_step= float(v[4][1][0])
-        self.abe_minstep= float(v[4][2][0])
-        self.abe_maxstep= float(v[4][2][1])                
+        self.ts_method = str(v[3][0])
+        self.time_step= float(v[3][1][0])
+        self.abe_minstep= float(v[3][2][0])
+        self.abe_maxstep= float(v[3][2][1])                
 
     def get_possible_child(self):
         choice = []
@@ -117,6 +117,9 @@ class TimeDomain(Solver):
         #lns['dt'] = dt
         wt = [1 if x else 0 for x in timestep_config]
         return wt
+
+    def get_child_solver(self):
+        return self.derived_value_solver()
     
     def derived_value_solver(self):
         return [self[key] for key in self
@@ -142,22 +145,34 @@ class TimeDomain(Solver):
         instance.set_start(st)
         instance.set_end(et)
         instance.set_checkpoint(np.linspace(st, et, nt))
+
+        engine.sol = engine.assembled_blocks[1][0]
+        instance.sol = engine.sol
+        instance.time = st
         
-        if is_first:
-            self.prepare_form_sol_variables(engine)
-            finished = instance.init(self.init_only)
+        if self.init_only:
+            self.write_checkpoint_solution()
+        
         else:
-            finished = False
+            if is_first:
+                instance.pre_assemble()                                
+                instance.assemble()
+                
+            #instance.solve()            
+            #if is_first:
+            #self.prepare_form_sol_variables(engine)
+            #finished = instance.init(self.init_only)
             
-        instance.set_blk_mask()                        
-        instance.configure_probes(self.probe)
+            instance.set_blk_mask()                        
+            instance.configure_probes(self.probe)
         
-        for solver in self.derived_value_solver():
-            child = solver.allocate_instance(engine)
-            instance.add_child_instance(child)
-        
-        while not finished:
-            finished = instance.step(is_first)
+            for solver in self.derived_value_solver():
+                child = solver.allocate_instance(engine)
+                instance.add_child_instance(child)
+                
+            finished = False
+            while not finished:
+                finished = instance.step(is_first)
 
         instance.save_solution(ksol = 0,
                                skip_mesh = False, 
@@ -180,7 +195,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.counter = 0
         self.icheckpoint = 0
 
-        
+    '''    
     def init(self, init_only=False):
         self.time = self.st
         if self.time == self.et: return True
@@ -211,7 +226,8 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             self.pre_assemble()
             self.assemble()
             return False
-        
+    '''
+    
     def set_blk_mask(self):
         super(FirstOrderBackwardEuler, self).set_blk_mask()
         phys_target = self.get_target_phys()
@@ -233,10 +249,13 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
     def pre_assemble(self, update=False):
         engine = self.engine
         phys_target = self.get_phys()
+        phys_range  = self.get_phys_range()
+        
         if not update:
             engine.run_verify_setting(phys_target, self.gui)
             
-        isUpdated1 = engine.run_assemble_mat(phys_target, update=update)
+        isUpdated1 = engine.run_assemble_mat(phys_target, phys_range,
+                                             update=update)
         isUpdated2 = engine.run_assemble_b(phys_target, update=update)
         self.pre_assembled = True
         return (isUpdated1 or isUpdated2)
@@ -279,7 +298,8 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             M_changed = True
         else:
             engine.set_update_flag('TimeDependent')
-            engine.run_apply_essential(self.get_phys(), update=True)
+            engine.run_apply_essential(self.get_phys(), self.get_phys_range(),
+                                       update=True)
             engine.run_fill_X_block(update=True)        
             self.pre_assemble(update=True)
             M_changed = self.assemble(update=True)
@@ -299,7 +319,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             self.write_checkpoint_solution()
             self.icheckpoint += 1
 
-        depvars = [x for i, x in enumerate(depvars) if mask[i]]
+        depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
         if self.linearsolver is None:
             if self.ls_type.startswith('coo'):
                 datatype = 'Z' if (AA.dtype == 'complex') else 'D'

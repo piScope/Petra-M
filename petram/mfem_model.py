@@ -115,14 +115,14 @@ class MFEM_PhysRoot(Model):
         return num_matrix
             
 
-    def all_dependent_vars(self, num_matrix):
+    def all_dependent_vars(self, num_matrix, phys_target=None):
         '''
         FES variable + extra variable
         '''
         dep_vars  = []
         isFesvars_g = []
         
-        phys_target = [self[k] for k in self]
+        phys_target = phys_target if phys_target is not None else [self[k] for k in self]
         
         for phys in phys_target:
             #if not phys.enabled: continue            
@@ -193,15 +193,11 @@ class MFEM_MeshRoot(Model):
         
 class MFEM_SolverRoot(Model):
     can_delete = False
-    has_2nd_panel = False    
+    has_2nd_panel = False
+    
     def get_possible_child(self):
-        from solver.solinit_model import SolInit
-        from solver.std_solver_model import StdSolver
-        from solver.timedomain_solver_model import TimeDomain
-        from solver.parametric import Parametric
         from solver.solver_model import SolveStep
-        
-        return [StdSolver, Parametric, TimeDomain, SolveStep]
+        return [SolveStep]
     
     def get_active_solvers(self, mm = None):
         return [x for x in self.iter_enabled()]

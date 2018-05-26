@@ -667,6 +667,7 @@ class PhysModule(Phys):
         v["dep_vars_suffix"] = ''
         v["mesh_idx"] = 0
         v['sel_index'] = ['all']
+        v['sel_index_txt'] = 'all'
         
         # subclass can use this flag to generate FESpace for time derivative
         # see WF_model
@@ -720,13 +721,13 @@ class PhysModule(Phys):
     def get_panel2_value(self):
         choice = ["Point", "Edge", "Surface", "Volume",]
         if self.dim_fixed:
-            return (','.join(self.sel_index),)
+            return self.sel_index_txt
         else:
-            return choice[self.dim], ','.join(self.sel_index)
+            return choice[self.dim], self.sel_index_txt
      
     def import_panel2_value(self, v):
-        if self.dim_fixed:        
-            arr =  str(v[0]).split(',')
+        if self.dim_fixed:
+            self.sel_index_txt = str(v[0])
         else:
            if str(v[0]) == "Volume":
               self.dim = 3
@@ -736,11 +737,15 @@ class PhysModule(Phys):
               self.dim = 1                      
            else:
               self.dim = 1                                 
-           arr =  str(v[1]).split(',')
+           self.sel_index_txt = str(v[1])
            
-        arr = [x for x in arr if x.strip() != '']
-        self.sel_index = arr
-       
+        from petram.model import convert_sel_txt
+        try:
+            arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
+            self.sel_index = arr            
+        except:
+            assert False, "failed to convert "+self.sel_index_txt
+        
     @property
     def dep_vars(self):
         raise NotImplementedError(
@@ -834,7 +839,8 @@ class PhysModule(Phys):
         
         dom_choice = d.keys()
         bdr_choice = sum([list(d[x]) for x in d], [])
-            
+        
+
         if self.sel_index[0] != 'all':
             dom_choice = [int(x) for x in self.sel_index]
             bdr_choice = list(np.unique(np.hstack([d[int(x)]
