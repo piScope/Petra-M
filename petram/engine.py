@@ -686,7 +686,7 @@ class Engine(object):
         for kfes, name in enumerate(phys.dep_vars):
             r_ifes = self.r_ifes(name)
             rgf = self.r_x[r_ifes]
-            igf = None if not is_complex else self.i_x[ifes]
+            igf = None if not is_complex else self.i_x[r_ifes]
             for mm in phys.walk():
                 if not mm.enabled: continue
                 if not mm.has_essential: continue
@@ -850,10 +850,9 @@ class Engine(object):
                 if not mm.has_bf_contribution2(kfes, self.access_idx):continue
                 if len(mm._sel_index) == 0: continue
                 proj = mm.get_projection()                
-                ia = self.i_a[ifes, r_ifes, proj]                                
+                ia = self.i_a[ifes, rifes, proj]                                
                 mm.add_bf_contribution(self, ia, real = False, kfes = kfes)
         
-            
     def fill_lf(self, phys, update):
         renewargs = []
         if update:
