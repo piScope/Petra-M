@@ -556,7 +556,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
 
     mesh1= fes1.GetMesh()  
     mesh2= fes2.GetMesh()
-    
+
     if mode == 'volume':
         mode1 = get_volume_mode(mesh1.Dimension(), mesh1.SpaceDimension())
         mode2 = get_volume_mode(mesh2.Dimension(), mesh2.SpaceDimension())
@@ -596,7 +596,10 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
 
     if use_parallel:
        # share ibr2 (destination information among nodes...)
-       ct2 = np.atleast_1d(ct2).reshape(-1, ct1.shape[1])
+       ct1dim = ct1.shape[1] if ct1.size > 0 else 0
+       ct1dim = comm.allgather(ct1dim)
+       ct1 = np.atleast_2d(ct1).reshape(-1, max(ct1dim))       
+       ct2 = np.atleast_2d(ct2).reshape(-1, max(ct1dim))
        ct2 =  allgather_vector(ct2, MPI.DOUBLE)
        fesize1 = fes1.GetTrueVSize()
        fesize2 = fes2.GlobalTrueVSize()
