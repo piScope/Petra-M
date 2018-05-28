@@ -72,7 +72,7 @@ def eval_on_faces(obj, expr, solvars, phys):
            ll_value.append(obj.knowns[g[n]])
        elif (n in g):
            var_g2[n] = g[n]
-           
+
     if len(ll_value) > 0:
         val = np.array([eval(code, var_g2, dict(zip(ll_name, v)))
                     for v in zip(*ll_value)])

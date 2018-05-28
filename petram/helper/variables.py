@@ -926,7 +926,8 @@ class GFVectorVariable(GridFunctionVariable):
                 vi = d.GetDataArray().copy()
                 v = v + 1j*vi
             data.append(v)
-        return np.hstack(data)                
+        ret = np.hstack(data).transpose()                        
+        return ret 
     
 '''
 

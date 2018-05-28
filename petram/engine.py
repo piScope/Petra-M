@@ -23,7 +23,6 @@ import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Engine')
 from petram.helper.matrix_file import write_coo_matrix, write_vector
 
-
 def iter_phys(phys_targets, *args):
     for phys in phys_targets:
         yield [phys] + [a[phys] for a in args]
@@ -510,17 +509,18 @@ class Engine(object):
 
             self.r_a.set_no_allocator()
             self.i_a.set_no_allocator()
-            
+
             for r, c, form in self.r_a:
                r1 = self.dep_var_offset(self.fes_vars[r])
                c1 = self.r_dep_var_offset(self.r_fes_vars[c])
                if self.mask_M[j, r1, c1]:
-                  form.Assemble()
+                   form.Assemble()
                   
             for r, c, form in self.i_a:
                r1 = self.dep_var_offset(self.fes_vars[r])
                c1 = self.r_dep_var_offset(self.r_fes_vars[c])
-               if self.mask_M[j, r1, c1]: form.Assemble()
+               if self.mask_M[j, r1, c1]:
+                   form.Assemble()
             
             self.extras = {}        
             for phys in phys_target:               
@@ -810,7 +810,7 @@ class Engine(object):
                     if not mm.update_flag: continue
                     proj = mm.get_projection()
                     mask[kfes] = True
-                    renewargs.append((ifes, r_ifes, proj))
+                    renewargs.append((ifes, rifes, proj))
                     self.mask_M[self.access_idx, self.dep_var_offset(name),
                                 self.r_dep_var_offset(name)] = True
                     
@@ -838,7 +838,7 @@ class Engine(object):
         if not is_complex: return
         
         for args in renewargs:
-            self.i_a.renew(*args)
+            self.i_a.renew(args)
         
         for kfes, name in enumerate(phys.dep_vars):
             if not mask[kfes]: continue
@@ -889,7 +889,7 @@ class Engine(object):
         if not is_complex: return
 
         for args in renewargs:
-            self.i_b.renew(*args)
+            self.i_b.renew(args)
 
         for kfes, name in enumerate(phys.dep_vars):        
             ifes = self.ifes(name)
@@ -938,11 +938,11 @@ class Engine(object):
         mixed_bf = {}
         tasks = {}
 
-        for idx1, idx2 in renewflag:
-            self.r_a.renew(idx1, idx2)
+        for idx in renewflag:
+            self.r_a.renew(idx)
             if is_complex:
-                self.i_a.renew(idx1, idx2)
-                
+                self.i_a.renew(idx)
+
         for mm in phys.walk():
             if not mm.enabled: continue
             if not mm.has_mixed_contribution2(self.access_idx):continue
@@ -962,6 +962,10 @@ class Engine(object):
                     idx1, idx2 = idx2, idx1
                     
                 if not fillflag[(idx1, idx2)]: continue
+                ridx1 = self.dep_var_offset(self.fes_vars[idx1])
+                ridx2 = self.r_dep_var_offset(self.r_fes_vars[idx2])                
+                self.mask_M[self.access_idx, ridx1, ridx2] = True
+                
                 bf =  self.r_a[idx1, idx2]
 
                 ## ToDo fix this bool logic...;D
@@ -972,7 +976,7 @@ class Engine(object):
                 if is_complex:
                     bf =  self.i_a[idx1, idx2]
                     mm.add_mix_contribution2(self, bf, r, c, is_trans, is_conj, real=False)
-                    
+        
     def update_bf(self):
         fes_vars = self.fes_vars       
         for j in range(self.n_matrix):
@@ -2085,7 +2089,9 @@ class SerialEngine(Engine):
         return  mfem.BilinearForm(fes)
 
     def new_mixed_bf(self, fes1, fes2):
-        return  mfem.MixedBilinearForm(fes1, fes2)
+        bf = mfem.MixedBilinearForm(fes1, fes2)
+        bf._finalized = False
+        return bf
      
     def new_gf(self, fes, init = True, gf = None):
         if gf is None:
@@ -2162,7 +2168,11 @@ class SerialEngine(Engine):
         return m
 
     def a2Am(self, a):  # MixedBilinearSystem to matrix
-        a.ConformingAssemble()
+        print "in a2Am", a
+        if not a._finalized:
+            print "calling Conforming Assemble"
+            a.ConformingAssemble()
+            a._finalized = True
         return a.SpMat()
     
     def b2B(self, b):  # FormLinearSystem w/o elimination
@@ -2256,7 +2266,9 @@ class ParallelEngine(Engine):
         return  mfem.ParBilinearForm(fes)
      
     def new_mixed_bf(self, fes1, fes2):
-        return  mfem.ParMixedBilinearForm(fes1, fes2)
+        bf = mfem.ParMixedBilinearForm(fes1, fes2)
+        bf._finalized = False
+        return bf
 
     def new_gf(self, fes, init = True, gf = None):
         if gf is None:
@@ -2533,7 +2545,10 @@ class ParallelEngine(Engine):
         return m
 
     def a2Am(self, a):  # MixedBilinearSystem to matrix
-        a.Finalize()
+        if not a._finalized:
+            a.Finalize()
+            a._finalized = True               
+
         return a.ParallelAssemble()
     
     def b2B(self, b):

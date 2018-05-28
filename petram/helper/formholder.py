@@ -9,6 +9,9 @@
 from itertools import product
 import numpy as np
 
+import petram.debug
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('FromHolder')
+
 class FormBlock(object):
     def __init__(self, shape, new=None, mixed_new=None, diag=None):
         '''
@@ -149,13 +152,16 @@ class FormBlock(object):
             p=args[1]
         self.block[r][c][p][1] = v               
 
-    def generateMatVec(self, converter1, converter2=None):
+    def generateMatVec(self, converter1, converter2=None, verbose=False):
         if converter2 is None: converter2 = converter1
 
         for i, j in product(range(self.shape[0]),range(self.shape[1])):
             projs = self.get_projections(i, j)
             for p in projs:
                 form = self.block[i][j][p][0]
+                if verbose:
+                    dprint1("generateMatVec", i, j, form)
+                
                 if form is not None:
                     if self._diag is None or self._diag[i] == j:
                         self.set_matvec(i, j, p, converter1(form))

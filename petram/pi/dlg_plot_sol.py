@@ -210,10 +210,10 @@ class DlgPlotSol(DialogWithWindowList):
             
             s4 = {"style":wx.TE_PROCESS_ENTER,
                   "choices":[str(x+1) for x in range(10)]}
-            
             ll = [['Expression', '', 0, {}],
-                  ['Offset (x, y, z)', '0, 0, 0', 0, {}],                  
-                  ['Boundary Index', text, 0, {}],
+                  ['Offset (x, y, z)', '0, 0, 0', 0, {}],
+                  ['Boundary Index', 'all', 4, {'style':wx.CB_DROPDOWN,
+                                                'choices': ['all', 'visible', 'hidden']}],      
                   ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extenstion'}],
@@ -1149,10 +1149,25 @@ class DlgPlotSol(DialogWithWindowList):
              return None, None
         mesh = model.variables.getvar('mesh')
         if mesh is None: return
-        if battrs != 'all':
-           battrs = [int(x) for x in battrs.split(',')]
+        if battrs == 'all':
+            battrs = mesh.extended_connectivity['surf2line'].keys()
+        elif battrs == 'visible':
+            m = self.GetParent()
+            battrs = []
+            for name, child in m.get_axes(0).get_children():
+                if name.startswith('face'):
+                     battrs.extend(child.shown_component)
+            battrs = list(set(battrs))
+        elif battrs == 'hidden':
+            m = self.GetParent()
+            battrs = []
+            for name, child in m.get_axes(0).get_children():
+                if name.startswith('face'):
+                     battrs.extend(child.hidden_component)
+            battrs = list(set(battrs))
         else:
-           battrs = mesh.extended_connectivity['surf2line'].keys()
+            battrs = [int(x) for x in battrs.split(',')]
+
            #battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
 
         average = kwargs.pop('average', True)
