@@ -58,9 +58,15 @@ class StdSolver(Solver):
         except ImportError:
             pass
 
+        #try:
+        #    from petram.solver.gmres_model import GMRES
+        #    choice.append(GMRES)
+        #except ImportError:
+        #    pass
+        
         try:
-            from petram.solver.gmres_model import GMRES
-            choice.append(GMRES)
+            from petram.solver.iterative_model import Iterative
+            choice.append(Iterative)
         except ImportError:
             pass
 
@@ -222,7 +228,7 @@ class StandardSolver(SolverInstance):
                                  format = self.ls_type)
 
         if self.linearsolver is None:
-            linearsolver = self.allocate_linearsolver(self.gui.is_complex())
+            linearsolver = self.allocate_linearsolver(self.gui.is_complex(), self. engine)
             self.linearsolver = linearsolver
         else:
             linearsolver = self.linearsolver

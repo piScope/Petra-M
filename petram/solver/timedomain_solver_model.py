@@ -16,7 +16,7 @@ class DerivedValue(StdSolver):
         instance = StandardSolver(self, engine)
         instance.set_blk_mask()        
         return instance
-
+    
 class TimeDomain(Solver):
     can_delete = True
     has_2nd_panel = False
@@ -96,9 +96,15 @@ class TimeDomain(Solver):
         except ImportError:
             pass
 
+        #try:
+        #    from petram.solver.gmres_model import GMRES
+        #    choice.append(GMRES)
+        #except ImportError:
+        #    pass
+        
         try:
-            from petram.solver.gmres_model import GMRES
-            choice.append(GMRES)
+            from petram.solver.iterative_model import Iterative
+            choice.append(Iterative)
         except ImportError:
             pass
 
@@ -325,7 +331,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
                 datatype = 'Z' if (AA.dtype == 'complex') else 'D'
             else:
                 datatype = 'D'
-            self.linearsolver  = self.linearsolver_model.allocate_solver(datatype)
+            self.linearsolver  = self.linearsolver_model.allocate_solver(datatype, engine)
             M_changed = True
             
         if M_changed:
@@ -455,7 +461,8 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
                     datatype = 'Z' if (AA.dtype == 'complex') else 'D'
                 else:
                     datatype = 'D'
-                self.linearsolver[idt]  = self.linearsolver_model.allocate_solver(datatype)
+                self.linearsolver[idt]  = self.linearsolver_model.allocate_solver(datatype,
+                                                                                  engine)
                 self.linearsolver[idt].SetOperator(AA,
                                                    dist = engine.is_matrix_distributed,
                                                    name = depvars)
