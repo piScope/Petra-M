@@ -20,6 +20,18 @@ class SolverBase(Model):
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys', self)
+        
+    def set_solve_error(self, value):
+        self.get_solve_root()._solve_error = value
+        
+    def get_solve_root(self):
+        obj = self
+        solver_root = self.root()['Solver']
+
+        while (not isinstance(obj, SolveStep) and
+               obj is not solver_root):
+            obj = obj.parent
+        return obj
 
 class SolveStep(SolverBase):
     has_2nd_panel = False    
@@ -115,6 +127,12 @@ class SolveStep(SolverBase):
         engine.run_alloc_sol(phys_range)
 #        engine.run_fill_X_block()
 
+    @property
+    def solve_error(self):
+        if hasattr(self, "_solve_error"):
+            return self._solve_error
+        return (False, "")
+
     def get_init_setting(self):
         names = self.init_setting.split(',')
         names = [n.strip() for n in names if n.strip() != '']        
@@ -160,7 +178,10 @@ class SolveStep(SolverBase):
              is_first = False
              engine.add_FESvariable_to_NS(self.get_phys()) 
              engine.store_x()
-        
+
+             if self.solve_error[0]:
+                 dprint1("SolveStep failed " + self.name() + ":"  + self.solve_error[1])
+                 assert False, "SolveStep Failed"
         
 class Solver(SolverBase):
     def attribute_set(self, v):
@@ -236,15 +257,6 @@ class Solver(SolverBase):
         return max(num)
     '''
 
-    def get_solve_root(self):
-        obj = self
-        solver_root = self.root()['Solver']
-
-        while (not isinstance(obj, SolveStep) and
-               obj is not solver_root):
-            obj = obj.parent
-        return obj
-    
     def get_matrix_weight(self):
         raise NotImplementedError(
              "you must specify this method in subclass")

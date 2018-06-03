@@ -1,3 +1,4 @@
+
 from .solver_model import LinearSolverModel, LinearSolver
 import numpy as np
 
@@ -41,7 +42,7 @@ class Iterative(LinearSolverModel):
         import wx
         from petram.pi.widget_smoother import WidgetSmoother       
         return [[None, 'GMRES', 4, {'style':wx.CB_READONLY,
-                                     'choices': ['CG', 'GMRES', 'FGMRES', 'BiCGSTA',
+                                     'choices': ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB',
                                                  'MINRES', 'SLI']}],      
                 ["log_level",   self.log_level,  400, {}],
                 ["max  iter.",  self.maxiter,  400, {}],
@@ -193,14 +194,16 @@ class IterativeSolver(LinearSolver):
         args = (MPI.COMM_WORLD,) if use_mpi else ()
 
         cls = getattr(mfem, self.gui.solver_type+'Solver')
+
         solver = cls(*args)
         if self.gui.solver_type == 'GMRES':
             solver.SetKDim(kdim)
         if self.gui.solver_type == 'FGMRES':
             solver.SetKDim(kdim)
             
-        solver.SetOperator(A)
+
         solver.SetPreconditioner(M)
+        solver.SetOperator(A)
         
         solver.SetAbsTol(atol)
         solver.SetRelTol(rtol)
@@ -214,9 +217,11 @@ class IterativeSolver(LinearSolver):
         solver.Mult(bb, xx)
         max_iter = solver.GetNumIterations();
         tol = solver.GetFinalNorm()**2
+        
         dprint1("convergence check (max_iter, tol) ", max_iter, " ", tol)
         if self.gui.assert_no_convergence:
-            assert solver.GetConverged(), "No Convergence"
+            if not solver.GetConverged():
+               self.gui.set_solve_error((True, "No Convergence: " + self.gui.name()))
      
     def solve_parallel(self, A, b, x=None):
         from mpi4py import MPI
@@ -267,8 +272,21 @@ class IterativeSolver(LinearSolver):
            if A0 is None and not name.startswith('schur'): continue
 
            if hasattr(mfem.HypreSmoother, prc):
-               invA0 = mfem.HypreSmoother(A0)
-               invA0.SetType(getattr(mfem.HypreSmoother, prc))
+               inv_smoother = mfem.HypreSmoother(A0)
+               inv_smoother.SetType(getattr(mfem.HypreSmoother, prc))
+               
+               sm_gmres = mfem.GMRESSolver(MPI.COMM_WORLD)
+               sm_gmres.iterative_mode = False
+               sm_gmres.SetRelTol(1e-12)
+               sm_gmres.SetAbsTol(1e-12)
+               sm_gmres.SetMaxIter(5)
+               sm_gmres.SetPrintLevel(-1)
+               sm_gmres.SetPreconditioner(inv_smoother)
+               sm_gmres.SetOperator(A0)
+               sm_gmres._prc = inv_smoother
+
+               #invA0 = inv_smoother
+               invA0 = sm_gmres
                
            elif name.startswith('ams'):
                if len(name.split("(")) > 1:
@@ -279,17 +297,32 @@ class IterativeSolver(LinearSolver):
                depvar = self.engine.r_dep_vars[k]
                dprint1("setting up AMS for ", depvar)
                prec_fespace = self.engine.fespaces[depvar]
-               invA0 = mfem.HypreAMS(A0, prec_fespace)
+               inv_ams = mfem.HypreAMS(A0, prec_fespace)
                if 'singular' in args:
                    dprint1("setting Singular for AMS")
-                   invA0.SetSingularProblem()
+                   inv_ams.SetSingularProblem()
+               '''
+               ams_gmres = mfem.GMRESSolver(MPI.COMM_WORLD)
+               ams_gmres.iterative_mode = False
+               ams_gmres.SetRelTol(1e-12)
+               ams_gmres.SetAbsTol(1e-12)
+               ams_gmres.SetMaxIter(5)
+               ams_gmres.SetPrintLevel(1)
+
+               ams_gmres.SetOperator(A0)
+               ams_gmres.SetPreconditioner(inv_ams)               
+               ams_gmres._prc = inv_ams
+               invA0 = ams_gmres
+
+               '''
+               invA0 = inv_ams               
                
            elif name == 'MUMPS':
                cls = SparseSmootherCls[name][0]
                invA0 = cls(A0, gui=self.gui[prc], engine=self.engine)
                
            elif name.startswith('schur'):
-               args = name.split("(")[-1].split(")")[0].split(",")
+               args = prc.split("(")[-1].split(")")[0].split(",")
                dprint1("setting up schur for ", args)
                if len(args) > 1:
                    assert False, "not yet supported"
@@ -304,10 +337,18 @@ class IterativeSolver(LinearSolver):
                                              B0.GetGlobalNumRows(),
                                              B0.GetColStarts())
                     B0.GetDiag(Md)
+                    Md *= 1e-15                    
                     Bt.InvScaleRows(Md)
                     S = mfem.ParMult(B, Bt)
                     invA0 = mfem.HypreBoomerAMG(S)
                     invA0.iterative_mode = False
+                    invA0.SetPrintLevel(1)
+                    nicePrint(np.max(Md.GetDataArray()),",", np.min(Md.GetDataArray()))
+                    Sd = mfem.HypreParVector(MPI.COMM_WORLD,
+                                             S.GetGlobalNumRows(),
+                                             S.GetColStarts())
+                    S.GetDiag(Sd)
+                    nicePrint(np.max(Sd.GetDataArray()),",", np.min(Sd.GetDataArray()))                    
                     
            else:
                cls = SparseSmootherCls[name][0]
