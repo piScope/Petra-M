@@ -86,30 +86,139 @@ if use_parallel:
    from mfem.common.mpi_debug import nicePrint
 else:
    import mfem.ser as mfem
+   
+class PreconditionerBlock(object):
+    def __init__(self, func):
+        self.func = func
 
+    def set_param(self, prc, blockname):
+        self.prc = prc
+        self.blockname = blockname
 
+    def __call__(self, *args, **kwargs):
+        kwargs['prc'] = self.prc
+        kwargs['blockname'] = self.blockname
+        return self.func(*args, **kwargs)
+
+class PrcGenBase(object):
+    def __init__(self, func=None, opr=None, engine=None, gui=None):
+        self.func = func
+        self._params = (tuple(), dict())
+        if gui is not None: self.set_param(opr, engine, gui)
+        
+    def set_param(self, opr, engine, gui):
+        self._opr = weakref.ref(opr)
+        self.gui = gui
+        self._engine  = weakref.ref(engine)
+        
+    def copy_param(self, g):
+        self.offset = g.offset
+        self._opr = g._opr
+        self.gui = g.gui
+        self._engine  = g._engine
+        
+    @property
+    def engine(self):
+        return self._engine()
+        
+    @property
+    def opr(self):
+        return self._opr()
+        
+    def get_row_by_name(self, name):
+        return self.engine.dep_var_offset(name)
+
+    def get_col_by_name(self, name):
+        return self.engine.r_dep_var_offset(name)
+
+    def get_operator_block(self, r, c):
+        try:
+            return self.opr._linked_op[(r, c)]
+        except KeyError:
+            return None
+         
+class DiagonalPrcGen(PrcGenBase):
+    def __call__(self, *args, **kwargs):
+        offset = self.opr.RowOffsets()       
+        D = mfem.BlockDiagonalPreconditioner(offset)
+        if self.func is not None:
+           self.func(D, self, *args, **kwargs)
+        return D
+
+class LowerTriangluarPrcGen(PrcGenBase):
+    def __call__(self, *args, **kwargs):
+        offset = self.opr.RowOffsets()              
+        LT = mfem.BlockLowerTriangularPreconditioner(offset)
+        if self.func is not None:        
+           self.func(LT, self, *args, **kwargs)
+        return LT
+        
+class GenericPreconditionerGen(PrcGenBase):
+    def __init__(self, func=None, opr=None, engine=None, gui=None):
+        PrcGenBase.__init__(self, func=func, opr=opr, engine=engine, gui=gui)
+        self.mult_func = None
+        self.setoperator_func = None
+
+    def Mult(self, func):
+        self.mult_func = func
+
+    def SetOperator(self, func):
+        self.setoperator_func = func
+
+    def __call__(self,  *args, **kwargs):
+        assert self.mult_func is not None, "Mult is not defined"
+        assert self.setoperator_func is not None, "SetOperator is not defined"        
+
+        dargs, dkwargs = self._params
+        assert len(dargs) == 0,  "Decorator allows only keyword argments"
+
+        offset = self.opr.RowOffsets()
+        prc = GenericPreconditioner(offset,
+                                      self.mult_func,
+                                      self.setoperator_func)
+        
+        for key in dkwargs:
+           kwargs[key] = dkwargs[key]
+        self.func(prc, self, *args, **kwargs)
+        return prc
+
+           
 class _prc_decorator(object):
     def block(self, func):
+        class deco(PreconditionerBlock):
+            def __init__(self, func):
+                self.func = func
+        return deco(func)
+
+        '''
         def dec(*args, **kwargs):
             obj = PreconditionerBlock(func)
             obj._params = (args, kwargs)
             return obj
         return dec
+        '''
+        
     def blk_diagonal(self, func):
-        def dec(*args, **kwargs):
-            obj = DiagonalPrcGen(func)
-            return obj
-        return dec
+        class deco(DiagonalPrcGen):
+            def __init__(self, func):
+                self.func = func
+        return deco(func)
+
     def blk_lowertriangular(self, func):
-        def dec(*args, **kwargs):
-            obj = LowerTriangularPrcGen(func)
-            return obj
-        return dec
-    def blk_generic(self, func):
-        def dec(*args, **kwargs):
-            obj = GenericPrcGen(func)
-            return obj
-        return dec
+        class deco(LowerTriangularPrcGen):
+            def __init__(self, func):
+                self.func = func
+        return deco(func)                
+     
+    def blk_generic(self, *dargs, **dkargs):
+        def wrapper(func):
+            class deco(GenericPreconditionerGen):
+                def __init__(self, func):
+                    GenericPreconditionerGen.__init__(self, func)
+                    self._params = (dargs, dkargs)
+                    self.func = func
+            return deco(func)
+        return wrapper
 
 prc = _prc_decorator()
 
@@ -272,77 +381,9 @@ def gmres(atol=1e-24, rtol=1e-12, max_num_iter=5,
         gmres.SetPreconditioner(preconditioner)
     return gmres
 
-class PreconditionerBlock(object):
-    def __init__(self, func):
-        self.func = func
-
-    def set_param(self, prc, blockname):
-        self.prc = prc
-        self.blockname = blockname
-
-    def __call__(self):
-        args, kwargs = self._params
-        kwargs['prc'] = self.prc
-        kwargs['blockname'] = self.blockname
-        return self.func(*args, **kwargs)
      
-class PrcBase(object):
-    def set_param(self, opr, engine, gui):
-        self._opr = weakref.ref(opr)
-        self.gui = gui
-        self._engine  = weakref.ref(engine)
-        
-    def copy_param(self, g):
-        self.offset = g.offset
-        self._opr = g._opr
-        self.gui = g.gui
-        self._engine  = g._engine
-        
-    @property
-    def engine(self):
-        return self._engine()
-        
-    @property
-    def opr(self):
-        return self._opr()
-        
-    def get_row_by_name(self, name):
-        return self.engine.dep_var_offset(name)
 
-    def get_col_by_name(self, name):
-        return self.engine.r_dep_var_offset(name)
 
-    def get_operator_block(self, r, c):
-        try:
-            return self.opr._linked_op[(r, c)]
-        except KeyError:
-            return None
-        
-
-class DiagonalPrcGen(PrcBase):
-    def __init__(self, func=None, opr=None, engine=None, gui=None):
-        self.func = func
-        if gui is not None: self.set_param(opr, engine, gui)
-        
-    def __call__(self):
-        offset = self.opr.RowOffsets()       
-        D = mfem.BlockDiagonalPreconditioner(offset)
-        if self.func is not None:
-           self.func(D, self)
-        return D
-
-class LowerTriangluarPrcGen(PrcBase):
-    def __init__(self, func=None, opr=None, engine=None, gui=None):   
-        self.func = func
-        if gui is not None: self.set_param(opr, engine, gui)
-        
-    def __call__(self):
-        offset = self.opr.RowOffsets()              
-        LT = mfem.BlockLowerTriangularPreconditioner(offset)
-        if self.func is not None:        
-           self.func(LT, self)
-        return LT
-        
 class GenericPreconditioner(mfem.Solver):
     def __init__(self, offset, MultFunc, SetOperatorFunc):
         self.mult_func = MultFunc
@@ -353,25 +394,4 @@ class GenericPreconditioner(mfem.Solver):
      
     def SetOperator(self, *args):
         return self.setoperator_func(self, *args)
-   
-class GenericPreconditionerGen(PrcBase):
-    def __init__(self, func=None, opr=None, engine=None, gui=None): 
-        self.func = func
-        self.mult_func = None
-        self.setoprator_func = None
-        if gui is not None: self.set_param(opr, engine, gui)
-        
-    def Mult(func):
-        self.mult_func = func
 
-    def SetOperator(func):
-        self.setoperator_func = func
-        
-    def __call__(self):
-        offset = self.opr.RowOffsets()                     
-        prc = GeneraticPreconditioner(offset,
-                                      self.mult_func,
-                                      self.seperator_func)
-        self.func(prc, self)
-        return prc
-    

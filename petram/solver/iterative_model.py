@@ -233,7 +233,6 @@ class IterativeSolver(LinearSolver):
         if self.gui.adv_mode:
             expr = self.gui.adv_prc
             gen = eval(expr, self.gui._global_ns)
-            print gen
             gen.set_param(A, self.engine, self.gui)
             M = gen()
         else:
@@ -253,12 +252,13 @@ class IterativeSolver(LinearSolver):
                 prctxt = prcs_gui[n][1]
                 if prctxt == "None": continue
                 if prctxt.find("(") == -1: prctxt=prctxt+"()"
-
+                prcargs = "(".join(prctxt.split("(")[-1:])
+                
                 name = prctxt.split("(")[0]
 
-                blkgen = getattr(prcs, name)()
+                blkgen = getattr(prcs, name)
                 blkgen.set_param(g, n)
-                blk = blkgen()
+                blk = eval("blkgen("+prcargs)
 
                 M.SetDiagonalBlock(k, blk)
                 
