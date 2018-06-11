@@ -929,7 +929,7 @@ class BlockMatrix(object):
                                   print('csr shape', csr.shape)
                                   gcsr[1] = ToHypreParCSR(csr, col_starts =cp)
                                   gcsrm   = ToHypreParCSR(-csr, col_starts =cp)
-                            dprint1(i, j, s, rp, cp)
+                            dprint2(i, j, s, rp, cp)
                         else:
                             assert False, "unsupported block element "+str(type(self[i,j]))
                     else:

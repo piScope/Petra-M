@@ -1,8 +1,10 @@
-from .solver_model import LinearSolverModel, LinearSolver
 import numpy as np
 
+from petram.namespace_mixin import NS_mixin
+from .solver_model import LinearSolverModel, LinearSolver
+
 import petram.debug as debug
-dprint1, dprint2, dprint3 = debug.init_dprints('GMRESModel')
+dprint1, dprint2, dprint3 = debug.init_dprints('IterativeSolverModel')
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -30,22 +32,38 @@ SparseSmootherCls = {"Jacobi": (mfem.DSmoother, 0),
                      "backwardGS": (mfem.GSSmoother, 2),
                      "MUMPS": (MUMPSPreconditioner, None),}                                          
 
-class GMRES(LinearSolverModel):
+class Iterative(LinearSolverModel, NS_mixin): 
+    hide_ns_menu = True
     has_2nd_panel = False
     accept_complex = False
-    always_new_panel = False    
+    always_new_panel = False
+
+    def __init__(self,  *args, **kwargs):
+        LinearSolverModel.__init__(self, *args, **kwargs)
+        NS_mixin.__init__(self, *args, **kwargs)
+        
     def init_solver(self):
         pass
     
     def panel1_param(self):
-        from petram.pi.widget_smoother import WidgetSmoother       
-        return [["log_level",   self.log_level,  400, {}],
+        import wx
+        from petram.pi.widget_smoother import WidgetSmoother
+
+        smp1 = [None, None, 99, {"UI":WidgetSmoother, "span":(1,2)}]
+        return [[None, 'GMRES', 4, {'style':wx.CB_READONLY,
+                                     'choices': ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB',
+                                                 'MINRES', 'SLI']}],      
+                ["log_level",   self.log_level,  400, {}],
                 ["max  iter.",  self.maxiter,  400, {}],
                 ["rel. tol",    self.reltol,  300,  {}],
                 ["abs. tol.",   self.abstol,  300, {}],
                 ["restart(kdim)", self.kdim,     400, {}],
-                [None, None, 99, {"UI":WidgetSmoother, "span":(1,2)}],
-                ["write matrix",  self.write_mat,   3, {"text":""}],]     
+                [None,  [False, [''], [[],]], 27, [{'text':'advanced mode'},
+                                               {'elp':[['preconditioner', '', 0, None],]},
+                                               {'elp':[smp1,]}],],
+                ["write matrix",  self.write_mat,   3, {"text":""}],
+                ["check convergence", self.assert_no_convergence,  3, {"text":""}],]
+     
     
     def get_panel1_value(self):
         # this will set _mat_weight
@@ -66,21 +84,27 @@ class GMRES(LinearSolverModel):
               prec.append((n, ['None', 'None']))
         self.preconditioners = prec
         
-        return (long(self.log_level), long(self.maxiter),
+        return (self.solver_type,
+                long(self.log_level), long(self.maxiter),
                 self.reltol, self.abstol, long(self.kdim),
-                self.preconditioners, self.write_mat)
+                [self.adv_mode, [self.adv_prc, ], [self.preconditioners,]],
+                self.write_mat, self.assert_no_convergence)
     
     def import_panel1_value(self, v):
-        self.log_level = long(v[0])
-        self.maxiter = long(v[1])
-        self.reltol = v[2]
-        self.abstol = v[3]
-        self.kdim = long(v[4])
-        self.preconditioners = v[5]
-        self.write_mat = bool(v[6])
+        self.solver_type = str(v[0])
+        self.log_level = long(v[1])
+        self.maxiter = long(v[2])
+        self.reltol = v[3]
+        self.abstol = v[4]
+        self.kdim = long(v[5])
+        self.preconditioners = v[6][2][0]
+        self.write_mat = bool(v[7])
+        self.assert_no_convergence = bool(v[8])
+        self.adv_mode = v[6][0]
+        self.adv_prc = v[6][1][0]      
         
     def attribute_set(self, v):
-        v = super(GMRES, self).attribute_set(v)
+        v = super(Iterative, self).attribute_set(v)
         v['log_level'] = 0
         v['maxiter'] = 200
         v['reltol']  = 1e-7
@@ -89,14 +113,18 @@ class GMRES(LinearSolverModel):
         v['printit'] = 1
         v['preconditioner'] = ''
         v['preconditioners'] = []        
-        v['write_mat'] = False        
+        v['write_mat'] = False
+        v['solver_type'] = 'GMRES'
+        v['assert_no_convergence'] = True
+        v['adv_mode'] = False
+        v['adv_prc'] = ''
         return v
     
     def verify_setting(self):
         if not self.parent.assemble_real:
             for phys in self.get_phys():
                 if phys.is_complex():
-                    return False, "GMRES does not support complex.", "A complex problem must be converted to a real value problem"
+                    return False, "Iterative does not support complex.", "A complex problem must be converted to a real value problem"
         return True, "", ""
 
     def linear_system_type(self, assemble_real, phys_complex):
@@ -135,7 +163,7 @@ class GMRES(LinearSolverModel):
         return result
 
     def allocate_solver(self, datatype='D', engine=None):
-        solver = GMRESSolver(self, engine, int(self.maxiter),
+        solver = IterativeSolver(self, engine, int(self.maxiter),
                              self.abstol, self.reltol, int(self.kdim))
         #solver.AllocSolver(datatype)
         return solver
@@ -153,7 +181,7 @@ class GMRES(LinearSolverModel):
         return choice
      
 
-class GMRESSolver(LinearSolver):
+class IterativeSolver(LinearSolver):
     is_iterative = True
     def __init__(self, gui, engine, maxiter, abstol, reltol, kdim):
         self.maxiter = maxiter
@@ -171,13 +199,71 @@ class GMRESSolver(LinearSolver):
             return self.solve_parallel(self.A, b, x)
         else:
             return self.solve_serial(self.A, b, x)
-                             
-    def solve_parallel(self, A, b, x=None):
-        from mpi4py import MPI
-        myid     = MPI.COMM_WORLD.rank
-        nproc    = MPI.COMM_WORLD.size
-        from petram.helper.mpi_recipes import gather_vector
+
+    def make_solver(self, A, M, use_mpi=False):
+        maxiter = int(self.maxiter)
+        atol = self.abstol
+        rtol = self.reltol
+        kdim = int(self.kdim)
+        printit = 1
+       
+        args = (MPI.COMM_WORLD,) if use_mpi else ()
+
+        cls = getattr(mfem, self.gui.solver_type+'Solver')
+
+        solver = cls(*args)
+        if self.gui.solver_type == 'GMRES':
+            solver.SetKDim(kdim)
+        if self.gui.solver_type == 'FGMRES':
+            solver.SetKDim(kdim)
+
+        solver.SetPreconditioner(M)
+        solver.SetOperator(A)
         
+        solver.SetAbsTol(atol)
+        solver.SetRelTol(rtol)
+        solver.SetMaxIter(maxiter)
+
+        solver.SetPrintLevel(self.gui.log_level)
+        
+        return solver
+
+    def make_preconditioner(self, A):
+        if self.gui.adv_mode:
+            expr = self.gui.adv_prc
+            gen = eval(expr, self.gui._global_ns)
+            gen.set_param(A, self.engine, self.gui)
+            M = gen()
+        else:
+            prcs_gui = dict(self.gui.preconditioners)
+            name = self.Aname
+            assert not self.gui.parent.is_complex(), "can not solve complex"
+            if self.gui.parent.is_converted_from_complex():
+                name = sum([[n, n] for n in name], [])
+
+
+            import petram.helper.preconditioners as prcs
+
+            g = prcs.DiagonalPrcGen(opr=A, engine=self.engine, gui=self.gui)
+            M = g()
+
+            for k, n in enumerate(name):
+                prctxt = prcs_gui[n][1]
+                if prctxt == "None": continue
+                if prctxt.find("(") == -1: prctxt=prctxt+"()"
+                prcargs = "(".join(prctxt.split("(")[-1:])
+                
+                name = prctxt.split("(")[0]
+
+                blkgen = getattr(prcs, name)
+                blkgen.set_param(g, n)
+                blk = eval("blkgen("+prcargs)
+
+                M.SetDiagonalBlock(k, blk)
+                
+        return M
+
+    def write_mat(self, A, b, x, suffix=""):
         def get_block(Op, i, j):
             try:
                return Op._linked_op[(i,j)]
@@ -188,119 +274,43 @@ class GMRESSolver(LinearSolver):
         rows = A.NumRowBlocks()
         cols = A.NumColBlocks()
         
-        if self.gui.write_mat:
-           for i in range(cols):
-              for j in range(rows):
-                 m = get_block(A, i, j)
-                 if m is None: continue
-                 m.Print('matrix_'+str(i)+'_'+str(j))
-           for i, bb  in enumerate(b):
-              for j in range(rows):
-                 v = bb.GetBlock(j)
-                 v.Print('rhs_'+str(i)+'_'+str(j)+'.'+smyid)
-           if x is not None:
-              for j in range(rows):
-                 xx = x.GetBlock(j)
-                 xx.Print('x_'+str(i)+'_'+str(j)+'.'+smyid)
+        for i in range(cols):
+           for j in range(rows):
+              m = get_block(A, i, j)
+              if m is None: continue
+              m.Print('matrix_'+str(i)+'_'+str(j))
+        for i, bb  in enumerate(b):
+           for j in range(rows):
+              v = bb.GetBlock(j)
+              v.Print('rhs_'+str(i)+'_'+str(j)+suffix)
+        if x is not None:
+           for j in range(rows):
+              xx = x.GetBlock(j)
+              xx.Print('x_'+str(i)+'_'+str(j)+suffix)
+        
+    def call_mult(self, solver, bb, xx):
+        solver.Mult(bb, xx)
+        max_iter = solver.GetNumIterations();
+        tol = solver.GetFinalNorm()**2
+        
+        dprint1("convergence check (max_iter, tol) ", max_iter, " ", tol)
+        if self.gui.assert_no_convergence:
+            if not solver.GetConverged():
+               self.gui.set_solve_error((True, "No Convergence: " + self.gui.name()))
+     
+    def solve_parallel(self, A, b, x=None):
+        if self.gui.write_mat:                      
+            self. write_mat(A, b, x, "."+smyid)
+        M = self.make_preconditioner(A)
               
-
-        M = mfem.BlockDiagonalPreconditioner(offset)
-        
-        prcs = dict(self.gui.preconditioners)
-        name = self.Aname
-        assert not self.gui.parent.is_complex(), "can not solve complex"
-        if self.gui.parent.is_converted_from_complex():
-           name = sum([[n, n] for n in name], [])
-           
-        for k, n in enumerate(name):
-           prc = prcs[n][1]
-           if prc == "None": continue
-           name = "".join([tmp for tmp in prc if not tmp.isdigit()])
-           
-           A0 = get_block(A, k, k)
-           if A0 is None and not name.startswith('schur'): continue
-
-           if hasattr(mfem.HypreSmoother, prc):
-               invA0 = mfem.HypreSmoother(A0)
-               invA0.SetType(getattr(mfem.HypreSmoother, prc))
-           elif prc == 'ams':
-               depvar = self.engine.r_dep_vars[k]
-               dprint1("setting up AMS for ", depvar)
-               prec_fespace = self.engine.fespaces[depvar]
-               invA0 = mfem.HypreAMS(A0, prec_fespace)
-               invA0.SetSingularProblem()
-           elif name == 'MUMPS':
-               cls = SparseSmootherCls[name][0]
-               invA0 = cls(A0, gui=self.gui[prc], engine=self.engine)
-           elif name.startswith('schur'):
-               args = name.split("(")[-1].split(")")[0].split(",")
-               dprint1("setting up schur for ", args)
-               if len(args) > 1:
-                   assert False, "not yet supported"
-               for arg in args:
-                    r1 = self.engine.dep_var_offset(arg.strip())
-                    c1 = self.engine.r_dep_var_offset(arg.strip())                    
-                    B  = get_block(A, k, c1)
-                    Bt = get_block(A, r1, k).Transpose()
-                    Bt = Bt.Transpose()
-                    B0 = get_block(A, r1, c1)
-                    Md = mfem.HypreParVector(MPI.COMM_WORLD,
-                                             B0.GetGlobalNumRows(),
-                                             B0.GetColStarts())
-                    B0.GetDiag(Md)
-                    Bt.InvScaleRows(Md)
-                    S = mfem.ParMult(B, Bt)
-                    invA0 = mfem.HypreBoomerAMG(S)
-                    invA0.iterative_mode = False
-           else:
-               cls = SparseSmootherCls[name][0]
-               invA0 = cls(A0, gui=self.gui[prc])
-               
-           invA0.iterative_mode = False
-           M.SetDiagonalBlock(k, invA0)
-           
-        '''
-        We should support Shur complement type preconditioner
-        if offset.Size() > 2:
-            B =  get_block(A, 1, 0)
-            MinvBt = get_block(A, 0, 1)
-            #Md = mfem.HypreParVector(MPI.COMM_WORLD,
-            #                        A0.GetGlobalNumRows(),
-            #                        A0.GetRowStarts())
-            Md = mfem.Vector()
-            A0.GetDiag(Md)
-            MinvBt.InvScaleRows(Md)
-            S = mfem.ParMult(B, MinvBt)
-            invS = mfem.HypreBoomerAMG(S)
-            invS.iterative_mode = False
-            M.SetDiagonalBlock(1, invS)
-        '''
-        maxiter = int(self.maxiter)
-        atol = self.abstol
-        rtol = self.reltol
-        kdim = int(self.kdim)
-        printit = 1
-
+        solver = self.make_solver(A, M, use_mpi=True)
         sol = []
-
-        solver = mfem.GMRESSolver(MPI.COMM_WORLD)
-        solver.SetKDim(kdim)
-
-        
-        #solver = mfem.MINRESSolver(MPI.COMM_WORLD)
-        #solver.SetOperator(A)        
-
-        #solver = mfem.CGSolver(MPI.COMM_WORLD)
-        solver.SetOperator(A)        
-        solver.SetAbsTol(atol)
-        solver.SetRelTol(rtol)
-        solver.SetMaxIter(maxiter)
-        solver.SetPreconditioner(M)
-        solver.SetPrintLevel(1)
 
         # solve the problem and gather solution to head node...
         # may not be the best approach
-
+        
+        from petram.helper.mpi_recipes import gather_vector        
+        offset = A.RowOffsets()
         for bb in b:
            rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
            rowstarts = np.hstack((0, np.cumsum(rows)))
@@ -314,7 +324,8 @@ class GMRESSolver(LinearSolver):
               #   dprint1(x.GetBlock(j).Size())
               #   dprint1(x.GetBlock(j).GetDataArray())
               #assert False, "must implement this"
-           solver.Mult(bb, xx)
+           self.call_mult(solver, bb, xx)
+
            s = []
            for i in range(offset.Size()-1):
                v = xx.GetBlock(i).GetDataArray()
@@ -332,42 +343,38 @@ class GMRESSolver(LinearSolver):
             return None
         
     def solve_serial(self, A, b, x=None):
+        if self.gui.write_mat:                      
+            self. write_mat(A, b, x)
+        M = self.make_preconditioner(A)
 
-        def get_block(Op, i, j):
-            try:
-               return Op._linked_op[(i,j)]
-            except KeyError:
-               return None
-                      
-        offset = A.RowOffsets()
-        rows = A.NumRowBlocks()
-        cols = A.NumColBlocks()
-        if self.gui.write_mat:
-           for i in range(cols):
-              for j in range(rows):
-                 m = get_block(A, i, j)
-                 if m is None: continue
-                 m.Print('matrix_'+str(i)+'_'+str(j))
-           for i, bb  in enumerate(b):
-              for j in range(rows):
-                 v = bb.GetBlock(j)
-                 v.Print('rhs_'+str(i)+'_'+str(j))
+        solver = self.make_solver(A, M, use_mpi=False)
+        sol = []
+        
+        for bb in b:
+           if x is None:           
+              xx = mfem.Vector(bb.Size())
+              xx.Assign(0.0)
+           else:
+              xx = x
+              #for j in range(cols):
+              #   print x.GetBlock(j).Size()
+              #   print x.GetBlock(j).GetDataArray()                 
+              #assert False, "must implement this"
+           self.call_mult(solver, bb, xx)              
 
-        M = mfem.BlockDiagonalPreconditioner(offset)
+           sol.append(xx.GetDataArray().copy())
+        sol = np.transpose(np.vstack(sol))
+        return sol
+        
 
+        '''           
         prcs = dict(self.gui.preconditioners)
         name = self.Aname
         assert not self.gui.parent.is_complex(), "can not solve complex"
         if self.gui.parent.is_converted_from_complex():
            name = sum([[n, n] for n in name], [])
 
-           
-        '''   
-        this if block does a generalized version of this...
-        M1 = mfem.GSSmoother(get_block(A, 0, 0))
-        M1.iterative_mode = False
-        M.SetDiagonalBlock(0, M1)
-        '''
+
         for k, n in enumerate(name):
            
            prc = prcs[n][0]
@@ -378,11 +385,35 @@ class GMRESSolver(LinearSolver):
            arg = SparseSmootherCls[name][1]
            if name == 'MUMPS':
                invA0 = cls(A0, gui=self.gui[prc], engine=self.engine)
+
+           elif name.startswith('schur'):
+               args = name.split("(")[-1].split(")")[0].split(",")
+               dprint1("setting up schur for ", args)
+               if len(args) > 1:
+                   assert False, "not yet supported"
+               for arg in args:
+                    r1 = self.engine.dep_var_offset(arg.strip())
+                    c1 = self.engine.r_dep_var_offset(arg.strip())                    
+                    B  =  get_block(A, k, c1)
+                    Bt =  get_block(A, r1, k)
+                    B0 = get_block(A, r1, c1)
+                    Md = mfem.Vector(M0.Height())
+                    B0.GetDiag(Md)                    
+                    for i in range(Md.Size()):
+                        if Md[i] != 0.:
+                            Bt.ScaleRow(i, 1/Md[i])
+                        else:
+                            assert False, "diagnal element of matrix is zero"
+                    
+                    S = mfem.Mult(B, Bt)
+                    invA0 = mfem.DSmoother(S)
+                    invA0.iterative_mode = False
+               
            else:
                invA0 = cls(A0, arg)
            invA0.iterative_mode = False
            M.SetDiagonalBlock(k, invA0)
-
+        '''
         '''
         We should support Shur complement type preconditioner
         if offset.Size() > 2:
@@ -406,39 +437,6 @@ class GMRESSolver(LinearSolver):
         int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
           int &max_iter, int m, double &tol, double atol, int printit)
         '''
-        maxiter = int(self.maxiter)
-        atol = self.abstol
-        rtol = self.reltol
-        kdim = int(self.kdim)
-        printit = 1
-
-        sol = []
-
-        solver = mfem.GMRESSolver()
-        solver.SetKDim(kdim)
-        #solver = mfem.MINRESSolver()
-        solver.SetAbsTol(atol)
-        solver.SetRelTol(rtol)
-        solver.SetMaxIter(maxiter)
-
-        solver.SetOperator(A)
-        solver.SetPreconditioner(M)
-        solver.SetPrintLevel(1)
-
-        for bb in b:
-           if x is None:           
-              xx = mfem.Vector(bb.Size())
-              xx.Assign(0.0)
-           else:
-              xx = x
-              #for j in range(cols):
-              #   print x.GetBlock(j).Size()
-              #   print x.GetBlock(j).GetDataArray()                 
-              #assert False, "must implement this"
-           solver.Mult(bb, xx)
-           sol.append(xx.GetDataArray().copy())
-        sol = np.transpose(np.vstack(sol))
-        return sol
     
 
          

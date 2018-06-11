@@ -88,7 +88,7 @@ def generate_emesh(emeshes, info):
             alldom = set(base_mesh.extended_connectivity['surf2line'].keys())
             if alldom == info['sel']: return base_mesh
             if len(info['sel']) == 0: return base_mesh
-        dprint1("calling volume")            
+        dprint1("calling surface")            
         m = surface(base_mesh, list(info['sel']), filename = 'par_part.mesh')            
     elif info['dim'] == 1:
         if base_mesh.Dimension() == 1: 

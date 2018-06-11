@@ -92,9 +92,7 @@ class WidgetSmoother(wx.Panel):
         value = [('E1', ['GS', 'GS'],),
                  ('V1', ['GS', 'Jacobi'])]
 
-        print "Generating panel"
         self.SetValue(value)
-
 
     def set_column_title(self):
         index = self.pg.GetSelectedPage()
