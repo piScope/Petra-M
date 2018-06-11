@@ -1,6 +1,8 @@
 '''
+    Copyright (c) 2018, S. Shiraiwa  
+    All Rights reserved. See file COPYRIGHT for details.
 
-   Variables
+    Variables
 
   
     This modules interface string exression to MFEM
@@ -22,12 +24,21 @@
        to a Vriable object.
     
     from petram.helper.variables import variable
+
     @variable.float
     def test(x, y, z):
        return 1-0.1j
+
+    @variable.float(dependency = ("u",))
+    def test(x, y, z):
+       # u is FES variable solved in the previous space.
+       value = u()
+       return value
+
     @variable.complex
     def ctest(x, y, z):
        return 1-0.1j
+
     @variable.array(complex=True,shape=(2,))
     def atest(x, y, z):
        return np.array([1-0.1j,1-0.1j])
@@ -458,7 +469,7 @@ class DomainVariable(Variable):
         for domains in self.domains.keys():
             expr = self.domains[domains]
             gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
-            idx = expr.get_emesh_idx(self, idx=idx, g=gdomain)
+            idx = expr.get_emesh_idx(idx=idx, g=gdomain)
         return idx
     
     def nodal_values(self, iele = None, elattr = None, g = None,

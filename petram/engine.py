@@ -2114,26 +2114,13 @@ class SerialEngine(Engine):
     def collect_all_ess_tdof(self):
         self.gl_ess_tdofs = self.ess_tdofs
 
-    '''
-    def save_mesh(self):
-        mesh_names = []
-        for k, mesh in enumerate(self.emeshes):
-            if mesh is None: continue
-            name = 'solmesh_' + str(k)           
-            mesh.PrintToFile(name, 8)
-            mesh_names.append(name)
-        return mesh_names
-    '''
     def save_parmesh(self):
         # serial engine does not do anything
         return
      
     def solfile_suffix(self):
         return ""
-    ''' 
-    def extrafile_name(self):
-        return 'sol_extended.data'
-    '''
+
     def get_true_v_sizes(self, phys):
         fe_sizes = [self.fespaces[name].GetTrueVSize() for name in phys.dep_vars]
         dprint1('Number of finite element unknowns: '+  str(fe_sizes))
@@ -2168,9 +2155,7 @@ class SerialEngine(Engine):
         return m
 
     def a2Am(self, a):  # MixedBilinearSystem to matrix
-        print "in a2Am", a
         if not a._finalized:
-            print "calling Conforming Assemble"
             a.ConformingAssemble()
             a._finalized = True
         return a.SpMat()
@@ -2299,23 +2284,6 @@ class ParallelEngine(Engine):
                dprint1('Number of finite element unknowns: '+  str(fe_sizes))
         return fe_sizes
      
-
-    '''
-    def save_mesh(self):
-        from mpi4py import MPI                               
-        num_proc = MPI.COMM_WORLD.size
-        myid     = MPI.COMM_WORLD.rank
-        smyid = '{:0>6d}'.format(myid)
-
-        mesh_names = []
-        for k, mesh in enumerate(self.emeshes):
-            if mesh is None: continue
-            mesh_name  =  "solmesh_"+str(k)+"."+smyid
-            mesh.PrintToFile(mesh_name, 8)
-            mesh_names.append(mesh_name)
-        return mesh_names
-    '''
-     
     def save_parmesh(self):
         from mpi4py import MPI                               
         num_proc = MPI.COMM_WORLD.size
@@ -2335,15 +2303,7 @@ class ParallelEngine(Engine):
         myid     = MPI.COMM_WORLD.rank
         smyid = '{:0>6d}'.format(myid)
         return "."+smyid
-    ''' 
-    def extrafile_name(self):
-        from mpi4py import MPI                               
-        num_proc = MPI.COMM_WORLD.size
-        myid     = MPI.COMM_WORLD.rank
-        smyid = '{:0>6d}'.format(myid)
-       
-        return 'sol_extended.data.'+smyid
-    '''
+     
     def fill_block_matrix_fespace(self, blocks, mv,
                                         gl_ess_tdof, interp,
                                         offset, convert_real = False):
@@ -2468,18 +2428,6 @@ class ParallelEngine(Engine):
            m = m.dot(P2.conj().transpose())        
            P2.conj() # set P2 back...
         return m
-    '''
-    ''' 
-    def finalize_coo_matrix(self, M_block, is_complex, convert_real = False):     
-        if not convert_real:
-            if is_complex:
-                M = M_block.get_global_coo(dtype='complex')           
-            else:
-                M = M_block.get_global_coo(dtype='float')                          
-        else:
-            M = M_block.get_global_coo(dtype='complex')                      
-            M = scipy.sparse.bmat([[M.real, -M.imag], [-M.imag, -M.real]], format='coo')
-        return M
     '''
     def split_sol_array_fespace(self, sol, P):
         sol0 = sol[0, 0]

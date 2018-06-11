@@ -78,8 +78,9 @@ class MUMPS(LinearSolverModel):
         if assemble_real: return 'coo_real'
         return 'coo'
     
-    def allocate_solver(self, datatype='D'):
-        solver = MUMPSSolver(self)
+    def allocate_solver(self, datatype='D', engine=None):
+        # engine not used
+        solver = MUMPSSolver(self, engine)
         solver.AllocSolver(datatype)
         return solver
     
@@ -337,16 +338,17 @@ else:
    import mfem.ser as mfem
 
 class MUMPSPreconditioner(mfem.PyOperator):
-    def __init__(self, A0, gui=None):
+    def __init__(self, A0, gui=None, engine=None):
         mfem.PyOperator.__init__(self, A0.Height())
         self.gui = gui
+        self.engine = engine
         self.SetOperator(A0)
 
     def SetOperator(self, opr):
         if isinstance(opr, mfem.SparseMatrix):
             from mfem.common.sparse_utils import sparsemat_to_scipycsr
             coo_opr = sparsemat_to_scipycsr(opr, float).tocoo()
-            self.solver = MUMPSSolver(self.gui)
+            self.solver = MUMPSSolver(self.gui, self.engine)
             self.solver.AllocSolver("D")
             self.solver.SetOperator(coo_opr, False)
             self.row_part = [-1,-1]
@@ -359,7 +361,7 @@ class MUMPSPreconditioner(mfem.PyOperator):
             gcoo.data = lcoo.data
             gcoo.row = lcoo.row + opr.GetRowPartArray()[0]
             gcoo.col = lcoo.col
-            self.solver = MUMPSSolver(self.gui)
+            self.solver = MUMPSSolver(self.gui, self.engine)
             self.solver.AllocSolver("D")
             self.solver.SetOperator(gcoo, True)
             self.is_parallel=True            

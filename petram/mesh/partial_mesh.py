@@ -173,9 +173,10 @@ def _gather_shared_element(mesh, mode, shared_info, ielem, kelem, attrs,
                iii =  np.where(ielem == le)[0]
                if len(iii) != 0:
                    kelem[iii] = False
-                   me_list[mid].append(mf)
+                   me_list[mid].append(me)
                    mea_list[mid].extend(list(attrs[iii]))
                assert len(iii)<2, "same iface (pls report this error to developer) ???"
+
     for i in range(nprc):        
         mev = gather_vector(np.atleast_1d(me_list[i]).astype(int), root=i)
         mea = gather_vector(np.atleast_1d(mea_list[i]).astype(int), root=i)
@@ -282,6 +283,9 @@ def edge(mesh, in_attr, filename = '', precision=8):
 
     l2v = mesh.extended_connectivity['line2vert']
     in_eattr = np.unique(np.hstack([l2v[k] for k in in_attr]))
+    if isParMesh(mesh):
+        in_eattr = np.unique(allgather_vector(in_eattr))
+    
     eidx, eattrs, eivert, neverts, ebase = _collect_data(in_eattr, mesh,
                                                           mode[1])
         
@@ -447,14 +451,17 @@ def surface(mesh, in_attr, filename = '', precision=8):
     else:
         assert False, "unsupported mdoe"
 
+
     idx, attrs, ivert, nverts, base = _collect_data(in_attr, mesh, mode[0])
 
     s2l = mesh.extended_connectivity['surf2line']
     in_eattr = np.unique(np.hstack([s2l[k] for k in in_attr]))
+    if isParMesh(mesh):
+        in_eattr = np.unique(allgather_vector(in_eattr))
+
     eidx, eattrs, eivert, neverts, ebase = _collect_data(in_eattr, mesh,
                                                           mode[1])
-    #nicePrint("eidx", eidx, eattrs)
-    #nicePrint(len(np.hstack((eivert, ivert))))
+
     u, indices = np.unique(np.hstack((ivert, eivert)),
                            return_inverse = True)
     keelem = np.array([True]*len(eidx), dtype=bool)    
@@ -616,6 +623,9 @@ def volume(mesh, in_attr, filename = '', precision=8):
     
     v2s = mesh.extended_connectivity['vol2surf']
     in_battr = np.unique(np.hstack([v2s[k] for k in in_attr]))
+    if isParMesh(mesh):
+        in_battr = np.unique(allgather_vector(in_battr))
+    
     bidx, battrs, bivert, nbverts, bbase = _collect_data(in_battr, mesh, 'bdr')
     iface = np.array([mesh.GetBdrElementEdgeIndex(i) for i in bidx],
                      dtype=int)

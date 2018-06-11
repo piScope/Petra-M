@@ -528,17 +528,18 @@ def find_corner(mesh):
     
     line2edge = GlobalNamedList()
     line2edge.setlists(battrs, iedges)
-    
+
     if use_parallel:
         ld, md = mesh.shared_info                
         iedges = iedges+myoffset
 
     line2realedge = GlobalNamedList(line2edge)
-    if use_parallel:    
+    if use_parallel:
         for key2 in ld:
             if key2[0] == myid: continue
             iii = np.in1d(iedges, ld[key2][1], invert = True)
             iedges = iedges[iii]
+            battrs = battrs[iii]
 
     line2realedge.setlists(battrs, iedges)
     
