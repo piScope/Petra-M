@@ -99,20 +99,14 @@ class PreconditionerBlock(object):
         kwargs['prc'] = self.prc
         kwargs['blockname'] = self.blockname
         return self.func(*args, **kwargs)
-
-class PrcGenBase(object):
-    def __init__(self, func=None, opr=None, engine=None, gui=None):
-        self.func = func
-        self._params = (tuple(), dict())
-        if gui is not None: self.set_param(opr, engine, gui)
-        
+     
+class PrcCommon(object):
     def set_param(self, opr, engine, gui):
         self._opr = weakref.ref(opr)
         self.gui = gui
         self._engine  = weakref.ref(engine)
         
     def copy_param(self, g):
-        self.offset = g.offset
         self._opr = g._opr
         self.gui = g.gui
         self._engine  = g._engine
@@ -132,10 +126,30 @@ class PrcGenBase(object):
         return self.engine.r_dep_var_offset(name)
 
     def get_operator_block(self, r, c):
-        try:
-            return self.opr._linked_op[(r, c)]
-        except KeyError:
-            return None
+        # if linked_op exists (= op is set from python).
+        # try to get it
+        if hasattr(self.opr, "_linked_op"):
+            try:
+                return self.opr._linked_op[(r, c)]
+            except KeyError:
+                return None
+        else:
+            blk = self.opr.GetBlock(r, c)
+            if use_parallel:
+                return mfem.Opr2HypreParMat(blk)
+            else:
+                return mfem.Opr2SparseMat(blk)
+   
+class PrcGenBase(PrcCommon):
+    def __init__(self, func=None, opr=None, engine=None, gui=None):
+        self.func = func
+        self._params = (tuple(), dict())
+        self.setoperator_func = None        
+        if gui is not None: self.set_param(opr, engine, gui)
+        
+    def SetOperator(self, func):
+        self.setoperator_func = func
+         
          
 class DiagonalPrcGen(PrcGenBase):
     def __call__(self, *args, **kwargs):
@@ -152,7 +166,8 @@ class LowerTriangluarPrcGen(PrcGenBase):
         if self.func is not None:        
            self.func(LT, self, *args, **kwargs)
         return LT
-        
+     
+     
 class GenericPreconditionerGen(PrcGenBase):
     def __init__(self, func=None, opr=None, engine=None, gui=None):
         PrcGenBase.__init__(self, func=func, opr=opr, engine=engine, gui=gui)
@@ -162,9 +177,6 @@ class GenericPreconditionerGen(PrcGenBase):
     def Mult(self, func):
         self.mult_func = func
 
-    def SetOperator(self, func):
-        self.setoperator_func = func
-
     def __call__(self,  *args, **kwargs):
         assert self.mult_func is not None, "Mult is not defined"
         assert self.setoperator_func is not None, "SetOperator is not defined"        
@@ -172,14 +184,11 @@ class GenericPreconditionerGen(PrcGenBase):
         dargs, dkwargs = self._params
         assert len(dargs) == 0,  "Decorator allows only keyword argments"
 
-        offset = self.opr.RowOffsets()
-        prc = GenericPreconditioner(offset,
-                                      self.mult_func,
-                                      self.setoperator_func)
+        prc = GenericPreconditioner(self)
         
         for key in dkwargs:
            kwargs[key] = dkwargs[key]
-        self.func(prc, self, *args, **kwargs)
+        prc = self.func(prc,  *args, **kwargs)
         return prc
 
            
@@ -381,17 +390,28 @@ def gmres(atol=1e-24, rtol=1e-12, max_num_iter=5,
         gmres.SetPreconditioner(preconditioner)
     return gmres
 
-     
 
+# these are here to use them in script w/o disnginguishing
+# if mfem is mfem.par or mfem.ser
+BlockDiagonalPreconditioner = mfem.BlockDiagonalPreconditioner
+BlockLowerTriangularPreconditioner = mfem.BlockLowerTriangularPreconditioner
 
-class GenericPreconditioner(mfem.Solver):
-    def __init__(self, offset, MultFunc, SetOperatorFunc):
-        self.mult_func = MultFunc
-        self.setoprator_func = SetOperatorFunc
-     
+class GenericPreconditioner(mfem.Solver, PrcCommon):
+    def __init__(self, gen):
+        self.offset = gen.opr.RowOffsets()
+        self.mult_func = gen.mult_func
+        self.setoperator_func = gen.setoperator_func
+        super(GenericPreconditioner, self).__init__()
+        self.copy_param(gen)
+        
     def Mult(self, *args):
         return self.mult_func(self, *args)
      
-    def SetOperator(self, *args):
-        return self.setoperator_func(self, *args)
+    def SetOperator(self, opr):
+        opr = mfem.Opr2BlockOpr(opr)
+        self._opr = weakref.ref(opr)
+        self.offset = opr.RowOffsets()
+        return self.setoperator_func(self, opr)
+
+     
 

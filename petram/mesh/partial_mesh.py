@@ -166,6 +166,8 @@ def _gather_shared_element(mesh, mode, shared_info, ielem, kelem, attrs,
     #
     me_list = [[] for i in range(nprc)]
     mea_list = [[] for i in range(nprc)]
+    nicePrint("ielem", "kelem", ielem, kelem)
+    nicePrint("local", [np.in1d(ielem, ld[key][imode]) for key in ld])
     for key in ld.keys():
         mid, g_in_master = key
         if mid != myid:
@@ -173,9 +175,10 @@ def _gather_shared_element(mesh, mode, shared_info, ielem, kelem, attrs,
                iii =  np.where(ielem == le)[0]
                if len(iii) != 0:
                    kelem[iii] = False
-                   me_list[mid].append(mf)
+                   me_list[mid].append(me)
                    mea_list[mid].extend(list(attrs[iii]))
                assert len(iii)<2, "same iface (pls report this error to developer) ???"
+    nicePrint("me_list", me_list)           
     for i in range(nprc):        
         mev = gather_vector(np.atleast_1d(me_list[i]).astype(int), root=i)
         mea = gather_vector(np.atleast_1d(mea_list[i]).astype(int), root=i)
@@ -453,7 +456,7 @@ def surface(mesh, in_attr, filename = '', precision=8):
     in_eattr = np.unique(np.hstack([s2l[k] for k in in_attr]))
     eidx, eattrs, eivert, neverts, ebase = _collect_data(in_eattr, mesh,
                                                           mode[1])
-    #nicePrint("eidx", eidx, eattrs)
+    nicePrint("eidx", eidx, eattrs, len(eattrs))
     #nicePrint(len(np.hstack((eivert, ivert))))
     u, indices = np.unique(np.hstack((ivert, eivert)),
                            return_inverse = True)

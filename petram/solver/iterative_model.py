@@ -216,7 +216,6 @@ class IterativeSolver(LinearSolver):
             solver.SetKDim(kdim)
         if self.gui.solver_type == 'FGMRES':
             solver.SetKDim(kdim)
-            
 
         solver.SetPreconditioner(M)
         solver.SetOperator(A)
