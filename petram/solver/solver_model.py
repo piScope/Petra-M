@@ -181,7 +181,7 @@ class SolveStep(SolverBase):
 
              if self.solve_error[0]:
                  dprint1("SolveStep failed " + self.name() + ":"  + self.solve_error[1])
-                 assert False, "SolveStep Failed"
+                 break
         
 class Solver(SolverBase):
     def attribute_set(self, v):
