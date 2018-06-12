@@ -72,7 +72,7 @@ class Iterative(LinearSolverModel, NS_mixin):
         while not isinstance(p, SolveStep):
             p = p.parent
             if p is None:
-                assert False, "GMRES is not under SolveStep"
+                assert False, "Solver is not under SolveStep"
         num_matrix = p.get_num_matrix(self.get_phys())
         
         all_dep_vars = self.root()['Phys'].all_dependent_vars(num_matrix, self.get_phys())
@@ -228,7 +228,7 @@ class IterativeSolver(LinearSolver):
         
         return solver
 
-    def make_preconditioner(self, A):
+    def make_preconditioner(self, A, parallel=False):
         if self.gui.adv_mode:
             expr = self.gui.adv_prc
             gen = eval(expr, self.gui._global_ns)
@@ -241,21 +241,27 @@ class IterativeSolver(LinearSolver):
             if self.gui.parent.is_converted_from_complex():
                 name = sum([[n, n] for n in name], [])
 
-
             import petram.helper.preconditioners as prcs
 
             g = prcs.DiagonalPrcGen(opr=A, engine=self.engine, gui=self.gui)
             M = g()
 
             for k, n in enumerate(name):
-                prctxt = prcs_gui[n][1]
+                prctxt = prcs_gui[n][1] if parallel else prcs_gui[n][0]
                 if prctxt == "None": continue
                 if prctxt.find("(") == -1: prctxt=prctxt+"()"
                 prcargs = "(".join(prctxt.split("(")[-1:])
                 
-                name = prctxt.split("(")[0]
+                nn = prctxt.split("(")[0]
+                try:
+                    blkgen = getattr(prcs, nn)
+                except:
+                    if nn in self.gui._global_ns:
+                        blkgen = self.gui._global_ns[nn]
+                    else:
+                        raise
 
-                blkgen = getattr(prcs, name)
+               
                 blkgen.set_param(g, n)
                 blk = eval("blkgen("+prcargs)
 
@@ -301,7 +307,7 @@ class IterativeSolver(LinearSolver):
     def solve_parallel(self, A, b, x=None):
         if self.gui.write_mat:                      
             self. write_mat(A, b, x, "."+smyid)
-        M = self.make_preconditioner(A)
+        M = self.make_preconditioner(A, parallel=True)
               
         solver = self.make_solver(A, M, use_mpi=True)
         sol = []

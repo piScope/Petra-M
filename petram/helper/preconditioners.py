@@ -352,7 +352,7 @@ def schur(*names, **kwargs):
             invA0 = mfem.DSmoother(S)
         invA0.iterative_mode = False
         invA0.SetPrintLevel(print_level)
-
+    return invA0
 @prc.block
 def mumps(guiname, **kwargs):
     # mumps("mumps1")
@@ -364,11 +364,13 @@ def mumps(guiname, **kwargs):
     c0 = prc.get_col_by_name(blockname)
     A0 = prc.get_operator_block(r0, c0)
 
-    invA0 = cls(A0, gui=prc.gui[guiprcname], engine=prc.engine)
+    invA0 =  MUMPSPreconditioner(A0, gui=prc.gui[guiname],
+                                 engine=prc.engine)
+    return invA0
     
 @prc.block
 def gmres(atol=1e-24, rtol=1e-12, max_num_iter=5,
-          kdim=50, print_level=0, preconditioner=None, **kwargs):
+          kdim=50, print_level=-1, preconditioner=None, **kwargs):
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
 
@@ -383,11 +385,16 @@ def gmres(atol=1e-24, rtol=1e-12, max_num_iter=5,
     gmres.SetKDim(kdim)
     gmres.SetPrintLevel(print_level)    
     gmres.SetKDim(kdim)
+    r0 = prc.get_row_by_name(blockname)
+    c0 = prc.get_col_by_name(blockname)
+    
     A0 = prc.get_operator_block(r0, c0)    
 
     gmres.SetOperator(A0)
     if preconditioner is not None:
         gmres.SetPreconditioner(preconditioner)
+        # keep this object from being freed...
+        gmres._prc = preconditioner
     return gmres
 
 

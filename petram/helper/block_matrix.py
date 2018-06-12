@@ -926,7 +926,6 @@ class BlockMatrix(object):
                                   gcsr[0] = ToHypreParCSR(csr, col_starts =cp)
                             if gcsr[1] is not None:
                                   csr = ToScipyCoo(gcsr[1]).tocsr()
-                                  print('csr shape', csr.shape)
                                   gcsr[1] = ToHypreParCSR(csr, col_starts =cp)
                                   gcsrm   = ToHypreParCSR(-csr, col_starts =cp)
                             dprint2(i, j, s, rp, cp)
