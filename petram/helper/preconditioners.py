@@ -139,7 +139,12 @@ class PrcCommon(object):
                 return mfem.Opr2HypreParMat(blk)
             else:
                 return mfem.Opr2SparseMat(blk)
-   
+
+    def get_diagoperator_by_name(self, name):
+        r = self.get_row_by_name(name)
+        c = self.get_row_by_name(name)
+        return self.get_operator_block(r, c)
+             
 class PrcGenBase(PrcCommon):
     def __init__(self, func=None, opr=None, engine=None, gui=None):
         self.func = func
