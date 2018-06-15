@@ -721,7 +721,7 @@ class PhysModule(Phys):
     def get_panel2_value(self):
         choice = ["Point", "Edge", "Surface", "Volume",]
         if self.dim_fixed:
-            return self.sel_index_txt
+            return (self.sel_index_txt, )
         else:
             return choice[self.dim], self.sel_index_txt
      

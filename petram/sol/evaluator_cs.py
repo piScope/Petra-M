@@ -199,7 +199,7 @@ class EvaluatorClient(Evaluator):
             return self.__call_server0(name, *params, **kparams)
         except IOError:
             self.failed = True
-            return False
+            raise
         except:
             raise
 
