@@ -175,7 +175,8 @@ class NCFaceEvaluator(EvaluatorAgent):
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
         if len(emesh_idx) < 1:
-            assert False, "expression is not defined on any mesh"
+            emesh_idx = [0] # use default mesh in this case. (for non mesh dependent expression)
+        #    assert False, "expression is not defined on any mesh"
 
         if (refine != self.refine or self.emesh_idx != emesh_idx[0]):
              self.refine = refine
