@@ -1104,7 +1104,14 @@ class DlgPlotSol(DialogWithWindowList):
                assert False, "edge plot is not supported for 1D"
         else:
            battrs = ['all']
- 
+
+        if key in self.evaluators:
+            try:
+                self.evaluators[key].validate_evaluator('EdgeNodal', battrs, solfiles)
+            except IOError:
+                dprint1("IOError detected setting failed=True")
+                self.evaluators[key].failed = True
+           
         from petram.sol.evaluators import build_evaluator
         if (not 'Edge' in self.evaluators or
             self.evaluators['Edge'].failed):
@@ -1178,7 +1185,14 @@ class DlgPlotSol(DialogWithWindowList):
             kkwargs = {}
         else:
             key, name = 'NCFace', 'NCFace'
-        
+            
+        if key in self.evaluators:
+            try:
+                self.evaluators[key].validate_evaluator(name, battrs, solfiles)
+            except IOError:
+                dprint1("IOError detected setting failed=True")
+                self.evaluators[key].failed = True
+                
         if (not key in self.evaluators or
             self.evaluators[key].failed):
             self.evaluators[key] =  build_evaluator(battrs,
@@ -1186,9 +1200,8 @@ class DlgPlotSol(DialogWithWindowList):
                                                     solfiles,
                                                     name = name,
                                                     config = self.config)
-            
         self.evaluators[key].validate_evaluator(name, battrs, solfiles)
-
+        
         try:
             self.evaluators[key].set_phys_path(phys_path)
             return self.evaluators[key].eval(expr, do_merge1, do_merge2,
@@ -1227,6 +1240,13 @@ class DlgPlotSol(DialogWithWindowList):
         else:
            attrs = mesh.extended_connectivity['vol2surf'].keys()            
            #attrs = [x+1 for x in range(mesh.attributes.Size())]
+           
+        if key in self.evaluators:
+            try:
+                self.evaluators[key].validate_evaluator('Slice', attrs, solfiles, plane=plane)
+            except IOError:
+                dprint1("IOError detected setting failed=True")
+                self.evaluators[key].failed = True
            
         from petram.sol.evaluators import build_evaluator
         if (not 'Slice' in self.evaluators or
