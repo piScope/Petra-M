@@ -161,6 +161,15 @@ def use_profiler(method):
             ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
             ps.print_stats()
             print s.getvalue()
+            
+            from petram.mfem_config import use_parallel
+            if use_parallel:
+                from mpi4py import MPI
+                myid     = MPI.COMM_WORLD.rank
+                smyid = '.''{:0>6d}'.format(myid)
+            else:
+                smyid = ''
+            ps.dump_stats("cProfile_"+self.name()+".out"+smyid)
     return method2
 
     
