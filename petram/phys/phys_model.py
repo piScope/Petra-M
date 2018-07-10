@@ -2,6 +2,7 @@ import numpy as np
 from os.path import dirname, basename, isfile, join
 import warnings
 import glob
+import types
 import parser
 import numbers
 
@@ -24,6 +25,24 @@ class PhysConstant(mfem.ConstantCoefficient):
     def __init__(self, value):
         self.value = value
         mfem.ConstantCoefficient.__init__(self, value)
+        
+    def __repr__(self):
+        return self.__class__.__name__+"("+str(self.value)+")"
+     
+class PhysVectorConstant(mfem.VectorConstantCoefficient):
+    def __init__(self, value):
+        self.value = mfem.Vector(value)
+        mfem.VectorConstantCoefficient.__init__(self, self.value)
+        
+    def __repr__(self):
+        return self.__class__.__name__+"("+str(self.value)+")"
+     
+class PhysMatrixConstant(mfem.MatrixConstantCoefficient):
+    def __init__(self, value):
+        v = mfem.Vector(value.flatten())
+	m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])       
+        self.value = (v,m)
+        mfem.MatrixConstantCoefficient.__init__(self, m)
         
     def __repr__(self):
         return self.__class__.__name__+"("+str(self.value)+")"
@@ -102,15 +121,18 @@ class Coefficient_Evaluator(object):
         # 'x, y, z' -> 'x', 'y', 'z'
         self.ind_vars = [x.strip() for x in ind_vars.split(',')]
         self.exprs = exprs
-        
+        self.flags = [isinstance(co, types.CodeType) for co in self.co]
+
     def EvalValue(self, x):
         for k, name in enumerate(self.ind_vars):
            self.l[name] = x[k]
         for n, v in self.variables:           
            self.l[n] = v()
 
-        val = [eval_code(co, self.g, self.l) for co in self.co]
-        return np.array(val, copy=False).flatten()
+        val = [eval_code(co, self.g, self.l, flag=flag)
+               for co, flag in zip(self.co, self.flags)]
+        return np.array(val, copy=False).flatten()ravel()
+        #return np.array(val, copy=False).ravel()  ## this may be okay
 
 class PhysCoefficient(mfem.PyCoefficient, Coefficient_Evaluator):
     def __init__(self, exprs, ind_vars, l, g, real=True, isArray = False):
@@ -177,7 +199,7 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
 
         s = val.size
         if s == 1:
-            return np.zeros((self.sdim, self.sdim)) + val[0]
+            return np.eye(self.sdim) * val[0]
         else:
             dim = int(np.sqrt(s))
             return val.reshape(dim, dim)
