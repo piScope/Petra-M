@@ -22,20 +22,22 @@
 '''
 import numpy as np
 
-try:
-    from mpi4py import MPI
-    myid = MPI.COMM_WORLD.rank
-    #nprc = MPI.COMM_WORLD.size
-    # this is because even if nprc > 1, we may want this behave as if nprc = 1
-    comm  = MPI.COMM_WORLD
-        
-    from mfem.common.mpi_debug import nicePrint, niceCall        
-    from petram.helper.mpi_recipes import allgather, allgather_vector, gather_vector
-    hasMPI = True
-    
-except ImportError:
+from petram.mfem_config import use_parallel
+if use_parallel:
+    try:
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
+        #nprc = MPI.COMM_WORLD.size
+        #this is because even if nprc > 1, we may want this behave as if nprc = 1
+        comm  = MPI.COMM_WORLD
+        from mfem.common.mpi_debug import nicePrint, niceCall        
+        from petram.helper.mpi_recipes import allgather, allgather_vector, gather_vector
+        hasMPI = True
+    except ImportError:
+        hasMPI = False
+else:
     hasMPI = False
-
+    
 class GlobalNamedList(dict):
     def __init__(self, *args, **kwargs):
         self.dtype = kwargs.pop('dtype', int)
