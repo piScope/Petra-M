@@ -8,14 +8,6 @@ dprint1, dprint2, dprint3 = debug.init_dprints('MUMPSModel')
 
 from petram.helper.matrix_file import write_matrix, write_vector, write_coo_matrix
 
-try:
-    from mpi4py import MPI
-    from petram.helper.mpi_recipes import gather_vector           
-except:
-    from petram.helper.dummy_mpi import MPI
-myid     = MPI.COMM_WORLD.rank
-nproc    = MPI.COMM_WORLD.size
-
 class MUMPS(LinearSolverModel):
     has_2nd_panel = False
     accept_complex = True
@@ -122,6 +114,13 @@ class MUMPS(LinearSolverModel):
             
 
     def real_to_complex(self, solall, M=None):
+        try:
+            from mpi4py import MPI
+        except:
+            from petram.helper.dummy_mpi import MPI
+        myid     = MPI.COMM_WORLD.rank
+        nproc    = MPI.COMM_WORLD.size
+        
         if myid == 0:        
            s = solall.shape[0]
            solall = solall[:s/2,:] + 1j*solall[s/2:,:]
@@ -206,6 +205,13 @@ class MUMPSSolver(LinearSolver):
             s.set_icntl(4,  6)
         
     def SetOperator(self, A, dist, name=None):
+        try:
+            from mpi4py import MPI
+        except:
+            from petram.helper.dummy_mpi import MPI
+        myid     = MPI.COMM_WORLD.rank
+        nproc    = MPI.COMM_WORLD.size
+        
         from petram.ext.mumps.mumps_solve import i_array, JOB_1_2_3
         gui = self.gui
         s = self.s
@@ -299,6 +305,13 @@ class MUMPSSolver(LinearSolver):
     
 
     def Mult(self, b, x=None, case_base=0):
+        try:
+            from mpi4py import MPI
+        except:
+            from petram.helper.dummy_mpi import MPI
+        myid     = MPI.COMM_WORLD.rank
+        nproc    = MPI.COMM_WORLD.size
+        
         #self.SetOperator(A, b, True, engine)
         gui = self.gui
         s = self.s
@@ -372,6 +385,13 @@ class MUMPSPreconditioner(mfem.PyOperator):
         # redistribute y
         # we keep RowPart array from opr since here y is
         # vector not ParVector even in the parallel env.
+        try:
+            from mpi4py import MPI
+        except:
+            from petram.helper.dummy_mpi import MPI
+        myid     = MPI.COMM_WORLD.rank
+        nproc    = MPI.COMM_WORLD.size
+        
         if self.row_part[0] == -1:
             xx = np.atleast_2d(x.GetDataArray()).transpose()
         else:
