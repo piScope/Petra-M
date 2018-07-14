@@ -1105,7 +1105,7 @@ class DlgPlotSol(DialogWithWindowList):
         else:
            battrs = ['all']
 
-        if key in self.evaluators:
+        if 'Edge' in self.evaluators:
             try:
                 self.evaluators[key].validate_evaluator('EdgeNodal', battrs, solfiles)
             except IOError:
@@ -1241,7 +1241,7 @@ class DlgPlotSol(DialogWithWindowList):
            attrs = mesh.extended_connectivity['vol2surf'].keys()            
            #attrs = [x+1 for x in range(mesh.attributes.Size())]
            
-        if key in self.evaluators:
+        if 'Slice' in self.evaluators:
             try:
                 self.evaluators[key].validate_evaluator('Slice', attrs, solfiles, plane=plane)
             except IOError:
