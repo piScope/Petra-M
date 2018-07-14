@@ -1107,10 +1107,10 @@ class DlgPlotSol(DialogWithWindowList):
 
         if 'Edge' in self.evaluators:
             try:
-                self.evaluators[key].validate_evaluator('EdgeNodal', battrs, solfiles)
+                self.evaluators['Edge'].validate_evaluator('EdgeNodal', battrs, solfiles)
             except IOError:
                 dprint1("IOError detected setting failed=True")
-                self.evaluators[key].failed = True
+                self.evaluators['Edge'].failed = True
            
         from petram.sol.evaluators import build_evaluator
         if (not 'Edge' in self.evaluators or
@@ -1243,10 +1243,10 @@ class DlgPlotSol(DialogWithWindowList):
            
         if 'Slice' in self.evaluators:
             try:
-                self.evaluators[key].validate_evaluator('Slice', attrs, solfiles, plane=plane)
+                self.evaluators['Slice'].validate_evaluator('Slice', attrs, solfiles, plane=plane)
             except IOError:
                 dprint1("IOError detected setting failed=True")
-                self.evaluators[key].failed = True
+                self.evaluators['Slice'].failed = True
            
         from petram.sol.evaluators import build_evaluator
         if (not 'Slice' in self.evaluators or
