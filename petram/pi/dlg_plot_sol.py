@@ -14,6 +14,8 @@ from ifigure.utils.edit_list import EDITLIST_CHANGING
 from ifigure.utils.edit_list import EDITLIST_SETFOCUS
 from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList
 
+import petram.debug as debug
+dprint1, dprint2, dprint3 = debug.init_dprints('Dlg_plot_sol')
 
 def setup_figure(fig, fig2):
     fig.nsec(1)
