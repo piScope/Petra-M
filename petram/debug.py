@@ -170,6 +170,7 @@ def use_profiler(method):
             else:
                 smyid = ''
             ps.dump_stats("cProfile_"+self.name()+".out"+smyid)
+        return val
     return method2
 
     

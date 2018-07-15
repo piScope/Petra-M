@@ -79,7 +79,7 @@ class Coefficient_Evaluator(object):
               if variable is used it is become string element '['=variable', 1, 2, 3, 4]'
               if =Varialbe in matrix form, it is passed as [['Variable']]
         '''
-        #print("exprs", exprs, type(exprs))
+        dprint1("exprs", exprs, type(exprs))
         flag, exprs = try_eval(exprs, l, g)
         #print("after try_eval", flag, exprs)
         if not flag:
@@ -95,7 +95,7 @@ class Coefficient_Evaluator(object):
                pass
         if isinstance(exprs, list) and isinstance(exprs[0], list):
             exprs = exprs[0]
-        #print("final exprs", exprs)
+        dprint1("final exprs", exprs)
         self.l = {}
         self.g = g
         for key in l.keys():

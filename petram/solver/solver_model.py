@@ -174,8 +174,7 @@ class SolveStep(SolverBase):
         
         is_first = True
         for solver in solvers:
-             solver.run(engine, is_first=is_first)        
-             is_first = False
+             is_first = solver.run(engine, is_first=is_first)
              engine.add_FESvariable_to_NS(self.get_phys()) 
              engine.store_x()
 

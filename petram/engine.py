@@ -701,8 +701,8 @@ class Engine(object):
         is_complex = phys.is_complex()
         
         for kfes, name in enumerate(phys.dep_vars):
-            rifes = self.rifes(name)
-            rfg = self.r_x[rifes]
+            r_ifes = self.r_ifes(name)
+            rfg = self.r_x[r_ifes]
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = True, kfes = kfes)
@@ -710,7 +710,7 @@ class Engine(object):
                 rfg.ProjectCoefficient(c)                
                 #rgf += tmp
             if not is_complex: continue
-            ifg = self.i_x[rifes]            
+            ifg = self.i_x[r_ifes]            
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = False, kfes = kfes)
@@ -752,6 +752,8 @@ class Engine(object):
         dprint1("apply_init_from_file", phys, init_path)
         emesh_idx = phys.emesh_idx
         names = phys.dep_vars
+        suffix=self.solfile_suffix()
+
         for kfes, name in enumerate(phys.dep_vars):
             r_ifes = self.r_ifes(name)
             rgf = self.r_x[r_ifes]
