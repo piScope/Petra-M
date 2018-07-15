@@ -759,8 +759,11 @@ class Engine(object):
                 igf = self.i_x[r_ifes]
             else:
                 igf = None
-            fr, fi, meshname = self.solfile_name(names[kfes],
-                                                         emesh_idx)
+            fr, fi = self.solfile_name(names[kfes], emesh_idx)
+            meshname = 'solmesh_' + str(emesh_idx) + suffix
+            fr = fr + suffix
+            fi = fi + suffix
+        
             path = os.path.expanduser(init_path)
             if path == '': path = os.getcwd()
             fr = os.path.join(path, fr)
@@ -770,11 +773,11 @@ class Engine(object):
             rgf.Assign(0.0)
             if igf is not None: igf.Assign(0.0)
             if not os.path.exists(meshname):
-               assert False, "Meshfile for sol does not exist."
+               assert False, "Meshfile for sol does not exist:"+meshname
             if not os.path.exists(fr):
-               assert False, "Solution (real) does not exist."
-            if igf is not None and not os.path.exists(fi):
-               assert False, "Solution (imag) does not exist."
+               assert False, "Solution (real) does not exist:"+fr
+            if igf is not None and not os.path.exists(fi): 
+               assert False, "Solution (imag) does not exist:"+fi
 
             m = mfem.Mesh(str(meshname), 1, 1)
             m.ReorientTetMesh()            

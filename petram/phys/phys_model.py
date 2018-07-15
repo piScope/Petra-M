@@ -429,6 +429,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         return self._mat_weight
      
     def check_jmatrix(self, jmatrix):
+        if not hasattr(self, "_mat_weight"):
+            # _mat_weight is "usually" set by solver before
+            # if it is not set, we are not solving this physics
+            return False
+
         return self._mat_weight[jmatrix] != 0
 
     def get_mixedbf_loc(self):

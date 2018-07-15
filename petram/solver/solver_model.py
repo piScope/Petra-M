@@ -121,7 +121,7 @@ class SolveStep(SolverBase):
         
         engine.set_formblocks(phys_target, phys_range, num_matrix)
         
-        for p in phys_target:
+        for p in phys_range:
             engine.run_mesh_extension(p)
             
         engine.run_alloc_sol(phys_range)
