@@ -794,7 +794,7 @@ class Engine(object):
                igf += soli
                
         self.sol_extra = self.load_extra_to_file(init_path)
-        print self.sol_extra
+        #print self.sol_extra
     #
     #  Step 2  fill matrix/rhs elements
     #
@@ -1292,10 +1292,11 @@ class Engine(object):
         for name in self.gl_ess_tdofs:
             if not name in self._dep_vars: continue
             
-            idx = self.dep_var_offset(name)                          
+            idx = self.dep_var_offset(name)      
+            ridx = self.r_dep_var_offset(name)      
             gl_ess_tdof = self.gl_ess_tdofs[name]
             ess_tdof = self.ess_tdofs[name]
-            RHS[idx].copy_element(gl_ess_tdof, X[idx])
+            RHS[idx].copy_element(gl_ess_tdof, X[ridx])
             
         return RHS
               

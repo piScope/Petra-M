@@ -224,9 +224,6 @@ class StandardSolver(SolverInstance):
         A, X, RHS, Ae, B, M, depvars = self.blocks
         mask = self.blk_mask
 
-        from mfem.common.mpi_debug import nicePrint 
-        nicePrint(depvars, mask)
-
         depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
 
         if update_operator:
