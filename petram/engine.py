@@ -1262,7 +1262,7 @@ class Engine(object):
               A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof, inplace=inplace)
                   
            for j in range(nblock1):            
-              if j == idx2: continue
+              if j == idx1: continue
               if A[j, idx2] is None: continue
               SM = A.get_squaremat_from_right(j, idx2)
               SM.setDiag(gl_ess_tdof)

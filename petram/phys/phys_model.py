@@ -19,7 +19,7 @@ else:
    import mfem.ser as mfem
 
 from petram.helper.variables import Variable, eval_code 
- 
+
 # not that PyCoefficient return only real number array
 class PhysConstant(mfem.ConstantCoefficient):
     def __init__(self, value):
@@ -166,15 +166,29 @@ class VectorPhysCoefficient(mfem.VectorPyCoefficient, Coefficient_Evaluator):
     def __init__(self, sdim, exprs, ind_vars, l, g, real=True):
         Coefficient_Evaluator.__init__(self, exprs,  ind_vars, l, g, real=real)
         mfem.VectorPyCoefficient.__init__(self, sdim)
-        
+        self.sdim = sdim
+
     def __repr__(self):
         return self.__class__.__name__+"(VectorPhysCoefficeint)"
         
     def Eval(self, V, T, ip):
-        for n, v in self.variables:
-           v.set_point(T, ip, self.g, self.l)                      
-        return super(VectorPhysCoefficient, self).Eval(V, T, ip)
-       
+        # if V is Matrix, we need to make our own loop to
+        # properly set spacial points in variables.
+        if isinstance(ip, mfem.IntegrationPoint):
+            for n, v in self.variables:
+                v.set_point(T, ip, self.g, self.l)    
+            return super(VectorPhysCoefficient, self).Eval(V, T, ip)
+        elif isinstance(ip, mfem.IntegrationRule):       
+            M = V; ir=ip
+            Mi = mfem.Vector()
+            M.SetSize(self.sdim, ir.GetNPoints())
+            for k in range(ir.GetNPoints()):
+                M.GetColumnReference(k, Mi);
+                ip = ir.IntPoint(k)
+                for n, v in self.variables:
+                   v.set_point(T, ip, self.g, self.l)    
+                super(VectorPhysCoefficient, self).Eval(Mi, T, ip)
+
     def EvalValue(self, x):
         return Coefficient_Evaluator.EvalValue(self, x)
      
@@ -294,11 +308,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         for k in idx: arr[k-1] = 1
         return intArray(arr)
 
-    def restrict_coeff(self, coeff, engine, vec = False, matrix = False, idx=None):
+    def restrict_coeff(self, coeff, engine, vec = False, matrix = False, 
+                       idx=None):
         if len(self._sel_index) == 1 and self._sel_index[0] == -1:
            return coeff
         arr = self.get_restriction_array(engine, idx)
-#        arr.Print()
         ret = []; flag = False
         
         if not isinstance(coeff, tuple):
@@ -607,7 +621,6 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if vt is None: vt = self.vt
         #if vt[name].ndim == 0:
         if not isinstance(coeff, tuple): coeff = (coeff, )
-        
         if isinstance(coeff[0], mfem.Coefficient):
             coeff = self.restrict_coeff(coeff, engine, idx=idx)
         elif isinstance(coeff[0], mfem.VectorCoefficient):          
@@ -616,7 +629,6 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)
         else:
             assert  False, "Unknown coefficient type: " + str(type(coeff))
-
         itg = integrator(*coeff)
         itg._linked_coeff = coeff #make sure that coeff is not GCed.
         
