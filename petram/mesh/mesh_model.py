@@ -23,6 +23,7 @@ import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('MeshModel')
 
 class Mesh(Model, NS_mixin):
+    isMeshGenerator = False
     isRefinement = False      
     def __init__(self, *args, **kwargs):
         super(Mesh, self).__init__(*args, **kwargs)
@@ -70,6 +71,7 @@ MFEMMesh = MeshGroup
 
    
 class MeshFile(Mesh):
+    isMeshGenerator = True   
     isRefinement = False   
     has_2nd_panel = False        
     def __init__(self, parent = None, **kwargs):
@@ -168,7 +170,8 @@ class MeshFile(Mesh):
         except:
            return None
         
-class Mesh1D(MeshFile):
+class Mesh1D(Mesh):
+    isMeshGenerator = True      
     isRefinement = False   
     has_2nd_panel = False        
 

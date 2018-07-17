@@ -1795,7 +1795,7 @@ class Engine(object):
                 for k in child.keys():
                     o = child[k]
                     if not o.enabled: continue
-                    if isinstance(o, MeshFile):
+                    if o.isMeshGenerator:
                         self.meshes[idx] = o.run()
                         target = self.meshes[idx]
                     else:
@@ -2227,7 +2227,7 @@ class ParallelEngine(Engine):
                 for k in child.keys():
                     o = child[k]
                     if not o.enabled: continue
-                    if isinstance(o, MeshFile):
+                    if o.isMeshGenerator:                    
                         smesh = o.run()
                         self.max_bdrattr = np.max([self.max_bdrattr,
                                                    max(smesh.GetBdrAttributeArray())])
