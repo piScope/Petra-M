@@ -147,7 +147,7 @@ class MeshFile(Mesh):
                 print(os.path.dirname(os.getcwd()))
                 path1 = os.path.join(os.path.dirname(os.getcwd()), path)
                 dprint2("trying :", path1)
-                if not os.path.exists(path1):
+                if not os.path.exists(path1) and hasattr(__main__, '__file__'):
                     from __main__ import __file__ as mainfile        
                     path1 = os.path.join(os.path.dirname(os.path.realpath(mainfile)), path)   
                     dprint2("trying :", path1)
