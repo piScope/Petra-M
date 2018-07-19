@@ -140,12 +140,21 @@ class MeshFile(Mesh):
             path = path.replace('{model}', self.root().model_path)
 
         if not os.path.isabs(path):
+            dprint2("meshfile relative path mode")
             path1 = os.path.join(os.getcwd(), path)
+            dprint2("trying :", path1)
             if not os.path.exists(path1):
                 print(os.path.dirname(os.getcwd()))
-                path = os.path.join(os.path.dirname(os.getcwd()), path)
-            else:
+                path1 = os.path.join(os.path.dirname(os.getcwd()), path)
+                dprint2("trying :", path1)
+                if not os.path.exists(path1) and hasattr(__main__, '__file__'):
+                    from __main__ import __file__ as mainfile        
+                    path1 = os.path.join(os.path.dirname(os.path.realpath(mainfile)), path)   
+                    dprint2("trying :", path1)
+            if os.path.exists(path1):
                 path = path1
+            else:
+                assert False, "can not find mesh file from relative path: "+path
         return path
 
     def run(self, mesh = None):
