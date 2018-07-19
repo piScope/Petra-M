@@ -13,11 +13,12 @@ import wx
   generate(path_src, path_dst, 'em3d_TEwg.pfz')
 '''
 
-def generate(path_src, path_dst, f):
+def generate(path_src, path_dst, f, create_new = True):
     path_src = abspath(expanduser(path_src))
     path_dst = abspath(expanduser(path_dst))
     
     app = wx.GetApp().TopWindow
+    if create_new: app.onNew(e=None, use_dialog=False)
     app.onOpen(path=os.path.join(path_src, f))
     proj = app.proj
     model = proj.setting.parameters.eval("PetraM")
@@ -48,9 +49,9 @@ def generate_all(path_src, path_dst):
     '''
     path_src = abspath(expanduser(path_src))    
     files = os.listdir(path_src)
- 
+    create_new = True
     for f in files:
         if not f.endswith('.pfz'): continue
         print("working on ", f)
-        generate(path_src, path_dst, f)
-
+        generate(path_src, path_dst, f, create_new=create_new)
+        create_new = False

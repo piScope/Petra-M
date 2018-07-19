@@ -122,12 +122,14 @@ class Coefficient_Evaluator(object):
         self.ind_vars = [x.strip() for x in ind_vars.split(',')]
         self.exprs = exprs
         self.flags = [isinstance(co, types.CodeType) for co in self.co]
+        self.variables_dd = dict(self.variables)
 
     def EvalValue(self, x):
         for k, name in enumerate(self.ind_vars):
            self.l[name] = x[k]
-        for n, v in self.variables:           
-           self.l[n] = v()
+        for n, v in self.variables:
+           kwargs = {nn: self.variables_dd[nn]() for nn in v.dependency}
+           self.l[n] = v(**kwargs)
 
         val = [eval_code(co, self.g, self.l, flag=flag)
                for co, flag in zip(self.co, self.flags)]
