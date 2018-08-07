@@ -94,7 +94,7 @@ class StdSolver(Solver):
     
     @debug.use_profiler
     def run(self, engine, is_first = True):
-        dprint1("Entering run", self.fullpath())
+        dprint1("Entering run", is_first, self.fullpath())
         if self.clear_wdir:
             engine.remove_solfiles()
 
@@ -117,7 +117,9 @@ class StdSolver(Solver):
             engine.sol = engine.assembled_blocks[1][0]
             instance.sol = engine.sol
         else:
-            if is_first: instance.assemble()            
+            if is_first: 
+                instance.assemble()            
+                is_first=False
             instance.solve()            
 #            instance.save_solution()
 #        else:
@@ -127,6 +129,8 @@ class StdSolver(Solver):
                                save_parmesh=self.save_parmesh)
         engine.sol = instance.sol        
         print(debug.format_memory_usage())
+        return is_first
+
 
 from petram.solver.solver_model import SolverInstance
 
@@ -219,6 +223,7 @@ class StandardSolver(SolverInstance):
             
         A, X, RHS, Ae, B, M, depvars = self.blocks
         mask = self.blk_mask
+
         depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
 
         if update_operator:

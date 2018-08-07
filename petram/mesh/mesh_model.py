@@ -23,6 +23,7 @@ import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('MeshModel')
 
 class Mesh(Model, NS_mixin):
+    isMeshGenerator = False
     isRefinement = False      
     def __init__(self, *args, **kwargs):
         super(Mesh, self).__init__(*args, **kwargs)
@@ -49,7 +50,7 @@ class MeshGroup(Model):
     has_2nd_panel = False
     isMeshGroup = True    
     def get_possible_child(self):
-        return [MeshFile, Mesh1D, UniformRefinement]
+        return [MeshFile, Mesh1D, UniformRefinement, DomainRefinement]
      
     def onItemSelChanged(self, evt):
         '''
@@ -70,6 +71,7 @@ MFEMMesh = MeshGroup
 
    
 class MeshFile(Mesh):
+    isMeshGenerator = True   
     isRefinement = False   
     has_2nd_panel = False        
     def __init__(self, parent = None, **kwargs):
@@ -138,12 +140,21 @@ class MeshFile(Mesh):
             path = path.replace('{model}', self.root().model_path)
 
         if not os.path.isabs(path):
+            dprint2("meshfile relative path mode")
             path1 = os.path.join(os.getcwd(), path)
+            dprint2("trying :", path1)
             if not os.path.exists(path1):
                 print(os.path.dirname(os.getcwd()))
-                path = os.path.join(os.path.dirname(os.getcwd()), path)
-            else:
+                path1 = os.path.join(os.path.dirname(os.getcwd()), path)
+                dprint2("trying :", path1)
+                if not os.path.exists(path1) and hasattr(__main__, '__file__'):
+                    from __main__ import __file__ as mainfile        
+                    path1 = os.path.join(os.path.dirname(os.path.realpath(mainfile)), path)   
+                    dprint2("trying :", path1)
+            if os.path.exists(path1):
                 path = path1
+            else:
+                assert False, "can not find mesh file from relative path: "+path
         return path
 
     def run(self, mesh = None):
@@ -159,7 +170,8 @@ class MeshFile(Mesh):
         except:
            return None
         
-class Mesh1D(MeshFile):
+class Mesh1D(Mesh):
+    isMeshGenerator = True      
     isRefinement = False   
     has_2nd_panel = False        
 
@@ -248,6 +260,56 @@ class UniformRefinement(Mesh):
            return mesh
         for i in range(int(self.num_refine)):           
             mesh.UniformRefinement() # this is parallel refinement
+        return mesh
+     
+class DomainRefinement(Mesh):
+    isRefinement = True
+    has_2nd_panel = False 
+    def __init__(self, parent = None, **kwargs):
+        self.num_refine = kwargs.pop("num_refine", "0")
+        self.domain_txt = kwargs.pop("domain_txt", "")
+        super(DomainRefinement, self).__init__(parent = parent, **kwargs)        
+    def __repr__(self):
+        try:
+           return 'MeshUniformRefinement('+self.num_refine+')'
+        except:
+           return 'MeshUniformRefinement(!!!Error!!!)'
+        
+    def attribute_set(self, v):
+        v = super(DomainRefinement, self).attribute_set(v)       
+        v['num_refine'] = '0'
+        v['domain_txt'] = ''
+        return v
+        
+    def panel1_param(self):
+        return [["Number",    str(self.num_refine),  0, {}],
+                ["Domains",   self.domain_txt,  0, {}],]
+     
+    def import_panel1_value(self, v):
+        self.num_refine = str(v[0])
+        self.domain_txt = str(v[1])
+        
+    def get_panel1_value(self):
+        return (str(self.num_refine), str(self.domain_txt))
+     
+    def run(self, mesh):
+        gtype = np.unique([mesh.GetElementBaseGeometry(i) for i in range(mesh.GetNE())])
+        if use_parallel:
+            from mpi4py import MPI
+            gtype = gtype.astype(np.int32)
+            gtype = np.unique(allgather_vector(gtype, MPI.INT))
+
+        if len(gtype) > 1:
+           dprint1("(Warning) Element Geometry Type is mixed. Cannot perform UniformRefinement")
+           return mesh
+        domains = [int(x) for x in self.domain_txt.split(',')]
+        if len(domains) == 0: return mesh
+
+        attr = mesh.GetAttributeArray()
+        idx = mfem.intArray(list(np.where(np.in1d(attr, domains))[0]))
+
+        for i in range(int(self.num_refine)):           
+            mesh.GeneralRefinement(idx) # this is parallel refinement
         return mesh
 
    

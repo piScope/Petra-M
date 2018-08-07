@@ -701,8 +701,8 @@ class Engine(object):
         is_complex = phys.is_complex()
         
         for kfes, name in enumerate(phys.dep_vars):
-            rifes = self.rifes(name)
-            rfg = self.r_x[rifes]
+            r_ifes = self.r_ifes(name)
+            rfg = self.r_x[r_ifes]
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = True, kfes = kfes)
@@ -710,7 +710,7 @@ class Engine(object):
                 rfg.ProjectCoefficient(c)                
                 #rgf += tmp
             if not is_complex: continue
-            ifg = self.i_x[rifes]            
+            ifg = self.i_x[r_ifes]            
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = False, kfes = kfes)
@@ -752,6 +752,8 @@ class Engine(object):
         dprint1("apply_init_from_file", phys, init_path)
         emesh_idx = phys.emesh_idx
         names = phys.dep_vars
+        suffix=self.solfile_suffix()
+
         for kfes, name in enumerate(phys.dep_vars):
             r_ifes = self.r_ifes(name)
             rgf = self.r_x[r_ifes]
@@ -759,8 +761,11 @@ class Engine(object):
                 igf = self.i_x[r_ifes]
             else:
                 igf = None
-            fr, fi, meshname = self.solfile_name(names[kfes],
-                                                         emesh_idx)
+            fr, fi = self.solfile_name(names[kfes], emesh_idx)
+            meshname = 'solmesh_' + str(emesh_idx) + suffix
+            fr = fr + suffix
+            fi = fi + suffix
+        
             path = os.path.expanduser(init_path)
             if path == '': path = os.getcwd()
             fr = os.path.join(path, fr)
@@ -770,11 +775,11 @@ class Engine(object):
             rgf.Assign(0.0)
             if igf is not None: igf.Assign(0.0)
             if not os.path.exists(meshname):
-               assert False, "Meshfile for sol does not exist."
+               assert False, "Meshfile for sol does not exist:"+meshname
             if not os.path.exists(fr):
-               assert False, "Solution (real) does not exist."
-            if igf is not None and not os.path.exists(fi):
-               assert False, "Solution (imag) does not exist."
+               assert False, "Solution (real) does not exist:"+fr
+            if igf is not None and not os.path.exists(fi): 
+               assert False, "Solution (imag) does not exist:"+fi
 
             m = mfem.Mesh(str(meshname), 1, 1)
             m.ReorientTetMesh()            
@@ -789,7 +794,7 @@ class Engine(object):
                igf += soli
                
         self.sol_extra = self.load_extra_to_file(init_path)
-        print self.sol_extra
+        #print self.sol_extra
     #
     #  Step 2  fill matrix/rhs elements
     #
@@ -1257,7 +1262,7 @@ class Engine(object):
               A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof, inplace=inplace)
                   
            for j in range(nblock1):            
-              if j == idx2: continue
+              if j == idx1: continue
               if A[j, idx2] is None: continue
               SM = A.get_squaremat_from_right(j, idx2)
               SM.setDiag(gl_ess_tdof)
@@ -1287,10 +1292,11 @@ class Engine(object):
         for name in self.gl_ess_tdofs:
             if not name in self._dep_vars: continue
             
-            idx = self.dep_var_offset(name)                          
+            idx = self.dep_var_offset(name)      
+            ridx = self.r_dep_var_offset(name)      
             gl_ess_tdof = self.gl_ess_tdofs[name]
             ess_tdof = self.ess_tdofs[name]
-            RHS[idx].copy_element(gl_ess_tdof, X[idx])
+            RHS[idx].copy_element(gl_ess_tdof, X[ridx])
             
         return RHS
               
@@ -1789,7 +1795,7 @@ class Engine(object):
                 for k in child.keys():
                     o = child[k]
                     if not o.enabled: continue
-                    if isinstance(o, MeshFile):
+                    if o.isMeshGenerator:
                         self.meshes[idx] = o.run()
                         target = self.meshes[idx]
                     else:
@@ -1918,6 +1924,10 @@ class Engine(object):
 
     def dep_var_offset(self, name):
         return self._dep_vars.index(name)       
+
+    def masked_dep_var_offset(self, name):
+        return [x for i, x in enumerate(self._dep_vars)
+                if self._matrix_blk_mask[0][i]].index(name)       
      
     def isFESvar(self, name):
         if not name in self._dep_vars:
@@ -1933,7 +1943,11 @@ class Engine(object):
         return range(idx0, idx0+l)
 
     def r_dep_var_offset(self, name):
-        return self._rdep_vars.index(name)       
+        return self._rdep_vars.index(name)
+     
+    def masked_r_dep_var_offset(self, name):
+        return [x for i, x in enumerate(self._rdep_vars)
+                if self._matrix_blk_mask[1][i]].index(name)       
      
     def r_isFESvar(self, name):
         if not name in self._rdep_vars:
@@ -2221,7 +2235,7 @@ class ParallelEngine(Engine):
                 for k in child.keys():
                     o = child[k]
                     if not o.enabled: continue
-                    if isinstance(o, MeshFile):
+                    if o.isMeshGenerator:                    
                         smesh = o.run()
                         self.max_bdrattr = np.max([self.max_bdrattr,
                                                    max(smesh.GetBdrAttributeArray())])

@@ -121,7 +121,7 @@ class SolveStep(SolverBase):
         
         engine.set_formblocks(phys_target, phys_range, num_matrix)
         
-        for p in phys_target:
+        for p in phys_range:
             engine.run_mesh_extension(p)
             
         engine.run_alloc_sol(phys_range)
@@ -174,8 +174,7 @@ class SolveStep(SolverBase):
         
         is_first = True
         for solver in solvers:
-             solver.run(engine, is_first=is_first)        
-             is_first = False
+             is_first = solver.run(engine, is_first=is_first)
              engine.add_FESvariable_to_NS(self.get_phys()) 
              engine.store_x()
 
@@ -320,7 +319,8 @@ class SolverInstance(object):
         mask2 = self.engine.get_block_mask(all_phys, phys_target, use_range=True)
         
         self.blk_mask = (mask1, mask2)
-
+        self.engine._matrix_blk_mask = self.blk_mask
+        
     def save_solution(self, ksol = 0, skip_mesh = False, 
                       mesh_only = False, save_parmesh=False):
                       

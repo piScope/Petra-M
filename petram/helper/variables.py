@@ -102,6 +102,7 @@ var_g = {'sin':  np.sin,
          'conj': np.conj,
          'real': np.real,
          'imag': np.imag,
+         'sum': np.sum,
          'dot': np.dot,
          'vdot': np.vdot,
          'array': np.array,
@@ -230,7 +231,7 @@ class TestVariable(Variable):
     def set_point(self,T, ip, g, l, t = None):
         self.x = T.Transform(ip)        
                
-    def __call__(self):
+    def __call__(self, **kwargs):
         return 2.
     
     def nodal_values(self, locs = None,  **kwargs):
@@ -252,7 +253,7 @@ class Constant(Variable):
     def set_point(self,T, ip, g, l, t = None):
         self.x = T.Transform(ip)        
                
-    def __call__(self):
+    def __call__(self, **kwargs):
         return self.value
     
     def nodal_values(self, iele = None, el2v = None, locs = None,
@@ -289,7 +290,7 @@ class CoordVariable(Variable):
     def set_point(self,T, ip, g, l, t = None):
         self.x = T.Transform(ip)        
                
-    def __call__(self):
+    def __call__(self, **kwargs):
         if self.comp == -1:
             return self.x
         else:
@@ -334,7 +335,7 @@ class ExpressionVariable(Variable):
                g[n].set_point(T, ip, g, l, t=t)
                self.variables[n] = g[n]
                
-    def __call__(self):
+    def __call__(self, **kwargs):
         l = {}
         for k, name in enumerate(self.ind_vars):
            l[name] = self.x[k]
@@ -463,7 +464,7 @@ class DomainVariable(Variable):
                self.domains[domains].set_point(T, ip, g, l, t=t)
            self.domain_target = domains
                
-    def __call__(self):
+    def __call__(self, **kwargs):
         if self.domain_target is None: return 0.0
         return self.domains[self.domain_target]()
     
@@ -566,12 +567,14 @@ class PyFunctionVariable(Variable):
         self.x = T.Transform(ip)
         self.t = t
         
-    def __call__(self):
+    def __call__(self, **kwargs):
         if self.t is not None:
            args = tuple(np.hstack((self.x, t)))
         else:
            args = tuple(self.x)
-        return np.array(self.func(*args), copy=False)
+        #kwargs = {n: locals()[n]() for n in self.dependency}
+        #return np.array(self.func(*args, **kwargs), copy=False)
+        return np.array(self.func(*args, **kwargs), copy=False)
        
     def nodal_values(self, iele = None, el2v = None, locs = None,
                      wverts = None, elvertloc = None, g=None, knowns =None,
@@ -593,13 +596,16 @@ class PyFunctionVariable(Variable):
             if kk < 0: continue
             for pair, xyz in zip(m, loc):
                 idx = pair[1]
+                '''
                 for n in self.dependency:
                     g[n].local_value = knowns[g[n]][idx]
                     # putting the dependency variable to functions global.
                     # this may not ideal, since there is potential danger
                     # of name conflict?
                     self.func.func_globals[n] = g[n]
-                ret[idx] = ret[idx] + self.func(*xyz)
+                '''
+                kwargs = {n: knowns[g[n]][idx] for n in self.dependency}
+                ret[idx] = ret[idx] + self.func(*xyz, **kwargs)
                 wverts[idx] = wverts[idx] + 1
         ret = np.stack([x for x in ret if x is not None])
 
@@ -623,13 +629,16 @@ class PyFunctionVariable(Variable):
 
         ret = [None]*len(locs)
         for idx, xyz in enumerate(locs):
+            '''
             for n in self.dependency:
                 g[n].local_value = knowns[g[n]][idx]
                 # putting the dependency variable to functions global.
                 # this may not ideal, since there is potential danger
                 # of name conflict?
-                self.func.func_globals[n] = g[n]                
-            ret[idx] = self.func(*xyz) 
+                self.func.func_globals[n] = g[n]
+            '''
+            kwargs = {n: knowns[g[n]][idx] for n in self.dependency}            
+            ret[idx] = self.func(*xyz, **kwargs) 
         ret = np.stack(ret).astype(dtype, copy=False)
         return ret
 
@@ -662,7 +671,7 @@ class GridFunctionVariable(Variable):
     def local_value(self, value):
         self._local_value = value
         
-    def __call__(self):
+    def __call__(self, **kwargs):
         return self._local_value
     
     def set_local_from_T_ip(self):
@@ -967,7 +976,7 @@ class SurfNormal(SurfVariable):
         mfem.CalcOrtho(T.Jacobian(), nor)
         self.nor =nor.GetDataArray().copy()
         
-    def __call__(self):
+    def __call__(self, **kwargs):
         if self.comp == -1:
             return self.nor
         else:
@@ -1059,7 +1068,7 @@ class SurfExpressionVariable(ExpressionVariable, SurfVariable):
         mfem.CalcOrtho(T.Jacobian(), nor)
         self.nor =nor.GetDataArray().copy()
         
-    def __call__(self):
+    def __call__(self, **kwargs):
         l = {}
         for k, name in enumerate(self.ind_vars):
            l[name] = self.x[k]

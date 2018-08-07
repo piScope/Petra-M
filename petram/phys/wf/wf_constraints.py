@@ -63,7 +63,7 @@ class WF_common(object):
             ll = self.get_root_phys().vdim
         else:
             ll = engine.emeshes[self.get_root_phys().emesh].Dimension()
-        print f_name
+
         if ll == 1:
             coeff = InitValue(f_name[0],
                        self.get_root_phys().ind_vars,

@@ -163,6 +163,7 @@ class TimeDomain(Solver):
             if is_first:
                 instance.pre_assemble()                                
                 instance.assemble()
+                is_first=False
                 
             #instance.solve()            
             #if is_first:
@@ -184,7 +185,8 @@ class TimeDomain(Solver):
                                skip_mesh = False, 
                                mesh_only = False,
                                save_parmesh=self.save_parmesh)
-        instance.save_probe()        
+        instance.save_probe() 
+        return is_first       
         print(debug.format_memory_usage())
 
 
