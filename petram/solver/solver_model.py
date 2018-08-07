@@ -319,7 +319,8 @@ class SolverInstance(object):
         mask2 = self.engine.get_block_mask(all_phys, phys_target, use_range=True)
         
         self.blk_mask = (mask1, mask2)
-
+        self.engine._matrix_blk_mask = self.blk_mask
+        
     def save_solution(self, ksol = 0, skip_mesh = False, 
                       mesh_only = False, save_parmesh=False):
                       

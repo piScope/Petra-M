@@ -1924,6 +1924,10 @@ class Engine(object):
 
     def dep_var_offset(self, name):
         return self._dep_vars.index(name)       
+
+    def masked_dep_var_offset(self, name):
+        return [x for i, x in enumerate(self._dep_vars)
+                if self._matrix_blk_mask[0][i]].index(name)       
      
     def isFESvar(self, name):
         if not name in self._dep_vars:
@@ -1939,7 +1943,12 @@ class Engine(object):
         return range(idx0, idx0+l)
 
     def r_dep_var_offset(self, name):
-        return self._rdep_vars.index(name)       
+        return self._rdep_vars.index(name)
+     
+    def masked_r_dep_var_offset(self, name):
+        print self._matrix_blk_mask
+        return [x for i, x in enumerate(self._rdep_vars)
+                if self._matrix_blk_mask[1][i]].index(name)       
      
     def r_isFESvar(self, name):
         if not name in self._rdep_vars:

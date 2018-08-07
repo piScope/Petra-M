@@ -120,16 +120,17 @@ class PrcCommon(object):
         return self._opr()
         
     def get_row_by_name(self, name):
-        return self.engine.dep_var_offset(name)
+        return self.engine.masked_dep_var_offset(name)
 
     def get_col_by_name(self, name):
-        return self.engine.r_dep_var_offset(name)
+        return self.engine.masked_r_dep_var_offset(name)
 
     def get_operator_block(self, r, c):
         # if linked_op exists (= op is set from python).
         # try to get it
         if hasattr(self.opr, "_linked_op"):
             try:
+                print self.opr._linked_op.keys()
                 return self.opr._linked_op[(r, c)]
             except KeyError:
                 return None
@@ -260,7 +261,9 @@ def mfem_smoother(name, **kwargs):
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
     row = prc.get_row_by_name(blockname)
-    mat = prc.get_operator_block(row, row)
+    col = prc.get_col_by_name(blockname)
+    print row, col
+    mat = prc.get_operator_block(row, col)
     if use_parallel:
         smoother = mfem.HypreSmoother(mat)
         smoother.SetType(getattr(mfem.HypreSmoother, name))
@@ -313,7 +316,8 @@ def ams(singular=True, **kwargs):
     print_level = kwargs.pop('print_level', -1)
     
     row = prc.get_row_by_name(blockname)
-    mat = prc.get_operator_block(row, row)
+    col = prc.get_col_by_name(blockname)    
+    mat = prc.get_operator_block(row, col)
     fes = prc.get_test_fespace(blockname)
     inv_ams = mfem.HypreAMS(mat, fes)
     if singular:
