@@ -130,7 +130,6 @@ class PrcCommon(object):
         # try to get it
         if hasattr(self.opr, "_linked_op"):
             try:
-                print self.opr._linked_op.keys()
                 return self.opr._linked_op[(r, c)]
             except KeyError:
                 return None
@@ -262,7 +261,6 @@ def mfem_smoother(name, **kwargs):
     blockname = kwargs.pop('blockname')
     row = prc.get_row_by_name(blockname)
     col = prc.get_col_by_name(blockname)
-    print row, col
     mat = prc.get_operator_block(row, col)
     if use_parallel:
         smoother = mfem.HypreSmoother(mat)

@@ -1946,7 +1946,6 @@ class Engine(object):
         return self._rdep_vars.index(name)
      
     def masked_r_dep_var_offset(self, name):
-        print self._matrix_blk_mask
         return [x for i, x in enumerate(self._rdep_vars)
                 if self._matrix_blk_mask[1][i]].index(name)       
      
