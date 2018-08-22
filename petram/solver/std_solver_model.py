@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 from petram.model import Model
-from .solver_model import Solver
+from petram.solver.solver_model import Solver
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('StdSolver')
 rprint = debug.regular_print('StdSolver')
@@ -12,92 +12,44 @@ class StdSolver(Solver):
     has_2nd_panel = False
 
     def attribute_set(self, v):
-        v['clear_wdir'] = False
-        v['init_only'] = False   
-        v['assemble_real'] = False
-        v['save_parmesh'] = False        
-        v['phys_model']   = ''
-        v['init_setting']   = ''        
         super(StdSolver, self).attribute_set(v)
         return v
     
     def panel1_param(self):
-        return [["Initial value setting",   self.init_setting,  0, {},],
+        return [#["Initial value setting",   self.init_setting,  0, {},],
                 ["physics model",   self.phys_model,  0, {},],
+                ["initialize solution only", self.init_only,  3, {"text":""}], 
                 ["clear working directory",
                  self.clear_wdir,  3, {"text":""}],
-                ["initialize solution only",
-                 self.init_only,  3, {"text":""}], 
                 ["convert to real matrix (complex prob.)",
                  self.assemble_real,  3, {"text":""}],
                 ["save parallel mesh",
-                 self.save_parmesh,  3, {"text":""}],]
+                 self.save_parmesh,  3, {"text":""}],
+                ["use cProfiler",
+                 self.use_profiler,  3, {"text":""}],]
 
     def get_panel1_value(self):
-        return (self.init_setting,
+        return (#self.init_setting,
                 self.phys_model,
+                self.init_only, 
                 self.clear_wdir,
-                self.init_only,               
                 self.assemble_real,
-                self.save_parmesh)    
+                self.save_parmesh,
+                self.use_profiler)        
     
     def import_panel1_value(self, v):
-        self.init_setting = str(v[0])        
-        self.phys_model = str(v[1])
+        #self.init_setting = str(v[0])        
+        self.phys_model = str(v[0])
+        self.init_only = v[1]                
         self.clear_wdir = v[2]
-        self.init_only = v[3]        
-        self.assemble_real = v[4]
-        self.save_parmesh = v[5]        
+
+        self.assemble_real = v[3]
+        self.save_parmesh = v[4]
+        self.use_profiler = v[5]                
 
     def get_editor_menus(self):
         return []
-#        return [("Assemble",  self.OnAssemble, None),
-#                ("Update RHS",  self.OnUpdateRHS, None),
-#                ("Run Solve Step",  self.OnRunSolve, None),]
-
-    def get_phys(self):
-        names = self.phys_model.split(',')
-        names = [n.strip() for n in names if n.strip() != '']        
-        return [self.root()['Phys'][n] for n in names]
-    def get_init_setting(self):
-        names = self.init_setting.split(',')
-        names = [n.strip() for n in names if n.strip() != '']        
-        return [self.root()['InitialValue'][n] for n in names]
     
-    '''
-    This interactive are mostly for debug purpose
-    '''
-    def OnAssemble(self, evt):
-        '''
-        assemble linear system interactively (local matrix)
-        '''
-        dlg = evt.GetEventObject()       
-        viewer = dlg.GetParent()
-        engine = viewer.engine
-
-        self.assemble(engine)
-        self.generate_linear_system(engine)
-        evt.Skip()
-
-    def OnUpdateRHS(self, evt):
-        dlg = evt.GetEventObject()       
-        viewer = dlg.GetParent()
-        engine = viewer.engine
-        phys = self.get_phys()[0]
-
-        r_B, i_B, extra, r_x, i_x = engine.assemble_rhs(phys, self.is_complex)
-        B = engine.generate_rhs(r_B, i_B, extra, r_x, i_x, self.P, format = self.ls_type)
-        self.B = [B]
-        evt.Skip()
-
-    def OnRunSolve(self, evt):
-        dlg = evt.GetEventObject()       
-        viewer = dlg.GetParent()
-        engine = viewer.engine
-
-        self.call_solver(engine)
-        self.postprocess(engine)
-
     def get_possible_child(self):
         choice = []
         try:
@@ -106,9 +58,15 @@ class StdSolver(Solver):
         except ImportError:
             pass
 
+        #try:
+        #    from petram.solver.gmres_model import GMRES
+        #    choice.append(GMRES)
+        #except ImportError:
+        #    pass
+        
         try:
-            from petram.solver.gmres_model import GMRES
-            choice.append(GMRES)
+            from petram.solver.iterative_model import Iterative
+            choice.append(Iterative)
         except ImportError:
             pass
 
@@ -118,144 +76,192 @@ class StdSolver(Solver):
         except ImportError:
             pass
         return choice
+
+    def allocate_solver_instance(self, engine):
+        if self.clear_wdir:
+            engine.remove_solfiles()
+
+        instance = StandardSolver(self, engine)
+        return instance
     
-    def init_sol(self, engine):
+    def get_matrix_weight(self, timestep_config):#, timestep_weight):
+        if timestep_config[0]:
+            return [1, 0, 0]
+        else:
+            return [0, 0, 0]
+
+        
+    
+    @debug.use_profiler
+    def run(self, engine, is_first = True):
+        dprint1("Entering run", is_first, self.fullpath())
+        if self.clear_wdir:
+            engine.remove_solfiles()
+
+        instance = StandardSolver(self, engine)
+
+        # We dont use probe..(no need...)
+        #instance.configure_probes(self.probe)
+
+        '''
+        if is_first:
+            self.prepare_form_sol_variables(engine)
+            instance.init(self.init_only)
+        else:
+            pass
+            #instance.update()
+        '''
+        instance.set_blk_mask()      
+        
+        if self.init_only:
+            engine.sol = engine.assembled_blocks[1][0]
+            instance.sol = engine.sol
+        else:
+            if is_first: 
+                instance.assemble()            
+                is_first=False
+            instance.solve()            
+#            instance.save_solution()
+#        else:
+        instance.save_solution(ksol = 0,
+                               skip_mesh = False, 
+                               mesh_only = False,
+                               save_parmesh=self.save_parmesh)
+        engine.sol = instance.sol        
+        print(debug.format_memory_usage())
+        return is_first
+
+
+from petram.solver.solver_model import SolverInstance
+
+class StandardSolver(SolverInstance):
+    def __init__(self, gui, engine):
+        SolverInstance.__init__(self, gui, engine)
+        self.assembled = False
+        self.linearsolver = None
+    @property
+    def blocks(self):
+        return self.engine.assembled_blocks
+
+    '''
+    def init(self, init_only=False):
+        engine = self.engine
+        phys_all = self.get_phys()
+        
+        #num_matrix= self.gui.get_num_matrix(phys_target)
+        #engine.set_formblocks(phys_target, num_matrix)
+        
+        #for p in phys_target:
+        #    engine.run_mesh_extension(p)
+        
+        #engine.run_alloc_sol(phys_target)
+
         inits = self.get_init_setting()
         if len(inits) == 0:
             # in this case alloate all fespace and initialize all
             # to zero
-            names = self.root()['Phys'].keys()
-            phys_targets = [self.root()['Phys'][n] for n in names]
-            engine.run_alloc_sol(phys_targets)
-            engine.run_apply_init(phys_targets, 0)
-            engine.run_apply_essential(phys_targets)
+            engine.run_apply_init(phys_all, 0)
         else:
             for init in inits:
                 init.run(engine)
-            phys_targets = self.get_phys()
-            engine.run_apply_essential(phys_targets)
-        return 
-
-
-    def assemble(self, engine):
-        phys_targets = self.get_phys()
-        engine.run_verify_setting(phys_targets, self)
-        matvecs, matvecs_c = engine.run_assemble(phys_targets)
-        return matvecs, matvecs_c
-
-    def generate_linear_system(self, engine, matvecs, matvecs_c):
-        phys_target = self.get_phys()
-        solver = self.get_active_solver()
-
-        blocks = engine.generate_linear_system(phys_target,
-                                            matvecs, matvecs_c)
-        # P: projection,  M:matrix, B: rhs, S: extra_flag
-        self.M, B, self.Me = blocks
-        self.B = [B]
-
-    def store_rhs(self, engine):
-        phys_targets = self.get_phys()
-        vecs, vecs_c = engine.run_assemble_rhs(phys_targets)
-        blocks = engine.generate_rhs(phys_targets, vecs, vecs_c)
-        self.B.append(blocks[1])
-
-    def call_solver(self, engine):
-        solver = self.get_active_solver()        
-        phys_targets = self.get_phys()        
-        phys_real = all([not p.is_complex() for p in phys_targets])
-        ls_type = solver.linear_system_type(self.assemble_real,
-                                            phys_real)
-        '''
-        ls_type: coo  (matrix in coo format : DMUMP or ZMUMPS)
-                 coo_real  (matrix in coo format converted from complex 
-                            matrix : DMUMPS)
-                 # below is a plan...
-                 blk (matrix made mfem:block operator)
-                 blk_real (matrix made mfem:block operator for complex
-                             problem)
-                          (unknowns are in the order of  R_fes1, R_fes2,... I_fes1, Ifes2...)
-                 blk_interleave (unknowns are in the order of  R_fes1, I_fes1, R_fes2, I_fes2,...)
-                 None(not supported)
-        '''
-        if debug.debug_memory:
-            dprint1("Block Matrix before shring :\n",  self.M)
-            dprint1(debug.format_memory_usage())                
-        M_block, B_blocks, P = engine.eliminate_and_shrink(self.M,
-                                                           self.B, self.Me)
+                
+        # use get_phys to apply essential to all phys in solvestep
+        target_phys = self.get_phys()
+        engine.run_apply_essential(target_phys)
+        engine.run_fill_X_block()
         
-        if debug.debug_memory:
-            dprint1("Block Matrix after shrink :\n",  M_block)
-            dprint1(debug.format_memory_usage())        
-        M, B = engine.finalize_linearsystem(M_block, B_blocks,
-                                            not phys_real,
-                                            format = ls_type)
-        solall = solver.solve(engine, M, B)
-        #solall = np.zeros((M.shape[0], len(B_blocks))) # this will make fake data to skip solve step
-        
-        #if ls_type.endswith('_real'):
-        if not phys_real and self.assemble_real:
-            solall = solver.real_to_complex(solall, M)
-        PT = P.transpose()
+        if init_only:
+            self.sol = self.blocks[1][0]
+            engine.sol = self.blocks[1][0]
+            return 
+        self.assemble()
+    '''
+    def compute_A(self, M, B, X, mask_M, mask_B):
+        '''
+        M[0] x = B
 
-        return solall, PT
+        return A and isAnew
+        '''
+        return M[0], True
+    
+    def compute_rhs(self, M, B, X):
+        '''
+        M[0] x = B
+        '''
+        return B
 
-    def store_sol(self, engine, matvecs, solall, PT, ksol = 0):
-        phys_targets = self.get_phys()
-
-        sol = PT.reformat_central_mat(solall, ksol)
-        sol = PT.dot(sol)
-
-        dprint1(sol)
-        l = len(self.B)
-
-        sol, sol_extra = engine.split_sol_array(phys_targets, sol)
-
-
-        # sol_extra = engine.gather_extra(sol_extra)                
-
+    def assemble(self):
+        engine = self.engine
         phys_target = self.get_phys()
-        engine.recover_sol(phys_target, matvecs, sol)
-        extra_data = engine.process_extra(phys_target, sol_extra)
+        phys_range  = self.get_phys_range()
+        
+        # use get_phys to apply essential to all phys in solvestep        
+        dprint1("in assemble", phys_target)
 
-        return extra_data
+        engine.run_verify_setting(phys_target, self.gui)
+        engine.run_assemble_mat(phys_target, phys_range)
+        engine.run_assemble_b(phys_target)
+        engine.run_fill_X_block()
+        
+        self.engine.run_assemble_blocks(self.compute_A, self.compute_rhs)
+        #A, X, RHS, Ae, B, M, names = blocks
+        self.assembled = True
+        
+    def assemble_rhs(self):
+        engine = self.engine
+        phys_target = self.get_phys()
+        engine.run_assemble_b(phys_target)
+        B = self.engine.run_update_B_blocks()
+        self.blocks[4] = B
+        self.assembled = True
+
+    def solve(self, update_operator = True):
+        engine = self.engine
+
+        #if not self.assembled:
+        #    assert False, "assmeble must have been called"
             
-    def free_matrix(self):
-        self.P = None
-        self.M = None
-        self.B = None
+        A, X, RHS, Ae, B, M, depvars = self.blocks
+        mask = self.blk_mask
 
-    def save_solution(self, engine, extra_data, 
-                      skip_mesh = False, 
-                      mesh_only = False):
-        phys_target = self.get_phys()
-        engine.save_sol_to_file(phys_target, 
-                                skip_mesh = skip_mesh,
-                                mesh_only = mesh_only,
-                                save_parmesh = self.save_parmesh)
-        if mesh_only: return
-        engine.save_extra_to_file(extra_data)
-        engine.is_initialzied = False
-        
-    def run(self, engine):
-        phys_target = self.get_phys()
-        if self.clear_wdir:
-            engine.remove_solfiles()
-        if not engine.isInitialized: self.init_sol(engine)
-        if self.init_only:
-            extra_data = None
+        depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
+
+        if update_operator:
+            AA = engine.finalize_matrix(A, mask, not self.phys_real,
+                                    format = self.ls_type)
+        BB = engine.finalize_rhs([RHS], A ,X[0], mask, not self.phys_real,
+                                 format = self.ls_type)
+
+        if self.linearsolver is None:
+            linearsolver = self.allocate_linearsolver(self.gui.is_complex(), self. engine)
+            self.linearsolver = linearsolver
         else:
-            matvecs, matvecs_c = self.assemble(engine)
-            self.generate_linear_system(engine, matvecs, matvecs_c)
-            solall, PT = self.call_solver(engine)
-            extra_data = self.store_sol(engine, matvecs, solall, PT, 0)
-            dprint1("Extra Data", extra_data)
+            linearsolver = self.linearsolver
+
+        if update_operator:            
+            linearsolver.SetOperator(AA,
+                                 dist = engine.is_matrix_distributed,
+                                 name = depvars)
+        
+        if linearsolver.is_iterative:
+            XX = engine.finalize_x(X[0], RHS, mask, not self.phys_real,
+                                   format = self.ls_type)
+        else:
+            XX = None
+        
+        solall = linearsolver.Mult(BB, x=XX, case_base=0)
+        
+        #linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
+        #solall = linearsolver.Mult(BB, case_base=0)
             
-        engine.remove_solfiles()
-        dprint1("writing sol files")
-        self.save_solution(engine, extra_data)
+        if not self.phys_real and self.gui.assemble_real:
+            solall = self.linearsolver_model.real_to_complex(solall, AA)
 
-        print(debug.format_memory_usage())
-           
+        A.reformat_central_mat(solall, 0, X[0], mask)
+        self.sol = X[0]
+
+        return True
 
 
-
+        
+        

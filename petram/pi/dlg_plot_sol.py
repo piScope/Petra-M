@@ -14,6 +14,8 @@ from ifigure.utils.edit_list import EDITLIST_CHANGING
 from ifigure.utils.edit_list import EDITLIST_SETFOCUS
 from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList
 
+import petram.debug as debug
+dprint1, dprint2, dprint3 = debug.init_dprints('Dlg_plot_sol')
 
 def setup_figure(fig, fig2):
     fig.nsec(1)
@@ -210,9 +212,10 @@ class DlgPlotSol(DialogWithWindowList):
             
             s4 = {"style":wx.TE_PROCESS_ENTER,
                   "choices":[str(x+1) for x in range(10)]}
-            
             ll = [['Expression', '', 0, {}],
-                  ['Boundary Index', text, 0, {}],
+                  ['Offset (x, y, z)', '0, 0, 0', 0, {}],
+                  ['Boundary Index', 'all', 4, {'style':wx.CB_DROPDOWN,
+                                                'choices': ['all', 'visible', 'hidden']}],      
                   ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extenstion'}],
@@ -491,6 +494,7 @@ class DlgPlotSol(DialogWithWindowList):
             
         data, data_x, battrs = self.eval_edge(mode = 'plot')
         if data is None: return
+
         self.post_threadend(self.make_plot_edge, data, battrs,
                             data_x = data_x,
                             cls = cls, expr = expr, expr_x = expr_x)
@@ -581,6 +585,7 @@ class DlgPlotSol(DialogWithWindowList):
         if expr_x != '':
             data_x, void = self.evaluate_sol_edge(expr_x, battrs, phys_path,
                                                     do_merge1, True)
+            if data_x is None: return None, None, None
         else:
             data_x = None
         return data, data_x, battrs
@@ -589,17 +594,28 @@ class DlgPlotSol(DialogWithWindowList):
     #    
     #   Boundary value ('Bdr' tab)
     #
+    '''
+    ll = [['Expression', '', 0, {}],
+                  ['Offset (x, y, z)', '0, 0, 0', 0, {}],                  
+                  ['Boundary Index', text, 0, {}],
+                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                                           'choices': choices}],      
+                  [None, False, 3, {"text":'dynamic extenstion'}],
+                  [None, True, 3, {"text":'merge solutions'}],
+                  ['Refine', 1, 104, s4],            
+                  [None, True, 3, {"text":'averaging'}],]
+    '''
     @run_in_piScope_thread    
     def onApplyBdr(self, evt):
         value = self.elps['Bdr'] .GetValue()
         expr = str(value[0]).strip()
         
-        if value[3]:
+        if value[4]:
             from ifigure.widgets.wave_viewer import WaveViewer
             cls = WaveViewer
         else:
             cls = None
-        refine = int(value[5])
+        refine = int(value[6])
         data, battrs = self.eval_bdr(mode = 'plot', refine=refine)
         if data is None: return
         self.post_threadend(self.make_plot_bdr, data, battrs,
@@ -696,10 +712,10 @@ class DlgPlotSol(DialogWithWindowList):
         value = self.elps['Bdr'] .GetValue()
         
         expr = str(value[0]).strip()
-        battrs = str(value[1])
-        phys_path = value[2]
+        battrs = str(value[2])
+        phys_path = value[3]
         if mode == 'plot':
-            do_merge1 = value[4]
+            do_merge1 = value[5]
             do_merge2 = True
         elif mode == 'integ':
             do_merge1 = True
@@ -708,15 +724,42 @@ class DlgPlotSol(DialogWithWindowList):
             do_merge1 = False
             do_merge2 = False
                   
-        average = value[6]
-        data, battrs = self.evaluate_sol_bdr(expr, battrs, phys_path,
+        average = value[7]
+        data, battrs2 = self.evaluate_sol_bdr(expr, battrs, phys_path,
                                              do_merge1, do_merge2,
                                              export_type = export_type,
                                              refine = refine,
                                              average = average)
-
+        uvw = str(value[1]).split(',')
+        if len(uvw) == 3:
+            for kk, expr in enumerate(uvw):
+                try:
+                    u = float(expr.strip())
+                    isfloat=True
+                except:
+                    isfloat=False                    
+                    u, battrs2 = self.evaluate_sol_bdr(expr.strip(),
+                                                       battrs, phys_path,
+                                                       do_merge1, do_merge2,
+                                                       export_type = export_type,
+                                                       refine = refine,
+                                                       average = average)
+                data = [list(x) for x in data]
+                for k, datasets in enumerate(data):
+                    if datasets[0].shape[1]==2:
+                        datasets[0] = np.hstack((datasets[0],
+                                                 np.zeros((datasets[0].shape[0], 1))))
+                    elif datasets[0].shape[1]==1:
+                        datasets[0] = np.hstack((datasets[0],
+                                                 np.zeros((datasets[0].shape[0], 2))))
+                        
+                    if isfloat:
+                        datasets[0][:,kk] += u
+                    else:
+                        datasets[0][:,kk] += u[k][1]
+                
         if data is None: return None, None
-        return data, battrs
+        return data, battrs2
         
 
     #    
@@ -847,20 +890,37 @@ class DlgPlotSol(DialogWithWindowList):
 
         allxyz = np.vstack([udata[0] for udata in u])
         dx = np.max(allxyz[:,0])-np.min(allxyz[:,0])
-        dy = np.max(allxyz[:,1])-np.min(allxyz[:,1])
-        dz = np.max(allxyz[:,2])-np.min(allxyz[:,2])        
+        if allxyz.shape[1]>1:
+            dy = np.max(allxyz[:,1])-np.min(allxyz[:,1])
+        else:
+            dy = dx*0.
+        if allxyz.shape[1]>2:           
+            dz = np.max(allxyz[:,2])-np.min(allxyz[:,2])
+        else:
+            dz = dy*0.
         length = np.max((dx, dy, dz))/20.
         
         for udata, vdata, wdata in zip(u, v, w):
            xyz = udata[0]
+               
            u = udata[1]
            v = vdata[1]
            w = wdata[1]
 
            ll = np.min([xyz.shape[0]-1,int(value[7])])
            idx = np.linspace(0, xyz.shape[0]-1,ll).astype(int)
-           viewer.quiver3d(xyz[idx,0], xyz[idx,1], xyz[idx,2],
-                           u[idx], v[idx], w[idx],
+           
+           x = xyz[idx,0]
+           if xyz.shape[1]>1:
+               y = xyz[idx,1]
+           else:
+               y = x*0.
+           if xyz.shape[1]>2:
+               z = xyz[idx,2]
+           else:
+               z = x*0.
+               
+           viewer.quiver3d(x, y, z, u[idx], v[idx], w[idx],
                            length = length)
 
         viewer.update(True)
@@ -1046,7 +1106,14 @@ class DlgPlotSol(DialogWithWindowList):
                assert False, "edge plot is not supported for 1D"
         else:
            battrs = ['all']
- 
+
+        if 'Edge' in self.evaluators:
+            try:
+                self.evaluators['Edge'].validate_evaluator('EdgeNodal', battrs, solfiles)
+            except IOError:
+                dprint1("IOError detected setting failed=True")
+                self.evaluators['Edge'].failed = True
+           
         from petram.sol.evaluators import build_evaluator
         if (not 'Edge' in self.evaluators or
             self.evaluators['Edge'].failed):
@@ -1091,10 +1158,26 @@ class DlgPlotSol(DialogWithWindowList):
              return None, None
         mesh = model.variables.getvar('mesh')
         if mesh is None: return
-        if battrs != 'all':
-           battrs = [int(x) for x in battrs.split(',')]
+        if battrs == 'all':
+            battrs = mesh.extended_connectivity['surf2line'].keys()
+        elif battrs == 'visible':
+            m = self.GetParent()
+            battrs = []
+            for name, child in m.get_axes(0).get_children():
+                if name.startswith('face'):
+                     battrs.extend(child.shown_component)
+            battrs = list(set(battrs))
+        elif battrs == 'hidden':
+            m = self.GetParent()
+            battrs = []
+            for name, child in m.get_axes(0).get_children():
+                if name.startswith('face'):
+                     battrs.extend(child.hidden_component)
+            battrs = list(set(battrs))
         else:
-           battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
+            battrs = [int(x) for x in battrs.split(',')]
+
+           #battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
 
         average = kwargs.pop('average', True)
                   
@@ -1104,7 +1187,14 @@ class DlgPlotSol(DialogWithWindowList):
             kkwargs = {}
         else:
             key, name = 'NCFace', 'NCFace'
-        
+            
+        if key in self.evaluators:
+            try:
+                self.evaluators[key].validate_evaluator(name, battrs, solfiles)
+            except IOError:
+                dprint1("IOError detected setting failed=True")
+                self.evaluators[key].failed = True
+                
         if (not key in self.evaluators or
             self.evaluators[key].failed):
             self.evaluators[key] =  build_evaluator(battrs,
@@ -1112,9 +1202,8 @@ class DlgPlotSol(DialogWithWindowList):
                                                     solfiles,
                                                     name = name,
                                                     config = self.config)
-            
         self.evaluators[key].validate_evaluator(name, battrs, solfiles)
-
+        
         try:
             self.evaluators[key].set_phys_path(phys_path)
             return self.evaluators[key].eval(expr, do_merge1, do_merge2,
@@ -1151,7 +1240,15 @@ class DlgPlotSol(DialogWithWindowList):
         if attrs != 'all':
            attrs = [int(x) for x in attrs.split(',')]
         else:
-           attrs = [x+1 for x in range(mesh.attributes.Size())]
+           attrs = mesh.extended_connectivity['vol2surf'].keys()            
+           #attrs = [x+1 for x in range(mesh.attributes.Size())]
+           
+        if 'Slice' in self.evaluators:
+            try:
+                self.evaluators['Slice'].validate_evaluator('Slice', attrs, solfiles, plane=plane)
+            except IOError:
+                dprint1("IOError detected setting failed=True")
+                self.evaluators['Slice'].failed = True
            
         from petram.sol.evaluators import build_evaluator
         if (not 'Slice' in self.evaluators or

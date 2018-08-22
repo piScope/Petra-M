@@ -35,7 +35,6 @@ def process_iverts2nodals(mesh, iverts):
 
     # then get unique set of elements relating to the verts.
     vert2el = mesh.GetVertexToElementTable()
-
     ieles = np.hstack([vert2el.GetRowList(i) for i in iverts_f])
     ieles = np.unique(ieles)
 
@@ -70,7 +69,7 @@ def process_iverts2nodals(mesh, iverts):
             'wverts' : wverts}
 
 def edge_detect(index):
-    print("edge_detect", index.shape)
+    #print("edge_detect", index.shape)
     store = []
     def check_pair(store, a, b):
         a1 = min(a,b)
@@ -85,8 +84,32 @@ def edge_detect(index):
         store = check_pair(store, iv[0], iv[2])
         store = check_pair(store, iv[1], iv[2])        
     ret = np.vstack(store)
-    return  ret 
+    return  ret
 
+def get_emesh_idx(obj, expr, solvars, phys):
+    from petram.helper.variables import Variable, var_g
+    
+    st = parser.expr(expr)
+    code= st.compile('<string>')
+    names = code.co_names
+    
+    g = {}
+    #print solvars.keys()
+    #print phys._global_ns.keys()
+    for key in phys._global_ns.keys():
+       g[key] = phys._global_ns[key]
+    for key in solvars.keys():
+       g[key] = solvars[key]
+
+    idx = []   
+    for n in names:
+       if (n in g and isinstance(g[n], Variable)):
+           for nn in g[n].dependency:
+              idx = g[nn].get_emesh_idx(idx, g=g)
+           idx = g[n].get_emesh_idx(idx, g=g)
+    return idx
+       
+    
 def eval_at_nodals(obj, expr, solvars, phys):
     '''
     evaluate nodal valus based on preproceessed 
@@ -116,7 +139,13 @@ def eval_at_nodals(obj, expr, solvars, phys):
     ll_value = []
     var_g2 = var_g.copy()
 
+    new_names = []
     for n in names:
+       if (n in g and isinstance(g[n], Variable)):
+           new_names.extend(g[n].dependency)
+           new_names.append(n)
+
+    for n in new_names:
        if (n in g and isinstance(g[n], Variable)):
            if not g[n] in obj.knowns:
               obj.knowns[g[n]] = (
@@ -129,7 +158,8 @@ def eval_at_nodals(obj, expr, solvars, phys):
                                     wverts = obj.wverts,
                                     mesh = obj.mesh(),
                                     iverts_f = obj.iverts_f,
-                                    g  = g))
+                                    g  = g,
+                                    knowns = obj.knowns))
            #ll[n] = self.knowns[g[n]]
            ll_name.append(n)
            ll_value.append(obj.knowns[g[n]])
@@ -151,8 +181,8 @@ class BdrNodalEvaluator(EvaluatorAgent):
         super(BdrNodalEvaluator, self).__init__()
         self.battrs = battrs
         
-    def preprocess_geometry(self, battrs):
-        mesh = self.mesh()
+    def preprocess_geometry(self, battrs, emesh_idx=0):
+        mesh = self.mesh()[emesh_idx]
         #print 'preprocess_geom',  mesh, battrs
         self.battrs = battrs        
         self.knowns = WKD()
@@ -181,9 +211,24 @@ class BdrNodalEvaluator(EvaluatorAgent):
         data = process_iverts2nodals(mesh, iverts)
         for k in six.iterkeys(data):
             setattr(self, k, data[k])
-        
+        self.emesh_idx = emesh_idx
         
     def eval(self, expr, solvars, phys, **kwargs):
+        
+        emesh_idx = get_emesh_idx(self, expr, solvars, phys)
+        #print("emesh_idx", emesh_idx)
+        if len(emesh_idx) > 1:
+            assert False, "expression involves multiple mesh (emesh length != 1)"
+        #if len(emesh_idx) < 1:
+        #    assert False, "expression is not defined on any mesh"
+        #(this could happen when expression is pure geometryical like "x+y")
+
+        if len(emesh_idx) == 1:        
+            if self.emesh_idx != emesh_idx[0]:
+                 #print("process geom", emesh_idx[0])                         
+                 self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
+
+             
         val = eval_at_nodals(self, expr, solvars, phys)
         if val is None: return None, None, None
 
@@ -201,7 +246,7 @@ class BdrNodalEvaluator(EvaluatorAgent):
                 return self.locs, val, idx
         else:
             from nodal_refinement import refine_surface_data
-            ptx, data, ridx = refine_surface_data(self.mesh(),
+            ptx, data, ridx = refine_surface_data(self.mesh()[self.emesh_idx],
                                                   self.ibeles,
                                                   val, self.iverts_inv,
                                                   refine)

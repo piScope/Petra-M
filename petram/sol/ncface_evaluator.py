@@ -21,7 +21,7 @@ else:
     
 Geom = mfem.Geometry()
 from petram.sol.evaluator_agent import EvaluatorAgent
-
+from petram.sol.bdr_nodal_evaluator import get_emesh_idx
 
 def eval_on_faces(obj, expr, solvars, phys):
     '''
@@ -49,8 +49,14 @@ def eval_on_faces(obj, expr, solvars, phys):
     ll_name = []
     ll_value = []
     var_g2 = var_g.copy()
-
+    
+    new_names = []
     for n in names:
+       if (n in g and isinstance(g[n], Variable)):
+           new_names.extend(g[n].dependency)
+           new_names.append(n)
+
+    for n in new_names:
        if (n in g and isinstance(g[n], Variable)):
            if not g[n] in obj.knowns:
               obj.knowns[g[n]] = (
@@ -60,12 +66,13 @@ def eval_on_faces(obj, expr, solvars, phys):
                                      locs  = obj.ptx,
                                      attr1 = obj.elattr1,
                                      attr2 = obj.elattr2, 
-                                     g = g, mesh = obj.mesh()))
+                                     g = g, knowns = obj.knowns,
+                                     mesh = obj.mesh()[obj.emesh_idx]))
            ll_name.append(n)
            ll_value.append(obj.knowns[g[n]])
        elif (n in g):
            var_g2[n] = g[n]
-           
+
     if len(ll_value) > 0:
         val = np.array([eval(code, var_g2, dict(zip(ll_name, v)))
                     for v in zip(*ll_value)])
@@ -81,8 +88,8 @@ class NCFaceEvaluator(EvaluatorAgent):
         self.battrs = battrs
         self.refine = -1
         
-    def preprocess_geometry(self, battrs):
-        mesh = self.mesh()
+    def preprocess_geometry(self, battrs, emesh_idx=0):
+        mesh = self.mesh()[emesh_idx]
         #print 'preprocess_geom',  mesh, battrs
         self.battrs = battrs        
         self.knowns = WKD()
@@ -100,7 +107,7 @@ class NCFaceEvaluator(EvaluatorAgent):
             getattr2 = lambda x: mesh.GetFaceElementTransformations(x).Elem2No
             
         elif mesh.Dimension() == 2:
-            getface = lambda x: x
+            getface = lambda x: (x, 1)
             gettrans = mesh.GetElementTransformation                        
             getarray = mesh.GetDomainArray
             getelement = mesh.GetElement
@@ -158,19 +165,29 @@ class NCFaceEvaluator(EvaluatorAgent):
         self.ptx = np.vstack(ptx)
         self.ridx = np.vstack(ridx)
         self.ifaces = np.hstack(ifaces)
+
+        self.emesh_idx = emesh_idx
         
     def eval(self, expr, solvars, phys, **kwargs):
-        refine = kwargs.pop("refine", 1)
-        if refine != self.refine:
+        refine = kwargs.pop("refine", 1)        
+        emesh_idx = get_emesh_idx(self, expr, solvars, phys)
+
+        if len(emesh_idx) > 1:
+            assert False, "expression involves multiple mesh (emesh length != 1)"
+        if len(emesh_idx) < 1:
+            emesh_idx = [0] # use default mesh in this case. (for non mesh dependent expression)
+        #    assert False, "expression is not defined on any mesh"
+
+        if (refine != self.refine or self.emesh_idx != emesh_idx[0]):
              self.refine = refine
-             self.preprocess_geometry(self.battrs)
+             self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
         val = eval_on_faces(self, expr, solvars, phys)
         if val is None: return None, None, None
 
         edge_only = kwargs.pop('edge_only', False)
         export_type = kwargs.pop('export_type', 1)
 
-        print self.ptx.shape, val.shape, self.ridx.shape
+        #print self.ptx.shape, val.shape, self.ridx.shape
         if export_type == 2:
             return self.ptx, val, None
         if not edge_only:

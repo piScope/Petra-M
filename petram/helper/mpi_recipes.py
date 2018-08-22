@@ -6,6 +6,7 @@ MPI utillities
 import numpy as np
 from mpi4py import MPI
 from  warnings import warn
+from mfem.common.mpi_debug import nicePrint, niceCall
 
 def allgather(data):
     comm     = MPI.COMM_WORLD     
@@ -34,7 +35,7 @@ def allgather_vector(data, mpi_data_type = None):
     MPI.COMM_WORLD.Allgatherv(senddata, recvdata)
     return recvbuf.reshape(-1, *data.shape[1:])
 
-def gather_vector(data, mpi_data_type = None):
+def gather_vector(data, mpi_data_type = None, root=0):
     '''
     gather vector to root node. 
     B: Vector to be collected 
@@ -45,13 +46,13 @@ def gather_vector(data, mpi_data_type = None):
 
     myid     = MPI.COMM_WORLD.rank
     rcounts = data.shape[0]
-    rcounts = MPI.COMM_WORLD.gather(rcounts, root = 0)
+    rcounts = MPI.COMM_WORLD.gather(rcounts, root = root)
     cm = np.hstack((0, np.cumsum(rcounts)))
     disps = list(cm[:-1])        
     recvdata = None
     senddata = [data, data.shape[0]]
 
-    if myid ==0:
+    if myid ==root:
         length =  cm[-1]
         recvbuf = np.empty([length], dtype=data.dtype)
         recvdata = [recvbuf, rcounts, disps, mpi_data_type]       
@@ -59,8 +60,8 @@ def gather_vector(data, mpi_data_type = None):
         recvdata = [None, rcounts, disps, mpi_data_type]
         recvbuf = None
     MPI.COMM_WORLD.Barrier()           
-    MPI.COMM_WORLD.Gatherv(senddata, recvdata,  root = 0)
-    if myid == 0:
+    MPI.COMM_WORLD.Gatherv(senddata, recvdata,  root = root)
+    if myid == root:
         #print 'collected'
         MPI.COMM_WORLD.Barrier()
         return np.array(recvbuf)
@@ -68,7 +69,7 @@ def gather_vector(data, mpi_data_type = None):
     return None
 
 def gather_vector(data, mpi_data_type = None, parent = False,
-                  world = MPI.COMM_WORLD):
+                  world = MPI.COMM_WORLD, root=0):
     '''
     gather vector to root
     B: Vector to be collected 
@@ -83,28 +84,28 @@ def gather_vector(data, mpi_data_type = None, parent = False,
 
     '''
     from mfem.common.mpi_dtype import  get_mpi_datatype
+    myid     = world.rank    
+
     if mpi_data_type is None:
        mpi_data_type = get_mpi_datatype(data)
-       
-    myid     = world.rank
-    root = 0
     
     if world.Is_intra():
-        if myid == 0: parent = True
+        if myid == root: parent = True
         rcounts = data.shape[0]
         senddata = [data, data.shape[0]]            
     elif parent:
-        root = MPI.ROOT if myid == 0 else MPI.PROC_NULL
+        root = MPI.ROOT if myid == root else MPI.PROC_NULL
         rcounts = 0
         senddata = [np.array(()), 0]
     else:
         rcounts = data.shape[0]        
-        senddata = [data, data.shape[0]]    
+        senddata = [data, data.shape[0]]
+        if myid == root: parent = True
 
-    rcounts = world.gather(rcounts, root = root)
+    rcounts = world.allgather(rcounts)
     cm = np.hstack((0, np.cumsum(rcounts)))
     disps = list(cm[:-1])        
-#    recvdata = None
+
     if parent:
         length =  cm[-1]
         recvbuf = np.empty([length], dtype=data.dtype)
@@ -167,7 +168,7 @@ def scatter_vector2(vector, mpi_data_type, rcounts = None):
 def check_complex(obj, root=0):
     return MPI.COMM_WORLD.bcast(np.iscomplexobj(obj), root=root)
 
-
+    
 def get_row_partitioning(r_A):
     warn('get_row_partition is deplicated', DeprecationWarning,
                   stacklevel=2)

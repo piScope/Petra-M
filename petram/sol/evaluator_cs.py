@@ -58,7 +58,7 @@ def run_and_wait_for_prompt(p, prompt, verbose=True):
             print('proces terminated')
             break
     if verbose:
-        print(lines)
+        print("".join(lines))
     return lines[:-1], alive
 
 def run_with_timeout(timeout, default, f, *args, **kwargs):
@@ -73,7 +73,7 @@ def run_with_timeout(timeout, default, f, *args, **kwargs):
         return default
     finally:
         timeout_timer.cancel()
-        
+'''        
 def wait_for_prompt(p, prompt = '?', verbose = True):
     print("waiting for prompt")
     output = []
@@ -93,7 +93,7 @@ def wait_for_prompt(p, prompt = '?', verbose = True):
         print("process active :" + str(alive))
     print("got prompot")
     return output, alive
-
+'''
 def wait_for_prompt(p, prompt = '?', verbose = True):
     return run_and_wait_for_prompt(p, prompt, verbose=verbose)
         
@@ -199,7 +199,7 @@ class EvaluatorClient(Evaluator):
             return self.__call_server0(name, *params, **kparams)
         except IOError:
             self.failed = True
-            return False
+            raise
         except:
             raise
 

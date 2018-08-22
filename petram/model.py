@@ -9,10 +9,33 @@ from collections import OrderedDict
 import traceback
 from collections import MutableMapping
 import os
+import numpy as np
+import weakref
+from weakref import WeakKeyDictionary
 
 from functools import reduce
 
 from petram.namespace_mixin import NS_mixin
+
+def validate_sel(value, obj, w):
+    g = obj._global_ns
+    try:
+        value = eval(value, g)
+        return True
+    except:
+        return False
+
+def convert_sel_txt(txt, g):
+    if txt.strip() == 'remaining':
+        return ['remaining']
+    if txt.strip() == 'all':
+        return ['all']
+    if txt.strip() == '':
+        arr = []
+    else:
+        arr =  list(np.atleast_1d(eval(txt, g)))
+    return  arr
+
 
 class Restorable(object):
     def __init__(self):
@@ -55,7 +78,7 @@ class RestorableOrderedDict(MutableMapping, Restorable, object):
          st = [(x, self.__dict__[x]) for x in self.__dict__ if not x.startswith('_')]
 #         st.append(('_parent', self._parent))
          return [ (key, value) for key, value in self._contents.iteritems() ], st
-     
+      
      def _restore(self, restoration_data):
          for (key, value) in restoration_data:
 #             print key
@@ -94,11 +117,34 @@ class Hook(object):
     def __init__(self, names):
         self.names = names
 
+class ModelDict(WeakKeyDictionary):
+    '''
+    Weak reference dictionary using Model Object (unhashable) as key
+    '''
+    def __init__(self, root):
+        WeakKeyDictionary.__init__(self)
+        self.root = weakref.ref(root)
+        
+    def __setitem__(self, key, value):
+        hook = key.get_hook()
+        return WeakKeyDictionary.__setitem__(self, hook, value)
+
+    def __getitem__(self, key):
+        hook = key.get_hook()
+        return WeakKeyDictionary.__getitem__(self, hook)
+        
+    def __iter__(self):
+        return [reduce(lambda x, y: x[y], [self.root()] + hook().names)
+                for hook in self.keys()]
+
 class Model(RestorableOrderedDict):
     can_delete = True
     has_2nd_panel = True
     has_3rd_panel = False
-    mustbe_firstchild =False  
+    _has_4th_panel = False    
+    mustbe_firstchild =False
+    always_new_panel = True
+    can_rename = False
 
     def __init__(self, **kwargs):
         super(Model, self).__init__()
@@ -108,6 +154,13 @@ class Model(RestorableOrderedDict):
             self.update_attribute_set(kw = kwargs)
             self.init_attr = True
             
+    @property
+    def has_4th_panel(self):
+        return self.has_3rd_panel and self._has_4th_panel
+    
+    def get_info_str(self):
+        return ""
+    
     def get_hook(self):
         if not hasattr(self, '_hook'): self._hook = None
         if self._hook is not None: return self._hook
@@ -123,18 +176,37 @@ class Model(RestorableOrderedDict):
     def __repr__(self):
          return self.__class__.__name__+'('+self.name()+':'+','.join(self.keys()) + ')'
 
+    def __eq__(self, x):
+        try:
+            return x.fullpath() == self.fullpath()
+        except:
+            return False
+
     def attribute_set(self, v):
         v['enabled'] = True
         v['sel_readonly'] = False
-        v['sel_index'] = ['remaining']
+        v['sel_index'] = []
+        if (hasattr(self, 'sel_index') and
+            not hasattr(self, 'sel_index_txt')):
+            v['sel_index_txt'] = ', '.join([str(x) for x in self.sel_index])
+        elif not hasattr(self, 'sel_index_txt'):
+            v['sel_index_txt'] = ''
+        else:
+            v['sel_index_txt'] = ''
         return v
 
-    def process_sel_index(self):
+    def process_sel_index(self, choice = None):
+        try:
+            arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
+            self.sel_index = arr            
+        except:
+            assert False, "failed to convert "+self.sel_index_txt
+        
         if len(self.sel_index) == 1 and self.sel_index[0] == 'remaining':
             self._sel_index = []
             return None
         elif len(self.sel_index) == 1 and self.sel_index[0] == 'all':
-            self._sel_index = []
+            self._sel_index = list(choice)
             return -1
         elif len(self.sel_index) == 0:
             self._sel_index = []            
@@ -142,6 +214,10 @@ class Model(RestorableOrderedDict):
             self._sel_index = []
         else:
             self._sel_index = [long(i) for i in self.sel_index]
+        if choice is not None:
+            ret = np.array(self._sel_index);
+            ret = list(ret[np.in1d(ret, choice)])
+            self._sel_index = ret
         return self._sel_index
             
     def update_attribute_set(self, kw = None):
@@ -150,7 +226,10 @@ class Model(RestorableOrderedDict):
 
         for k in d.keys():
            if not hasattr(self, k):
-               setattr(self, k, d[k])
+               try:
+                   setattr(self, k, d[k])
+               except AttributeError:
+                   print("Attribute Error", self, k, d[k])
         
     def attribute(self, *args, **kwargs):
         if 'showall' in kwargs:
@@ -229,6 +308,9 @@ class Model(RestorableOrderedDict):
     def get_child(self, id):
         return self[self.keys()[id]]
     
+    def get_children(self):
+        return self.values()
+    
     def get_possible_child(self):
         return []
     
@@ -240,8 +322,9 @@ class Model(RestorableOrderedDict):
         m = []
         for k in self.keys():
             label = ''.join([x for x in k if not x.isdigit()])
-            if txt == label:
+            if k.startswith(txt):#            if txt == label:
                 m.append(long(k[len(txt):]))
+
         if len(m) == 0:
            name = txt+str(1)
         else:
@@ -257,19 +340,25 @@ class Model(RestorableOrderedDict):
         else:
             self[name] = obj
         return name
+
+    def postprocess_after_add(self, engine):
+        pass
     
-    def add_itemobj(self, txt, obj):
+    def add_itemobj(self, txt, obj, nosuffix=False):
         
         m = []
         for k in self.keys():
             if k.startswith(txt):
                 m.append(long(k[len(txt):]))
         if len(m) == 0:
-           name = txt+str(1)
+           if nosuffix:
+               name = txt
+           else:
+               name = txt+str(1)
         else:
            name = txt + str(max(m)+1)
         self[name] = obj
-        return txt+str(1)
+        return name
 
     def panel1_param(self):
         return []
@@ -316,7 +405,7 @@ class Model(RestorableOrderedDict):
         pass
 
     def get_panel2_value(self):
-        return (','.join([str(x) for x in self.sel_index]),)
+        return (self.sel_index_txt,)
     
     def get_panel3_value(self):
         pass
@@ -335,9 +424,12 @@ class Model(RestorableOrderedDict):
         return value : gui_update_request
         '''
         if not self.sel_readonly:
-           arr =  str(v[0]).split(',')
-           arr = [x for x in arr if x.strip() != '']
-           self.sel_index = arr
+            self.sel_index_txt = str(v[0])       
+            try:
+                arr = convert_sel_txt(str(v[0]), self._global_ns)
+                self.sel_index = arr            
+            except:
+                pass
         return False
     
     def import_panel3_value(self, v):
@@ -376,23 +468,43 @@ class Model(RestorableOrderedDict):
                 yield x
 
     def iter_enabled(self):
-        for k in self.keys():
-            if not self[k].enabled: continue
-            yield self[k]
+        for child in self.values():
+            if not child.enabled: continue
+            yield child
     enum_enabled = iter_enabled #backward compabibility.
     
     def name(self):
         if self._parent is None: return 'root'
         for k in self._parent.keys():
             if self._parent[k] is self: return k
-   
+        return "No Parent"
+            
+    def rename(self, new_name):
+        if self.name()=='root':
+            assert False, "can't rename root"
+            
+        new_cnt = []
+        for key in self._parent.keys():
+            if self._parent[key] is self:
+                new_cnt.append((new_name, self._parent[key]))
+            else:
+                new_cnt.append((key, self._parent[key]))
+
+        parent = self._parent
+        for key in self._parent.keys():
+            parent[key]._parent = None
+            del parent[key]
+
+        for key, value in new_cnt:
+            parent[key] = value
+                               
     def split_digits(self):
         '''
         split tailing digits
         '''
         name = self.name()
         l = -1
-        if not name[l].isdigit(): name, '0'
+        if not name[l].isdigit(): return name, '0'
 
         while name[l].isdigit(): l =l-1
         l = l+1
@@ -460,6 +572,31 @@ class Model(RestorableOrderedDict):
             idx = node.set_script_idx(idx=idx)
         return idx
 
+    def save_attribute_set(self, skip_def_check):
+        ans = []
+        for attr in self.attribute():
+            defvalue = self.attribute_set(dict())
+            value = self.attribute(attr)
+            mycheck = True
+
+            try:
+                #print attr, type(value), value, type(defvalue[attr]), defvalue[attr]   
+                if type(value) != type(defvalue[attr]):
+                    mycheck = True
+                else:# for numpy array
+                    mycheck = value != defvalue[attr]  # for numpy array
+                    if isinstance(mycheck, np.ndarray):
+                        mycheck = mycheck.any()
+                    else:
+                        mycheck = any(mycheck)
+            except TypeError:
+                try:
+                    mycheck = value != defvalue[attr]
+                except:
+                    pass
+            if mycheck or skip_def_check: ans.append(attr)
+        return ans
+    
     def _generate_model_script(self, script = None,
                                skip_def_check = False, dir = None):
         # assigne script index if root node
@@ -467,20 +604,13 @@ class Model(RestorableOrderedDict):
             self.set_script_idx()
             script = []
             script.append('obj1 = MFEM_ModelRoot()')
-        for attr in self.attribute():
-            defvalue = self.attribute_set(dict())
+
+        attrs = self.save_attribute_set(skip_def_check)
+        for attr in attrs:
             value = self.attribute(attr)
-            mycheck = True
-            try:
-                mycheck = any(value != defvalue[attr])  # for numpy array
-            except TypeError:
-                try:
-                    mycheck = value != defvalue[attr]
-                except:
-                    pass
-            if mycheck or skip_def_check:
-                script.append(self._script_name + '.'+attr + ' = ' +
+            script.append(self._script_name + '.'+attr + ' = ' +
                               value.__repr__())
+            
         if self.has_ns() and self.ns_name is not None:
             script.append(self._script_name + '.ns_name = "' +
                           self.ns_name + '"')
@@ -521,8 +651,10 @@ class Model(RestorableOrderedDict):
         script.append('')        
         script.append('solvers = eng.preprocess_modeldata()')
         script.append('')
+        script.append('is_first = True')        
         script.append('for s in solvers:')
-        script.append('    s.run(eng)')
+        script.append('    s.run(eng, is_first=is_first)')
+        script.append('    is_first=False')
         
         return script
 
@@ -551,17 +683,23 @@ class Model(RestorableOrderedDict):
         script.append('')            
         for key in d2.keys():
             script.append('from '+d2[key] + ' import '+ key)
-    
+
+        script.append('from collections import OrderedDict')
+        
     def generate_script(self, skip_def_check = False, dir = None, nofile = False,
                         parallel = False, filename = 'model.py'):
         if dir is None: dir = os.getcwd()        
         script = []
-        if parallel:
-            script.append('import  petram.mfem_config as mfem_config')
-            script.append('mfem_config.use_parallel = True')
-        else:
-            script.append('import  petram.mfem_config as mfem_config')
-            script.append('mfem_config.use_parallel = False')
+        script.extend(['import os',
+                       'try:',
+                       '    from mpi4py import MPI',
+                       '    num_proc = MPI.COMM_WORLD.size',
+                       '    use_parallel=num_proc > 1',
+                       'except:',
+                       '    use_parallel=False',
+                       'import  petram.mfem_config as mfem_config',
+                       'mfem_config.use_parallel = use_parallel'])
+
         script.append('')
         script.append('debug_level = 0')        
         script.append('')
@@ -602,7 +740,7 @@ class Model(RestorableOrderedDict):
     
     def figure_data_name(self):
         return self.name()
-    
+
 class Bdry(Model):
     can_delete = True
     is_essential = False
@@ -616,7 +754,9 @@ class Bdry(Model):
     
     def panel2_param(self):
         return [["Boundary",  'remaining',  0, {'changing_event': True,
-                                                'setfocus_event': True}] ]
+                                                'setfocus_event': True,
+                                                 'validator': validate_sel,
+                                                 'validator_param':self}] ]
 
 class Pair(Model):
     can_delete = True
@@ -626,19 +766,26 @@ class Pair(Model):
         v['sel_readonly'] = False
         v['src_index'] = []
         v['sel_index'] = []
+        v['src_index_txt'] = ''
+        v['sel_index_txt'] = ''
+        
         return v
         
     def get_possible_child(self):
         return self.parent.get_possible_pair()
 
     def panel2_param(self):
-        return [["Destination",  '',  0, {'changing_event':True,
-                                          'setfocus_event':True}],
-                ["Source",  '',  0, {'changing_event':True, 
-                                     'setfocus_event':True}] ]
+        return [["Source",  '',  0, {'changing_event':True, 
+                                     'setfocus_event':True,
+                                     'validator': validate_sel,
+                                     'validator_param':self}],
+                ["Destination",  '',  0, {'changing_event':True,
+                                          'setfocus_event':True,
+                                          'validator': validate_sel,
+                                          'validator_param':self}], ]
 
     def panel2_sel_labels(self):
-        return ['destination', 'source']
+        return ['source', 'destination']
 
     def panel2_all_sel_index(self):
         try:
@@ -650,7 +797,7 @@ class Pair(Model):
         except:
             idx2 = []
             
-        return [idx, idx2]
+        return [idx2, idx]
     
     def is_wildcard_in_sel(self):
         ans = [False, False]
@@ -665,18 +812,38 @@ class Pair(Model):
         return ans
         
     def get_panel2_value(self):
-        return (','.join([str(x) for x in self.sel_index]),
-                ','.join([str(x) for x in self.src_index]),)
+        return (self.src_index_txt, self.sel_index_txt)
     
     def import_panel2_value(self, v):
-        arr =  str(v[0]).split(',')
-        arr = [x for x in arr if x.strip() != '']
-        self.sel_index = arr
-        arr =  str(v[1]).split(',')
-        arr = [x for x in arr if x.strip() != '']
-        self.src_index = arr
         
-    def process_sel_index(self):
+        self.src_index_txt = str(v[0])       
+        self.sel_index_txt = str(v[1])
+
+        try:
+            arr = convert_sel_txt(str(v[0]), self._global_ns)
+            self.src_index = arr            
+        except:
+            pass
+        try:
+            arr = convert_sel_txt(str(v[1]), self._global_ns)
+            self.sel_index = arr            
+        except:
+            pass
+        return False
+        
+    def process_sel_index(self,  choice = None):
+        try:
+            arr = convert_sel_txt(self.src_index_txt, self._global_ns)
+            self.src_index = arr            
+        except:
+            assert False, "failed to convert "+self.src_index_txt
+
+        try:
+            arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
+            self.sel_index = arr            
+        except:
+            assert False, "failed to convert "+self.sel_index_txt
+        
         if len(self.sel_index) == 0:
             self._sel_index = []            
         elif self.sel_index[0] == '':            
@@ -691,6 +858,15 @@ class Pair(Model):
         else:
             self._src_index = [long(i) for i in self.src_index]
         self._sel_index = self._sel_index + self._src_index
+
+        if choice is not None:
+            ret = np.array(self._sel_index);
+            ret = list(ret[np.in1d(ret, choice)])
+            self._sel_index = ret
+            ret = np.array(self._src_index);
+            ret = list(ret[np.in1d(ret, choice)])
+            self._src_index = ret
+        
             
         return self._sel_index
 
@@ -708,7 +884,9 @@ class Domain(Model):
     
     def panel2_param(self):
         return [["Domain",  'remaining',  0, {'changing_event':True,
-                                              'setfocus_event':True}, ]]          
+                                              'setfocus_event':True,
+                                              'validator': validate_sel,
+                                              'validator_param':self}], ]
       
 class Edge(Model):
     can_delete = True
@@ -723,7 +901,10 @@ class Edge(Model):
     
     def panel2_param(self):
         return [["Edge",  'remaining',  0, {'changing_event':True, 
-                                            'setfocus_event':True}, ]]      
+                                            'setfocus_event':True,
+                                            'validator': validate_sel,
+                                            'validator_param':self}], ]
+    
 class Point(Model):
     can_delete = True
     is_essential = False        
@@ -737,6 +918,8 @@ class Point(Model):
     
     def panel2_param(self):
         return [["Point",  'remaining',  0, {'changing_event':True,
-                                             'setfocus_event':True}, ]]
+                                             'setfocus_event':True,
+                                             'validator': validate_sel,
+                                             'validator_param':self}], ]
 
         

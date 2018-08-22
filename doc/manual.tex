@@ -4,10 +4,16 @@
 \usepackage{amsfonts}
 \usepackage{amssymb}
 \usepackage{graphicx}
+\usepackage[final]{listings}
+\usepackage{url}
 \author{S. Shiraiwa}
 \title{Petra-M: Physics Equation Translator for MFEM}
 \begin{document}
+\lstset{language=Python}
 \maketitle
+\tableofcontents
+\newpage
+
 \chapter{Introduction}
 Petra-M (Physics Equation Translator for MFEM) is a tool to build a finite element simulation model using MFEM. 
 MFEM is a scalable finite element library built at LLNL. In MFEM,  a user has to fill the linear system matrix and the right hand side by adding  mfem::BilinearFormIntegrator and mfem::LinearFormIntegrator to mfem::BilinearForm and mfem::LinearForm.
@@ -18,10 +24,19 @@ Using Petra-M and $\pi$Scope, a user can build physics simulation model quickly 
 
 Goal of this report is to describe how Petra-M construct a linear system. An emphasis is on showing the weakform equation systems used for each physics module. Note that these equations are mostly well established and found in various literature, and therefore, giving detailed derivation is not the point of this report. 
 
- 
-\chapter{Linear system construction strategy}
+
+\chapter{Preparing simulation model}
+\section{Linear System Structure}
+Need to discusss,,,,Mesh space, FESpace variable, Auxiliary variable
+
+\section{Namespace and Variables}
+Using it for material property and selection index.
+
+
 \chapter{PDE modules}
-\section{2D static (Coeff2D)}
+\section{WeakForm(WF)}
+\section{CoefficientForm(Coeff)}
+\subsection{2D static (Coeff2D)}
 This module solves the following equation in 2D (x, y) domain.
   \begin{align}
    \nabla (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) + \mathbf{q} \cdot \nabla u + au - f = 0 
@@ -33,8 +48,8 @@ This module solves the following equation in 2D (x, y) domain.
   
  
 
-  
-  \section{2D time-dependent (Coeff2Dt)}
+ 
+  \subsection{2D time-dependent (Coeff2Dt)}
   \begin{align}
   m\frac{\partial^2 u}{\partial t^2} +   d\frac{\partial u}{\partial t} + \nabla (\mathbf{c} \nabla u + \mathbf{p}u + \mathbf{r}) + \mathbf{q} \cdot \nabla u + au - f = 0, 
   \\  
@@ -44,7 +59,7 @@ This module solves the following equation in 2D (x, y) domain.
   \end{align}
 where m is the mass coefficient, d is the damping coefficient, c is the diffusion coefficient, p is the conservative flux convection coefficient. q is the convection coefficient,  a is the absorption coefficient, r is the conservative flux source term, and f is the source term.
 
- \section{Weakform}
+ \subsection{Weakform}
   Multipling a test funcion $v$ from the left and integrating it over the computation domain,  we can transform the terms in the previous 2nd order PDE as follows.
   \begin{equation}
  \int v \nabla (\mathbf{c} \cdot \nabla u) = (\nabla v,\mathbf{c} \cdot \nabla u) - \langle v, \mathbf{c} \cdot \frac{\partial u}{\partial \mathbf{n}} \rangle
@@ -95,9 +110,9 @@ where m is the mass coefficient, d is the damping coefficient, c is the diffusio
      Coeff2D-Esse     : general essential
 
 '''
-\chapter{EM Modules}
-\section{3D frequency domain(EM3D)}
-\subsection{Weakform of the Maxwell's equation}
+\section{Radio Frequency (EM)}
+\subsection{3D frequency domain(EM3D)}
+\subsubsection{Weakform of the Maxwell's equation}
 This module uses the Cartesian coordinate system (x, y, z), and solves the following weakform of Maxwell equations. 
  \begin{align}
 (\nabla \times \mathbf{F},  \frac{1}{\mu}\nabla  \times  \mathbf{E})
@@ -110,22 +125,22 @@ This module uses the Cartesian coordinate system (x, y, z), and solves the follo
  \end{align}
   where $(A , B)$ is the domain integral ($\int_{\Omega} AB dxdydz$) and $\langle A, B \rangle $ is the boundary integral ($\int_{\partial \Omega_{2}} ABdxdydz$). 
  
- \subsection{Anisotropic media}
+ \subsubsection{Anisotropic media}
  
- \subsection{External current source}
+ \subsubsection{External current source}
  
- \subsection{PMC (perfect magnetic conductor)}
+ \subsubsection{PMC (perfect magnetic conductor)}
  
- \subsection{PEC (perfect electric conductor/electric field BC}
+ \subsubsection{PEC (perfect electric conductor/electric field BC}
  
-  \subsection{Surface Current}
+  \subsubsection{Surface Current}
   
- \subsection{Port}
+ \subsubsection{Port}
  
- \subsection{Periodic (Floquet-Bloch) BC}
+ \subsubsection{Periodic (Floquet-Bloch) BC}
  
-\section{Axisymmetric frequency domain(EM2Da)}
-\subsection{Weakform of the Maxwell's equation}
+\subsection{Axisymmetric frequency domain(EM2Da)}
+\subsubsection{Weakform of the Maxwell's equation}
 This module uses the cylindrical coordinate system (r,  $\phi$, z). Physics quantities are supposed to have a periodic dependence to 
 $\phi$ direction ($\sim e^{m \phi}$), where $m$ is the out-of-plane mode number. First, we write the curl operator in the following form
 
@@ -156,19 +171,133 @@ r(\nabla_{\rm t} \times \mathbf{F}_{\rm t},  \frac{1}{\mu}\nabla_{\rm t}  \times
  \end{align}
  where $(A , B)$ is the domain integral ($\int_{\Omega} AB drdz$) and $\langle A, B \rangle $ is the boundary integral ($\int_{\partial \Omega} ABdrdz$). The module uses the H(curl) element for $\mathbf{E}_{\rm t}$ and the H1 element for $rE_{\phi}$. Note that the integration does not consider $2 \pi r$ and $r$ is included in the coefficient of the linear/bilinear forms. 
  
- \subsection{Anisotropic media}
+ \subsubsection{Anisotropic media}
  
- \subsection{External current source}
+
+ \begin{equation}
+ \left[ {\begin{array}{*{20}c}
+\mathbf{F}_{\rm t}  & rF_{\rm \phi}\\
+\end{array}}\right]
+\left[ {\begin{array}{*{20}c}
+\mathbf{\epsilon}_{\perp \perp}  & \frac{\mathbf{\epsilon}_{\perp \parallel}}{r}\\
+\frac{\mathbf{\epsilon}_{\parallel \perp}}{r} & \frac{\mathbf{\epsilon}_{\parallel \parallel}}{r^2}\\
+\end{array}}\right]
+ \left[ {\begin{array}{*{20}c}
+\mathbf{E}_{\rm t}  \\
+rE_{\rm \phi}\\
+\end{array}}\right]
+\label{response_matrix_eq}
+\end{equation}
+
+ \subsubsection{External current source}
  This domain condition is implemented using the last line of Eq.\,\ref{em2da_weak}. 
  
- \subsection{PMC (perfect magnetic conductor)}
+ \subsubsection{PMC (perfect magnetic conductor)}
  
- \subsection{PEC (perfect electric conductor/electric field BC}
+ \subsubsection{PEC (perfect electric conductor/electric field BC}
   
   
-\chapter{Thermal Modules}
-\section{3D static (TH3Ds)}
-\chapter{Cross-Physics Coupling}
+\section{Thermal Modules}
+\subsection{3D static (TH3Ds)}
 
+
+\chapter{Linear system assembly}
+\section{Mesh extension} 
+\section{Name space}
+\section{Matrix assembly}
+
+\chapter{Solver}
+\section{Setting up solver section}
+This section discuss SolveStep and reduced linear system generation.
+
+\section{Direct Solver}
+\subsection{MUMPS}
+MUMPS is a sparse direct solver (\url{http://mumps.enseeiht.fr}). Petra-M support MUMPS via the Petra\_MUMPS module. 
+\subsection{Strumpack}
+Supporting STRUMPACK is in progress.
+\section{Iterative Solver}
+\subsection{preconditioner}
+
+
+\subsection{user defined preconditioner}
+A user can also define his/her own preconditioner using python script.  This can be done in several levels, but all
+uses the prc decorator to tell PetraM that a function in a script is to be used as a preconditioner object.
+
+The first approach is to use $@$prc.block decoeator (Listing.\,\ref{prc1}). This is to define a preconditioner block element.  The defined element can be used either via a GUI discussed in the previous subsection or a user defined precontioner discussed below.  
+
+
+A user can use $@$prc.blk\_diagonal and $@$prc.blk\_lowertriagular to define a diagonal and a lowertriangular precondiionter, respectively (Listing.\,\ref{prc2}).. In the decorated function, a user fill the preconditioner element using preconditioner blockblocks. Additionally, a user may create a complete precondtioner object using $@$prc.blk\_generic. In this case,SetOperator and Mult methods should be defined  by a user too.(Listing.\,\ref{prc3}). 
+
+\begin{minipage}[c]{0.95\textwidth}
+\begin{lstlisting}[caption={A user defined preconditioner block},captionpos=b, frame=single, label={prc1}]
+@prc.block
+def GS(**kwargs)
+    prc = kwargs.pop('prc')
+    blockname = kwargs.pop('blockname')
+    mat = prc.get_diagoperator_by_name(blockname)
+    if use_parallel:
+        smoother = mfem.HypreSmoother(mat)
+        ktype = getattr(mfem.HypreSmoother, "GS")
+        smoother.SetType(ktype)
+    else:
+        smoother = mfem.GSSmoother(mat, 0)
+        smoother.iterative_mode = False
+    return smoother
+\end{lstlisting}
+\end{minipage}
+
+\begin{minipage}[c]{0.95\textwidth}
+\begin{lstlisting}[frame=single, caption={A user defined diag/lowertriangular preconditioner},captionpos=b, label={prc2}]
+from petram.helper.preconditioners import prc
+from petram.helper.preconditioners import GS as GSg
+@prc.blk_diagonal
+def D(p, g, *args, **kwargs):
+    '''
+    definition of block diagonal preconditioner
+    p is a preconditioner object. In this case,
+     mfem.BlockDiagonalPreconditioner
+    g is a preconditioner generator object carrying 
+    the information of matrix.
+    This example set GS for unknown v.  
+    '''
+    GSg.set_param(g, "v")
+    gs = GSg() #instatiate a block
+    k = g.get_row_by_name("v")
+    p.SetDiagonalBlock(k, gs) # set to block
+    return p
+    
+@prc.blk_lowertriagular
+def prc_tri(p, **kwargs):
+    '''
+    definition of lower trianuglar preconditioner
+    '''
+    p.Mult(x, y)
+\end{lstlisting}
+\end{minipage}
+
+\begin{minipage}[c]{0.95\textwidth}
+\begin{lstlisting}[caption={A user defined generic preconditioner},captionpos=b, frame=single, label={prc3}]
+@prc.blk_generic
+def G(p, **kwargs):
+
+
+@G.Mult
+def Mult(p, x, y):
+      '''
+      contents of Mult method. 
+      x is input, while y is output
+      '''
+
+@G.SetOperator
+def SetOperator(p, opr):
+      '''
+      Update preconditioner using opr.
+      '''
+\end{lstlisting}
+ \end{minipage}
+
+\chapter{Visualization}
+\section{Solution file structure}
+\section{Plotting solution in $\pi$Scope}
 
 \end{document}

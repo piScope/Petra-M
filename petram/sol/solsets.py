@@ -1,3 +1,4 @@
+import os
 import six
 
 class Solfiles(object):
@@ -13,6 +14,9 @@ class Solfiles(object):
         return len(self.set)
     def __getitem__(self, idx):
         return Solfiles(self.set[idx])
+
+class MeshDict(dict):
+    pass
         
 class Solsets(object):
     '''
@@ -21,21 +25,33 @@ class Solsets(object):
       methes: names, meshes, gfr, gfi
     '''
     def __init__(self, solfiles, refine=0):
+        def fname2idx(t):
+           i = int(os.path.basename(t).split('.')[0].split('_')[-1])
+           return i
         solfiles = solfiles.set
         object.__init__(self)
         self.set = []
         import mfem.ser as mfem
-
-        for x, solf, in solfiles:
-            m = mfem.Mesh(str(x), 1, refine)  ### what is this refine = 0 !?
-            m.ReorientTetMesh()
+        
+        for meshes, solf, in solfiles:
+            idx = [fname2idx(x) for x in meshes]
+            meshes = {i:  mfem.Mesh(str(x), 1, refine) for i, x in zip(idx, meshes)}
+            meshes=MeshDict(meshes) # to make dict weakref-able
+            ### what is this refine = 0 !?
+            for i in idx:
+                meshes[i].ReorientTetMesh()
+                meshes[i]._emesh_idx = i
             s = {}
             for key in six.iterkeys(solf):
                fr, fi =  solf[key]
+               i = fname2idx(fr)
+               m = meshes[i]
                solr = (mfem.GridFunction(m, str(fr)) if fr is not None else None)
                soli = (mfem.GridFunction(m, str(fi)) if fi is not None else None)
+               if solr is not None: solr._emesh_idx = i
+               if soli is not None: soli._emesh_idx = i
                s[key] = (solr, soli)
-            self.set.append((m, s))
+            self.set.append((meshes, s))
 
     def __len__(self):
         return len(self.set)
@@ -77,31 +93,57 @@ def find_solfiles(path, idx = None):
         pathm = os.path.dirname(path)
     else:
         pathm = path
-    
-    solsets = []
-    x = mfiles[0]
-    suffix = '' if len(x.split('.')) == 1 else '.'+x.split('.')[-1]
 
+    solfiles = []    
+    x = mfiles[0]
+    suffix_list = list(set(['' if len(x.split('.')) == 1 else '.'+x.split('.')[-1]
+                            for x in mfiles]))
+    for s in suffix_list:
+        meshes = [x for x in mfiles if (len(x.split('.')) == 1 and s == '') or
+                                        x.endswith(s)]
+        meshes = [os.path.join(pathm, x) for x in meshes]
+        solrs  = [x for x in solrfile if (len(x.split('.')) == 1 and s == '') or
+                                        x.endswith(s)]
+        solis  = [x for x in solifile if (len(x.split('.')) == 1 and s == '') or
+                                        x.endswith(s)]
+        names = ['_'.join(x.split('.')[0].split('_')[1:]) for x in solrs]
+
+        sol = {}
+        for n in names:
+            print 'solr_'+ n + s
+            solr = (os.path.join(path, 'solr_'+ n + s)
+                  if ('solr_'+ n + s) in solrfile else None)
+            soli = (os.path.join(path, 'soli_'+ n + s)
+                  if ('soli_'+ n + s) in solifile else None)
+            
+            if solr is None: continue
+            sol[n] = (solr, soli)
+        solfiles.append([meshes, sol])                  
+    '''    
     files = [x for x in solrfile if x.endswith(suffix)]
     names = [x.split('.')[0] for x in files]    
     names = ['_'.join(x.split('_')[1:3]) for x in names]
+    imeshes = [x.split('_')[-1] for x in names]    
     # names = ['E_0'], meaning  E defined on mesh 0
 
     solfiles = []
     for x in mfiles:       
        suffix = '' if len(x.split('.')) == 1 else '.'+x.split('.')[-1]
+       imesh_mfile = x.split('.')[0].split('_')[-1]
        if idx is not None:
           if int(suffix) in idx: continue
        x = os.path.join(pathm, x)
        sol = {}
-       for name in names:
+       for name, imesh in zip(names, imeshes):
+          if int(imesh) != int(imesh_mfile): continue
           solr = (os.path.join(path, 'solr_'+name +suffix)
                   if ('solr_'+name+suffix) in solrfile else None)
           soli = (os.path.join(path,'soli_'+name+suffix)
                   if ('soli_'+name+suffix) in solifile else None)
+          if solr is None: continue
           sol[name] = (solr, soli)
-       if sol[names[-1]][0] is None: continue # if real sol is None, skip this
-       solfiles.append([x, sol])          
+       solfiles.append([x, sol])     
+    '''     
     return Solfiles(solfiles)
 
 def read_solsets(path, idx = None, refine=0):

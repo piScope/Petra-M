@@ -19,7 +19,7 @@ class InitSettingPanel(wx.Panel):
         rb2 = wx.RadioButton(self, wx.ID_ANY, "Use Value")
         rb3 = wx.RadioButton(self, wx.ID_ANY, "Use init panel value")
         rb4 = wx.RadioButton(self, wx.ID_ANY, "From File")
-        rb5 = wx.RadioButton(self, wx.ID_ANY, "No initializetion")        
+        rb5 = wx.RadioButton(self, wx.ID_ANY, "From Previous SolveStep")        
 
         self.rbs = [rb1, rb2, rb3, rb4, rb5]
 
@@ -28,7 +28,8 @@ class InitSettingPanel(wx.Panel):
                                 validator = validator )
 
         self.st4 = wx.StaticText(self, wx.ID_ANY, '     path:  ')
-        self.tc4 = TextCtrlCopyPaste(self, wx.ID_ANY, '')
+        self.tc4 = TextCtrlCopyPaste(self, wx.ID_ANY, '',
+                                     style=wx.TE_PROCESS_ENTER) 
         self.bt4 = wx.Button(self, label='Browse...', style=wx.BU_EXACTFIT)
 
         sizer2.Add(rb1, 0, wx.EXPAND)
@@ -49,7 +50,8 @@ class InitSettingPanel(wx.Panel):
         self.bt4.Bind(wx.EVT_BUTTON, self.onBrowse)
         for rb in self.rbs:
             self.Bind(wx.EVT_RADIOBUTTON, self.onHit, rb)
-            
+        self.Bind(wx.EVT_TEXT_ENTER, self.textctrl_enter, self.tc1)
+        self.Bind(wx.EVT_TEXT_ENTER, self.textctrl_enter, self.tc4)
         self.rbs[0].SetValue(True)
         self.adjust_enables(0)
         self.Layout()
@@ -73,6 +75,9 @@ class InitSettingPanel(wx.Panel):
 
         return sel, val, path
 
+    def textctrl_enter(self, evt):
+        self.send_event(self, evt)
+        
     def Enable(self, value):
         pass
     
@@ -82,6 +87,7 @@ class InitSettingPanel(wx.Panel):
         if ret == wx.ID_OK:
             path = diag.GetPath()
             self.tc4.SetValue(path)
+            self.send_event(self, evt)            
         diag.Destroy()
         evt.Skip()
 

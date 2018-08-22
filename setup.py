@@ -40,7 +40,7 @@ setup(
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
     install_requires=[],
     extras_require={},
-    package_data={'petram': ['data/icon/*.png']},    
+    package_data={'petram': ['data/icon/*.png', 'data/*Ops']}, #, '':['data/*.mesh']},
     data_files=[],
     entry_points={},
 )

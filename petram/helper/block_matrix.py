@@ -4,7 +4,7 @@ Hypre with the same interface
 '''
 import numpy as np
 import scipy
-from scipy.sparse import coo_matrix, spmatrix, lil_matrix
+from scipy.sparse import coo_matrix, spmatrix, lil_matrix, csc_matrix
 
 from petram.mfem_config import use_parallel
 import mfem.common.chypre as chypre
@@ -80,41 +80,56 @@ class ScipyCoo(coo_matrix):
     def __sub__(self, other):
         ret = super(ScipyCoo, self).__sub__(other)
         return convert_to_ScipyCoo(ret)
-     
+
     def setDiag(self, idx, value=1.0):
         ret = self.tolil()
-        for i in idx:
-           ret[i,i] = value
+        idx = np.array(idx, dtype=int, copy=False)
+        ret[idx,idx] = value
+        #for i in idx:
+        #   ret[i,i] = value
         ret = ret.tocoo()
         self.data = ret.data
         self.row  = ret.row
         self.col  = ret.col
-        
+    '''    
     def resetDiagImag(self, idx):
         ret = self.tolil()
+
         for i in idx:
            ret[i,i] = ret[i,i].real
         ret = ret.tocoo()
         self.data = ret.data
         self.row  = ret.row
         self.col  = ret.col
-        
+    '''    
 
-    def resetRow(self, rows):
+    def resetRow(self, rows, inplace=True):
         ret = self.tolil()
-        for r in rows: ret[r, :] = 0.0        
+        rows = np.array(rows, dtype=int, copy=False)
+        ret[rows, :] = 0.0                
         ret = ret.tocoo()
-        self.data = ret.data
-        self.row  = ret.row
-        self.col  = ret.col
+        
+        if inplace:
+            self.data = ret.data
+            self.row  = ret.row
+            self.col  = ret.col
+            return self
+        else:
+            return ret
        
-    def resetCol(self, cols):
+    def resetCol(self, cols, inplace=True):
         ret = self.tolil()
-        for c in cols: ret[:, c] = 0.0        
+        cols = np.array(cols, dtype=int, copy=False)
+        ret[:, cols] = 0.0                
+        #for c in cols: 
         ret = ret.tocoo()
-        self.data = ret.data
-        self.row  = ret.row
-        self.col  = ret.col
+        if inplace:
+            self.data = ret.data
+            self.row  = ret.row
+            self.col  = ret.col
+            return self
+        else:
+            return ret
      
     def selectRows(self, nonzeros):
         m = self.tocsr()
@@ -129,6 +144,13 @@ class ScipyCoo(coo_matrix):
     def rap(self, P):
         PP = P.conj().transpose()
         return convert_to_ScipyCoo(PP.dot(self.dot(P)))
+
+    def conj(self, inplace = False):
+        if inplace:
+            np.conj(self.data, out=self.data)
+            return self
+        else:
+            return self.conj()
 
     def elimination_matrix(self, nonzeros):
         '''
@@ -207,7 +229,69 @@ class ScipyCoo(coo_matrix):
     def GetRowPartArray(self):
         return (0, self.shape[0], self.shape[0])
     GetPartitioningArray = GetRowPartArray
-     
+
+    def eliminate_RowsCols(self, tdof, inplace=True):
+        print("inplace flag off copying matrix")
+        # A + Ae style elimination
+        idx = np.in1d(self.col,tdof)
+        idx2 = np.in1d(self.row,tdof)        
+        diag = self.diagonal()[tdof]-1
+
+        aidx = np.logical_or(idx, idx2)
+        AeCol  = self.col[aidx]
+        AeRow  = self.row[aidx]
+        AeData = self.data[aidx]
+        Ae2 = coo_matrix((AeData, (AeRow, AeCol)),
+                         shape=self.shape, dtype=self.dtype)
+        Ae2c = Ae2.tocsr()
+        Ae2c[tdof, tdof] = diag
+        Ae2 = Ae2c.tocoo()
+
+        if inplace:
+            target=self
+        else:
+            target = self.copy()
+        
+        target.data[idx] = 0        
+        target.data[idx2] = 0
+        target.eliminate_zeros()
+        lil2 = target.tolil()        
+        lil2[tdof, tdof] = 1.
+        coo = lil2.tocoo()
+        target.data = coo.data
+        target.row = coo.row
+        target.col = coo.col
+        return Ae2, target
+
+        '''
+        # this one is slower
+        # tdof is list
+        lil[tdof, :] = 0
+        Ae = lil_matrix(self.shape, dtype=self.dtype)
+        Ae[:, tdof] = lil[:,tdof]
+        lil[:,tdof] = 0.0
+        lil[tdof, tdof] = 1.
+        coo = lil.tocoo()
+        self.data = coo.data
+        self.row = coo.row
+        self.col = coo.col
+        self.eliminate_zeros()
+        
+        Ae = Ae.tocoo()
+        print "Ae-Ae2"
+        print Ae-Ae2
+        return Ae
+        '''
+    def copy_element(self, tdof, m):
+        mlil = m.tolil()
+        value= mlil[tdof, 0]
+        slil = self.tolil()
+        slil[tdof, 0] = value
+        coo = slil.tocoo()
+        self.data = coo.data
+        self.row = coo.row
+        self.col = coo.col
+        
 def convert_to_ScipyCoo(mat):
     if isinstance(mat, np.ndarray):
        mat = coo_matrix(mat)
@@ -218,7 +302,7 @@ def convert_to_ScipyCoo(mat):
     return mat
 
 class BlockMatrix(object):
-    def __init__(self, shape, kind = default_kind):
+    def __init__(self, shape, kind = default_kind, complex=False):
         '''
         kind : scipy
                   stores scipy sparse or numpy array
@@ -227,8 +311,9 @@ class BlockMatrix(object):
         self.block = [[None]*shape[1] for x in range(shape[0])]
         self.kind  = kind
         self.shape = shape
-        self.complex = False
+        self.complex = complex
 
+        
     def __getitem__(self, idx):
         try:
             r, c = idx
@@ -263,7 +348,7 @@ class BlockMatrix(object):
                 if v.isComplex(): self.complex = True                       
             elif v is None:
                 pass
-            else:   
+            else:
                 v = convert_to_ScipyCoo(v)
                 if np.iscomplexobj(v): self.complex = True        
         self.block[r][c] = v
@@ -276,7 +361,9 @@ class BlockMatrix(object):
         ret = BlockMatrix(shape, kind = self.kind)
         for i in range(shape[0]):
             for j in range(shape[1]):
-                if self[i,j] is None:
+                if self[i,j] is None and v[i,j] is None:
+                    ret[i,j] = None                   
+                elif self[i,j] is None:
                     ret[i,j] = v[i,j]
                 elif v[i,j] is None:
                     ret[i,j] = self[i,j]
@@ -292,14 +379,37 @@ class BlockMatrix(object):
 
         for i in range(shape[0]):
            for j in range(shape[1]):
-                if self[i,j] is None:
+                if self[i,j] is None and v[i,j] is None:
+                    ret[i,j] = None                   
+                elif self[i,j] is None:
                     ret[i,j] = -v[i,j]
                 elif v[i,j] is None:
                     ret[i,j] = self[i,j]
                 else:
                     ret[i,j] = self[i,j] - v[i,j]
         return ret
+     
+    def __mul__(self, other):
+        shape = self.shape
+        ret = BlockMatrix(shape, kind = self.kind)
 
+        for i in range(shape[0]):
+           for j in range(shape[1]):
+                if self[i,j] is not None:
+                    ret[i,j] = self[i,j]*other
+        return ret
+     
+    def __neg__(self, other):
+        shape = self.shape
+        ret = BlockMatrix(shape, kind = self.kind)
+
+        for i in range(shape[0]):
+           for j in range(shape[1]):
+                if self[i,j] is not None:
+                    ret[i,j] = -self[i,j]
+        return ret
+     
+         
     def __repr__(self):
         txt = ["BlockMatrix"+str(self.shape)]
         for i in range(self.shape[0]):
@@ -307,14 +417,13 @@ class BlockMatrix(object):
                            for j in range(self.shape[1])]))
         return "\n".join(txt)+"\n"
 
-
     def format_nnz(self):
         txt = []
         for i in range(self.shape[0]):       
            txt.append(str(i) +" : "+ ",  ".join([str(self[i,j].nnz)
                                                      if hasattr(self[i,j], "nnz") else "unknown"
                                                   for j in range(self.shape[1])]))
-        return "non-zero elements (nnz)\n" + "\n".join(txt)
+        return "\nnon-zero elements (nnz)\n" + "\n".join(txt)
         
     def print_nnz(self):
         print(self.format_nnz())
@@ -329,6 +438,35 @@ class BlockMatrix(object):
      
     def print_true_nnz(self):
         print(self.format_ture_nnz())
+
+    def print_row_part(self):
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                if self[i, j] is not None:               
+                    print i, j, self[i,j].GetRowPartArray()
+    def print_col_part(self):
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                if self[i, j] is not None:               
+                    print i, j, self[i,j].GetColPartArray()
+
+    def save_to_file(self, file):
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                name = file +'_'+str(i)+'_'+str(j)
+                v = self[i,j]
+                if isinstance(v, chypre.CHypreMat):
+                    m = v.get_local_coo()
+                    write_coo_matrix(name, m)
+                elif isinstance(v, chypre.CHypreVec):
+                    m = coo_matrix(v.toarray()).transpose()
+                    write_coo_matrix(name, m)
+                elif isinstance(v, ScipyCoo):
+                    write_coo_matrix(name, v)                   
+                elif v is None:
+                   continue
+                else:
+                   assert False, "Don't know how to write file for "+str(type(v))
 
     def transpose(self):
         ret = BlockMatrix((self.shape[1], self.shape[0]), kind = self.kind)
@@ -358,13 +496,38 @@ class BlockMatrix(object):
                    elif ret[i,j] is None:
                        ret[i,j] = self[i, k].dot(mat[k, j])
                    else:
+                       #print "dot is called here", self[i, k], mat[k, j]
                        ret[i,j] = ret[i,j] + self[i, k].dot(mat[k, j])
-                   try:
-                       ret[i,j].shape
-                   except:
-                       ret[i,j] = coo_matrix([[ret[i,j]]]) 
+                   #try:
+                   #    ret[i,j].shape
+                   #except:
+                   #    ret[i,j] = coo_matrix([[ret[i,j]]]) 
         return ret
-
+     
+    def get_subblock(self, mask1, mask2):
+        ret = BlockMatrix((sum(mask1), sum(mask2)), kind=self.kind,
+                         complex = self.complex)
+        imask1 = [x for x in range(len(mask1)) if mask1[x]]
+        imask2 = [x for x in range(len(mask2)) if mask2[x]]
+        for i, ii in enumerate(imask1):
+            for j, jj in enumerate(imask2):          
+                ret[i, j]=self[ii, jj]
+        return ret
+                         
+    def get_block_id(self, ignore_none=True):
+        blocks = sum(self.block, [])
+        if ignore_none:
+            return [id(b) for b in blocks if b is not None]
+        else:
+            return [id(b) for b in blocks]
+         
+    def check_shared_id(self, target):
+        ids = target.get_block_id()       
+        for i in range(self.shape[0]):
+           for j in range(self.shape[1]):
+               if self[i, j] is None: continue
+               if id(self[i,j]) in ids: print i, j, "shared"
+        
     def eliminate_empty_rowcol(self):
         '''
         collect empty row first. (no global communicaiton this step)
@@ -452,28 +615,32 @@ class BlockMatrix(object):
 
         return ret, P2
 
-    def reformat_central_mat(self, mat, ksol):
+    def reformat_central_mat(self, mat, ksol, ret, mask):
         '''
         reformat central matrix into blockmatrix (columne vector)
-        so that matrix can be mumtipleid from the right of this 
+        so that matrix can be multiplied from the right of this 
 
         self is a block diagonal matrix
         '''
         L = []
         idx = 0
-        ret = BlockMatrix((self.shape[1], 1), kind = self.kind)
-        for i in range(self.shape[1]):        
-            l = self[i, i].shape[1]
+        imask = [x for x in range(len(mask[0])) if mask[0][x]]
+        jmask = [x for x in range(len(mask[1])) if mask[1][x]]        
+        
+        for j in jmask:
+            for i in imask:
+               if self[i,j] is not None:
+                  l =  self[i, j].shape[1]
+                  break
             L.append(l)
-            ref = self[i,i]
+            ref = self[i,j]
+
             if mat is not None:
                 v = mat[idx:idx+l, ksol]
             else:
                 v = None   # slave node (will recive data)
             idx = idx + l
-
-            ret.set_element_from_central_mat(v, i, 0, ref)
-
+            ret.set_element_from_central_mat(v, j, 0, ref)
         return ret
 
     def set_element_from_central_mat(self, v, i, j, ref):
@@ -494,10 +661,10 @@ class BlockMatrix(object):
 
                 part = ref.GetColPartArray()
                 v = comm.bcast(v)
-                start_row = part[0]
-                end_row = part[1]
+                start_col = part[0]
+                end_col = part[1]
 
-                v = np.ascontiguousarray(v[start_row:end_row])
+                v = np.ascontiguousarray(v[start_col:end_col])
                 if np.iscomplexobj(v):
                     rv = ToHypreParVec(v.real)    
                     iv = ToHypreParVec(v.imag)    
@@ -643,11 +810,14 @@ class BlockMatrix(object):
         return roffsets, coffsets
 
     def get_local_partitioning_v(self, convert_real = True,
-                                       interleave = True):
+                                 interleave = True, size_hint = None ):
         '''
         build matrix in coordinate format
         '''
         roffset = np.zeros(self.shape[0], dtype=int)
+        if size_hint is not None:
+           hint_shape = size_hint.shape
+           #print "called with hint:", hint_shape, self.shape    
         for i in range(self.shape[0]):
             for j in range(self.shape[1]):
                 if self[i, j] is not None:
@@ -656,6 +826,15 @@ class BlockMatrix(object):
                        roffset[i] != rp[1] - rp[0]):
                         assert False, 'row partitioning is not consistent'
                    roffset[i] = rp[1] - rp[0]
+                elif size_hint is not None:
+                   for k in range(hint_shape[1]):
+                      if size_hint[i, k] is not None:
+                         rp = size_hint[i,k].GetPartitioningArray()
+                         if (roffset[i] != 0 and
+                             roffset[i] != rp[1] - rp[0]):
+                             assert False, 'row partitioning is not consistent'
+                         roffset[i] = rp[1] - rp[0]
+                   
         #coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
         if self.complex and convert_real:
             if interleave:
@@ -666,7 +845,7 @@ class BlockMatrix(object):
         roffsets = np.hstack([0, np.cumsum(roffset)])
         return roffsets
      
-    def gather_blkvec_interleave(self):
+    def gather_blkvec_interleave(self, size_hint = None):
         '''
         Construct MFEM::BlockVector
 
@@ -678,7 +857,8 @@ class BlockMatrix(object):
         '''
         
         roffsets = self.get_local_partitioning_v(convert_real=True,
-                                                 interleave=True)
+                                                 interleave=True,
+                                                 size_hint = size_hint)
         dprint1("roffsets(vector)", roffsets)
         offset = mfem.intArray(list(roffsets))
         
@@ -695,7 +875,10 @@ class BlockMatrix(object):
                 if isinstance(self[i,0], chypre.CHypreVec):
                     vec.GetBlock(ii).Assign(self[i,0][0].GetDataArray())
                     if self.complex:
-                        vec.GetBlock(ii+1).Assign(self[i,0][1].GetDataArray())
+                       if self[i,0][1] is not None:
+                           vec.GetBlock(ii+1).Assign(self[i,0][1].GetDataArray())
+                       else:
+                           vec.GetBlock(ii+1).Assign(0.0)
                 elif isinstance(self[i,0], ScipyCoo):
                     arr =np.atleast_1d( self[i,0].toarray().squeeze())
                     vec.GetBlock(ii).Assign(np.real(arr))
@@ -703,7 +886,10 @@ class BlockMatrix(object):
                         vec.GetBlock(ii+1).Assign(np.imag(arr))
                 else:
                     assert False, "not implemented, "+ str(type(self[i,0]))
-                
+            else:
+                vec.GetBlock(ii).Assign(0)
+                if self.complex:
+                    vec.GetBlock(ii+1).Assign(0)                   
             ii = ii + 2 if self.complex else ii+1
 
         return vec
@@ -740,10 +926,9 @@ class BlockMatrix(object):
                                   gcsr[0] = ToHypreParCSR(csr, col_starts =cp)
                             if gcsr[1] is not None:
                                   csr = ToScipyCoo(gcsr[1]).tocsr()
-                                  print('csr shape', csr.shape)
                                   gcsr[1] = ToHypreParCSR(csr, col_starts =cp)
                                   gcsrm   = ToHypreParCSR(-csr, col_starts =cp)
-                            dprint1(i, j, s, rp, cp)
+                            dprint2(i, j, s, rp, cp)
                         else:
                             assert False, "unsupported block element "+str(type(self[i,j]))
                     else:

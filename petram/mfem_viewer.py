@@ -76,9 +76,9 @@ class MFEMViewer(BookViewer):
                  ("!", None, None),                 
                  ("!", None, None),
                  ("+Plot", None, None),
-                 ("GLVIS",    self.onCallGlvis, None),
                  ("Function...",    self.onPlotExpr, None),
                  ("Solution ...",    self.onDlgPlotSol, None),
+                 ("Probe ...",    self.onDlgPlotProbe, None),                      
                  ("!", None, None),
                  ("+Solution", None, None, None, ID_SOL_FOLDER),
                  ("Reload Sol", None, None,), 
@@ -143,8 +143,14 @@ class MFEMViewer(BookViewer):
             if data is not None:
                 self.set_figure_data(view_mode, name, data)
 
-        #if self.model.variables.getvar('mesh') is None:
-        #    self.load_mesh()
+        if self.model.variables.getvar('mesh') is None:
+            try:
+                self.load_mesh()
+            except:
+                dialog.showtraceback(parent = self,
+                               txt='mesh file load error',
+                               title='Error',
+                               traceback=traceback.format_exc())
         self.plot_mfem_geom()        
         self.model.scripts.helpers.rebuild_ns()                
         self.engine.run_config()
@@ -424,14 +430,17 @@ class MFEMViewer(BookViewer):
             idx, objs = self._getSelectedIndex(mode='edge')                        
             s = _s_v_loop[0]
             connected_surf = []
-            for i in idx:
-               for k in s.keys():
-                   if i in s[k]: connected_surf.append(k)
-            connected_suf = list(set(connected_surf))            
-            status_txt = ('Edge: '+ ','.join([str(x) for x in idx]) + '(Face: ' +
+            if s is not None: ## in case line loop is defined...(2D/3D)
+               for i in idx:
+                  for k in s.keys():
+                      if i in s[k]: connected_surf.append(k)
+               connected_suf = list(set(connected_surf))
+               sf = connected_suf               
+               status_txt = ('Edge: '+ ','.join([str(x) for x in idx]) + '(Face: ' +
                         ','.join([str(x) for x in connected_suf]) + ')')
+            else:
+               status_txt = 'Edge: '+ ','.join([str(x) for x in idx])
 
-            sf = connected_suf
             se = idx
             
         elif self._sel_mode == 'point':
@@ -451,10 +460,11 @@ class MFEMViewer(BookViewer):
                 elif len(idx) == 2:
                     x, y, z = point.getvar('x', 'y', 'z')
                     ii1 = np.where(aidx == idx[0])[0][0]
-                    ii2 = np.where(aidx == idx[1])[0][0]                    
-                    t = (" (delta = "+ str(x[ii1] - x[ii2]) + ", " + 
-                                      str(y[ii1] - y[ii2]) + ", " + 
-                                      str(z[ii1] - z[ii2]) + ")")
+                    ii2 = np.where(aidx == idx[1])[0][0]
+                    dx = x[ii1] - x[ii2]; dy = y[ii1] - y[ii2]; dz = z[ii1] - z[ii2]
+                    dd = np.sqrt(dx**2+dy**2+dz**2)
+                    t = (" (delta = "+ str(dx) + ", " + str(dy) + ", "+str(dz) +
+                            ", dist. = " + str(dd))
                     status_txt = status_txt + t
                 else:
                     pass
@@ -471,13 +481,18 @@ class MFEMViewer(BookViewer):
         
     def onNewMesh(self, evt):
         from ifigure.widgets.dialog import read
-        from petram.mesh.mesh_model import MeshFile        
-        path = read(message='Select mesh file to read', wildcard='*.mesh')
+        from petram.mesh.mesh_model import MeshFile, MeshGroup
+        path = read(message='Select mesh file to read', wildcard='MFEM|*.mesh|Gmsh|*.msh')
         if path == '': return
         od = self.model.param.getvar('mfem_model')
         
+        mg = MeshGroup()
         data = MeshFile(path=path)
-        od['Mesh'].add_itemobj('MeshFile', data)
+        
+        nameg = od['Mesh'].add_itemobj('MeshGroup', mg)
+        name = od['Mesh'][nameg].add_itemobj('MeshFile', data)        
+        for key in od['Mesh']:
+            if key != nameg: od['Mesh'][key].enabled = False
         self.load_mesh()
         
     def onLoadMesh(self, evt):
@@ -486,7 +501,12 @@ class MFEMViewer(BookViewer):
         
     def load_mesh(self):
         if self.engine is None: self.start_engine()
-        od = self.model.param.getvar('mfem_model')            
+        od = self.model.param.getvar('mfem_model')
+
+        import wx
+        projfile=wx.GetApp().TopWindow.proj.getvar('filename')
+        if projfile is not None:
+            od.model_path = os.path.dirname(projfile)
         self.engine.set_model(od)
         cdir = os.getcwd()
         
@@ -512,11 +532,12 @@ class MFEMViewer(BookViewer):
         
         mesh  = self.model.variables.getvar('mesh')
         if mesh is not None:
-            X, cells, cell_data, sl, iedge2bb = extract_mesh_data(mesh)
+            from petram.mesh.refined_mfem_geom import default_refine as refine
+            X, cells, cell_data, sl, iedge2bb = extract_mesh_data(mesh, refine)
             self._s_v_loop['phys'] = sl
             self._s_v_loop['mesh'] = sl            
             ret = (X, cells, None, cell_data, None)
-            self._ret_ret = ret
+            self._ret_ret = ret, iedge2bb
             plot_geometry(self, ret, geo_phys = 'physical')
             self._figure_data['phys'] = ret
             if not 'mesh' in self._figure_data:
@@ -959,9 +980,6 @@ class MFEMViewer(BookViewer):
                 obj.set_suppress(False)
         self.draw()
         
-    def onCallGlvis(self, evt):
-        self.model.scripts.helpers.call_glvis.RunT()
-
     def _onDlgPlotExprClose(self, evt):
         wx.GetApp().rm_palette(self.plotexprdlg)        
         self.plotexprdlg.Destroy()                        
@@ -1042,10 +1060,10 @@ class MFEMViewer(BookViewer):
     def onDlgPlotSolClose(self, evt):
         self.plotsoldlg = None
         evt.Skip()
-        
-#    def doPlotSolBdr(self, value):
-#        self._doPlotSolBdr(value)
-        
+
+    def onDlgPlotProbe(self, evt):
+        pass
+    
     def onNewNS(self, evt):
         ret, txt = dialog.textentry(self, 
                                      "Enter namespace name", "New NS...", '')

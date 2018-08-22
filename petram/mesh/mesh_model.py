@@ -23,6 +23,7 @@ import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('MeshModel')
 
 class Mesh(Model, NS_mixin):
+    isMeshGenerator = False
     isRefinement = False      
     def __init__(self, *args, **kwargs):
         super(Mesh, self).__init__(*args, **kwargs)
@@ -49,7 +50,7 @@ class MeshGroup(Model):
     has_2nd_panel = False
     isMeshGroup = True    
     def get_possible_child(self):
-        return [MeshFile, UniformRefinement]
+        return [MeshFile, Mesh1D, UniformRefinement, DomainRefinement]
      
     def onItemSelChanged(self, evt):
         '''
@@ -68,7 +69,9 @@ class MeshGroup(Model):
         
 MFEMMesh = MeshGroup
 
+   
 class MeshFile(Mesh):
+    isMeshGenerator = True   
     isRefinement = False   
     has_2nd_panel = False        
     def __init__(self, parent = None, **kwargs):
@@ -88,17 +91,17 @@ class MeshFile(Mesh):
         v = super(MeshFile, self).attribute_set(v)
         v['path'] = ''
         v['generate_edges'] = 1
-        v['refine'] = 1
+        v['refine'] = True
         v['fix_orientation'] = True
 
         return v
         
     def panel1_param(self):
         return [["Path",   self.path,  200, {}],
-                ["", "replacement rule: {petram}=$PetraM, {mfem}=PyMFEM, {home}=~"  ,2, None],
+                ["", "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir."  ,2, None],
                 ["Generate edges",    self.generate_edges == 1,  3, {"text":""}],
                 ["Refine",    self.refine==1 ,  3, {"text":""}],
-                ["FixOrientatijon",    self.fix_orientation ,  3, {"text":""}]]
+                ["FixOrientation",    self.fix_orientation ,  3, {"text":""}]]
     def get_panel1_value(self):
         return (self.path, None, self.generate_edges, self.refine, self.fix_orientation)
     
@@ -133,14 +136,25 @@ class MeshFile(Mesh):
             path = path.replace('{petram}', PetraM_PATH)
         if path.find('{home}') != -1:
             path = path.replace('{home}', HOME)
+        if path.find('{model}') != -1:
+            path = path.replace('{model}', self.root().model_path)
 
         if not os.path.isabs(path):
+            dprint2("meshfile relative path mode")
             path1 = os.path.join(os.getcwd(), path)
+            dprint2("trying :", path1)
             if not os.path.exists(path1):
                 print(os.path.dirname(os.getcwd()))
-                path = os.path.join(os.path.dirname(os.getcwd()), path)
-            else:
+                path1 = os.path.join(os.path.dirname(os.getcwd()), path)
+                dprint2("trying :", path1)
+                if not os.path.exists(path1) and hasattr(__main__, '__file__'):
+                    from __main__ import __file__ as mainfile        
+                    path1 = os.path.join(os.path.dirname(os.path.realpath(mainfile)), path)   
+                    dprint2("trying :", path1)
+            if os.path.exists(path1):
                 path = path1
+            else:
+                assert False, "can not find mesh file from relative path: "+path
         return path
 
     def run(self, mesh = None):
@@ -149,13 +163,67 @@ class MeshFile(Mesh):
             print("mesh file does not exists : " + path + " in " + os.getcwd())
             return None
         args = (path,  self.generate_edges, self.refine, self.fix_orientation)
-        
         mesh =  mfem.Mesh(*args)
         try:
            mesh.GetNBE()
            return mesh
         except:
            return None
+        
+class Mesh1D(Mesh):
+    isMeshGenerator = True      
+    isRefinement = False   
+    has_2nd_panel = False        
+
+    def attribute_set(self, v):
+        v = super(Mesh1D, self).attribute_set(v)
+        v['length'] = 1
+        v['nsegs'] = 100
+        v['length_txt'] = "1"
+        v['nsegs_txt'] = "100"
+        v['refine'] = 1
+        v['fix_orientation'] = True
+        return v
+        
+    def panel1_param(self):
+        def check_int_array(txt, param, w):
+            try:
+               val  = [int(x) for x in txt.split(',')]
+               return True
+            except:
+               return False
+            
+        return [["Length",   self.length_txt,  0, {"validator":check_int_array}],
+                ["N segments",   self.nsegs_txt,  0, {"validator":check_int_array}],
+                [None, "Note: use comma separated integer to generate a multisegments mesh",   2, {}],]
+
+    def get_panel1_value(self):
+        return (self.length_txt, self.nsegs_txt, None)
+    
+    def import_panel1_value(self, v):
+        self.length_txt = str(v[0])
+        self.nsegs_txt = str(v[1])
+        
+        try:
+            self.length = [int(x) for x in self.length_txt.split(',')]
+            self.nsegs= [int(x) for x in self.nsegs_txt.split(',')]
+        except:
+            pass
+
+    def run(self, mesh = None):
+
+        from petram.mesh.make_mesh1d import straight_line_mesh
+
+        m = straight_line_mesh(self.length, self.nsegs,
+                              filename='',
+                              refine = self.refine == 1,
+                              fix_orientation = self.fix_orientation)
+        try:
+           m.GetNBE()
+           return m
+        except:
+           return None
+        
 class UniformRefinement(Mesh):
     isRefinement = True
     has_2nd_panel = False           
@@ -192,6 +260,56 @@ class UniformRefinement(Mesh):
            return mesh
         for i in range(int(self.num_refine)):           
             mesh.UniformRefinement() # this is parallel refinement
+        return mesh
+     
+class DomainRefinement(Mesh):
+    isRefinement = True
+    has_2nd_panel = False 
+    def __init__(self, parent = None, **kwargs):
+        self.num_refine = kwargs.pop("num_refine", "0")
+        self.domain_txt = kwargs.pop("domain_txt", "")
+        super(DomainRefinement, self).__init__(parent = parent, **kwargs)        
+    def __repr__(self):
+        try:
+           return 'MeshUniformRefinement('+self.num_refine+')'
+        except:
+           return 'MeshUniformRefinement(!!!Error!!!)'
+        
+    def attribute_set(self, v):
+        v = super(DomainRefinement, self).attribute_set(v)       
+        v['num_refine'] = '0'
+        v['domain_txt'] = ''
+        return v
+        
+    def panel1_param(self):
+        return [["Number",    str(self.num_refine),  0, {}],
+                ["Domains",   self.domain_txt,  0, {}],]
+     
+    def import_panel1_value(self, v):
+        self.num_refine = str(v[0])
+        self.domain_txt = str(v[1])
+        
+    def get_panel1_value(self):
+        return (str(self.num_refine), str(self.domain_txt))
+     
+    def run(self, mesh):
+        gtype = np.unique([mesh.GetElementBaseGeometry(i) for i in range(mesh.GetNE())])
+        if use_parallel:
+            from mpi4py import MPI
+            gtype = gtype.astype(np.int32)
+            gtype = np.unique(allgather_vector(gtype, MPI.INT))
+
+        if len(gtype) > 1:
+           dprint1("(Warning) Element Geometry Type is mixed. Cannot perform UniformRefinement")
+           return mesh
+        domains = [int(x) for x in self.domain_txt.split(',')]
+        if len(domains) == 0: return mesh
+
+        attr = mesh.GetAttributeArray()
+        idx = mfem.intArray(list(np.where(np.in1d(attr, domains))[0]))
+
+        for i in range(int(self.num_refine)):           
+            mesh.GeneralRefinement(idx) # this is parallel refinement
         return mesh
 
    

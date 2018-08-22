@@ -3,7 +3,11 @@
     Model Tree to stroe MFEM model parameters
 
 '''
+import numpy as np
 from petram.model import Model
+
+import petram.debug as debug
+dprint1, dprint2, dprint3 = debug.init_dprints('MFEMModel')
 
 from petram.namespace_mixin import NS_mixin
 class MFEM_GeneralRoot(Model, NS_mixin):
@@ -13,6 +17,9 @@ class MFEM_GeneralRoot(Model, NS_mixin):
     def __init__(self, *args, **kwargs):
         Model.__init__(self, *args, **kwargs)        
         NS_mixin.__init__(self, *args, **kwargs)
+        
+    def get_info_str(self):
+        return NS_mixin.get_info_str(self)
         
     def attribute_set(self, v):
         v['debug_level'] = 1
@@ -66,6 +73,7 @@ class MFEM_PhysRoot(Model):
             for phys in self.iter_enabled():
                 phys.soldict_to_solvars(soldict, solvar)
             solvars[k] = solvar
+        print "solvars", solvars
         return solvars
 
     def onItemSelChanged(self, evt):
@@ -74,7 +82,67 @@ class MFEM_PhysRoot(Model):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.set_view_mode('phys')                                        
+        viewer.set_view_mode('phys')
+
+    def dependent_values(self):
+        '''
+        return dependent_values
+           names: name of values
+           pnames: list of physics module
+           pindex: index of dependent value in the physics module 
+        '''
+        names =  sum([c.dep_vars for c in self.iter_enabled()], [])
+        pnames = sum([[c.name()]*len(c.dep_vars) for c in self.iter_enabled()], [])
+        pindex = sum([range(len(c.dep_vars)) for c in self.iter_enabled()], [])
+
+        return names, pnames, pindex
+    
+    def get_num_matrix(self, get_matrix_weight, phys_target = None):
+        # get_matrix_weight: solver method to evaulate matrix weight
+        if phys_target is None:
+             phys_target = [self[k] for k in self]
+             
+        num_matrix = 0
+        for phys in phys_target:
+            for mm in phys.walk():
+                if not mm.enabled: continue
+                mm.set_matrix_weight(get_matrix_weight)
+
+                wt = np.array(mm.get_matrix_weight())
+                tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
+                num_matrix = max(tmp, num_matrix)
+        dprint1("number of matrix", num_matrix)
+        return num_matrix
+            
+
+    def all_dependent_vars(self, num_matrix, phys_target=None):
+        '''
+        FES variable + extra variable
+        '''
+        dep_vars  = []
+        isFesvars_g = []
+        
+        phys_target = phys_target if phys_target is not None else [self[k] for k in self]
+        
+        for phys in phys_target:
+            #if not phys.enabled: continue            
+            dv = phys.dep_vars
+            dep_vars.extend(dv)
+            extra_vars = []
+            for mm in phys.walk():
+                if not mm.enabled: continue                
+                for j in range(num_matrix):
+                  for k in range(len(dv)):                    
+                      for phys2 in phys_target:
+                          #if not phys2.enabled: continue
+                          if not mm.has_extra_DoF2(k, phys2, j): continue
+                          name = mm.extra_DoF_name()
+                          if not name in extra_vars:
+                              extra_vars.append(name)
+                    
+            dep_vars.extend(extra_vars)
+        return dep_vars
+    
 
 class MFEM_InitRoot(Model):    
     can_delete = False
@@ -93,7 +161,17 @@ class MFEM_InitRoot(Model):
         
     def is_viewmode_grouphead(self):
         return True
-    
+
+class MFEM_GeomRoot(Model):
+    can_delete = False
+    has_2nd_panel = False
+    def get_possible_child(self):
+        try:
+            from petram.geom.gmsh_geom_model import GmshGeom
+            return [GmshGeom]
+        except:
+            return []
+        
 class MFEM_MeshRoot(Model):
     can_delete = False
     has_2nd_panel = False    
@@ -115,12 +193,11 @@ class MFEM_MeshRoot(Model):
         
 class MFEM_SolverRoot(Model):
     can_delete = False
-    has_2nd_panel = False    
+    has_2nd_panel = False
+    
     def get_possible_child(self):
-        from solver.solinit_model import SolInit
-        from solver.std_solver_model import StdSolver
-        from solver.parametric import Parametric
-        return [StdSolver, Parametric]
+        from solver.solver_model import SolveStep
+        return [SolveStep]
     
     def get_active_solvers(self, mm = None):
         return [x for x in self.iter_enabled()]
@@ -136,6 +213,14 @@ class MFEM_SolverRoot(Model):
     def is_viewmode_grouphead(self):
         return True
     
+    def get_phys(self):
+        phys_root = self.root()['Phys']        
+        ret = []
+        for k in self.keys():
+            for x in self[k].get_target_phys():
+                if not x in ret: ret.append(x)
+        return ret
+
 try:    
    from petram.geom.geom_model import MFEM_GeomRoot
    has_geom = True
@@ -162,6 +247,7 @@ class MFEM_ModelRoot(Model):
         v['_variables'] = Variables()
         v['enabled'] = True
         v['root_path'] = ''
+        v['model_path'] = ''        
         return v
     
     def set_root_path(self, path):

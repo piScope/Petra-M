@@ -13,3 +13,8 @@ dist
 *.egg-info
 petram/trash
 Makefile
+doc/manual.synctex.gz
+doc/manual.synctex.gz
+doc/manual.pdf
+doc/manual.log
+doc/manual.aux

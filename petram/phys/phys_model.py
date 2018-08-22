@@ -2,7 +2,9 @@ import numpy as np
 from os.path import dirname, basename, isfile, join
 import warnings
 import glob
+import types
 import parser
+import numbers
 
 import petram
 from petram.model import Model, Bdry, Domain
@@ -17,12 +19,30 @@ else:
    import mfem.ser as mfem
 
 from petram.helper.variables import Variable, eval_code 
- 
+
 # not that PyCoefficient return only real number array
 class PhysConstant(mfem.ConstantCoefficient):
     def __init__(self, value):
         self.value = value
         mfem.ConstantCoefficient.__init__(self, value)
+        
+    def __repr__(self):
+        return self.__class__.__name__+"("+str(self.value)+")"
+     
+class PhysVectorConstant(mfem.VectorConstantCoefficient):
+    def __init__(self, value):
+        self.value = mfem.Vector(value)
+        mfem.VectorConstantCoefficient.__init__(self, self.value)
+        
+    def __repr__(self):
+        return self.__class__.__name__+"("+str(self.value)+")"
+     
+class PhysMatrixConstant(mfem.MatrixConstantCoefficient):
+    def __init__(self, value):
+        v = mfem.Vector(value.flatten())
+	m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])       
+        self.value = (v,m)
+        mfem.MatrixConstantCoefficient.__init__(self, m)
         
     def __repr__(self):
         return self.__class__.__name__+"("+str(self.value)+")"
@@ -59,21 +79,23 @@ class Coefficient_Evaluator(object):
               if variable is used it is become string element '['=variable', 1, 2, 3, 4]'
               if =Varialbe in matrix form, it is passed as [['Variable']]
         '''
-        #print("exprs", exprs, type(exprs))
+        #dprint1("exprs", exprs, type(exprs))
         flag, exprs = try_eval(exprs, l, g)
         #print("after try_eval", flag, exprs)
         if not flag:
             if isinstance(exprs, str):
                 exprs = [exprs]
-            elif isinstance(exprs, float):
-                exprs = [exprs]               
-            elif isinstance(exprs, long):
-                exprs = [exprs]
+            #elif isinstance(exprs, float):
+            #    exprs = [exprs]               
+            #elif isinstance(exprs, long):
+            #    exprs = [exprs]
+            elif isinstance(exprs, numbers.Number):
+                 exprs = [exprs]               
             else:
                pass
         if isinstance(exprs, list) and isinstance(exprs[0], list):
             exprs = exprs[0]
-        #print("final exprs", exprs)
+        #dprint1("final exprs", exprs)
         self.l = {}
         self.g = g
         for key in l.keys():
@@ -90,6 +112,8 @@ class Coefficient_Evaluator(object):
                for n in names:
                   if n in g and isinstance(g[n], Variable):
                        self.variables.append((n, g[n]))
+                       for nn in g[n].dependency:
+                           self.variables.append((nn, g[nn]))                          
                self.co.append(code)
            else:
                self.co.append(expr)
@@ -97,15 +121,20 @@ class Coefficient_Evaluator(object):
         # 'x, y, z' -> 'x', 'y', 'z'
         self.ind_vars = [x.strip() for x in ind_vars.split(',')]
         self.exprs = exprs
-        
+        self.flags = [isinstance(co, types.CodeType) for co in self.co]
+        self.variables_dd = dict(self.variables)
+
     def EvalValue(self, x):
         for k, name in enumerate(self.ind_vars):
            self.l[name] = x[k]
-        for n, v in self.variables:           
-           self.l[n] = v()
+        for n, v in self.variables:
+           kwargs = {nn: self.variables_dd[nn]() for nn in v.dependency}
+           self.l[n] = v(**kwargs)
 
-        val = [eval_code(co, self.g, self.l) for co in self.co]
+        val = [eval_code(co, self.g, self.l, flag=flag)
+               for co, flag in zip(self.co, self.flags)]
         return np.array(val, copy=False).flatten()
+        #return np.array(val, copy=False).ravel()  ## this may be okay
 
 class PhysCoefficient(mfem.PyCoefficient, Coefficient_Evaluator):
     def __init__(self, exprs, ind_vars, l, g, real=True, isArray = False):
@@ -139,15 +168,29 @@ class VectorPhysCoefficient(mfem.VectorPyCoefficient, Coefficient_Evaluator):
     def __init__(self, sdim, exprs, ind_vars, l, g, real=True):
         Coefficient_Evaluator.__init__(self, exprs,  ind_vars, l, g, real=real)
         mfem.VectorPyCoefficient.__init__(self, sdim)
-        
+        self.sdim = sdim
+
     def __repr__(self):
         return self.__class__.__name__+"(VectorPhysCoefficeint)"
         
     def Eval(self, V, T, ip):
-        for n, v in self.variables:
-           v.set_point(T, ip, self.g, self.l)                      
-        return super(VectorPhysCoefficient, self).Eval(V, T, ip)
-       
+        # if V is Matrix, we need to make our own loop to
+        # properly set spacial points in variables.
+        if isinstance(ip, mfem.IntegrationPoint):
+            for n, v in self.variables:
+                v.set_point(T, ip, self.g, self.l)    
+            return super(VectorPhysCoefficient, self).Eval(V, T, ip)
+        elif isinstance(ip, mfem.IntegrationRule):       
+            M = V; ir=ip
+            Mi = mfem.Vector()
+            M.SetSize(self.sdim, ir.GetNPoints())
+            for k in range(ir.GetNPoints()):
+                M.GetColumnReference(k, Mi);
+                ip = ir.IntPoint(k)
+                for n, v in self.variables:
+                   v.set_point(T, ip, self.g, self.l)    
+                super(VectorPhysCoefficient, self).Eval(Mi, T, ip)
+
     def EvalValue(self, x):
         return Coefficient_Evaluator.EvalValue(self, x)
      
@@ -172,7 +215,7 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
 
         s = val.size
         if s == 1:
-            return np.zeros((self.sdim, self.sdim)) + val[0]
+            return np.eye(self.sdim) * val[0]
         else:
             dim = int(np.sqrt(s))
             return val.reshape(dim, dim)
@@ -187,10 +230,16 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     der_vars_base = []
 
     has_essential = False
-    is_complex = False
     is_secondary_condition = False   # if true, there should be other
                                      # condtion assigned to the same
                                      # edge/face/domain
+
+    _has_4th_panel = True
+    can_rename = True
+
+    # matrix element can be time-dependent
+    can_timedpendent = False        
+    
     vt   = Vtable(tuple())         
     vt2  = Vtable(tuple())         
     vt3  = Vtable(tuple())
@@ -199,6 +248,16 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     def __init__(self, *args, **kwargs):
         super(Phys, self).__init__(*args, **kwargs)
         NS_mixin.__init__(self, *args, **kwargs)
+
+    def get_info_str(self):
+        return NS_mixin.get_info_str(self)
+
+    @property
+    def update_flag(self):
+        return self._update_flag
+    @update_flag.setter
+    def update_flag(self, prop):
+        self._update_flag = getattr(self, prop)
         
     def attribute_set(self, v):
         v = super(Phys, self).attribute_set(v)
@@ -208,6 +267,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         nl_config = dict()
         for k in self.nlterms: nl_config[k] = []
         v['nl_config'] = (False, nl_config)
+        v['timestep_config'] = [True, False, False]
+        v['timestep_weight'] = ["1", "0", "0"]
+        v['isTimeDependent'] = False
         return v
         
     def get_possible_bdry(self):
@@ -220,9 +282,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         return []                
 
     def get_possible_pair(self):
-        return []        
-
-    def get_possible_paint(self):
+        return []
+     
+    def get_possible_point(self):
         return []
 
     def get_independent_variables(self):
@@ -234,30 +296,42 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         return False
 
     def get_restriction_array(self, engine, idx = None):
-        mesh = engine.meshes[self.get_root_phys().mesh_idx]
+        mesh = engine.emeshes[self.get_root_phys().emesh_idx]
         intArray = mfem.intArray
 
         if isinstance(self, Domain):
-            size = mesh.attributes.Size()
+            size = max(np.max(mesh.attributes.ToList()), engine.max_attr)
         else:
-            size = mesh.bdr_attributes.Size()
-     
+            size = max(np.max(mesh.bdr_attributes.ToList()), engine.max_bdrattr)
+
+        #print("get_restriction_array", self, self._sel_index, size)
         arr = [0]*size
         if idx is None: idx = self._sel_index
         for k in idx: arr[k-1] = 1
         return intArray(arr)
 
-    def restrict_coeff(self, coeff, engine, vec = False, matrix = False, idx=None):
+    def restrict_coeff(self, coeff, engine, vec = False, matrix = False, 
+                       idx=None):
         if len(self._sel_index) == 1 and self._sel_index[0] == -1:
            return coeff
         arr = self.get_restriction_array(engine, idx)
-#        arr.Print()
-        if vec:
-            return mfem.VectorRestrictedCoefficient(coeff, arr)
-        elif matrix:
-            return mfem.MatrixRestrictedCoefficient(coeff, arr)           
+        ret = []; flag = False
+        
+        if not isinstance(coeff, tuple):
+           flag = True
+           coeff = [coeff]
+        for c in coeff:
+            if vec:
+                ret.append(mfem.VectorRestrictedCoefficient(c, arr))
+            elif matrix:
+                ret.append(mfem.MatrixRestrictedCoefficient(c, arr))
+            else:
+                ret.append(mfem.RestrictedCoefficient(c, arr))
+                
+        if not flag:
+            return tuple(ret)
         else:
-            return mfem.RestrictedCoefficient(coeff, arr)
+            return ret[0]
 
     def get_essential_idx(self, idx):
         '''
@@ -271,12 +345,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         while isinstance(p.parent, Phys):
            p = p.parent
         return p
-        
-    def get_exter_NDoF(self, kfes=0):
-        return 0
-    
-    def has_extra_DoF(self, kfes=0):
-        return False
+     
+    def get_projection(self):
+        return 1
 
     def update_param(self):
         ''' 
@@ -294,26 +365,104 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''   
         raise NotImplementedError(
              "you must specify this method in subclass")
+     
+    def get_exter_NDoF(self, kfes=0):
+        return 0
+    
+    def has_extra_DoF(self, kfes=0):
+        return False
+
+    def has_extra_DoF2(self, kfes, phys, jmatrix):
+        '''
+        subclass has to overwrite this if extra DoF can couple 
+        with other FES.
+        '''
+        if not self.check_jmatrix(jmatrix): return False
+        
+        if (phys == self.get_root_phys()):
+           # if module set only has_extra_DoF, the extra variable
+           # couples only in the same Phys module and jmatrix == 0
+
+           # ToDo. Should add deprecated message
+           return self.has_extra_DoF(kfes=kfes)
+        else:
+           return False           
+           
+    def extra_DoF_name(self):
+        '''
+        default DoF name
+        '''
+        return self.get_root_phys().dep_vars[0]+'_'+self.name()
+
        
     def has_bf_contribution(self, kfes):
         return False
+     
+    def has_bf_contribution2(self, kfes, jmatrix):     
+        '''
+        subclass has to overwrite this if extra DoF can couple 
+        with other FES.
+        '''
+        if not self.check_jmatrix(jmatrix): return False
+        return self.has_bf_contribution(kfes)        
     
     def has_lf_contribution(self, kfes):
         return False
+    def has_lf_contribution2(self, kfes, jmatrix):     
+        '''
+        subclass has to overwrite this if extra DoF can couple 
+        with other FES.
+        '''
+        if not self.check_jmatrix(jmatrix): return False
+        return self.has_lf_contribution(kfes)        
      
     def has_interpolation_contribution(self, kfes):
         return False
      
     def has_mixed_contribution(self):
         return False
+    def has_mixed_contribution2(self, jmatrix):     
+        '''
+        subclass has to overwrite this if extra DoF can couple 
+        with other FES.
+        '''
+        if not self.check_jmatrix(jmatrix): return False        
+        return self.has_mixed_contribution()
+
+    def has_aux_op(self, phys1, kfes1, phys2, kfes2):
+        return False
+     
+    def has_aux_op2(self, phys1, kfes1, phys2, kfes2, jmatrix):
+        if not self.check_jmatrix(jmatrix): return False        
+        return self.has_aux_op(phys1, kfes1, phys2, kfes2)
+
+    def set_matrix_weight(self, get_matrix_weight):
+        # self._mat_weight = get_matrix_weight(self.timestep_config,
+        #                                      self.timestep_weight)
+        self._mat_weight = get_matrix_weight(self.timestep_config)
+        
+    def get_matrix_weight(self):
+        return self._mat_weight
+     
+    def check_jmatrix(self, jmatrix):
+        if not hasattr(self, "_mat_weight"):
+            # _mat_weight is "usually" set by solver before
+            # if it is not set, we are not solving this physics
+            return False
+
+        return self._mat_weight[jmatrix] != 0
 
     def get_mixedbf_loc(self):
         '''
         r, c, and flag of MixedBilinearForm
         flag -1 :  use conjugate when building block matrix
+       
+        if r, c is int, it is offset in the physics module, a couple between
+        variables in the same module can use this mode. Otherwise, r and c
+        are the name of variables
         '''
         return []
-
+     
     def add_bf_contribution(self, engine, a, real=True, **kwargs):
         raise NotImplementedError(
              "you must specify this method in subclass")
@@ -362,7 +511,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         raise NotImplementedError(
              "you must specify this method in subclass")
 
-
+    def add_mix_contribution2(self, engine, a, r, c, is_trans, is_conj, real=True):
+        return self.add_mix_contribution(engine, a, r, c, is_trans, real=real)
+       
     def add_variables(self, solvar, n, solr, soli = None):
         '''
         add model variable so that a user can interept simulation 
@@ -419,26 +570,77 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             return self.vt3.panel_tip()
         else:
             return self.vt3.panel_tip() +[None]
+
+    def panel4_param(self):
+        setting = {"text":' '}
+        if self.has_essential:
+           ll = [['', False, 3, {"text": "Time dependent"}],]
+
+        else:
+           ll = [['', True,  3, {"text": "y(t)"}],
+                 ['', False, 3, {"text": "dy/dt"}],
+                 ['', False, 3, {"text": "dy2/dt2"}],
+                 ['', False, 3, {"text": "Time dependent"}],]
+#              ['M(t)',     "1", 0],
+#              ['M(t-dt)',  "0", 0],
+#              ['M(t-2dt)', "0", 0],]
+        return ll
+     
+    def panel4_tip(self):
+        return None
+     
+    def import_panel4_value(self, value):
+        if self.has_essential:
+           self.isTimeDependent = value[0]
+
+        else:
+           self.timestep_config[0] = value[0]
+           self.timestep_config[1] = value[1]
+           self.timestep_config[2] = value[2]
+           self.isTimeDependent = value[3]
+        #self.timestep_weight[0] = value[3]
+        #self.timestep_weight[1] = value[4]
+        #self.timestep_weight[2] = value[5]
+        
+    def get_panel4_value(self):
+        if self.has_essential:
+            return [self.isTimeDependent]
+        else:
+            return (self.timestep_config[0:3]+[self.isTimeDependent])
          
     @property
     def geom_dim(self):
         root_phys = self.get_root_phys()
         return root_phys.geom_dim
+    @property
+    def dim(self):
+        root_phys = self.get_root_phys()
+        return root_phys.dim        
 
-    def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None):
+    def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None,
+                       transpose=False):
         if coeff is None: return
         if vt is None: vt = self.vt
         #if vt[name].ndim == 0:
-        if isinstance(coeff, mfem.Coefficient):
+        if not isinstance(coeff, tuple): coeff = (coeff, )
+        if isinstance(coeff[0], mfem.Coefficient):
             coeff = self.restrict_coeff(coeff, engine, idx=idx)
-        elif isinstance(coeff, mfem.VectorCoefficient):          
+        elif isinstance(coeff[0], mfem.VectorCoefficient):          
             coeff = self.restrict_coeff(coeff, engine, vec = True, idx=idx)
-        elif isinstance(coeff, mfem.MatrixCoefficient):                     
+        elif isinstance(coeff[0], mfem.MatrixCoefficient):                     
             coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)
         else:
             assert  False, "Unknown coefficient type: " + str(type(coeff))
-        adder(integrator(coeff))
+        itg = integrator(*coeff)
+        itg._linked_coeff = coeff #make sure that coeff is not GCed.
         
+        if transpose:
+           itg2 = mfem.TransposeIntegrator(itg)
+           itg2._link = itg
+           adder(itg2)
+        else:
+           adder(itg)
+
     def onItemSelChanged(self, evt):
         '''
         GUI response when model object is selected in
@@ -446,45 +648,161 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys',  self)
-
+    
 class PhysModule(Phys):
     hide_ns_menu = False
-    geom_dim = 2  # geometry dimension (~ number of indpendent variables)
+    dim_fixed = True # if ndim of physics is fixed
+    can_rename = False
+    
+    def __setstate__(self, state):
+        Phys.__setstate__(self, state)
+        if self.sel_index == 'all': self.sel_index = ['all']
+
+    def get_info_str(self):
+        txt = self.dep_vars
+        if NS_mixin.get_info_str(self) != "":
+            txt.append(NS_mixin.get_info_str(self))
+        return ",".join(txt)
+        
+    @property
+    def geom_dim(self):  # dim of geometry
+        return len(self.ind_vars.split(','))       
+    @property   
+    def dim(self):  # dim of FESpace independent variable
+        return self.ndim        
+    @dim.setter
+    def dim(self, value):
+        self.ndim = value
+
+    @property   
+    def emesh_idx(self):  # mesh_idx is dynamic value to point a mesh index used in solve.
+        return self._emesh_idx
+     
+    @emesh_idx.setter
+    def emesh_idx(self, value):
+        self._emesh_idx  = value
+        
+    def goem_signature(self):
+        pass
+     
+    @property
+    def fes_type(self):
+        '''
+        H1 
+        H1v2 (vector dim)
+        ND
+        RT
+        '''
+        ret = self.element[:2]
+        if self.vdim > 1:
+           ret = ret + 'v'+str(self.vdim)
+        return ret
+           
     def attribute_set(self, v):
         v = super(PhysModule, self).attribute_set(v)
         v["order"] = 1
+        v["vdim"] = 1        
         v["element"] = 'H1_FECollection'
-        v["dim"] = 2
+        v["ndim"] = 2 #logical dimension (= ndim of mfem::Mesh)
         v["ind_vars"] = 'x, y'
         v["dep_vars_suffix"] = ''
         v["mesh_idx"] = 0
+        v['sel_index'] = ['all']
+        v['sel_index_txt'] = 'all'
+        
+        # subclass can use this flag to generate FESpace for time derivative
+        # see WF_model
+        v['generate_dt_fespace'] = False
         return v
      
+    def onVarNameChanged(self, evt):
+        evt.GetEventObject().TopLevelParent.OnRefreshTree()
+        
+    def get_var_suffix_var_name_panel(self):
+        from petram.pi.widgets import TextCtrlCallBack
+        a = ["dep. vars. suffix", self.dep_vars_suffix, 99, {'UI': TextCtrlCallBack,
+                                           'callback_method':self.onVarNameChanged}]      
+        b = ["dep. vars.", ','.join(self.dep_vars_base), 99, {'UI': TextCtrlCallBack,
+                                           'callback_method':self.onVarNameChanged}]
+        return a, b        
+     
     def panel1_param(self):
-        return [["mesh num.",   self.mesh_idx, 400, {}],
-                ["element",self.element,  2,   {}],
-                ["order",  self.order,    400, {}],]
+        return [["mesh num.", self.mesh_idx,  400,  {}],
+                ["element",   self.element,   2,    {}],
+                ["order",     self.order,     400,  {}],]
+     
     def panel1_tip(self):
         return ["index of mesh", "element type", "element order"]
+     
     def get_panel1_value(self):                
         return [self.mesh_idx, self.element, self.order]
+     
     def import_panel1_value(self, v):
         self.mesh_idx = long(v[0])
         self.element = str(v[1])
         self.order = long(v[2])
         return v[3:]
      
+    def panel2_param(self):
+        import wx           
+        if self.geom_dim == 3:
+           choice = ("Volume", "Surface", "Edge")
+        elif self.geom_dim == 2:
+           choice = ("Surface", "Edge")
+
+        p = ["Type", choice[0], 4,
+             {"style":wx.CB_READONLY, "choices": choice}]
+        if self.dim_fixed:
+            return [["index",  'all',  0,   {'changing_event':True,
+                                            'setfocus_event':True}, ]]
+        else:
+            return [p, ["index",  'all',  0,   {'changing_event':True,
+                                            'setfocus_event':True}, ]]
+              
+    def get_panel2_value(self):
+        choice = ["Point", "Edge", "Surface", "Volume",]
+        if self.dim_fixed:
+            return (self.sel_index_txt, )
+        else:
+            return choice[self.dim], self.sel_index_txt
+     
+    def import_panel2_value(self, v):
+        if self.dim_fixed:
+            self.sel_index_txt = str(v[0])
+        else:
+           if str(v[0]) == "Volume":
+              self.dim = 3
+           elif str(v[0]) == "Surface":
+              self.dim = 2
+           elif str(v[0]) == "Edge":
+              self.dim = 1                      
+           else:
+              self.dim = 1                                 
+           self.sel_index_txt = str(v[1])
+           
+        from petram.model import convert_sel_txt
+        try:
+            arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
+            self.sel_index = arr            
+        except:
+            assert False, "failed to convert "+self.sel_index_txt
+        
     @property
     def dep_vars(self):
         raise NotImplementedError(
              "you must specify this method in subclass")
-    #def dep_vars_label(self, name):
-    #    return name + self.dep_vars_suffix
+
     @property
     def dep_vars_base(self, name):
         raise NotImplementedError(
              "you must specify this method in subclass")
-
+    @property      
+    def dep_vars0(self):
+        # solver uses this method to find dep_vars to construct linear system
+        # used (for example) to omit d/dt term from FESspace variables
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+     
     def dep_var_index(self, name):
         return self.dep_vars.index(name)
 
@@ -498,6 +816,15 @@ class PhysModule(Phys):
      
     def is_complex(self):
         return False
+
+    def get_possible_child(self):
+        from petram.phys.aux_variable import AUX_Variable
+        from petram.phys.aux_operator import AUX_Operator        
+        return [AUX_Variable, AUX_Operator]
+     
+    def get_possible_pair(self):
+        from projection import BdrProjection, DomainProjection
+        return [DomainProjection, BdrProjection,]
      
     def soldict_to_solvars(self, soldict, variables):
         keys = soldict.keys()
@@ -532,7 +859,45 @@ class PhysModule(Phys):
 
     def is_viewmode_grouphead(self):
         return True
+
+    def get_mesh_ext_info(self):
+        from petram.mesh.mesh_extension import MeshExtInfo
+        
+        info = MeshExtInfo(dim = self.dim, base = self.mesh_idx)
+        if self.sel_index[0] != 'all':        
+           info.set_selection(self.sel_index)
+        return info
+     
+    def get_dom_bdr_choice(self, mesh):
+        if self.dim == 3: kk = 'vol2surf'
+        elif self.dim == 2: kk = 'surf2line'
+        elif self.dim == 1: kk = 'line2vert'                   
+        else: assert False, "not supported"
+        d = mesh.extended_connectivity[kk]
+        
+        if d is None:
+           return [], []
+        
+        dom_choice = d.keys()
+        bdr_choice = sum([list(d[x]) for x in d], [])
+        
+
+        if self.sel_index[0] != 'all':
+            dom_choice = [int(x) for x in self.sel_index]
+            bdr_choice = list(np.unique(np.hstack([d[int(x)]
+                                              for x in self.sel_index])))
+        from petram.mfem_config import use_parallel
+        if use_parallel:
+             from mfem.common.mpi_debug import nicePrint
+             from petram.helper.mpi_recipes import allgather
+             dom_choice = list(set(sum(allgather(dom_choice),[])))
+             bdr_choice = list(set(sum(allgather(bdr_choice),[])))
+             #nicePrint("dom choice", dom_choice)
+             #nicePrint("bdr choice", bdr_choice)
          
+        # return unique list    
+        return list(set(dom_choice)), list(set(bdr_choice)), 
+        #return dom_choice, bdr_choice
 
 
         

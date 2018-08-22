@@ -95,20 +95,21 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
         array_idx = cell_data['line_x'][geo_phys]
         call_solid2(viewer, 'edge', verts, elem_idx, array_idx)        
 
-    elif 'line' in cells:
+    elif 'line' in cells and len(cells['line']) > 0:
         verts, elem_idx, array_idx = expand_vertex_data(X, cells['line'],
-                                       cell_data['line'][geo_phys])
+                                                           cell_data['line'][geo_phys])
         call_solid2(viewer, 'edge', verts, elem_idx, array_idx)                
 
     if 'vertex' in cells:
         vert = np.atleast_2d(np.squeeze(X[cells['vertex']]))
-        obj= viewer.plot(vert[:,0],
-                    vert[:,1],
-                    vert[:,2], 'ok',
-                    array_idx = cell_data['vertex'][geo_phys],
-                    linewidth = 0)
-        obj.rename('point')
-        obj._artists[0].set_gl_hl_use_array_idx(True)
+        if len(vert) > 0:
+            obj= viewer.plot(vert[:,0],
+                             vert[:,1],
+                             vert[:,2], 'ok',
+                             array_idx = cell_data['vertex'][geo_phys],
+                             linewidth = 0)
+            obj.rename('point')
+            obj._artists[0].set_gl_hl_use_array_idx(True)
     viewer.set_sel_mode(viewer.get_sel_mode())
 
 def oplot_meshed(viewer,  ret):

@@ -120,9 +120,10 @@ class Coeff2D_DefPair(Pair, Phys):
         v['sel_readonly'] = False
         v['sel_index'] = []
         return v
-
+    
     def get_possible_pair(self):
-        return []
+        from petram.phys.projection import BdrDoFProjection, DomainDoFProjection
+        return [BdrDoFProjection, DomainDoFProjection]
 
 class Coeff2D(PhysModule):
     geom_dim = 2
@@ -162,6 +163,8 @@ class Coeff2D(PhysModule):
         v["ind_vars"] = 'x, y'
         v["dep_vars_suffix"] = ''
         v["dep_vars_base_txt"] = 'u'
+        v["vol_sel"] = []
+        v["surf_sel"] = ['all']
         return v
     
     def panel1_param(self):
@@ -183,17 +186,11 @@ class Coeff2D(PhysModule):
                      names, names2, txt_predefined])
         return val
     
-    def get_panel2_value(self):
-        return 'all'
-                      
     def import_panel1_value(self, v):
         v = super(Coeff2D, self).import_panel1_value(v)
         self.ind_vars =  str(v[0])
         self.dep_vars_suffix =  str(v[1])
         self.dep_vars_base_txt = ','.join([x.strip() for x in str(v[2]).split(',')])
-
-    def import_panel2_value(self, v):
-        self.sel_index = 'all'
 
     def get_possible_domain(self):
         from coeff2d_domains       import Coeff2D_Diffusion, Coeff2D_Source, Coeff2D_Convection, Coeff2D_Absorption

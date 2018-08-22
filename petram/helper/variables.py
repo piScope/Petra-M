@@ -1,6 +1,8 @@
 '''
+    Copyright (c) 2018, S. Shiraiwa  
+    All Rights reserved. See file COPYRIGHT for details.
 
-   Variables
+    Variables
 
   
     This modules interface string exression to MFEM
@@ -22,12 +24,21 @@
        to a Vriable object.
     
     from petram.helper.variables import variable
+
     @variable.float
     def test(x, y, z):
        return 1-0.1j
+
+    @variable.float(dependency = ("u",))
+    def test(x, y, z):
+       # u is FES variable solved in the previous space.
+       value = u()
+       return value
+
     @variable.complex
     def ctest(x, y, z):
        return 1-0.1j
+
     @variable.array(complex=True,shape=(2,))
     def atest(x, y, z):
        return np.array([1-0.1j,1-0.1j])
@@ -48,25 +59,32 @@ else:
     import mfem.ser as mfem
 
 class _decorator(object):
-    def float(self, func):
-        obj = PyFunctionVariable(func, complex = False)
-        return obj
-    def complex(self, func):
-        obj = PyFunctionVariable(func, complex = True)
-        return obj
-    def array(self, complex=False, shape = (1,)):
+    def float(self, dependency=None):
+        def dec(func):
+            obj = PyFunctionVariable(func, complex = False, dependency=dependency)
+            return obj
+        return dec
+    def complex(self, dependency=None):
+        def dec(func):        
+            obj = PyFunctionVariable(func, complex = True, dependency=dependency)
+            return obj
+        return dec
+    def array(self, complex=False, shape = (1,), dependency=None):
         def dec(func):
             #print "inside dec", complex, shape
-            obj = PyFunctionVariable(func, complex = complex, shape = shape)
+            obj = PyFunctionVariable(func, complex = complex, shape = shape, dependency=dependency)
             return obj
         return dec
         
 variable = _decorator()        
 
 
-def eval_code(co, g, l):
-    if not isinstance(co, types.CodeType): return co
-    a = eval(co, g, l)
+def eval_code(co, g, l, flag = None):
+    if flag is not None:
+        if not flag: return co
+    else:
+        if not isinstance(co, types.CodeType): return co        
+    a = eval(co, g, l)        
     if callable(a): return a()
     return a
 
@@ -84,6 +102,7 @@ var_g = {'sin':  np.sin,
          'conj': np.conj,
          'real': np.real,
          'imag': np.imag,
+         'sum': np.sum,
          'dot': np.dot,
          'vdot': np.vdot,
          'array': np.array,
@@ -101,8 +120,12 @@ class Variable(object):
     '''
     define everything which we define algebra
     '''
-    def __init__(self, complex=False):
+    def __init__(self, complex=False, dependency=None):
         self.complex = complex
+
+        # dependency stores a list of Finite Element space discrite variable
+        # names whose set_point has to be called
+        self.dependency=[] if dependency is None else dependency
 
     def __add__(self, other):
         if isinstance(other, Variable):
@@ -188,6 +211,10 @@ class Variable(object):
         #print self().shape
         return self()[idx]
 
+    def get_emesh_idx(self, idx = None, g=None):
+        if idx is None: idx = []
+        return idx
+
     def make_callable(self):
         raise NotImplementedError("Subclass need to implement")
     
@@ -204,7 +231,7 @@ class TestVariable(Variable):
     def set_point(self,T, ip, g, l, t = None):
         self.x = T.Transform(ip)        
                
-    def __call__(self):
+    def __call__(self, **kwargs):
         return 2.
     
     def nodal_values(self, locs = None,  **kwargs):
@@ -226,7 +253,7 @@ class Constant(Variable):
     def set_point(self,T, ip, g, l, t = None):
         self.x = T.Transform(ip)        
                
-    def __call__(self):
+    def __call__(self, **kwargs):
         return self.value
     
     def nodal_values(self, iele = None, el2v = None, locs = None,
@@ -263,7 +290,7 @@ class CoordVariable(Variable):
     def set_point(self,T, ip, g, l, t = None):
         self.x = T.Transform(ip)        
                
-    def __call__(self):
+    def __call__(self, **kwargs):
         if self.comp == -1:
             return self.x
         else:
@@ -308,7 +335,7 @@ class ExpressionVariable(Variable):
                g[n].set_point(T, ip, g, l, t=t)
                self.variables[n] = g[n]
                
-    def __call__(self):
+    def __call__(self, **kwargs):
         l = {}
         for k, name in enumerate(self.ind_vars):
            l[name] = self.x[k]
@@ -316,6 +343,13 @@ class ExpressionVariable(Variable):
         for k in keys:
            l[k] = self.variables[k]()
         return (eval_code(self.co, var_g, l))
+
+    def get_emesh_idx(self, idx = None, g = None):
+        if idx is None: idx = []
+        for n in self.names:
+            if n in g and isinstance(g[n], Variable):
+                idx = g[n].get_emesh_idx(idx=idx, g = g)
+        return idx
     
     def nodal_values(self, iele = None, el2v = None, locs = None,
                      wverts = None, elvertloc = None, g = None,
@@ -374,7 +408,7 @@ class ExpressionVariable(Variable):
         for n in self.names:
             if (n in g and isinstance(g[n], Variable)):
                 l[n] = g[n].ncface_values(ifaces = ifaces, irs = irs,
-                                          gtypes = gtypes, locs = ptx,
+                                          gtypes = gtypes, locs = locs,
                                           attr1 = attr1, attr2 = attr2, 
                                           g = g, **kwargs)
                 ll_name.append(n)
@@ -430,10 +464,18 @@ class DomainVariable(Variable):
                self.domains[domains].set_point(T, ip, g, l, t=t)
            self.domain_target = domains
                
-    def __call__(self):
+    def __call__(self, **kwargs):
         if self.domain_target is None: return 0.0
         return self.domains[self.domain_target]()
-
+    
+    def get_emesh_idx(self, idx = None, g = None):
+        if idx is None: idx = []        
+        for domains in self.domains.keys():
+            expr = self.domains[domains]
+            gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
+            idx = expr.get_emesh_idx(idx=idx, g=gdomain)
+        return idx
+    
     def nodal_values(self, iele = None, elattr = None, g = None,
                      **kwargs):
                      #iele = None, elattr = None, el2v = None,
@@ -511,8 +553,8 @@ class DomainVariable(Variable):
         
         
 class PyFunctionVariable(Variable):
-    def __init__(self, func, complex=False, shape = tuple()):
-        super(PyFunctionVariable, self).__init__(complex = complex)
+    def __init__(self, func, complex=False, shape = tuple(), dependency=None):
+        super(PyFunctionVariable, self).__init__(complex = complex, dependency=dependency)
         self.func = func
         self.t = None
         self.x = (0,0,0)
@@ -525,18 +567,23 @@ class PyFunctionVariable(Variable):
         self.x = T.Transform(ip)
         self.t = t
         
-    def __call__(self):
+    def __call__(self, **kwargs):
         if self.t is not None:
            args = tuple(np.hstack((self.x, t)))
         else:
            args = tuple(self.x)
-        return np.array(self.func(*args), copy=False)
+        #kwargs = {n: locals()[n]() for n in self.dependency}
+        #return np.array(self.func(*args, **kwargs), copy=False)
+        return np.array(self.func(*args, **kwargs), copy=False)
        
     def nodal_values(self, iele = None, el2v = None, locs = None,
-                     wverts = None, elvertloc = None, **kwargs):
+                     wverts = None, elvertloc = None, g=None, knowns =None,
+                     **kwargs):
                      # elattr = None, el2v = None,
                      # wverts = None, locs = None, g = None
         if locs is None: return
+        if g is None: g = {}
+        if knowns is None: knowns = WKD()       
 
         size = len(wverts)        
         shape = [size] + list(self.shape)
@@ -544,11 +591,21 @@ class PyFunctionVariable(Variable):
         dtype = np.complex if self.complex else np.float
         ret = np.zeros(shape, dtype = dtype)
         wverts = np.zeros(size)
+        
         for kk, m, loc in zip(iele, el2v, elvertloc):
             if kk < 0: continue
             for pair, xyz in zip(m, loc):
                 idx = pair[1]
-                ret[idx] = ret[idx] + self.func(*xyz)
+                '''
+                for n in self.dependency:
+                    g[n].local_value = knowns[g[n]][idx]
+                    # putting the dependency variable to functions global.
+                    # this may not ideal, since there is potential danger
+                    # of name conflict?
+                    self.func.func_globals[n] = g[n]
+                '''
+                kwargs = {n: knowns[g[n]][idx] for n in self.dependency}
+                ret[idx] = ret[idx] + self.func(*xyz, **kwargs)
                 wverts[idx] = wverts[idx] + 1
         ret = np.stack([x for x in ret if x is not None])
 
@@ -563,10 +620,25 @@ class PyFunctionVariable(Variable):
     
     def ncface_values(self, ifaces = None, irs = None, gtypes = None,
                       g=None, attr1 = None, attr2 = None, locs = None,
-                      **kwargs):
+                      knowns=None, **kwargs):
         if locs is None: return
+        if g is None: g = {}
+        if knowns is None: knowns = WKD()       
+        
         dtype = np.complex if self.complex else np.float
-        ret = [self.func(*xyz) for xyz in locs]
+
+        ret = [None]*len(locs)
+        for idx, xyz in enumerate(locs):
+            '''
+            for n in self.dependency:
+                g[n].local_value = knowns[g[n]][idx]
+                # putting the dependency variable to functions global.
+                # this may not ideal, since there is potential danger
+                # of name conflict?
+                self.func.func_globals[n] = g[n]
+            '''
+            kwargs = {n: knowns[g[n]][idx] for n in self.dependency}            
+            ret[idx] = self.func(*xyz, **kwargs) 
         ret = np.stack(ret).astype(dtype, copy=False)
         return ret
 
@@ -589,7 +661,37 @@ class GridFunctionVariable(Variable):
         self.T = T
         self.ip = ip
         self.t = t
+        self.set_local_from_T_ip()
+        
+    @property
+    def local_value(self):
+        return self._local_value
+
+    @local_value.setter
+    def local_value(self, value):
+        self._local_value = value
+        
+    def __call__(self, **kwargs):
+        return self._local_value
     
+    def set_local_from_T_ip(self):
+        self.local_value = self.eval_local_from_T_ip()
+        
+        
+    def get_emesh_idx(self, idx = None, g=None):
+        if idx is None: idx = []
+        gf_real, gf_imag = self.deriv_args
+        if gf_real is not None:
+            if not gf_real._emesh_idx in idx:
+                idx.append(gf_real._emesh_idx)
+        elif gf_imag is not None:
+            if not gf_imag._emesh_idx in idx:            
+                idx.append(gf_imag._emesh_idx)
+        else:
+            pass
+            
+        return idx
+        
 class GFScalarVariable(GridFunctionVariable):
     def __repr__(self):
         return "GridFunctionVariable (Scalar)"
@@ -600,21 +702,44 @@ class GFScalarVariable(GridFunctionVariable):
         gf_real, gf_imag, extra = self.deriv(*self.deriv_args)
         self.gfr = gf_real
         self.gfi = gf_imag
-        self.func_r = mfem.GridFunctionCoefficient(gf_real,
+        name = gf_real.FESpace().FEColl().Name()
+        if name.startswith("ND") or name.startswith("RT"):
+            self.isVectorFE=True
+            self.func_r = mfem.VectorGridFunctionCoefficient(gf_real)
+            if gf_imag is not None:
+               self.func_i = mfem.VectorGridFunctionCoefficient(gf_imag)                
+            else:
+               self.func_i = None
+        else:
+            self.isVectorFE=False            
+            self.func_r = mfem.GridFunctionCoefficient(gf_real,
                                                    comp = self.comp)
-        if gf_imag is not None:
-            self.func_i = mfem.GridFunctionCoefficient(gf_imag,
+            if gf_imag is not None:
+                self.func_i = mfem.GridFunctionCoefficient(gf_imag,
                                                        comp = self.comp)
-        else:
-            self.func_i = None
+            else:
+                self.func_i = None
         self.isDerived = True
-        self.extra = extra            
-    def __call__(self):
+        self.extra = extra
+        
+    def eval_local_from_T_ip(self):        
         if not self.isDerived: self.set_funcs()
-        if self.func_i is None:
-            return self.func_r.Eval(self.T, self.ip)
+        if self.isVectorFE:        
+            if self.func_i is None:
+                v = mfem.Vector()                
+                self.func_r.Eval(v, self.T, self.ip)
+                return v.GetDataArray()[self.comp-1]
+            else:
+                v1 = mfem.Vector()
+                v2 = mfem.Vector()                                
+                self.func_r.Eval(v1, self.T, self.ip)
+                self.func_i.Eval(v2, self.T, self.ip)                
+                return (v1.GetDataArray() + 1j*v2.GetDataArray())[self.comp-1]
         else:
-            return (self.func_r.Eval(self.T, self.ip) +
+            if self.func_i is None:
+                return self.func_r.Eval(self.T, self.ip)
+            else:
+                return (self.func_r.Eval(self.T, self.ip) +
                     1j*self.func_i.Eval(self.T, self.ip))
 
     def nodal_values(self, iele = None, el2v = None, wverts = None,
@@ -631,6 +756,7 @@ class GFScalarVariable(GridFunctionVariable):
             if kk < 0: continue            
             values = mfem.doubleArray()
             self.gfr.GetNodalValues(kk, values, self.comp)
+            
             for k, idx in m:
                 ret[idx] = ret[idx] + values[k]
             if self.gfi is not None:
@@ -646,7 +772,7 @@ class GFScalarVariable(GridFunctionVariable):
         if not self.isDerived: self.set_funcs()
         
         name = self.gfr.FESpace().FEColl().Name()
-        ndim = self.gfr.FESpace().GetMesh().Dimention()
+        ndim = self.gfr.FESpace().GetMesh().Dimension()
         
         isVector = False
         if (name.startswith('RT') or 
@@ -664,19 +790,32 @@ class GFScalarVariable(GridFunctionVariable):
             if ndim == 3:
                 if isVector:
                     return gf.GetFaceVectorValues
+                elif gf.VectorDim()>1:
+                    def func(i, side, ir, vals, tr, in_gf = gf):
+                        in_gf.GetFaceValues(i, side, ir, vals, tr, vdim=self.comp)
+                    return func
                 else:
                     return gf.GetFaceValues
             elif ndim == 2:
                 if isVector:
-                    return gf.GetVectorValues
+                    def func(i, side, ir, vals, tr, in_gf = gf):
+                        in_gf.GetVectorValues(i, ir, vals, tr)
+                    return func
+                elif gf.VectorDim()>1:
+                    def func(i, side, ir, vals, tr, in_gf = gf):
+                        in_gf.GetValues(i, ir, vals, tr, vdim=self.comp-1)
+                    return func
                 else:
-                    return gf.GetValues
+                    def func(i, side, ir, vals, tr, in_gf = gf):
+                        in_gf.GetValues(i, ir, vals, tr)
+                        return
+                    return func
             else:
                 assert False, "ndim = 1 has no face"
             return None
         
         getvalr = get_method(self.gfr, ndim, isVector)
-        getvali = get_method(self.gfi, ndim, isVector)        
+        getvali = get_method(self.gfi, ndim, isVector)
             
         for i, gtype,  in zip(ifaces, gtypes):
             ir = irs[gtype]
@@ -702,25 +841,51 @@ class GFVectorVariable(GridFunctionVariable):
         gf_real, gf_imag, extra = self.deriv(*self.deriv_args)
         self.gfr = gf_real
         self.gfi = gf_imag
-        self.dim = gf_real.VectorDim()        
-        self.func_r = [mfem.GridFunctionCoefficient(gf_real, comp = k+1)
+        self.dim = gf_real.VectorDim()
+        name = gf_real.FESpace().FEColl().Name()
+        if name.startswith("ND") or name.startswith("RT"):
+            self.isVectorFE=True
+            self.func_r = mfem.VectorGridFunctionCoefficient(gf_real)
+            if gf_imag is not None:
+               self.func_i = mfem.VectorGridFunctionCoefficient(gf_imag)                
+            else:
+               self.func_i = None
+                
+        else:
+            self.isVectorFE=False
+            self.func_r = [mfem.GridFunctionCoefficient(gf_real, comp = k+1)
                           for k in range(self.dim)]
            
-        if gf_imag is not None:
-            self.func_i = [mfem.GridFunctionCoefficient(gf_imag, comp = k+1)
+            if gf_imag is not None:
+                self.func_i = [mfem.GridFunctionCoefficient(gf_imag, comp = k+1)
                            for k in range(self.dim)]
-
+            else:
+               self.func_i = None
         self.isDerived = True
-        self.extra = extra                    
-    def __call__(self):
-        if self.func_i is None:
-            return np.array([func_r.Eval(self.T, self.ip) for
-                                 func_r in self.func_r])
+        self.extra = extra
+
+    def eval_local_from_T_ip(self):        
+        if not self.isDerived: self.set_funcs()
+        if self.isVectorFE:
+            if self.func_i is None:
+                v = mfem.Vector()                
+                self.func_r.Eval(v, self.T, self.ip)
+                return v.GetDataArray().copy()
+            else:
+                v1 = mfem.Vector()
+                v2 = mfem.Vector()                                
+                self.func_r.Eval(v1, self.T, self.ip)
+                self.func_i.Eval(v2, self.T, self.ip)                
+                return v1.GetDataArray().copy() + 1j*v2.GetDataArray().copy()
         else:
-            return np.array([(func_r.Eval(self.T, self.ip) +
-                                  1j*func_i.Eval(self.T, self.ip))
-                                 for func_r, func_i
-                                 in zip(self.func_r, self.func_i)])
+            if self.func_i is None:
+                return np.array([func_r.Eval(self.T, self.ip) for
+                                     func_r in self.func_r])
+            else:
+                return np.array([(func_r.Eval(self.T, self.ip) +
+                                      1j*func_i.Eval(self.T, self.ip))
+                                     for func_r, func_i
+                                     in zip(self.func_r, self.func_i)])
             
     def nodal_values(self, iele = None, el2v = None, wverts = None,
                      **kwargs):
@@ -757,7 +922,7 @@ class GFVectorVariable(GridFunctionVariable):
                       gtypes = None, **kwargs):
 
         if not self.isDerived: self.set_funcs()
-        ndim = self.gfr.FESpace().GetMesh().Dimention()
+        ndim = self.gfr.FESpace().GetMesh().Dimension()
         
         d = mfem.DenseMatrix()
         p  = mfem.DenseMatrix()
@@ -784,7 +949,8 @@ class GFVectorVariable(GridFunctionVariable):
                 vi = d.GetDataArray().copy()
                 v = v + 1j*vi
             data.append(v)
-        return np.hstack(data)                
+        ret = np.hstack(data).transpose()                        
+        return ret 
     
 '''
 
@@ -810,7 +976,7 @@ class SurfNormal(SurfVariable):
         mfem.CalcOrtho(T.Jacobian(), nor)
         self.nor =nor.GetDataArray().copy()
         
-    def __call__(self):
+    def __call__(self, **kwargs):
         if self.comp == -1:
             return self.nor
         else:
@@ -902,7 +1068,7 @@ class SurfExpressionVariable(ExpressionVariable, SurfVariable):
         mfem.CalcOrtho(T.Jacobian(), nor)
         self.nor =nor.GetDataArray().copy()
         
-    def __call__(self):
+    def __call__(self, **kwargs):
         l = {}
         for k, name in enumerate(self.ind_vars):
            l[name] = self.x[k]

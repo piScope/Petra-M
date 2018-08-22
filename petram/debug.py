@@ -118,8 +118,16 @@ import resource
 def format_memory_usage(point="memory usage"):
     usage=resource.getrusage(resource.RUSAGE_SELF)
     return '''%s: usertime=%s systime=%s mem=%s mb
-           '''%(point,usage[0],usage[1],
-                (usage[2]*resource.getpagesize())/1000000.0 )
+           '''%(point,usage[0],usage[1], memory_usage_resource())
+#                (usage[2]*resource.getpagesize())/1000000.0 )
+def memory_usage_resource():
+    import resource, sys
+    rusage_denom = 1024.
+    if sys.platform == 'darwin':
+        # ... it seems that in OSX the output is different units ...
+        rusage_denom = rusage_denom * rusage_denom
+    mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / rusage_denom
+    return mem
 
 try:
     import guppy
@@ -135,5 +143,34 @@ if hasGUPPY:
 else:
     def format_heap__usage():
         pass
+
+    
+def use_profiler(method):
+    def method2(self, *args, **kwargs):
+        if self.use_profiler:
+            import cProfile, pstats, StringIO
+            pr = cProfile.Profile()
+            pr.enable()
+
+        val =  method(self, *args, **kwargs)
+
+        if self.use_profiler:
+            pr.disable()
+            s = StringIO.StringIO()
+            sortby = 'cumulative'
+            ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+            ps.print_stats()
+            print s.getvalue()
+            
+            from petram.mfem_config import use_parallel
+            if use_parallel:
+                from mpi4py import MPI
+                myid     = MPI.COMM_WORLD.rank
+                smyid = '.''{:0>6d}'.format(myid)
+            else:
+                smyid = ''
+            ps.dump_stats("cProfile_"+self.name()+".out"+smyid)
+        return val
+    return method2
 
     

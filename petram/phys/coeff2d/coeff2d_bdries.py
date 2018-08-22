@@ -43,7 +43,7 @@ class Coeff2D_ZeroFlux(Coeff2D_Bdry):
     vt  = Vtable(data)          
 
 data =  (('u0', VtableElement('u0', guilabel = 'u0',
-                               default =   "u = u0",
+                               default = "0.0",
                                tip = "values at the boundary" )),)
 
 class U0(PhysCoefficient):

@@ -172,7 +172,13 @@ def submit_job(model):
     o = str(remote["num_openmp"])
     q = str(remote["queue"])
 
-    exe = PetraM + '/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q 
+    q1 = q.strip().split("(")[0]
+    q2 = "" if q.find("(") == -1 else "(".join(q.strip().split("(")[1:])[:-1]
+
+    
+    exe = PetraM + '/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q1
+    if q2 != "":
+       exe = exe +  ' -V ' + q2        
 
     p = host.Execute('cd '+rwdir+';'+exe)
 

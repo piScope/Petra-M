@@ -14,6 +14,7 @@
   cb :   callback method name
   no_func: True: it can not become variable (use '=')
   tip : tip string
+  readonly: text label
   example:
 
   Scalar : VtableElement('Tbdr',  type='float')
@@ -45,8 +46,10 @@ class VtableElement(object):
                 size  = (1,), suffix = None,
                 cb = None, no_func = False,
                 default = 0., guilabel = None, tip = '',
-                default_txt = None, chkbox = False):
+                default_txt = None, chkbox = False, 
+                readonly = False):
         self.name = name
+        self.readonly = readonly
         if not isinstance(type, str):
             assert False, "data type should be given as str"
         self.type = type
@@ -136,6 +139,8 @@ class VtableElement(object):
                                              chk_complex = chk_complex,
                                              chk_array = chk_array,
                                              chk_string = chk_string) 
+            if self.readonly:
+                ret[2] = ret[2]-10000
             if self.chkbox:
                 ret =  [None, [True, [value]], 27, [{'text':'Use'},
                                                     {'elp': [ret]}],]
@@ -150,6 +155,8 @@ class VtableElement(object):
                                          chk_float = chk_float,
                                          chk_int   = chk_int, 
                                          chk_complex = chk_complex)
+            if self.readonly:
+                ret[2] = ret[2]-10000
             if self.chkbox:
                 ret =  [None, None, 27, [{'text':'Use'},
                                          {'elp': [ret]}],]
@@ -341,14 +348,18 @@ class Vtable_mixin(object):
 
     def eval_phys_expr(self, value, param,
                        chk_int = False, chk_complex = False, 
-                       chk_float = False, chk_array = False):
+                       chk_float = False, chk_array = False,
+                       chk_any = False):
         def dummy():
             pass
         if value.startswith('='):
-            return dummy,  value.split('=')[1]
+            return dummy,  '='.join(value.split('=')[1:])
         else:
+            if value.strip()=='': return None, None
             x = eval(value, self._global_ns, self._local_ns)
-            if chk_int:
+            if chk_any:
+                pass
+            elif chk_int:
                 x = int(x)
             elif chk_complex:
                 x = complex(x)

@@ -1,0 +1,17 @@
+# Linearform Integrators
+# H1, L2   : Scalar Field Operators
+# ND, RT   : Vector Finite Element Operators
+# H1v, L2V : Vector Field Operators
+| DomainLFIntegrator                   | H1, L2 | | |$(f, v)$ | $f$ | 1D, 2D, 3D |
+| BoundaryLFIntegrator                 | H1, L2 | | |$(f, v)$ | $f$ | 1D, 2D, 3D |
+| BoundaryNormalLFIntegrator           | H1, L2 | | |$(\vec\{f} \cdot \vec\{n}, v)$ | $\vec\{f} \cdot \vec\{n}$ | 1D, 2D, 3D |
+| BoundaryTangentialLFIntegrator       | H1, L2 | | |$(\vec\{f} \cdot \vec\{\tau}, v)$ | $\vec\{f} \cdot \vec\{\tau}$ | 2D |
+| BoundaryFlowIntegrator               | H1, L2 | | |$\frac\{\alpha}\{2}\, \left< (\vec\{u} \cdot \vec\{n})\, f, v \right> - \beta\, \left<\mid \vec\{u} \cdot \vec\{n} \mid f, v \right>$ | $\frac\{\alpha}\{2} (\vec\{u} \cdot \vec\{n})\, f - \beta \mid \vec\{u} \cdot \vec\{n} \mid f$ | 1D, 2D, 3D |
+#| DGDirichletLFIntegrator             | L2     | | | $\sigma \left< u_D, Q \nabla v \cdot \vec\{n} \right> + \kappa \left< \\\{h^\{-1} Q\\\} u_D, v \right>$ | DG
+| VectorDomainLFIntegrator             | H1v, L2v | | |$(\vec\{f}, \vec\{v})$  | $\vec\{f}$  | 1D, 2D, 3D |
+| VectorFEDomainLFIntegrator           | ND, RT | | |$(\vec\{f}, \vec\{v})$  | $\vec\{f}$  | 2D, 3D |
+| VectorBoundaryLFIntegrator           | H1v, L2v | | |$( \vec\{f}, \vec\{v} )$ | $\vec\{f}$ | 1D, 2D, 3D |
+| VectorBoundaryFluxLFIntegrator       | H1v, L2v | | |$( f, \vec\{v} \cdot \vec\{n} )$ | $\vec\{f}$ | 1D, 2D, 3D |
+| VectorFEBoundaryFluxLFIntegrator     | RT     | | |$( f, \vec\{v} \cdot \vec\{n} )$ | $\vec\{f}$ | 2D, 3D |
+| VectorFEBoundaryTangentLFIntegrator  | ND     | | |$( \vec\{n} \times \vec\{f}, \vec\{v} )$ | $\vec\{n} \times \vec\{f}$ | 2D, 3D |
+#| DGElasticityDirichletLFIntegrator   | L2     | | |$\alpha\left<\vec\{u_D}, \left(\lambda \left(\div \vec\{v}\right) I + \mu \left(\nabla\vec\{v} + \nabla\vec\{v}^T\right)\right) \cdot \vec\{n}\right> \\\\ + \kappa\left< h^\{-1} (\lambda + 2 \mu) \vec\{u_D}, \vec\{v} \right>$ | DG essential BCs for $\vec\{u_D}$ | 1D, 2D, 3D

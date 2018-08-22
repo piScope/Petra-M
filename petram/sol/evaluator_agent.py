@@ -7,6 +7,7 @@ class EvaluatorAgent(object):
         object.__init__(self)
         self.mesh = None
         self.knowns = WKD()
+        self.emesh_idx = -1
         
     def forget_knowns(self):
         self.knowns = WKD()

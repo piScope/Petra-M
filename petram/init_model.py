@@ -35,7 +35,6 @@ class InitSetting(Model):
             self.init_value = 0.0            
             assert False, traceback.format_exc()
 
-
     def get_phys(self):
         names = self.phys_model.split(',')
         names = [n.strip() for n in names if n.strip() != '']        
@@ -43,7 +42,7 @@ class InitSetting(Model):
             
     def run(self, engine):
         phys_targets = self.get_phys()
-        engine.run_alloc_sol(phys_targets)
+        #engine.run_alloc_sol(phys_targets)
         engine.run_apply_init(phys_targets, self.init_mode,
                              self.init_value, self.init_path)
 
