@@ -71,8 +71,8 @@ class StdSolver(Solver):
             pass
 
         try:
-            from petram.solver.strumpack_model import SpSparse
-            choice.append(SpSparse)
+            from petram.solver.strumpack_model import Strumpack
+            choice.append(Strumpack)
         except ImportError:
             pass
         return choice

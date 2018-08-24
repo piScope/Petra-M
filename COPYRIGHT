@@ -4,8 +4,8 @@
 # module.
 
 # Petra-M is free software; you can redistribute it and/or modify it under the
-# terms of the GNU Lesser General Public License (as published by the Free
-# Software Foundation) version 2.1 dated February 1999.
+# terms of the GNU General Public License (as published by the Free
+# Software Foundation) version 3. dated June 2007
 
 COPYRIGHT
 
@@ -22,7 +22,7 @@ represents that its use would not infringe privately-owned rights.
 LICENSE
 
 Petra-M is free software; you can redistribute it and/or modify it under the terms
-of the GNU Lesser General Public License (as published by the Free Software
+of the GNU General Public License (as published by the Free Software
 Foundation) version 3.0 dated June 2007, with the following EXCEPTIONS:
 
    1. Subclasses of Petra-M classes do not constitute a derivative work.
