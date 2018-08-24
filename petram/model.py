@@ -691,17 +691,38 @@ class Model(RestorableOrderedDict):
         if dir is None: dir = os.getcwd()        
         script = []
         script.extend(['import os',
+                       '#set default parallel/serial flag',
                        'try:',
                        '    from mpi4py import MPI',
                        '    num_proc = MPI.COMM_WORLD.size',
+                       '    myid = MPI.COMM_WORLD.rank', 
                        '    use_parallel=num_proc > 1',
                        'except:',
+                       '    myid = 0', 
                        '    use_parallel=False',
+                       'from mfem.common.arg_parser import ArgParser',
+                       'parser = ArgParser(description="PetraM sciprt")',
+                       'parser.add_argument("-s", "--force-serial", ',
+                       '                     action = "store_true", ',
+                       '                     default = False,', 
+                       '                     help="Use serial model even if nproc > 1.")',
+                       'parser.add_argument("-p", "--force-parallel", ',
+                       '                     action = "store_true", ',
+                       '                     default = False,',  
+                       '                     help="Use parallel model even if nproc = 1.")',
+                       'parser.add_argument("-d", "--debug-param", ',
+                       '                     action = "store", ',
+                       '                     default = 1, type=int) ',
+                       'args = parser.parse_args()', 
+                       'if args.force_serial: use_parallel=False',
+                       'if args.force_parallel: use_parallel=True',
+                       '',
                        'import  petram.mfem_config as mfem_config',
-                       'mfem_config.use_parallel = use_parallel'])
+                       'mfem_config.use_parallel = use_parallel',
+                       'if (myid == 0): parser.print_options(args)'
+                       '',
+                       'debug_level=args.debug_param'])
 
-        script.append('')
-        script.append('debug_level = 0')        
         script.append('')
         self.generate_import_section(script)
         script.append('')

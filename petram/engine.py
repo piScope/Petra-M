@@ -316,6 +316,7 @@ class Engine(object):
             self.emeshes = []
             for k in self.model['Phys'].keys():
                 phys = self.model['Phys'][k]
+                if not phys.enabled: continue                            
                 self.run_mesh_extension(phys)
                 self.allocate_fespace(phys)
                 
@@ -337,6 +338,7 @@ class Engine(object):
         from .model import Domain, Bdry               
         for k in self.model['Phys'].keys():
             phys = self.model['Phys'][k]
+            if not phys.enabled: continue            
             self.run_mesh_extension(phys)
             self.allocate_fespace(phys)
             self.assign_sel_index(phys)

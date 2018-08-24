@@ -31,13 +31,23 @@ def run_parallel(path='', nproc = 1, debug=0, thread=True):
             folder.clean_owndir()
         path = os.path.join(folder.owndir(), 'model.pmfm')
         model.scripts.helpers.save_model(path)
+        m = model.param.getvar('mfem_model')
+        try:
+            m.generate_script(dir = folder.owndir())
+        except:
+            import traceback
+            traceback.print_exc()
+            return
         del_path = True
+        
     print path    
     import petram
     from petram.helper.driver_path import parallel as driver
 
-    mfem_path = petram.__path__[0]
-    args = ['mpirun', '-n', str(nproc), driver, str(path),  str(debug)]
+    #args = ['mpirun', '-n', str(nproc), driver, str(path),  str(debug)]
+    args = ['mpirun', '-n', str(nproc), sys.executable,
+            'model.py', '-p', '-d',  str(debug)]
+    os.chdir(folder.owndir())    
     p = sp.Popen(args, stdout=sp.PIPE, stderr=sp.STDOUT)
 
     if thread:

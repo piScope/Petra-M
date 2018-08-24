@@ -231,7 +231,7 @@ class NASReader(object):
 #        cards= [l[d*i:d*(i+1)].strip() for i in range(2)]
         return cards
 
-def write_nas2mfem(filename,  reader, exclude_bdr = None):
+def write_nas2mfem(filename,  reader, exclude_bdr = None, offset=None):
 
         geom_type = {'TETRA': 4,
                      'TRIA6': 2,
@@ -247,6 +247,7 @@ def write_nas2mfem(filename,  reader, exclude_bdr = None):
         '''
 
         if exclude_bdr is None: exclude_bdr = [] 
+        if offset is None: offset = [0.0, 0.0, 0.0]
         if reader.dataset is None:
             reader.load()
         print('loading (done)')
@@ -320,7 +321,7 @@ def write_nas2mfem(filename,  reader, exclude_bdr = None):
         fid.write(str(ndim) + '\n')
         txts = [None]*nvtc
         for i in range(nvtc):
-            txt = [str(x) for x in grid[unique_grids[i]]]
+            txt = [str(x+offset[kk]) for kk, x in enumerate(grid[unique_grids[i]])]
             txts[i] = ' '.join(txt)
         fid.write('\n'.join(txts))
         fid.close()

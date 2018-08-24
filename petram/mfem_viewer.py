@@ -748,6 +748,7 @@ class MFEMViewer(BookViewer):
     def onSerDriver(self, evt):
         m = self.model.param.getvar('mfem_model')        
         m.set_root_path(self.model.owndir())
+        debug_level = m['General'].debug_level
         try:
             self.run_preprocess()
         except:
@@ -756,12 +757,13 @@ class MFEMViewer(BookViewer):
                                 title='Error',
                                 traceback=traceback.format_exc())
            return
-        self.model.scripts.run_serial.RunT()
+        self.model.scripts.run_serial.RunT(debug=debug_level)
 
         
     def onParDriver(self, evt):
         m = self.model.param.getvar('mfem_model')        
         m.set_root_path(self.model.owndir())
+        debug_level = m['General'].debug_level        
         try:
             self.run_preprocess()
         except:
@@ -772,7 +774,7 @@ class MFEMViewer(BookViewer):
            return
         nproc = self.model.param.getvar('nproc')       
         if nproc is None: nproc = 2
-        self.model.scripts.run_parallel.RunT(nproc = nproc)        
+        self.model.scripts.run_parallel.RunT(nproc = nproc, debug=debug_level)
 
     def viewer_canvasmenu(self):
         menus = [("+MFEM", None, None), ]

@@ -1,4 +1,4 @@
-def run_serial(path='', debug=1, thread =  True):
+def run_serial(path='', debug=0, thread =  True):
     '''
     debug keyword will overwrite debug level setting 
     in model file
@@ -36,14 +36,23 @@ def run_serial(path='', debug=1, thread =  True):
             folder.clean_owndir()
         path = os.path.join(folder.owndir(), 'model.pmfm')
         model.scripts.helpers.save_model(path)
+        m = model.param.getvar('mfem_model')
+        try:
+            m.generate_script(dir = folder.owndir())
+        except:
+            import traceback
+            traceback.print_exc()
+            return
+        
         del_path = True
 
     import petram
     from petram.helper.driver_path import serial as driver
 
-    mfem_path = petram.__path__[0]
-    #args = [driver, str(path), os.path.dirname(mfem_path), str(debug)]
-    args = [driver, str(path), str(debug)]
+    #This is to test driver locally
+    #args = [driver, str(path), str(debug)]
+    os.chdir(folder.owndir())
+    args = [sys.executable, 'model.py', '-s', '-d', str(debug)]    
     p = sp.Popen(args, stdout=sp.PIPE, stderr=sp.STDOUT)
 
     line = ''
