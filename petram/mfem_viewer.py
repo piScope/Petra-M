@@ -733,10 +733,11 @@ class MFEMViewer(BookViewer):
         try:
             m.generate_script(dir = path)
         except:
-           dialog.showtraceback(parent = self,
-                                txt='Failed to evauate expression',
-                                title='Error',
-                                traceback=traceback.format_exc())
+            dialog.showtraceback(parent = self,
+                                 txt='Failed to evauate expression',
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+           
     def onRunPreprocess(self, evt):
         try:
             self.run_preprocess()
@@ -745,6 +746,7 @@ class MFEMViewer(BookViewer):
                                 txt='Failed to during pre-processing model data',
                                 title='Error',
                                 traceback=traceback.format_exc())
+           
     def onSerDriver(self, evt):
         m = self.model.param.getvar('mfem_model')        
         m.set_root_path(self.model.owndir())
@@ -752,13 +754,12 @@ class MFEMViewer(BookViewer):
         try:
             self.run_preprocess()
         except:
-           dialog.showtraceback(parent = self,
-                                txt='Failed to during pre-processing model data',
-                                title='Error',
-                                traceback=traceback.format_exc())
-           return
+            dialog.showtraceback(parent = self,
+                                 txt='Failed to during pre-processing model data',
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            return
         self.model.scripts.run_serial.RunT(debug=debug_level)
-
         
     def onParDriver(self, evt):
         m = self.model.param.getvar('mfem_model')        
