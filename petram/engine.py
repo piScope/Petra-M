@@ -1603,6 +1603,7 @@ class Engine(object):
     #  helper methods
     #
     def assign_sel_index(self, phys = None):
+        
         if len(self.meshes) == 0:
            dprint1('!!!! mesh is None !!!!')
            return
@@ -1618,14 +1619,15 @@ class Engine(object):
             
             if len(p.sel_index) == 0: continue
 
-            dom_choice, bdr_choice = p.get_dom_bdr_choice(self.meshes[p.mesh_idx])
-
+            dom_choice, bdr_choice, internal_bdr = p.get_dom_bdr_choice(self.meshes[p.mesh_idx])
+            dprint1("## internal bdr index " + str(internal_bdr))
+            
             p._phys_sel_index = dom_choice
-            self.do_assign_sel_index(p, dom_choice, Domain)
+            self.do_assign_sel_index(p, dom_choice, Domain, internal_bdr=internal_bdr)
             self.do_assign_sel_index(p, bdr_choice, Bdry)
             self.do_assign_sel_index(p, dom_choice, Point)
             
-    def do_assign_sel_index(self, m, choice, cls):
+    def do_assign_sel_index(self, m, choice, cls, internal_bdr=None):
         dprint1("## setting _sel_index (1-based number): " + cls.__name__ +
                 ":" + m.fullname())
         #_sel_index is 0-base array
@@ -1639,7 +1641,7 @@ class Engine(object):
         for node in m.walk():
            if not isinstance(node, cls): continue
            if not node.enabled: continue
-           ret = node.process_sel_index(choice)
+           ret = node.process_sel_index(choice, internal_bdr=internal_bdr)
            
            if ret is None:
               if rem is not None: rem._sel_index = []

@@ -195,7 +195,7 @@ class Model(RestorableOrderedDict):
             v['sel_index_txt'] = ''
         return v
 
-    def process_sel_index(self, choice = None):
+    def process_sel_index(self, choice = None, internal_bdr=None):
         try:
             arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
             self.sel_index = arr            
@@ -208,6 +208,11 @@ class Model(RestorableOrderedDict):
         elif len(self.sel_index) == 1 and self.sel_index[0] == 'all':
             self._sel_index = list(choice)
             return -1
+        elif len(self.sel_index) == 1 and self.sel_index[0] == 'internal_bdr':
+            if internal_bdr is not None:
+                self._sel_index = intenral_bdr
+            else:
+                assert False, "Internal bdr is not defined"
         elif len(self.sel_index) == 0:
             self._sel_index = []            
         elif self.sel_index[0] == '':            
