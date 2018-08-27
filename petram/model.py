@@ -857,7 +857,8 @@ class Pair(Model):
             pass
         return False
         
-    def process_sel_index(self,  choice = None):
+    def process_sel_index(self, choice = None, internal_bdr=None):
+        # interanl_bdr is ignored..
         try:
             arr = convert_sel_txt(self.src_index_txt, self._global_ns)
             self.src_index = arr            
@@ -876,7 +877,6 @@ class Pair(Model):
             self._sel_index = []
         else:
             self._sel_index = [long(i) for i in self.sel_index]
-
         if len(self.src_index) == 0:
             self._src_index = []            
         elif self.src_index[0] == '':            
