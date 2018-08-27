@@ -60,11 +60,9 @@ class MFEMViewer(BookViewer):
                  ("!", None, None),                 
                  ("Edit Model...", self.onEditModel, None),
                  ("+Solve", None, None),]
-        from petram.helper.driver_path import serial, parallel
-        if os.path.exists(serial):
-            menus.append(("Serial",    self.onSerDriver, None),)
-        if os.path.exists(parallel):
-            menus.append(("Parallel",  self.onParDriver, None),)
+        
+        menus.append(("Serial",    self.onSerDriver, None),)
+        menus.append(("Parallel",  self.onParDriver, None),)
         menus.extend([("+Server", None, None),
                  ("Setting...", self.onServerSetting, None),
                  ("New WorkDir...", self.onServerNewDir, None),

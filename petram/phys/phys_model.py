@@ -869,6 +869,17 @@ class PhysModule(Phys):
         return info
      
     def get_dom_bdr_choice(self, mesh):
+
+        from collections import defaultdict
+        
+        def get_internal_bdr(d, dom_choice):
+            dd = []
+            for k  in d :
+               if k in dom_choice: dd.extend(d[k])
+            seen = defaultdict(int)
+            for k in dd: seen[k] += 1
+            return [k for k in seen if seen[k] > 1]
+       
         if self.dim == 3: kk = 'vol2surf'
         elif self.dim == 2: kk = 'surf2line'
         elif self.dim == 1: kk = 'line2vert'                   
@@ -886,17 +897,22 @@ class PhysModule(Phys):
             dom_choice = [int(x) for x in self.sel_index]
             bdr_choice = list(np.unique(np.hstack([d[int(x)]
                                               for x in self.sel_index])))
+
+        internal_bdr = get_internal_bdr(d, dom_choice)
+                
         from petram.mfem_config import use_parallel
         if use_parallel:
              from mfem.common.mpi_debug import nicePrint
              from petram.helper.mpi_recipes import allgather
              dom_choice = list(set(sum(allgather(dom_choice),[])))
              bdr_choice = list(set(sum(allgather(bdr_choice),[])))
+             internal_bdr = list(set(sum(allgather(internal_bdr),[])))             
              #nicePrint("dom choice", dom_choice)
              #nicePrint("bdr choice", bdr_choice)
+             nicePrint("internal bdr", internal_bdr)
          
         # return unique list    
-        return list(set(dom_choice)), list(set(bdr_choice)), 
+        return list(set(dom_choice)), list(set(bdr_choice)), list(set(internal_bdr))
         #return dom_choice, bdr_choice
 
 
