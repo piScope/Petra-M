@@ -1,4 +1,9 @@
 	<<< Change Log >>>
+08/28/2018
+	* Fixed partial_mesh for edge
+	* Fixed WF_essential (eliminate ProjectBdrCoefficient)
+	* Moved items in Docker to TwoPi/docker
+	
 04/15/2018
 	* Dockerfile folder is created and Dockefile.petram-base are Dockerfile.petram
 	  are added.
