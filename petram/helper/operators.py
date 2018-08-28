@@ -233,6 +233,9 @@ class Delta(Operator):
 class Projection(Operator):
     '''
     DoF mapping (Dof of fes1 is mapped to fes2)
+   
+    fes1 is trial space
+    fes2 is test  space
  
     example
     # selection mode is interpreted in the test fes.
@@ -279,8 +282,13 @@ class Projection(Operator):
 
         if self._sel == 'all' and self._ssel == 'all':
             if self.sel_mode == "domain":
-                idx1 = np.unique(self.fes1.GetMesh().GetAttributeArray())
-                idx2 = np.unique(self.fes2.GetMesh().GetAttributeArray())                
+                if dim1 == dim2:
+                    idx1 = np.unique(self.fes1.GetMesh().GetAttributeArray())
+                elif dim1 == dim2+1:
+                    idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
+                else:
+                    assert False, "unsupported mode"
+                idx2 = np.unique(self.fes2.GetMesh().GetAttributeArray())                    
             else:
                 idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
                 idx2 = np.unique(self.fes2.GetMesh().GetBdrAttributeArray())

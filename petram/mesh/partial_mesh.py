@@ -32,6 +32,8 @@ if use_parallel:
 else:
    import mfem.ser as mfem
    myid = 0
+   def nicePrint(x):
+      print(x)
 
 def isParMesh(mesh):
     return hasattr(mesh, 'GetNGroups')
@@ -78,14 +80,14 @@ def _collect_data(index, mesh, mode, skip_vtx= False):
         
     elif mode == 'vertex':
         v2v = mesh.extended_connectivity['vert2vert']       
-        GetXElementVertices = lambda x: v2v[x]
+        GetXElementVertices = lambda x: v2v[x] if x in v2v else []
         GetXBaseGeometry    = lambda x: 0
         LEN    = lambda x: 1
-        idx = list(index)
+        idx = [x for x in index if x in v2v]
         if len(idx) == 0:
             attrs =  np.atleast_1d([]).astype(int)
         else:
-            attrs =  np.hstack([va for va in index]).astype(int)
+            attrs =  np.hstack([va for va in index if va in v2v]).astype(int)
            
     else:
        assert False, "Unknown mode (_collect_data) "+mode
@@ -114,8 +116,8 @@ def _add_face_data(m, idx, nverts, base):
     return ivert, nverts, base
 
  
-def _gather_shared_vetex(mesh, u, shared_info,  *iverts):
-    # u_own, iv1, iv2... = gather_shared_vetex(mesh, u, ld, md, iv1, iv2...)
+def _gather_shared_vertex(mesh, u, shared_info,  *iverts):
+    # u_own, iv1, iv2... = gather_shared_vertex(mesh, u, ld, md, iv1, iv2...)
 
     # u_own  : unique vertex id ownd by a process
     # shared_info : shared data infomation
@@ -162,7 +164,10 @@ def _gather_shared_element(mesh, mode, shared_info, ielem, kelem, attrs,
                           nverts, base):
    
     ld, md = shared_info
-    imode = 1 if mode == 'edge' else 2
+    
+    if mode == 'face': imode=2
+    elif mode == 'edge': imode=1
+    else: imode = 0
     #
     me_list = [[] for i in range(nprc)]
     mea_list = [[] for i in range(nprc)]
@@ -186,16 +191,19 @@ def _gather_shared_element(mesh, mode, shared_info, ielem, kelem, attrs,
            missinga = mea[check][mii]
            if len(missing) != 0:                       
                print "adding (face)", missing
-               nverts, base  = add_face_data(mesh, missing, nverts, base)
+               nverts, base  = _add_face_data(mesh, missing, nverts, base)
                print len(missing), len(missinga), missinga
                attrs = np.hstack((attrs, missinga))
                kelem = np.hstack((kelem, [True]*len(missing)))
 
+    #attrs = np.unique(allgather_vector(attrs)).astype(int, copy=False)
     attrs = allgather_vector(attrs)
     base  = allgather_vector(base)
     nverts = allgather_vector(nverts)
     kelem  = allgather_vector(kelem)
-    return kelem, attrs, nverts, base    
+
+    return kelem, attrs, nverts, base
+   
         
 def _fill_mesh_elements(omesh, vtx, indices, nverts,  attrs, base):
 
@@ -282,10 +290,9 @@ def edge(mesh, in_attr, filename = '', precision=8):
     idx, attrs, ivert, nverts, base = _collect_data(in_attr, mesh, mode[0])
 
     l2v = mesh.extended_connectivity['line2vert']
-    in_eattr = np.unique(np.hstack([l2v[k] for k in in_attr]))
+    in_eattr = np.unique(np.hstack([l2v[k] for k in in_attr])).astype(int, copy=False)
     if isParMesh(mesh):
         in_eattr = np.unique(allgather_vector(in_eattr))
-    
     eidx, eattrs, eivert, neverts, ebase = _collect_data(in_eattr, mesh,
                                                           mode[1])
         
@@ -296,7 +303,7 @@ def edge(mesh, in_attr, filename = '', precision=8):
     
     if isParMesh(mesh):
         shared_info = distribute_shared_entity(mesh)       
-        u_own, ivert, eivert = _gather_shared_vetex(mesh, u, shared_info,
+        u_own, ivert, eivert = _gather_shared_vertex(mesh, u, shared_info,
                                                    ivert, eivert)
     Nvert = len(u)
     if len(u_own) > 0:
@@ -324,10 +331,9 @@ def edge(mesh, in_attr, filename = '', precision=8):
         # take care of shared boundary (edge)
         #
         keelem, eattrs, neverts, ebase = (
-            _gather_shared_element(mesh, 'edge', shared_info, eidx,
+            _gather_shared_element(mesh, 'vertex', shared_info, eidx,
                                    keelem, eattrs,
                                    neverts, ebase))
-        
         
     indices  = np.array([np.where(u == biv)[0][0] for biv in ivert])
     eindices = np.array([np.where(u == biv)[0][0] for biv in eivert])
@@ -455,7 +461,7 @@ def surface(mesh, in_attr, filename = '', precision=8):
     idx, attrs, ivert, nverts, base = _collect_data(in_attr, mesh, mode[0])
 
     s2l = mesh.extended_connectivity['surf2line']
-    in_eattr = np.unique(np.hstack([s2l[k] for k in in_attr]))
+    in_eattr = np.unique(np.hstack([s2l[k] for k in in_attr])).astype(int, copy=False)
     if isParMesh(mesh):
         in_eattr = np.unique(allgather_vector(in_eattr))
 
@@ -469,7 +475,7 @@ def surface(mesh, in_attr, filename = '', precision=8):
     
     if isParMesh(mesh):                                
         shared_info = distribute_shared_entity(mesh)       
-        u_own, ivert, eivert = _gather_shared_vetex(mesh, u, shared_info,
+        u_own, ivert, eivert = _gather_shared_vertex(mesh, u, shared_info,
                                                    ivert, eivert)
     Nvert = len(u)
     if len(u_own) > 0:
@@ -622,7 +628,7 @@ def volume(mesh, in_attr, filename = '', precision=8):
     idx, attrs, ivert, nverts, base = _collect_data(in_attr, mesh, 'dom')
     
     v2s = mesh.extended_connectivity['vol2surf']
-    in_battr = np.unique(np.hstack([v2s[k] for k in in_attr]))
+    in_battr = np.unique(np.hstack([v2s[k] for k in in_attr])).astype(int, copy=False)
     if isParMesh(mesh):
         in_battr = np.unique(allgather_vector(in_battr))
     
@@ -639,7 +645,7 @@ def volume(mesh, in_attr, filename = '', precision=8):
     
     if isParMesh(mesh):       
         shared_info = distribute_shared_entity(mesh)       
-        u_own, ivert, bivert = _gather_shared_vetex(mesh, u, shared_info,
+        u_own, ivert, bivert = _gather_shared_vertex(mesh, u, shared_info,
                                                    ivert, bivert)
        
     if len(u_own) > 0:

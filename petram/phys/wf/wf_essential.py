@@ -14,6 +14,7 @@ else:
    import mfem.ser as mfem
 
 from petram.phys.vtable import VtableElement, Vtable
+from mfem.common.mpi_debug import nicePrint
 
 class WF_Essential(Bdry, Phys):
     has_essential = True
@@ -119,9 +120,7 @@ class WF_Essential(Bdry, Phys):
         bdr_attr = [0]*mesh.bdr_attributes.Max()
         for idx in self._sel_index:
             bdr_attr[idx-1] = 1
-            
-        method = gf.ProjectBdrCoefficient
-        
+
         if fec_name.startswith("ND"):
             assert vdim == 1, "ND element vdim must be one"
             vdim = mesh.Dimension()
@@ -134,10 +133,13 @@ class WF_Essential(Bdry, Phys):
             method = gf.ProjectBdrCoefficientNormal
             self.apply_essential_1(method, real, c0, vdim, vvdim, bdr_attr)
             
-        elif self.get_root_phys().vdim == 1:
-            self.apply_essential_1(method, real, c0, vdim, vvdim, bdr_attr)
-            
-        else: #self.get_root_phys().vdim == 1 and H1 or L2
+        #elif self.get_root_phys().vdim == 1:
+        #    ProjectBdrCoefficient does not realy work in parallel
+        #    since shadow vertex are not always set...
+        #    method = gf.ProjectBdrCoefficient           
+        #    self.apply_essential_1(method, real, c0, vdim, vvdim, bdr_attr)
+
+        else: #H1 or L2
             # vector field FE. 
             method = gf.ProjectCoefficient
             ess_vdofs = mfem.intArray()
@@ -146,7 +148,13 @@ class WF_Essential(Bdry, Phys):
             dofs = mfem.intArray([fes.VDofToDof(i) for i in vdofs])
             fes.BuildDofToArrays()
             
-            if vdim0 == 'all':
+            if self.get_root_phys().vdim == 1:
+                coeff1 = SCoeff(c0, self.get_root_phys().ind_vars,
+                                self._local_ns, self._global_ns,
+                                real = real)
+                gf.ProjectCoefficient(coeff1, dofs, 0)
+               
+            elif vdim0 == 'all':
                 coeff1 = VCoeff(vdim, c0, self.get_root_phys().ind_vars,
                            self._local_ns, self._global_ns,
                            real = real)
@@ -156,7 +164,11 @@ class WF_Essential(Bdry, Phys):
                     coeff1 = SCoeff(c0, self.get_root_phys().ind_vars,
                                     self._local_ns, self._global_ns,
                                     real = real, component=k)
-                    gf.ProjectCoefficient(coeff1, dofs, cp)                    
+                    gf.ProjectCoefficient(coeff1, dofs, cp)
+
+
+
+
                    
                 
             

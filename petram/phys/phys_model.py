@@ -909,7 +909,7 @@ class PhysModule(Phys):
              internal_bdr = list(set(sum(allgather(internal_bdr),[])))             
              #nicePrint("dom choice", dom_choice)
              #nicePrint("bdr choice", bdr_choice)
-             nicePrint("internal bdr", internal_bdr)
+             #nicePrint("internal bdr", internal_bdr)
          
         # return unique list    
         return list(set(dom_choice)), list(set(bdr_choice)), list(set(internal_bdr))
