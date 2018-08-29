@@ -1,3 +1,4 @@
+import os
 import wx
 from collections import OrderedDict
 import traceback
@@ -14,6 +15,9 @@ except ImportError:
     from wx.lib.mixins import treemixin
 
 from petram.mfem_model import MFEM_ModelRoot
+
+from ifigure.ifigure_config import rcdir
+petram_model_scratch=os.path.join(rcdir, 'petram_model_scratch')        
 
 class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
     def __init__(self, *args, **kwargs):
@@ -163,10 +167,9 @@ class DlgEditModel(DialogWithWindowList):
                              ('Copy', self.OnCopyItemFromModel, 
                               None),]
 
-        if (self._copied_item is not None and
-             self._copied_item[1].__class__ in mm.get_possible_child()):
-                  menus = menus + [('Paste Item', self.OnPasteItemToModel, 
-                                     None)]
+        if os.path.exists(petram_model_scratch):
+            menus = menus + [('Paste Item', self.OnPasteItemToModel, 
+                              None)]
         if mm.can_delete:            
             if not mm.mustbe_firstchild:
                menus = menus + [('+Move...', None, None),
@@ -203,18 +206,30 @@ class DlgEditModel(DialogWithWindowList):
         base, num = mm.split_digits()
 
         import cPickle as pickle
-        self._copied_item = (base, pickle.loads(pickle.dumps(mm)))
+        _copied_item = (base, pickle.loads(pickle.dumps(mm)))
+
+        fid = open(petram_model_scratch, 'wb')
+        pickle.dump(_copied_item, fid)
+        fid.close()
 
     def OnPasteItemToModel(self, evt):
-        if self._copied_item is None: return
+        import cPickle as pickle        
+        try:
+            fid = open(petram_model_scratch, 'r')
+            _copied_item=pickle.load(fid)
+            fid.close()
+        except:
+            import traceback
+            traceback.print_exc()
+            return
         
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
-        if not self._copied_item[1].__class__ in mm.get_possible_child():
-            print("Cannot paste "+self._copied_item[1].__class__.__name__)
+        if not _copied_item[1].__class__ in mm.get_possible_child():
+            print("Cannot paste "+_copied_item[1].__class__.__name__)
             return
                              
-        mm.add_itemobj(*self._copied_item)
+        mm.add_itemobj(*_copied_item)
         self.tree.RefreshItems()
         self.OnEvalNS(evt)                             
 
