@@ -1636,8 +1636,8 @@ class Engine(object):
             for k in node.keys():
                 yield node[k]
         rem = None
-        checklist = [True]*len(choice)
-        
+        checklist = np.array([True]*len(choice), dtype=bool)
+
         for node in m.walk():
            if not isinstance(node, cls): continue
            if not node.enabled: continue
@@ -1651,10 +1651,12 @@ class Engine(object):
               dprint1(node.fullname(), node._sel_index)              
            else:
               dprint1(node.fullname(), ret)
-              for k in ret:
-                 idx = list(choice).index(k)
-                 if node.is_secondary_condition: continue
-                 checklist[idx] = False
+              #for k in ret:
+              #   idx = list(choice).index(k)
+              #   if node.is_secondary_condition: continue
+              #   checklist[idx] = False
+              if not node.is_secondary_condition:
+                 checklist[np.isin(choice, ret)] = False                 
         if rem is not None:
            rem._sel_index = list(np.array(choice)[checklist])
            dprint1(rem.fullname() + ':' + rem._sel_index.__repr__())
@@ -1810,8 +1812,9 @@ class Engine(object):
         self.max_attr = -1
 
         for m in self.meshes:
-            self.max_bdrattr = np.max([self.max_bdrattr, max(m.GetBdrAttributeArray())])
-            self.max_attr = np.max([self.max_attr, max(m.GetAttributeArray())])
+            if len(m.GetBdrAttributeArray()) > 0:
+                self.max_bdrattr = np.max([self.max_bdrattr, max(m.GetBdrAttributeArray())])
+                self.max_attr = np.max([self.max_attr, max(m.GetAttributeArray())])
             m.ReorientTetMesh()
             m.GetEdgeVertexTable()                                   
             get_extended_connectivity(m)           
@@ -2241,9 +2244,10 @@ class ParallelEngine(Engine):
                     if not o.enabled: continue
                     if o.isMeshGenerator:                    
                         smesh = o.run()
-                        self.max_bdrattr = np.max([self.max_bdrattr,
+                        if len(m.GetBdrAttributeArray()) > 0:                        
+                             self.max_bdrattr = np.max([self.max_bdrattr,
                                                    max(smesh.GetBdrAttributeArray())])
-                        self.max_attr = np.max([self.max_attr,
+                             self.max_attr = np.max([self.max_attr,
                                                 max(smesh.GetAttributeArray())])
                         self.meshes[idx] = mfem.ParMesh(MPI.COMM_WORLD, smesh)
                         target = self.meshes[idx]
