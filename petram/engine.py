@@ -2244,7 +2244,7 @@ class ParallelEngine(Engine):
                     if not o.enabled: continue
                     if o.isMeshGenerator:                    
                         smesh = o.run()
-                        if len(m.GetBdrAttributeArray()) > 0:                        
+                        if len(smesh.GetBdrAttributeArray()) > 0:                        
                              self.max_bdrattr = np.max([self.max_bdrattr,
                                                    max(smesh.GetBdrAttributeArray())])
                              self.max_attr = np.max([self.max_attr,
