@@ -131,7 +131,13 @@ class DlgEditModel(DialogWithWindowList):
         indices = tree.GetIndexOfItem(tree.GetSelection())
         mm = self.model.GetItem(indices)
         menus = []
-        for submenu, cls in mm.get_possible_child_menu():
+        for xxxx in mm.get_possible_child_menu():
+           if len(xxxx) == 2:
+               submenu, cls = xxxx
+               txt = cls.__name__.split('_')[-1]
+           else:
+               submenu, cls, txt = xxxx
+               
            def add_func(evt, cls = cls, indices = indices, tree = tree,
                         model = self.model):
                txt = cls.__name__.split('_')[-1]               
@@ -141,7 +147,7 @@ class DlgEditModel(DialogWithWindowList):
                engine = viewer.engine
                model.GetItem(indices)[name].postprocess_after_add(engine)
                tree.RefreshItems()
-           txt = cls.__name__.split('_')[-1]
+
            if len(submenu) != 0:
                if submenu == "!":
                    menus=menus+[('Add '+txt, add_func, None),]                      

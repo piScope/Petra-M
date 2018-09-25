@@ -214,6 +214,10 @@ class MFEMViewer(BookViewer):
                         self._is_mfem_geom_fig = True
                 else:
                     if updateall:
+                        if not 'geom' in self._figure_data:
+                            # geom is not yet run
+                            self.cls()
+                            return 
                         d = self._figure_data['geom']
                         plot_geometry(self,  d[name[1]])
                     d = self._figure_data['mesh']
