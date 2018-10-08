@@ -1656,7 +1656,7 @@ class Engine(object):
               #   if node.is_secondary_condition: continue
               #   checklist[idx] = False
               if not node.is_secondary_condition:
-                 checklist[np.isin(choice, ret)] = False                 
+                 checklist[np.in1d(choice, ret)] = False                 
         if rem is not None:
            rem._sel_index = list(np.array(choice)[checklist])
            dprint1(rem.fullname() + ':' + rem._sel_index.__repr__())
