@@ -671,6 +671,8 @@ class DlgEditModel(DialogWithWindowList):
 
     def get_selected_mm(self):
         import   ifigure.widgets.dialog as dialog
+        if self.tree.GetSelection() is None: return
+        
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
         return mm
@@ -684,7 +686,9 @@ class DlgEditModel(DialogWithWindowList):
         self.tree.UnselectAll()
         while True:
            item = self.tree.GetNextSibling(item)
-           if not item.IsOk(): return 
+           if not item.IsOk():
+               self.tree.SelectItem(item0)                         
+               return 
            indices = self.tree.GetIndexOfItem(item)
            mm = self.model.GetItem(indices)
            if mm.enabled:

@@ -28,9 +28,11 @@ def validate_sel(value, obj, w):
 def convert_sel_txt(txt, g):
     if txt.strip() == 'remaining':
         return ['remaining']
-    if txt.strip() == 'all':
+    elif txt.strip() == 'all':
         return ['all']
-    if txt.strip() == '':
+    elif txt.strip() == 'internal_bdr':
+        return ['all']
+    elif txt.strip() == '':
         arr = []
     else:
         arr =  list(np.atleast_1d(eval(txt, g)))

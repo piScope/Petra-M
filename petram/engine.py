@@ -298,7 +298,6 @@ class Engine(object):
         model = self.model
         model['General'].run()
         self.run_mesh_serial()
-        self.assign_sel_index()
 
         if dir is None:
             dir = os.path.dirname(os.path.realpath(mainfile))           
@@ -306,7 +305,8 @@ class Engine(object):
             if node.has_ns() and node.ns_name is not None:
                 node.read_ns_script_data(dir = dir)
         self.build_ns()
-
+        
+        self.assign_sel_index()
         self.run_preprocess()  # this must run when mesh is serial
         
         self.run_mesh() # make ParMesh and Par-Extended-Mesh
