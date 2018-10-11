@@ -40,7 +40,8 @@ def generate(path_src, path_dst, f, create_new = True):
             od.restore_fullpath()
             mesh_path = od.get_real_path()
             mesh_path2 = os.path.join(dst, os.path.basename(od.path))
-            shutil.copy(mesh_path, mesh_path2)
+            if os.path.exists(mesh_path2): continue
+            if os.path.exists(mesh_path): shutil.copy(mesh_path, mesh_path2)
 
 def generate_all(path_src, path_dst):
     '''
