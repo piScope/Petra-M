@@ -151,7 +151,7 @@ class MeshFile(Mesh):
                     from __main__ import __file__ as mainfile        
                     path1 = os.path.join(os.path.dirname(os.path.realpath(mainfile)), path)   
                     dprint2("trying :", path1)
-                elif os.env('PetraM_MeshDir') is not None:
+                elif os.getenv('PetraM_MeshDir') is not None:
                     path1 = os.path.join(os.env('PetraM_MeshDir'), path1)
                     dprint2("trying :", path1)                    
             if os.path.exists(path1):
