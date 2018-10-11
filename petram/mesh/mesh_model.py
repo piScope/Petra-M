@@ -137,7 +137,7 @@ class MeshFile(Mesh):
         if path.find('{home}') != -1:
             path = path.replace('{home}', HOME)
         if path.find('{model}') != -1:
-            path = path.replace('{model}', self.root().model_path)
+            path = path.replace('{model}', str(self.root().model_path))
 
         if not os.path.isabs(path):
             dprint2("meshfile relative path mode")
