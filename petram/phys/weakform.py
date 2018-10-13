@@ -11,6 +11,8 @@ from petram.phys.phys_model import Phys
 from petram.phys.phys_model  import PhysCoefficient
 from petram.phys.phys_model  import VectorPhysCoefficient
 from petram.phys.phys_model  import MatrixPhysCoefficient
+from petram.phys.phys_model  import PhysConstant, PhysVectorConstant, PhysMatrixConstant
+
 from petram.model import Domain, Bdry, Edge, Point, Pair
 
 import petram.debug as debug
@@ -49,56 +51,124 @@ def get_integrators(filename):
  
 bilinintegs = get_integrators('BilinearOps')
 linintegs = get_integrators('LinearOps')
- 
-class MCoeff(MatrixPhysCoefficient):
-    def __init__(self, *args, **kwargs):
-        self.conj = kwargs.pop('conj', False)
-        super(MCoeff, self).__init__(*args, **kwargs)
-    def EvalValue(self, x):
-        val = super(MCoeff, self).EvalValue(x)
-        if self.conj: val=np.conj(val)
-        return val
-     
-class DCoeff(MatrixPhysCoefficient):
-    def __init__(self, *args, **kwargs):
-        self.conj = kwargs.pop('conj', False)       
-        self.space_dim = args[0]
-        super(DCoeff, self).__init__(*args, **kwargs)
-        
-    def EvalValue(self, x):
-        from petram.phys.phys_model import Coefficient_Evaluator
-        val = Coefficient_Evaluator.EvalValue(self, x)
-        val = np.diag(val)
-        if self.conj: val=np.conj(val)                
-        return val
-    
-class VCoeff(VectorPhysCoefficient):
-    def __init__(self, *args, **kwargs):
-        self.conj = kwargs.pop('conj', False)
-        super(VCoeff, self).__init__(*args, **kwargs)
-    def EvalValue(self, x):
-        val = super(VCoeff, self).EvalValue(x)
-        if self.conj: val=np.conj(val)        
-        return val
 
-class SCoeff(PhysCoefficient):
-    def __init__(self, *args, **kwargs):
-        self.component = kwargs.pop('component', None)
-        self.conj = kwargs.pop('conj', False)       
-        super(SCoeff, self).__init__(*args, **kwargs)
-
-    def EvalValue(self, x):
-        val = super(SCoeff, self).EvalValue(x)
-        if self.component is None:
-            if self.conj: val=np.conj(val)
-            return val
+def MCoeff(*args, **kwargs):
+    class MCoeff(MatrixPhysCoefficient):
+       def __init__(self, *args, **kwargs):
+           self.conj = kwargs.pop('conj', False)
+           super(MCoeff, self).__init__(*args, **kwargs)
+       def EvalValue(self, x):
+           val = super(MCoeff, self).EvalValue(x)
+           if self.conj: val=np.conj(val)
+           return val
+    e = args[1]
+    if any([isinstance(ee, str) for ee in e]):
+        return MCoeff(*args, **kwargs)
+    else:
+        conj = kwargs.get('conj', False)
+        real = kwargs.get('real', True)
+        if np.iscomplexobj(e):
+            if conj:  e = np.conj(e)
+            if real:  e = e.real
+            else: e = e.imag
         else:
-            if len(val.shape) == 0: val = [val]
-            if self.conj: val=np.conj(val)[self.component]
-            return val[self.component]
-           
-               
+            e = np.array(e, dtype=float, copy=False)
+        return PhysMatrixConstant(e)
      
+def DCoeff(*args, **kwargs):
+    class DCoeff(MatrixPhysCoefficient):
+       def __init__(self, *args, **kwargs):
+           self.conj = kwargs.pop('conj', False)       
+           self.space_dim = args[0]
+           super(DCoeff, self).__init__(*args, **kwargs)
+
+       def EvalValue(self, x):
+           from petram.phys.phys_model import Coefficient_Evaluator
+           val = Coefficient_Evaluator.EvalValue(self, x)
+           val = np.diag(val)
+           if self.conj: val=np.conj(val)
+           return val
+    e = args[1]
+    if any([isinstance(ee, str) for ee in e]):
+        return DCoeff(*args, **kwargs)
+    else:
+        e = np.diag(e)       
+        conj = kwargs.get('conj', False)
+        real = kwargs.get('real', True)
+        if np.iscomplexobj(e):
+            if conj:  e = np.conj(e)
+            if real:  e = e.real
+            else: e = e.imag
+        else:
+            e = np.array(e, dtype=float, copy=False)
+        return PhysMatrixConstant(e)
+     
+def VCoeff(*args, **kwargs):    
+    class VCoeff(VectorPhysCoefficient):
+       def __init__(self, *args, **kwargs):
+           print("VCoeff, args", args[:2])
+           self.conj = kwargs.pop('conj', False)
+           super(VCoeff, self).__init__(*args, **kwargs)
+       def EvalValue(self, x):
+           val = super(VCoeff, self).EvalValue(x)
+           if self.conj: val=np.conj(val)        
+           return val
+    e = args[1]
+    if any([isinstance(ee, str) for ee in e]):
+        return VCoeff(*args, **kwargs)
+    else:
+        conj = kwargs.get('conj', False)
+        real = kwargs.get('real', True)
+        if np.iscomplexobj(e):
+            if conj:  e = np.conj(e)
+            if real:  e = e.real
+            else: e = e.imag
+        else:
+            e = np.array(e, dtype=float, copy=False)
+        return PhysVectorConstant(e)
+     
+def SCoeff(*args, **kwargs):
+    class SCoeff(PhysCoefficient):
+       def __init__(self, *args, **kwargs):
+           print("SCoeff, args", args[:1])       
+           self.component = kwargs.pop('component', None)
+           self.conj = kwargs.pop('conj', False)       
+           super(SCoeff, self).__init__(*args, **kwargs)
+
+       def EvalValue(self, x):
+           val = super(SCoeff, self).EvalValue(x)
+           if self.component is None:
+               if self.conj: val=np.conj(val)
+               v =  val
+           else:
+               if len(val.shape) == 0: val = [val]
+               if self.conj: val=np.conj(val)[self.component]
+               v =  val[self.component]
+
+           if np.iscomplex(v):
+               if self.real:  return v.real
+               else: return v.imag
+           else:
+               return v
+               
+    e = args[0]
+    component = kwargs.get('component', None)
+    conj = kwargs.get('conj', False)
+    real = kwargs.get('real', True)
+    if any([isinstance(ee, str) for ee in e]):
+        return SCoeff(*args, **kwargs)
+    else:
+        # conj is ignored..(this doesn't no meaning...)       
+        if component is None:
+            v = args[0]
+        else:
+            v = args[0][component]
+        if np.iscomplex(v):
+            if conj:  v = np.conj(v)
+            if real:  v = v.real
+            else: v = v.imag
+        return PhysConstant(float(v))
+    
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
          guilabel = "lambda", default = 0.0, tip = "coefficient",))]
      
@@ -165,7 +235,6 @@ class WeakIntegration(Phys):
     def add_contribution(self, engine, a, real = True, is_trans=False, is_conj=False):
         c = self.vt_coeff.make_value_or_expression(self)
         if isinstance(c, str): c = [c]
-        
         if real:       
             dprint1("Add "+self.integrator+ " contribution(real)" + str(self._sel_index), "c", c)
         else:

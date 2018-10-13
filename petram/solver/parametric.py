@@ -3,7 +3,7 @@ import traceback
 import gc
 
 from petram.model import Model
-from petram.solver.solver_model import Solver
+from petram.solver.solver_model import Solver, SolveStep
 from petram.namespace_mixin import NS_mixin
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Parametric')
@@ -12,7 +12,7 @@ format_memory_usage = debug.format_memory_usage
 assembly_methods = {'Full assemble': 0,
                     'Reuse matrix' : 1}
 
-class Parametric(Solver, NS_mixin):
+class Parametric(SolveStep, NS_mixin):
     '''
     parametric sweep of some model paramter
     and run solver
@@ -21,7 +21,7 @@ class Parametric(Solver, NS_mixin):
     has_2nd_panel = False
     
     def __init__(self, *args, **kwargs):
-        Solver.__init__(self, *args, **kwargs)
+        SolveStep.__init__(self, *args, **kwargs)
         NS_mixin.__init__(self, *args, **kwargs)
         
     def init_solver(self):
