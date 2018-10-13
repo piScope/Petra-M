@@ -198,9 +198,9 @@ class ScipyCoo(coo_matrix):
         generate mfem::SparseMatrix using the same data
         '''
         if np.iscomplexobj(self):
-            csr_r = np.real(self).tocsr()
+            csr_r = self.tocsr().real
             csr_r.eliminate_zeros()
-            csr_i = np.imag(self).tocsr()
+            csr_i = self.tocsr().imag
             csr_i.eliminate_zeros()
             return mfem.SparseMatrix(csr_r), mfem.SparseMatrix(csr_i)
         else:
