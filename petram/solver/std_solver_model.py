@@ -93,36 +93,26 @@ class StdSolver(Solver):
         
     
     @debug.use_profiler
-    def run(self, engine, is_first = True):
+    def run(self, engine, is_first = True, return_instance=False):
         dprint1("Entering run", is_first, self.fullpath())
         if self.clear_wdir:
             engine.remove_solfiles()
 
         instance = StandardSolver(self, engine)
-
+        instance.set_blk_mask()
+        if return_instance: return instance                    
         # We dont use probe..(no need...)
         #instance.configure_probes(self.probe)
 
-        '''
-        if is_first:
-            self.prepare_form_sol_variables(engine)
-            instance.init(self.init_only)
-        else:
-            pass
-            #instance.update()
-        '''
-        instance.set_blk_mask()      
-        
         if self.init_only:
             engine.sol = engine.assembled_blocks[1][0]
             instance.sol = engine.sol
         else:
-            if is_first: 
+            if is_first:
                 instance.assemble()            
                 is_first=False
-            instance.solve()            
-#            instance.save_solution()
-#        else:
+            instance.solve()
+
         instance.save_solution(ksol = 0,
                                skip_mesh = False, 
                                mesh_only = False,

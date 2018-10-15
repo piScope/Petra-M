@@ -40,6 +40,9 @@ class DefaultParametricScanner(object):
     def next(self):
         return self.__next__()
 
+    def __len__(self):
+        return self.max
+    
     def len(self):
         return self.max
 

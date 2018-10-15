@@ -154,12 +154,6 @@ class SolveStep(SolverBase):
         # use get_phys to apply essential to all phys in solvestep
         engine.run_apply_essential(phys_target, phys_range)
         engine.run_fill_X_block()
-        
-        #if init_only:
-        #    self.sol = self.blocks[1][0]
-        #    engine.sol = self.blocks[1][0]
-        #    return 
-        #self.assemble()
 
     def run(self, engine, is_first = True):
         solvers = self.get_active_solvers()

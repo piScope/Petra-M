@@ -29,12 +29,14 @@ class Parametric(SolveStep, NS_mixin):
 
     def panel1_param(self):
         v = self.get_panel1_value()
-        return [
-                ["assembly method",  v[0],  4, {"readonly": True,
+        return [["Initial value setting",   self.init_setting,  0, {},],
+                ["physics model(blank=auto)",   self.phys_model,  0, {},],
+                ["assembly method",  'Full assemble',  4, {"readonly": True,
                       "choices": assembly_methods.keys()}],
-                self.make_param_panel('scanner',  v[1]),
-                [ "save separate mesh",  v[2],  3, {"text":""}],
-                ["inner solver", v[3]  ,2, None],                
+                self.make_param_panel('scanner',  v[2]),
+                [ "save separate mesh",  True,  3, {"text":""}],
+                ["inner solver", ''  ,2, None],
+                ["clear working directory", False, 3, {"text":""}],
                 ]
     
     def get_panel1_value(self):
@@ -42,29 +44,36 @@ class Parametric(SolveStep, NS_mixin):
         for k, n in assembly_methods.items():
             if n == self.assembly_method: txt = k
 
-        return (
+        return (self.init_setting,
+                self.phys_model,
                 str(txt),      
                 str(self.scanner),    
                 self.save_separate_mesh,
-                self.get_inner_solver_names())
+                self.get_inner_solver_names(),
+                self.clear_wdir)
 
     def import_panel1_value(self, v):
-        self.assembly_method = assembly_methods[v[0]]
-        self.scanner = v[1]
-        self.save_separate_mesh = v[2]
-
+        self.init_setting = str(v[0])                        
+        self.phys_model = str(v[1])
+        self.assembly_method = assembly_methods[v[-5]]
+        self.scanner = v[-4]
+        self.save_separate_mesh = v[-3]
+        self.clear_wdir = v[-1]
+        
     def get_inner_solver_names(self):
-        names = [s.name() for s in self.get_inner_solvers()]
+        names = [s.name() for s in self.get_active_solvers()]
         return ', '.join(names)
-    
+
+    '''
     def get_inner_solvers(self):
         return [self[k] for k in self if self[k].enabled]
-        
+    '''
     def attribute_set(self, v):
         v = super(Parametric, self).attribute_set(v)
         v['assembly_method'] = 0
         v['scanner'] = 'Scan("a", [1,2,3])'
         v['save_separate_mesh'] = True
+        v['clear_wdir'] = False                        
         return v
     
     def get_possible_child(self):
@@ -86,9 +95,131 @@ class Parametric(SolveStep, NS_mixin):
         from petram.solver.parametric_scanner import Scan
         return {'Scan': Scan}
 
+    def go_case_dir(self, engine, ksol, mkdir):
+        od = os.getcwd()                    
+        path = os.path.join(od, 'case' + str(ksol))
+        if mkdir:
+            engine.mkdir(path) 
+            os.chdir(path)
+            engine.cleancwd() 
+        else:
+            os.chdir(path)
+        return od
 
-    @debug.use_profiler
-    def run(self, engine):
+
+    def _run_full_assembly(self, engine, solvers, scanner, is_first=True):
+        for kcase, case in enumerate(scanner):
+            is_first = True
+            self.init(engine)
+            od = self.go_case_dir(engine, kcase, True)
+            for ksolver, s in enumerate(solvers):
+                is_first = s.run(engine, is_first=is_first)
+                engine.add_FESvariable_to_NS(self.get_phys()) 
+                engine.store_x()
+                if self.solve_error[0]:
+                    dprint1("Parametric failed " + self.name() + ":"  +
+                            self.solve_error[1])
+            os.chdir(od)
+                        
+    def _run_rhs_assembly(self, engine, solvers, scanner, is_first=True):
+        l_scan = len(scanner)
+
+        
+        linearsolver = None
+        for ksolver, s in enumerate(solvers):
+            RHS_ALL=[]
+            
+            for kcase, case in enumerate(scanner):            
+                instance = s.allocate_solver_instance(engine)                
+                if kcase == 0:
+                     instance.assemble()
+                else:
+                     engine.set_update_flag('ParametricRHS')
+                     engine.run_apply_essential(self.get_phys(),
+                                                       self.get_phys_range(),
+                                                       update=True)
+                     engine.run_fill_X_block(update=True)
+                     engine.run_assemble_b(phys_target, update=True) 
+                     engine.run_assemble_blocks(s.compute_A, s.compute_rhs, 
+                                                       inplace = True, update=True)
+
+                     
+                A, X, RHS, Ae, B, M = instance.blocks
+                if kcase == 0:
+                     ls_type = instance.ls_type
+                     phys_real = not s.is_complex()                     
+                     AA = engine.finalize_matrix(A, mask, not phys_real,
+                                    format = ls_type)
+                else:                     
+                    RHS_ALL.append(RHS)
+
+                 
+                if kcase == l_scan-1:
+                    BB = engine.finalize_rhs(RHS_ALL, A ,X[0], mask,
+                                             not phys_real,
+                                             format = ls_type)
+
+                    if linearsolver is None:
+                        linearsolver = self.allocate_linearsolver(self.gui.is_complex(),
+                                                               self. engine)
+                    linearsolver.SetOperator(AA,
+                                 dist = engine.is_matrix_distributed,
+                                 name = depvars)
+        
+                    XX = None
+                    solall = linearsolver.Mult(BB, x=XX, case_base=0)
+                    if not phys_real and instance.assemble_real:
+                        oprt = linearsolver.oprt
+                        solall = instance.linearsolver_model.real_to_complex(solall,
+                                                                         oprt)
+
+                    for ksol in range(l_scan-1):
+                        if ksol == 0:
+                            instance.save_solution(engine, extra_data, 
+                                                 mesh_only = True)
+                        A.reformat_central_mat(solall, ksol, X[0], mask)
+                        instance.sol = X[0]
+                        path = os.path.join(od, 'case' + str(ksol))
+                        if ksolver == 0:
+                            engine.mkdir(path) 
+                            os.chdir(path)
+                            engine.cleancwd() 
+                        else:
+                            os.chdir(path)
+                        instance.save_solution(skip_mesh = False, 
+                                               mesh_only = False,
+                                               save_parmesh=self.save_parmesh)
+                   
+    
+    def run(self, engine, is_first=True):
+        #
+        # is_first is not used
+        #
+        dprint1("Parametric Scan, ", self.assembly_method)
+        if self.clear_wdir:
+            engine.remove_solfiles()
+
+        scanner = self.get_scanner()
+        if scanner is None: return
+        
+        solvers = self.get_active_solvers()
+        
+        phys_models = []
+        for s in solvers:
+            for p in s.get_phys():
+                if not p in phys_models: phys_models.append(p)
+        scanner.set_phys_models(phys_models)
+        
+        self.prepare_form_sol_variables(engine)
+        
+        if self.assembly_method == 0: 
+            self._run_full_assembly(engine, solvers, scanner, is_first=is_first)
+        else:
+            self._run_rhs_assembly(engine, solvers, scanner, is_first=is_first)
+            
+        
+'''
+    def run(self, engine, is_first=True):
         if self.clear_wdir:
             engine.remove_solfiles()
 
@@ -99,7 +230,7 @@ class Parametric(SolveStep, NS_mixin):
         phys_models = []
         for s in solvers:
             for p in s.get_phys():
-                if not p in phys_models: phys_models.append(p)
+`                if not p in phys_models: phys_models.append(p)
         scanner.set_phys_models(phys_models)
 
         instances = []
@@ -183,7 +314,7 @@ class Parametric(SolveStep, NS_mixin):
                                save_parmesh=self.save_parmesh)
 
         print(debug.format_memory_usage())
-
+'''
         
 '''    
     def run_method_0(self, solver, engine, kcase, ksolver,

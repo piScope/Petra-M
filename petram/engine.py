@@ -605,6 +605,7 @@ class Engine(object):
         M, B, M_changed = self.fill_M_B_blocks(M, B, update=update)
 
         #B.save_to_file("B")
+
         #M[0].save_to_file("M0")        
         #M[1].save_to_file("M1")
         #X[0].save_to_file("X0")
@@ -2080,10 +2081,16 @@ class Engine(object):
 
     def set_update_flag(self, mode):
         for k in self.model['Phys'].keys():
+            phys = self.model['Phys'][k]
             for mm in self.model['Phys'][k].walk():
                mm._update_flag = False
                if mode == 'TimeDependent':
                   if mm.isTimeDependent: mm._update_flag = True
+               elif mode == 'ParametricRHS':
+                  for kfes, name in enumerate(phys.dep_vars):                  
+                      if not mm.has_lf_contribution2(kfes, 0):
+                          mm._update_flag = True
+                  if mm.has_essential: mm._update_flag = True
                else:
                   assert False, "update mode not supported: mode = "+mode
        
