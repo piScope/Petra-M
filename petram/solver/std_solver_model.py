@@ -180,7 +180,7 @@ class StandardSolver(SolverInstance):
         '''
         return B
 
-    def assemble(self):
+    def assemble(self, inplace=True):
         engine = self.engine
         phys_target = self.get_phys()
         phys_range  = self.get_phys_range()
@@ -193,7 +193,9 @@ class StandardSolver(SolverInstance):
         engine.run_assemble_b(phys_target)
         engine.run_fill_X_block()
         
-        self.engine.run_assemble_blocks(self.compute_A, self.compute_rhs)
+        self.engine.run_assemble_blocks(self.compute_A,
+                                        self.compute_rhs,
+                                        inplace=inplace)
         #A, X, RHS, Ae, B, M, names = blocks
         self.assembled = True
         

@@ -321,18 +321,21 @@ class SolverInstance(object):
         engine = self.engine
         phys_target = self.get_phys()
 
-        sol, sol_extra = engine.split_sol_array(self.sol)
+        if mesh_only:
+            engine.save_sol_to_file(phys_target,
+                                     mesh_only = True,
+                                     save_parmesh = save_parmesh)
+        else:
+            sol, sol_extra = engine.split_sol_array(self.sol)
+            engine.recover_sol(sol)
+            extra_data = engine.process_extra(sol_extra)
 
-        engine.recover_sol(sol)
-        extra_data = engine.process_extra(sol_extra)
 
-
-        engine.save_sol_to_file(phys_target, 
+            engine.save_sol_to_file(phys_target, 
                                 skip_mesh = skip_mesh,
-                                mesh_only = mesh_only,
+                                mesh_only = False,
                                 save_parmesh = save_parmesh)
-        if mesh_only: return
-        engine.save_extra_to_file(extra_data)
+            engine.save_extra_to_file(extra_data)
         #engine.is_initialzied = False
         
         

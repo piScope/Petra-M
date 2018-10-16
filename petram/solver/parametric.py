@@ -109,6 +109,8 @@ class Parametric(SolveStep, NS_mixin):
 
     def _run_full_assembly(self, engine, solvers, scanner, is_first=True):
         for kcase, case in enumerate(scanner):
+            self.prepare_form_sol_variables(engine)
+            
             is_first = True
             self.init(engine)
             od = self.go_case_dir(engine, kcase, True)
@@ -122,36 +124,53 @@ class Parametric(SolveStep, NS_mixin):
             os.chdir(od)
                         
     def _run_rhs_assembly(self, engine, solvers, scanner, is_first=True):
+
+        self.prepare_form_sol_variables(engine)
+        self.init(engine)
+        
         l_scan = len(scanner)
 
+        
+        all_phys = self.get_phys()        
+        phys_target = self.get_target_phys()
         
         linearsolver = None
         for ksolver, s in enumerate(solvers):
             RHS_ALL=[]
+            instance = s.allocate_solver_instance(engine)
+
+            phys_target = self.get_phys()
+            phys_range = self.get_phys_range()
             
-            for kcase, case in enumerate(scanner):            
-                instance = s.allocate_solver_instance(engine)                
+            for kcase, case in enumerate(scanner):
+
                 if kcase == 0:
-                     instance.assemble()
+                     instance.set_blk_mask()                    
+                     instance.assemble(inplace=False)
                 else:
                      engine.set_update_flag('ParametricRHS')
-                     engine.run_apply_essential(self.get_phys(),
-                                                       self.get_phys_range(),
-                                                       update=True)
+                     engine.run_apply_essential(phys_target,
+                                                phys_range,
+                                                update=True)
                      engine.run_fill_X_block(update=True)
                      engine.run_assemble_b(phys_target, update=True) 
-                     engine.run_assemble_blocks(s.compute_A, s.compute_rhs, 
-                                                       inplace = True, update=True)
+                     engine.run_assemble_blocks(instance.compute_A,
+                                                instance.compute_rhs, 
+                                                inplace = False,
+                                                update=True)
 
                      
-                A, X, RHS, Ae, B, M = instance.blocks
+                A, X, RHS, Ae, B, M, depvars = instance.blocks
+                mask = instance.blk_mask
+                depvars = [x for i, x in enumerate(depvars)
+                           if mask[0][i]]                
                 if kcase == 0:
-                     ls_type = instance.ls_type
-                     phys_real = not s.is_complex()                     
-                     AA = engine.finalize_matrix(A, mask, not phys_real,
+                    ls_type = instance.ls_type
+                    phys_real = not s.is_complex()                     
+                    AA = engine.finalize_matrix(A, mask, not phys_real,
                                     format = ls_type)
-                else:                     
-                    RHS_ALL.append(RHS)
+                    
+                RHS_ALL.append(RHS)
 
                  
                 if kcase == l_scan-1:
@@ -160,35 +179,33 @@ class Parametric(SolveStep, NS_mixin):
                                              format = ls_type)
 
                     if linearsolver is None:
-                        linearsolver = self.allocate_linearsolver(self.gui.is_complex(),
-                                                               self. engine)
+                        linearsolver = instance.allocate_linearsolver(s.is_complex(),
+                                                                      engine)
                     linearsolver.SetOperator(AA,
                                  dist = engine.is_matrix_distributed,
                                  name = depvars)
         
                     XX = None
                     solall = linearsolver.Mult(BB, x=XX, case_base=0)
-                    if not phys_real and instance.assemble_real:
+                    if not phys_real and s.assemble_real:
                         oprt = linearsolver.oprt
                         solall = instance.linearsolver_model.real_to_complex(solall,
                                                                          oprt)
 
-                    for ksol in range(l_scan-1):
+                    for ksol in range(l_scan):
                         if ksol == 0:
-                            instance.save_solution(engine, extra_data, 
-                                                 mesh_only = True)
+                            instance.save_solution(mesh_only = True,
+                                                   save_parmesh = s.save_parmesh )
                         A.reformat_central_mat(solall, ksol, X[0], mask)
                         instance.sol = X[0]
-                        path = os.path.join(od, 'case' + str(ksol))
-                        if ksolver == 0:
-                            engine.mkdir(path) 
-                            os.chdir(path)
-                            engine.cleancwd() 
-                        else:
-                            os.chdir(path)
-                        instance.save_solution(skip_mesh = False, 
+                        od = self.go_case_dir(engine,
+                                              ksol,
+                                              ksolver == 0)
+                        instance.save_solution(ksol = ksol,
+                                               skip_mesh = False, 
                                                mesh_only = False,
-                                               save_parmesh=self.save_parmesh)
+                                               save_parmesh=s.save_parmesh)
+                        os.chdir(od)
                    
     
     def run(self, engine, is_first=True):
@@ -210,7 +227,7 @@ class Parametric(SolveStep, NS_mixin):
                 if not p in phys_models: phys_models.append(p)
         scanner.set_phys_models(phys_models)
         
-        self.prepare_form_sol_variables(engine)
+
         
         if self.assembly_method == 0: 
             self._run_full_assembly(engine, solvers, scanner, is_first=is_first)

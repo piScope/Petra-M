@@ -2087,10 +2087,19 @@ class Engine(object):
                if mode == 'TimeDependent':
                   if mm.isTimeDependent: mm._update_flag = True
                elif mode == 'ParametricRHS':
+                  if self.n_matrix > 1:
+                      assert False,  "RHS-only parametric is not allowed for n__matrix > 1"                     
                   for kfes, name in enumerate(phys.dep_vars):                  
-                      if not mm.has_lf_contribution2(kfes, 0):
+                      if mm.has_lf_contribution2(kfes, 0):
                           mm._update_flag = True
                   if mm.has_essential: mm._update_flag = True
+                  if mm._update_flag:
+                      for kfes, name in enumerate(phys.dep_vars):
+                          if mm.has_extra_DoF(kfes):
+                              assert False, "RHS only parametric is not possible for extraDoF:"+mm.name()
+                          if mm.has_bf_contribution2(kfes, 0):
+                              assert False, "RHS only parametric is not possible for BF :"+mm.name()
+                              
                else:
                   assert False, "update mode not supported: mode = "+mode
        
