@@ -2093,10 +2093,16 @@ class Engine(object):
                       if mm.has_lf_contribution2(kfes, 0):
                           mm._update_flag = True
                   if mm.has_essential: mm._update_flag = True
+                  if mm.is_extra_RHSonly():
+                     for kfes, name in enumerate(phys.dep_vars):
+                        if mm.has_extra_DoF(kfes):
+                             mm._update_flag = True
+                  else:
+                     for kfes, name in enumerate(phys.dep_vars):
+                        if mm.has_extra_DoF(kfes):
+                             assert False, "RHS only parametric is invalid for general extra DoF (is_extra_RHSonly = False)"
                   if mm._update_flag:
                       for kfes, name in enumerate(phys.dep_vars):
-                          if mm.has_extra_DoF(kfes):
-                              assert False, "RHS only parametric is not possible for extraDoF:"+mm.name()
                           if mm.has_bf_contribution2(kfes, 0):
                               assert False, "RHS only parametric is not possible for BF :"+mm.name()
                               

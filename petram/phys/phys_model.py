@@ -371,6 +371,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     
     def has_extra_DoF(self, kfes=0):
         return False
+     
+    def is_extra_RHSonly(self):
+        return False
 
     def has_extra_DoF2(self, kfes, phys, jmatrix):
         '''
