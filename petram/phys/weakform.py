@@ -106,7 +106,7 @@ def DCoeff(*args, **kwargs):
 def VCoeff(*args, **kwargs):    
     class VCoeff(VectorPhysCoefficient):
        def __init__(self, *args, **kwargs):
-           print("VCoeff, args", args[:2])
+           #print("VCoeff, args", args[:2])
            self.conj = kwargs.pop('conj', False)
            super(VCoeff, self).__init__(*args, **kwargs)
        def EvalValue(self, x):
@@ -130,7 +130,7 @@ def VCoeff(*args, **kwargs):
 def SCoeff(*args, **kwargs):
     class SCoeff(PhysCoefficient):
        def __init__(self, *args, **kwargs):
-           print("SCoeff, args", args[:1])       
+           #print("SCoeff, args", args[:1])       
            self.component = kwargs.pop('component', None)
            self.conj = kwargs.pop('conj', False)       
            super(SCoeff, self).__init__(*args, **kwargs)
