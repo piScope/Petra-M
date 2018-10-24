@@ -7,7 +7,8 @@ if use_parallel:
    from mpi4py import MPI
    num_proc = MPI.COMM_WORLD.size
    myid     = MPI.COMM_WORLD.rank
-   comm = MPI.COMM_WORLD   
+   comm = MPI.COMM_WORLD
+   from mfem.common.mpi_debug import nicePrint   
 else:
    import mfem.ser as mfem
 
@@ -41,14 +42,15 @@ class Operator(object):
         mesh = fes.GetMesh()
         intArray = mfem.intArray
 
-        if isinstance(self, Domain):
+        if self._sel_mode == 'domain':
             size = np.max(mesh.GetAttributeArray())
         else:
             size = np.max(mesh.GetBdrAttributeArray())
 
         if self._sel[0] == "all":
-            arr = [0]*size
+            arr = [1]*size
         else:
+            arr = [0]*size           
             for k in self._sel: arr[k-1] = 1
         return intArray(arr)
     
@@ -56,7 +58,7 @@ class Operator(object):
         if self._sel == 'all': 
            return coeff
         print self._sel
-        arr = self.get_restriction_array(fes, self._sel)
+        arr = self.get_restriction_array(fes)
         if vec:
             return mfem.VectorRestrictedCoefficient(coeff, arr)
         elif matrix:
@@ -279,7 +281,6 @@ class Projection(Operator):
            elif self.sel_mode == "boundary":
                projmode = "vertex"
         assert projmode != "", "unknow projection mode"
-
         if self._sel == 'all' and self._ssel == 'all':
             if self.sel_mode == "domain":
                 if dim1 == dim2:
@@ -288,10 +289,16 @@ class Projection(Operator):
                     idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
                 else:
                     assert False, "unsupported mode"
-                idx2 = np.unique(self.fes2.GetMesh().GetAttributeArray())                    
+                idx2 = np.unique(self.fes2.GetMesh().GetAttributeArray()) 
             else:
                 idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
                 idx2 = np.unique(self.fes2.GetMesh().GetBdrAttributeArray())
+
+            if use_parallel:
+                idx1 = list(idx1)
+                idx2 = list(idx2)
+                idx1 = list(set(sum(comm.allgather(idx1),[])))
+                idx2 = list(set(sum(comm.allgather(idx2),[])))
             idx = np.intersect1d(idx1, idx2)
             idx1 = list(idx)
             idx2 = list(idx)
@@ -302,14 +309,20 @@ class Projection(Operator):
             else:
                 idx2 = np.unique(self.fes2.GetMesh().GetBdrAttributeArray())
             idx1 = self._sel
-            idx2 = list(idx2)
+            idx2 = list(idx2)            
+            if use_parallel:
+                idx2 =  list(set(sum(comm.allgather(idx2),[])))
+
             
         elif self._sel == 'all':
             if self.sel_mode == "domain":
                 idx1 = np.unique(self.fes1.GetMesh().GetAttributeArray())
             else:
                 idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
+
             idx1 = list(idx1)
+            if use_parallel:
+                idx1 =  list(set(sum(comm.allgather(idx1),[])))
             idx2 = srcsel
             
         else:
@@ -317,6 +330,7 @@ class Projection(Operator):
             idx2 = srcsel
             
         if use_parallel:
+            # we may not need this?
             idx1 =  list(set(sum(comm.allgather(idx1),[])))
             idx2 =  list(set(sum(comm.allgather(idx2),[])))
 

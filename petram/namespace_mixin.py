@@ -8,6 +8,10 @@ class NS_mixin(object):
         object.__init__(self)
         self.reset_ns()
 
+    @property
+    def namespace(self):
+        return (self._global_ns, self._local_ns)
+        
     def attribute_expr(self):
         '''
         define attributes evaluated as exprssion
