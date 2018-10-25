@@ -168,15 +168,15 @@ class DlgEditModel(DialogWithWindowList):
                             model = self.model):
                    txt = cls.__name__.split('_')[-1]
                    parent = model.GetItem(indices)
-                   try:
-                       if hasattr(parent, '_build_stop'):
-                           before, after = parent.build_stop
-                       else:
-                           before, after = parent.parent.build_stop
-                   except:
-                       import traceback
-                       traceback.print_exc()
-                       before, after = None, None                       
+
+                   # build stop is a flag for precedual construction of geom/mesh
+                   if hasattr(parent, '_build_stop'):
+                       before, after = parent.build_stop
+                   elif hasattr(parent.parent, 'build_stop'):
+                       before, after = parent.parent.build_stop
+                   else:
+                       before, after = None, None  
+
                    name = parent.add_item(txt, cls,
                                           before=before, after=after)
                    child = parent[name]

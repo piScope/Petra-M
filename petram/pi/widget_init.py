@@ -25,8 +25,8 @@ class InitSettingPanel(wx.Panel):
 
         self.st1 = wx.StaticText(self, wx.ID_ANY, '     value: ')
         self.tc1 = TextCtrlCopyPaste(self, wx.ID_ANY, '0.0', 
-                                validator = validator )
-
+                                     validator = validator,
+                                     style=wx.TE_PROCESS_ENTER) 
         self.st4 = wx.StaticText(self, wx.ID_ANY, '     path:  ')
         self.tc4 = TextCtrlCopyPaste(self, wx.ID_ANY, '',
                                      style=wx.TE_PROCESS_ENTER) 
