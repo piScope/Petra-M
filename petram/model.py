@@ -328,7 +328,8 @@ class Model(RestorableOrderedDict):
         return []
 
     def add_item(self, txt, cls,  **kwargs):
-        
+        after = kwargs.pop("after", None)
+        before = kwargs.pop("before", None)        
         m = []
         for k in self.keys():
             label = ''.join([x for x in k if not x.isdigit()])
@@ -347,6 +348,25 @@ class Model(RestorableOrderedDict):
             names = list(old_contents)
             for n in names:
                 self[n] = old_contents[n]
+                
+        elif after is not None:
+            old_contents = self._contents 
+            self._contents = OrderedDict()
+            names = list(old_contents)
+            for n in names:
+                self[n] = old_contents[n]                
+                if n == after.name():
+                    self[name] = obj                
+
+        elif before is not None:
+            old_contents = self._contents 
+            self._contents = OrderedDict()
+            names = list(old_contents)
+            for n in names:
+                if n == before.name():
+                    self[name] = obj                
+                self[n] = old_contents[n]
+                
         else:
             self[name] = obj
         return name

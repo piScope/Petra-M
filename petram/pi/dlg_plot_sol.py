@@ -36,6 +36,47 @@ import threading
 ThreadEnd = wx.NewEventType()
 EVT_THREADEND = wx.PyEventBinder(ThreadEnd, 1)
 
+
+def FaceOf(vols, **kwargs):
+    mesh=kwargs.pop('mesh', None)
+    vols = list(np.atleast_1d(vols))
+    ec = mesh.extended_connectivity['vol2surf']
+    if ec is None: return []
+    return list(set(sum([list(ec[k]) for k in vols],[])))
+
+def EdgeOf(faces, **kwargs):
+    mesh=kwargs.pop('mesh', None)    
+    faces = list(np.atleast_1d(faces))
+    ec = mesh.extended_connectivity['surf2line']
+    if ec is None: return []    
+    return list(set(sum([list(ec[k]) for k in faces],[])))
+
+def PointOf(edges, **kwargs):
+    mesh=kwargs.pop('mesh', None)        
+    edges = list(np.atleast_1d(edges))
+    ec = mesh.extended_connectivity['line2vert']
+    if ec is None: return []    
+    return list(set(sum([list(ec[k]) for k in edges],[])))
+
+class _XY(tuple):
+    def __call__(self, value):
+        return (0, 0, 1., -value)
+class _YZ(tuple):
+    def __call__(self, value):
+        return (1, 0, 0., -value)
+class _ZX(tuple):
+    def __call__(self, value):
+        return (0, 1., 0., -value)
+
+def get_mapper(mesh_in):
+    def mapper1(*args):
+        return FaceOf(args, mesh=mesh_in)
+    def mapper2(*args):
+        return EdgeOf(args, mesh=mesh_in)
+    def mapper3(*args):
+        return PointOf(args, mesh=mesh_in)
+    return mapper1, mapper2, mapper3
+
 def run_in_piScope_thread(func):
     @wraps(func)
     def func2(self, *args, **kwargs):
@@ -759,7 +800,7 @@ class DlgPlotSol(DialogWithWindowList):
                         datasets[0][:,kk] += u[k][1]
                 
         if data is None: return None, None
-        return data, battrs2
+        return data, battrs
         
 
     #    
@@ -1054,7 +1095,8 @@ class DlgPlotSol(DialogWithWindowList):
         value = self.elps['Slice'] .GetValue()
         
         expr = str(value[0]).strip()
-        plane = [float(x) for x in str(value[1]).split(',')]        
+        #plane = [float(x) for x in str(value[1]).split(',')]
+        plane = str(value[1])
         attrs = str(value[2])
         phys_path = value[3]
         if mode == 'plot':
@@ -1080,6 +1122,7 @@ class DlgPlotSol(DialogWithWindowList):
         model = self.GetParent().model
         solfiles = self.get_model_soldfiles()        
         mfem_model = model.param.getvar('mfem_model')
+        phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
         
         if solfiles is None:
              wx.CallAfter(dialog.showtraceback, parent = self,
@@ -1090,9 +1133,24 @@ class DlgPlotSol(DialogWithWindowList):
              return None, None
         mesh = model.variables.getvar('mesh')
         if mesh is None: return
-        if battrs != 'all':
-           battrs0 = [int(x) for x in battrs.split(',')]
-           if mesh.Dimension() == 3:
+        
+        FaceOf, EdgeOf, PointOf = get_mapper(mesh)
+        ll = {'FaceOf': FaceOf, 'EdgeOf': EdgeOf, 'PointOf':PointOf}
+        
+        battrs = str(battrs).strip()
+        if battrs.lower() == 'all':
+            battrs = ['all']            
+        else:
+            try:
+               battrs = list(np.atleast_1d(eval(battrs, ll, phys_ns)))
+            except:
+               import traceback
+               traceback.print_exc()
+               assert False, "invalid selection: " + battrs
+        
+            '''
+            battrs0 = [int(x) for x in battrs.split(',')]
+            if mesh.Dimension() == 3:
                s = self.GetParent()._s_v_loop['phys'][0]
                battrs = []
                for i in battrs0:
@@ -1100,12 +1158,11 @@ class DlgPlotSol(DialogWithWindowList):
                    for k in s.keys():
                        if i in s[k]: connected_surf.append(k)
                    battrs.append(tuple(connected_surf))
-           elif mesh.Dimension() == 2:
+            elif mesh.Dimension() == 2:
                battrs = battrs0               
-           else:
+            else:
                assert False, "edge plot is not supported for 1D"
-        else:
-           battrs = ['all']
+            '''
 
         if 'Edge' in self.evaluators:
             try:
@@ -1148,7 +1205,8 @@ class DlgPlotSol(DialogWithWindowList):
         model = self.GetParent().model
         solfiles = self.get_model_soldfiles()
         mfem_model = model.param.getvar('mfem_model')
-        
+        phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
+
         if solfiles is None:
              wx.CallAfter(dialog.showtraceback,parent = self,
                                   txt='Solution does not exist',
@@ -1158,6 +1216,9 @@ class DlgPlotSol(DialogWithWindowList):
              return None, None
         mesh = model.variables.getvar('mesh')
         if mesh is None: return
+        FaceOf, EdgeOf, PointOf = get_mapper(mesh)
+        ll = {'FaceOf': FaceOf, 'EdgeOf': EdgeOf, 'PointOf':PointOf}
+        
         if battrs == 'all':
             battrs = mesh.extended_connectivity['surf2line'].keys()
         elif battrs == 'visible':
@@ -1175,7 +1236,12 @@ class DlgPlotSol(DialogWithWindowList):
                      battrs.extend(child.hidden_component)
             battrs = list(set(battrs))
         else:
-            battrs = [int(x) for x in battrs.split(',')]
+            try:
+               battrs = list(np.atleast_1d(eval(battrs, ll, phys_ns)))
+            except:
+               import traceback
+               traceback.print_exc()
+               assert False, "invalid selection: " + battrs
 
            #battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
 
@@ -1226,6 +1292,20 @@ class DlgPlotSol(DialogWithWindowList):
         model = self.GetParent().model
         solfiles = self.get_model_soldfiles()
         mfem_model = model.param.getvar('mfem_model')
+
+        phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
+        ll = {"YZ": _YZ((1, 0, 0., 0)),
+              "XY": _XY((0., 0, 1., 0)),
+              "ZX": _ZX((0., 1, 0., 0)),
+              "yz": _YZ((1, 0, 0., 0)),
+              "xy": _XY((0., 0, 1., 0)),
+              "zx": _ZX((0., 1, 0., 0)),}
+
+        try:
+            plane = list(eval(plane, ll, phys_ns))
+        except:
+            traceback.print_exc()
+            assert False, "Failed to evaluate plane " + plane
         
         if solfiles is None:
              wx.CallAfter(dialog.showtraceback, parent = self,
@@ -1236,11 +1316,15 @@ class DlgPlotSol(DialogWithWindowList):
              return None, None
         mesh = model.variables.getvar('mesh')
         if mesh is None: return
-        print attrs, plane
+
         if attrs != 'all':
-           attrs = [int(x) for x in attrs.split(',')]
+            try:
+                attrs = list(np.atleast_1d(eval(attrs, ll, phys_ns)))
+            except:
+                traceback.print_exc()
+                assert False, "Failed to evaluate attrs " + attrs
         else:
-           attrs = mesh.extended_connectivity['vol2surf'].keys()            
+            attrs = mesh.extended_connectivity['vol2surf'].keys()            
            #attrs = [x+1 for x in range(mesh.attributes.Size())]
            
         if 'Slice' in self.evaluators:
