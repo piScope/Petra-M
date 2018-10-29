@@ -42,8 +42,10 @@ class EdgeNodalEvaluator(EvaluatorAgent):
         else:
             eattrs = attrs
 
-        from petram.mesh.find_edges import find_edges
+
         if mesh.Dimension() == 3:
+            '''
+            from petram.mesh.find_edges import find_edges
             edges, bb_edges = find_edges(mesh)
             bb_bdrs = bb_edges.keys()
             iverts = []
@@ -53,6 +55,17 @@ class EdgeNodalEvaluator(EvaluatorAgent):
                     if not any(check): continue
                 iedges = bb_edges[bb_bdr]
                 iverts.extend([mesh.GetEdgeVertices(ie) for ie in iedges])
+            print iverts
+            '''
+            from petram.mesh.mesh_utils import get_extended_connectivity
+            if not hasattr(mesh, 'extended_connectivity'):
+               get_extended_connectivity(mesh)
+            
+            l2e = mesh.extended_connectivity['line2edge']
+            keys = l2e.keys() if eattrs == 'all' else list(np.atleast_1d(eattrs).flatten())
+            iedges = list(set(sum([l2e[k] for k in keys],[])))
+            iverts = [mesh.GetEdgeVertices(ie) for ie in iedges]
+            print l2e.keys(), iverts
         elif mesh.Dimension() == 2:
             kbdr = mesh.GetBdrAttributeArray()
             if eattrs == 'all': eattrs = np.unique(kbdr)

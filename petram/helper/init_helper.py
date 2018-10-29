@@ -1,3 +1,6 @@
+#
+# this file is not used anymore...
+#
 from petram.helper.variables import var_g
 
 g = var_g.copy()

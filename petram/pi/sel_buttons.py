@@ -80,7 +80,7 @@ def hide_elem(evt, inverse=False):
         facesb = []        
         s, v = viewer._s_v_loop['phys']
         selected_volume = viewer._dom_bdr_sel[0]
-        print(selected_volume)
+        #print(selected_volume)
         if not inverse:
             selected_volume.extend(viewer._hidden_volume)
         for key in v.keys():
@@ -112,6 +112,7 @@ def hide_elem(evt, inverse=False):
     else:
         pass
     viewer.canvas.unselect_all()
+    viewer._dom_bdr_sel  = ([], [], [], [])    
     viewer.draw_all()
     
 def show_only(evt):    

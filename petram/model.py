@@ -341,6 +341,7 @@ class Model(RestorableOrderedDict):
         else:
            name = txt + str(max(m)+1)
         obj = cls(**kwargs)
+        done = False
         if obj.mustbe_firstchild:
             old_contents = self._contents 
             self._contents = OrderedDict()
@@ -348,7 +349,7 @@ class Model(RestorableOrderedDict):
             names = list(old_contents)
             for n in names:
                 self[n] = old_contents[n]
-                
+            done = True
         elif after is not None:
             old_contents = self._contents 
             self._contents = OrderedDict()
@@ -357,17 +358,20 @@ class Model(RestorableOrderedDict):
                 self[n] = old_contents[n]                
                 if n == after.name():
                     self[name] = obj                
-
+                    done = True
+                    break
         elif before is not None:
             old_contents = self._contents 
             self._contents = OrderedDict()
             names = list(old_contents)
             for n in names:
                 if n == before.name():
-                    self[name] = obj                
+                    self[name] = obj
+                    done = True
                 self[n] = old_contents[n]
+                if done: break
                 
-        else:
+        if not done:
             self[name] = obj
         return name
 

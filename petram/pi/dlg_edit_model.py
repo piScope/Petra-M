@@ -165,8 +165,7 @@ class DlgEditModel(DialogWithWindowList):
                    submenu, cls, txt = xxxx
 
                def add_func(evt, cls = cls, indices = indices, tree = tree,
-                            model = self.model):
-                   txt = cls.__name__.split('_')[-1]
+                            namebase = txt, model = self.model):
                    parent = model.GetItem(indices)
 
                    # build stop is a flag for precedual construction of geom/mesh
@@ -177,7 +176,7 @@ class DlgEditModel(DialogWithWindowList):
                    else:
                        before, after = None, None  
 
-                   name = parent.add_item(txt, cls,
+                   name = parent.add_item(namebase, cls,
                                           before=before, after=after)
                    child = parent[name]
                    viewer = self.GetParent()               
@@ -366,6 +365,9 @@ class DlgEditModel(DialogWithWindowList):
 
     def OnItemSelChanged(self, evt = None):
         if self.tree.GetSelection() is None: return
+
+        from petram.phys.aux_operator import AUX_Operator
+        from petram.phys.aux_variable import AUX_Variable
         
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
@@ -501,6 +503,30 @@ class DlgEditModel(DialogWithWindowList):
                         viewer.canvas.toolbar.ClickP1Button('edge')                    
                         viewer.highlight_edge(mm._phys_sel_index)
                         viewer._dom_bdr_sel = ([], [], mm._phys_sel_index, [],)
+                    else:
+                        pass
+        elif isinstance(mm, AUX_Operator) or isinstance(mm, AUX_Variable):
+            if not mm.enabled:
+                viewer.highlight_none()
+                viewer._dom_bdr_sel = ([], [], [], [])
+            else:
+                mm2 = mm.parent
+                if not hasattr(mm2, '_phys_sel_index') or mm2.sel_index == 'all':
+                    engine.assign_sel_index(mm2)
+                if hasattr(mm2, '_phys_sel_index'):
+                    # need this if in case mesh is not loaded....
+                    if mm2.dim == 3:
+                        viewer.canvas.toolbar.ClickP1Button('domain')                    
+                        viewer.highlight_domain(mm2._phys_sel_index)
+                        viewer._dom_bdr_sel = (mm2._phys_sel_index, [], [], [])                    
+                    elif mm2.dim == 2:
+                        viewer.canvas.toolbar.ClickP1Button('face')                    
+                        viewer.highlight_face(mm2._phys_sel_index)
+                        viewer._dom_bdr_sel = ([], mm2._phys_sel_index, [], [])
+                    elif mm2.dim == 1:
+                        viewer.canvas.toolbar.ClickP1Button('edge')                    
+                        viewer.highlight_edge(mm2._phys_sel_index)
+                        viewer._dom_bdr_sel = ([], [], mm2._phys_sel_index, [],)
                     else:
                         pass
         else:
