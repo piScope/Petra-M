@@ -298,7 +298,6 @@ class Engine(object):
         model = self.model
         model['General'].run()
         self.run_mesh_serial()
-        self.assign_sel_index()
 
         if dir is None:
             dir = os.path.dirname(os.path.realpath(mainfile))           
@@ -306,7 +305,8 @@ class Engine(object):
             if node.has_ns() and node.ns_name is not None:
                 node.read_ns_script_data(dir = dir)
         self.build_ns()
-
+        
+        self.assign_sel_index()
         self.run_preprocess()  # this must run when mesh is serial
         
         self.run_mesh() # make ParMesh and Par-Extended-Mesh
@@ -605,6 +605,7 @@ class Engine(object):
         M, B, M_changed = self.fill_M_B_blocks(M, B, update=update)
 
         #B.save_to_file("B")
+
         #M[0].save_to_file("M0")        
         #M[1].save_to_file("M1")
         #X[0].save_to_file("X0")
@@ -1354,7 +1355,7 @@ class Engine(object):
     #
     def finalize_matrix(self, M_block, mask,is_complex,format = 'coo',
                         verbose=True):
-
+        if verbose: dprint1("A (in finalizie_matrix) \n",  M_block, mask)       
         M_block = M_block.get_subblock(mask[0], mask[1])
 
         if format == 'coo': # coo either real or complex
@@ -1636,8 +1637,8 @@ class Engine(object):
             for k in node.keys():
                 yield node[k]
         rem = None
-        checklist = [True]*len(choice)
-        
+        checklist = np.array([True]*len(choice), dtype=bool)
+
         for node in m.walk():
            if not isinstance(node, cls): continue
            if not node.enabled: continue
@@ -1651,10 +1652,12 @@ class Engine(object):
               dprint1(node.fullname(), node._sel_index)              
            else:
               dprint1(node.fullname(), ret)
-              for k in ret:
-                 idx = list(choice).index(k)
-                 if node.is_secondary_condition: continue
-                 checklist[idx] = False
+              #for k in ret:
+              #   idx = list(choice).index(k)
+              #   if node.is_secondary_condition: continue
+              #   checklist[idx] = False
+              if not node.is_secondary_condition:
+                 checklist[np.in1d(choice, ret)] = False                 
         if rem is not None:
            rem._sel_index = list(np.array(choice)[checklist])
            dprint1(rem.fullname() + ':' + rem._sel_index.__repr__())
@@ -1810,8 +1813,9 @@ class Engine(object):
         self.max_attr = -1
 
         for m in self.meshes:
-            self.max_bdrattr = np.max([self.max_bdrattr, max(m.GetBdrAttributeArray())])
-            self.max_attr = np.max([self.max_attr, max(m.GetAttributeArray())])
+            if len(m.GetBdrAttributeArray()) > 0:
+                self.max_bdrattr = np.max([self.max_bdrattr, max(m.GetBdrAttributeArray())])
+                self.max_attr = np.max([self.max_attr, max(m.GetAttributeArray())])
             m.ReorientTetMesh()
             m.GetEdgeVertexTable()                                   
             get_extended_connectivity(m)           
@@ -2077,10 +2081,31 @@ class Engine(object):
 
     def set_update_flag(self, mode):
         for k in self.model['Phys'].keys():
+            phys = self.model['Phys'][k]
             for mm in self.model['Phys'][k].walk():
                mm._update_flag = False
                if mode == 'TimeDependent':
                   if mm.isTimeDependent: mm._update_flag = True
+               elif mode == 'ParametricRHS':
+                  if self.n_matrix > 1:
+                      assert False,  "RHS-only parametric is not allowed for n__matrix > 1"                     
+                  for kfes, name in enumerate(phys.dep_vars):                  
+                      if mm.has_lf_contribution2(kfes, 0):
+                          mm._update_flag = True
+                  if mm.has_essential: mm._update_flag = True
+                  if mm.is_extra_RHSonly():
+                     for kfes, name in enumerate(phys.dep_vars):
+                        if mm.has_extra_DoF(kfes):
+                             mm._update_flag = True
+                  else:
+                     for kfes, name in enumerate(phys.dep_vars):
+                        if mm.has_extra_DoF(kfes):
+                             assert False, "RHS only parametric is invalid for general extra DoF (is_extra_RHSonly = False)"
+                  if mm._update_flag:
+                      for kfes, name in enumerate(phys.dep_vars):
+                          if mm.has_bf_contribution2(kfes, 0):
+                              assert False, "RHS only parametric is not possible for BF :"+mm.name()
+                              
                else:
                   assert False, "update mode not supported: mode = "+mode
        
@@ -2241,9 +2266,10 @@ class ParallelEngine(Engine):
                     if not o.enabled: continue
                     if o.isMeshGenerator:                    
                         smesh = o.run()
-                        self.max_bdrattr = np.max([self.max_bdrattr,
+                        if len(smesh.GetBdrAttributeArray()) > 0:                        
+                             self.max_bdrattr = np.max([self.max_bdrattr,
                                                    max(smesh.GetBdrAttributeArray())])
-                        self.max_attr = np.max([self.max_attr,
+                             self.max_attr = np.max([self.max_attr,
                                                 max(smesh.GetAttributeArray())])
                         self.meshes[idx] = mfem.ParMesh(MPI.COMM_WORLD, smesh)
                         target = self.meshes[idx]

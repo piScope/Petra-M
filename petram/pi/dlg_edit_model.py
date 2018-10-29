@@ -52,6 +52,16 @@ class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
     def OnGetChildrenCount(self, indices):
         return self.topwindow.model.GetChildrenCount(indices)
 
+    def GetSelection(self):
+        ## this returns only one selection
+        ## called when only one element is assumed to be selected
+        ret = self.GetSelections()
+        if len(ret) == 0: return None
+        return ret[0]
+    
+    def isMultipleSelection(self):
+        return len(self.GetSelections()) > 1
+
 #class DlgEditModel(MiniFrameWithWindowList):
 class DlgEditModel(DialogWithWindowList):
     def __init__(self, parent, id, title, model = None):
@@ -71,7 +81,8 @@ class DlgEditModel(DialogWithWindowList):
         self.splitter = wx.SplitterWindow(self, wx.ID_ANY,
                                  style=wx.SP_NOBORDER|wx.SP_LIVE_UPDATE|wx.SP_3DSASH)
 
-        self.tree = ModelTree(self.splitter, topwindow = self)
+        self.tree = ModelTree(self.splitter, topwindow = self,
+                              style = wx.TR_DEFAULT_STYLE|wx.TR_MULTIPLE)
         #self.tree.SetSizeHints(150, -1, maxW=150)
         self.nb = wx.Notebook(self.splitter)
         self.splitter.SplitVertically(self.tree, self.nb)
@@ -128,63 +139,104 @@ class DlgEditModel(DialogWithWindowList):
         
     def OnItemRightClick(self, e):
         tree = self.tree
-        indices = tree.GetIndexOfItem(tree.GetSelection())
-        mm = self.model.GetItem(indices)
-        menus = []
-        for cls in mm.get_possible_child():
-           def add_func(evt, cls = cls, indices = indices, tree = tree,
-                        model = self.model):
-               txt = cls.__name__.split('_')[-1]               
-               name = model.GetItem(indices).add_item(txt, cls)
-               viewer = self.GetParent()               
-               viewer.model.scripts.helpers.rebuild_ns()
-               engine = viewer.engine
-               model.GetItem(indices)[name].postprocess_after_add(engine)
-               tree.RefreshItems()
-           txt = cls.__name__.split('_')[-1]
-           menus=menus+[('Add '+txt, add_func, None),]
-        for t, m in mm.get_special_menu():
-           menus=menus+[(t, m, None),]            
-        menus = menus + [('---', None, None)]
-        if mm.has_ns() and not mm.hide_ns_menu:
-            if mm.ns_name is not None:
-                menus.append(("Delete NS.",  self.OnDelNS, None))
-                if hasattr(mm, '_global_ns'):
-                    menus.append(("Initialize Dataset", self.OnInitDataset, None))      
-            else:
-                menus.append(("Add NS...",  self.OnAddNS, None))
+        menus = []        
+        if tree.isMultipleSelection():
+            items = tree.GetSelections()
+            indices = [tree.GetIndexOfItem(ii) for ii in items]
+            mm = [self.model.GetItem(ii) for ii in indices]
+            if all([mm[0].parent == m.parent for m in mm]):
+               if mm[0].enabled:
+                   menus = menus + [('Disable', self.OnDisableItemMult, None)]
+               else:
+                   menus = menus + [('Enable', self.OnEnableItemMult, None)]
+               #menus.append(('Duplicate', self.OnDuplicateItemFromModelMult, None))
+               menus.append(('Copy', self.OnCopyItemFromModelMult, None))
+            if all([m.can_delete for m in mm]):
+               menus.append(('Delete', self.OnDeleteItemFromModelMult, None))
+               
+        else:    
+            indices = tree.GetIndexOfItem(tree.GetSelection())
+            mm = self.model.GetItem(indices)
+            for xxxx in mm.get_possible_child_menu():
+               if len(xxxx) == 2:
+                   submenu, cls = xxxx
+                   txt = cls.__name__.split('_')[-1]
+               else:
+                   submenu, cls, txt = xxxx
 
-        menus.extend(mm.get_editor_menus())
-        if mm.can_delete:
+               def add_func(evt, cls = cls, indices = indices, tree = tree,
+                            namebase = txt, model = self.model):
+                   parent = model.GetItem(indices)
+
+                   # build stop is a flag for precedual construction of geom/mesh
+                   if hasattr(parent, '_build_stop'):
+                       before, after = parent.build_stop
+                   elif hasattr(parent.parent, 'build_stop'):
+                       before, after = parent.parent.build_stop
+                   else:
+                       before, after = None, None  
+
+                   name = parent.add_item(namebase, cls,
+                                          before=before, after=after)
+                   child = parent[name]
+                   viewer = self.GetParent()               
+                   viewer.model.scripts.helpers.rebuild_ns()
+                   engine = viewer.engine
+                   model.GetItem(indices)[name].postprocess_after_add(engine)
+                   tree.RefreshItems()
+
+               if len(submenu) != 0:
+                   if submenu == "!":
+                       menus=menus+[('Add '+txt, add_func, None),]                      
+                       menus=menus+[('!', None, None),]               
+                   else:
+                       menus=menus+[('+'+submenu, None, None),]
+                       menus=menus+[('Add '+txt, add_func, None),]   
+               else:
+                   menus=menus+[('Add '+txt, add_func, None),]               
+            for t, m in mm.get_special_menu():
+               menus=menus+[(t, m, None),]            
+            menus = menus + [('---', None, None)]
+            if mm.has_ns() and not mm.hide_ns_menu:
+                if mm.ns_name is not None:
+                    menus.append(("Delete NS.",  self.OnDelNS, None))
+                    if hasattr(mm, '_global_ns'):
+                        menus.append(("Initialize Dataset", self.OnInitDataset, None))      
+                else:
+                    menus.append(("Add NS...",  self.OnAddNS, None))
+
+            menus.extend(mm.get_editor_menus())
+            if mm.can_delete:
+                if menus[-1][0] != '---':
+                   menus = menus + [('---', None, None)]
+                if mm.enabled:
+                   menus = menus + [('Disable', self.OnDisableItem, None)]
+                else:
+                   menus = menus + [('Enable', self.OnEnableItem, None)]
+                menus = menus + [('Duplicate', self.OnDuplicateItemFromModel, 
+                                  None),
+                                 ('Copy', self.OnCopyItemFromModel, 
+                                  None),]
+
+            if os.path.exists(petram_model_scratch):
+                menus = menus + [('Paste Item', self.OnPasteItemToModel, 
+                                  None)]
+            if mm.can_delete:            
+                if not mm.mustbe_firstchild:
+                   menus = menus + [('+Move...', None, None),
+                                    ('Up', self.OnMoveItemUp, None),
+                                    ('Down', self.OnMoveItemDown, None),
+                                    ('To...', self.OnMoveItemTo, None),
+                                    ('!', None, None),]
+                menus = menus + [('Delete', self.OnDeleteItemFromModel, None)]
+            if mm.can_rename:
+                menus = menus + [('Rename...', self.OnRenameItem, None)]            
             if menus[-1][0] != '---':
-               menus = menus + [('---', None, None)]
-            if mm.enabled:
-               menus = menus + [('Disable', self.OnDisableItem, None)]
-            else:
-               menus = menus + [('Enable', self.OnEnableItem, None)]
-            menus = menus + [('Duplicate', self.OnDuplicateItemFromModel, 
-                              None),
-                             ('Copy', self.OnCopyItemFromModel, 
-                              None),]
+                 menus = menus + [('---', None, None)]
 
-        if os.path.exists(petram_model_scratch):
-            menus = menus + [('Paste Item', self.OnPasteItemToModel, 
-                              None)]
-        if mm.can_delete:            
-            if not mm.mustbe_firstchild:
-               menus = menus + [('+Move...', None, None),
-                                ('Up', self.OnMoveItemUp, None),
-                                ('Down', self.OnMoveItemDown, None),
-                                ('To...', self.OnMoveItemTo, None),
-                                ('!', None, None),]
-            menus = menus + [('Delete', self.OnDeleteItemFromModel, None)]
-        if mm.can_rename:
-            menus = menus + [('Rename...', self.OnRenameItem, None)]            
-        if menus[-1][0] != '---':
-             menus = menus + [('---', None, None)]
-                                    
-        menus = menus + [('Refresh', self.OnRefreshTree, None)]
-        menus = menus + [('Export to shell', self.OnExportToShell, None)]        
+            menus = menus + [('Export to shell', self.OnExportToShell, None)]
+            
+        menus = menus + [('Refresh', self.OnRefreshTree, None)]           
         m  = wx.Menu()
         BuildPopUpMenu(m, menus, eventobj=self)
         self.PopupMenu(m, 
@@ -199,7 +251,24 @@ class DlgEditModel(DialogWithWindowList):
         app = wx.GetApp().TopWindow
         app.shell.lvar[mm.name()] = mm
         
+    def OnCopyItemFromModelMult(self, evt):
+        import cPickle as pickle
+        
+        tree = self.tree
+        items = tree.GetSelections()
+        indices = [tree.GetIndexOfItem(ii) for ii in items]
+        mm = [self.model.GetItem(ii) for ii in indices]
+        base = [m.split_digits()[0] for m in mm]
+        
+        _copied_item = (base, mm)
+        
+        fid = open(petram_model_scratch, 'wb')
+        pickle.dump(_copied_item, fid)
+        fid.close()
+        
     def OnCopyItemFromModel(self, evt):
+        return self.OnCopyItemFromModelMult(evt)
+        '''
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
         name = mm.name()
@@ -211,8 +280,10 @@ class DlgEditModel(DialogWithWindowList):
         fid = open(petram_model_scratch, 'wb')
         pickle.dump(_copied_item, fid)
         fid.close()
-
+        '''
     def OnPasteItemToModel(self, evt):
+        if self.tree.isMultipleSelection(): return
+        
         import cPickle as pickle        
         try:
             fid = open(petram_model_scratch, 'r')
@@ -225,13 +296,16 @@ class DlgEditModel(DialogWithWindowList):
         
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
-        if not _copied_item[1].__class__ in mm.get_possible_child():
-            print("Cannot paste "+_copied_item[1].__class__.__name__)
-            return
-                             
-        mm.add_itemobj(*_copied_item)
+        for cbase, cmm in zip(*_copied_item):
+            if not cmm.__class__ in mm.get_possible_child():
+                print("Cannot paste "+cmm.__class__.__name__)
+                continue
+            mm.add_itemobj(cbase, cmm)
         self.tree.RefreshItems()
-        self.OnEvalNS(evt)                             
+        self.OnEvalNS(evt)
+        
+    def OnDuplicateItemFromModelMult(self, evt):
+        pass
 
     def OnDuplicateItemFromModel(self, evt):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
@@ -256,7 +330,17 @@ class DlgEditModel(DialogWithWindowList):
         parent.insert_item(index+1, base+str(long(max(nums))+1), newmm)
         self.tree.RefreshItems()
         self.OnEvalNS(evt)
-        
+
+    def OnDeleteItemFromModelMult(self, evt):
+        tree = self.tree
+        items = tree.GetSelections()
+        indices = [tree.GetIndexOfItem(ii) for ii in items]
+        mmm = [self.model.GetItem(ii) for ii in indices]
+        texts = [self.model.GetItemText(ii) for ii in indices]
+        for mm, text in zip(mmm, texts): 
+           del mm.parent[text]   
+        self.tree.RefreshItems()
+
     def OnDeleteItemFromModel(self, evt):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
@@ -280,6 +364,11 @@ class DlgEditModel(DialogWithWindowList):
         if evt is not None: evt.Skip()
 
     def OnItemSelChanged(self, evt = None):
+        if self.tree.GetSelection() is None: return
+
+        from petram.phys.aux_operator import AUX_Operator
+        from petram.phys.aux_variable import AUX_Variable
+        
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
 #        if not mm.__class__ in self.panels.keys():
@@ -414,6 +503,30 @@ class DlgEditModel(DialogWithWindowList):
                         viewer.canvas.toolbar.ClickP1Button('edge')                    
                         viewer.highlight_edge(mm._phys_sel_index)
                         viewer._dom_bdr_sel = ([], [], mm._phys_sel_index, [],)
+                    else:
+                        pass
+        elif isinstance(mm, AUX_Operator) or isinstance(mm, AUX_Variable):
+            if not mm.enabled:
+                viewer.highlight_none()
+                viewer._dom_bdr_sel = ([], [], [], [])
+            else:
+                mm2 = mm.parent
+                if not hasattr(mm2, '_phys_sel_index') or mm2.sel_index == 'all':
+                    engine.assign_sel_index(mm2)
+                if hasattr(mm2, '_phys_sel_index'):
+                    # need this if in case mesh is not loaded....
+                    if mm2.dim == 3:
+                        viewer.canvas.toolbar.ClickP1Button('domain')                    
+                        viewer.highlight_domain(mm2._phys_sel_index)
+                        viewer._dom_bdr_sel = (mm2._phys_sel_index, [], [], [])                    
+                    elif mm2.dim == 2:
+                        viewer.canvas.toolbar.ClickP1Button('face')                    
+                        viewer.highlight_face(mm2._phys_sel_index)
+                        viewer._dom_bdr_sel = ([], mm2._phys_sel_index, [], [])
+                    elif mm2.dim == 1:
+                        viewer.canvas.toolbar.ClickP1Button('edge')                    
+                        viewer.highlight_edge(mm2._phys_sel_index)
+                        viewer._dom_bdr_sel = ([], [], mm2._phys_sel_index, [],)
                     else:
                         pass
         else:
@@ -560,16 +673,20 @@ class DlgEditModel(DialogWithWindowList):
         model = viewer.book.get_pymodel()
         model.scripts.helpers.rebuild_ns()
         evt.Skip()
+        
+    def _enabile_mm(self, value):
+        tree = self.tree
+        items = tree.GetSelections()
+        indices = [tree.GetIndexOfItem(ii) for ii in items]
+        mm = [self.model.GetItem(ii) for ii in indices]
 
-    def OnDisableItem(self, evt):
-        import   ifigure.widgets.dialog as dialog
-        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
-        mm = self.model.GetItem(indices)
-        mm.enabled = False
+        for m in mm:
+            m.enabled = value
         self.tree.RefreshItems()
 
-        # if it is phys, handle possible change of what remaining means                  
-        if not hasattr(mm, 'get_root_phys'): return        
+        mm = mm[0]
+        if not hasattr(mm, 'get_root_phys'): return
+        
         phys = mm.get_root_phys()   
         if phys is not None:
            viewer = self.GetParent()
@@ -577,42 +694,45 @@ class DlgEditModel(DialogWithWindowList):
                viewer.engine.assign_sel_index(phys)
            except:
                traceback.print_exc()
+        
+    def OnDisableItemMult(self, evt):
+        self._enabile_mm(False)
 
+    def OnEnableItemMult(self, evt):
+        self._enabile_mm(True)        
+    
+    def OnDisableItem(self, evt):
+        self._enabile_mm(False)        
 
     def OnEnableItem(self, evt):
-        import   ifigure.widgets.dialog as dialog
-        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
-        mm = self.model.GetItem(indices)
-        mm.enabled = True
-        self.tree.RefreshItems()
-
-        # if it is phys, handle possible change of what remaining means                          
-        if not hasattr(mm, 'get_root_phys'): return
-        phys = mm.get_root_phys() 
-        if phys is not None:
-           viewer = self.GetParent()
-           try:
-               viewer.engine.assign_sel_index(phys)
-           except:
-               traceback.print_exc()
+        self._enabile_mm(True)                
 
     def get_selected_mm(self):
         import   ifigure.widgets.dialog as dialog
+        if self.tree.GetSelection() is None: return
+        
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
         return mm
         
 
     def select_next_enabled(self):
+        if self.tree.GetSelection() is None: return
+        
         item = self.tree.GetSelection()
+        item0=item
+        self.tree.UnselectAll()
         while True:
            item = self.tree.GetNextSibling(item)
-           if not item.IsOk(): return 
+           if not item.IsOk():
+               self.tree.SelectItem(item0)                         
+               return 
            indices = self.tree.GetIndexOfItem(item)
            mm = self.model.GetItem(indices)
            if mm.enabled:
                self.tree.SelectItem(item)
-               return
+               return 
+        self.tree.SelectItem(item0)          
         wx.CallAfter(self.Refresh, False)
 
     @staticmethod                         
@@ -623,6 +743,8 @@ class DlgEditModel(DialogWithWindowList):
            return   l[0:i1] + l[i1+1:i2+1] + [l[i1]]+ l[i2+1:len(l)]
                              
     def OnMoveItemUp(self, evt):
+        if self.tree.GetSelection() is None: return
+        
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
         p = mm.parent
@@ -637,6 +759,8 @@ class DlgEditModel(DialogWithWindowList):
         self.tree.RefreshItems()
                              
     def OnMoveItemDown(self, evt):
+        if self.tree.GetSelection() is None: return
+        
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
         p = mm.parent
@@ -653,6 +777,8 @@ class DlgEditModel(DialogWithWindowList):
     def OnMoveItemTo(self, evt):
         from   ifigure.utils.edit_list import DialogEditList                
         import   ifigure.widgets.dialog as dialog
+        
+        if self.tree.GetSelection() is None: return
         
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
@@ -692,11 +818,15 @@ class DlgEditModel(DialogWithWindowList):
         self.tree.RefreshItems()
         
     def isSelectionPanelOpen(self):
-        from petram.model import Bdry, Point, Pair, Domain, Edge        
+        from petram.model import Bdry, Point, Pair, Domain, Edge
+        false_value = False, '', [], []
+
+        if self.tree.GetSelection() is None:
+            return false_value
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
 
-        false_value = False, '', [], []        
+
         try:
            phys = mm.get_root_phys()
         except:

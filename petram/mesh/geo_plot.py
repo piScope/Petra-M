@@ -101,12 +101,18 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
         call_solid2(viewer, 'edge', verts, elem_idx, array_idx)                
 
     if 'vertex' in cells:
-        vert = np.atleast_2d(np.squeeze(X[cells['vertex']]))
+        if 'vertex_mask' in cells:
+            vidx = cells['vertex'][cells['vertex_mask']]
+            aidx = cell_data['vertex'][geo_phys][cells['vertex_mask']]            
+        else:
+            vidx = cells['vertex']
+            aidx = cell_data['vertex'][geo_phys]
+        vert = np.atleast_2d(np.squeeze(X[vidx]))
         if len(vert) > 0:
             obj= viewer.plot(vert[:,0],
                              vert[:,1],
                              vert[:,2], 'ok',
-                             array_idx = cell_data['vertex'][geo_phys],
+                             array_idx = aidx,
                              linewidth = 0)
             obj.rename('point')
             obj._artists[0].set_gl_hl_use_array_idx(True)

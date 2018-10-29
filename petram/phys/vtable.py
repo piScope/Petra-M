@@ -9,7 +9,12 @@
 
   name : 'tol'
   guilabel: 'tolelance (%)'
-  type : 'any', 'float, 'int', 'complex', 'array', 'string'
+  type : 'any', 'float, 'int', 'complex', 'array', 'string', 'bool'
+
+  special handling note: type == bool
+     self.name + '_txt' stores value as boolean
+     we use a checkbox interface.
+
   suffix : [('x', 'y', 'z'), ('x', 'y', 'z')]
   cb :   callback method name
   no_func: True: it can not become variable (use '=')
@@ -94,13 +99,18 @@ class VtableElement(object):
         elif self.type == 'long': return long(txt)
         elif self.type == 'array':return txt
         elif self.type == 'string': return str(txt)
+        elif self.type == 'bool': return bool(txt)        
         elif self.type == 'any': return txt
         elif self.type == '': return txt        
         return float(txt)
     
     def add_attribute(self, v):
         if self.name is None: return
-        if len(self.shape) == 0:
+        
+        if self.type == 'bool':
+            v[self.name + '_txt'] = self.default
+            
+        elif len(self.shape) == 0:
             v[self.name] = self.default_txt
             v[self.name + '_txt'] = self.default_txt
             if self.chkbox:
@@ -128,8 +138,14 @@ class VtableElement(object):
         chk_int     = (self.type == 'int')
         chk_complex = (self.type == 'complex')
         chk_array   = (self.type == 'array')
-        chk_string   = (self.type == 'string')        
-        if len(self.shape) == 0:
+        chk_string   = (self.type == 'string')
+        
+        if self.type == 'bool':
+            value = getattr(obj, self.name + '_txt')            
+            ret = [self.guilabel, value, 3, {"text":""}]
+            return ret
+        
+        elif len(self.shape) == 0:
             value = getattr(obj, self.name + '_txt')
             ret = obj.make_phys_param_panel(self.guilabel,
                                             value, 
@@ -138,7 +154,7 @@ class VtableElement(object):
                                              chk_int   = chk_int,
                                              chk_complex = chk_complex,
                                              chk_array = chk_array,
-                                             chk_string = chk_string) 
+                                             chk_string = chk_string)
             if self.readonly:
                 ret[2] = ret[2]-10000
             if self.chkbox:
@@ -164,7 +180,12 @@ class VtableElement(object):
 
     def get_panel_value(self, obj):
         if self.name is None: return
-        if len(self.shape) == 0:
+                                            
+        if self.type == 'bool':
+            value = getattr(obj, self.name + '_txt')            
+            return value
+                                            
+        elif len(self.shape) == 0:
             if self.chkbox:
                 f = getattr(obj, 'use_' + self.name)
                 v = getattr(obj, self.name + '_txt')
@@ -185,8 +206,11 @@ class VtableElement(object):
                 return a
             
     def import_panel_value(self, obj, v):
-        if self.name is None: return        
-        if len(self.shape) == 0:
+        if self.name is None: return
+
+        if self.type == 'bool':
+            setattr(obj, self.name + '_txt', bool(v))
+        elif len(self.shape) == 0:
             if self.chkbox:
                 setattr(obj, 'use_' + self.name, v[0])
                 setattr(obj, self.name + '_txt', str(v[1][0]))                
@@ -208,8 +232,12 @@ class VtableElement(object):
         if no_func, values are evaluated at this stage.
         otherwise, it only makes sure that values are string
         '''
-        if self.name is None: return                
-        if len(self.shape) == 0:
+        if self.name is None: return
+                                            
+        if self.type == 'bool':
+            pass                                            
+                                            
+        elif len(self.shape) == 0:
             if self.no_func:
                 value = obj.eval_phys_expr(str(getattr(obj,
                                                        self.name+'_txt')),
@@ -228,7 +256,11 @@ class VtableElement(object):
         if self.name is None: return None
 
         kwargs = {}; kwargs['chk_'+self.type]=True
-        if len(self.shape) == 0:
+                                            
+        if self.type == 'bool':
+            return getattr(obj, self.name+'_txt')
+                                            
+        elif len(self.shape) == 0:
             if self.no_func:
                 pass
             elif self.type == 'string':

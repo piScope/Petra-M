@@ -88,11 +88,12 @@ def get_edge_mode(dim, sdim):
     mode1 = ''
     if sdim == 3:
        if dim == 2: mode1 = 'Bdr'
+       if dim == 1: mode1 = 'Dom'       
     elif sdim == 2:
        if dim == 2: mode1 = 'Bdr'
        if dim == 1: mode1 = 'Dom'       
     if mode1 == '':
-        assert False, "not supprint dim/sdim "+str(dim)+'/'+str(sdim)
+        assert False, "not supported dim/sdim "+str(dim)+'/'+str(sdim)
     return mode1
    
 def get_volume_mode(dim, sdim):
@@ -749,31 +750,19 @@ def map_surface_nd(*args, **kwargs):
     return map_xxx_nd('surface', *args, **kwargs)
 def map_edge_nd(*args, **kwargs):
     return map_xxx_nd('edge', *args, **kwargs)
-''' 
-def map_volume_nd(idx1, idx2, fes1, fes2=None, trans1=None,
+
+def map_xxx_rt(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
                    trans2=None, tdof1=None, tdof2=None, tol=1e-4):
  
-    if fes2 is None: fes2 = fes1
-    if trans1 is None: trans1=notrans
-    if trans2 is None: trans2=trans1
-    if tdof1 is None: tdof1=[]
-    if tdof2 is None: tdof2=[]    
+    '''
+    map DoF on surface to surface
 
-    tdof = tdof1 # ToDo support tdof2    
-    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                                              trans2, tol, shape_type = 'vector',
-                                              mode="volume")
-    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
-    
-    map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
-                   k1all, k2all, sh1all, sh2all, elmap,
-                   trans1, trans2, tol, tdof1, rstart)
+      fes1: source finite element space
+      fes2: destination finite element space
 
-    return map
+      idx1: surface attribute (Bdr for 3D/3D, Domain for 2D/3D or 2D/2D)
 
-def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
-                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
- 
+    '''
                              
     if fes2 is None: fes2 = fes1
     if trans1 is None: trans1=notrans
@@ -781,21 +770,35 @@ def map_surface_nd(idx1, idx2, fes1, fes2=None, trans1=None,
     if tdof1 is None: tdof1=[]
     if tdof2 is None: tdof2=[]    
 
-    tdof = tdof1 # ToDo support tdof2    
-    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                               trans2, tol, shape_type = 'vector')
-    
-    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
-    
-    map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
+    if xxx == 'volume':
+        tdof = tdof1 # ToDo support tdof2    
+        map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                                              trans2, tol, shape_type = 'vector',
+                                              mode=xxx)
+        pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
+        map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
+                   k1all, k2all, sh1all, sh2all, elmap,
+                   trans1, trans2, tol, tdof1, rstart)
+    else:
+        tdof = tdof1 # ToDo support tdof2    
+        map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                                              trans2, tol, shape_type = 'scalar',
+                                              mode=xxx)
+
+
+        pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
+
+        map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                    k1all, k2all, sh1all, sh2all, elmap,
                    trans1, trans2, tol, tdof1, rstart)
 
     return map
-'''
+def map_volume_rt(*args, **kwargs):
+    return map_xxx_rt('volume', *args, **kwargs)
+def map_surface_rt(*args, **kwargs):
+    return map_xxx_rt('surface', *args, **kwargs)
  
 # ToDO test these
-# map_surface_rt = map_surface_nd
 # map_surface_l2 = map_surface_h1
 
 def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
@@ -819,6 +822,10 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
         mapper = map_surface_h1
     elif fec_name.startswith('H1') and mode == 'edge':
         mapper = map_edge_h1
+    elif fec_name.startswith('RT') and mode == 'volume':
+        mapper = map_volume_rt
+    elif fec_name.startswith('RT') and mode == 'surface':
+        mapper = map_surface_rt
     else:
         raise NotImplementedError("mapping :" + fec_name + ", mode: " + mode)
 

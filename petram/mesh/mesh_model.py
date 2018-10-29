@@ -150,7 +150,10 @@ class MeshFile(Mesh):
                 if (not os.path.exists(path1) and "__main__" in globals() and hasattr(__main__, '__file__')):
                     from __main__ import __file__ as mainfile        
                     path1 = os.path.join(os.path.dirname(os.path.realpath(mainfile)), path)   
-                    dprint2("trying :", path1)
+                    dprint1("trying :", path1)
+                if not os.path.exists(path1) and os.getenv('PetraM_MeshDir') is not None:
+                    path1 = os.path.join(os.getenv('PetraM_MeshDir'), path)
+                    dprint1("trying :", path1)                    
             if os.path.exists(path1):
                 path = path1
             else:

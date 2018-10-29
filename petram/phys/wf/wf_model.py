@@ -109,12 +109,25 @@ class WF(PhysModule):
     @property 
     def der_vars(self):
         names = []
+        isVector = False
+        isNormal = False
+        if (self.element.startswith('RT') and self.dim == 3):
+            isVector = True
+        if (self.element.startswith('RT') and self.dim < 3):
+            isNormal = True
+        if self.element.startswith('ND'): isVector = True
+        
         if self.vdim > 1:
             return self.dep_vars_base_txt.split(',')
         else:        
             for t in self.dep_vars:
-                for x in self.ind_vars.split(","):
-                    names.append(t+x.strip())
+                if isVector:
+                    for x in self.ind_vars.split(","):
+                        names.append(t+x.strip())
+                elif isNormal:
+                    names.append(t+'n')                    
+                else:
+                    names.append(t)
             return names
 
     def postprocess_after_add(self, engine):
@@ -196,7 +209,6 @@ class WF(PhysModule):
                                      traceback="No vector dim for RT/ND")
                 self.element = "H1_FECollection"
         self.dep_vars_base_txt = ','.join([x.strip() for x in str(v[3]).split(',')])
-        print v[3], str(v[3]).split(',')
         if self.element.startswith("H1") or self.element.startswith("L2"):
             self.vdim = len(str(v[3]).split(','))
         else:
@@ -241,12 +253,21 @@ class WF(PhysModule):
         add_surf_normals(v, ind_vars)
 
         dep_vars = self.dep_vars
-        isVectorFE = (self.element.startswith("ND") or self.element.startswith("RT"))
-
+        
+        isVector = False; isNormal=False
+        if (self.element.startswith('RT') and self.dim == 3):
+            isVector = True
+        if (self.element.startswith('RT') and self.dim < 3):
+            isNormal = True
+        if self.element.startswith('ND'): 
+            isVector = True
+            
         for dep_var in dep_vars:
             if name != dep_var: continue
-            if isVectorFE:
+            if isVector:
                     add_components(v, dep_var, "", ind_vars, solr, soli)
+            if isNormal:
+                add_scalar(v, dep_var+"n", "", ind_vars, solr, soli)                
             else:
                 if self.vdim == 1:
                     add_scalar(v, dep_var, "", ind_vars, solr, soli)

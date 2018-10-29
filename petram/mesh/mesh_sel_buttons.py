@@ -129,9 +129,9 @@ def _toggle_any(evt, txt):
     evt.Skip()
     
 def toggle_dot(evt):
-    self._toggle_any('point')
+    _toggle_any(evt, 'point')
 def toggle_edge(evt):
-    self._toggle_any('edge')    
+    _toggle_any(evt, 'edge')    
      
 def make_solid(evt):
     viewer = evt.GetEventObject().GetTopLevelParent()

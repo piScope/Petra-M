@@ -28,9 +28,11 @@ def validate_sel(value, obj, w):
 def convert_sel_txt(txt, g):
     if txt.strip() == 'remaining':
         return ['remaining']
-    if txt.strip() == 'all':
+    elif txt.strip() == 'all':
         return ['all']
-    if txt.strip() == '':
+    elif txt.strip() == 'internal_bdr':
+        return ['all']
+    elif txt.strip() == '':
         arr = []
     else:
         arr =  list(np.atleast_1d(eval(txt, g)))
@@ -319,11 +321,15 @@ class Model(RestorableOrderedDict):
     def get_possible_child(self):
         return []
     
+    def get_possible_child_menu(self):
+        return [('', cls) for cls in self.get_possible_child()]
+    
     def get_special_menu(self):
         return []
 
     def add_item(self, txt, cls,  **kwargs):
-        
+        after = kwargs.pop("after", None)
+        before = kwargs.pop("before", None)        
         m = []
         for k in self.keys():
             label = ''.join([x for x in k if not x.isdigit()])
@@ -335,6 +341,7 @@ class Model(RestorableOrderedDict):
         else:
            name = txt + str(max(m)+1)
         obj = cls(**kwargs)
+        done = False
         if obj.mustbe_firstchild:
             old_contents = self._contents 
             self._contents = OrderedDict()
@@ -342,7 +349,29 @@ class Model(RestorableOrderedDict):
             names = list(old_contents)
             for n in names:
                 self[n] = old_contents[n]
-        else:
+            done = True
+        elif after is not None:
+            old_contents = self._contents 
+            self._contents = OrderedDict()
+            names = list(old_contents)
+            for n in names:
+                self[n] = old_contents[n]                
+                if n == after.name():
+                    self[name] = obj                
+                    done = True
+                    break
+        elif before is not None:
+            old_contents = self._contents 
+            self._contents = OrderedDict()
+            names = list(old_contents)
+            for n in names:
+                if n == before.name():
+                    self[name] = obj
+                    done = True
+                self[n] = old_contents[n]
+                if done: break
+                
+        if not done:
             self[name] = obj
         return name
 

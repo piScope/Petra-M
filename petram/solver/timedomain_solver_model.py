@@ -37,7 +37,7 @@ class TimeDomain(Solver):
                     ["max. dt", "", 0, {}],]                
         return [#["Initial value setting",   self.init_setting,  0, {},],
                 ["physics model",   self.phys_model,  0, {},],
-                ["start/end/delta time ",  "",  0, {},],
+                ["start/end/#step",  "",  0, {},],
                 ["probes",   self.probe,  0, {},],                                
                 [None, None, 34, ({'text':'method','choices': ["Backward Eular", "Adaptive BE"], 'call_fit':False},
                                   {'elp':elp_be},
@@ -157,7 +157,7 @@ class TimeDomain(Solver):
         instance.time = st
         
         if self.init_only:
-            self.write_checkpoint_solution()
+            instance.write_checkpoint_solution()
         
         else:
             if is_first:

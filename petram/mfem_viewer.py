@@ -177,7 +177,7 @@ class MFEMViewer(BookViewer):
                 self.use_toolbar_palette('petram_'+mode, mode = '3D')
         if do_plot:
             if p is not None:
-                print("calling do_plot", self._view_mode, p.figure_data_name())   
+                #print("calling do_plot", self._view_mode, p.figure_data_name())   
                 self.update_figure(self._view_mode, p.figure_data_name(),
                                    updateall=True)
 
@@ -214,6 +214,10 @@ class MFEMViewer(BookViewer):
                         self._is_mfem_geom_fig = True
                 else:
                     if updateall:
+                        if not 'geom' in self._figure_data:
+                            # geom is not yet run
+                            self.cls()
+                            return 
                         d = self._figure_data['geom']
                         plot_geometry(self,  d[name[1]])
                     d = self._figure_data['mesh']
@@ -628,10 +632,11 @@ class MFEMViewer(BookViewer):
             if not name.startswith('face'):continue
             if len(i) > 0:                                          
                 obj.setSelectedIndex(i)
+                print("add_selection", obj, obj._artists[0])
                 self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
-        self.canvas.refresh_hl()
+        wx.CallAfter(self.canvas.refresh_hl)
         
     def highlight_edge(self, i):
         '''
@@ -945,7 +950,7 @@ class MFEMViewer(BookViewer):
                 child.set_linewidth(0.0, child._artists[0])
         self.update(True)
         self.draw_all()
-        
+    '''    
     def onHideBdry(self, evt):
         objs = [x().figobj for x in self.canvas.selection]        
         for o in objs:
@@ -973,7 +978,7 @@ class MFEMViewer(BookViewer):
         for o in children:
             o.set_suppress(True)
         self.draw()
-        
+    '''     
 
     def onShowAll(self, evt):
         for obj in self.book.walk_tree():

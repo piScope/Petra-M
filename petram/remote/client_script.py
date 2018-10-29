@@ -174,7 +174,9 @@ def submit_job(model):
 
     q1 = q.strip().split("(")[0]
     q2 = "" if q.find("(") == -1 else "(".join(q.strip().split("(")[1:])[:-1]
-
+    ## replace short/dev -> short_dev
+    if q2 != "":
+        q2 = "_".join(q2.split("/"))
     
     exe = PetraM + '/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q1
     if q2 != "":

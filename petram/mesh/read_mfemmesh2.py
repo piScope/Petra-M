@@ -111,12 +111,13 @@ def extract_refined_mesh_data2(mesh, refine = None):
     base = 1
     gt = mesh.GetBdrElementTransformation
     idx2 = range(mesh.GetNBE())
-    attr2, ptx2, ivx2, ivxe2, attrx2 = get_geom(idx2, 2, base, gt, battrs,
+    if len(idx2) > 0:
+        attr2, ptx2, ivx2, ivxe2, attrx2 = get_geom(idx2, 2, base, gt, battrs,
                                                 sdim, refine)
-    cells['line_x'] = ivx2
-    cell_data['line_x'] = {}                        
-    cell_data['line_x']['physical'] = attrx2
-    cell_data['X_refined_edge']=ptx2
+        cells['line_x'] = ivx2
+        cell_data['line_x'] = {}                        
+        cell_data['line_x']['physical'] = attrx2
+        cell_data['X_refined_edge']=ptx2
     
     
     from petram.mesh.mesh_utils import populate_plotdata
