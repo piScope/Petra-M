@@ -712,4 +712,46 @@ def populate_plotdata(mesh, table, cells, cell_data):
     iedge2bb = None # is it used?
     return l_s_loop
 
-    
+#
+#  FaceOf, EdgeOf, PointOf
+#
+#  Note: don't convert kwargs to mesh=None, since it provides are
+#        safe-separation between args and kwargs.
+#
+def FaceOf(*args, **kwargs):
+    mesh=kwargs.pop('mesh', None)
+    vols = list(np.atleast_1d(args).flatten())
+    ec = mesh.extended_connectivity['vol2surf']
+    if ec is None: return []
+    return list(set(sum([list(ec[k]) for k in vols],[])))
+
+def EdgeOf(*args, **kwargs):
+    mesh=kwargs.pop('mesh', None)    
+    faces = list(np.atleast_1d(args).flatten())
+    ec = mesh.extended_connectivity['surf2line']
+    if ec is None: return []    
+    return list(set(sum([list(ec[k]) for k in faces],[])))
+
+def PointOf(*args, **kwargs):
+    mesh=kwargs.pop('mesh', None)        
+    edges = list(np.atleast_1d(args).flatten())
+    ec = mesh.extended_connectivity['line2vert']
+    if ec is None: return []    
+    return list(set(sum([list(ec[k]) for k in edges],[])))
+
+def NeighborFaceOf(*args, **kwargs):
+    # return Neighboring Face
+    mesh=kwargs.pop('mesh', None)
+    faces = list(np.atleast_1d(args).flatten())
+    s2l = mesh.extended_connectivity['surf2line']
+    e1 = EdgeOf(faces, mesh = mesh)
+    neighbor = [k for k in s2l if len(np.intersect1d(EdgeOf(k, mesh=mesh),e1))!=0]
+    neighbor = [k for k in neighbor if not k in faces]
+    return neighbor
+
+def CommonEdgeOf(faces1, faces2, **kwargs):
+    # common edge of face group 1 and 2
+    mesh=kwargs.pop('mesh', None)
+    f1 = EdgeOf(faces1, mesh=mesh)
+    f2 = EdgeOf(faces2, mesh=mesh)
+    return list(np.intersect1d(f1,f2))

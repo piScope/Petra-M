@@ -36,28 +36,6 @@ import threading
 ThreadEnd = wx.NewEventType()
 EVT_THREADEND = wx.PyEventBinder(ThreadEnd, 1)
 
-
-def FaceOf(vols, **kwargs):
-    mesh=kwargs.pop('mesh', None)
-    vols = list(np.atleast_1d(vols))
-    ec = mesh.extended_connectivity['vol2surf']
-    if ec is None: return []
-    return list(set(sum([list(ec[k]) for k in vols],[])))
-
-def EdgeOf(faces, **kwargs):
-    mesh=kwargs.pop('mesh', None)    
-    faces = list(np.atleast_1d(faces))
-    ec = mesh.extended_connectivity['surf2line']
-    if ec is None: return []    
-    return list(set(sum([list(ec[k]) for k in faces],[])))
-
-def PointOf(edges, **kwargs):
-    mesh=kwargs.pop('mesh', None)        
-    edges = list(np.atleast_1d(edges))
-    ec = mesh.extended_connectivity['line2vert']
-    if ec is None: return []    
-    return list(set(sum([list(ec[k]) for k in edges],[])))
-
 class _XY(tuple):
     def __call__(self, value):
         return (0, 0, 1., -value)
@@ -69,6 +47,7 @@ class _ZX(tuple):
         return (0, 1., 0., -value)
 
 def get_mapper(mesh_in):
+    from petram.mesh.mesh_utils import FaceOf, EdgeOf, PointOf
     def mapper1(*args):
         return FaceOf(args, mesh=mesh_in)
     def mapper2(*args):
@@ -1188,6 +1167,7 @@ class DlgPlotSol(DialogWithWindowList):
             return self.evaluators['Edge'].eval(expr, do_merge1, do_merge2,
                                                **kwargs)
         except:
+            import traceback
             wx.CallAfter(dialog.showtraceback,parent = self,
                                 txt='Failed to evauate expression',
                                 title='Error',

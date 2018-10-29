@@ -25,8 +25,9 @@ class InitSettingPanel(wx.Panel):
 
         self.st1 = wx.StaticText(self, wx.ID_ANY, '     value: ')
         self.tc1 = TextCtrlCopyPaste(self, wx.ID_ANY, '0.0', 
-                                     validator = validator,
-                                     style=wx.TE_PROCESS_ENTER) 
+                                     validator = setting['validator'],
+                                     style=wx.TE_PROCESS_ENTER)
+        self.validator = setting['validator']
         self.st4 = wx.StaticText(self, wx.ID_ANY, '     path:  ')
         self.tc4 = TextCtrlCopyPaste(self, wx.ID_ANY, '',
                                      style=wx.TE_PROCESS_ENTER) 
@@ -71,7 +72,7 @@ class InitSettingPanel(wx.Panel):
             if rb.GetValue(): break
         val = self.tc1.GetValue()
         path = self.tc4.GetValue()
-        if not validator(val, None, None): val = '0.0'
+        if not self.validator(val, None, None): val = '0.0'
 
         return sel, val, path
 

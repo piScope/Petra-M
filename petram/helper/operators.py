@@ -57,7 +57,7 @@ class Operator(object):
     def restrict_coeff(self, coeff, fes, vec = False, matrix=False):
         if self._sel == 'all': 
            return coeff
-        print self._sel
+
         arr = self.get_restriction_array(fes)
         if vec:
             return mfem.VectorRestrictedCoefficient(coeff, arr)

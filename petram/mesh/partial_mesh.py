@@ -113,7 +113,8 @@ def _add_face_data(m, idx, nverts, base):
     #ivert  = np.hstack((ivert,  np.hstack(new_v)))
     nverts = np.hstack((nverts,  [len(kk) for kk in new_v]))
     base   = np.hstack((base,  [m.GetFaceBaseGeometry(i) for i in idx]))
-    return ivert, nverts, base
+    #return ivert, nverts, base
+    return nverts, base
 
  
 def _gather_shared_vertex(mesh, u, shared_info,  *iverts):
@@ -161,7 +162,7 @@ def _gather_shared_vertex(mesh, u, shared_info,  *iverts):
     return [u_own]+list(iverts) ## u_own, iv1, iv2 =
 
 def _gather_shared_element(mesh, mode, shared_info, ielem, kelem, attrs,
-                          nverts, base):
+                           nverts, base, ivert, skip_adding=False):
    
     ld, md = shared_info
     
@@ -177,11 +178,13 @@ def _gather_shared_element(mesh, mode, shared_info, ielem, kelem, attrs,
            for le, me in zip(ld[key][imode], md[key][imode]): 
                iii =  np.where(ielem == le)[0]
                if len(iii) != 0:
-                   kelem[iii] = False
+                   if not skip_adding:
+                      kelem[iii] = False
                    me_list[mid].append(me)
                    mea_list[mid].extend(list(attrs[iii]))
                assert len(iii)<2, "same iface (pls report this error to developer) ???"
 
+    new_ivert = np.array([], dtype=ivert.dtype)
     for i in range(nprc):        
         mev = gather_vector(np.atleast_1d(me_list[i]).astype(int), root=i)
         mea = gather_vector(np.atleast_1d(mea_list[i]).astype(int), root=i)
@@ -190,19 +193,22 @@ def _gather_shared_element(mesh, mode, shared_info, ielem, kelem, attrs,
            missing, mii = np.unique(mev[check], return_index=True)
            missinga = mea[check][mii]
            if len(missing) != 0:                       
-               print "adding (face)", missing
-               nverts, base  = _add_face_data(mesh, missing, nverts, base)
+               print "adding (face)", myid, missing
                print len(missing), len(missinga), missinga
-               attrs = np.hstack((attrs, missinga))
-               kelem = np.hstack((kelem, [True]*len(missing)))
-
-    #attrs = np.unique(allgather_vector(attrs)).astype(int, copy=False)
+               if not skip_adding:
+                   nverts, base  = _add_face_data(mesh, missing, nverts, base)
+                   attrs = np.hstack((attrs, missinga)).astype(attrs.dtype)
+                   kelem = np.hstack((kelem, [True]*len(missing)))
+               
+    if not skip_adding:
+       new_ivert = new_ivert.astype(ivert.dtype)       
+       new_ivert = allgather_vector(new_ivert)
+       #ivert  = np.hstack((ivert,  new_ivert))
     attrs = allgather_vector(attrs)
     base  = allgather_vector(base)
     nverts = allgather_vector(nverts)
     kelem  = allgather_vector(kelem)
-
-    return kelem, attrs, nverts, base
+    return kelem, attrs, nverts, base, ivert
    
         
 def _fill_mesh_elements(omesh, vtx, indices, nverts,  attrs, base):
@@ -232,11 +238,11 @@ def _fill_mesh_elements(omesh, vtx, indices, nverts,  attrs, base):
 def _fill_mesh_bdr_elements(omesh, vtx, bindices, nbverts,
                             battrs, bbase, kbelem):
 
-    cnbverts = np.hstack([0, np.cumsum(nbverts)])   
+    cnbverts = np.hstack([0, np.cumsum(nbverts)])
     for i, ba in enumerate(battrs):
         if not kbelem[i]:
-           print "skipping"
-           continue
+            print "skipping"
+            continue
         iv = bindices[cnbverts[i]:cnbverts[i+1]]
         if bbase[i] == 0:
              el = mfem.Point(iv[0])
@@ -245,7 +251,8 @@ def _fill_mesh_bdr_elements(omesh, vtx, bindices, nbverts,
              omesh.AddBdrElement(el)
         elif bbase[i] == 1:  
              omesh.AddBdrSegment(list(iv), ba)
-        elif bbase[i] == 2:  
+        elif bbase[i] == 2:
+             #if myid == 1: print(list(iv), ba)
              omesh.AddBdrTriangle(list(iv), ba)
         elif bbase[i] == 3:
             omesh.AddBdrQuad(list(iv), ba)
@@ -330,10 +337,10 @@ def edge(mesh, in_attr, filename = '', precision=8):
         #
         # take care of shared boundary (edge)
         #
-        keelem, eattrs, neverts, ebase = (
+        keelem, eattrs, neverts, ebase, eivert = (
             _gather_shared_element(mesh, 'vertex', shared_info, eidx,
                                    keelem, eattrs,
-                                   neverts, ebase))
+                                   neverts, ebase, eivert))
         
     indices  = np.array([np.where(u == biv)[0][0] for biv in ivert])
     eindices = np.array([np.where(u == biv)[0][0] for biv in eivert])
@@ -502,11 +509,11 @@ def surface(mesh, in_attr, filename = '', precision=8):
         #
         # take care of shared boundary (edge)
         #
-        keelem, eattrs, neverts, ebase = (
+        keelem, eattrs, neverts, ebase, eivert = (
             _gather_shared_element(mesh, 'edge', shared_info, eidx,
                                    keelem, eattrs,
-                                   neverts, ebase))
-        
+                                   neverts, ebase, eivert,
+                                   skip_adding=True))
         
     indices  = np.array([np.where(u == biv)[0][0] for biv in ivert])
     eindices = np.array([np.where(u == biv)[0][0] for biv in eivert])
@@ -671,19 +678,23 @@ def volume(mesh, in_attr, filename = '', precision=8):
         #
         # take care of shared boundary (face)
         #
-        kbelem, battrs, nbverts, bbase = (
+        #  2018.11.28
+        #   skip_adding is on. This basically skip shared_element
+        #   processing. Check em3d_TEwg7 if you need to remov this.
+        #
+        kbelem, battrs, nbverts, bbase, bivert = (
             _gather_shared_element(mesh, 'face', shared_info, iface,
                                    kbelem, battrs,
-                                   nbverts, bbase))
+                                   nbverts, bbase, bivert,
+                                   skip_adding=True))
         
         
     indices  = np.array([np.where(u == biv)[0][0] for biv in ivert])
     bindices = np.array([np.where(u == biv)[0][0] for biv in bivert])
-
     
     Nvert = len(vtx)
     Nelem = len(attrs)    
-    Nbelem = len(battrs)
+    Nbelem = np.sum(kbelem) #len(battrs)
 
     if myid ==0: print("NV, NBE, NE: " +
                        ",".join([str(x) for x in (Nvert, Nbelem, Nelem)]))

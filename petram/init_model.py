@@ -1,4 +1,6 @@
 import traceback
+from petram.helper.variables import var_g
+ll = var_g.copy()
 
 from petram.model import Model
 class InitSetting(Model):
@@ -14,9 +16,21 @@ class InitSetting(Model):
     def panel1_param(self):
         from petram.pi.widget_init import InitSettingPanel
         return [["physics model",   self.phys_model,  0, {},],
-                [None, None, 99, {'UI':InitSettingPanel}],]
+                [None, None, 99, {'UI':InitSettingPanel, 'validator':self.init_validator}],]
 
-      
+    def _init_eval(self, value):
+        gg = self.root()['General']._global_ns.copy()
+        return eval(value, gg, ll)    
+
+    def init_validator(self, value, param, ctrl):
+        try:
+            x = self._init_eval(value)
+        except:
+            import traceback
+            traceback.print_exc()
+            return False
+        return True
+        
     def get_panel1_value(self):
         return [self.phys_model,
                 (self.init_mode, self.init_value_txt, self.init_path)]
@@ -30,7 +44,7 @@ class InitSetting(Model):
     def preprocess_params(self, engine):
         from petram.helper.init_helper import eval_value
         try:
-            self.init_value = eval_value(self.init_value_txt)
+            self.init_value = self._init_eval(self.init_value_txt)
         except:
             self.init_value = 0.0            
             assert False, traceback.format_exc()
