@@ -266,7 +266,7 @@ class WF(PhysModule):
             if name != dep_var: continue
             if isVector:
                     add_components(v, dep_var, "", ind_vars, solr, soli)
-            if isNormal:
+            elif isNormal:
                 add_scalar(v, dep_var+"n", "", ind_vars, solr, soli)                
             else:
                 if self.vdim == 1:
