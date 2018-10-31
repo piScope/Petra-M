@@ -37,23 +37,33 @@ class SolveStep(SolverBase):
     has_2nd_panel = False    
     def attribute_set(self, v):
         v['phys_model']   = ''
-        v['init_setting']   = ''        
+        v['init_setting']   = ''
+        v['use_dwc_pp']   = False
+        v['dwc_pp_arg']   = ''                        
         super(SolveStep, self).attribute_set(v)
         return v
     
     def panel1_param(self):
-        return [["Initial value setting",   self.init_setting,  0, {},],
-                ["physics model(blank=auto)",   self.phys_model,  0, {},],]
+        ret = ["args.",   self.dwc_pp_arg,   0, {},]
+        value = self.dwc_pp_arg
+        return [["Initial value setting",   self.init_setting,   0, {},],
+                ["physics model(blank=auto)",   self.phys_model, 0, {},],
+                [None, [False, [value]], 27, [{'text':'Use DWC (postprocess)'},
+                                              {'elp': [ret]}]],]
+
 #                ["initialize solution only",
 #                 self.init_only,  3, {"text":""}], ]
                
 
     def get_panel1_value(self):
-        return (self.init_setting, self.phys_model, )
+        return (self.init_setting, self.phys_model,
+                [self.use_dwc_pp, [self.dwc_pp_arg,]])
     
     def import_panel1_value(self, v):
         self.init_setting = v[0]        
         self.phys_model   = v[1]
+        self.use_dwc_pp   = v[2][0]
+        self.dwc_pp_arg   = v[2][1][0]         
 #        self.init_only    = v[2]
         
     def get_possible_child(self):
@@ -172,6 +182,11 @@ class SolveStep(SolverBase):
              engine.add_FESvariable_to_NS(self.get_phys()) 
              engine.store_x()
 
+             if self.use_dwc_pp:
+                  engine.call_dwc(self.get_phys(),
+                                  method="postprocess",
+                                  callername = self.name(),
+                                  args = self.dwc_pp_arg)
              if self.solve_error[0]:
                  dprint1("SolveStep failed " + self.name() + ":"  + self.solve_error[1])
                  break

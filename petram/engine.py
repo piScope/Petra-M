@@ -2108,6 +2108,34 @@ class Engine(object):
                               
                else:
                   assert False, "update mode not supported: mode = "+mode
+                  
+    def call_dwc(self, phys_range, method='', callername = '', args = ''):
+
+        kwargs = {}
+        for phys in phys_range:
+            for name in phys.dep_vars:
+                rifes = self.r_ifes(name)
+                rgf = self.r_x[rifes]
+                igf = self.i_x[rifes]
+                if igf is None:
+                   kwargs[name] = rgf
+                else:
+                   kwargs[name] = (rgf, igf)                   
+       
+        g = self.model['General']._global_ns
+        dwc = g[self.model['General'].dwc_object_name]
+
+        m = getattr(dwc, method)
+        args = eval(args, g, {})
+        if not hasattr(args, '__iter__'):
+            args = (args,)
+
+        try:
+            m(callername, *args, **kwargs)
+        except:
+            import traceback
+            traceback.print_exc()
+            assert False, "Direct Wrapper Call Failed"
        
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
