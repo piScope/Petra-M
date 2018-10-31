@@ -2126,7 +2126,7 @@ class Engine(object):
         dwc = g[self.model['General'].dwc_object_name]
 
         m = getattr(dwc, method)
-        if args.split() != '':
+        if args.strip() != '':
             args = eval(args, g, {})
         else:
             args = tuple()
