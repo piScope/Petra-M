@@ -23,6 +23,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         
     def attribute_set(self, v):
         v['debug_level'] = 1
+        v['dwc_object_name'] = ''        
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
         
@@ -32,14 +33,18 @@ class MFEM_GeneralRoot(Model, NS_mixin):
                "Speical debug bits",
                " 4: write essentail BC vector",
                " 8: memory check"]
+        txt2 = "DWC (direct wrapper call) is for low level API access"
         return [["debug level",   self.debug_level,  400, {}],
-                ["", "\n".join(txt) ,2, None],]
+                ["", "\n".join(txt) ,2, None],
+                ["DWC object", ""   ,0, {}],
+                ["", txt2 ,2, None],]
 
     def get_panel1_value(self):
-        return (self.debug_level, None)
+        return (self.debug_level, None, self.dwc_object_name, None)
 
     def import_panel1_value(self, v):
         self.debug_level = v[0]
+        self.dwc_object_name = str(v[2])
         import petram.debug        
         petram.debug.debug_default_level = int(self.debug_level)        
         

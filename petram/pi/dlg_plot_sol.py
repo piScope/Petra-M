@@ -1255,6 +1255,7 @@ class DlgPlotSol(DialogWithWindowList):
             return self.evaluators[key].eval(expr, do_merge1, do_merge2,
                                                **kwargs)
         except:
+            import traceback            
             wx.CallAfter(dialog.showtraceback, parent = self,
                                 txt='Failed to evauate expression',
                                 title='Error',
