@@ -2126,7 +2126,10 @@ class Engine(object):
         dwc = g[self.model['General'].dwc_object_name]
 
         m = getattr(dwc, method)
-        args = eval(args, g, {})
+        if args.split() != '':
+            args = eval(args, g, {})
+        else:
+            args = tuple()
         if not hasattr(args, '__iter__'):
             args = (args,)
 
