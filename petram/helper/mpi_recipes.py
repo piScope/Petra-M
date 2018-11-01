@@ -168,6 +168,11 @@ def scatter_vector2(vector, mpi_data_type, rcounts = None):
 def check_complex(obj, root=0):
     return MPI.COMM_WORLD.bcast(np.iscomplexobj(obj), root=root)
 
+def safe_flatstack(ll, dtype=int):
+    if len(ll) > 0:
+        return np.hstack(ll).astype(dtype, copy=False)
+    else:
+        return np.array([], dtype=dtype)
     
 def get_row_partitioning(r_A):
     warn('get_row_partition is deplicated', DeprecationWarning,
