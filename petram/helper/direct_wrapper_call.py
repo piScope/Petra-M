@@ -36,8 +36,12 @@ class Eval_E_para(DWC):
         print("postprocess is called")
         gfr, gfi = gf
         print(caller, gfr)
-        fes = gfr.ParFESpace()
-        mesh = fes.GetParMesh()
+        try:
+            fes = gfr.ParFESpace()
+            mesh = fes.GetParMesh()
+        except:
+            fes = gfr.FESpace()
+            mesh = fes.GetMesh()
         from petram.mesh.mesh_utils import get_extended_connectivity
         if not hasattr(mesh, 'extended_connectivity'):
            get_extended_connectivity(mesh)
