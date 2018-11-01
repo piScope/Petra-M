@@ -4,6 +4,8 @@
  functionality during a Petra-M simulation
 
 '''
+import numpy as np
+
 from petram.mfem_config import use_parallel
 if use_parallel:
    from petram.helper.mpi_recipes import *
@@ -57,7 +59,6 @@ class Eval_E_para(DWC):
             mesh.GetEdgeTransformation(i, Tr)
             w.extend([Tr.Weight()]*size)
         w = np.array(w)    
-
         data = gfr.GetDataArray()[dofs] + 1j*gfi.GetDataArray()[dofs]
         nicePrint(w)        
         nicePrint(data/w)
