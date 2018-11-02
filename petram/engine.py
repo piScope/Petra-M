@@ -454,8 +454,8 @@ class Engine(object):
                      iinit=v*0.0
                   from petram.phys.phys_model import PhysConstant, PhysVectorConstant
                   if v.size == 1:
-                      rc = PhysConstant(rinit)
-                      ic = PhysConstant(iinit)                      
+                      rc = PhysConstant(rinit[0])
+                      ic = PhysConstant(iinit[0])                      
                   else:
                       rc = PhysVectorConstant(rinit)
                       ic = PhysVectorConstant(iinit)
