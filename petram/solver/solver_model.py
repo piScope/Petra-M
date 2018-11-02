@@ -181,15 +181,15 @@ class SolveStep(SolverBase):
              is_first = solver.run(engine, is_first=is_first)
              engine.add_FESvariable_to_NS(self.get_phys()) 
              engine.store_x()
-
-             if self.use_dwc_pp:
-                  engine.call_dwc(self.get_phys_range(),
-                                  method="postprocess",
-                                  callername = self.name(),
-                                  args = self.dwc_pp_arg)
              if self.solve_error[0]:
                  dprint1("SolveStep failed " + self.name() + ":"  + self.solve_error[1])
                  break
+
+        if self.use_dwc_pp:
+            engine.call_dwc(self.get_phys_range(),
+                            method="postprocess",
+                            callername = self.name(),
+                            args = self.dwc_pp_arg)
         
 class Solver(SolverBase):
     def attribute_set(self, v):
