@@ -183,7 +183,7 @@ class SolveStep(SolverBase):
              engine.store_x()
 
              if self.use_dwc_pp:
-                  engine.call_dwc(self.get_phys(),
+                  engine.call_dwc(self.get_phys_range(),
                                   method="postprocess",
                                   callername = self.name(),
                                   args = self.dwc_pp_arg)
