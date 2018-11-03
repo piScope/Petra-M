@@ -57,8 +57,10 @@ class InitSetting(Model):
     def run(self, engine):
         phys_targets = self.get_phys()
         #engine.run_alloc_sol(phys_targets)
-        engine.run_apply_init(phys_targets, self.init_mode,
-                             self.init_value, self.init_path)
+        engine.run_apply_init0(phys_targets, self.init_mode,
+                               init_value =self.init_value,
+                               init_path=self.init_path)
+        return phys_targets
 
     def onItemSelChanged(self, evt):
         '''

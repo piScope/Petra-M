@@ -153,6 +153,8 @@ class SolveStep(SolverBase):
         phys_range = self.get_phys_range()        
         
         inits = self.get_init_setting()
+        engine.run_apply_init(phys_range, inits=inits)
+        '''
         if len(inits) == 0:
             # in this case alloate all fespace and initialize all
             # to zero
@@ -160,7 +162,7 @@ class SolveStep(SolverBase):
         else:
             for init in inits:
                 init.run(engine)
-                
+        '''        
         # use get_phys to apply essential to all phys in solvestep
         engine.run_apply_essential(phys_target, phys_range)
         engine.run_fill_X_block()
