@@ -425,7 +425,7 @@ class Engine(object):
         return  self.is_initialized
 
            
-    def run_apply_init(self, phys_range, mode,
+    def run_apply_init0(self, phys_range, mode,
                        init_value=0.0, init_path=''):
         # mode
         #  0: zero
@@ -480,6 +480,18 @@ class Engine(object):
 
         self.add_FESvariable_to_NS(phys_range, verbose = True)
         
+    def run_apply_init(self, phys_range, inits=None):
+        if len(inits) == 0:
+            # in this case alloate all fespace and initialize all
+            # to zero
+            self.run_apply_init0(phys_range, 0)
+        else:
+            for init in inits:
+                tmp = init.run(self)
+                phys_range = [phys for phys in phys_range if not phys in tmp]
+            if len(phys_range) > 0:
+                dprint1("!!!!! These phys are not initiazliaed (FES variable is not available)!!!!!", phys_range)
+       
     def run_apply_essential(self, phys_target, phys_range, update=False):
         L = len(self.r_dep_vars)       
         self.mask_X = np.array([not update]*L*self.n_matrix,
