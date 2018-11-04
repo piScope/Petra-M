@@ -2132,9 +2132,8 @@ class Engine(object):
                else:
                   assert False, "update mode not supported: mode = "+mode
                   
-    def call_dwc(self, phys_range, method='', callername = '', args = ''):
+    def call_dwc(self, phys_range, method='', callername = '', args = '', **kwargs):
 
-        kwargs = {}
         for phys in phys_range:
             for name in phys.dep_vars:
                 rifes = self.r_ifes(name)
@@ -2147,6 +2146,7 @@ class Engine(object):
        
         g = self.model['General']._global_ns
         dwc = g[self.model['General'].dwc_object_name]
+        args0, kwargs = dwc.make_args(method, kwargs)
 
         m = getattr(dwc, method)
 
@@ -2158,7 +2158,10 @@ class Engine(object):
             traceback
             traceback.print_exc()
             assert False, "Failed to convert text to argments"
+            
         for k in kwargs2: kwargs[k] = kwargs2[k]
+        args = tuple(list(args0) + list(args))
+        
         try:
             m(callername, *args, **kwargs)
         except:
