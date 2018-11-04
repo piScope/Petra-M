@@ -156,6 +156,7 @@ class TimeDomain(Solver):
         if self.clear_wdir:
             engine.remove_solfiles()
 
+        fid = engine.open_file('checkpoint.'+self.name()+'.txt', 'w')
         st, et, nt = self.st_et_nt
         
         if self.ts_method == 'Backward Eular':
@@ -198,6 +199,8 @@ class TimeDomain(Solver):
                 instance.add_child_instance(child)
                 
             finished = False
+            if fid is not None:
+                fid.write(str(0)+':'+str(instance.time)+"\n")
             while not finished:
                 finished, cp_written = instance.step(is_first)
                 if self.use_dwc_ts:
@@ -212,14 +215,17 @@ class TimeDomain(Solver):
                                     callername = self.name(),
                                     args = self.dwc_cp_arg,                                    
                                     time = instance.time,
-                                    icheckpoint = instance.icheckpoint)
-
+                                    icheckpoint = instance.icheckpoint-1)
+                    if fid is not None:
+                        fid.write(str(instance.icheckpoint-1)+':'+str(instance.time)+"\n")
 
         instance.save_solution(ksol = 0,
                                skip_mesh = False, 
                                mesh_only = False,
                                save_parmesh=self.save_parmesh)
-        instance.save_probe() 
+        instance.save_probe()
+        if fid is not None: fid.close()
+        
         return is_first       
         print(debug.format_memory_usage())
 
@@ -426,7 +432,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         dprint1("writing checkpoint t=" + str(self.time) +
                 "("+str(self.icheckpoint)+")")        
         od = os.getcwd()
-        path = os.path.join(od, 'checkpoint_' + str(self.icheckpoint))
+        path = os.path.join(od, 'checkpoint_' + self.gui.name()+'_'+str(self.icheckpoint))
         self.engine.mkdir(path) 
         os.chdir(path)
         self.engine.cleancwd() 
