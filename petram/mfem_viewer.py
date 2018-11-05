@@ -237,20 +237,47 @@ class MFEMViewer(BookViewer):
                 m.DestroyItem(item)
             try:
                 dir =self.model.solutions.owndir()
-
                 sol_names = os.listdir(dir)
+                checkpoints = {}
+                for n in sol_names:
+                    for nn in os.listdir(os.path.join(dir, n)):
+                        if (nn.startswith('checkpoint.') and
+                            nn.endswith('.txt')):
+                            fid = open(os.path.join(dir, n, nn))
+                            lines = [l.strip().split(":") for l in fid.readlines()]
+                            lines = [(int(l[0]), float(l[1])) for l in lines]
+                            fid.close()
+                            solvername = nn.split('.')[1]
+                            checkpoints[solvername] = dict(lines)
                 sol_names = [n for n in sol_names 
                              if os.path.isdir(os.path.join(dir, n))]
-
                 menus = []
                 for n in sol_names:
                     flag = True
-                    for nn in os.listdir(os.path.join(dir, n)):
+                    for nn in sorted(os.listdir(os.path.join(dir, n))):
                         if os.path.isdir(os.path.join(dir, n, nn)):
                              flag = False
-                             menus.append((os.path.join(n, nn), n +'/'+nn))
+                             if nn.startswith('checkpoint_'):
+                                 if len(nn.split('_')) > 2:
+                                    solvername = nn.split('_')[1]
+                                    icheckpoint = int(nn.split('_')[2])
+                                    time = str(checkpoints[solvername][icheckpoint])
+                                    if len(checkpoints.keys()) == 1:
+                                        menus.append((os.path.join(n, nn),
+                                                   n +'/'+ "checkpoint ("+str(time)+")"))
+                                    else:
+                                        menus.append((os.path.join(n, nn),
+                                                   n +'/'+nn + " ("+str(time)+")"))
+                                 else: # old format
+                                     menus.append((os.path.join(n, nn),
+                                                   n +'/'+nn))
+                                     
+                             else:
+                                 menus.append((os.path.join(n, nn), n +'/'+nn))
                     if flag: menus.append((n, n))
             except:
+                #import traceback
+                #traceback.print_exc()
                 evt.Enable(False)
                 return
             mm = []

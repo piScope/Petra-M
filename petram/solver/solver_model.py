@@ -407,6 +407,7 @@ class TimeDependentSolverInstance(SolverInstance):
         self.st = 0.0
         self.et = 1.0
         self.checkpoint = [0, 0.5, 1.0]
+        self._icheckpoint = 0        
         self._time = 0.0
         self.child_instance = []
         SolverInstance.__init__(self, gui, engine)
@@ -419,6 +420,14 @@ class TimeDependentSolverInstance(SolverInstance):
     def time(self, value):
         self._time = value
         self.engine.model['General']._global_ns['t']=value
+        
+    @property
+    def icheckpoint(self):
+        return self._icheckpoint
+    
+    @icheckpoint.setter
+    def icheckpoint(self, value):
+        self._icheckpoint = value
         
     def set_start(self, st):
         self.st = st

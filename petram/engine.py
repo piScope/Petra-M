@@ -1,6 +1,7 @@
 #!/bin/env python
 import sys
 import os
+import shutil
 import numpy as np
 import scipy.sparse
 from warnings import warn
@@ -1882,6 +1883,21 @@ class Engine(object):
         fnamei = '_'.join((namei, name, str(mesh_idx)))
 
         return fnamer, fnamei
+     
+    def remove_solfiles(self):       
+        dprint1("clear sol: ", os.getcwd())                  
+        d = os.getcwd()
+        files = os.listdir(d)
+        for file in files:
+            if file.startswith('solmesh'): os.remove(os.path.join(d, file))
+            if file.startswith('solr'): os.remove(os.path.join(d, file))
+            if file.startswith('soli'): os.remove(os.path.join(d, file))
+            if file.startswith('checkpoint.'): os.remove(os.path.join(d, file))
+            if file.startswith('sol_extended'): os.remove(os.path.join(d, file))
+            if file.startswith('proble'): os.remove(os.path.join(d, file))
+            if file.startswith('matrix'): os.remove(os.path.join(d, file))
+            if file.startswith('rhs'): os.remove(os.path.join(d, file))
+            if file.startswith('checkpoint_'): shutil.removetree(os.path.joij(d, file))   
 
     def clear_solmesh_files(self, header):
         try:
@@ -2132,9 +2148,8 @@ class Engine(object):
                else:
                   assert False, "update mode not supported: mode = "+mode
                   
-    def call_dwc(self, phys_range, method='', callername = '', args = ''):
+    def call_dwc(self, phys_range, method='', callername = '', args = '', **kwargs):
 
-        kwargs = {}
         for phys in phys_range:
             for name in phys.dep_vars:
                 rifes = self.r_ifes(name)
@@ -2147,6 +2162,7 @@ class Engine(object):
        
         g = self.model['General']._global_ns
         dwc = g[self.model['General'].dwc_object_name]
+        args0, kwargs = dwc.make_args(method, kwargs)
 
         m = getattr(dwc, method)
 
@@ -2158,7 +2174,10 @@ class Engine(object):
             traceback
             traceback.print_exc()
             assert False, "Failed to convert text to argments"
+            
         for k in kwargs2: kwargs[k] = kwargs2[k]
+        args = tuple(list(args0) + list(args))
+        
         try:
             m(callername, *args, **kwargs)
         except:
@@ -2235,8 +2254,14 @@ class SerialEngine(Engine):
 
     def mkdir(self, path):
         if not os.path.exists(path):  os.mkdir(path)
+        
+    def open_file(self, *args, **kwargs):
+        return open(*args, **kwargs)
+     
     def cleancwd(self):
         for f in os.listdir("."): os.remove(f)
+
+    '''
     def remove_solfiles(self):       
         dprint1("clear sol: ", os.getcwd())                  
         d = os.getcwd()
@@ -2245,8 +2270,13 @@ class SerialEngine(Engine):
             if file.startswith('solmesh'): os.remove(os.path.join(d, file))
             if file.startswith('solr'): os.remove(os.path.join(d, file))
             if file.startswith('soli'): os.remove(os.path.join(d, file))
-
-
+            if file.startswith('checkpoint.'): os.remove(os.path.join(d, file))
+            if file.startswith('sol_extended'): os.remove(os.path.join(d, file))
+            if file.startswith('proble'): os.remove(os.path.join(d, file))
+            if file.startswith('matrix'): os.remove(os.path.join(d, file))
+            if file.startswith('rhs'): os.remove(os.path.join(d, file))
+            if file.startswith('checkpoint_'): shutil.removetree(os.path.joij(d, file))   
+    '''
     def a2A(self, a):  # BilinearSystem to matrix
         # we dont eliminate essentiaal at this level...                 
         inta = mfem.intArray()
@@ -2562,7 +2592,13 @@ class ParallelEngine(Engine):
            if not os.path.exists(path): os.mkdir(path)           
         else:
            pass
-        MPI.COMM_WORLD.Barrier()                
+        MPI.COMM_WORLD.Barrier()
+
+    def open_file(self, *args, **kwargs):
+        myid     = MPI.COMM_WORLD.rank                
+        if myid == 0:
+           return open(*args, **kwargs)
+        return
 
     def cleancwd(self):
         myid     = MPI.COMM_WORLD.rank                
@@ -2576,12 +2612,7 @@ class ParallelEngine(Engine):
         dprint1("clear sol: ", os.getcwd())                  
         myid     = MPI.COMM_WORLD.rank                
         if myid == 0:
-            d = os.getcwd()
-            files = os.listdir(d)
-            for file in files:
-                if file.startswith('solmesh'): os.remove(os.path.join(d, file))
-                if file.startswith('solr'): os.remove(os.path.join(d, file))
-                if file.startswith('soli'): os.remove(os.path.join(d, file))
+            super(ParallelEngine, self).remove_solfiles()
         else:
             pass
         MPI.COMM_WORLD.Barrier()

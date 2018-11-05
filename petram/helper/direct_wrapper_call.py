@@ -17,11 +17,39 @@ class DWC(object):
     def __init__(self):
         pass
 
+    def make_args(self, mode, kwargs):
+        if mode == 'postprocess':
+            return tuple(), kwargs
+        elif mode == 'timestep':
+            t = kwargs.pop('time')
+            return (t, ), kwargs
+        elif mode == 'checkpoint':
+            t = kwargs.pop('time')
+            icp = kwargs.pop('icheckpoint')
+            return (t, icp), kwargs
+        else:
+            assert False, "unknown DWC method :" + mode
+            
     def postprocess(self, caller,  *args, **kwargs):
         ''' 
         postprocess is called from solvestep after store_sol
         '''
         raise NotImplementedError("postprocess must be implemented by a user")
+    
+    def timestep(self, caller, t, *args, **kwargs):
+        ''' 
+        timestep is called from time-dependent solver at every time step
+        t = current time
+        '''      
+        raise NotImplementedError("timestep must be implemented by a user")
+    
+    def checkpoint(self, caller, t, cp, *args, **kwargs):
+        ''' 
+        timestep is called from time-dependent solver at checkpoint
+        t = current time
+        cp = check pioint index
+        '''
+        raise NotImplementedError("checkpoint must be implemented by a user")
 
 ### sample DWC class (see em3d_TE8.pfz)    
 class Eval_E_para(DWC):

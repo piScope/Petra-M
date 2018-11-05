@@ -27,6 +27,10 @@ class TimeDomain(Solver):
         v['ts_method'] = "Backward Eular"
         v['abe_minstep']= 0.01
         v['abe_maxstep']= 1.0
+        v['use_dwc_cp']   = False   # check point               
+        v['dwc_cp_arg']   = ''      
+        v['use_dwc_ts']   = False   # every time step
+        v['dwc_ts_arg']   = ''      
         
         super(TimeDomain, self).attribute_set(v)
         return v
@@ -34,14 +38,23 @@ class TimeDomain(Solver):
     def panel1_param(self):
         elp_be =  [["dt", "", 0, {}],]
         elp_abe =  [["min. dt", "", 0, {}],
-                    ["max. dt", "", 0, {}],]                
+                    ["max. dt", "", 0, {}],]
+        ret_cp = ["args.",   self.dwc_cp_arg,   0, {},]
+        value_cp = self.dwc_cp_arg
+        ret_ts = ["args.",   self.dwc_ts_arg,   0, {},]
+        value_ts = self.dwc_ts_arg
+        
         return [#["Initial value setting",   self.init_setting,  0, {},],
                 ["physics model",   self.phys_model,  0, {},],
                 ["start/end/#step",  "",  0, {},],
                 ["probes",   self.probe,  0, {},],                                
                 [None, None, 34, ({'text':'method','choices': ["Backward Eular", "Adaptive BE"], 'call_fit':False},
                                   {'elp':elp_be},
-                                  {'elp':elp_abe},)],                                 
+                                  {'elp':elp_abe},)],
+                [None, [False, [value_cp]], 27, [{'text':'Use DWC (check point)'},
+                                              {'elp': [ret_cp]}]],
+                [None, [False, [value_ts]], 27, [{'text':'Use DWC (time stepping)'},
+                                              {'elp': [ret_ts]}]],
                 ["clear working directory",
                  self.clear_wdir,  3, {"text":""}],
                 ["initialize solution only",
@@ -63,6 +76,8 @@ class TimeDomain(Solver):
                  [str(self.time_step),],
                  [str(self.abe_minstep), str(self.abe_maxstep),],
                 ],
+                [self.use_dwc_cp, [self.dwc_cp_arg,]],
+                [self.use_dwc_ts, [self.dwc_ts_arg,]],            
                 self.clear_wdir,
                 self.init_only,               
                 self.assemble_real,
@@ -77,16 +92,21 @@ class TimeDomain(Solver):
         st_et_nt = [tmp[0], tmp[1], ",".join(tmp[2:])]
         self.st_et_nt = [eval(x) for x in st_et_nt]
         self.probe = str(v[2])
-        self.clear_wdir = v[4]
-        self.init_only = v[5]        
-        self.assemble_real = v[6]
-        self.save_parmesh = v[7]
-        self.use_profiler = v[8]
+        self.clear_wdir = v[6]
+        self.init_only = v[7]        
+        self.assemble_real = v[8]
+        self.save_parmesh = v[9]
+        self.use_profiler = v[10]
         
         self.ts_method = str(v[3][0])
         self.time_step= float(v[3][1][0])
         self.abe_minstep= float(v[3][2][0])
-        self.abe_maxstep= float(v[3][2][1])                
+        self.abe_maxstep= float(v[3][2][1])
+        self.use_dwc_cp   = v[4][0]
+        self.dwc_cp_arg   = v[4][1][0]         
+        self.use_dwc_ts   = v[5][0]
+        self.dwc_ts_arg   = v[5][1][0]         
+        
 
     def get_possible_child(self):
         choice = []
@@ -136,6 +156,7 @@ class TimeDomain(Solver):
         if self.clear_wdir:
             engine.remove_solfiles()
 
+        fid = engine.open_file('checkpoint.'+self.name()+'.txt', 'w')
         st, et, nt = self.st_et_nt
         
         if self.ts_method == 'Backward Eular':
@@ -178,14 +199,33 @@ class TimeDomain(Solver):
                 instance.add_child_instance(child)
                 
             finished = False
+            if fid is not None:
+                fid.write(str(0)+':'+str(instance.time)+"\n")
             while not finished:
-                finished = instance.step(is_first)
+                finished, cp_written = instance.step(is_first)
+                if self.use_dwc_ts:
+                    engine.call_dwc(self.get_phys_range(),
+                                    method="timestep",
+                                    args = self.dwc_ts_arg,                                    
+                                    callername = self.name(),
+                                    time = instance.time)
+                if self.use_dwc_cp and cp_written:                
+                    engine.call_dwc(self.get_phys_range(),
+                                    method="checkpoint",
+                                    callername = self.name(),
+                                    args = self.dwc_cp_arg,                                    
+                                    time = instance.time,
+                                    icheckpoint = instance.icheckpoint-1)
+                    if fid is not None:
+                        fid.write(str(instance.icheckpoint-1)+':'+str(instance.time)+"\n")
 
         instance.save_solution(ksol = 0,
                                skip_mesh = False, 
                                mesh_only = False,
                                save_parmesh=self.save_parmesh)
-        instance.save_probe() 
+        instance.save_probe()
+        if fid is not None: fid.close()
+        
         return is_first       
         print(debug.format_memory_usage())
 
@@ -201,7 +241,6 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.pre_assembled = False
         self.assembled = False
         self.counter = 0
-        self.icheckpoint = 0
 
     '''    
     def init(self, init_only=False):
@@ -378,20 +417,22 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         engine.recover_sol(sol, access_idx=-1)
         ## ToDo. Provide a way to use Lagrange multipler in model
         extra_data = engine.process_extra(sol_extra)
-                
+
+        checkpoint_written = False
         if self.checkpoint[self.icheckpoint] < self.time:
             self.write_checkpoint_solution()
             self.icheckpoint += 1
+            checkpoint_written = True
             
         dprint1("TimeStep ("+str(self.counter)+ "), t="+str(self.time)+"...done.")
         dprint1(debug.format_memory_usage())        
-        return self.time >= self.et
+        return self.time >= self.et, checkpoint_written
 
     def write_checkpoint_solution(self):
         dprint1("writing checkpoint t=" + str(self.time) +
                 "("+str(self.icheckpoint)+")")        
         od = os.getcwd()
-        path = os.path.join(od, 'checkpoint_' + str(self.icheckpoint))
+        path = os.path.join(od, 'checkpoint_' + self.gui.name()+'_'+str(self.icheckpoint))
         self.engine.mkdir(path) 
         os.chdir(path)
         self.engine.cleancwd() 
