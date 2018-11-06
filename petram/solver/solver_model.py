@@ -97,6 +97,7 @@ class SolveStep(SolverBase):
         ret = []
         phys_test = self.get_phys()
         for n in self.phys_model.split(','):
+            n = n.strip()
             p =  phys_root.get(n, None)
             if p is None: continue
             if not p in phys_test: phys_test.append(p)
