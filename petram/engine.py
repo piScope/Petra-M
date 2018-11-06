@@ -1897,7 +1897,7 @@ class Engine(object):
             if file.startswith('proble'): os.remove(os.path.join(d, file))
             if file.startswith('matrix'): os.remove(os.path.join(d, file))
             if file.startswith('rhs'): os.remove(os.path.join(d, file))
-            if file.startswith('checkpoint_'): shutil.removetree(os.path.joij(d, file))   
+            if file.startswith('checkpoint_'): shutil.rmtree(os.path.joij(d, file))   
 
     def clear_solmesh_files(self, header):
         try:
