@@ -47,7 +47,7 @@ class SolveStep(SolverBase):
         ret = ["args.",   self.dwc_pp_arg,   0, {},]
         value = self.dwc_pp_arg
         return [["Initial value setting",   self.init_setting,   0, {},],
-                ["physics model(blank=auto)",   self.phys_model, 0, {},],
+                ["addtional physics for range (blank: range = test)",   self.phys_model, 0, {},],
                 [None, [False, [value]], 27, [{'text':'Use DWC (postprocess)'},
                                               {'elp': [ret]}]],]
 
@@ -94,14 +94,21 @@ class SolveStep(SolverBase):
         #  phys for X and col of M
         #
         phys_root = self.root()['Phys']
-        ret = []        
+        ret = []
+        phys_test = self.get_phys()
+        for n in self.phys_model.split(','):
+            p =  phys_root.get(n, None)
+            if p is None: continue
+            if not p in phys_test: phys_test.append(p)
+        return phys_test
+        '''
         if self.phys_model.strip() ==  '':
             return self.get_phys()
         else:
-            names = self.phys_model.split(',')
+
             names = [n.strip() for n in names if n.strip() != '']        
             return [phys_root[n] for n in names]
-
+        '''
     def get_target_phys(self):
         return []
     
@@ -168,6 +175,7 @@ class SolveStep(SolverBase):
         engine.run_fill_X_block()
 
     def run(self, engine, is_first = True):
+        dprint1("Entering SolveStep :" + self.name())
         solvers = self.get_active_solvers()
 
         # initialize and assemble here
