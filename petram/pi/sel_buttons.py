@@ -7,6 +7,7 @@ from petram.utils import get_pkg_datafile
 
 fdotbk = get_pkg_datafile(petram.pi, 'icon',  'dot_bk.png')
 fedgebk = get_pkg_datafile(petram.pi, 'icon', 'line_bk.png')
+ffacebk = get_pkg_datafile(petram.pi, 'icon', 'face_bk.png')
 fdot = get_pkg_datafile(petram.pi, 'icon',  'dot.png')
 fedge = get_pkg_datafile(petram.pi, 'icon', 'line.png')
 fface = get_pkg_datafile(petram.pi, 'icon', 'face.png')
@@ -149,6 +150,26 @@ def toggle_edge(evt):
     viewer.canvas.unselect_all()
     #viewer.draw_all()
     
+def toggle_face(evt):
+    viewer = evt.GetEventObject().GetTopLevelParent()
+    mode = viewer._sel_mode
+
+    ax = viewer.get_axes()
+    children = [(name, child) for name, child in ax.get_children() if name.startswith('face')]
+    isSuppressed = any([c.isSuppressed for n, c in children])
+    
+    if isSuppressed:
+        for n, c in children:
+            c.onUnSuppress()
+            wx.CallAfter(c.set_gl_hl_use_array_idx, True)           
+    else:
+        for n, c in children:        
+            c.onSuppress()
+            wx.CallAfter(c.set_gl_hl_use_array_idx, True)                       
+
+    viewer.canvas.unselect_all()
+    wx.CallAfter(viewer.canvas.refresh_hl)
+    
 def make_solid(evt):
     viewer = evt.GetEventObject().GetTopLevelParent()
     mode = viewer._sel_mode
@@ -179,6 +200,7 @@ btask = [
          ('---', None, None, None),
          ('toggledot',    fdotbk,  0, 'toggle vertex', toggle_dot),
          ('toggleedge',   fedgebk, 0, 'toggle edge', toggle_edge),
+         ('toggleface',   ffacebk, 0, 'toggle face', toggle_face),    
          ('---', None, None, None),                           
          ('mshow',  fshowall,  0, 'show all', show_all),
          ('mhide',  fhide,  0, 'hide selection', hide_elem),
