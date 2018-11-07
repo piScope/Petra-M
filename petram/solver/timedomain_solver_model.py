@@ -216,7 +216,7 @@ class TimeDomain(Solver):
                                     args = self.dwc_cp_arg,                                    
                                     time = instance.time,
                                     icheckpoint = instance.icheckpoint-1)
-                    if fid is not None:
+                if cp_written and fid is not None:
                         fid.write(str(instance.icheckpoint-1)+':'+str(instance.time)+"\n")
 
         instance.save_solution(ksol = 0,
