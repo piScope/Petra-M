@@ -671,7 +671,7 @@ class Model(RestorableOrderedDict):
     def generate_main_script(self):
 
         script  = []
-        script.append('import time')
+        script.append('import time, datetime')
         script.append('stime = time.time()')
         script.append('if mfem_config.use_parallel:')
         script.append('    from petram.engine import ParallelEngine as Eng')
@@ -691,10 +691,11 @@ class Model(RestorableOrderedDict):
         script.append('for s in solvers:')
         script.append('    s.run(eng, is_first=is_first)')
         script.append('    is_first=False')
+        script.append('')        
         script.append('if myid == 0:')
         script.append('    print("End Time " + ')
-        script.append('          datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")')
-        script.append('    print("Total Elapsed Time: " + str(time.time()-stime) + "s"')
+        script.append('          datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f"))')
+        script.append('    print("Total Elapsed Time: " + str(time.time()-stime) + "s")')
         script.append('    print("Petra-M Normal End")')
         
         
@@ -732,7 +733,8 @@ class Model(RestorableOrderedDict):
                         parallel = False, filename = 'model.py'):
         if dir is None: dir = os.getcwd()        
         script = []
-        script.extend(['import os',
+        script.extend(['from __future__ import print_function', 
+                       'import os',
                        '#set default parallel/serial flag',
                        'try:',
                        '    from mpi4py import MPI',
