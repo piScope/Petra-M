@@ -12,7 +12,7 @@ from ifigure.utils.edit_list import EditListPanel
 from ifigure.utils.edit_list import EDITLIST_CHANGED
 from ifigure.utils.edit_list import EDITLIST_CHANGING
 from ifigure.utils.edit_list import EDITLIST_SETFOCUS
-from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList
+from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList, MiniFrameWithWindowList
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Dlg_plot_sol')
@@ -76,26 +76,28 @@ def run_in_piScope_thread(func):
                                                  useProcessEvent = True )
     return func2
 
+#class DlgPlotSol(MiniFrameWithWindowList):
 class DlgPlotSol(DialogWithWindowList):
     def __init__(self, parent, id = wx.ID_ANY, title = 'Plot Solution'):
         '''
         (use this style if miniframe is used)
-        style=wx.CAPTION|
+        style=(wx.CAPTION|
                        wx.CLOSE_BOX|
                        wx.MINIMIZE_BOX| 
                        wx.RESIZE_BORDER|
-                       wx.FRAME_FLOAT_ON_PARENT,
+                       wx.FRAME_FLOAT_ON_PARENT)
         '''
+        style =  wx.CAPTION|wx.CLOSE_BOX#|wx.RESIZE_BORDER        
         from petram.sol.evaluators import def_config
         self.config = def_config
         remote = parent.model.param.eval('remote')
-        host =  parent.model.param.eval('host')
         if remote is not None:
+            host =  parent.model.param.eval('host')            
             self.config['cs_soldir'] = remote['rwdir']
             self.config['cs_server'] = host.getvar('server')
             self.config['cs_user'] = host.getvar('user')
         
-        style = wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER
+        
         super(DlgPlotSol, self).__init__(parent, id, title, style=style)
 
         self.nb =  wx.Notebook(self)

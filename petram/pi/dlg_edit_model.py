@@ -69,13 +69,14 @@ class DlgEditModel(DialogWithWindowList):
         self.model = model if not model is None else MFEM_ModelRoot()
         '''
         (use this style if miniframe is used)
-        style=wx.CAPTION|
+        style=(wx.CAPTION|
                        wx.CLOSE_BOX|
                        wx.MINIMIZE_BOX| 
                        wx.RESIZE_BORDER|
-                       wx.FRAME_FLOAT_ON_PARENT,
+                       wx.FRAME_FLOAT_ON_PARENT)
         '''
-        style = wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER
+        style =  wx.CAPTION|wx.RESIZE_BORDER|wx.SYSTEM_MENU
+        #style = wx.RESIZE_BORDER
         super(DlgEditModel, self).__init__(parent, id, title, style=style)
         
         self.splitter = wx.SplitterWindow(self, wx.ID_ANY,
@@ -132,6 +133,15 @@ class DlgEditModel(DialogWithWindowList):
         self._focus_obj = None
         self._copied_item = None
         self.SetSize((600,400))
+        
+        hbox = wx.BoxSizer(wx.HORIZONTAL)
+        self.GetSizer().Add(hbox, 0, wx.EXPAND|wx.ALL,5)
+        button=wx.Button(self, wx.ID_ANY, "Close")
+        button.Bind(wx.EVT_BUTTON, self.OnClose)
+        hbox.AddStretchSpacer()
+        hbox.Add(button, 0, wx.ALL,1)
+        
+        
         
     def OnChildFocus(self, evt):
         self.GetParent()._palette_focus = 'edit'                

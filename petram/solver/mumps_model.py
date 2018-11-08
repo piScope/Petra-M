@@ -240,8 +240,9 @@ class MUMPSSolver(LinearSolver):
             col = A.col
             row = row.astype(dtype_int) + 1
             col = col.astype(dtype_int) + 1
-            dprint1('index data size ' , type(col[0]))
-            dprint1('matrix data type ' , type(A.data[0]))
+            if len(col) > 0:
+                dprint1('index data size ' , type(col[0]))
+                dprint1('matrix data type ' , type(A.data[0]))
 
             s.set_nz_loc(len(A.data))
             s.set_irn_loc(i_array(row))
@@ -269,8 +270,9 @@ class MUMPSSolver(LinearSolver):
                 col = A.col
                 row = row.astype(dtype_int) + 1
                 col = col.astype(dtype_int) + 1
-                dprint1('index data size ' , type(col[0]))
-                dprint1('matrix data type ' , type(A.data[0]))
+                if len(col) > 0:
+                    dprint1('index data size ' , type(col[0]))
+                    dprint1('matrix data type ' , type(A.data[0]))
 
                 s.set_n(A.shape[0])
 

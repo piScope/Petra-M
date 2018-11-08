@@ -537,7 +537,11 @@ class MFEMViewer(BookViewer):
         if projfile is not None:
             od.model_path = os.path.dirname(projfile)
         self.engine.set_model(od)
-        cdir = os.getcwd()
+        try:
+            cdir = os.getcwd()
+        except:
+            from os.path import expanduser            
+            cdir = expanduser("~")            
         
         try:
             os.chdir(self.model.owndir())

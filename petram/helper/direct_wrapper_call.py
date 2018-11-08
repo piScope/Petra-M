@@ -77,18 +77,23 @@ class Eval_E_para(DWC):
            get_extended_connectivity(mesh)
         l2e = mesh.extended_connectivity['line2edge']
         idx = safe_flatstack([l2e[e] for e in edges])
-        dofs = safe_flatstack([fes.GetEdgeDofs(i) for i in idx])
-        size = dofs.size/idx.size
+        if len(idx) > 0:
+            dofs = safe_flatstack([fes.GetEdgeDofs(i) for i in idx])
+            size = dofs.size/idx.size
 
-        w = []
-        for i in idx:
-            # don't put this Tr outside the loop....
-            Tr = mfem.IsoparametricTransformation()            
-            mesh.GetEdgeTransformation(i, Tr)
-            w.extend([Tr.Weight()]*size)
-        w = np.array(w)    
-        data = gfr.GetDataArray()[dofs] + 1j*gfi.GetDataArray()[dofs]
+            w = []
+            for i in idx:
+                # don't put this Tr outside the loop....
+                Tr = mfem.IsoparametricTransformation()            
+                mesh.GetEdgeTransformation(i, Tr)
+                w.extend([Tr.Weight()]*size)
+            w = np.array(w)    
+            data = gfr.GetDataArray()[dofs] + 1j*gfi.GetDataArray()[dofs]
+            field = data/w
+        else:
+            w = np.array([])
+            field = np.array([])            
         nicePrint(w)        
-        nicePrint(data/w)
+        nicePrint(field)
 
 
