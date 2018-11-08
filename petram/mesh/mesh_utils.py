@@ -505,7 +505,10 @@ def find_corner(mesh):
     iattr= mesh.GetAttributeArray()     # min of this array is 1
     nattr = np.max(iattr)
     nb = mesh.GetNE()
-    if mesh.GetNBE() == 0:    
+    nbe = mesh.GetNBE()
+    if use_parallel:
+        nbe = sum(allgather(nbe))
+    if nbe == 0:    
         return {}, {}, {}
 
     if use_parallel:
@@ -522,8 +525,12 @@ def find_corner(mesh):
         myoffsetf = np.array(0, dtype=int)
         myoffsetv = np.array(0, dtype=int)
         
-    battrs =  mesh.GetBdrAttributeArray()
-    iedges = np.hstack([mesh.GetBdrElementEdgeIndex(ibdr) for ibdr in
+    if mesh.GetNBE() == 0: # some parallel node may have zero boundary
+        battrs =  []
+        iedges = np.array([], dtype=int)
+    else:
+        battrs =  mesh.GetBdrAttributeArray()
+        iedges = np.hstack([mesh.GetBdrElementEdgeIndex(ibdr) for ibdr in
                         range(mesh.GetNBE())]).astype(int, copy=False)
     
     line2edge = GlobalNamedList()
@@ -538,6 +545,7 @@ def find_corner(mesh):
         for key2 in ld:
             if key2[0] == myid: continue
             iii = np.in1d(iedges, ld[key2][1], invert = True)
+            if len(iii) == 0: continue
             iedges = iedges[iii]
             battrs = battrs[iii]
 
