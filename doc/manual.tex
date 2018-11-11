@@ -111,6 +111,12 @@ where m is the mass coefficient, d is the damping coefficient, c is the diffusio
 
 '''
 \section{Radio Frequency (EM)}
+
+We employ $\exp{(-\omega t)}$ for time dependence. Then, from the Maxwell's equations, it follows,
+\begin{equation}
+\nabla \times \frac{1}{\mu_0} \nabla \times \mathbf{E} - (\omega^2 \epsilon + i \omega \sigma) \mathbf{E} = i \omega \mathbf{J}_{\rm ext}
+\end{equation}
+
 \subsection{3D frequency domain(EM3D)}
 \subsubsection{Weakform of the Maxwell's equation}
 This module uses the Cartesian coordinate system (x, y, z), and solves the following weakform of Maxwell equations. 

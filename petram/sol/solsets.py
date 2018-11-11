@@ -14,7 +14,10 @@ class Solfiles(object):
         return len(self.set)
     def __getitem__(self, idx):
         return Solfiles(self.set[idx])
-
+    @property
+    def path(self):
+        return os.path.dirname(self.set[0][0][0])
+    
 class MeshDict(dict):
     pass
         
@@ -119,82 +122,11 @@ def find_solfiles(path, idx = None):
             if solr is None: continue
             sol[n] = (solr, soli)
         solfiles.append([meshes, sol])                  
-    '''    
-    files = [x for x in solrfile if x.endswith(suffix)]
-    names = [x.split('.')[0] for x in files]    
-    names = ['_'.join(x.split('_')[1:3]) for x in names]
-    imeshes = [x.split('_')[-1] for x in names]    
-    # names = ['E_0'], meaning  E defined on mesh 0
-
-    solfiles = []
-    for x in mfiles:       
-       suffix = '' if len(x.split('.')) == 1 else '.'+x.split('.')[-1]
-       imesh_mfile = x.split('.')[0].split('_')[-1]
-       if idx is not None:
-          if int(suffix) in idx: continue
-       x = os.path.join(pathm, x)
-       sol = {}
-       for name, imesh in zip(names, imeshes):
-          if int(imesh) != int(imesh_mfile): continue
-          solr = (os.path.join(path, 'solr_'+name +suffix)
-                  if ('solr_'+name+suffix) in solrfile else None)
-          soli = (os.path.join(path,'soli_'+name+suffix)
-                  if ('soli_'+name+suffix) in solifile else None)
-          if solr is None: continue
-          sol[name] = (solr, soli)
-       solfiles.append([x, sol])     
-    '''     
     return Solfiles(solfiles)
 
 def read_solsets(path, idx = None, refine=0):
     solfiles = find_solfiles(path, idx)
     return Solsets(solfiles, refine=refine)
 read_sol = read_solsets
-'''    
-def read_solsets(path, idx = None):
-    import os
 
-    files = os.listdir(path)
-    mfiles = [x for x in files if x.startswith('solmesh')]
-    solrfile = [x for x in files if x.startswith('solr')]
-    solifile = [x for x in files if x.startswith('soli')]
-
-    if len(mfiles) == 0:
-        files2 = os.listdir(os.path.dirname(path))
-        mfiles = [x for x in files2 if x.startswith('solmesh')]
-        pathm = os.path.dirname(path)
-    else:
-        pathm = path
-    
-    import mfem.ser as mfem
-
-    solsets = []
-    x = mfiles[0]
-    suffix = '' if len(x.split('.')) == 1 else '.'+x.split('.')[-1]
-
-
-    files = [x for x in solrfile if x.endswith(suffix)]
-    names = [x.split('.')[0] for x in files]    
-    names = ['_'.join(x.split('_')[1:3]) for x in names]
-    # names = ['E_0'], meaning  E defined on mesh 0
-
-    for x in mfiles:       
-       suffix = '' if len(x.split('.')) == 1 else '.'+x.split('.')[-1]
-       if idx is not None:
-          if int(suffix) in idx: continue
-       x = os.path.join(pathm, x)
-       m = mfem.Mesh(x, 1, 1)
-       m.ReorientTetMesh()
-       sol = {}
-       for name in names:
-          solr = (mfem.GridFunction(m,
-                                    os.path.join(path, 'solr_'+name +suffix))
-                  if ('solr_'+name+suffix) in solrfile else None)
-          soli = (mfem.GridFunction(m,
-                                    os.path.join(path,'soli_'+name+suffix))
-                  if ('soli_'+name+suffix) in solifile else None)
-          sol[name] = (solr, soli)
-       solsets.append([m, sol])
-    return Solsets(solsets)
-'''
 

@@ -1,3 +1,4 @@
+import os
 import sys
 import wx
 import traceback
@@ -105,7 +106,8 @@ class DlgPlotSol(DialogWithWindowList):
         self.SetSizer(box)
         box.Add(self.nb, 1, wx.EXPAND|wx.ALL, 1)
         
-        tabs = ['GeomBdr', 'Edge', 'Bdr', 'Bdr(arrow)', 'Slice', 'Config']
+        tabs = ['GeomBdr', 'Edge', 'Bdr', 'Bdr(arrow)', 'Slice',
+                'Probe', 'Config']
         self.pages = {}
         self.elps = {}
         for t in tabs:
@@ -113,15 +115,9 @@ class DlgPlotSol(DialogWithWindowList):
             self.nb.AddPage(p, t)
             self.pages[t] = p
             
-
-        '''
-        iattr = [x().figobj.name.split('_')[1]
-                 for x in parent.canvas.selection
-                 if x().figobj.name.startswith('bdry')]
-        if len(iattr) > 0:
-            text = ','.join(iattr)
-        else:
-        '''
+        self.local_soldir    = None
+        self.local_solsubdir = None
+        
         text = 'all'
         mfem_model = parent.model.param.getvar('mfem_model')
         
@@ -167,7 +163,7 @@ class DlgPlotSol(DialogWithWindowList):
             choices = mfem_model['Phys'].keys()
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
-            if len(choices)==0: choices = ['no physcs in mode']
+            if len(choices)==0: choices = ['no physcs in model']
             ll = [['Expression', '', 0, {}],
                   ['x:', '', 0, {}],
                   ['y:', '', 0, {}],
@@ -195,7 +191,7 @@ class DlgPlotSol(DialogWithWindowList):
             choices = mfem_model['Phys'].keys()
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
-            if len(choices)==0: choices = ['no physcs in mode']
+            if len(choices)==0: choices = ['no physcs in model']
             ll = [['Expression', '', 0, {}],
                   ['Expression(x)', '', 0, {}],
                   ['Edge ', text, 0, {}],
@@ -230,7 +226,7 @@ class DlgPlotSol(DialogWithWindowList):
             choices = mfem_model['Phys'].keys()
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
-            if len(choices)==0: choices = ['no physcs in mode']
+            if len(choices)==0: choices = ['no physcs in model']
             
             s4 = {"style":wx.TE_PROCESS_ENTER,
                   "choices":[str(x+1) for x in range(10)]}
@@ -269,7 +265,7 @@ class DlgPlotSol(DialogWithWindowList):
             choices = mfem_model['Phys'].keys()
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
-            if len(choices)==0: choices = ['no physcs in mode']
+            if len(choices)==0: choices = ['no physcs in model']
             ll = [['Expression(u)', '', 0, {}],
                   ['Expression(v)', '', 0, {}],
                   ['Expression(w)', '', 0, {}],
@@ -303,7 +299,7 @@ class DlgPlotSol(DialogWithWindowList):
             choices = mfem_model['Phys'].keys()
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
-            if len(choices)==0: choices = ['no physcs in mode']
+            if len(choices)==0: choices = ['no physcs in model']
             ll = [['Expression', '', 0, {}],
                   ['Plane', '1.0, 0, 0, 0', 0, {}],
                   ['Domain Index', text, 0, {}],
@@ -326,16 +322,62 @@ class DlgPlotSol(DialogWithWindowList):
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL,1)
             
+        if 'Probe' in tabs:
+            p = self.pages['Probe']
+            vbox = wx.BoxSizer(wx.VERTICAL)
+            p.SetSizer(vbox)
+            
+            choices = mfem_model['Phys'].keys()
+            choices = [mfem_model['Phys'][c].fullpath() for c in choices]
+            if len(choices)==0: choices = ['no physcs in model']
+
+            ll = [['Expression', '', 0, {}],
+                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                                           'choices': choices}], ]
+
+            elp = EditListPanel(p, ll)
+            vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
+            self.elps['Probe'] = elp
+
+            hbox = wx.BoxSizer(wx.HORIZONTAL)
+            vbox.Add(hbox, 0, wx.EXPAND|wx.ALL,5)
+            button=wx.Button(p, wx.ID_ANY, "Apply")
+            button.Bind(wx.EVT_BUTTON, self.onApply)
+            hbox.AddStretchSpacer()
+            hbox.Add(button, 0, wx.ALL,1)
+            
         if 'Config' in tabs:
             p = self.pages['Config']
             vbox = wx.BoxSizer(wx.VERTICAL)
             p.SetSizer(vbox)
             
-            elp1 = [[None, "", 2]]
-            elp2 = [["number of workers", self.config['mp_worker'], 400,]]
-            elp3 = [["server", self.config['cs_server'], 0,],
-                    ["number of workers", self.config['cs_worker'], 400,],
-                    ["sol dir.", self.config['cs_soldir'], 0,], ]
+            elp1 = [["Sol", "sol", 4, {"style":wx.CB_READONLY,
+                                       "choices": ["sol", ], 
+                                       "UpdateUI": self.OnUpdateUI_local}],
+                    ["Sub dir.", "None", 4, {"style":wx.CB_READONLY,
+                                       "choices": ["", ]}, ],
+                    [None, None, 141, {"alignright": True,
+                                       "func": self.OnLoadLocalSol,
+                                       "noexpand": True,
+                                       "label": "Reload chocies"}],]
+            elp2 = [["Number of workers", self.config['mp_worker'], 400,],
+                    ["Sol", "sol", 4, {"style":wx.CB_READONLY,
+                                       "choices": ["sol", ], }],
+                    ["Sub dir.", "None", 4, {"style":wx.CB_READONLY,
+                                       "choices": ["", ]}, ],
+                    [None, None, 141, {"alignright": True,
+                                       "func": self.OnLoadLocalSol,
+                                       "noexpand": True,
+                                       "label": "Reload chocies"}],]
+            elp3 = [["Server", self.config['cs_server'], 0,],
+                    ["Number of workers", self.config['cs_worker'], 400,],
+                    ["Sol dir.", self.config['cs_soldir'], 0,], 
+                    ["Sub dir.", "None", 4, {"style":wx.CB_READONLY,
+                                       "choices": ["", ]}, ],
+                    [None, None, 141, {"alignright": True,
+                                       "func": self.OnUpdateUI_remote,
+                                       "noexpand": True,
+                                       "label": "Reload choices"}],]
             
             ll = [[None, None, 34, ({'text': "Worker Mode",
                                      'choices': ['Single', 'MP', 'C/S'],
@@ -345,11 +387,15 @@ class DlgPlotSol(DialogWithWindowList):
                                     {'elp': elp3},),],]
             
             elp = EditListPanel(p, ll)
+            print "widgets", elp.widgets
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
             self.elps['Config'] = elp
-            elp.SetValue([['Single', [''], [2], [self.config['cs_server'],
-                                                 self.config['cs_worker'],
-                                                 self.config['cs_soldir']]],])
+            elp.SetValue([['Single', ['', 'sol', "", None],
+                                     [2, 'sol', "", None],
+                                     [self.config['cs_server'],
+                                      self.config['cs_worker'],
+                                      self.config['cs_soldir'],
+                                      '', None]],])
             
             
         self.Show()
@@ -368,8 +414,121 @@ class DlgPlotSol(DialogWithWindowList):
         self.evaluators = {}
         self.solfiles = {}
 
-        self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)        
+        self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
+
+    def update_subdir_local(self, path, ss1):
+        single_cb2 = self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]
+        multi_cb2  = self.elps['Config'].widgets[0][0].elps[1].widgets[2][0]
+
+        from petram.sol.listsoldir import gather_soldirinfo
+        info = gather_soldirinfo(path)
         
+        dirnames = [""]
+        choices = [""]
+        solvers = info["checkpoint"].keys()
+        for solver in solvers:
+            kk = sorted(info["checkpoint"][solver].keys())
+            for k in kk:
+                dirnames.append(info["checkpoint"][solver][k])
+                choices.append(solver+"("+str(k[1]) + ")")
+        choices = choices + info["cases"]
+        dirnames = dirnames + info["cases"]
+
+        single_cb2.SetChoices(choices)
+        multi_cb2.SetChoices(choices)
+
+        if ss1 in dirnames:
+            single_cb2.SetSelection(dirnames.index(ss1))
+            multi_cb2.SetSelection(dirnames.index(ss1))
+        else:
+            ss1 = dirnames[0]
+
+        probes = info["probes"] # mapping from probe name to file
+        self.local_sols = (path, probes, dict(zip(choices, dirnames)))
+        return ss1
+        
+    def update_sollist_local(self):
+        model = self.GetParent().model
+
+        sol_names = [name for name, child in  model.solutions.get_children()]
+        sols =  [child for name, child in  model.solutions.get_children()]
+        
+        single_cb1 = self.elps['Config'].widgets[0][0].elps[0].widgets[0][0]
+        multi_cb1  = self.elps['Config'].widgets[0][0].elps[1].widgets[1][0]
+
+        param = model.param        
+        solfiles = model.variables.getvar('solfiles')
+
+        if self.local_soldir is not None:
+            s1 = self.local_soldir
+            ss1 = self.local_solsubdir
+        else:
+            if model.param.eval('sol') is not None:
+                s1 = model.param.eval('sol').owndir()
+                ss1 = ""
+            else:
+                s1 = None
+                ss1 = None
+
+        if s1 is None:
+           s1 = str(single_cb1.GetString(single_cb1.GetSelection()))
+           s2 = str(multi_cb1.GetString(multi_cb1.GetSelection()))
+        else:
+           s2 = s1
+        
+        single_cb1.SetChoices(sol_names)#+["Other..."])
+        if s1 in sol_names:
+            single_cb1.SetSelection(sol_names.index(s1))
+
+        multi_cb1.SetChoices(sol_names)#+["Other..."])                    
+        if s2 in sol_names:
+            multi_cb1.SetSelection(sol_names.index(s2))            
+
+        s1 = str(single_cb1.GetString(single_cb1.GetSelection()))
+        s2 = str(multi_cb1.GetString(multi_cb1.GetSelection()))
+                    
+        single_cb2 = self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]
+        multi_cb2  = self.elps['Config'].widgets[0][0].elps[1].widgets[2][0]
+
+        path = sols[sol_names.index(s1)].owndir()
+        self.update_subdir_local(path, ss1)
+
+    def OnLoadLocalSol(self, evt):
+        self.update_sollist_local()
+        self.load_sol_if_needed()
+        '''
+        from petram.sol.listsoldir import gather_soldirinfo
+        info = gather_soldirinfo(path)
+        
+        dirnames = [""]
+        choices = [""]
+        solvers = info["checkpoint"].keys()
+        for solver in solvers:
+            kk = sorted(info["checkpoint"][solver].keys())
+            for k in kk:
+                dirnames.append(info["checkpoint"][solver][k])
+                choices.append(solver+"("+str(k[1]) + ")")
+        choices = choices + info["cases"]
+        dirnames = dirnames + info["cases"]
+
+        single_cb2.SetChoices(choices)
+        multi_cb2.SetChoices(choices)
+
+        if ss1 in dirnames:
+            single_cb2.SetSelection(dirnames.index(ss1))
+            multi_cb2.SetSelection(dirnames.index(ss1))        
+
+        probes = info["probes"] # mapping from probe name to file
+        self.local_sols = (path, probes, dict(zip(choices, dirnames)))
+        '''
+        
+    def OnUpdateUI_local(self, evt):
+        print "single UI update", evt.GetEventObject().GetParent()        
+        self.update_sollist_local()
+
+    def OnUpdateUI_remote(self, evt):
+        print "CS UI update", evt.GetEventObject().GetParent()
+         
     def OnChildFocus(self, evt):
         self.GetParent()._palette_focus = 'plot'        
         evt.Skip()
@@ -396,20 +555,57 @@ class DlgPlotSol(DialogWithWindowList):
         self.Destroy()
         evt.Skip()
 
+    def load_sol_if_needed(self):
+        from petram.sol.solsets import read_sol, find_solfiles        
+        model = self.GetParent().model
+        solfiles = model.variables.getvar('solfiles')
+
+        doit = False
+        if solfiles is not None:
+            cpath = os.path.dirname(solfiles.set[0][0][0])
+            npath = os.path.join(self.local_soldir, self.local_solsubdir)
+
+            if npath != cpath: doit =True
+        else:
+            doit = True
+            if self.local_soldir is not None:
+                npath = os.path.join(self.local_soldir, self.local_solsubdir)
+            else:
+                npath = model.param.eval('sol').owndir()
+                self.local_soldir = npath
+                self.local_solsubdir = ""
+        if doit:
+            try:
+                print "reading sol from ", npath
+                solfiles = find_solfiles(path = npath)
+                model.variables.setvar('solfiles', solfiles)          
+            except:
+                import traceback
+                traceback.print_exc()
+                model.variables.delvar('solfiles')
+
     def onEL_Changed(self, evt):
         model = self.GetParent().model
-
-        
         v  = self.elps['Config'].GetValue()
         #print str(v[0][0])
-        #print v
+        print v
         if str(v[0][0]) == 'Single':
             if (self.config['use_mp'] or
                 self.config['use_cs']):
                 self.evaluators = {}                
             self.config['use_mp'] = False
             self.config['use_cs'] = False
-            model.variables.setvar('remote_soldir', None)            
+            model.variables.setvar('remote_soldir', None)
+
+            #info (path, probes, dirnames)
+            sol = model.solutions.get_child(name=str(v[0][1][0]))
+            ss1 = self.local_sols[2][str(v[0][1][1])]
+            ss1 = self.update_subdir_local(sol.owndir(), ss1)
+            self.local_soldir    = sol.owndir()
+            self.local_solsubdir = ss1
+
+            self.load_sol_if_needed()
+            
         elif str(v[0][0]) == 'MP':
             if not self.config['use_mp']:
                 self.evaluators = {}
@@ -419,6 +615,15 @@ class DlgPlotSol(DialogWithWindowList):
             self.config['use_mp'] = True
             self.config['use_cs'] = False
             model.variables.setvar('remote_soldir', None)
+            
+            sol = model.solutions.get_child(name=str(v[0][1][0]))
+            ss1 = self.local_sols[2][str(v[0][1][1])]
+            ss1 = self.update_subdir_local(sol.owndir(), ss1)
+            self.local_soldir    = sol.owndir()
+            self.local_solsubdir = ss1
+
+            self.load_sol_if_needed()
+            
         elif str(v[0][0]) == 'C/S':
             if not self.config['use_cs']:
                 self.evaluators = {}
@@ -1364,5 +1569,7 @@ class DlgPlotSol(DialogWithWindowList):
             return solfiles
         else:
             return soldir
+
+            
         
         

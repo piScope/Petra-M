@@ -59,29 +59,32 @@ class MFEMViewer(BookViewer):
                  ("Rebuild", self.onRebuildNS, None),                 
                  ("!", None, None),                 
                  ("Edit Model...", self.onEditModel, None),
-                 ("+Solve", None, None),]
-        
-        menus.append(("Serial",    self.onSerDriver, None),)
-        menus.append(("Parallel",  self.onParDriver, None),)
-        menus.extend([("+Server", None, None),
+                 ("+Solve", None, None),
+                 ("Serial",    self.onSerDriver, None),        
+                 ("Parallel",  self.onParDriver, None),
+                 ("+Extra", None, None),
+                 ("+Solution", None, None, None, ID_SOL_FOLDER),
+                 ("!", None, None),                                                                    
+                 ("---", None, None),                 
+                 ("New sol...",   self.onNewLocalSol, None),
+                 ("Clear sol", self.onClearSol, None),
+                 ("Preprocess data",   self.onRunPreprocess, None),
+                 ("!", None, None),                                  
+                 ("!", None, None),]        
+        menus.extend([("+Cluster", None, None),
                  ("Setting...", self.onServerSetting, None),
                  ("New WorkDir...", self.onServerNewDir, None),
                  ("Solve...", self.onServerSolve, None),
                  ("Retrieve File", self.onServerRetrieve, None),                 
                  ("!", None, None),
-                 ("+Manual check", None, None),
-                 ("Preprocess data",  self.onRunPreprocess, None),
-                 ("!", None, None),                 
-                 ("!", None, None),
                  ("+Plot", None, None),
                  ("Function...",    self.onPlotExpr, None),
                  ("Solution ...",    self.onDlgPlotSol, None),
-                 ("Probe ...",    self.onDlgPlotProbe, None),                      
                  ("!", None, None),
-                 ("+Solution", None, None, None, ID_SOL_FOLDER),
-                 ("Reload Sol", None, None,), 
-                 ("Clear...",    self.onClearSol, None),                 
-                 ("!", None, None),                 
+                 #("+Solution", None, None, None, ID_SOL_FOLDER),
+                 #("Reload Sol", None, None,), 
+                 #("Clear...",    self.onClearSol, None),                 
+                 #("!", None, None),                 
                  ("+Export Model...", self.onSaveModel, None),
                  ("Binary...", self.onSaveModel, None),
                  ("Script/Data Files...", self.onSaveModelS, None),
@@ -237,52 +240,20 @@ class MFEMViewer(BookViewer):
                 m.DestroyItem(item)
             try:
                 dir =self.model.solutions.owndir()
-                sol_names = os.listdir(dir)
-                checkpoints = {}
-                for n in sol_names:
-                    for nn in os.listdir(os.path.join(dir, n)):
-                        if (nn.startswith('checkpoint.') and
-                            nn.endswith('.txt')):
-                            fid = open(os.path.join(dir, n, nn))
-                            lines = [l.strip().split(":") for l in fid.readlines()]
-                            lines = [(int(l[0]), float(l[1])) for l in lines]
-                            fid.close()
-                            solvername = nn.split('.')[1]
-                            checkpoints[solvername] = dict(lines)
-                sol_names = [n for n in sol_names 
-                             if os.path.isdir(os.path.join(dir, n))]
-                menus = []
-                for n in sol_names:
-                    flag = True
-                    for nn in sorted(os.listdir(os.path.join(dir, n))):
-                        if os.path.isdir(os.path.join(dir, n, nn)):
-                             flag = False
-                             if nn.startswith('checkpoint_'):
-                                 if len(nn.split('_')) > 2:
-                                    solvername = nn.split('_')[1]
-                                    icheckpoint = int(nn.split('_')[2])
-                                    time = str(checkpoints[solvername][icheckpoint])
-                                    if len(checkpoints.keys()) == 1:
-                                        menus.append((os.path.join(n, nn),
-                                                   n +'/'+ "checkpoint ("+str(time)+")"))
-                                    else:
-                                        menus.append((os.path.join(n, nn),
-                                                   n +'/'+nn + " ("+str(time)+")"))
-                                 else: # old format
-                                     menus.append((os.path.join(n, nn),
-                                                   n +'/'+nn))
-                                     
-                             else:
-                                 menus.append((os.path.join(n, nn), n +'/'+nn))
-                    if flag: menus.append((n, n))
+                sol_names = [x for x in os.listdir(dir) if os.path.isdir(os.path.join(dir, x))]
+                sol_names = sorted(sol_names)
+                menus = []                
+                for n in sol_names:                
+                    menus.append((n, n))                
             except:
-                #import traceback
-                #traceback.print_exc()
+                import traceback
+                traceback.print_exc()
                 evt.Enable(False)
                 return
             mm = []
             from petram.sol.solsets import read_solsets, find_solfiles            
             for m0, m2 in menus:
+                '''
                 def handler(evt, dir0 = m0):
                     self.model.scripts.helpers.rebuild_ns()                    
                     self.engine.assign_sel_index()
@@ -311,12 +282,34 @@ class MFEMViewer(BookViewer):
                     m.set_root_path(self.model.owndir())
                     
                     evt.Skip()
-                mm.append((m2, 'Load from ' + m0, handler))
-            mm.append(('Other...', 'Load from ohter place (FileDialog will open)',
-                       handler2))                
+                '''
+                def handler(evt, dir0 = m0):
+                    #self.model.scripts.helpers.rebuild_ns()                    
+                    #self.engine.assign_sel_index()
+                    #path = os.path.join(dir, dir0)
+                    #print('loading sol from ' + path)
+                    model = self.model
+                    folder = model.solutions.get_child(name = str(m0))
+                    param = model.param
+                    param.setvar('sol', '='+folder.get_full_path())
+                    m = self.model.param.getvar('mfem_model')        
+                    m.set_root_path(self.model.owndir())
+                    
+                    evt.Skip()
+
+                mm.append((m2, 'Store solution in ' + m0, handler))
+                
+            #mm.append(('Other...', 'Load from ohter place (FileDialog will open)',
+            #           handler2))
+            param = self.model.param        
+            sol = param.eval('sol')
+            choice = sol.name if sol is not None else None
+            
             if len(mm) > 0:
                for a,b,c in mm:
-                   mmi = self.add_menu(m, wx.ID_ANY, a, b, c)
+                   mmi = self.add_menu(m, wx.ID_ANY, a, b, c, kind = wx.ITEM_CHECK)
+                   if a == choice:
+                       mmi.Check(True)
             evt.Enable(True)
         else:
             super(MFEMViewer, self).onUpdateUI(evt)
@@ -1093,14 +1086,12 @@ class MFEMViewer(BookViewer):
                 self.plotsoldlg = DlgPlotSol(self)
         except:
             self.plotsoldlg = DlgPlotSol(self)
+        self.plotsoldlg.load_sol_if_needed()
             
     def onDlgPlotSolClose(self, evt):
         self.plotsoldlg = None
         evt.Skip()
 
-    def onDlgPlotProbe(self, evt):
-        pass
-    
     def onNewNS(self, evt):
         ret, txt = dialog.textentry(self, 
                                      "Enter namespace name", "New NS...", '')
@@ -1152,6 +1143,40 @@ class MFEMViewer(BookViewer):
         self.model.scripts.helpers.clear_sol(w = self)
         self.model.param.setvar('sol', None)
         evt.Skip()
+
+    def onNewLocalSol(self, evt):
+        import re
+        
+        model = self.model
+        if not model.has_child('solutions'): model.add_folder('solutions')
+        
+        param = model.param        
+        sol = param.eval('sol')
+        if sol is None:
+            names = sorted([x[0] for x in model.solutions.get_children()])
+        else:
+            names = [sol.name]
+        
+        if len(names) > 0:
+            numbers = [''.join(re.findall('\d+$',n))  for n in names]
+            numbers = [long(x if len(x)>0 else '0') for x in numbers]
+            basename = [n.rstrip('0123456789') for n in names]
+            txt = basename[-1] + str(numbers[-1]+1)
+        else:
+            txt = 'sol'
+        
+        from ifigure.widgets.dialog import textentry            
+        f,txt = textentry(self, message = 'Enter local sol name',
+                          title = 'Creating sol directory', 
+                          def_string = txt, center = True)
+        if not f: return
+        if not txt in names:
+            folder = model.solutions.add_folder(txt)
+            folder.mk_owndir()
+        else:
+            folder = model.solutions.get_child(name=txt)
+
+        param.setvar('sol', '='+folder.get_full_path())
 
     #def onActivate(self, evt):
     #    windows = [self.editdlg, self.plotsoldlg, self.plotexprdlg]
@@ -1207,9 +1232,8 @@ class MFEMViewer(BookViewer):
 
     def onServerNewDir(self, evt):
         import datetime, socket
-        from ifigure.widgets.dialog import textentry
-        remote = self.model.param.eval('remote')
 
+        remote = self.model.param.eval('remote')
         # this assumes file_sep is "/" on server..
         if remote is not None and remote['rwdir'].split('/')[-1] != '':
             txt = remote['rwdir'].split('/')[-1]+'_new'
@@ -1217,6 +1241,8 @@ class MFEMViewer(BookViewer):
             txt = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
             hostname = socket.gethostname()
             txt = txt + '_' + hostname
+            
+        from ifigure.widgets.dialog import textentry            
         f,txt = textentry(self, message = 'Enter remote directory name',
                           title = 'Creating remote directory', 
                           def_string = txt, center = True)
