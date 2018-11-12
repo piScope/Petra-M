@@ -4,6 +4,8 @@ import wx
 import traceback
 import numpy as np
 import weakref
+import subprocess as sp
+import cPickle as pk
 from collections import defaultdict
 from weakref import WeakKeyDictionary as WKD
 
@@ -30,6 +32,17 @@ def setup_figure(fig, fig2):
     fig.xlim(xlim)
     fig.ylim(ylim)
     fig.zlim(zlim)
+
+def read_solinfo_remote(server, path):
+    path = "/home/shiraiwa/myscratch/mfem_batch/pancake_10_2018v4_small_scale_0_2"    
+    txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
+
+    command = ["ssh", server, txt]
+    p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
+    p.wait()
+    res = ''.join(p.stdout.readlines()))
+    res = cPickle.loads(binascii.a2b_hex(res))    
+    return res
     
 from functools import wraps
 import threading
