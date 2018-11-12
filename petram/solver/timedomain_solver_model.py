@@ -436,6 +436,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
                             self.gui.name()+'_'+str(self.icheckpoint))
         self.engine.mkdir(path) 
         os.chdir(path)
+        os.symlink(os.path.join(od, 'model.pmfm'), 'model.pmfm')
         self.engine.cleancwd() 
         self.save_solution()
         os.chdir(od)        

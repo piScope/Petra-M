@@ -83,6 +83,8 @@ def find_solfiles(path, idx = None):
 
     files = os.listdir(path)
     mfiles = [x for x in files if x.startswith('solmesh')]
+    if len(mfiles) == 0:
+        return None
     solrfile = [x for x in files if x.startswith('solr')]
     solifile = [x for x in files if x.startswith('soli')]
 

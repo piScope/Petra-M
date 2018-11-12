@@ -24,6 +24,7 @@ import numpy as np
 import six
 import parser
 import weakref
+import os
 from weakref import WeakKeyDictionary as WKD
 from weakref import WeakValueDictionary as WVD
 
@@ -196,9 +197,11 @@ def build_evaluator(params,
     elif config['use_mp']:
        evaluator = EvaluatorMP(nproc = config['mp_worker'])        
     elif config['use_cs']:
+       solpath = os.path.join(config['cs_soldir'],
+                              config['cs_solsubdir'])
        evaluator = EvaluatorClient(nproc = config['cs_worker'],
                                    host  = config['cs_server'],
-                                   soldir = config['cs_soldir'],
+                                   soldir = solpath,
                                    user = config['cs_user'])
     else:
         raise ValueError("Unknown evaluator mode")

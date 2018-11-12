@@ -26,6 +26,7 @@ class ProbeEvaluator(EvaluatorAgent):
         from petram.sol.probe import load_probe
         
         path = probe_files[0]
+        path = os.path.expanduser(path)        
         probes = probe_files[1]
         
         st = parser.expr(expr)

@@ -437,9 +437,16 @@ class DlgPlotSol(DialogWithWindowList):
 
         self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
 
+    def get_remote_subdir_cb(self):
+        return self.elps['Config'].widgets[0][0].elps[2].widgets[3][0]
+    def get_local_single_subdir_cb(self):
+        return self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]        
+    def get_local_multi_subdir_cb(self):
+        return self.elps['Config'].widgets[0][0].elps[1].widgets[2][0]        
+        
     def update_subdir_local(self, path, ss1):
-        single_cb2 = self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]
-        multi_cb2  = self.elps['Config'].widgets[0][0].elps[1].widgets[2][0]
+        single_cb2 = self.get_local_single_subdir_cb()
+        multi_cb2  = self.get_local_multi_subdir_cb()
 
         from petram.sol.listsoldir import gather_soldirinfo
         info = gather_soldirinfo(path)
@@ -507,9 +514,6 @@ class DlgPlotSol(DialogWithWindowList):
 
         s1 = str(single_cb1.GetString(single_cb1.GetSelection()))
         s2 = str(multi_cb1.GetString(multi_cb1.GetSelection()))
-                    
-        single_cb2 = self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]
-        multi_cb2  = self.elps['Config'].widgets[0][0].elps[1].widgets[2][0]
 
         path = sols[sol_names.index(s1)].owndir()
         self.update_subdir_local(path, ss1)
@@ -529,7 +533,7 @@ class DlgPlotSol(DialogWithWindowList):
         choices = choices + info["cases"]
         dirnames = dirnames + info["cases"]
         
-        cb2  = self.elps['Config'].widgets[0][0].elps[2].widgets[3][0]
+        cb2  = self.get_remote_subdir_cb()
         cb2.SetChoices(choices)
         ss1 = str(cb2.GetValue())
         if ss1 in choices:
@@ -537,7 +541,8 @@ class DlgPlotSol(DialogWithWindowList):
             
         ss1 = str(cb2.GetValue())
         probes = info["probes"] # mapping from probe name to file
-        self.remote_sols = (path, probes, dict(zip(choices, dirnames)))
+        self.remote_sols = (self.config['cs_soldir'],
+                            probes, dict(zip(choices, dirnames)))
         return ss1
         
     def OnLoadLocalSol(self, evt):
@@ -603,11 +608,16 @@ class DlgPlotSol(DialogWithWindowList):
             try:
                 print "reading sol from ", npath
                 solfiles = find_solfiles(path = npath)
-                model.variables.setvar('solfiles', solfiles)          
+                if solfiles is None:
+                    if model.variables.hasvar('solfiles'):
+                         model.variables.delvar('solfiles')
+                else:
+                    model.variables.setvar('solfiles', solfiles)          
             except:
                 import traceback
                 traceback.print_exc()
-                model.variables.delvar('solfiles')
+                if model.variables.hasvar('solfiles'):                
+                    model.variables.delvar('solfiles')
 
     def onEL_Changed(self, evt):
         model = self.GetParent().model
@@ -654,14 +664,29 @@ class DlgPlotSol(DialogWithWindowList):
                 self.evaluators = {}
             if self.config['cs_worker'] != v[0][3][1]:
                 self.evaluators = {}
+            self.config['cs_worker'] = str(v[0][3][1])
+
+
+            reload_remote = False
+            if (not self.config['use_cs'] or
+                self.config['cs_server'] != str(v[0][3][0]) or
+                self.config['cs_soldir'] != str(v[0][3][2])):
+                reload_remote = True
                 
-            self.config['cs_worker'] = v[0][3][1]
             self.config['cs_server'] = str(v[0][3][0])
-            self.config['cs_soldir'] = str(v[0][3][2])                        
+            self.config['cs_soldir'] = str(v[0][3][2])
             self.config['use_mp'] = False
             self.config['use_cs'] = True
             model.variables.setvar('remote_soldir', self.config['cs_soldir'])
             
+            if reload_remote:
+                self.update_subdir_remote()
+                
+            cb2  = self.get_remote_subdir_cb()
+            ss1 = str(cb2.GetValue())
+            if ss1 != "":
+                 self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
+            print "remote subdir", self.config['cs_solsubdir']
         #print('EL changed', self.config)
 
     def onEL_Changing(self, evt):
