@@ -554,6 +554,7 @@ class DlgPlotSol(DialogWithWindowList):
         self.update_sollist_local()
 
     def OnUpdateUI_remote(self, evt):
+        pass
         #print "CS UI update", evt.GetEventObject().GetParent()
          
     def OnChildFocus(self, evt):
