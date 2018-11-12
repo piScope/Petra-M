@@ -104,6 +104,8 @@ class Parametric(SolveStep, NS_mixin):
             engine.cleancwd() 
         else:
             os.chdir(path)
+        if not os.path.exists('model.pmfm'):
+            os.symlink('../model.pmfm', 'model.pmfm')                    
         return od
 
 

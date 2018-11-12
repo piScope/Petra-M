@@ -39,11 +39,9 @@ def read_solinfo_remote(server, path):
     txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
 
     command = ["ssh", server, txt]
-    print command
     p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
     p.wait()
     res = p.stdout.readlines()
-    print res    
     res = res[-1].strip()
     res = pk.loads(binascii.a2b_hex(res))
     return res
@@ -408,7 +406,6 @@ class DlgPlotSol(DialogWithWindowList):
                                     {'elp': elp3},),],]
             
             elp = EditListPanel(p, ll)
-            print "widgets", elp.widgets
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
             self.elps['Config'] = elp
             elp.SetValue([['Single', ['', 'sol', "", None],
@@ -553,11 +550,11 @@ class DlgPlotSol(DialogWithWindowList):
         self.update_subdir_remote()
         
     def OnUpdateUI_local(self, evt):
-        print "single UI update", evt.GetEventObject().GetParent()        
+        #print "single UI update", evt.GetEventObject().GetParent()        
         self.update_sollist_local()
 
     def OnUpdateUI_remote(self, evt):
-        print "CS UI update", evt.GetEventObject().GetParent()
+        #print "CS UI update", evt.GetEventObject().GetParent()
          
     def OnChildFocus(self, evt):
         self.GetParent()._palette_focus = 'plot'        
@@ -686,7 +683,6 @@ class DlgPlotSol(DialogWithWindowList):
             ss1 = str(cb2.GetValue())
             if ss1 != "":
                  self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
-            print "remote subdir", self.config['cs_solsubdir']
         #print('EL changed', self.config)
 
     def onEL_Changing(self, evt):
@@ -1689,6 +1685,7 @@ class DlgPlotSol(DialogWithWindowList):
         if not self.config['use_cs']:
             return solfiles
         else:
+            soldir = os.path.join(soldir, self.config["cs_solsubdir"])
             return soldir
 
             
