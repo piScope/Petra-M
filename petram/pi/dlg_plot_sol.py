@@ -6,6 +6,7 @@ import numpy as np
 import weakref
 import subprocess as sp
 import cPickle as pk
+import binascii
 from collections import defaultdict
 from weakref import WeakKeyDictionary as WKD
 
@@ -34,14 +35,17 @@ def setup_figure(fig, fig2):
     fig.zlim(zlim)
 
 def read_solinfo_remote(server, path):
-    path = "/home/shiraiwa/myscratch/mfem_batch/pancake_10_2018v4_small_scale_0_2"    
+    #path = "/home/shiraiwa/myscratch/mfem_batch/pancake_10_2018v4_small_scale_0_2"    
     txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
 
     command = ["ssh", server, txt]
+    print command
     p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
     p.wait()
-    res = ''.join(p.stdout.readlines())
-    res = pk.loads(binascii.a2b_hex(res))    
+    res = p.stdout.readlines()
+    print res    
+    res = res[-1].strip()
+    res = pk.loads(binascii.a2b_hex(res))
     return res
     
 from functools import wraps
@@ -392,7 +396,7 @@ class DlgPlotSol(DialogWithWindowList):
                     ["Sub dir.", "None", 4, {"style":wx.CB_READONLY,
                                        "choices": ["", ]}, ],
                     [None, None, 141, {"alignright": True,
-                                       "func": self.OnUpdateUI_remote,
+                                       "func": self.OnLoadRemoteSol,
                                        "noexpand": True,
                                        "label": "Reload choices"}],]
             
@@ -510,13 +514,10 @@ class DlgPlotSol(DialogWithWindowList):
         path = sols[sol_names.index(s1)].owndir()
         self.update_subdir_local(path, ss1)
 
-    def OnLoadLocalSol(self, evt):
-        self.update_sollist_local()
-        self.load_sol_if_needed()
-        '''
-        from petram.sol.listsoldir import gather_soldirinfo
-        info = gather_soldirinfo(path)
-        
+    def update_subdir_remote(self):
+        info = read_solinfo_remote(self.config['cs_server'],
+                                   self.config['cs_soldir'])
+
         dirnames = [""]
         choices = [""]
         solvers = info["checkpoint"].keys()
@@ -527,17 +528,24 @@ class DlgPlotSol(DialogWithWindowList):
                 choices.append(solver+"("+str(k[1]) + ")")
         choices = choices + info["cases"]
         dirnames = dirnames + info["cases"]
-
-        single_cb2.SetChoices(choices)
-        multi_cb2.SetChoices(choices)
-
-        if ss1 in dirnames:
-            single_cb2.SetSelection(dirnames.index(ss1))
-            multi_cb2.SetSelection(dirnames.index(ss1))        
-
+        
+        cb2  = self.elps['Config'].widgets[0][0].elps[2].widgets[3][0]
+        cb2.SetChoices(choices)
+        ss1 = str(cb2.GetValue())
+        if ss1 in choices:
+            cb2.SetSelection(choices.index(ss1))
+            
+        ss1 = str(cb2.GetValue())
         probes = info["probes"] # mapping from probe name to file
-        self.local_sols = (path, probes, dict(zip(choices, dirnames)))
-        '''
+        self.remote_sols = (path, probes, dict(zip(choices, dirnames)))
+        return ss1
+        
+    def OnLoadLocalSol(self, evt):
+        self.update_sollist_local()
+        self.load_sol_if_needed()
+        
+    def OnLoadRemoteSol(self, evt):
+        self.update_subdir_remote()
         
     def OnUpdateUI_local(self, evt):
         print "single UI update", evt.GetEventObject().GetParent()        

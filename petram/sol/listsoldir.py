@@ -7,10 +7,11 @@
    checkpoint_
 '''
 import os
+from os.path import expanduser
 from collections import defaultdict
 
 def gather_soldirinfo(path):
-
+    path = expanduser(path)
     checkpoints = {}    
     for nn in os.listdir(path):
         if (nn.startswith('checkpoint.') and
