@@ -7,8 +7,6 @@
    checkpoint_
 '''
 import os
-import binascii
-
 from collections import defaultdict
 
 def gather_soldirinfo(path):
@@ -95,6 +93,8 @@ def gather_soldirinfo(path):
 
 def gather_soldirinfo_s(path):
     info = gather_soldirinfo(path)
-    import cPickle as pk
-    data = binascii.b2a_hex(cPickle.dumps(info))    
+    
+    import cPickle, binascii
+    data = binascii.b2a_hex(cPickle.dumps(info))
+    
     return data

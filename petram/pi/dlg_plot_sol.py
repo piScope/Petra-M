@@ -41,7 +41,7 @@ def read_solinfo_remote(server, path):
     p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
     p.wait()
     res = ''.join(p.stdout.readlines())
-    res = cPickle.loads(binascii.a2b_hex(res))    
+    res = pk.loads(binascii.a2b_hex(res))    
     return res
     
 from functools import wraps
