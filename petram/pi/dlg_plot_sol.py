@@ -40,7 +40,7 @@ def read_solinfo_remote(server, path):
     command = ["ssh", server, txt]
     p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
     p.wait()
-    res = ''.join(p.stdout.readlines()))
+    res = ''.join(p.stdout.readlines())
     res = cPickle.loads(binascii.a2b_hex(res))    
     return res
     
