@@ -117,7 +117,11 @@ class DlgPlotSol(DialogWithWindowList):
             
         self.local_soldir    = None
         self.local_solsubdir = None
-        
+
+        # these are sol info
+        self.local_sols = None                
+        self.remote_sols = None
+
         text = 'all'
         mfem_model = parent.model.param.getvar('mfem_model')
         
@@ -1296,7 +1300,36 @@ class DlgPlotSol(DialogWithWindowList):
 
         if data is None: return None, None
         return data, verts
-
+    
+    @run_in_piScope_thread    
+    def onApplyProbe(self, evt):
+        value = self.elps['Probe'] .GetValue()
+        expr = str(value[0]).strip()
+        
+        xdata, data = self.eval_probe(mode = 'plot')
+        if data is None:
+            wx.CallAfter(dialog.message, parent = self,
+                         message ='Error in evaluating probe', 
+                         title ='Error')
+            wx.CallAfter(self.set_title_no_status)        
+            return
+        self.post_threadend(self.make_plot_probe, (xdata, data), expr = expr)
+        
+    def make_plot_probe(self, data, expr='', cls=None):
+        from ifigure.interactive import figure
+        v = figure(viewer = cls)
+        v.update(False)        
+        v.suptitle(expr)
+        v.plot(data[0], data[1])
+        v.update(True)        
+        
+    def eval_probe(self, mode = 'plot'):
+        value = self.elps['Probe'] .GetValue()
+        expr = str(value[0]).strip()
+        phys_path = value[1]        
+        xdata, data = self.evaluate_sol_probe(expr, phys_path)
+        return xdata, data
+        
     #
     #   common routines
     #
@@ -1542,6 +1575,48 @@ class DlgPlotSol(DialogWithWindowList):
             wx.CallAfter(dialog.showtraceback,
                          parent = self,
                          txt='Failed to evauate expression',
+                         title='Error',
+                         traceback=''.join(traceback.format_exception_only(
+                                    sys.exc_info()[0], sys.exc_info()[1])))
+            wx.CallAfter(self.set_title_no_status)        
+        return None, None
+    
+    def evaluate_sol_probe(self, expr, phys_path):
+        model = self.GetParent().model
+        solfiles = self.get_model_soldfiles()
+        mfem_model = model.param.getvar('mfem_model')
+
+        attrs = [1]
+        if 'Probe' in self.evaluators:
+            try:
+                self.evaluators['Probe'].validate_evaluator('Probe', attrs, solfiles)
+            except IOError:
+                dprint1("IOError detected setting failed=True")
+                self.evaluators['Probe'].failed = True
+                
+        from petram.sol.evaluators import build_evaluator                
+        if (not 'Probe' in self.evaluators or
+            self.evaluators['Probe'].failed):
+            
+            self.evaluators['Probe'] =  build_evaluator(attrs, 
+                                                        mfem_model,
+                                                        solfiles,
+                                                        name = 'Probe',
+                                                        config = self.config)
+
+            
+        try:
+            if model.variables.getvar('remote_soldir') is None:
+                probes = self.local_sols[0:2]
+            else:
+                probes = self.remote_sols[0:2]
+
+            self.evaluators['Probe'].set_phys_path(phys_path)
+            return self.evaluators['Probe'].eval_probe(expr, probes)
+        except:
+            wx.CallAfter(dialog.showtraceback,
+                         parent = self,
+                         txt='Failed to evauate expression (probe)',
                          title='Error',
                          traceback=''.join(traceback.format_exception_only(
                                     sys.exc_info()[0], sys.exc_info()[1])))

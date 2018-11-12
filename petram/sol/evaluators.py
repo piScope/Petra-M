@@ -38,11 +38,13 @@ def evaluator_cls():
     from petram.sol.bdr_nodal_evaluator import BdrNodalEvaluator    
     from petram.sol.slice_evaluator import SliceEvaluator
     from petram.sol.edge_nodal_evaluator import EdgeNodalEvaluator
-    from petram.sol.ncface_evaluator import NCFaceEvaluator    
+    from petram.sol.ncface_evaluator import NCFaceEvaluator
+    from petram.sol.probe_evaluator import ProbeEvaluator        
     return {'BdrNodal': BdrNodalEvaluator,
             'EdgeNodal': EdgeNodalEvaluator,
             'NCFace':   NCFaceEvaluator,            
-            'Slice': SliceEvaluator,}    
+            'Slice': SliceEvaluator,
+            'Probe': ProbeEvaluator,}    
 
 class Evaluator(object):
     '''
@@ -153,6 +155,13 @@ class EvaluatorCommon(Evaluator):
                 a = cls([param], **kwargs)
                 a.set_mesh(m)
                 self.agents[param].append(a)
+                
+    def eval_probe(self, expr, **kwargs):
+        phys_path = self.phys_path
+        phys = self.mfem_model()[phys_path]
+        solvars = self.load_solfiles()
+        
+        if solvars is None: return None, None
 
 '''                
 from petram.sol.bdr_nodal_evaluator import BdrNodalEvaluator    

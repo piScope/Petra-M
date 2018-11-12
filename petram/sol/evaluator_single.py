@@ -139,4 +139,15 @@ class EvaluatorSingle(EvaluatorCommon):
             for x in data:
                 data0.extend([xx for xx in x if xx[0] is not None])
             data = data0
-        return data, attrs                                  
+        return data, attrs
+    
+    def eval_probe(self, expr, probes):
+        if self.phys_path == '': return None, None
+        
+        phys = self.mfem_model()[self.phys_path]
+
+        print self.agents
+        evaluator = self.agents[1][0]
+        return evaluator.eval_probe(expr, probes, phys)
+
+

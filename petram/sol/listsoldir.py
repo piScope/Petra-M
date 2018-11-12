@@ -90,3 +90,8 @@ def gather_soldirinfo(path):
                   'probes': dict(probes),
                   'cases': cases}
     return soldirinfo
+
+def gather_soldirinfo_s(path):
+    info = gather_soldirinfo(path)
+    import cPickle as pk
+    return pk.dumps(info)
