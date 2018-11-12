@@ -439,7 +439,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.engine.cleancwd() 
         self.save_solution()
         if not os.path.exists('model.pmfm'):        
-            os.symlink('../model.pmfm', 'model.pmfm')        
+            engine.symlink('../model.pmfm', 'model.pmfm')        
         os.chdir(od)        
 
 class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):

@@ -2254,6 +2254,9 @@ class SerialEngine(Engine):
 
     def mkdir(self, path):
         if not os.path.exists(path):  os.mkdir(path)
+
+    def symlink(self, target, link):
+        os.symlink(target, link)
         
     def open_file(self, *args, **kwargs):
         return open(*args, **kwargs)
@@ -2593,7 +2596,15 @@ class ParallelEngine(Engine):
         else:
            pass
         MPI.COMM_WORLD.Barrier()
-
+        
+    def symlink(self, target, link):
+        myid     = MPI.COMM_WORLD.rank
+        if myid == 0:        
+            os.symlink(target, link)
+        else:
+            pass
+        MPI.COMM_WORLD.Barrier()
+        
     def open_file(self, *args, **kwargs):
         myid     = MPI.COMM_WORLD.rank                
         if myid == 0:
