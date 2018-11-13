@@ -2599,8 +2599,9 @@ class ParallelEngine(Engine):
         
     def symlink(self, target, link):
         myid     = MPI.COMM_WORLD.rank
-        if myid == 0:        
-            os.symlink(target, link)
+        if myid == 0:
+            if not os.path.exists(link):                   
+                os.symlink(target, link)
         else:
             pass
         #MPI.COMM_WORLD.Barrier()
