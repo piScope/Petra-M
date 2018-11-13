@@ -24,6 +24,7 @@ import numpy as np
 import six
 import parser
 import weakref
+import os
 from weakref import WeakKeyDictionary as WKD
 from weakref import WeakValueDictionary as WVD
 
@@ -38,11 +39,13 @@ def evaluator_cls():
     from petram.sol.bdr_nodal_evaluator import BdrNodalEvaluator    
     from petram.sol.slice_evaluator import SliceEvaluator
     from petram.sol.edge_nodal_evaluator import EdgeNodalEvaluator
-    from petram.sol.ncface_evaluator import NCFaceEvaluator    
+    from petram.sol.ncface_evaluator import NCFaceEvaluator
+    from petram.sol.probe_evaluator import ProbeEvaluator        
     return {'BdrNodal': BdrNodalEvaluator,
             'EdgeNodal': EdgeNodalEvaluator,
             'NCFace':   NCFaceEvaluator,            
-            'Slice': SliceEvaluator,}    
+            'Slice': SliceEvaluator,
+            'Probe': ProbeEvaluator,}    
 
 class Evaluator(object):
     '''
@@ -153,6 +156,13 @@ class EvaluatorCommon(Evaluator):
                 a = cls([param], **kwargs)
                 a.set_mesh(m)
                 self.agents[param].append(a)
+                
+    def eval_probe(self, expr, **kwargs):
+        phys_path = self.phys_path
+        phys = self.mfem_model()[phys_path]
+        solvars = self.load_solfiles()
+        
+        if solvars is None: return None, None
 
 '''                
 from petram.sol.bdr_nodal_evaluator import BdrNodalEvaluator    
@@ -187,9 +197,11 @@ def build_evaluator(params,
     elif config['use_mp']:
        evaluator = EvaluatorMP(nproc = config['mp_worker'])        
     elif config['use_cs']:
+       solpath = os.path.join(config['cs_soldir'],
+                              config['cs_solsubdir'])
        evaluator = EvaluatorClient(nproc = config['cs_worker'],
                                    host  = config['cs_server'],
-                                   soldir = config['cs_soldir'],
+                                   soldir = solpath,
                                    user = config['cs_user'])
     else:
         raise ValueError("Unknown evaluator mode")

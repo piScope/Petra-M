@@ -15,7 +15,7 @@ class EvaluatorAgent(object):
     def set_mesh(self, mesh):
         self.mesh = weakref.ref(mesh)
 
-    def preprocess_geometry(self):
+    def preprocess_geometry(self, *args, **kwargs):
         raise NotImplementedError("subclass needs to implelment this")
 
     def eval(self, expr, solvars, phys):    

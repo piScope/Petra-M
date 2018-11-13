@@ -225,6 +225,9 @@ class EvaluatorClient(Evaluator):
 
     def eval(self,  *params, **kparams):
         return self.__call_server('eval', *params, **kparams)
+    
+    def eval_probe(self,  *params, **kparams):
+        return self.__call_server('eval_probe', *params, **kparams)
 
     def terminate_all(self):
         return self.__call_server('terminate_all')

@@ -137,11 +137,13 @@ class DlgEditModel(DialogWithWindowList):
         hbox = wx.BoxSizer(wx.HORIZONTAL)
         self.GetSizer().Add(hbox, 0, wx.EXPAND|wx.ALL,5)
         button=wx.Button(self, wx.ID_ANY, "Close")
-        button.Bind(wx.EVT_BUTTON, self.OnClose)
+        button.Bind(wx.EVT_BUTTON, self.CallClose)
         hbox.AddStretchSpacer()
         hbox.Add(button, 0, wx.ALL,1)
         
         
+    def CallClose(self, evt):
+        self.Close()
         
     def OnChildFocus(self, evt):
         self.GetParent()._palette_focus = 'edit'                

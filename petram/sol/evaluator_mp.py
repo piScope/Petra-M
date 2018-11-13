@@ -41,6 +41,11 @@ class BroadCastQueue(object):
        if join:
            for i in range(self.num):
                 self.queue[i].join()
+                
+   def put_single(self, value, join=False):
+       self.queue[0].put(value)
+       if join:
+          self.queue[0].join()
    def join(self):         
        for i in range(self.num):
            self.queue[i].join()
@@ -118,12 +123,21 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                         value = (None, None)
                     else:
                         value =  self.eval(task[1], **task[2])
+                        
+                elif task[0] == 8: # (7, expr)  = eval
+                    if self.solfiles is None:
+                        value = (None, None)
+                    else:
+                        value =  self.eval_probe(task[1], task[2])
+                        
             except:
                 traceback.print_exc()
                 value = (None, None)
             finally:
                 self.task_queue.task_done()
                 if task[0] == 7:
+                    self.result_queue.put(value)
+                if task[0] == 8:
                     self.result_queue.put(value)
                 
         #end of while
@@ -178,6 +192,15 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                 data[-1].append((v, c, a))
         #print("eval result", data, attrs)
         return data, attrs
+    
+    def eval_probe(self, expr, probes):
+        if self.phys_path == '': return None, None
+        
+        phys = self.mfem_model()[self.phys_path]
+        evaluator = self.agents[1][0]
+        
+        return evaluator.eval_probe(expr, probes, phys)
+    
         
 
 class EvaluatorMP(Evaluator):
@@ -328,6 +351,12 @@ class EvaluatorMP(Evaluator):
                 data0.extend([xx for xx in x if xx[0] is not None])
             data = data0
         return data, attrs
+    
+    def eval_probe(self, expr, probes):
+        self.tasks.put_single((8, expr, probes), join = True)
+        res = self.results.get()# for x in range(len(self.workers))]
+        self.results.task_done()
+        return res
     
     def terminate_all(self):
         #print('terminating all')      
