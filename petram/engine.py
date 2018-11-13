@@ -2603,7 +2603,7 @@ class ParallelEngine(Engine):
             os.symlink(target, link)
         else:
             pass
-        MPI.COMM_WORLD.Barrier()
+        #MPI.COMM_WORLD.Barrier()
         
     def open_file(self, *args, **kwargs):
         myid     = MPI.COMM_WORLD.rank                
