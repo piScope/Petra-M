@@ -12,11 +12,14 @@ from weakref import WeakKeyDictionary as WKD
 
 import ifigure.widgets.dialog as dialog
 import ifigure.events
+from ifigure.utils.cbook import BuildMenu
 from ifigure.utils.edit_list import EditListPanel
 from ifigure.utils.edit_list import EDITLIST_CHANGED
 from ifigure.utils.edit_list import EDITLIST_CHANGING
 from ifigure.utils.edit_list import EDITLIST_SETFOCUS
-from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList, MiniFrameWithWindowList
+from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList, MiniFrameWithWindowList, WithWindowList_MixIn
+
+from petram.pi.simple_frame_plus import SimpleFramePlus
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Dlg_plot_sol')
@@ -92,8 +95,11 @@ def run_in_piScope_thread(func):
                                                  useProcessEvent = True )
     return func2
 
+from petram.mfem_viewer import MFEM_menus
 #class DlgPlotSol(MiniFrameWithWindowList):
-class DlgPlotSol(DialogWithWindowList):
+#class DlgPlotSol(DialogWithWindowList):
+
+class DlgPlotSol(SimpleFramePlus):
     def __init__(self, parent, id = wx.ID_ANY, title = 'Plot Solution'):
         '''
         (use this style if miniframe is used)
@@ -103,7 +109,14 @@ class DlgPlotSol(DialogWithWindowList):
                        wx.RESIZE_BORDER|
                        wx.FRAME_FLOAT_ON_PARENT)
         '''
-        style =  wx.CAPTION|wx.CLOSE_BOX#|wx.RESIZE_BORDER        
+        #style =  wx.CAPTION|wx.CLOSE_BOX#|wx.RESIZE_BORDER
+        style = style=(wx.CAPTION|
+                       wx.CLOSE_BOX|
+                       wx.MINIMIZE_BOX| 
+                       wx.RESIZE_BORDER|
+                       wx.FRAME_FLOAT_ON_PARENT|
+                       wx.FRAME_TOOL_WINDOW)
+
         from petram.sol.evaluators import def_config
         self.config = def_config
         remote = parent.model.param.eval('remote')
@@ -115,6 +128,11 @@ class DlgPlotSol(DialogWithWindowList):
         
         
         super(DlgPlotSol, self).__init__(parent, id, title, style=style)
+        extra_menu = wx.Menu()  
+        self.menuBar.Insert(self.menuBar.GetMenuCount()-1, 
+                        extra_menu,"MFEM")
+        menus = MFEM_menus(parent)
+        ret = BuildMenu(extra_menu, menus)
 
         self.nb =  wx.Notebook(self)
         box = wx.BoxSizer(wx.VERTICAL)
@@ -424,8 +442,6 @@ class DlgPlotSol(DialogWithWindowList):
         self.Bind(EDITLIST_SETFOCUS, self.onEL_SetFocus)
         self.Bind(EVT_THREADEND, self.onThreadEnd)
 
-        self.Bind(wx.EVT_CLOSE, self.onClose)        
-        wx.GetApp().add_palette(self)
         wx.CallAfter(self.CentreOnParent)
 
         self.solvars = WKD()
@@ -558,7 +574,7 @@ class DlgPlotSol(DialogWithWindowList):
         #print "CS UI update", evt.GetEventObject().GetParent()
          
     def OnChildFocus(self, evt):
-        self.GetParent()._palette_focus = 'plot'        
+        self.GetParent()._palette_focus = 'plot'
         evt.Skip()
 
     def post_threadend(self, func, *args, **kwargs):
@@ -578,11 +594,6 @@ class DlgPlotSol(DialogWithWindowList):
         m(*args, **kargs)
         evt.Skip()
         
-    def onClose(self, evt):
-        wx.GetApp().rm_palette(self)
-        self.Destroy()
-        evt.Skip()
-
     def load_sol_if_needed(self):
         from petram.sol.solsets import read_sol, find_solfiles        
         model = self.GetParent().model
@@ -599,7 +610,12 @@ class DlgPlotSol(DialogWithWindowList):
             if self.local_soldir is not None:
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
             else:
-                npath = model.param.eval('sol').owndir()
+                sol = model.param.eval('sol')
+                if sol is None:
+                    if model.variables.hasvar('solfiles'):                
+                         model.variables.delvar('solfiles')
+                    return
+                npath = sol.owndir()
                 self.local_soldir = npath
                 self.local_solsubdir = ""
         if doit:
