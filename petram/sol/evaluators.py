@@ -178,6 +178,7 @@ def_config = {'use_mp': False,
               'cs_worker': 4,
               'cs_server': 'localhost',
               'cs_soldir': '',
+              'cs_solsubdir': '',              
               'cs_user':''}
 
 def build_evaluator(params,
