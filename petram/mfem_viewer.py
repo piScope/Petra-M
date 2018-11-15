@@ -34,7 +34,58 @@ from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
 #class MFEMViewerCanvas(ifigure_canvas):
 #    def unselect_all(self):    
 #        ifigure_canvas.unselect_all(self)
-        
+def MFEM_menus(parent):
+    self = parent
+    menus = [("+Open Model...", None, None),
+             #("Binary...", self.onOpenPMFEM, None, None),
+             ("Script/Data Files...", self.onOpenModelS, None),
+             ("!", None, None),                 
+             ("+Mesh", None, None), 
+             ("New Mesh File...",  self.onNewMesh, None),
+
+             ("Reload Mesh",  self.onLoadMesh, None),                  
+             ("!", None, None),
+             ("+Namespace", None, None),
+             ("New...", self.onNewNS, None),
+             ("Load...", self.onLoadNS, None),
+             ("Export...", self.onExportNS, None),
+             ("Rebuild", self.onRebuildNS, None),                 
+             ("!", None, None),                 
+             ("Edit Model...", self.onEditModel, None),
+             ("+Solve", None, None),
+             ("Serial",    self.onSerDriver, None),        
+             ("Parallel",  self.onParDriver, None),
+             ("+Extra", None, None),
+             ("+Store solution to", None, None, None, ID_SOL_FOLDER),
+             ("!", None, None),                                                  
+             ("---", None, None),                 
+             ("New sol...",   self.onNewLocalSol, None),
+             ("Clear sol", self.onClearSol, None),
+             ("Preprocess data",   self.onRunPreprocess, None),
+             ("!", None, None),                                  
+             ("!", None, None),
+             ("+Cluster", None, None),
+             ("Setting...", self.onServerSetting, None),
+             ("New WorkDir...", self.onServerNewDir, None),
+             ("Solve...", self.onServerSolve, None),
+             ("Retrieve File", self.onServerRetrieve, None),                 
+             ("!", None, None),
+             ("+Plot", None, None),
+             ("Function...",    self.onPlotExpr, None),
+             ("Solution ...",    self.onDlgPlotSol, None),
+             ("!", None, None),
+             #("+Solution", None, None, None, ID_SOL_FOLDER),
+             #("Reload Sol", None, None,), 
+             #("Clear...",    self.onClearSol, None),                 
+             #("!", None, None),                 
+             ("+Export Model...", self.onSaveModel, None),
+             ("Binary...", self.onSaveModel, None),
+             ("Script/Data Files...", self.onSaveModelS, None),
+             ("!", None, None),                                  
+             ("---", None, None),
+             ("Reset Model", self.onResetModel, None),]
+    return menus
+    
 class MFEMViewer(BookViewer):
     def __init__(self, *args, **kargs):
         kargs['isattachable'] = False
@@ -43,55 +94,7 @@ class MFEMViewer(BookViewer):
         extra_menu = wx.Menu()  
         self.menuBar.Insert(self.menuBar.GetMenuCount()-1, 
                         extra_menu,"MFEM")
-        menus = [("+Open Model...", None, None),
-                 #("Binary...", self.onOpenPMFEM, None, None),
-                 ("Script/Data Files...", self.onOpenModelS, None),
-                 ("!", None, None),                 
-                 ("+Mesh", None, None), 
-                 ("New Mesh File...",  self.onNewMesh, None),
-                 
-                 ("Reload Mesh",  self.onLoadMesh, None),                  
-                 ("!", None, None),
-                 ("+Namespace", None, None),
-                 ("New...", self.onNewNS, None),
-                 ("Load...", self.onLoadNS, None),
-                 ("Export...", self.onExportNS, None),
-                 ("Rebuild", self.onRebuildNS, None),                 
-                 ("!", None, None),                 
-                 ("Edit Model...", self.onEditModel, None),
-                 ("+Solve", None, None),
-                 ("Serial",    self.onSerDriver, None),        
-                 ("Parallel",  self.onParDriver, None),
-                 ("+Extra", None, None),
-                 ("+Solution", None, None, None, ID_SOL_FOLDER),
-                 ("!", None, None),                                                                    
-                 ("---", None, None),                 
-                 ("New sol...",   self.onNewLocalSol, None),
-                 ("Clear sol", self.onClearSol, None),
-                 ("Preprocess data",   self.onRunPreprocess, None),
-                 ("!", None, None),                                  
-                 ("!", None, None),]        
-        menus.extend([("+Cluster", None, None),
-                 ("Setting...", self.onServerSetting, None),
-                 ("New WorkDir...", self.onServerNewDir, None),
-                 ("Solve...", self.onServerSolve, None),
-                 ("Retrieve File", self.onServerRetrieve, None),                 
-                 ("!", None, None),
-                 ("+Plot", None, None),
-                 ("Function...",    self.onPlotExpr, None),
-                 ("Solution ...",    self.onDlgPlotSol, None),
-                 ("!", None, None),
-                 #("+Solution", None, None, None, ID_SOL_FOLDER),
-                 #("Reload Sol", None, None,), 
-                 #("Clear...",    self.onClearSol, None),                 
-                 #("!", None, None),                 
-                 ("+Export Model...", self.onSaveModel, None),
-                 ("Binary...", self.onSaveModel, None),
-                 ("Script/Data Files...", self.onSaveModelS, None),
-                 ("!", None, None),                                  
-                 ("---", None, None),
-                 ("Reset Model", self.onResetModel, None),])
-
+        menus = MFEM_menus(self)
         ret = BuildMenu(extra_menu, menus)
         self._solmenu = ret[ID_SOL_FOLDER]
         self._hidemesh = True
@@ -239,6 +242,7 @@ class MFEMViewer(BookViewer):
             for item in m.GetMenuItems():
                 m.DestroyItem(item)
             try:
+                if not self.model.solutions.has_owndir(): return 
                 dir =self.model.solutions.owndir()
                 sol_names = [x for x in os.listdir(dir) if os.path.isdir(os.path.join(dir, x))]
                 sol_names = sorted(sol_names)

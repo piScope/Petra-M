@@ -63,7 +63,10 @@ class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
         return len(self.GetSelections()) > 1
 
 #class DlgEditModel(MiniFrameWithWindowList):
-class DlgEditModel(DialogWithWindowList):
+
+from petram.pi.simple_frame_plus import SimpleFramePlus
+#class DlgEditModel(DialogWithWindowList):
+class DlgEditModel(SimpleFramePlus):
     def __init__(self, parent, id, title, model = None):
                        
         self.model = model if not model is None else MFEM_ModelRoot()
@@ -76,6 +79,13 @@ class DlgEditModel(DialogWithWindowList):
                        wx.FRAME_FLOAT_ON_PARENT)
         '''
         style =  wx.CAPTION|wx.RESIZE_BORDER|wx.SYSTEM_MENU
+        style = (wx.CAPTION|
+                 wx.CLOSE_BOX|
+                 wx.MINIMIZE_BOX| 
+                 wx.RESIZE_BORDER|
+                 wx.FRAME_FLOAT_ON_PARENT|
+                 wx.FRAME_TOOL_WINDOW)
+        
         #style = wx.RESIZE_BORDER
         super(DlgEditModel, self).__init__(parent, id, title, style=style)
         
@@ -134,12 +144,12 @@ class DlgEditModel(DialogWithWindowList):
         self._copied_item = None
         self.SetSize((600,400))
         
-        hbox = wx.BoxSizer(wx.HORIZONTAL)
-        self.GetSizer().Add(hbox, 0, wx.EXPAND|wx.ALL,5)
-        button=wx.Button(self, wx.ID_ANY, "Close")
-        button.Bind(wx.EVT_BUTTON, self.CallClose)
-        hbox.AddStretchSpacer()
-        hbox.Add(button, 0, wx.ALL,1)
+        #hbox = wx.BoxSizer(wx.HORIZONTAL)
+        #self.GetSizer().Add(hbox, 0, wx.EXPAND|wx.ALL,5)
+        #button=wx.Button(self, wx.ID_ANY, "Close")
+        #button.Bind(wx.EVT_BUTTON, self.CallClose)
+        #hbox.AddStretchSpacer()
+        #hbox.Add(button, 0, wx.ALL,1)
         
         
     def CallClose(self, evt):
