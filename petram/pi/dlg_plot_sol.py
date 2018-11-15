@@ -110,12 +110,12 @@ class DlgPlotSol(SimpleFramePlus):
                        wx.FRAME_FLOAT_ON_PARENT)
         '''
         #style =  wx.CAPTION|wx.CLOSE_BOX#|wx.RESIZE_BORDER
-        style = style=(wx.CAPTION|
-                       wx.CLOSE_BOX|
-                       wx.MINIMIZE_BOX| 
-                       wx.RESIZE_BORDER|
-                       wx.FRAME_FLOAT_ON_PARENT|
-                       wx.FRAME_TOOL_WINDOW)
+        style = (wx.CAPTION|
+                 wx.CLOSE_BOX|
+                 wx.MINIMIZE_BOX| 
+                 wx.RESIZE_BORDER|
+                 wx.FRAME_FLOAT_ON_PARENT|
+                 wx.FRAME_TOOL_WINDOW)
 
         from petram.sol.evaluators import def_config
         self.config = def_config
@@ -128,11 +128,6 @@ class DlgPlotSol(SimpleFramePlus):
         
         
         super(DlgPlotSol, self).__init__(parent, id, title, style=style)
-        extra_menu = wx.Menu()  
-        self.menuBar.Insert(self.menuBar.GetMenuCount()-1, 
-                        extra_menu,"MFEM")
-        menus = MFEM_menus(parent)
-        ret = BuildMenu(extra_menu, menus)
 
         self.nb =  wx.Notebook(self)
         box = wx.BoxSizer(wx.VERTICAL)

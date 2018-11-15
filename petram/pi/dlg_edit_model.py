@@ -63,10 +63,8 @@ class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
         return len(self.GetSelections()) > 1
 
 #class DlgEditModel(MiniFrameWithWindowList):
-from ifigure.utils.cbook import BuildMenu
-from petram.pi.simple_frame_plus import SimpleFramePlus
-from petram.mfem_viewer import MFEM_menus
 
+from petram.pi.simple_frame_plus import SimpleFramePlus
 #class DlgEditModel(DialogWithWindowList):
 class DlgEditModel(SimpleFramePlus):
     def __init__(self, parent, id, title, model = None):
@@ -81,20 +79,15 @@ class DlgEditModel(SimpleFramePlus):
                        wx.FRAME_FLOAT_ON_PARENT)
         '''
         style =  wx.CAPTION|wx.RESIZE_BORDER|wx.SYSTEM_MENU
-        style = style=(wx.CAPTION|
-                       wx.CLOSE_BOX|
-                       wx.MINIMIZE_BOX| 
-                       wx.RESIZE_BORDER|
-                       wx.FRAME_FLOAT_ON_PARENT|
-                       wx.FRAME_TOOL_WINDOW)
+        style = (wx.CAPTION|
+                 wx.CLOSE_BOX|
+                 wx.MINIMIZE_BOX| 
+                 wx.RESIZE_BORDER|
+                 wx.FRAME_FLOAT_ON_PARENT|
+                 wx.FRAME_TOOL_WINDOW)
         
         #style = wx.RESIZE_BORDER
         super(DlgEditModel, self).__init__(parent, id, title, style=style)
-        extra_menu = wx.Menu()  
-        self.menuBar.Insert(self.menuBar.GetMenuCount()-1, 
-                        extra_menu,"MFEM")
-        menus = MFEM_menus(parent)
-        ret = BuildMenu(extra_menu, menus)
         
         self.splitter = wx.SplitterWindow(self, wx.ID_ANY,
                                  style=wx.SP_NOBORDER|wx.SP_LIVE_UPDATE|wx.SP_3DSASH)

@@ -56,7 +56,7 @@ def MFEM_menus(parent):
              ("Serial",    self.onSerDriver, None),        
              ("Parallel",  self.onParDriver, None),
              ("+Extra", None, None),
-             ("+Solution", None, None, None, ID_SOL_FOLDER),
+             ("+Store solution to", None, None, None, ID_SOL_FOLDER),
              ("!", None, None),                                                  
              ("---", None, None),                 
              ("New sol...",   self.onNewLocalSol, None),

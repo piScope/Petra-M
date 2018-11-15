@@ -9,6 +9,8 @@ import ifigure.widgets.dialog as dialog
 import ifigure.events
 
 from ifigure.widgets.book_viewer import FramePlus
+from ifigure.utils.cbook import BuildMenu
+from petram.mfem_viewer import MFEM_menus
 
 class SimpleFramePlus(FramePlus):
     def __init__(self, parent, *args, **kargs):
@@ -26,6 +28,12 @@ class SimpleFramePlus(FramePlus):
         tw.windowlist.remove_item(self)
 
         #self.Bind(wx.EVT_MENU, lambda evt: frame.ProcessEvent(evt))
+        extra_menu = wx.Menu()  
+        self.menuBar.Insert(self.menuBar.GetMenuCount(), extra_menu,"MFEM")
+        menus = MFEM_menus(parent)
+        ret = BuildMenu(extra_menu, menus)
+        if not "wxMac" in wx.PlatformInfo:        
+            self.SetMenuBar(None)
         
     def onResize(self, evt):
         evt.Skip()
