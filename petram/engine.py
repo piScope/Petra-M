@@ -964,7 +964,8 @@ class Engine(object):
                     renewflag[(idx1, idx2)]=True
                     fillflag[(idx1, idx2)] =True
                 else:
-                    fillflag[(idx1, idx2)] =False
+                    if not (idx1, idx2) in fillflag:
+                        fillflag[(idx1, idx2)] =False
        
         is_complex = phys.is_complex()
         mixed_bf = {}
