@@ -752,13 +752,15 @@ class PhysModule(Phys):
            choice = ("Volume", "Surface", "Edge")
         elif self.geom_dim == 2:
            choice = ("Surface", "Edge")
+        elif self.geom_dim == 1:
+           choice = ("Edge")
 
-        p = ["Type", choice[0], 4,
-             {"style":wx.CB_READONLY, "choices": choice}]
         if self.dim_fixed:
             return [["index",  'all',  0,   {'changing_event':True,
                                             'setfocus_event':True}, ]]
         else:
+            p = ["Type", choice[0], 4,
+                {"style":wx.CB_READONLY, "choices": choice}]
             return [p, ["index",  'all',  0,   {'changing_event':True,
                                             'setfocus_event':True}, ]]
               
@@ -910,9 +912,6 @@ class PhysModule(Phys):
              dom_choice = list(set(sum(allgather(dom_choice),[])))
              bdr_choice = list(set(sum(allgather(bdr_choice),[])))
              internal_bdr = list(set(sum(allgather(internal_bdr),[])))             
-             #nicePrint("dom choice", dom_choice)
-             #nicePrint("bdr choice", bdr_choice)
-             #nicePrint("internal bdr", internal_bdr)
          
         # return unique list    
         return list(set(dom_choice)), list(set(bdr_choice)), list(set(internal_bdr))

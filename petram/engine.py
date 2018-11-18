@@ -1760,7 +1760,6 @@ class Engine(object):
             mesh.GetEdgeVertexTable()
             self.fespaces[name] = fes
 
-
     def get_fes(self, phys, kfes = 0, name = None):
         if name is None:
             name = phys.dep_vars[kfes]

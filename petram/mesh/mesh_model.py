@@ -196,7 +196,14 @@ class Mesh1D(Mesh):
             except:
                return False
             
-        return [["Length",   self.length_txt,  0, {"validator":check_int_array}],
+        def check_float_array(txt, param, w):
+            try:
+               val  = [float(x) for x in txt.split(',')]
+               return True
+            except:
+               return False
+            
+        return [["Length",   self.length_txt,  0, {"validator":check_float_array}],
                 ["N segments",   self.nsegs_txt,  0, {"validator":check_int_array}],
                 [None, "Note: use comma separated integer to generate a multisegments mesh",   2, {}],]
 
@@ -208,7 +215,7 @@ class Mesh1D(Mesh):
         self.nsegs_txt = str(v[1])
         
         try:
-            self.length = [int(x) for x in self.length_txt.split(',')]
+            self.length = [float(x) for x in self.length_txt.split(',')]
             self.nsegs= [int(x) for x in self.nsegs_txt.split(',')]
         except:
             pass
@@ -218,9 +225,10 @@ class Mesh1D(Mesh):
         from petram.mesh.make_mesh1d import straight_line_mesh
 
         m = straight_line_mesh(self.length, self.nsegs,
-                              filename='',
-                              refine = self.refine == 1,
-                              fix_orientation = self.fix_orientation)
+                               filename='',
+                               refine = self.refine == 1,
+                               fix_orientation = self.fix_orientation,
+                               sdim = 1)
         try:
            m.GetNBE()
            return m

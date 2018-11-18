@@ -592,7 +592,6 @@ class MFEMViewer(BookViewer):
                 else:
                     print('Volume: ' + str(i) + " not found")
             vfaces = list(set(vfaces))
-            print(vfaces)            
         else:
             vfaces = []
         

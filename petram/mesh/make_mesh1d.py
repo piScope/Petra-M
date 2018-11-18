@@ -39,7 +39,6 @@ def straight_line_mesh(lengths, nsegs, filename='',
         seg = mfem.Segment((i, i+1), A[i])
         mesh.AddElement(seg)
         seg.thisown = False        
-
     for i in range(X.shape[0]):
          pt = [0]*sdim
          pt[0] = X[i]

@@ -165,7 +165,7 @@ class VtableElement(object):
             row = self.shape[0]
             col = self.shape[1] if self.ndim == 2 else 1
             suffix = ['_'+x for x in self.suffix]
-            ret =  obj.make_matrix_panel(self.name, suffix, row = row,
+            ret =  obj.make_matrix_panel(self.guilabel, suffix, row = row,
                                          col = col,
                                          validator = validator,
                                          chk_float = chk_float,
@@ -262,7 +262,7 @@ class VtableElement(object):
                                             
         elif len(self.shape) == 0:
             if self.no_func:
-                pass
+                return getattr(obj, self.name)
             elif self.type == 'string':
                 return str(getattr(obj, self.name))        
             else:

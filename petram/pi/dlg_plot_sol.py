@@ -147,7 +147,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.local_solsubdir = None
 
         # these are sol info
-        self.local_sols = None                
+        self.local_sols = None
         self.remote_sols = None
 
         text = 'all'
@@ -442,7 +442,6 @@ class DlgPlotSol(SimpleFramePlus):
         self.solvars = WKD()
         self.evaluators = {}
         self.solfiles = {}
-
         self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
 
     def get_remote_subdir_cb(self):
@@ -597,8 +596,17 @@ class DlgPlotSol(SimpleFramePlus):
         doit = False
         if solfiles is not None:
             cpath = os.path.dirname(solfiles.set[0][0][0])
-            npath = os.path.join(self.local_soldir, self.local_solsubdir)
-
+            if self.local_soldir is None:
+                sol = model.param.eval('sol')                
+                if sol is None:
+                    if model.variables.hasvar('solfiles'):                
+                         model.variables.delvar('solfiles')
+                    return
+                npath = sol.owndir()
+                self.local_soldir = npath
+                self.local_solsubdir = ""
+            else:
+                npath = os.path.join(self.local_soldir, self.local_solsubdir)
             if npath != cpath: doit =True
         else:
             doit = True
@@ -643,6 +651,8 @@ class DlgPlotSol(SimpleFramePlus):
 
             #info (path, probes, dirnames)
             sol = model.solutions.get_child(name=str(v[0][1][0]))
+            if self.local_sols is None:
+                self.update_sollist_local()
             ss1 = self.local_sols[2][str(v[0][1][1])]
             ss1 = self.update_subdir_local(sol.owndir(), ss1)
             self.local_soldir    = sol.owndir()
@@ -661,6 +671,8 @@ class DlgPlotSol(SimpleFramePlus):
             model.variables.setvar('remote_soldir', None)
             
             sol = model.solutions.get_child(name=str(v[0][1][0]))
+            if self.local_sols is None:
+                self.update_sollist_local()
             ss1 = self.local_sols[2][str(v[0][1][1])]
             ss1 = self.update_subdir_local(sol.owndir(), ss1)
             self.local_soldir    = sol.owndir()
@@ -788,16 +800,23 @@ class DlgPlotSol(SimpleFramePlus):
                              data_x = None, cls = None,
                              expr='', expr_x=''):
         from ifigure.interactive import figure
+
+        if data_x is None:
+            # if verts is 1D, treat it 2D plot even if data_x is None
+            if data[0][0].shape[1] == 1:
+                data_x = [(None, verts[:,0]) for verts, cdata, adata in data]
+                data   = [(None, cdata) for verts, cdata, adata in data]
+            
         if data_x is None:
             v = figure(viewer = cls)
             v.update(False)        
-            setup_figure(v, self.GetParent())                
             v.suptitle(expr + ':' + str(battrs))
+            setup_figure(v, self.GetParent())                                               
             for verts, cdata, adata in data:
-               if cls is None:
+                if cls is None:
                     v.solid(verts, adata, cz=True, cdata= cdata.astype(float),
                             shade='linear')                    
-               else:
+                else:
                     v.solid(verts, adata, cz=True, cdata= cdata,
                             shade='linear')
             v.update(True)
