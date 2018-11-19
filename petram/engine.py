@@ -1045,10 +1045,10 @@ class Engine(object):
                     if tmp is None: continue
 
                     dep_var = names[kfes]
-                    extra_name = mm.extra_DoF_name()
-                    key = (extra_name, dep_var)
+                    extra_name = mm.extra_DoF_name2(kfes)
+                    key = (extra_name, dep_var, kfes)
                     if key in self.extras:
-                        assert False, "extra with key= " + str(key) + " already exists."
+                         assert False, "extra with key= " + str(key) + " already exists."
                     self.extras[key] = tmp
                     self.extras_mm[key] = mm.fullpath()
                     
@@ -1164,14 +1164,14 @@ class Engine(object):
 
                 M[k][r,c] = m if M[k][r,c] is None else M[k][r,c] + m
                 
-            for extra_name, dep_name in self.extras.keys():
+            for extra_name, dep_name, kfes in self.extras.keys():
                 r = self.dep_var_offset(extra_name)
                 c = self.r_dep_var_offset(dep_name)
                 
                 if update and not self.mask_M[k, r, c]: continue
                 
                 # t1,t2,t3,t4 = (horizontal, vertical, diag, rhs). 
-                t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]
+                t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]
                 
                 M[k][c,r] = t1 if M[k][c,r] is None else M[k][c,r]+t1
                 M[k][r,c] = t2 if M[k][r,c] is None else M[k][r,c]+t2
@@ -1522,16 +1522,16 @@ class Engine(object):
             # when init_only with fixed initial is chosen
             return ret
          
-        for extra_name, dep_name in self.extras.keys():
+        for extra_name, dep_name, kfes in self.extras.keys():
             data = sol_extra[extra_names.index(extra_name)]
-            t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]
-            mm_path = self.extras_mm[(extra_name, dep_name)]
+            t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]
+            mm_path = self.extras_mm[(extra_name, dep_name, kfes)]
             mm = self.model[mm_path]
             ret[extra_name] = {}
             
             if not t5: continue
             if data is not None:            
-                ret[extra_name][mm.extra_DoF_name()] = data.toarray()
+                ret[extra_name][mm.extra_DoF_name2(kfes)] = data.toarray()
             else:
                 pass
             '''
@@ -2061,9 +2061,10 @@ class Engine(object):
                           if not phys2.enabled: continue                         
                           if not mm.has_extra_DoF2(k, phys2, j): continue
                       
-                          name = mm.extra_DoF_name()
-                          if not name in extra_vars:
-                              extra_vars.append(name)
+                          names = mm.extra_DoF_names(k)
+                          for name in names:
+                              if not name in extra_vars:
+                                   extra_vars.append(name)
             dep_vars.extend(extra_vars)
             isFesvars.extend([False]*len(extra_vars))
             

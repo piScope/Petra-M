@@ -397,6 +397,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''
         return self.get_root_phys().dep_vars[0]+'_'+self.name()
 
+    def extra_DoF_name2(self, kfes=0):
+        '''
+        default DoF name
+        '''
+        return self.extra_DoF_name()
        
     def has_bf_contribution(self, kfes):
         return False
