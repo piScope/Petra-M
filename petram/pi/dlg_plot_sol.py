@@ -705,8 +705,8 @@ class DlgPlotSol(SimpleFramePlus):
                 
             cb2  = self.get_remote_subdir_cb()
             ss1 = str(cb2.GetValue())
-            if ss1 != "":
-                 self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
+            #if ss1 != "":
+            self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
         #print('EL changed', self.config)
 
     def onEL_Changing(self, evt):

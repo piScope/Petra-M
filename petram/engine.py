@@ -1227,11 +1227,11 @@ class Engine(object):
             B[r] = v
             
         self.access_idx = 0            
-        for extra_name, dep_name in self.extras.keys():
+        for extra_name, dep_name, kfes in self.extras.keys():
             r = self.dep_var_offset(extra_name)
             if update and not self.mask_B[r]: continue
             
-            t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]            
+            t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]            
             B[r] = t4
         
     def fill_X_block(self, X):
@@ -2061,10 +2061,9 @@ class Engine(object):
                           if not phys2.enabled: continue                         
                           if not mm.has_extra_DoF2(k, phys2, j): continue
                       
-                          names = mm.extra_DoF_names(k)
-                          for name in names:
-                              if not name in extra_vars:
-                                   extra_vars.append(name)
+                          name = mm.extra_DoF_name2(k)
+                          if not name in extra_vars:
+                              extra_vars.append(name)
             dep_vars.extend(extra_vars)
             isFesvars.extend([False]*len(extra_vars))
             

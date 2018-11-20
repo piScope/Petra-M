@@ -186,6 +186,8 @@ class Mesh1D(Mesh):
         v['nsegs_txt'] = "100"
         v['refine'] = 1
         v['fix_orientation'] = True
+        v['mesh_x0_txt'] = "0.0"
+        v['mesh_x0'] = 0.0
         return v
         
     def panel1_param(self):
@@ -203,20 +205,30 @@ class Mesh1D(Mesh):
             except:
                return False
             
+        def check_float(txt, param, w):
+            try:
+               val  = float(txt)
+               return True
+            except:
+               return False
+            
         return [["Length",   self.length_txt,  0, {"validator":check_float_array}],
                 ["N segments",   self.nsegs_txt,  0, {"validator":check_int_array}],
+                ["x0",   self.mesh_x0_txt,  0, {"validator":check_float}],
                 [None, "Note: use comma separated integer to generate a multisegments mesh",   2, {}],]
 
     def get_panel1_value(self):
-        return (self.length_txt, self.nsegs_txt, None)
+        return (self.length_txt, self.nsegs_txt, self.mesh_x0_txt, None)
     
     def import_panel1_value(self, v):
         self.length_txt = str(v[0])
         self.nsegs_txt = str(v[1])
+        self.mesh_x0_txt = str(v[2])        
         
         try:
             self.length = [float(x) for x in self.length_txt.split(',')]
             self.nsegs= [int(x) for x in self.nsegs_txt.split(',')]
+            self.mesh_x0 = float(self.mesh_x0_txt)
         except:
             pass
 
@@ -228,7 +240,7 @@ class Mesh1D(Mesh):
                                filename='',
                                refine = self.refine == 1,
                                fix_orientation = self.fix_orientation,
-                               sdim = 1)
+                               sdim = 1, x0=self.mesh_x0)
         try:
            m.GetNBE()
            return m

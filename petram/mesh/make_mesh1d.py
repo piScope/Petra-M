@@ -16,7 +16,7 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('Mesh1Dl')
 
 def straight_line_mesh(lengths, nsegs, filename='',
                        refine=False, fix_orientation=False,
-                       sdim = 3):
+                       sdim = 3, x0=0.0):
 
     Nvert = np.sum(nsegs)+1
     Nelem = np.sum(nsegs)
@@ -41,7 +41,7 @@ def straight_line_mesh(lengths, nsegs, filename='',
         seg.thisown = False        
     for i in range(X.shape[0]):
          pt = [0]*sdim
-         pt[0] = X[i]
+         pt[0] = X[i] + x0
          mesh.AddVertex(pt)
          
     mesh.FinalizeTopology()         

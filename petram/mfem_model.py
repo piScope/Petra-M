@@ -141,7 +141,7 @@ class MFEM_PhysRoot(Model):
                       for phys2 in phys_target:
                           #if not phys2.enabled: continue
                           if not mm.has_extra_DoF2(k, phys2, j): continue
-                          name = mm.extra_DoF_name()
+                          name = mm.extra_DoF_name2(k)
                           if not name in extra_vars:
                               extra_vars.append(name)
                     

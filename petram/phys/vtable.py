@@ -170,7 +170,8 @@ class VtableElement(object):
                                          validator = validator,
                                          chk_float = chk_float,
                                          chk_int   = chk_int, 
-                                         chk_complex = chk_complex)
+                                         chk_complex = chk_complex,
+                                         no_func = self.no_func)
             if self.readonly:
                 ret[2] = ret[2]-10000
             if self.chkbox:
@@ -289,7 +290,6 @@ class VtableElement(object):
                    f_name.append(var)
                else:
                    f_name.append(f_name0)
-
             return f_name
         
     def panel_tip(self):
@@ -465,7 +465,8 @@ class Vtable_mixin(object):
                           chk_int = False,
                           chk_complex = False,
                           chk_float = False,
-                          validator = None):
+                          validator = None,
+                          no_func = False):
         if validator is None:
            
             if chk_int:
@@ -489,7 +490,11 @@ class Vtable_mixin(object):
         elp2 = [[None, None, 0, {'validator': validatora,
                                  'validator_param': base_name + '_m'},]]
 
-        ll = [None, None, 34, ({'text': base_name + '*  ',
+        if no_func:
+            label = base_name + '(=) '
+        else:
+            label = base_name + '(*) '
+        ll = [None, None, 34, ({'text': label,
                                 'choices': ['Elemental Form', 'Array Form'],
                                 'call_fit': False},
                                 {'elp': elp1},  
