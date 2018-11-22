@@ -1,6 +1,15 @@
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MeshExtension')
 
+from petram.mfem_config import use_parallel
+
+if use_parallel:
+   import mfem.par as mfem
+   from mfem.common.mpi_debug import nicePrint
+else:
+   def nicePrint(x):
+      print(x)
+
 class MeshExtInfo(dict):
     
 

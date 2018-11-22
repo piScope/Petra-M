@@ -2125,6 +2125,8 @@ class Engine(object):
                mm._update_flag = False
                if mode == 'TimeDependent':
                   if mm.isTimeDependent: mm._update_flag = True
+               elif mode == 'UpdateAll':
+                  mm._update_flag = True
                elif mode == 'ParametricRHS':
                   if self.n_matrix > 1:
                       assert False,  "RHS-only parametric is not allowed for n__matrix > 1"                     
