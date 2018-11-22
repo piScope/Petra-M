@@ -84,8 +84,8 @@ class Eval_E_para(DWC):
             w = []
             for i in idx:
                 # don't put this Tr outside the loop....
-                Tr = mfem.IsoparametricTransformation()            
-                mesh.GetEdgeTransformation(i, Tr)
+                #Tr = mfem.IsoparametricTransformation()            
+                Tr = mesh.GetEdgeTransformation(i)
                 w.extend([Tr.Weight()]*size)
             w = np.array(w)    
             data = gfr.GetDataArray()[dofs] + 1j*gfi.GetDataArray()[dofs]
