@@ -32,6 +32,12 @@ class SolverBase(Model):
                obj is not solver_root):
             obj = obj.parent
         return obj
+    
+    def eval_text_in_global(self, value, ll = None):
+        if not isinstance(value, str): return value
+        ll = {} if ll is None else ll 
+        gg = self.root()['General']._global_ns.copy()
+        return eval(value, gg, ll)    
 
 class SolveStep(SolverBase):
     has_2nd_panel = False    
@@ -445,8 +451,12 @@ class TimeDependentSolverInstance(SolverInstance):
     def set_end(self, et):
         self.et = et
 
+    @property
+    def timestep(self):
+        return self._time_step
+    
     def set_timestep(self, time_step):
-        self.time_step = time_step
+        self._time_step = time_step
         
     def set_checkpoint(self, checkpoint):
         self.checkpoint = checkpoint
