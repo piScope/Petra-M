@@ -540,9 +540,6 @@ def find_corner(mesh):
         ld, md = mesh.shared_info                
         iedges = iedges+myoffset
 
-    line2edge = GlobalNamedList()
-    line2edge.setlists(battrs, iedges)
-
     if use_parallel:
         for key2 in ld:
             if key2[0] == myid: continue
