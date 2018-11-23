@@ -551,6 +551,7 @@ def find_corner(mesh):
             iedges = iedges[iii]
             battrs = battrs[iii]
 
+    line2realedge = GlobalNamedList()            
     line2realedge.setlists(battrs, iedges)
     
     line2realvert = GlobalNamedList()
