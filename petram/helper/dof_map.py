@@ -847,7 +847,8 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
         iscomplex = np.iscomplexobj(weight)
         if iscomplex:
             map = map.astype(complex)        
-        map *= -weight
+        if map.nnz > 0:
+           map *= -weight
       
     m_coo = map.tocoo()
     row = m_coo.row

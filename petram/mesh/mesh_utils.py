@@ -503,7 +503,7 @@ def find_corner(mesh):
     get_edges = mesh.GetElementEdges
     get_attr  = mesh.GetAttribute
     iattr= mesh.GetAttributeArray()     # min of this array is 1
-    nattr = np.max(iattr)
+    nattr = 0 if iattr.size == 0 else np.max(iattr)            
     nb = mesh.GetNE()
     nbe = mesh.GetNBE()
     if use_parallel:
@@ -540,7 +540,9 @@ def find_corner(mesh):
         ld, md = mesh.shared_info                
         iedges = iedges+myoffset
 
-    line2realedge = GlobalNamedList(line2edge)
+    line2edge = GlobalNamedList()
+    line2edge.setlists(battrs, iedges)
+
     if use_parallel:
         for key2 in ld:
             if key2[0] == myid: continue
