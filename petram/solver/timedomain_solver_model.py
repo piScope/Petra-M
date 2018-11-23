@@ -171,7 +171,7 @@ class TimeDomain(Solver):
         
         if self.ts_method == 'Backward Eular':
             instance = FirstOrderBackwardEuler(self, engine)
-            dprint1("time step configuration: " + self.time_step)
+            dprint1("time step configuration: " + str(self.time_step))
             time_step = self.eval_text_in_global(self.time_step)
             instance.set_timestep(TimeStep(time_step))
             
