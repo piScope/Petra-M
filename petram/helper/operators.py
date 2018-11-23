@@ -47,6 +47,8 @@ class Operator(object):
         else:
             size = np.max(mesh.GetBdrAttributeArray())
 
+        if size == 0: return None
+        
         if self._sel[0] == "all":
             arr = [1]*size
         else:
@@ -59,6 +61,11 @@ class Operator(object):
            return coeff
 
         arr = self.get_restriction_array(fes)
+        
+        if arr is None:
+           # this could happen when local mesh does not have Bdr/Domain attribute
+           return coeff
+        
         if vec:
             return mfem.VectorRestrictedCoefficient(coeff, arr)
         elif matrix:
