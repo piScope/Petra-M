@@ -53,7 +53,7 @@ class Operator(object):
             arr = [1]*size
         else:
             if len(self._sel) > 0:
-                size = np.max((size np.max(self._sel)))
+                size = np.max((size, np.max(self._sel)))
             arr = [0]*size           
             for k in self._sel: arr[k-1] = 1
         return intArray(arr)
