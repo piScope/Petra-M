@@ -48,10 +48,12 @@ class Operator(object):
             size = np.max(mesh.GetBdrAttributeArray())
 
         if size == 0: return None
-        
+
         if self._sel[0] == "all":
             arr = [1]*size
         else:
+            if len(self._sel) > 0:
+                size = np.max((size np.max(self._sel)))
             arr = [0]*size           
             for k in self._sel: arr[k-1] = 1
         return intArray(arr)
