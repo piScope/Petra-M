@@ -37,11 +37,11 @@ def setup_figure(fig, fig2):
     fig.ylim(ylim)
     fig.zlim(zlim)
 
-def read_solinfo_remote(server, path):
+def read_solinfo_remote(user, server, path):
     #path = "/home/shiraiwa/myscratch/mfem_batch/pancake_10_2018v4_small_scale_0_2"    
     txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
 
-    command = ["ssh", server, txt]
+    command = ["ssh", user+'@'+server, txt]
     p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
     p.wait()
     res = p.stdout.readlines()
@@ -526,7 +526,8 @@ class DlgPlotSol(SimpleFramePlus):
         self.update_subdir_local(path, ss1)
 
     def update_subdir_remote(self):
-        info = read_solinfo_remote(self.config['cs_server'],
+        info = read_solinfo_remote(self.config['cs_user'],
+                                   self.config['cs_server'],
                                    self.config['cs_soldir'])
 
         dirnames = [""]
