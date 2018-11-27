@@ -87,10 +87,12 @@ class NCFaceEvaluator(EvaluatorAgent):
         super(NCFaceEvaluator, self).__init__()
         self.battrs = battrs
         self.refine = -1
+        self.decimate = kwargs.pop("decimate", 1)
         
-    def preprocess_geometry(self, battrs, emesh_idx=0):
+    def preprocess_geometry(self, battrs, emesh_idx=0, decimate=1):
+        # we will ignore deciamte for a moment
+        
         mesh = self.mesh()[emesh_idx]
-        #print 'preprocess_geom',  mesh, battrs
         self.battrs = battrs        
         self.knowns = WKD()
         self.iverts = []

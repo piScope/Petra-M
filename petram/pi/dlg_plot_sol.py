@@ -271,7 +271,8 @@ class DlgPlotSol(SimpleFramePlus):
                   [None, False, 3, {"text":'dynamic extenstion'}],
                   [None, True, 3, {"text":'merge solutions'}],
                   ['Refine', 1, 104, s4],            
-                  [None, True, 3, {"text":'averaging'}],]
+                  [None, True, 3, {"text":'averaging'}],
+                  ['Decimate elements', '1',  0, {}, ], ]
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
             self.elps['Bdr'] = elp
@@ -1030,11 +1031,13 @@ class DlgPlotSol(SimpleFramePlus):
             do_merge2 = False
                   
         average = value[7]
+        decimate = int(value[8])                                    
         data, battrs2 = self.evaluate_sol_bdr(expr, battrs, phys_path,
-                                             do_merge1, do_merge2,
-                                             export_type = export_type,
-                                             refine = refine,
-                                             average = average)
+                                              do_merge1, do_merge2,
+                                              export_type = export_type,
+                                              refine = refine,
+                                              average = average,
+                                              decimate = decimate)
         uvw = str(value[1]).split(',')
         if len(uvw) == 3:
             for kk, expr in enumerate(uvw):
@@ -1048,7 +1051,8 @@ class DlgPlotSol(SimpleFramePlus):
                                                        do_merge1, do_merge2,
                                                        export_type = export_type,
                                                        refine = refine,
-                                                       average = average)
+                                                       average = average,
+                                                       decimate=decimate)                  
                 data = [list(x) for x in data]
                 for k, datasets in enumerate(data):
                     if datasets[0].shape[1]==2:
@@ -1540,17 +1544,18 @@ class DlgPlotSol(SimpleFramePlus):
            #battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
 
         average = kwargs.pop('average', True)
-                  
+        decimate = kwargs.get('decimate', 1)
+        
         from petram.sol.evaluators import build_evaluator
         if average:
             key, name = 'Bdr', 'BdrNodal'
-            kkwargs = {}
         else:
             key, name = 'NCFace', 'NCFace'
             
         if key in self.evaluators:
             try:
-                self.evaluators[key].validate_evaluator(name, battrs, solfiles)
+                self.evaluators[key].validate_evaluator(name, battrs, solfiles,
+                                                        decimate=decimate)
             except IOError:
                 dprint1("IOError detected setting failed=True")
                 self.evaluators[key].failed = True
@@ -1561,8 +1566,9 @@ class DlgPlotSol(SimpleFramePlus):
                                                     mfem_model,
                                                     solfiles,
                                                     name = name,
-                                                    config = self.config)
-        self.evaluators[key].validate_evaluator(name, battrs, solfiles)
+                                                    config = self.config,
+                                                    decimate = decimate)
+        self.evaluators[key].validate_evaluator(name, battrs, solfiles, decimate=decimate)
         
         try:
             self.evaluators[key].set_phys_path(phys_path)

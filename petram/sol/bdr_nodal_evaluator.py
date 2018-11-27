@@ -173,18 +173,21 @@ def eval_at_nodals(obj, expr, solvars, phys):
         # if expr does not involve Varialbe, evaluate code once
         # and generate an array 
         val = np.array([eval(code, var_g2)]*len(obj.locs))
-
     return val
 
 class BdrNodalEvaluator(EvaluatorAgent):
-    def __init__(self, battrs):
+    def __init__(self, battrs, decimate=1):
         super(BdrNodalEvaluator, self).__init__()
         self.battrs = battrs
+        self.decimate = decimate
         
-    def preprocess_geometry(self, battrs, emesh_idx=0):
+    def preprocess_geometry(self, battrs, emesh_idx=0, decimate=1):
+
         mesh = self.mesh()[emesh_idx]
         #print 'preprocess_geom',  mesh, battrs
-        self.battrs = battrs        
+        self.battrs = battrs
+
+        self.decimate = decimate        
         self.knowns = WKD()
         self.iverts = []
 
@@ -201,6 +204,10 @@ class BdrNodalEvaluator(EvaluatorAgent):
         if np.sum([len(xx) for xx in x]) == 0: return
         
         ibdrs = np.hstack(x).astype(int).flatten()
+
+        if self.decimate != 1:
+            ibdrs = ibdrs[::self.decimate]
+
         self.ibeles = np.array(ibdrs)
         
         iverts = np.stack([getelement(i).GetVerticesArray()
@@ -222,13 +229,14 @@ class BdrNodalEvaluator(EvaluatorAgent):
         #if len(emesh_idx) < 1:
         #    assert False, "expression is not defined on any mesh"
         #(this could happen when expression is pure geometryical like "x+y")
-
+        decimate = kwargs.pop('decimate', 1)
         if len(emesh_idx) == 1:        
             if self.emesh_idx != emesh_idx[0]:
                  #print("process geom", emesh_idx[0])                         
-                 self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
+                 self.preprocess_geometry(self.battrs,
+                                          emesh_idx=emesh_idx[0],
+                                          decimate=decimate)
 
-             
         val = eval_at_nodals(self, expr, solvars, phys)
         if val is None: return None, None, None
 
@@ -238,8 +246,10 @@ class BdrNodalEvaluator(EvaluatorAgent):
             return self.locs, val, None
 
         refine = kwargs.pop('refine', 1)
+
         if refine == 1 or edge_only:
             if not edge_only:
+                print self.locs.shape, val.shape, self.iverts_inv.shape
                 return self.locs, val, self.iverts_inv
             else:
                 idx = edge_detect(self.iverts_inv)

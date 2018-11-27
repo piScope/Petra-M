@@ -265,10 +265,12 @@ class UniformRefinement(Mesh):
         
     def panel1_param(self):
         return [["Number",   str(self.num_refine),  0, {}],]
+     
     def import_panel1_value(self, v):
         self.num_refine = str(v[0])
+        
     def get_panel1_value(self):
-        return (str(self.num_refine))
+        return (str(self.num_refine),)
      
     def run(self, mesh):
         gtype = np.unique([mesh.GetElementBaseGeometry(i) for i in range(mesh.GetNE())])
