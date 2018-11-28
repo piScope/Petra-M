@@ -35,7 +35,7 @@ def txt2indexlist(txt):
     except:
         raise ValueError("can not convert text to index list")
 
-def eval_expression(expr, mesh, battr, ind_vars, ns):
+def eval_expression(expr, mesh, battr, ind_vars, ns, use_dom = False):
     '''
     example:
         expr = 'x', or 'sin(x)'
@@ -45,17 +45,52 @@ def eval_expression(expr, mesh, battr, ind_vars, ns):
     def _do_eval(code, verts):
         l = {n: verts[k] for k, n in enumerate(ind_vars)}
         return eval(code, ns, l)
-            
-    ibdr = mesh.GetBdrArray(battr)
+
+    if use_dom:
+        get_array = mesh.GetDomainArray
+        get_element = mesh.GetElement
+    else:
+        get_array = mesh.GetBdrArray
+        get_element = mesh.GetBdrElement        
+        
+    ibdr = get_array(battr)
+
     code = compile(expr, '<string>', 'eval')
     
-    iverts = np.stack([mesh.GetBdrElement(i).GetVerticesArray() for i in ibdr])
+    iverts = np.stack([get_element(i).GetVerticesArray() for i in ibdr])
     locs   = np.stack([np.stack([mesh.GetVertexArray(k) for k in ivert])     
                           for ivert in iverts])
     data   =  np.stack([np.stack([_do_eval(code, mesh.GetVertexArray(k))
                                 for k in ivert])     
                                 for ivert in iverts])
     return locs, data
+
+def eval_expr(model, engine, expr, battrs, phys = None):
+    '''
+    expr = expression to evaluate
+    battrs = list of boundary attribute
+    '''
+    from petram.model import Bdry
+
+    if phys is None: 
+        phys = model['Phys'][model['Phys'].keys()[0]]
+    else:
+        phys = model['Phys'][phys]
+
+    ret = {}
+    mesh = engine.get_mesh()
+    engine.assign_sel_index(phys)
+    
+    use_dom = phys.dim == 2
+    ns = phys._global_ns
+    battrs = list(np.atleast_1d(eval(battrs, ns, {})).flatten().astype(int))
+       
+    for m in phys.walk():
+        for battr in battrs:
+           ind_vars = m.get_independent_variables()
+           ret[battr] = eval_expression(expr, mesh, battr, ind_vars, ns, use_dom=use_dom)
+    return ret
+ 
 
 def eval_sol(sol, battrs, dim = 0):
     mesh = sol.FESpace().GetMesh()

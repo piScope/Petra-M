@@ -922,12 +922,14 @@ class DlgPlotSol(SimpleFramePlus):
         else:
             cls = None
         refine = int(value[6])
+        use_pointfill = int(value[8]) > 1
         data, battrs = self.eval_bdr(mode = 'plot', refine=refine)
         if data is None: return
         self.post_threadend(self.make_plot_bdr, data, battrs,
-                            cls = cls, expr = expr)
+                            cls = cls, expr = expr,
+                            use_pointfill=use_pointfill)
         
-    def make_plot_bdr(self, data, battrs, cls = None, expr=''):
+    def make_plot_bdr(self, data, battrs, cls = None, expr='', use_pointfill=False):
         
         from ifigure.interactive import figure
         viewer = figure(viewer = cls)
@@ -962,12 +964,14 @@ class DlgPlotSol(SimpleFramePlus):
 
             if cls is None:
                obj = viewer.solid(verts, idata, array_idx=array_idx,
-                       cz=True, cdata= cdata.astype(float),
-                       shade='linear', )
+                                  cz=True, cdata= cdata.astype(float),
+                                  shade='linear',
+                                  use_pointfill=use_pointfill)
                obj.set_gl_hl_use_array_idx(True)
             else:
                obj = viewer.solid(verts, idata, array_idx=array_idx,
-                       cz=True, cdata= cdata, shade='linear')
+                                  cz=True, cdata= cdata, shade='linear',
+                                  use_pointfill=use_pointfill)               
                obj.set_gl_hl_use_array_idx(True)
                
         viewer.update(True)

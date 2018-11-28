@@ -73,7 +73,7 @@ class Evaluator(object):
     def validate_evaluator(self, name, params, *args, **kwargs):
         val=  self.validate_param(params) and self.validate_cls(name)
         if not val: return False
-        print 'comparing', self._agent_kwargs, kwargs
+        #print 'comparing', self._agent_kwargs, kwargs
         
         for key in six.iterkeys(kwargs):
             if not key in self._agent_kwargs: return False
