@@ -79,15 +79,23 @@ def run_in_piScope_thread(func):
     @wraps(func)
     def func2(self, *args, **kwargs):
         title = self.GetTitle()
-        self.SetTitle(title + '(*** processing ***)')
         app = wx.GetApp().TopWindow
         petram = app.proj.setting.parameters.eval('PetraM')
-        if str(petram._status) != '':
-            assert False, "other job is running (thread status error)"
+
+        if self._plot_thread is not None:
+            if self._plot_thread.is_alive():
+                 wx.CallAfter(dialog.showtraceback,
+                              parent = self,
+                              txt='Previous Job is Running',
+                              title='Error',
+                              traceback='')
+                 return
+        self.SetTitle(title + '(*** processing ***)')             
         maxt = app.aconfig.setting['max_thread']
         if len(app.logw.threadlist) < maxt:
              args = (self,) + args
              t = threading.Thread(target=func, args=args, kwargs=kwargs)
+             self._plot_thread = t
              petram._status = 'evaluating sol...'             
              ifigure.events.SendThreadStartEvent(petram,
                                                  w=app,
@@ -149,6 +157,8 @@ class DlgPlotSol(SimpleFramePlus):
         # these are sol info
         self.local_sols = None
         self.remote_sols = None
+
+        self._plot_thread = None
 
         text = 'all'
         mfem_model = parent.model.param.getvar('mfem_model')
@@ -1449,22 +1459,6 @@ class DlgPlotSol(SimpleFramePlus):
                traceback.print_exc()
                assert False, "invalid selection: " + battrs
         
-            '''
-            battrs0 = [int(x) for x in battrs.split(',')]
-            if mesh.Dimension() == 3:
-               s = self.GetParent()._s_v_loop['phys'][0]
-               battrs = []
-               for i in battrs0:
-                   connected_surf = []                
-                   for k in s.keys():
-                       if i in s[k]: connected_surf.append(k)
-                   battrs.append(tuple(connected_surf))
-            elif mesh.Dimension() == 2:
-               battrs = battrs0               
-            else:
-               assert False, "edge plot is not supported for 1D"
-            '''
-
         if 'Edge' in self.evaluators:
             try:
                 self.evaluators['Edge'].validate_evaluator('EdgeNodal', battrs, solfiles)
