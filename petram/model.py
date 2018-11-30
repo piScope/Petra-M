@@ -31,7 +31,7 @@ def convert_sel_txt(txt, g):
     elif txt.strip() == 'all':
         return ['all']
     elif txt.strip() == 'internal_bdr':
-        return ['all']
+        return ['internal_bdr']
     elif txt.strip() == '':
         arr = []
     else:
@@ -203,7 +203,7 @@ class Model(RestorableOrderedDict):
             self.sel_index = arr            
         except:
             assert False, "failed to convert "+self.sel_index_txt
-        
+
         if len(self.sel_index) == 1 and self.sel_index[0] == 'remaining':
             self._sel_index = []
             return None
@@ -212,7 +212,7 @@ class Model(RestorableOrderedDict):
             return -1
         elif len(self.sel_index) == 1 and self.sel_index[0] == 'internal_bdr':
             if internal_bdr is not None:
-                self._sel_index = intenral_bdr
+                self._sel_index = internal_bdr
             else:
                 assert False, "Internal bdr is not defined"
         elif len(self.sel_index) == 0:
@@ -225,6 +225,7 @@ class Model(RestorableOrderedDict):
             ret = np.array(self._sel_index);
             ret = list(ret[np.in1d(ret, choice)])
             self._sel_index = ret
+
         return self._sel_index
             
     def update_attribute_set(self, kw = None):
@@ -359,7 +360,7 @@ class Model(RestorableOrderedDict):
                 if n == after.name():
                     self[name] = obj                
                     done = True
-                    break
+                    #break
         elif before is not None:
             old_contents = self._contents 
             self._contents = OrderedDict()
@@ -369,7 +370,7 @@ class Model(RestorableOrderedDict):
                     self[name] = obj
                     done = True
                 self[n] = old_contents[n]
-                if done: break
+                #if done: break
                 
         if not done:
             self[name] = obj

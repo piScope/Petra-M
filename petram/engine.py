@@ -1649,8 +1649,8 @@ class Engine(object):
             dprint1("## internal bdr index " + str(internal_bdr))
             
             p._phys_sel_index = dom_choice
-            self.do_assign_sel_index(p, dom_choice, Domain, internal_bdr=internal_bdr)
-            self.do_assign_sel_index(p, bdr_choice, Bdry)
+            self.do_assign_sel_index(p, dom_choice, Domain)
+            self.do_assign_sel_index(p, bdr_choice, Bdry, internal_bdr=internal_bdr)
             self.do_assign_sel_index(p, dom_choice, Point)
             
     def do_assign_sel_index(self, m, choice, cls, internal_bdr=None):
