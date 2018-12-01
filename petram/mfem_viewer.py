@@ -191,7 +191,13 @@ class MFEMViewer(BookViewer):
         if not view_mode in self._figure_data:
             self._figure_data[view_mode] = {}
         self._figure_data[view_mode][name] = data
-
+        
+    def del_figure_data(self, view_mode, name):
+        if not view_mode in self._figure_data:
+            self._figure_data[view_mode] = {}
+        if name in self._figure_data[view_mode]:
+            del self._figure_data[view_mode][name]
+        
     def update_figure(self, view_mode, name, updateall = False):
         from petram.mesh.geo_plot import plot_geometry, oplot_meshed
         if self._is_mfem_geom_fig and view_mode == 'phys':
@@ -219,14 +225,14 @@ class MFEMViewer(BookViewer):
                         plot_geometry(self, d, geo_phys = 'physical', lw=1.0)
                         self._is_mfem_geom_fig = True
                 else:
-                    if updateall:
+                    d = self._figure_data['mesh']
+                    if updateall or not name[0] in d:
                         if not 'geom' in self._figure_data:
                             # geom is not yet run
                             self.cls()
-                            return 
+                            return
                         d = self._figure_data['geom']
                         plot_geometry(self,  d[name[1]])
-                    d = self._figure_data['mesh']
                     if name[0] in d:
                         oplot_meshed(self,  d[name[0]])
                         self._hidemesh = False                        
@@ -415,11 +421,14 @@ class MFEMViewer(BookViewer):
             if _s_v_loop[1] is None: return
             idx, objs = self._getSelectedIndex(mode='face')
             sl = _s_v_loop[1]
+            
             already_selected = self._dom_bdr_sel[0]
-
+            already_selected = [k for k in already_selected if k in sl]
+            
             for k in already_selected:
                 for i in sl[k]:
                     if i in idx: idx.remove(i)
+                    
             selected_volume = already_selected[:]
             for i in idx:
                for k in sl.keys():
@@ -579,6 +588,9 @@ class MFEMViewer(BookViewer):
             self.cls()            
 
     def highlight_element(self, sel):
+        if not self._view_mode in self._s_v_loop:
+            return 
+        
         _s_v_loop = self._s_v_loop[self._view_mode]        
         ax = self.get_axes()
 

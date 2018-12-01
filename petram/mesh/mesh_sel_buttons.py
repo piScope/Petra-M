@@ -5,6 +5,7 @@ from petram.utils import get_pkg_datafile
 
 fdotbk = get_pkg_datafile(petram.pi, 'icon',  'dot_bk.png')
 fedgebk = get_pkg_datafile(petram.pi, 'icon', 'line_bk.png')
+ffacebk = get_pkg_datafile(petram.pi, 'icon', 'face_bk.png')
 fdot = get_pkg_datafile(petram.pi, 'icon',  'dot.png')
 fedge = get_pkg_datafile(petram.pi, 'icon', 'line.png')
 fface = get_pkg_datafile(petram.pi, 'icon', 'face.png')
@@ -74,7 +75,8 @@ def hide_elem(evt, inverse=False):
         facesa = []
         facesb = []        
         s, v = viewer._s_v_loop['mesh']
-        selected_volume = viewer._dom_bdr_sel        
+        
+        selected_volume = viewer._dom_bdr_sel[0]
         for key in v.keys():
             if key in selected_volume:
                 facesa.extend(v[key])
@@ -131,8 +133,10 @@ def _toggle_any(evt, txt):
 def toggle_dot(evt):
     _toggle_any(evt, 'point')
 def toggle_edge(evt):
-    _toggle_any(evt, 'edge')    
-     
+    _toggle_any(evt, 'edge')
+    
+from petram.pi.sel_buttons import toggle_face    
+
 def make_solid(evt):
     viewer = evt.GetEventObject().GetTopLevelParent()
     mode = viewer._sel_mode
@@ -160,13 +164,14 @@ btask = [('mdot',    fdot,  2, 'select vertex', select_dot),
          ('mface',   fface, 2, 'select face', select_face),
          ('mdomain', fdom,  2, 'select domain', select_volume),
          ('---', None, None, None),
-         ('toggledot',    fdotbk,  0, 'toggle vertex', toggle_dot),
-         ('toggleedge',   fedgebk, 0, 'toggle edge', toggle_edge),
+         ('mtoggledot',    fdotbk,  0, 'toggle vertex', toggle_dot),
+         ('mtoggleedge',   fedgebk, 0, 'toggle edge', toggle_edge),
+         ('mtoggleface',   ffacebk, 0, 'toggle face', toggle_face),             
          ('---', None, None, None),
          ('mshow',   showall,  0, 'show all', show_all),
          ('mhide',   hide,  0, 'hide selection', hide_elem),        
          ('mshowonly',  fshow,  0, 'show only', show_only),    
          ('---', None, None, None),
-         ('solid',  fsolid,  0, 'solid', make_solid),
-         ('transpaent',  ftrans,  0, 'transparent', make_transp),]
+         ('msolid',  fsolid,  0, 'solid', make_solid),
+         ('mtranspaent',  ftrans,  0, 'transparent', make_transp),]
             
