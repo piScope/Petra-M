@@ -167,15 +167,17 @@ def oplot_meshed(viewer,  ret):
 
     s, v = viewer._s_v_loop['mesh']
     facesa = []
-    all_surfaces = np.array(s.keys(), dtype=int)
-    for key in v.keys():
-        if not key in viewer._mhidden_volume:
-            facesa.extend(v[key])
-    facesa = np.unique(facesa)
-    mask  = np.logical_not(np.in1d(all_surfaces, facesa))
-    facesa = list(all_surfaces[mask])
+    if len(v.keys())>0:  # in 3D starts with faces from shown volumes
+        all_surfaces = np.array(s.keys(), dtype=int)        
+        for key in v.keys():
+            if not key in viewer._mhidden_volume:
+                facesa.extend(v[key])
+        facesa = np.unique(facesa)
+        mask  = np.logical_not(np.in1d(all_surfaces, facesa))
+        facesa = list(all_surfaces[mask])
+        
     facesa.extend(viewer._mhidden_face)
-    
+    print("Here will be hidden", facesa)
     for name, obj in ax.get_children():
         if name.startswith('face') and not name.endswith('meshed'):
             h = list(np.unique(facesa + meshed_face))
@@ -185,7 +187,6 @@ def oplot_meshed(viewer,  ret):
             obj.hide_component(h)
     
     if 'line' in cells:
-
         vert = np.squeeze(X[cells['line']][:,0,:])
         obj= viewer.plot(vert[:,0],
                     vert[:,1],
