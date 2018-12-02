@@ -167,7 +167,6 @@ def oplot_meshed(viewer,  ret):
 
     s, v = viewer._s_v_loop['mesh']
     facesa = []
-    print("testing hidden volume", viewer._mhidden_volume)
     all_surfaces = np.array(s.keys(), dtype=int)
     for key in v.keys():
         if not key in viewer._mhidden_volume:
@@ -177,7 +176,6 @@ def oplot_meshed(viewer,  ret):
     facesa = list(all_surfaces[mask])
     facesa.extend(viewer._mhidden_face)
     
-    print("testing hidden volume", facesa)    
     for name, obj in ax.get_children():
         if name.startswith('face') and not name.endswith('meshed'):
             h = list(np.unique(facesa + meshed_face))
@@ -200,19 +198,6 @@ def oplot_meshed(viewer,  ret):
                                        cell_data['line']['geometrical'])
 
         obj.rename('edge_meshed')
-        '''
-        obj._artists[0].set_gl_hl_use_array_idx(True)        
-        #print verts.shape, elem_idx.shape, array_idx.shape
-        obj = viewer.solid(verts, elem_idx,
-                           array_idx = array_idx,
-                           facecolor = (0.7, 0.7, 0.7, 1.0),
-                           edgecolor = (0, 0, 0, 1),
-                           linewidth = 1,
-                           view_offset = (0, 0, -0.0005, 0))
-
-        obj.rename('edge_meshed')
-        obj._artists[0].set_gl_hl_use_array_idx(True)
-        '''
         meshed_edge = list(np.unique(cell_data['line']['geometrical']))
     else:
         meshed_edge = []
