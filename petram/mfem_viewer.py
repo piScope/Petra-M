@@ -103,7 +103,16 @@ class MFEMViewer(BookViewer):
         self._s_v_loop = {}
         self._selected_volume = []    # store selected volume
         self._figure_data = {}
+
+        # hidden element in MFEM mode
         self._hidden_volume = []
+        
+        # hidden element in mesh mode
+        # for mesh we need to keep track face and edge too.
+        self._mhidden_volume = []
+        self._mhidden_face = []
+        self._mhidden_edge = []
+        
         self._view_mode_group = ''
         self._is_mfem_geom_fig = False        
         self._dom_bdr_sel  = ([], [], [], [])
@@ -400,7 +409,6 @@ class MFEMViewer(BookViewer):
             if obj.name.startswith(mode):
                 sel.extend(obj.getSelectedIndex())
                 oo.append(obj)
-        #print sel, oo        
         return sel, oo
     
     def onTD_SelectionInFigure(self, evt = None):
@@ -510,6 +518,7 @@ class MFEMViewer(BookViewer):
             pass
         
         self.set_status_text(status_txt, timeout = 60000)
+
         self._dom_bdr_sel  = (sv, sf, se, sp)
         evt.selections = self.canvas.selection
         self.property_editor.onTD_Selection(evt)                   
@@ -622,6 +631,7 @@ class MFEMViewer(BookViewer):
                 if len(sel['face']) != 0: robj = obj                
                 if len(vfaces) > 0:
                     obj.setSelectedIndex(vfaces)
+                    robj = obj                
             
         return robj
 
