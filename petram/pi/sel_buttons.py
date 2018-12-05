@@ -64,7 +64,6 @@ def show_all(evt):
        if name.startswith(namestart):
            child.hide_component([])
            
-    
     viewer._hidden_volume = []
     viewer._hidden_face = []
     viewer._hidden_edge = []
@@ -84,7 +83,7 @@ def hide_elem(evt, inverse=False):
         facesb = []        
         s, v = viewer._s_v_loop['phys']
         selected_volume = viewer._dom_bdr_sel[0]
-        #print(selected_volume)
+
         target_volumes = selected_volume
         if not inverse:
             target_volumes.extend(viewer._hidden_volume)
@@ -107,6 +106,7 @@ def hide_elem(evt, inverse=False):
                 idx = list(set(idx+new_hide))
                 o.hide_component(idx)            
             viewer._hidden_volume.extend(selected_volume)
+
     elif mode == 'face' or mode == 'edge':
         for o in objs:
             idx = o.getSelectedIndex()

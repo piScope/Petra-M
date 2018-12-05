@@ -177,7 +177,7 @@ def oplot_meshed(viewer,  ret):
         facesa = list(all_surfaces[mask])
         
     facesa.extend(viewer._mhidden_face)
-    print("Here will be hidden", facesa)
+
     for name, obj in ax.get_children():
         if name.startswith('face') and not name.endswith('meshed'):
             h = list(np.unique(facesa + meshed_face))
