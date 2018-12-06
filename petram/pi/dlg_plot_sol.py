@@ -1324,9 +1324,6 @@ class DlgPlotSol(SimpleFramePlus):
             
         data, battrs = self.eval_slice(mode = 'plot')
         if data is None:
-            wx.CallAfter(dialog.message, parent = self,
-                         message ='Error in evaluating slice', 
-                         title ='Error')
             wx.CallAfter(self.set_title_no_status)        
             return
         self.post_threadend(self.make_plot_slice, data, battrs,
@@ -1386,9 +1383,6 @@ class DlgPlotSol(SimpleFramePlus):
         
         xdata, data = self.eval_probe(mode = 'plot')
         if data is None:
-            wx.CallAfter(dialog.message, parent = self,
-                         message ='Error in evaluating probe', 
-                         title ='Error')
             wx.CallAfter(self.set_title_no_status)        
             return
         self.post_threadend(self.make_plot_probe, (xdata, data), expr = expr)
