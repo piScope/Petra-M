@@ -103,7 +103,16 @@ class MFEMViewer(BookViewer):
         self._s_v_loop = {}
         self._selected_volume = []    # store selected volume
         self._figure_data = {}
+
+        # hidden element in MFEM mode
         self._hidden_volume = []
+        
+        # hidden element in mesh mode
+        # for mesh we need to keep track face and edge too.
+        self._mhidden_volume = []
+        self._mhidden_face = []
+        self._mhidden_edge = []
+        
         self._view_mode_group = ''
         self._is_mfem_geom_fig = False        
         self._dom_bdr_sel  = ([], [], [], [])
@@ -191,7 +200,13 @@ class MFEMViewer(BookViewer):
         if not view_mode in self._figure_data:
             self._figure_data[view_mode] = {}
         self._figure_data[view_mode][name] = data
-
+        
+    def del_figure_data(self, view_mode, name):
+        if not view_mode in self._figure_data:
+            self._figure_data[view_mode] = {}
+        if name in self._figure_data[view_mode]:
+            del self._figure_data[view_mode][name]
+        
     def update_figure(self, view_mode, name, updateall = False):
         from petram.mesh.geo_plot import plot_geometry, oplot_meshed
         if self._is_mfem_geom_fig and view_mode == 'phys':
@@ -219,14 +234,14 @@ class MFEMViewer(BookViewer):
                         plot_geometry(self, d, geo_phys = 'physical', lw=1.0)
                         self._is_mfem_geom_fig = True
                 else:
-                    if updateall:
+                    d = self._figure_data['mesh']
+                    if updateall or not name[0] in d:
                         if not 'geom' in self._figure_data:
                             # geom is not yet run
                             self.cls()
-                            return 
+                            return
                         d = self._figure_data['geom']
                         plot_geometry(self,  d[name[1]])
-                    d = self._figure_data['mesh']
                     if name[0] in d:
                         oplot_meshed(self,  d[name[0]])
                         self._hidemesh = False                        
@@ -394,7 +409,6 @@ class MFEMViewer(BookViewer):
             if obj.name.startswith(mode):
                 sel.extend(obj.getSelectedIndex())
                 oo.append(obj)
-        #print sel, oo        
         return sel, oo
     
     def onTD_SelectionInFigure(self, evt = None):
@@ -415,11 +429,14 @@ class MFEMViewer(BookViewer):
             if _s_v_loop[1] is None: return
             idx, objs = self._getSelectedIndex(mode='face')
             sl = _s_v_loop[1]
+            
             already_selected = self._dom_bdr_sel[0]
-
+            already_selected = [k for k in already_selected if k in sl]
+            
             for k in already_selected:
                 for i in sl[k]:
                     if i in idx: idx.remove(i)
+                    
             selected_volume = already_selected[:]
             for i in idx:
                for k in sl.keys():
@@ -501,6 +518,7 @@ class MFEMViewer(BookViewer):
             pass
         
         self.set_status_text(status_txt, timeout = 60000)
+
         self._dom_bdr_sel  = (sv, sf, se, sp)
         evt.selections = self.canvas.selection
         self.property_editor.onTD_Selection(evt)                   
@@ -579,6 +597,9 @@ class MFEMViewer(BookViewer):
             self.cls()            
 
     def highlight_element(self, sel):
+        if not self._view_mode in self._s_v_loop:
+            return 
+        
         _s_v_loop = self._s_v_loop[self._view_mode]        
         ax = self.get_axes()
 
@@ -610,6 +631,7 @@ class MFEMViewer(BookViewer):
                 if len(sel['face']) != 0: robj = obj                
                 if len(vfaces) > 0:
                     obj.setSelectedIndex(vfaces)
+                    robj = obj                
             
         return robj
 
@@ -1020,12 +1042,16 @@ class MFEMViewer(BookViewer):
         evt.Skip()
         
     def _doPlotExpr(self, value):
+        model = self.model.param.getvar('mfem_model')
+        if model is None: return
+        
         expr = str(value[0])
-        iattr = [int(x) for x in value[1].split(',')]
         phys = str(value[2])
 
+        from petram.utils import eval_expr
         try:
-           d = self.model.scripts.helpers.eval_expr(expr, iattr, phys = phys)
+           engine = self.engine        
+           d = eval_expr(model, engine, expr, value[1], phys = phys)
         except:
            dialog.showtraceback(parent = self,
                                 txt='Failed to evauate expression',
@@ -1063,17 +1089,17 @@ class MFEMViewer(BookViewer):
         if len(choices)==0: return
         
         ll = [['Expression', '', 0, {}],
-              ['Boundary Index', ','.join(iattr), 0, {}],
+              ['Dom(2D)/Bdr(3D) Index', ','.join(iattr), 0, {}],
               ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
                                        'choices': choices}],]
 
-        from ifigure.utils.edit_list import DialogEditListWithWindowList      
+        from ifigure.utils.edit_list import DialogEditListWithWindowList, EditListMiniFrame
 #        ret = DialogEditList(ll, modal=False, parent= self,
         ret = DialogEditListWithWindowList(ll, modal=False, parent= self,
-                                            ok_cb = self._doPlotExpr, ok_noclose = True,
-                                            close_cb = self._onDlgPlotExprClose,
-                                            style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER,
-                                            add_palette = True)
+                                ok_cb = self._doPlotExpr, ok_noclose = True,
+                                close_cb = self._onDlgPlotExprClose,
+                                style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER,
+                                add_palette = True)
         self.plotexprdlg = ret
         evt.Skip()
         

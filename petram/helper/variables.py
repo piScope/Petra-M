@@ -88,9 +88,13 @@ def eval_code(co, g, l, flag = None):
     if callable(a): return a()
     return a
 
+
 var_g = {'sin':  np.sin,
          'cos':  np.cos,
          'tan':  np.tan,
+         'cosd':  lambda x : np.cos(x*np.pi/180.),
+         'sind':  lambda x : np.sin(x*np.pi/180.),
+         'tand':  lambda x : np.tan(x*np.pi/180.),
          'arctan':  np.arctan,                                      
          'arctan2':  np.arctan2,
          'exp': np.exp,

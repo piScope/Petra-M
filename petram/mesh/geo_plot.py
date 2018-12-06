@@ -39,7 +39,7 @@ def call_solid1(viewer, name, verts, elem_idx, array_idx, lw):
                       linewidth = lw)
 
     obj.rename(name)
-    obj._artists[0].set_gl_hl_use_array_idx(True)
+    obj.set_gl_hl_use_array_idx(True)
     return obj
 
 def call_solid2(viewer, name, verts, elem_idx, array_idx=None, lw=1.5):
@@ -52,7 +52,7 @@ def call_solid2(viewer, name, verts, elem_idx, array_idx=None, lw=1.5):
 #                           view_offset = (0, 0, -0.001, 0),
                       draw_last = True)
     obj.rename(name)
-    obj._artists[0].set_gl_hl_use_array_idx(True)
+    obj.set_gl_hl_use_array_idx(True)
     return obj
 
 def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
@@ -115,7 +115,7 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
                              array_idx = aidx,
                              linewidth = 0)
             obj.rename('point')
-            obj._artists[0].set_gl_hl_use_array_idx(True)
+            obj.set_gl_hl_use_array_idx(True)
     viewer.set_sel_mode(viewer.get_sel_mode())
 
 def oplot_meshed(viewer,  ret):
@@ -145,7 +145,7 @@ def oplot_meshed(viewer,  ret):
                            view_offset = (0, 0, -0.0005, 0))
 
         obj.rename('face_t_meshed')
-        obj._artists[0].set_gl_hl_use_array_idx(True)
+        obj.set_gl_hl_use_array_idx(True)
 
         meshed_face.extend(list(np.unique(cell_data['triangle']['geometrical'])))
     if 'quad' in cells:
@@ -162,16 +162,31 @@ def oplot_meshed(viewer,  ret):
 
                       
         obj.rename('face_r_meshed')
-        obj._artists[0].set_gl_hl_use_array_idx(True)
+        obj.set_gl_hl_use_array_idx(True)
         meshed_face.extend(list(np.unique(cell_data['quad']['geometrical'])))
+
+    s, v = viewer._s_v_loop['mesh']
+    facesa = []
+    if len(v.keys())>0:  # in 3D starts with faces from shown volumes
+        all_surfaces = np.array(s.keys(), dtype=int)        
+        for key in v.keys():
+            if not key in viewer._mhidden_volume:
+                facesa.extend(v[key])
+        facesa = np.unique(facesa)
+        mask  = np.logical_not(np.in1d(all_surfaces, facesa))
+        facesa = list(all_surfaces[mask])
+        
+    facesa.extend(viewer._mhidden_face)
 
     for name, obj in ax.get_children():
         if name.startswith('face') and not name.endswith('meshed'):
-            h = list(np.unique(obj.hidden_component + meshed_face))
-            obj.hide_component(h)        
+            h = list(np.unique(facesa + meshed_face))
+            obj.hide_component(h)
+        if name.startswith('face') and  name.endswith('meshed'):
+            h = list(np.unique(facesa))
+            obj.hide_component(h)
     
     if 'line' in cells:
-
         vert = np.squeeze(X[cells['line']][:,0,:])
         obj= viewer.plot(vert[:,0],
                     vert[:,1],
@@ -184,26 +199,16 @@ def oplot_meshed(viewer,  ret):
                                        cell_data['line']['geometrical'])
 
         obj.rename('edge_meshed')
-        '''
-        obj._artists[0].set_gl_hl_use_array_idx(True)        
-        #print verts.shape, elem_idx.shape, array_idx.shape
-        obj = viewer.solid(verts, elem_idx,
-                           array_idx = array_idx,
-                           facecolor = (0.7, 0.7, 0.7, 1.0),
-                           edgecolor = (0, 0, 0, 1),
-                           linewidth = 1,
-                           view_offset = (0, 0, -0.0005, 0))
-
-        obj.rename('edge_meshed')
-        obj._artists[0].set_gl_hl_use_array_idx(True)
-        '''
         meshed_edge = list(np.unique(cell_data['line']['geometrical']))
     else:
         meshed_edge = []
         
+    s, v = viewer._s_v_loop['mesh']
+    edgesa = viewer._mhidden_edge
+        
     for name, obj in ax.get_children():
         if name.startswith('edge') and not name.endswith('meshed'):
-            h = list(np.unique(obj.hidden_component + meshed_edge))
+            h = list(np.unique(edgesa + meshed_edge))
             if obj.hasvar('idxset'): obj.hide_component(h)        
 
     viewer.set_sel_mode(viewer.get_sel_mode())

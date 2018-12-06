@@ -35,7 +35,7 @@ class Mesh(Model, NS_mixin):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.set_view_mode('mesh', self)
+        viewer.set_view_mode('phys', self)
         
     def get_mesh_root(self):
         from petram.mfem_model import MFEM_MeshRoot
@@ -58,7 +58,7 @@ class MeshGroup(Model):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.set_view_mode('mesh', self)
+        viewer.set_view_mode('phys', self)
         
     def is_viewmode_grouphead(self):
         return True

@@ -1649,8 +1649,8 @@ class Engine(object):
             dprint1("## internal bdr index " + str(internal_bdr))
             
             p._phys_sel_index = dom_choice
-            self.do_assign_sel_index(p, dom_choice, Domain, internal_bdr=internal_bdr)
-            self.do_assign_sel_index(p, bdr_choice, Bdry)
+            self.do_assign_sel_index(p, dom_choice, Domain)
+            self.do_assign_sel_index(p, bdr_choice, Bdry, internal_bdr=internal_bdr)
             self.do_assign_sel_index(p, dom_choice, Point)
             
     def do_assign_sel_index(self, m, choice, cls, internal_bdr=None):
@@ -1782,7 +1782,8 @@ class Engine(object):
     def alloc_mbf(self, idx1, idx2): #row col
         fes1 = self.fespaces[self.fes_vars[idx1]]
         fes2 = self.fespaces[self.r_fes_vars[idx2]]
-        return self.new_mixed_bf(fes2, fes1) # argument = trial, test
+
+        return self.new_mixed_bf(fes2, fes1) # argument = trial(=domain), test(=range)
     
     def build_ns(self):
         for node in self.model.walk():

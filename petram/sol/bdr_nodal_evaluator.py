@@ -249,7 +249,6 @@ class BdrNodalEvaluator(EvaluatorAgent):
 
         if refine == 1 or edge_only:
             if not edge_only:
-                print self.locs.shape, val.shape, self.iverts_inv.shape
                 return self.locs, val, self.iverts_inv
             else:
                 idx = edge_detect(self.iverts_inv)
