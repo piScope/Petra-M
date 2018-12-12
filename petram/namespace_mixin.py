@@ -194,7 +194,8 @@ class NS_mixin(object):
                            for k in ll.keys(): g[k] = ll[k]
                            
                    except Exception as e:
-                       assert False, e.message
+                       import traceback
+                       assert False, traceback.format_exc()
            if self.dataset is not None:
                for k in self.dataset.keys(): g[k] = self.dataset[k]
         else:
@@ -223,7 +224,9 @@ class NS_mixin(object):
             else:
                  pass ###return
         except Exception as e:
-            assert False, e.message
+            import traceback
+            assert False, traceback.format_exc()
+
         for k in l.keys():
             g[k] = l[k]
         
