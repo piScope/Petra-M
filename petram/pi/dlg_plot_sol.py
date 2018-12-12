@@ -42,13 +42,14 @@ def read_solinfo_remote(user, server, path):
     txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
 
     command = ["ssh", user+'@'+server, txt]
+    print(command)
     p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
     p.wait()
     res = p.stdout.readlines()
     res = res[-1].strip()
     res = pk.loads(binascii.a2b_hex(res))
     return res
-    
+
 from functools import wraps
 import threading
 
@@ -537,9 +538,17 @@ class DlgPlotSol(SimpleFramePlus):
         self.update_subdir_local(path, ss1)
 
     def update_subdir_remote(self):
-        info = read_solinfo_remote(self.config['cs_user'],
-                                   self.config['cs_server'],
-                                   self.config['cs_soldir'])
+        status, info = read_solinfo_remote(self.config['cs_user'],
+                                       self.config['cs_server'],
+                                       self.config['cs_soldir'])
+
+        print(status, info)
+        if not status:
+            wx.CallAfter(dialog.showtraceback, parent = self,
+                         txt='Faled to read remote directory info',
+                         title='Error',
+                         traceback=info)
+            return ""
 
         dirnames = [""]
         choices = [""]
@@ -718,7 +727,8 @@ class DlgPlotSol(SimpleFramePlus):
             cb2  = self.get_remote_subdir_cb()
             ss1 = str(cb2.GetValue())
             #if ss1 != "":
-            self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
+            if self.remote_sols is not None:
+                self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
         #print('EL changed', self.config)
 
     def onEL_Changing(self, evt):
