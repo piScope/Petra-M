@@ -682,10 +682,10 @@ class DlgPlotSol(SimpleFramePlus):
             self.config['use_cs'] = False
             model.variables.setvar('remote_soldir', None)
             
-            sol = model.solutions.get_child(name=str(v[0][1][0]))
+            sol = model.solutions.get_child(name=str(v[0][2][1]))
             if self.local_sols is None:
                 self.update_sollist_local()
-            ss1 = self.local_sols[2][str(v[0][1][1])]
+            ss1 = self.local_sols[2][str(v[0][2][2])]
             ss1 = self.update_subdir_local(sol.owndir(), ss1)
             self.local_soldir    = sol.owndir()
             self.local_solsubdir = ss1
@@ -1338,9 +1338,6 @@ class DlgPlotSol(SimpleFramePlus):
             
         data, battrs = self.eval_slice(mode = 'plot')
         if data is None:
-            wx.CallAfter(dialog.message, parent = self,
-                         message ='Error in evaluating slice', 
-                         title ='Error')
             wx.CallAfter(self.set_title_no_status)        
             return
         self.post_threadend(self.make_plot_slice, data, battrs,
@@ -1400,9 +1397,6 @@ class DlgPlotSol(SimpleFramePlus):
         
         xdata, data = self.eval_probe(mode = 'plot')
         if data is None:
-            wx.CallAfter(dialog.message, parent = self,
-                         message ='Error in evaluating probe', 
-                         title ='Error')
             wx.CallAfter(self.set_title_no_status)        
             return
         self.post_threadend(self.make_plot_probe, (xdata, data), expr = expr)
