@@ -71,6 +71,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         self.solvars = WKD()        
         self.agents = {}
         self.logfile = logfile
+        self.logfile = 'log'
 
     def run(self, *args, **kargs):
         if self.logfile == 'suppress':

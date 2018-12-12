@@ -93,9 +93,14 @@ def gather_soldirinfo(path):
     return soldirinfo
 
 def gather_soldirinfo_s(path):
-    info = gather_soldirinfo(path)
+    try:
+        info = gather_soldirinfo(path)
+        result = (True, info)
+    except:
+        import traceback
+        result = (False, traceback.format_exc())
     
     import cPickle, binascii
-    data = binascii.b2a_hex(cPickle.dumps(info))
+    data = binascii.b2a_hex(cPickle.dumps(result))
     
     return data
