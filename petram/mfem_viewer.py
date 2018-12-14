@@ -1035,41 +1035,6 @@ class MFEMViewer(BookViewer):
                 obj.set_suppress(False)
         self.draw()
         
-    def _onDlgPlotExprClose(self, evt):
-        wx.GetApp().rm_palette(self.plotexprdlg)        
-        self.plotexprdlg.Destroy()                        
-        self.plotexprdlg = None
-        evt.Skip()
-        
-    def _doPlotExpr(self, value):
-        model = self.model.param.getvar('mfem_model')
-        if model is None: return
-        
-        expr = str(value[0])
-        phys = str(value[2])
-
-        from petram.utils import eval_expr
-        try:
-           engine = self.engine        
-           d = eval_expr(model, engine, expr, value[1], phys = phys)
-        except:
-           dialog.showtraceback(parent = self,
-                                txt='Failed to evauate expression',
-                                title='Error',
-                                traceback=traceback.format_exc())
-           return
-        from ifigure.interactive import figure
-        v = figure()
-        setup_figure(v)        
-        v.update(False)
-        v.suptitle(expr)        
-        for k in d.keys():
-            v.solid(d[k][0], cz=True, cdata= d[k][1])
-        v.update(True)
-        v.view('noclip')
-        v.lighting(light = 0.5)
-        
-
     def onPlotExpr(self, evt):
         try:
             self.plotexprdlg.Raise()
@@ -1079,42 +1044,44 @@ class MFEMViewer(BookViewer):
         except:
             traceback.print_exc()
             pass
+        
+        choices = self.model.param.getvar('mfem_model')['Phys'].keys()
+        if len(choices) == 0:
+            ans = dialog.message(self,
+                                 "No physics is defined", 
+                                 style = 0)
+            return
 
         iattr = [x().figobj.name.split('_')[1]
                  for x in self.canvas.selection
                  if x().figobj.name.startswith('bdry')]
 
+        from petram.pi.dlg_plot_expr import DlgPlotExpr
+        #try:
+        if self.plotexprdlg is not None:            
+            self.plotexprdlg.Raise()
+        else:
+            self.plotexprdlg = DlgPlotExpr(self, close_cb=self.onDlgPlotExprClose)
 
-        choices = self.model.param.getvar('mfem_model')['Phys'].keys()
-        if len(choices)==0: return
-        
-        ll = [['Expression', '', 0, {}],
-              ['Dom(2D)/Bdr(3D) Index', ','.join(iattr), 0, {}],
-              ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
-                                       'choices': choices}],]
-
-        from ifigure.utils.edit_list import DialogEditListWithWindowList, EditListMiniFrame
-#        ret = DialogEditList(ll, modal=False, parent= self,
-        ret = DialogEditListWithWindowList(ll, modal=False, parent= self,
-                                ok_cb = self._doPlotExpr, ok_noclose = True,
-                                close_cb = self._onDlgPlotExprClose,
-                                style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER,
-                                add_palette = True)
-        self.plotexprdlg = ret
         evt.Skip()
+        
+    def onDlgPlotExprClose(self, evt):
+        self.plotexprdlg = None
+        evt.Skip()
+        
         
     def onDlgPlotSol(self, evt):
         m = self.model.param.getvar('mfem_model')        
         m.set_root_path(self.model.owndir())
         
         from petram.pi.dlg_plot_sol import DlgPlotSol
-        try:
-            if self.plotsoldlg is not None:            
-                self.plotsoldlg.Raise()
-            else:
-                self.plotsoldlg = DlgPlotSol(self)
-        except:
-            self.plotsoldlg = DlgPlotSol(self)
+        #try:
+        if self.plotsoldlg is not None:            
+            self.plotsoldlg.Raise()
+        else:
+             self.plotsoldlg = DlgPlotSol(self, close_cb=self.onDlgPlotSolClose)
+        #except:
+        #    self.plotsoldlg = DlgPlotSol(self)
         self.plotsoldlg.load_sol_if_needed()
             
     def onDlgPlotSolClose(self, evt):

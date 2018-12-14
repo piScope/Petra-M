@@ -64,7 +64,7 @@ class SolveStep(SolverBase):
     def get_panel1_value(self):
         return (self.init_setting, self.phys_model,
                 [self.use_dwc_pp, [self.dwc_pp_arg,]])
-    
+
     def import_panel1_value(self, v):
         self.init_setting = v[0]        
         self.phys_model   = v[1]

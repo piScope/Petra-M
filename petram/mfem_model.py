@@ -225,6 +225,23 @@ class MFEM_SolverRoot(Model):
             for x in self[k].get_target_phys():
                 if not x in ret: ret.append(x)
         return ret
+    
+    def get_special_menu(self):
+        return [["+Run...", None, None,],
+                ["Serial",   self.run_serial, None,],
+                ["Parallel", self.run_parallel, None,],
+                ["Cluster",  self.run_cluster, None,],
+                ["!", None, None,],]
+    
+    def run_serial(self, evt):
+        evt.GetEventObject().GetParent().onSerDriver(evt)        
+    
+    def run_parallel(self, evt):
+        evt.GetEventObject().GetParent().onParDriver(evt)
+
+    def run_cluster(self, evt):
+        evt.GetEventObject().GetParent().onServerSolve(evt)                
+     
 
 try:    
    from petram.geom.geom_model import MFEM_GeomRoot

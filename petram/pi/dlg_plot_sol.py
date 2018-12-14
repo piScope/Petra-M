@@ -109,7 +109,7 @@ from petram.mfem_viewer import MFEM_menus
 #class DlgPlotSol(DialogWithWindowList):
 
 class DlgPlotSol(SimpleFramePlus):
-    def __init__(self, parent, id = wx.ID_ANY, title = 'Plot Solution'):
+    def __init__(self, parent, id = wx.ID_ANY, title = 'Plot Solution', **kwargs):
         '''
         (use this style if miniframe is used)
         style=(wx.CAPTION|
@@ -136,7 +136,7 @@ class DlgPlotSol(SimpleFramePlus):
             self.config['cs_user'] = host.getvar('user')
         
         
-        super(DlgPlotSol, self).__init__(parent, id, title, style=style)
+        super(DlgPlotSol, self).__init__(parent, id, title, style=style, **kwargs)
 
         self.nb =  wx.Notebook(self)
         box = wx.BoxSizer(wx.VERTICAL)
@@ -177,7 +177,7 @@ class DlgPlotSol(SimpleFramePlus):
                   ['y', 'y', 0, {}],
                   ['z', 'z', 0, {}],
                   ['Boundary Index', text, 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],
                   ['Color', ['blue', 'none'], 506, {}], 
                   [None, True, 3, {"text":'merge solutions'}],
@@ -211,7 +211,7 @@ class DlgPlotSol(SimpleFramePlus):
                   ['x:', '', 0, {}],
                   ['y:', '', 0, {}],
                   ['z:', '', 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extension'}],]
 
@@ -238,7 +238,7 @@ class DlgPlotSol(SimpleFramePlus):
             ll = [['Expression', '', 0, {}],
                   ['Expression(x)', '', 0, {}],
                   ['Edge ', text, 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extension'}],
                   [None, True, 3, {"text":'merge solutions'}],]
@@ -277,7 +277,7 @@ class DlgPlotSol(SimpleFramePlus):
                   ['Offset (x, y, z)', '0, 0, 0', 0, {}],
                   ['Boundary Index', 'all', 4, {'style':wx.CB_DROPDOWN,
                                                 'choices': ['all', 'visible', 'hidden']}],      
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extenstion'}],
                   [None, True, 3, {"text":'merge solutions'}],
@@ -314,7 +314,7 @@ class DlgPlotSol(SimpleFramePlus):
                   ['Expression(v)', '', 0, {}],
                   ['Expression(w)', '', 0, {}],
                   ['Boundary Index', text, 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],
                   [None, False, 3, {"text":'dynamic extension (does not work)'}],
                   [None, True, 3, {"text":'merge solutions'}],
@@ -347,7 +347,7 @@ class DlgPlotSol(SimpleFramePlus):
             ll = [['Expression', '', 0, {}],
                   ['Plane', '1.0, 0, 0, 0', 0, {}],
                   ['Domain Index', text, 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extension'}],
                   [None, True, 3, {"text":'merge solutions'}],]
@@ -376,7 +376,7 @@ class DlgPlotSol(SimpleFramePlus):
             if len(choices)==0: choices = ['no physcs in model']
 
             ll = [['Expression', '', 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}], ]
 
             elp = EditListPanel(p, ll)
