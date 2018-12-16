@@ -41,28 +41,56 @@ def enqueue_output(p, queue, prompt):
         queue.put(line)
         if p.poll() is not None: return
     queue.put("??????")
+    
+def enqueue_output2(p, queue, prompt):
+    # this assumes recievein two data (size and data)
+    while True:
+        line = p.stdout.readline()
+        if len(line) == 0:
+            time.sleep(wait_time)
+            continue
+        else:
+            size = int(line)
+            break
+    line2 = p.stdout.read(size+1)        
+    queue.put(line2)
+    while True:
+        line = p.stdout.readline()
+        if len(line) == 0:
+            time.sleep(wait_time)
+            continue
+        else:
+            break
+    if line !=  prompt + '\n':
+         assert False, "I don't get prompt!??: " + line
+    queue.put("??????")
 
-def run_and_wait_for_prompt(p, prompt, verbose=True):    
+def run_and_wait_for_prompt(p, prompt, verbose=True, withsize=False):    
     q = Queue()
-    t = Thread(target=enqueue_output, args=(p, q, prompt))
+    if withsize:
+        t = Thread(target=enqueue_output2, args=(p, q, prompt))
+    else:
+        t = Thread(target=enqueue_output, args=(p, q, prompt))
     t.daemon = True # thread dies with the program
     t.start()
 
-    lines = [" "]
+    lines = []; lastline = ""
     alive = True
-    while lines[-1] != "??????":
+    while lastline != "??????":
         try:  line = q.get_nowait() # or q.get(timeout=.1)
         except Empty:
             time.sleep(wait_time)                
             #print('no output yet' + str(p.poll()))
         else: # got line
             lines.append(line)
+            lastline = lines[-1]            
         if p.poll() is not None:
             alive = False
             print('proces terminated')
             break
+
     if verbose:
-        print("Data length recieved: " + str(lines))
+        print("Data recieved: " + str(lines))
     else:
         print("Data length recieved: " + str([len(x) for x in lines]))
     return lines[:-1], alive
@@ -79,29 +107,11 @@ def run_with_timeout(timeout, default, f, *args, **kwargs):
         return default
     finally:
         timeout_timer.cancel()
-'''        
-def wait_for_prompt(p, prompt = '?', verbose = True):
-    print("waiting for prompt")
-    output = []
-    alive = True
-    while('True'):
-        time.sleep(0.01)        
-        line = run_with_timeout(1.0, '', p.stdout.readline)
-        if p.poll() is not None:
-            alive = False
-            print('proces terminated')
-            break
-        if line.startswith(prompt): break
-        output.append(line)
-    if verbose:
-        for x in output:
-            print(x.strip())
-        print("process active :" + str(alive))
-    print("got prompot")
-    return output, alive
-'''
-def wait_for_prompt(p, prompt = '?', verbose = True):
-    return run_and_wait_for_prompt(p, prompt, verbose=verbose)
+        
+def wait_for_prompt(p, prompt = '?', verbose = True, withsize=False):
+    return run_and_wait_for_prompt(p, prompt,
+                                   verbose=verbose,
+                                   withsize=withsize)
         
 def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
     if user != '': user = user+'@'
@@ -135,7 +145,7 @@ def connection_test(host = 'localhost'):
 
 from petram.sol.evaluator_mp import EvaluatorMP
 class EvaluatorServer(EvaluatorMP):
-    def __init__(self, nproc = 2, logfile = False):
+    def __init__(self, nproc = 2, logfile = 'queue'):
         return EvaluatorMP.__init__(self, nproc = nproc,
                                     logfile = logfile)
     
@@ -178,7 +188,9 @@ class EvaluatorClient(Evaluator):
         print("Sending request", command)
         self.p.stdin.write(data + '\n')
         
-        output, alive = wait_for_prompt(self.p, verbose = verbose)
+        output, alive = wait_for_prompt(self.p,
+                                        verbose = verbose,
+                                        withsize = True)
         if not alive:
            self.p = None
            return
