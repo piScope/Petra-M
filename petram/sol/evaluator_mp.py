@@ -252,7 +252,7 @@ class EvaluatorMP(Evaluator):
         redo_geom = False
         if (self.solfiles is None or
             self.solfiles() is not solfiles):
-            print("new solfiles")
+            print("new solfiles", self.solfiles, solfiles)
             self.set_solfiles(solfiles)
             self.load_solfiles()
             redo_geom = True

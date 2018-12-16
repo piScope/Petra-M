@@ -84,7 +84,6 @@ class DlgPlotExpr(SimpleFramePlus):
         v.suptitle(expr)
         if use_2dplot:
             for k in d.keys():
-                print(d[k][0].shape, d[k][1].shape)
                 v.plot(d[k][0][:, 0, 0].flatten(),
                        d[k][1][:, 0].flatten())                
             v.update(True)            

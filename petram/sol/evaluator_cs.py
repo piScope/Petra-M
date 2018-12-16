@@ -29,14 +29,19 @@ except ImportError:
     
 ON_POSIX = 'posix' in sys.builtin_module_names
 
+wait_time = 0.3
+
 def enqueue_output(p, queue, prompt):
     while True:
         line = p.stdout.readline()
+        if len(line) == 0:
+            time.sleep(wait_time)
+            continue
         if line ==  (prompt + '\n'): break
         queue.put(line)
         if p.poll() is not None: return
     queue.put("??????")
-    
+
 def run_and_wait_for_prompt(p, prompt, verbose=True):    
     q = Queue()
     t = Thread(target=enqueue_output, args=(p, q, prompt))
@@ -46,10 +51,9 @@ def run_and_wait_for_prompt(p, prompt, verbose=True):
     lines = [" "]
     alive = True
     while lines[-1] != "??????":
-        time.sleep(0.01)                
         try:  line = q.get_nowait() # or q.get(timeout=.1)
         except Empty:
-            pass
+            time.sleep(wait_time)                
             #print('no output yet' + str(p.poll()))
         else: # got line
             lines.append(line)
@@ -58,7 +62,9 @@ def run_and_wait_for_prompt(p, prompt, verbose=True):
             print('proces terminated')
             break
     if verbose:
-        print("".join(lines))
+        print("Data length recieved: " + str(lines))
+    else:
+        print("Data length recieved: " + str([len(x) for x in lines]))
     return lines[:-1], alive
 
 def run_with_timeout(timeout, default, f, *args, **kwargs):
@@ -165,19 +171,22 @@ class EvaluatorClient(Evaluator):
 
     def __call_server0(self, name, *params, **kparams):
         if self.p is None: return
+        verbose = kparams.pop("verbose", False)
         
         command = [name, params, kparams]
         data = binascii.b2a_hex(cPickle.dumps(command))
         print("Sending request", command)
         self.p.stdin.write(data + '\n')
         
-        output, alive = wait_for_prompt(self.p, verbose = False)
+        output, alive = wait_for_prompt(self.p, verbose = verbose)
         if not alive:
            self.p = None
            return
         response = output[-1].strip()
         try:
             result = cPickle.loads(binascii.a2b_hex(response))
+            if verbose:
+                print("result", result)
         except:
             traceback.print_exc()
             print("response", response)
@@ -208,6 +217,7 @@ class EvaluatorClient(Evaluator):
         return self.__call_server('set_model', self.soldir)
         
     def set_solfiles(self,  *params, **kparams):
+        kparams["verbose"] = True        
         return self.__call_server('set_solfiles', *params, **kparams)
         
     def make_agents(self,  *params, **kparams):
@@ -221,6 +231,7 @@ class EvaluatorClient(Evaluator):
         
     def validate_evaluator(self,  *params, **kparams):
         if self.p is None: return False
+        kparams["verbose"] = True
         return self.__call_server('validate_evaluator', *params, **kparams)
 
     def eval(self,  *params, **kparams):

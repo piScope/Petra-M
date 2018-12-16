@@ -440,7 +440,7 @@ class DlgPlotSol(SimpleFramePlus):
                                       self.config['cs_soldir'],
                                       '', None]],])
             
-            
+        self.nb.SetSelection(self.nb.GetPageCount()-1)
         self.Show()
         self.Layout()
         self.SetSize((500, 400))
@@ -628,7 +628,7 @@ class DlgPlotSol(SimpleFramePlus):
                 self.local_solsubdir = ""
             else:
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
-            if npath != cpath: doit =True
+            if os.path.normpath(npath) != os.path.normpath(cpath): doit =True
         else:
             doit = True
             if self.local_soldir is not None:
@@ -658,6 +658,11 @@ class DlgPlotSol(SimpleFramePlus):
                     model.variables.delvar('solfiles')
 
     def onEL_Changed(self, evt):
+        sel = self.nb.GetSelection()
+        if sel != self.nb.GetPageCount()-1:
+            evt.Skip()
+            return
+        
         model = self.GetParent().model
         v  = self.elps['Config'].GetValue()
         #print str(v[0][0])
@@ -1465,7 +1470,9 @@ class DlgPlotSol(SimpleFramePlus):
         
         if 'Edge' in self.evaluators:
             try:
-                self.evaluators['Edge'].validate_evaluator('EdgeNodal', battrs, solfiles)
+                self.evaluators['Edge'].validate_evaluator('EdgeNodal',
+                                                           battrs,
+                                                           solfiles)
             except IOError:
                 dprint1("IOError detected setting failed=True")
                 self.evaluators['Edge'].failed = True
@@ -1479,8 +1486,9 @@ class DlgPlotSol(SimpleFramePlus):
                                                name = 'EdgeNodal',
                                                config = self.config)
             
-        self.evaluators['Edge'].validate_evaluator('EdgeNodal', battrs, 
-                                                   solfiles)
+            self.evaluators['Edge'].validate_evaluator('EdgeNodal',
+                                                       battrs, 
+                                                       solfiles)
 
         try:
             self.evaluators['Edge'].set_phys_path(phys_path)
@@ -1570,7 +1578,10 @@ class DlgPlotSol(SimpleFramePlus):
                                                     name = name,
                                                     config = self.config,
                                                     decimate = decimate)
-        self.evaluators[key].validate_evaluator(name, battrs, solfiles, decimate=decimate)
+            self.evaluators[key].validate_evaluator(name,
+                                                    battrs,
+                                                    solfiles,
+                                                    decimate=decimate)
         
         try:
             self.evaluators[key].set_phys_path(phys_path)
@@ -1647,7 +1658,7 @@ class DlgPlotSol(SimpleFramePlus):
                                                         config = self.config,
                                                         plane = plane)
             
-        self.evaluators['Slice'].validate_evaluator('Slice', attrs, 
+            self.evaluators['Slice'].validate_evaluator('Slice', attrs, 
                                                     solfiles, plane = plane)
 
         try:
