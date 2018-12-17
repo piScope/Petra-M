@@ -1782,15 +1782,19 @@ class Engine(object):
     def alloc_mbf(self, idx1, idx2): #row col
         fes1 = self.fespaces[self.fes_vars[idx1]]
         fes2 = self.fespaces[self.r_fes_vars[idx2]]
-        return self.new_mixed_bf(fes2, fes1) # argument = trial, test
+
+        return self.new_mixed_bf(fes2, fes1) # argument = trial(=domain), test(=range)
     
     def build_ns(self):
         for node in self.model.walk():
            if node.has_ns():
               try:
                   node.eval_ns()
+
               except Exception as e:
-                  assert False, "Failed to build name space: " + e.message
+                  import traceback
+                  m = traceback.format_exc()
+                  assert False, "Failed to build name space: " + m
            else:
               node._local_ns = self.model.root()._variables
 

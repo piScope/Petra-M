@@ -53,7 +53,7 @@ class SolveStep(SolverBase):
         ret = ["args.",   self.dwc_pp_arg,   0, {},]
         value = self.dwc_pp_arg
         return [["Initial value setting",   self.init_setting,   0, {},],
-                ["addtional physics for range (blank: range = test)",   self.phys_model, 0, {},],
+                ["trial phys. (blank: trial = test)",   self.phys_model, 0, {},],
                 [None, [False, [value]], 27, [{'text':'Use DWC (postprocess)'},
                                               {'elp': [ret]}]],]
 
@@ -64,7 +64,7 @@ class SolveStep(SolverBase):
     def get_panel1_value(self):
         return (self.init_setting, self.phys_model,
                 [self.use_dwc_pp, [self.dwc_pp_arg,]])
-    
+
     def import_panel1_value(self, v):
         self.init_setting = v[0]        
         self.phys_model   = v[1]

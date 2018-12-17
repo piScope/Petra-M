@@ -35,7 +35,7 @@ class Mesh(Model, NS_mixin):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.set_view_mode('mesh', self)
+        viewer.set_view_mode('phys', self)
         
     def get_mesh_root(self):
         from petram.mfem_model import MFEM_MeshRoot
@@ -58,14 +58,19 @@ class MeshGroup(Model):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.set_view_mode('mesh', self)
+        viewer.set_view_mode('phys', self)
         
     def is_viewmode_grouphead(self):
         return True
      
     def figure_data_name(self):
         return 'mfem'
-        
+
+    def get_special_menu(self):
+        return [["Reload Mesh", self.reload_mfem_mesh, None,],]
+     
+    def reload_mfem_mesh(self, evt):
+        evt.GetEventObject().GetParent().onLoadMesh(evt)
         
 MFEMMesh = MeshGroup
 
@@ -329,10 +334,10 @@ class DomainRefinement(Mesh):
         domains = [int(x) for x in self.domain_txt.split(',')]
         if len(domains) == 0: return mesh
 
-        attr = mesh.GetAttributeArray()
-        idx = mfem.intArray(list(np.where(np.in1d(attr, domains))[0]))
 
-        for i in range(int(self.num_refine)):           
+        for i in range(int(self.num_refine)):
+            attr = mesh.GetAttributeArray()
+            idx = mfem.intArray(list(np.where(np.in1d(attr, domains))[0]))
             mesh.GeneralRefinement(idx) # this is parallel refinement
         return mesh
 

@@ -13,8 +13,10 @@ from ifigure.utils.cbook import BuildMenu
 from petram.mfem_viewer import MFEM_menus
 
 class SimpleFramePlus(FramePlus):
-    def __init__(self, parent, *args, **kargs):
-        super(SimpleFramePlus, self).__init__(parent, *args, **kargs)
+    def __init__(self, parent, *args, **kwargs):
+        self.close_cb = kwargs.pop("close_cb", None)
+        
+        super(SimpleFramePlus, self).__init__(parent, *args, **kwargs)
         self.Bind(wx.EVT_CLOSE, self.onClose)        
         wx.GetApp().add_palette(self)
         self._atable = []
@@ -34,6 +36,7 @@ class SimpleFramePlus(FramePlus):
         ret = BuildMenu(extra_menu, menus)
         if not "wxMac" in wx.PlatformInfo:        
             self.SetMenuBar(None)
+
         
     def onResize(self, evt):
         evt.Skip()
@@ -46,5 +49,7 @@ class SimpleFramePlus(FramePlus):
         
     def onClose(self, evt):
         wx.GetApp().rm_palette(self)
+        if self.close_cb is not None:
+            self.close_cb(evt)
         self.Destroy()
         evt.Skip()

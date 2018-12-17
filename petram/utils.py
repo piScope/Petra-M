@@ -81,7 +81,7 @@ def eval_expr(model, engine, expr, battrs, phys = None):
     mesh = engine.get_mesh()
     engine.assign_sel_index(phys)
     
-    use_dom = phys.dim == 2
+    use_dom = (phys.dim == 2 or phys.dim == 1)
     ns = phys._global_ns
     battrs = list(np.atleast_1d(eval(battrs, ns, {})).flatten().astype(int))
        

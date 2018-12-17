@@ -46,14 +46,23 @@ def show_all(evt):
     if mode == 'volume' or mode == 'face' or mode == 'edge':
         idx = []
         for o in meshed_objs:
-            o.hide_component([])
+            if o.hasvar('idxset'):
+                o.hide_component([])
             idx = idx + list(np.unique(o.getvar('array_idx')))
-        for o in objs:            
-            o.hide_component(idx)        
+        for o in objs:
+            if o.hasvar('idxset'):            
+                o.hide_component(idx)        
     elif mode == 'point':
-        ax.point.hide_component([])                        
+        if ax.point.hasvar('idxset'):            
+             ax.point.hide_component([])                        
     else:
         pass
+    
+    viewer._mhidden_volume = []
+    viewer._mhidden_face = []
+    viewer._mhidden_edge = []
+    viewer._dom_bdr_sel  = ([], [], [], [])            
+    
     viewer.draw_all()    
 
 def hide_elem(evt, inverse=False):
@@ -70,24 +79,30 @@ def hide_elem(evt, inverse=False):
     sel = viewer.canvas.selection
     if len(sel) != 1:  return
     sel_objs = [s().figobj for s in sel]
-        
+
     if mode == 'volume':
         facesa = []
         facesb = []        
         s, v = viewer._s_v_loop['mesh']
         
         selected_volume = viewer._dom_bdr_sel[0]
+        target_volumes = selected_volume
+
+        if not inverse:
+            target_volumes.extend(viewer._mhidden_volume)
         for key in v.keys():
-            if key in selected_volume:
+            if key in target_volumes:
                 facesa.extend(v[key])
             else:
                 facesb.extend(v[key])
         if inverse:
             for o in objs:                         
                 o.hide_component(facesa, inverse=True)
+            for o in meshed_objs:                         
+                o.hide_component(facesa, inverse=True)
             hidden_volume = [x for x in v.keys() if not x
                              in selected_volume]            
-            viewer._hidden_volume = hidden_volume
+            viewer._mhidden_volume = hidden_volume
         else:
             facesa = np.unique(np.array(facesa))
             facesb = np.unique(np.array(facesb))
@@ -96,13 +111,34 @@ def hide_elem(evt, inverse=False):
                 idx = o.hidden_component
                 idx = list(set(idx+new_hide))
                 o.hide_component(idx)
-                
+            for o in meshed_objs:                                     
+                idx = o.hidden_component
+                idx = list(set(idx+new_hide))
+                o.hide_component(idx)
+            tmp = viewer._mhidden_volume
+            tmp.extend(selected_volume)
+            viewer._mhidden_volume = list(set(tmp))
     elif mode == 'face' or mode == 'edge':
+        idx1 = []
         for o in objs + meshed_objs:
-            if not o in sel_objs: continue
-            idx = o.getSelectedIndex()
-            idx = list(set(o.hidden_component+idx))        
-            o.hide_component(idx, inverse=inverse)        
+            idx1.extend(o.getSelectedIndex())
+        for o in objs + meshed_objs:
+            idx = list(set(o.hidden_component+idx1))        
+            o.hide_component(idx, inverse=inverse)
+        if mode == "face":
+            if inverse:
+                hidden_face = [x for x in s.keys() if not x
+                                 in idx]
+            else:
+                hidden_face = idx
+            viewer._mhidden_face = hidden_face
+        if mode == "edge":
+            if inverse:
+                all_edges = list(np.unique(np.hstack(([s[x] for x in s.keys()]))))
+                hidden_edge = [x for x in all_edges if not x in idx]
+            else:
+                hidden_edge = idx
+            viewer._mhidden_edge = hidden_edge
     elif mode == 'point':
         pass
     else:

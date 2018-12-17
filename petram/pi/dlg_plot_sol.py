@@ -42,13 +42,14 @@ def read_solinfo_remote(user, server, path):
     txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
 
     command = ["ssh", user+'@'+server, txt]
+    print(command)
     p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
     p.wait()
     res = p.stdout.readlines()
     res = res[-1].strip()
     res = pk.loads(binascii.a2b_hex(res))
     return res
-    
+
 from functools import wraps
 import threading
 
@@ -108,7 +109,7 @@ from petram.mfem_viewer import MFEM_menus
 #class DlgPlotSol(DialogWithWindowList):
 
 class DlgPlotSol(SimpleFramePlus):
-    def __init__(self, parent, id = wx.ID_ANY, title = 'Plot Solution'):
+    def __init__(self, parent, id = wx.ID_ANY, title = 'Plot Solution', **kwargs):
         '''
         (use this style if miniframe is used)
         style=(wx.CAPTION|
@@ -135,7 +136,7 @@ class DlgPlotSol(SimpleFramePlus):
             self.config['cs_user'] = host.getvar('user')
         
         
-        super(DlgPlotSol, self).__init__(parent, id, title, style=style)
+        super(DlgPlotSol, self).__init__(parent, id, title, style=style, **kwargs)
 
         self.nb =  wx.Notebook(self)
         box = wx.BoxSizer(wx.VERTICAL)
@@ -176,7 +177,7 @@ class DlgPlotSol(SimpleFramePlus):
                   ['y', 'y', 0, {}],
                   ['z', 'z', 0, {}],
                   ['Boundary Index', text, 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],
                   ['Color', ['blue', 'none'], 506, {}], 
                   [None, True, 3, {"text":'merge solutions'}],
@@ -210,7 +211,7 @@ class DlgPlotSol(SimpleFramePlus):
                   ['x:', '', 0, {}],
                   ['y:', '', 0, {}],
                   ['z:', '', 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extension'}],]
 
@@ -237,7 +238,7 @@ class DlgPlotSol(SimpleFramePlus):
             ll = [['Expression', '', 0, {}],
                   ['Expression(x)', '', 0, {}],
                   ['Edge ', text, 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extension'}],
                   [None, True, 3, {"text":'merge solutions'}],]
@@ -276,7 +277,7 @@ class DlgPlotSol(SimpleFramePlus):
                   ['Offset (x, y, z)', '0, 0, 0', 0, {}],
                   ['Boundary Index', 'all', 4, {'style':wx.CB_DROPDOWN,
                                                 'choices': ['all', 'visible', 'hidden']}],      
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extenstion'}],
                   [None, True, 3, {"text":'merge solutions'}],
@@ -313,7 +314,7 @@ class DlgPlotSol(SimpleFramePlus):
                   ['Expression(v)', '', 0, {}],
                   ['Expression(w)', '', 0, {}],
                   ['Boundary Index', text, 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],
                   [None, False, 3, {"text":'dynamic extension (does not work)'}],
                   [None, True, 3, {"text":'merge solutions'}],
@@ -346,7 +347,7 @@ class DlgPlotSol(SimpleFramePlus):
             ll = [['Expression', '', 0, {}],
                   ['Plane', '1.0, 0, 0, 0', 0, {}],
                   ['Domain Index', text, 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extension'}],
                   [None, True, 3, {"text":'merge solutions'}],]
@@ -375,7 +376,7 @@ class DlgPlotSol(SimpleFramePlus):
             if len(choices)==0: choices = ['no physcs in model']
 
             ll = [['Expression', '', 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
+                  ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}], ]
 
             elp = EditListPanel(p, ll)
@@ -439,7 +440,7 @@ class DlgPlotSol(SimpleFramePlus):
                                       self.config['cs_soldir'],
                                       '', None]],])
             
-            
+        self.nb.SetSelection(self.nb.GetPageCount()-1)
         self.Show()
         self.Layout()
         self.SetSize((500, 400))
@@ -537,9 +538,17 @@ class DlgPlotSol(SimpleFramePlus):
         self.update_subdir_local(path, ss1)
 
     def update_subdir_remote(self):
-        info = read_solinfo_remote(self.config['cs_user'],
-                                   self.config['cs_server'],
-                                   self.config['cs_soldir'])
+        status, info = read_solinfo_remote(self.config['cs_user'],
+                                       self.config['cs_server'],
+                                       self.config['cs_soldir'])
+
+        print(status, info)
+        if not status:
+            wx.CallAfter(dialog.showtraceback, parent = self,
+                         txt='Faled to read remote directory info',
+                         title='Error',
+                         traceback=info)
+            return ""
 
         dirnames = [""]
         choices = [""]
@@ -619,7 +628,7 @@ class DlgPlotSol(SimpleFramePlus):
                 self.local_solsubdir = ""
             else:
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
-            if npath != cpath: doit =True
+            if os.path.normpath(npath) != os.path.normpath(cpath): doit =True
         else:
             doit = True
             if self.local_soldir is not None:
@@ -649,6 +658,11 @@ class DlgPlotSol(SimpleFramePlus):
                     model.variables.delvar('solfiles')
 
     def onEL_Changed(self, evt):
+        sel = self.nb.GetSelection()
+        if sel != self.nb.GetPageCount()-1:
+            evt.Skip()
+            return
+        
         model = self.GetParent().model
         v  = self.elps['Config'].GetValue()
         #print str(v[0][0])
@@ -718,7 +732,8 @@ class DlgPlotSol(SimpleFramePlus):
             cb2  = self.get_remote_subdir_cb()
             ss1 = str(cb2.GetValue())
             #if ss1 != "":
-            self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
+            if self.remote_sols is not None:
+                self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
         #print('EL changed', self.config)
 
     def onEL_Changing(self, evt):
@@ -1338,9 +1353,6 @@ class DlgPlotSol(SimpleFramePlus):
             
         data, battrs = self.eval_slice(mode = 'plot')
         if data is None:
-            wx.CallAfter(dialog.message, parent = self,
-                         message ='Error in evaluating slice', 
-                         title ='Error')
             wx.CallAfter(self.set_title_no_status)        
             return
         self.post_threadend(self.make_plot_slice, data, battrs,
@@ -1400,9 +1412,6 @@ class DlgPlotSol(SimpleFramePlus):
         
         xdata, data = self.eval_probe(mode = 'plot')
         if data is None:
-            wx.CallAfter(dialog.message, parent = self,
-                         message ='Error in evaluating probe', 
-                         title ='Error')
             wx.CallAfter(self.set_title_no_status)        
             return
         self.post_threadend(self.make_plot_probe, (xdata, data), expr = expr)
@@ -1461,7 +1470,9 @@ class DlgPlotSol(SimpleFramePlus):
         
         if 'Edge' in self.evaluators:
             try:
-                self.evaluators['Edge'].validate_evaluator('EdgeNodal', battrs, solfiles)
+                self.evaluators['Edge'].validate_evaluator('EdgeNodal',
+                                                           battrs,
+                                                           solfiles)
             except IOError:
                 dprint1("IOError detected setting failed=True")
                 self.evaluators['Edge'].failed = True
@@ -1475,8 +1486,9 @@ class DlgPlotSol(SimpleFramePlus):
                                                name = 'EdgeNodal',
                                                config = self.config)
             
-        self.evaluators['Edge'].validate_evaluator('EdgeNodal', battrs, 
-                                                   solfiles)
+            self.evaluators['Edge'].validate_evaluator('EdgeNodal',
+                                                       battrs, 
+                                                       solfiles)
 
         try:
             self.evaluators['Edge'].set_phys_path(phys_path)
@@ -1566,7 +1578,10 @@ class DlgPlotSol(SimpleFramePlus):
                                                     name = name,
                                                     config = self.config,
                                                     decimate = decimate)
-        self.evaluators[key].validate_evaluator(name, battrs, solfiles, decimate=decimate)
+            self.evaluators[key].validate_evaluator(name,
+                                                    battrs,
+                                                    solfiles,
+                                                    decimate=decimate)
         
         try:
             self.evaluators[key].set_phys_path(phys_path)
@@ -1643,7 +1658,7 @@ class DlgPlotSol(SimpleFramePlus):
                                                         config = self.config,
                                                         plane = plane)
             
-        self.evaluators['Slice'].validate_evaluator('Slice', attrs, 
+            self.evaluators['Slice'].validate_evaluator('Slice', attrs, 
                                                     solfiles, plane = plane)
 
         try:
