@@ -54,13 +54,17 @@ def enqueue_output2(p, queue, prompt):
             time.sleep(wait_time)
             continue
         else:
-            if line.startswith('z'):
-                use_zlib = True
-                size = int(line[1:])
-            else:
-                use_zlib = False                
-                size = int(line)
-            break
+            try:
+                if line.startswith('z'):
+                    use_zlib = True
+                    size = int(line[1:])
+                else:
+                    use_zlib = False                
+                    size = int(line)
+                break
+            except:
+                ### Error string from C++ layer may show up here!?
+                print("Unexpected text received", line)   
     line2 = p.stdout.read(size+1)
     line2 = binascii.a2b_hex(line2[:-1])
     if use_zlib:
