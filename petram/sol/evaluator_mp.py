@@ -74,7 +74,9 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         self.agents = {}
         self.logfile = logfile
         self.use_stringio = False
-
+        
+        ## enable it when checking performance        
+        self.use_profiler = False
 
     def run(self, *args, **kargs):
         if self.logfile == 'suppress':
@@ -103,7 +105,12 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     org_sys_stdout = sys.stdout
                     org_sys_stderr = sys.stderr
                     sys.stdout = stringio
-                    sys.stderr = stringio                    
+                    sys.stderr = stringio
+                    
+                if self.use_profiler:
+                    import cProfile
+                    pr = cProfile.Profile()
+                    pr.enable()
 
                 #print("got task", task[0], self.myid, self.rank)
                 if task[0] == 1: # (1, cls, param) = make_agents
@@ -148,11 +155,19 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                 value = (None, None)
             finally:
                 self.task_queue.task_done()
+                
+                if self.use_profiler:
+                    import  pstats                    
+                    pr.disable()
+                    ps = pstats.Stats(pr,
+                                      stream=sys.stdout).sort_stats('cumulative')
+                    ps.print_stats()                    
+
                 if task[0] == 7:
                     self.result_queue.put(value)
                 if task[0] == 8:
                     self.result_queue.put(value)
-
+                    
                 if self.use_stringio:
                     output = stringio.getvalue()
                     stringio.getvalue()
@@ -160,7 +175,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     sys.stderr = org_sys_stderr 
                     stringio.close()
                     self.text_queue.put(output)
-                
+                    
         #end of while
         self.task_queue.close()
         self.result_queue.close()
@@ -266,7 +281,7 @@ class EvaluatorMP(Evaluator):
         self.tasks.put((2, solfiles))
 
     def make_agents(self, name, params, **kwargs):
-        super(EvaluatorMP, self).make_agents(name, params)
+        super(EvaluatorMP, self).make_agents(name, params, **kwargs)
         self.tasks.put((1, name, params, kwargs))
         
     def load_solfiles(self, mfem_mode = None):
@@ -290,7 +305,7 @@ class EvaluatorMP(Evaluator):
 
         self.make_agents(self._agent_params[0],
                          attr, **kwargs)
-        self.tasks.put((6, attr, kwargs))        
+        #self.tasks.put((6, attr, kwargs))        
         self.init_done = True
         
     def eval(self, expr, merge_flag1, merge_flag2, **kwargs):

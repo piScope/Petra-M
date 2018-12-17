@@ -221,9 +221,7 @@ class BdrNodalEvaluator(EvaluatorAgent):
         self.emesh_idx = emesh_idx
         
     def eval(self, expr, solvars, phys, **kwargs):
-        
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
-        #print("emesh_idx", emesh_idx)
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
         #if len(emesh_idx) < 1:

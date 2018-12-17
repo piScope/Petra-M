@@ -334,10 +334,10 @@ class DomainRefinement(Mesh):
         domains = [int(x) for x in self.domain_txt.split(',')]
         if len(domains) == 0: return mesh
 
-        attr = mesh.GetAttributeArray()
-        idx = mfem.intArray(list(np.where(np.in1d(attr, domains))[0]))
 
-        for i in range(int(self.num_refine)):           
+        for i in range(int(self.num_refine)):
+            attr = mesh.GetAttributeArray()
+            idx = mfem.intArray(list(np.where(np.in1d(attr, domains))[0]))
             mesh.GeneralRefinement(idx) # this is parallel refinement
         return mesh
 
