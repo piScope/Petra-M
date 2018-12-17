@@ -59,7 +59,7 @@ class Evaluator(object):
     '''
     def make_agents(self, name, params, **kwargs):
         self._agent_params = (name, params)
-        self._agent_kwargs = kwargs
+        self._agent_kwargs = kwargs.copy()
 
     '''
     check if evauators are build with current need
@@ -71,6 +71,7 @@ class Evaluator(object):
         return self._agent_params[0] == name
 
     def validate_evaluator(self, name, params, *args, **kwargs):
+        print(self._agent_params, params, name)
         val=  self.validate_param(params) and self.validate_cls(name)
         if not val: return False
         #print 'comparing', self._agent_kwargs, kwargs

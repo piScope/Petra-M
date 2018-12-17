@@ -152,8 +152,6 @@ class SliceEvaluator(EvaluatorAgent):
         self.attrs[4] = d        
 
     def eval(self, expr, solvars, phys, **kwargs):
-        if self.vertices is None: return None, None, None
-
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
@@ -166,7 +164,8 @@ class SliceEvaluator(EvaluatorAgent):
                 self.preprocess_geometry(self.attrs, plane=self.plane,
                                       emesh_idx=emesh_idx[0])
         
-
+        if self.vertices is None: return None, None, None
+        
         val = eval_at_nodals(self, expr, solvars, phys)
         if val is None: return None, None, None
         value = self.interp_mat.dot(val)
