@@ -54,7 +54,6 @@ def enqueue_output2(p, queue, prompt):
             time.sleep(wait_time)
             continue
         else:
-            print("line", line)
             if line.startswith('z'):
                 use_zlib = True
                 size = int(line[1:])
@@ -242,7 +241,7 @@ class EvaluatorClient(Evaluator):
         return self.__call_server('set_model', self.soldir)
         
     def set_solfiles(self,  *params, **kparams):
-        kparams["verbose"] = True        
+        #kparams["verbose"] = True        
         return self.__call_server('set_solfiles', *params, **kparams)
         
     def make_agents(self,  *params, **kparams):
@@ -256,7 +255,7 @@ class EvaluatorClient(Evaluator):
         
     def validate_evaluator(self,  *params, **kparams):
         if self.p is None: return False
-        kparams["verbose"] = True
+        #kparams["verbose"] = True
         return self.__call_server('validate_evaluator', *params, **kparams)
 
     def eval(self,  *params, **kparams):
