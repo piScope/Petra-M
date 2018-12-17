@@ -104,7 +104,8 @@ def run_and_wait_for_prompt(p, prompt, verbose=True, withsize=False):
     if verbose:
         print("Data recieved: " + str(lines))
     else:
-        print("Data length recieved: " + str([len(x) for x in lines]))
+        pass
+        #print("Data length recieved: " + str([len(x) for x in lines]))
     return lines[:-1], alive
 
 def run_with_timeout(timeout, default, f, *args, **kwargs):
@@ -198,17 +199,17 @@ class EvaluatorClient(Evaluator):
     def __call_server0(self, name, *params, **kparams):
         if self.p is None: return
         verbose = kparams.pop("verbose", False)
+        force_protocol1 = kparams.pop("force_protocol1", False)
         
         command = [name, params, kparams]
         data = binascii.b2a_hex(cPickle.dumps(command))
         print("Sending request", command)
         self.p.stdin.write(data + '\n')
 
-        protocol = self.p.evalsvr_protocol
-        withsize = protocol > 1
+        protocol = 1 if force_protocol1 else self.p.evalsvr_protocol 
         output, alive = wait_for_prompt(self.p,
                                         verbose = verbose,
-                                        withsize = withsize)
+                                        withsize = protocol > 1)
         if not alive:
            self.p = None
            return
@@ -274,7 +275,7 @@ class EvaluatorClient(Evaluator):
         return self.__call_server('eval_probe', *params, **kparams)
 
     def terminate_all(self):
-        return self.__call_server('terminate_all')
+        return self.__call_server('terminate_all', force_protocol1=True)
         
     
 
