@@ -7,6 +7,10 @@ import traceback
 import subprocess as sp
 import cPickle
 import binascii
+try:
+   import bz2  as bzlib
+except ImportError:
+   import zlib as bzlib   
 from weakref import WeakKeyDictionary as WKD
 from weakref import WeakValueDictionary as WVD
 
@@ -50,9 +54,18 @@ def enqueue_output2(p, queue, prompt):
             time.sleep(wait_time)
             continue
         else:
-            size = int(line)
+            print("line", line)
+            if line.startswith('z'):
+                use_zlib = True
+                size = int(line[1:])
+            else:
+                use_zlib = False                
+                size = int(line)
             break
-    line2 = p.stdout.read(size+1)        
+    line2 = p.stdout.read(size+1)
+    line2 = binascii.a2b_hex(line2[:-1])
+    if use_zlib:
+        line2 = bzlib.decompress(line2)
     queue.put(line2)
     while True:
         line = p.stdout.readline()
@@ -194,9 +207,9 @@ class EvaluatorClient(Evaluator):
         if not alive:
            self.p = None
            return
-        response = output[-1].strip()
+        response = output[-1]
         try:
-            result = cPickle.loads(binascii.a2b_hex(response))
+            result = cPickle.loads(response)
             if verbose:
                 print("result", result)
         except:
