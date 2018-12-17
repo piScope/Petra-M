@@ -140,6 +140,10 @@ def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
                  universal_newlines = True)
 
     data, alive = wait_for_prompt(p, prompt = 'num_proc?')
+    if data[-1].startswith("protocol"):
+       p.evalsvr_protocol = int(data[-1].split(':')[-1])
+    else:
+       p.evalsvr_protocol = 1
     p.stdin.write(str(num_proc)+'\n')
     out, alive = wait_for_prompt(p)
     return p
@@ -199,14 +203,19 @@ class EvaluatorClient(Evaluator):
         data = binascii.b2a_hex(cPickle.dumps(command))
         print("Sending request", command)
         self.p.stdin.write(data + '\n')
-        
+
+        protocol = self.p.evalsvr_protocol
+        withsize = protocol > 1
         output, alive = wait_for_prompt(self.p,
                                         verbose = verbose,
-                                        withsize = True)
+                                        withsize = withsize)
         if not alive:
            self.p = None
            return
-        response = output[-1]
+        if protocol > 1:
+            response = output[-1]
+        else:
+            response = binascii.a2b_hex(output[-1].strip())
         try:
             result = cPickle.loads(response)
             if verbose:
