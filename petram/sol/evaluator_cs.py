@@ -236,9 +236,9 @@ class EvaluatorClient(Evaluator):
         elif result[0] == 'echo':
             print(result[1])
         else:
-            print(output, result)
+            print(result)
             #assert False, result[1]
-            message = ''.join([o[:75] for o in output])
+            message = ''.join(result[1])
             assert False, message
 
     def __call_server(self, name, *params, **kparams):        

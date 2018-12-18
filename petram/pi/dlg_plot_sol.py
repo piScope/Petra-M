@@ -1067,6 +1067,8 @@ class DlgPlotSol(SimpleFramePlus):
                                               refine = refine,
                                               average = average,
                                               decimate = decimate)
+        if data is None: return None, None
+        
         uvw = str(value[1]).split(',')
         if len(uvw) == 3:
             for kk, expr in enumerate(uvw):
@@ -1096,7 +1098,6 @@ class DlgPlotSol(SimpleFramePlus):
                     else:
                         datasets[0][:,kk] += u[k][1]
                 
-        if data is None: return None, None
         return data, battrs
         
 
