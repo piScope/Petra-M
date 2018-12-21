@@ -89,7 +89,7 @@ class DlgPlotExpr(SimpleFramePlus):
             v.update(True)            
         else:
             from petram.pi.dlg_plot_sol import setup_figure
-            setup_figure(v)                    
+            setup_figure(v, self.GetParent())                    
             for k in d.keys():
                 v.solid(d[k][0], cz=True, cdata= d[k][1])
             v.update(True)
