@@ -294,7 +294,8 @@ class DlgPlotSol(SimpleFramePlus):
             ebutton=wx.Button(p, wx.ID_ANY, "Export")                     
             button=wx.Button(p, wx.ID_ANY, "Apply")
             ibutton.Bind(wx.EVT_BUTTON, self.onInteg)
-            ebutton.Bind(wx.EVT_BUTTON, self.onExport)            
+            ebutton.Bind(wx.EVT_LEFT_UP, self.onExport)
+            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL,1)                                  
             hbox.Add(ibutton, 0, wx.ALL,1)                                  
@@ -572,6 +573,22 @@ class DlgPlotSol(SimpleFramePlus):
         self.remote_sols = (self.config['cs_soldir'],
                             probes, dict(zip(choices, dirnames)))
         return ss1
+    
+    def get_current_choices(self):
+        if self.config['use_cs']:
+            base = self.remote_sols[0]
+            v = self.remote_sols[2].values()
+            remote = True
+        else:
+            base = self.local_sols[0]
+            v = self.local_sols[2].values()
+            remote = False
+            
+        sorted_subs = [x[1] for x in  sorted([(int(x.split('_')[-1]), x)
+                           for x in v if len(x) != 0])]
+        if '' in v: sorted_subs = [''] + sorted_subs
+
+        return remote, base, sorted_subs
         
     def OnLoadLocalSol(self, evt):
         self.update_sollist_local()
@@ -757,6 +774,19 @@ class DlgPlotSol(SimpleFramePlus):
         t = self.get_selected_plotmode()
         m = getattr(self, 'onExport2'+t)
         m(evt)
+        
+    def onExportR(self, evt):
+        t = self.get_selected_plotmode()                
+        m1 = getattr(self, 'onExportR1'+t)
+        m2 = getattr(self, 'onExportR2'+t)                
+        menu = wx.Menu()
+        f1=menu.Append(wx.ID_ANY, 'All Subdirectories', 'loop over subdirectoris')
+        self.Bind(wx.EVT_MENU, m1, f1)
+        f2=menu.Append(wx.ID_ANY, 'Expand exp(-jwt)', '')
+        self.Bind(wx.EVT_MENU, m2, f2)
+        evt.GetEventObject().PopupMenu(menu, evt.GetPosition())
+        menu.Destroy()
+        evt.Skip()
         
     def get_selected_plotmode(self, kind = False):
         t = self.nb.GetPageText(self.nb.GetSelection())
@@ -1038,6 +1068,36 @@ class DlgPlotSol(SimpleFramePlus):
         verts, cdata, adata = data[0]
         data = {'vertices': verts, 'data': cdata, 'index': adata}
         self.export_to_piScope_shell(data, 'bdr_data')
+        
+    def onExportR1Bdr(self, evt):
+        remote, base, subs = self.get_current_choices()
+        
+        cdata = []
+        for s in subs:
+            if remote:
+                self.config['cs_soldir'] = base                                
+                self.config['cs_solsubdir'] = s
+            else:
+                self.local_soldir    = base
+                self.local_solsubdir = s
+                self.load_sol_if_needed()
+
+            data, battrs = self.eval_bdr(mode = 'integ')
+            if data is None:
+                assert False, "returned value is None ???"
+                
+            verts, cc, adata = data[0]
+            cdata.append(cc)
+            
+        data = {'vertices': verts, 'data': cdata, 'index': adata}
+        self.export_to_piScope_shell(data, 'bdr_data')
+        
+    def onExportR2Bdr(self, evt):
+        wx.CallAfter(dialog.showtraceback, parent = self,
+                     txt='Not Yet Implemented',
+                     title='Error',
+                     traceback='Exporing all time slice for frequency \ndomain analysis is not available')
+        wx.CallAfter(self.set_title_no_status)                     
 
     def get_attrs_field_Bdr(self):
         return 1
