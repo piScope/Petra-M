@@ -201,7 +201,7 @@ class NASReader(object):
         cards = re.findall('.'*d, l)
         return cards
     def parse_tria6_fixed(self, l):
-        d=6              
+        d=8
 #        cards= [l[d*i:d*(i+1)].strip() for i in range(9)]
         cards = re.findall('.'*d, l)
         return cards
