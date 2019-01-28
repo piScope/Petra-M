@@ -171,11 +171,18 @@ class MFEM_GeomRoot(Model):
     can_delete = False
     has_2nd_panel = False
     def get_possible_child(self):
+        ret = []
         try:
             from petram.geom.gmsh_geom_model import GmshGeom
-            return [GmshGeom]
-        except:
-            return []
+            ret.append(GmshGeom)
+        except ImportError:
+            pass
+        try:
+            from petram.geom.gmsh_geom_model import BrepFile
+            ret.append(BrepFile)            
+        except ImportError:
+            pass
+        return ret
         
 class MFEM_MeshRoot(Model):
     can_delete = False

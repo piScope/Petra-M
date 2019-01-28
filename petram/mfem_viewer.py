@@ -222,7 +222,7 @@ class MFEMViewer(BookViewer):
                 d = self._figure_data['geom']
                 if name in d:
                     ret = d[name]
-                    plot_geometry(self,  d[d.keys()[0]])
+                    plot_geometry(self,  ret)
                 else:
                     assert False, 'Geometry figur data not found :'+ name
             elif view_mode == 'mesh':
@@ -441,9 +441,12 @@ class MFEMViewer(BookViewer):
             for i in idx:
                for k in sl.keys():
                    if i in sl[k]: selected_volume.append(k)
+                   
             selected_volume = list(set(selected_volume))
-            for x in self._hidden_volume:
+            hidden = self._mhidden_volume if self._view_mode == 'mesh' else self._hidden_volume
+            for x in hidden:
                 if x in selected_volume: selected_volume.remove(x)
+                
             surf_idx = []
             for kk in selected_volume:
                 surf_idx.extend(sl[kk])

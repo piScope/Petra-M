@@ -100,13 +100,33 @@ class NASReader(object):
             TETRA = np.vstack([np.array((int(g[3]), int(g[4]), int(g[5]), int(g[6]),))
                            for g in elems['TETRA']])
             TETRA_ATTR = np.array([int(g[2]) for g in elems['TETRA']]) #PSOLID ID
+            idx = [len(np.unique(x)) == 4 for x in TETRA]
+            if not all(idx):
+                print("some TETRA has no volume")
+                TETRA = TETRA[idx, :]
+                TETRA_ATTR = TETRA_ATTR[idx]
+                
             new_elems['TETRA'] = TETRA-1
             new_elems['TETRA_ATTR'] = TETRA_ATTR
             
-        if len(elems['TRIA6']) > 0:                          
+        if len(elems['TRIA6']) > 0:
             TRIA6 = np.vstack([np.array((int(g[3]), int(g[4]), int(g[5]), ))
-                           for g in elems['TRIA6']])
-            TRIA6_ATTR = np.array([int(g[2]) for g in elems['TRIA6']])  #PSHELL ID
+                               for g in elems['TRIA6']])
+            TRIA6_ATTR = np.array([int(g[2]) for g in elems['TRIA6']])
+
+            idx = [len(np.unique(x)) == 3 for x in TRIA6]
+            if not all(idx):
+                print("some TRIA6 has no area")
+                TRIA6 = TRIA6[idx, :]
+                TRIA6_ATTR = TRIA6_ATTR[idx]
+                
+
+            idx = [np.any([len(np.intersect1d(x, y))==3 for y in TETRA]) for x in TRIA6]
+            if not all(idx):
+                print("some TRIA6 is not surface of TETRA!")
+                TRIA6 = TRIA6[idx, :]
+                TRIA6_ATTR = TRIA6_ATTR[idx]
+
             new_elems['TRIA6'] = TRIA6-1
             new_elems['TRIA6_ATTR'] = TRIA6_ATTR
 
