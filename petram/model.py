@@ -333,9 +333,15 @@ class Model(RestorableOrderedDict):
         before = kwargs.pop("before", None)        
         m = []
         for k in self.keys():
-            label = ''.join([x for x in k if not x.isdigit()])
-            if k.startswith(txt):#            if txt == label:
-                m.append(long(k[len(txt):]))
+            ll = 0
+            while ll < len(k):
+               if not k[ll].isdigit(): ll = ll+1
+               else: break
+
+            name = k[:ll]
+            if name == txt:
+                if len(k) > len(name):
+                    m.append(long(k[len(name):]))
 
         if len(m) == 0:
            name = txt+str(1)
