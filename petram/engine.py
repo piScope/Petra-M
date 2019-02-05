@@ -372,7 +372,7 @@ class Engine(object):
         if len(self.emeshes) == 0:
             self.emeshes = self.meshes[:]
             for j in range(len(self.emeshes)):
-                self.emesh_data.add_default_info(j)
+                self.emesh_data.add_default_info(j, self.emeshes[j].Dimension())
         info = phys.get_mesh_ext_info()
         idx = self.emesh_data.add_info(info)
 

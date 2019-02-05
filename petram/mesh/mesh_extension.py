@@ -58,8 +58,8 @@ class MeshExt(object):
         self.info.append(info)
         return len(self.info)-1
     
-    def add_default_info(self, j):
-        info = MeshExtInfo(base = j)
+    def add_default_info(self, j, dim):
+        info = MeshExtInfo(base = j, dim = dim)
         self.do_add_info(info)
         
     def add_info(self, info):
