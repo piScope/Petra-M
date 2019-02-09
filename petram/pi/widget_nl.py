@@ -43,7 +43,8 @@ class NonlinearTermPanel0(wx.Panel):
         sizer.Add(grid, 1, wx.EXPAND|wx.ALL, 5)
 
         def onSize(evt, grid = grid):
-            width, height = grid.GetClientSizeTuple()
+            from ifigure.utils.wx3to4 import grid_ClientSizeTuple
+            width, height = grid_ClientSizeTuple(grid)
             s = width - grid.GetColSize(0)
             if s < 1: return
             grid.SetColSize(1, s)

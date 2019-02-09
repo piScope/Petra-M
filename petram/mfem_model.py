@@ -148,7 +148,38 @@ class MFEM_PhysRoot(Model):
             dep_vars.extend(extra_vars)
         return dep_vars
     
+class MFEM_PostProcessRoot(Model):    
+    can_delete = False
+    has_2nd_panel = False        
+    def get_possible_child(self):
+        from petram.postprocess.pp_model import PostProcess
+        return [PostProcess]
+    
+    def onItemSelChanged(self, evt):
+        '''
+        GUI response when model object is selected in
+        the dlg_edit_model
+        '''
+        viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
+        viewer.set_view_mode('phys', self)
+        
+    def is_viewmode_grouphead(self):
+        return True
+    
+    def add_solvars(self, solsets, solvars):
+        print("hoge")
+        for k, v in enumerate(solsets):
+            mesh, soldict = v
+            solvar = solvars[k]
+            for p in self.iter_enabled():
+                print("p", p)
+                for pp in p.iter_enabled():                
+                    pp.soldict_to_solvars(mesh, soldict, solvar)
+            #solvars[k] = solvar
+        print "pp solvars", solvars
+        return solvars
 
+    
 class MFEM_InitRoot(Model):    
     can_delete = False
     has_2nd_panel = False        
@@ -201,8 +232,16 @@ class MFEM_MeshRoot(Model):
         the dlg_edit_model
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
-        viewer.set_view_mode('mesh')                                
-        
+        viewer.set_view_mode('mesh')
+
+    @property
+    def sdim(self):
+        from petram.mesh.mesh_model import MeshGroup
+        for obj in self.walk():
+            if isinstance(obj, MeshGroup) and obj.enabled:
+                return obj.sdim
+        return 1
+    
 class MFEM_SolverRoot(Model):
     can_delete = False
     has_2nd_panel = False
@@ -265,7 +304,8 @@ class MFEM_ModelRoot(Model):
             self['Geometry'] = MFEM_GeomRoot()        
         self['Mesh'] = MFEM_MeshRoot()
         self['Phys'] = MFEM_PhysRoot()
-        self['InitialValue'] = MFEM_InitRoot()        
+        self['InitialValue'] = MFEM_InitRoot()
+        self['PostProcess'] = MFEM_PostProcessRoot()                        
         self['Solver'] = MFEM_SolverRoot()
 
         from petram.helper.variables import Variables

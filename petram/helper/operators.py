@@ -104,13 +104,38 @@ class Operator(object):
     @property
     def sel_mode(self):
         return self._sel_mode
-    
+
+class CurveTangent(mfem.VectorPyCoefficient):
+    def Eval(self, V, T, ip):
+        # if V is Matrix, we need to make our own loop to
+        # properly set spacial points in variables.
+        if isinstance(ip, mfem.IntegrationPoint):
+            T.SetIntPoint(ip)
+            for kk, v in enumerate( Tr.Jacobian().GetDataArray()):
+                V[kk] = v
+        elif isinstance(ip, mfem.IntegrationRule):       
+            M = V; ir=ip
+            Mi = mfem.Vector()
+            M.SetSize(self.sdim, ir.GetNPoints())
+            for k in range(ir.GetNPoints()):
+                M.GetColumnReference(k, Mi);
+                ip = ir.IntPoint(k)
+                Tr.SetIntPoint(ip)
+                for kk, v in enumerate( Tr.Jacobian().GetDataArray()):
+                   Mi[kk] = v
+
 class Integral(Operator):
     def assemble(self, *args, **kwargs):
         '''
         integral()
         integral('boundary', [1,3])  # selection type and selection
+           H1: boundary integral
+           ND (2D): boundary integral of tangent 
+
+        integral('boundary', [1,3], weight= 'tangent', 'flux', 'normal') # VectorFE tangent
         '''
+        itg_type = kwargs.pop("weight", "default")
+
         engine = self._engine()        
         self.process_kwargs(engine, kwargs)
         
@@ -118,14 +143,71 @@ class Integral(Operator):
         if len(args)>1: self._sel = args[1]
 
         lf1 = engine.new_lf(self._fes1())
-        one = mfem.ConstantCoefficient(1.0)        
-        coff = self.restrict_coeff(one, self._fes1())
 
-        if self._sel_mode == 'domain':
-            intg = mfem.DomainLFIntegrator(coff)
-        elif self._sel_mode == 'boundary':
-            intg = mfem.BoundaryLFIntegrator(coff)
+        if (self.fes1.FEColl().Name().startswith('ND') or
+            self.fes1.FEColl().Name().startswith('RT')):
+            isVectorFE = True
         else:
+            isVectorFE = False
+            
+        sdim = self.fes1.GetMesh().SpaceDimension()
+        dim = self.fes1.GetMesh().Dimension()        
+        
+        def scalar_one(fes):
+            one = mfem.ConstantCoefficient(1.0)        
+            coff = self.restrict_coeff(one, fes)
+            return coeff
+            
+                              
+        if self._sel_mode == 'domain':
+            if isVectorFE:
+               assert False, "Not impolemented"
+               #intg = mfem.VectorFEDomainLFIntegrator(coff)                              
+            else:
+               if self.fes1.GetVDim() == 1:
+                  one = scalar_one(self._fes1())                                         
+                  intg = mfem.DomainLFIntegrator(coff)
+               else:
+                  assert False, "Not impolemented"                  
+                  intg = mfem.VectorDomainLFIntegrator(coff)                              
+                              
+        elif self._sel_mode == 'boundary':
+            if isVectorFE:
+                if self.fes1.FEColl().Name().startswith('ND'):
+                     if dim == 2 and sdmi == 3:
+                         coeff = CurveTangent(sdim)
+                         intg = mfem.VectorFEBoundaryTangentLFIntegrator(coff)
+                     else:
+                         assert False, "Not impolemented"                        
+                elif self.fes1.FEColl().Name().startswith('RT'):
+                     assert False, "Not impolemented"                   
+                     #intg = mfem.VectorFEBoundaryFluxLFIntegrator(coff)
+                else:
+                     assert False, "Not impolemented"                                      
+                     #assert False, "Can not find proper LF integrator from kind/vdim/fec"
+            else:
+                if self.fes1.GetVDim() == 1:
+                    if itg_type == "default":
+                        one = scalar_one(self._fes1())
+                        intg = mfem.BoundaryLFIntegrator(coff)
+                    elif itg_type == "tangent":
+                        intg = mfem.BoundaryTangentLFIntegrator(coff)
+                    elif itg_type == "normal":
+                        intg = mfem.BoundaryNormalLFIntegrator(coff)                       
+                    elif itg_type == "flow":                                              
+                        intg = mfem.BoundaryFlowIntegrator(coff)
+                    else:
+                        assert False, "Can not find proper LF integrator from kind/vdim/fec"
+                        
+                else:
+                    assert False, "Not impolemented"                                      
+                    if itg_type == "default":
+                        intg = mfem.VectorBoundaryLFIntegrator(coff)
+                    elif itg_type == "flux":
+                        intg = mfem.VectorBoundaryFluxLFIntegrator(coff)
+                    else:
+                        assert False, "Can not find proper LF integrator from kind/vdim/fec"
+        else:           
             assert False, "Selection Type must be either domain or boundary"
         lf1.AddDomainIntegrator(intg)
         lf1.Assemble()

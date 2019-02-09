@@ -144,7 +144,6 @@ def SCoeff(*args, **kwargs):
                if len(val.shape) == 0: val = [val]
                if self.conj: val=np.conj(val)[self.component]
                v =  val[self.component]
-
            if np.iscomplex(v):
                if self.real:  return v.real
                else: return v.imag

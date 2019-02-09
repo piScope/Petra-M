@@ -46,6 +46,11 @@ class Engine(object):
            idx = model.keys().index('Phys')+1
            from petram.mfem_model import MFEM_InitRoot
            model.insert_item(idx, 'InitialValue', MFEM_InitRoot())
+        if not 'PostProcess' in model:
+           idx = model.keys().index('InitialValue')+1
+           from petram.mfem_model import MFEM_PostProcessRoot
+           model.insert_item(idx, 'PostProcess', MFEM_PostProcessRoot())
+           
         from petram.mfem_model import has_geom
         if not 'Geom' in model and has_geom:
            from petram.geom.geom_model import MFEM_GeomRoot
@@ -1750,16 +1755,19 @@ class Engine(object):
 
             dim = mesh.Dimension()
             sdim= mesh.SpaceDimension()
-            f = fec(phys.order, sdim)
-            self.fec[name] = f
-
+            fec = fec(phys.order, sdim)
             if name.startswith('RT'): vdim = 1
             if name.startswith('ND'): vdim = 1
             
-            fes = self.new_fespace(mesh, f, vdim)
+            fes = self.new_fespace(mesh, fec, vdim)
             mesh.GetEdgeVertexTable()
-            self.fespaces[name] = fes
-
+            
+            self.add_fec_fes(name, fec, fes)
+            
+    def add_fec_fes(self, name, fec, fes):
+       self.fec[name] = fec
+       self.fespaces[name] = fes
+            
     def get_fes(self, phys, kfes = 0, name = None):
         if name is None:
             name = phys.dep_vars[kfes]
@@ -2092,6 +2100,10 @@ class Engine(object):
             dprint1("dependent variables", self._dep_vars)
             dprint1("is FEspace variable?", self._isFESvar)
 
+    def add_PP_to_NS(self, variables):
+        for k in variables.keys():
+            self.model._variables[k] = variables[k]
+     
     def add_FESvariable_to_NS(self, phys_range, verbose = False):
         '''
         bring FESvariable to NS so that it is available in matrix assembly.

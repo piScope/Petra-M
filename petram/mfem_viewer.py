@@ -684,7 +684,7 @@ class MFEMViewer(BookViewer):
             if not name.startswith('face'):continue
             if len(i) > 0:                                          
                 obj.setSelectedIndex(i)
-                print("add_selection", obj, obj._artists[0])
+                #print("add_selection", obj, obj._artists[0])
                 self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])

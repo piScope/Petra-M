@@ -758,7 +758,7 @@ class PhysModule(Phys):
         elif self.geom_dim == 2:
            choice = ("Surface", "Edge")
         elif self.geom_dim == 1:
-           choice = ("Edge")
+           choice = ("Edge", )
 
         if self.dim_fixed:
             return [["index",  'all',  0,   {'changing_event':True,

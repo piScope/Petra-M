@@ -72,6 +72,32 @@ class MeshGroup(Model):
     def reload_mfem_mesh(self, evt):
         evt.GetEventObject().GetParent().onLoadMesh(evt)
         
+    @property
+    def sdim(self):
+        if not hasattr(self, '_sdim'): self._sdim = 1
+        return self._sdim
+    
+    @sdim.setter
+    def sdim(self, value):
+        self._sdim = value
+
+    #def attribute_set(self, v):
+    #    v = super(BrepFile, self).attribute_set(v)
+    #    v['brep_file_path'] = ''
+    #    v['geom_timestamp'] = 0
+    #    v['geom_prev_algorithm'] = 2
+    #    v['geom_prev_res'] = 30
+    #    return v
+    #    evt.GetEventObject().GetParent().onLoadMesh(evt)
+    #    
+    #def panel1_param(self):
+    #    import wx
+    #    return [
+    #            [None, None, 341, {"label": "Load",
+    #                               "func": 'onLoadMesh',
+    #                               "noexpand": True}],]
+        
+        
 MFEMMesh = MeshGroup
 
    
@@ -171,6 +197,7 @@ class MeshFile(Mesh):
             return None
         args = (path,  self.generate_edges, self.refine, self.fix_orientation)
         mesh =  mfem.Mesh(*args)
+        self.parent.sdim = mesh.SpaceDimension()
         try:
            mesh.GetNBE()
            return mesh
@@ -245,6 +272,7 @@ class Mesh1D(Mesh):
                                refine = self.refine == 1,
                                fix_orientation = self.fix_orientation,
                                sdim = 1, x0=self.mesh_x0)
+        self.parent.sdim = mesh.SpaceDimension()
         try:
            m.GetNBE()
            return m
