@@ -267,15 +267,15 @@ class Mesh1D(Mesh):
 
         from petram.mesh.make_mesh1d import straight_line_mesh
 
-        m = straight_line_mesh(self.length, self.nsegs,
+        mesh = straight_line_mesh(self.length, self.nsegs,
                                filename='',
                                refine = self.refine == 1,
                                fix_orientation = self.fix_orientation,
                                sdim = 1, x0=self.mesh_x0)
         self.parent.sdim = mesh.SpaceDimension()
         try:
-           m.GetNBE()
-           return m
+           mesh.GetNBE()
+           return mesh
         except:
            return None
         
