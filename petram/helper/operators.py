@@ -155,7 +155,7 @@ class Integral(Operator):
         
         def scalar_one(fes):
             one = mfem.ConstantCoefficient(1.0)        
-            coff = self.restrict_coeff(one, fes)
+            coeff = self.restrict_coeff(one, fes)
             return coeff
             
                               
@@ -165,7 +165,7 @@ class Integral(Operator):
                #intg = mfem.VectorFEDomainLFIntegrator(coff)                              
             else:
                if self.fes1.GetVDim() == 1:
-                  one = scalar_one(self._fes1())                                         
+                  coff = scalar_one(self._fes1())                                         
                   intg = mfem.DomainLFIntegrator(coff)
                else:
                   assert False, "Not impolemented"                  
@@ -188,13 +188,16 @@ class Integral(Operator):
             else:
                 if self.fes1.GetVDim() == 1:
                     if itg_type == "default":
-                        one = scalar_one(self._fes1())
+                        coff = scalar_one(self._fes1())
                         intg = mfem.BoundaryLFIntegrator(coff)
                     elif itg_type == "tangent":
+                        coff = scalar_one(self._fes1())                       
                         intg = mfem.BoundaryTangentLFIntegrator(coff)
                     elif itg_type == "normal":
+                        coff = scalar_one(self._fes1())                       
                         intg = mfem.BoundaryNormalLFIntegrator(coff)                       
-                    elif itg_type == "flow":                                              
+                    elif itg_type == "flow":
+                        coff = scalar_one(self._fes1())                       
                         intg = mfem.BoundaryFlowIntegrator(coff)
                     else:
                         assert False, "Can not find proper LF integrator from kind/vdim/fec"
