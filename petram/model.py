@@ -147,6 +147,10 @@ class Model(RestorableOrderedDict):
     mustbe_firstchild =False
     always_new_panel = True
     can_rename = False
+    
+    @classmethod    
+    def fancy_menu_name(cls):
+        return cls.__name__.split('_')[-1]        
 
     def __init__(self, **kwargs):
         super(Model, self).__init__()
@@ -159,6 +163,7 @@ class Model(RestorableOrderedDict):
     @property
     def has_4th_panel(self):
         return self.has_3rd_panel and self._has_4th_panel
+
     
     def get_info_str(self):
         return ""

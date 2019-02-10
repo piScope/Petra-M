@@ -25,8 +25,8 @@ class PostProcessBase(Model):
 class PostProcess(PostProcessBase):
     def get_possible_child(self):
         from petram.postprocess.project_solution import DerivedValue
-        from petram.postprocess.global_integration import Integration        
-        return [DerivedValue, Integration]
+        from petram.postprocess.disc_v_integration import DiscVIntegration        
+        return [DerivedValue, DiscVIntegration]
 
     def run_postprocess(self, engine):
         dprint1("running postprocess:" + self.name())

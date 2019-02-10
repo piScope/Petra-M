@@ -180,12 +180,10 @@ class DlgEditModel(SimpleFramePlus):
             indices = tree.GetIndexOfItem(tree.GetSelection())
             mm = self.model.GetItem(indices)
             for xxxx in mm.get_possible_child_menu():
-               if len(xxxx) == 2:
-                   submenu, cls = xxxx
-                   txt = cls.__name__.split('_')[-1]
-               else:
-                   submenu, cls, txt = xxxx
-
+                
+               submenu, cls = xxxx
+               txt = cls.fancy_menu_name()
+                   
                def add_func(evt, cls = cls, indices = indices, tree = tree,
                             namebase = txt, model = self.model):
                    parent = model.GetItem(indices)
