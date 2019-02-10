@@ -39,15 +39,15 @@ from petram.postprocess.pp_model import PostProcessBase
 from petram.helper.variables import var_g
 ll = var_g.copy()
 
-class DiscVIntegration(PostProcessBase):
+class DiscrtVIntegration(PostProcessBase):
     @classmethod
     def fancy_menu_name(self):
         return 'Integraion(GF)'
     
     def attribute_set(self, v):
-        v = super(DiscVIntegration, self).attribute_set(v)
+        v = super(DiscrtVIntegration, self).attribute_set(v)
         v["integral_name"] = 'intg'
-        v["disct_variable"]   = 1
+        v["disct_variable"]   = ""
         v['sel_index'] = ['all']
         v['sel_index_txt'] = 'all'
         v['is_boundary_int'] = False
@@ -55,7 +55,6 @@ class DiscVIntegration(PostProcessBase):
     
     def panel1_param(self):
         import wx
-        pa = self.vt_coeff.panel_param(self)        
         panels  =[["name", "", 0, {}],
                   ["variable", "", 0, {}],
                   ["sel.",     "", 0, {}],                  
