@@ -137,6 +137,9 @@ class EvaluatorCommon(Evaluator):
         phys_root = self.mfem_model()["Phys"]
         solvars = phys_root.make_solvars(solsets.set)
         
+        pp_root = self.mfem_model()["PostProcess"]        
+        solvars = pp_root.add_solvars(solsets.set, solvars)
+        
         self.solvars[self.solfiles()] = solvars
         
         for key in six.iterkeys(self.agents):

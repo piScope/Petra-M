@@ -46,6 +46,11 @@ class Engine(object):
            idx = model.keys().index('Phys')+1
            from petram.mfem_model import MFEM_InitRoot
            model.insert_item(idx, 'InitialValue', MFEM_InitRoot())
+        if not 'PostProcess' in model:
+           idx = model.keys().index('InitialValue')+1
+           from petram.mfem_model import MFEM_PostProcessRoot
+           model.insert_item(idx, 'PostProcess', MFEM_PostProcessRoot())
+           
         from petram.mfem_model import has_geom
         if not 'Geom' in model and has_geom:
            from petram.geom.geom_model import MFEM_GeomRoot
@@ -65,6 +70,7 @@ class Engine(object):
         ##  M0 * x_n = M1 * x_n-1 + M2 * x_n-2 + M3 * x_n-3... Mn x_0 + rhs_vector
         self.fec = {}        
         self.fespaces = {}
+        self.fecfes_storage = {}
         self._num_matrix= 1
         self._access_idx= -1
         self._dep_vars = []
@@ -1740,26 +1746,36 @@ class Engine(object):
         #
         for name, elem in phys.get_fec():
             vdim = phys.vdim
-            
-            dprint1("allocate_fespace: " + name)
+            emesh_idx = phys.emesh_idx
+            order = phys.order
+
             mesh = self.emeshes[phys.emesh_idx]
-            fec = getattr(mfem, elem)
-
-            #if fec is mfem.ND_FECollection:
-            #   mesh.ReorientTetMesh()
-
             dim = mesh.Dimension()
             sdim= mesh.SpaceDimension()
-            f = fec(phys.order, sdim)
-            self.fec[name] = f
-
             if name.startswith('RT'): vdim = 1
             if name.startswith('ND'): vdim = 1
-            
-            fes = self.new_fespace(mesh, f, vdim)
-            mesh.GetEdgeVertexTable()
-            self.fespaces[name] = fes
 
+            dprint1("allocate_fespace: " + name, "(emesh_idx, elem, order, sdim, vdim) = ",
+                    (emesh_idx, elem, order, sdim, vdim))
+
+            key = (emesh_idx, elem, order, sdim, vdim)
+            if key in self.fecfes_storage:
+                fec, fes = self.fecfes_storage[key]
+            else:
+                fec = getattr(mfem, elem)
+                #if fec is mfem.ND_FECollection:
+                #   mesh.ReorientTetMesh()
+                fec = fec(order, sdim)
+                fes = self.new_fespace(mesh, fec, vdim)
+                mesh.GetEdgeVertexTable()
+                self.fecfes_storage[key] = (fec, fes)
+                
+            self.add_fec_fes(name, fec, fes)
+            
+    def add_fec_fes(self, name, fec, fes):
+       self.fec[name] = fec
+       self.fespaces[name] = fes
+            
     def get_fes(self, phys, kfes = 0, name = None):
         if name is None:
             name = phys.dep_vars[kfes]
@@ -2092,6 +2108,10 @@ class Engine(object):
             dprint1("dependent variables", self._dep_vars)
             dprint1("is FEspace variable?", self._isFESvar)
 
+    def add_PP_to_NS(self, variables):
+        for k in variables.keys():
+            self.model._variables[k] = variables[k]
+     
     def add_FESvariable_to_NS(self, phys_range, verbose = False):
         '''
         bring FESvariable to NS so that it is available in matrix assembly.

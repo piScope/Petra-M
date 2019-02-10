@@ -44,6 +44,7 @@ class SolveStep(SolverBase):
     def attribute_set(self, v):
         v['phys_model']   = ''
         v['init_setting']   = ''
+        v['postprocess_sol']   = ''        
         v['use_dwc_pp']   = False
         v['dwc_pp_arg']   = ''                        
         super(SolveStep, self).attribute_set(v)
@@ -53,6 +54,7 @@ class SolveStep(SolverBase):
         ret = ["args.",   self.dwc_pp_arg,   0, {},]
         value = self.dwc_pp_arg
         return [["Initial value setting",   self.init_setting,   0, {},],
+                ["Postporcess solution",    self.postprocess_sol,   0, {},],
                 ["trial phys. (blank: trial = test)",   self.phys_model, 0, {},],
                 [None, [False, [value]], 27, [{'text':'Use DWC (postprocess)'},
                                               {'elp': [ret]}]],]
@@ -62,14 +64,15 @@ class SolveStep(SolverBase):
                
 
     def get_panel1_value(self):
-        return (self.init_setting, self.phys_model,
+        return (self.init_setting, self.postprocess_sol, self.phys_model,
                 [self.use_dwc_pp, [self.dwc_pp_arg,]])
 
     def import_panel1_value(self, v):
-        self.init_setting = v[0]        
-        self.phys_model   = v[1]
-        self.use_dwc_pp   = v[2][0]
-        self.dwc_pp_arg   = v[2][1][0]         
+        self.init_setting    = v[0]
+        self.postprocess_sol = v[1]        
+        self.phys_model   = v[2]
+        self.use_dwc_pp   = v[3][0]
+        self.dwc_pp_arg   = v[3][1][0]         
 #        self.init_only    = v[2]
         
     def get_possible_child(self):
@@ -161,6 +164,11 @@ class SolveStep(SolverBase):
         names = self.init_setting.split(',')
         names = [n.strip() for n in names if n.strip() != '']        
         return [self.root()['InitialValue'][n] for n in names]
+    
+    def get_pp_setting(self):
+        names = self.postprocess_sol.split(',')
+        names = [n.strip() for n in names if n.strip() != '']        
+        return [self.root()['PostProcess'][n] for n in names]
 
     def init(self, engine):
         phys_target = self.get_phys()
@@ -201,12 +209,17 @@ class SolveStep(SolverBase):
              if self.solve_error[0]:
                  dprint1("SolveStep failed " + self.name() + ":"  + self.solve_error[1])
                  break
+             
+        postprocess = self.get_pp_setting()
+        for pp in postprocess:
+            pp.run(engine)
 
         if self.use_dwc_pp:
             engine.call_dwc(self.get_phys_range(),
                             method="postprocess",
                             callername = self.name(),
                             args = self.dwc_pp_arg)
+
         
 class Solver(SolverBase):
     def attribute_set(self, v):

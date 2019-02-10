@@ -1,7 +1,4 @@
 import traceback
-from petram.helper.variables import var_g
-ll = var_g.copy()
-
 from petram.model import Model
 class InitSetting(Model):
     has_2nd_panel = False            
@@ -20,6 +17,10 @@ class InitSetting(Model):
 
     def _init_eval(self, value):
         gg = self.root()['General']._global_ns.copy()
+
+        from petram.helper.variables import var_g
+        ll = var_g.copy()
+        
         return eval(value, gg, ll)    
 
     def init_validator(self, value, param, ctrl):
