@@ -70,6 +70,7 @@ class Engine(object):
         ##  M0 * x_n = M1 * x_n-1 + M2 * x_n-2 + M3 * x_n-3... Mn x_0 + rhs_vector
         self.fec = {}        
         self.fespaces = {}
+        self.fecfes_storage = {}
         self._num_matrix= 1
         self._access_idx= -1
         self._dep_vars = []
@@ -1745,23 +1746,30 @@ class Engine(object):
         #
         for name, elem in phys.get_fec():
             vdim = phys.vdim
-            
-            dprint1("allocate_fespace: " + name)
+            emesh_idx = phys.emesh_idx
+            order = phys.order
+
             mesh = self.emeshes[phys.emesh_idx]
-            fec = getattr(mfem, elem)
-
-            #if fec is mfem.ND_FECollection:
-            #   mesh.ReorientTetMesh()
-
             dim = mesh.Dimension()
             sdim= mesh.SpaceDimension()
-            fec = fec(phys.order, sdim)
             if name.startswith('RT'): vdim = 1
             if name.startswith('ND'): vdim = 1
-            
-            fes = self.new_fespace(mesh, fec, vdim)
-            mesh.GetEdgeVertexTable()
-            
+
+            dprint1("allocate_fespace: " + name, "(emesh_idx, elem, order, sdim, vdim) = ",
+                    (emesh_idx, elem, order, sdim, vdim))
+
+            key = (emesh_idx, elem, order, sdim, vdim)
+            if key in self.fecfes_storage:
+                fec, fes = self.fecfes_storage[key]
+            else:
+                fec = getattr(mfem, elem)
+                #if fec is mfem.ND_FECollection:
+                #   mesh.ReorientTetMesh()
+                fec = fec(order, sdim)
+                fes = self.new_fespace(mesh, fec, vdim)
+                mesh.GetEdgeVertexTable()
+                self.fecfes_storage[key] = (fec, fes)
+                
             self.add_fec_fes(name, fec, fes)
             
     def add_fec_fes(self, name, fec, fes):
