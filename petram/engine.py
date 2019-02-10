@@ -1750,15 +1750,16 @@ class Engine(object):
             order = phys.order
 
             mesh = self.emeshes[phys.emesh_idx]
+            isParMesh = hasattr(mesh, 'ParPrint')
             dim = mesh.Dimension()
             sdim= mesh.SpaceDimension()
             if name.startswith('RT'): vdim = 1
             if name.startswith('ND'): vdim = 1
 
-            dprint1("allocate_fespace: " + name, "(emesh_idx, elem, order, sdim, vdim) = ",
-                    (emesh_idx, elem, order, sdim, vdim))
+            dprint1("allocate_fespace: " + name, "(emesh_idx, elem, order, sdim, vdim, isParMesh) = ",
+                    (emesh_idx, elem, order, sdim, vdim, isParMesh))
 
-            key = (emesh_idx, elem, order, sdim, vdim)
+            key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
             if key in self.fecfes_storage:
                 fec, fes = self.fecfes_storage[key]
             else:
