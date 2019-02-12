@@ -33,6 +33,7 @@ class PostProcess(PostProcessBase):
 
     def run(self, engine):
         for mm in self.walk():
+            if not mm.enabled: continue            
             mm.run_postprocess(engine)
 
 

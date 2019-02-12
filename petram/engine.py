@@ -71,6 +71,8 @@ class Engine(object):
         self.fec = {}        
         self.fespaces = {}
         self.fecfes_storage = {}
+        self.pp_extra = {}
+        
         self._num_matrix= 1
         self._access_idx= -1
         self._dep_vars = []
@@ -826,7 +828,7 @@ class Engine(object):
                    assert False, "Solution file (imag) has different length!!!"
                igf += soli
                
-        self.sol_extra = self.load_extra_to_file(init_path)
+        self.sol_extra = self.load_extra_from_file(init_path)
         #print self.sol_extra
     #
     #  Step 2  fill matrix/rhs elements
@@ -1577,10 +1579,12 @@ class Engine(object):
     def extrafile_name(self):
         return 'sol_extended.data'
      
-    def save_extra_to_file(self, sol_extra):
+    def save_extra_to_file(self, sol_extra, extrafile_name = ''):
         if sol_extra is None: return
-        
-        extrafile_name = self.extrafile_name()+self.solfile_suffix()
+
+        if extrafile_name == '':
+           extrafile_name = self.extrafile_name()
+        extrafile_name += self.solfile_suffix()
 
         fid = open(extrafile_name, 'w')
         for name in sol_extra.keys():
@@ -1605,7 +1609,7 @@ class Engine(object):
         fid.close()
         self.sol_extra = sol_extra # keep it for future reuse
         
-    def load_extra_to_file(self, init_path):
+    def load_extra_from_file(self, init_path):
         sol_extra = {}
         extrafile_name = self.extrafile_name()+self.solfile_suffix()
         
@@ -1630,6 +1634,24 @@ class Engine(object):
             line = fid.readline()    
         fid.close()
         return sol_extra
+    #
+    #  postprocess
+    #
+    def store_pp_extra(self, name, data):
+        self.model._parameters[name] = data
+        self._pp_extra_update.append(name)
+        
+    def run_postprocess(self, postprocess, name = ''):
+        self._pp_extra_update = []
+        
+        for pp in postprocess:
+            if not pp.enabled: continue
+            pp.run(self)
+
+        extra = {n:self.model._parameters[n] for n in self._pp_extra_update}
+        extra = {name:extra}
+        
+        self.save_extra_to_file(extra, extrafile_name = name + '.data') 
 
     #
     #  helper methods

@@ -167,16 +167,13 @@ class MFEM_PostProcessRoot(Model):
         return True
     
     def add_solvars(self, solsets, solvars):
-        print("hoge")
         for k, v in enumerate(solsets):
             mesh, soldict = v
             solvar = solvars[k]
             for p in self.iter_enabled():
-                print("p", p)
                 for pp in p.iter_enabled():                
                     pp.soldict_to_solvars(mesh, soldict, solvar)
             #solvars[k] = solvar
-        print "pp solvars", solvars
         return solvars
 
     
@@ -310,10 +307,12 @@ class MFEM_ModelRoot(Model):
 
         from petram.helper.variables import Variables
         self._variables = Variables()
+        self._parameters = {}
         
     def attribute_set(self, v):
         from petram.helper.variables import Variables
         v['_variables'] = Variables()
+        v['_parameters'] = {}
         v['enabled'] = True
         v['root_path'] = ''
         v['model_path'] = ''        

@@ -193,6 +193,7 @@ class Model(RestorableOrderedDict):
         v['enabled'] = True
         v['sel_readonly'] = False
         v['sel_index'] = []
+        v['_sel_index'] = []        
         if (hasattr(self, 'sel_index') and
             not hasattr(self, 'sel_index_txt')):
             v['sel_index_txt'] = ', '.join([str(x) for x in self.sel_index])

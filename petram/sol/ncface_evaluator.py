@@ -55,6 +55,8 @@ def eval_on_faces(obj, expr, solvars, phys):
        if (n in g and isinstance(g[n], Variable)):
            new_names.extend(g[n].dependency)
            new_names.append(n)
+       elif n in g:
+           new_names.append(n)
 
     for n in new_names:
        if (n in g and isinstance(g[n], Variable)):

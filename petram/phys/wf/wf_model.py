@@ -274,5 +274,6 @@ class WF(PhysModule):
                 else:
                     names = self.dep_vars_base_txt.split(',')
                     for k, n in enumerate(names):
-                        v[n] = GFScalarVariable(solr, soli, comp=k+1)
+                        name = n + suffix
+                        v[name] = GFScalarVariable(solr, soli, comp=k+1)
         return v

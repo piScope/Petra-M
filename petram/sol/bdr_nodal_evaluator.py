@@ -107,6 +107,10 @@ def get_emesh_idx(obj, expr, solvars, phys):
            for nn in g[n].dependency:
               idx = g[nn].get_emesh_idx(idx, g=g)
            idx = g[n].get_emesh_idx(idx, g=g)
+           
+    if len(idx) == 0:
+        # if expression has no emehs dependence return 0 (use emesh = 0)
+        idx = [0]
     return idx
        
     
@@ -129,7 +133,6 @@ def eval_at_nodals(obj, expr, solvars, phys):
 
     g = {}
     #print solvars.keys()
-    #print phys._global_ns.keys()
     for key in phys._global_ns.keys():
        g[key] = phys._global_ns[key]
     for key in solvars.keys():
@@ -143,6 +146,8 @@ def eval_at_nodals(obj, expr, solvars, phys):
     for n in names:
        if (n in g and isinstance(g[n], Variable)):
            new_names.extend(g[n].dependency)
+           new_names.append(n)
+       elif n in g:
            new_names.append(n)
 
     for n in new_names:
@@ -165,7 +170,7 @@ def eval_at_nodals(obj, expr, solvars, phys):
            ll_value.append(obj.knowns[g[n]])
        elif (n in g):
            var_g2[n] = g[n]
-           
+
     if len(ll_value) > 0:
         val = np.array([eval(code, var_g2, dict(zip(ll_name, v)))
                     for v in zip(*ll_value)])
@@ -228,6 +233,7 @@ class BdrNodalEvaluator(EvaluatorAgent):
         #    assert False, "expression is not defined on any mesh"
         #(this could happen when expression is pure geometryical like "x+y")
         decimate = kwargs.pop('decimate', 1)
+
         if len(emesh_idx) == 1:        
             if self.emesh_idx != emesh_idx[0]:
                  #print("process geom", emesh_idx[0])                         

@@ -159,7 +159,9 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
 
         engine.add_fec_fes(''.join(names), fec, fes)
 
+
         gfr = engine.new_gf(fes)
+
         if self.is_complex_valued:
             gfi = engine.new_gf(fes)
         else:

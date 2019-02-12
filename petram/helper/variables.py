@@ -697,6 +697,20 @@ class GridFunctionVariable(Variable):
             pass
             
         return idx
+    
+    def FESpace(self, check_parallel = True):
+        gf_real, gf_imag = self.deriv_args        
+        if gf_real is not None:
+            if hasattr(gf_real, "ParFESpace"):
+                return gf_real.ParFESpace()
+            else:
+                return gf_real.FESpace()
+        if gf_imag is not None:
+            if hasattr(gf_imag, "ParFESpace"):
+                return gf_imag.ParFESpace()
+            else:
+                return gf_imag.FESpace()
+        
         
 class GFScalarVariable(GridFunctionVariable):
     def __repr__(self):

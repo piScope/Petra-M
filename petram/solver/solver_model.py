@@ -211,9 +211,8 @@ class SolveStep(SolverBase):
                  break
              
         postprocess = self.get_pp_setting()
-        for pp in postprocess:
-            pp.run(engine)
-
+        engine.run_postprocess(postprocess, name = self.name())
+        
         if self.use_dwc_pp:
             engine.call_dwc(self.get_phys_range(),
                             method="postprocess",
