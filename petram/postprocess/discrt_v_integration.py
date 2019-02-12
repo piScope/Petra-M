@@ -35,6 +35,7 @@ import traceback
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Integration(PP)')
 
+from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
 
 from petram.postprocess.pp_model import PostProcessBase
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
@@ -44,7 +45,7 @@ data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
 from petram.helper.variables import var_g
 ll = var_g.copy()
 
-class DiscrtVIntegration(PostProcessBase):
+class DiscrtVIntegration(PostProcessBase, Vtable_mixin):
     
     has_2nd_panel = False
     vt_coeff = Vtable(data)
@@ -61,7 +62,8 @@ class DiscrtVIntegration(PostProcessBase):
         v['sel_index_txt'] = 'all'
         v['is_boundary_int'] = False
         v['useFlux'] = False
-        v['useNormal'] = False        
+        v['useNormal'] = False
+        self.vt_coeff.attribute_set(v)         
         return v
     
     def panel1_param(self):
