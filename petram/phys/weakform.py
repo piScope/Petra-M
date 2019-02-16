@@ -60,7 +60,15 @@ def MCoeff(*args, **kwargs):
        def EvalValue(self, x):
            val = super(MCoeff, self).EvalValue(x)
            if self.conj: val=np.conj(val)
-           return val
+
+           if np.iscomplexobj(val):
+               if self.real:
+                  return val.real
+               else:
+                  return val.imag
+           else:
+               return val
+
     e = args[1]
     if any([isinstance(ee, str) for ee in e]):
         return MCoeff(*args, **kwargs)
@@ -87,7 +95,15 @@ def DCoeff(*args, **kwargs):
            val = Coefficient_Evaluator.EvalValue(self, x)
            val = np.diag(val)
            if self.conj: val=np.conj(val)
-           return val
+
+           if np.iscomplexobj(val):
+               if self.real:
+                  return val.real
+               else:
+                  return val.imag
+           else:
+               return val
+
     e = args[1]
     if any([isinstance(ee, str) for ee in e]):
         return DCoeff(*args, **kwargs)
@@ -111,8 +127,16 @@ def VCoeff(*args, **kwargs):
            super(VCoeff, self).__init__(*args, **kwargs)
        def EvalValue(self, x):
            val = super(VCoeff, self).EvalValue(x)
-           if self.conj: val=np.conj(val)        
-           return val
+           if self.conj: val=np.conj(val)
+           
+           if np.iscomplexobj(val):
+               if self.real:
+                  return val.real
+               else:
+                  return val.imag
+           else:
+               return val
+           
     e = args[1]
     if any([isinstance(ee, str) for ee in e]):
         return VCoeff(*args, **kwargs)
@@ -144,9 +168,12 @@ def SCoeff(*args, **kwargs):
                if len(val.shape) == 0: val = [val]
                if self.conj: val=np.conj(val)[self.component]
                v =  val[self.component]
-           if np.iscomplex(v):
-               if self.real:  return v.real
-               else: return v.imag
+
+           if np.iscomplexobj(v):
+               if self.real:
+                  return v.real
+               else:
+                  return v.imag
            else:
                return v
                
@@ -162,7 +189,7 @@ def SCoeff(*args, **kwargs):
             v = args[0]
         else:
             v = args[0][component]
-        if np.iscomplex(v):
+        if np.iscomplexobj(v):
             if conj:  v = np.conj(v)
             if real:  v = v.real
             else: v = v.imag

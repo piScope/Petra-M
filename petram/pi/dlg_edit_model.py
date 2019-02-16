@@ -183,9 +183,10 @@ class DlgEditModel(SimpleFramePlus):
                 
                submenu, cls = xxxx
                txt = cls.fancy_menu_name()
+               txt2 = cls.fancy_tree_name()               
                    
                def add_func(evt, cls = cls, indices = indices, tree = tree,
-                            namebase = txt, model = self.model):
+                            namebase = txt2, model = self.model):
                    parent = model.GetItem(indices)
 
                    # build stop is a flag for precedual construction of geom/mesh

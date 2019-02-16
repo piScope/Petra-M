@@ -9,7 +9,7 @@ from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
 from petram.postprocess.pp_model import PostProcessBase
 
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
-         guilabel = "lambda", default = 0.0, tip = "coefficient",))]
+         guilabel = "expression", default = 0.0, tip = "expression",))]
 
 class DerivedValue(PostProcessBase, Vtable_mixin):
     has_2nd_panel = True
@@ -133,7 +133,7 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         names = [x.strip() for x in self.projection_name.split(',')]
         
         from petram.helper.variables import var_g
-        global_ns = var_g.copy()
+        global_ns = self.root()['General']._global_ns.copy()
         for k in engine.model._variables:
             global_ns[k] = engine.model._variables[k]
         local_ns = {}
@@ -152,7 +152,7 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
 
         if (self.element.startswith('ND') or
             self.element.startswith('RT')):
-            vdim = self.vdim/self.geom_dim
+            vdim = self.geom_dim
         else:
             vdim = self.vdim 
         fes = engine.new_fespace(mesh, fec, vdim)
@@ -177,9 +177,11 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
 
         def project_coeff(gf, vdim, c, ind_vars, real):
             if vdim > 1:
+                 #print("vector coeff", c)
                  coeff = VCoeff(vdim, c[0], ind_vars,
                                 local_ns, global_ns, real = real)
             else:
+                 #print("coeff", c)                
                  coeff = SCoeff(c[0], ind_vars,
                                 local_ns, global_ns, real = real)
             gf.ProjectCoefficient(coeff)
@@ -198,11 +200,18 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         
     def add_variables(self, v, names, gfr, gfi, mesh):
         ind_vars = self.root()['Phys'].values()[0].ind_vars
+        ind_vars = [x.strip() for x in ind_vars.split(',') if x.strip() != '']
+
+        if gfr is not None:
+           fes = gfr.FESpace()
+        else:
+           fes = gfi.FESpace()
+        mesh = fes.GetMesh()
         
         isVector = False; isNormal=False
-        if (self.element.startswith('RT') and mesh.Dimension == 3):
+        if (self.element.startswith('RT') and mesh.Dimension() == 3):
             isVector = True
-        if (self.element.startswith('RT') and mesh.Dimension < 3):
+        if (self.element.startswith('RT') and mesh.Dimension() < 3):
             isNormal = True
         if self.element.startswith('ND'): 
             isVector = True
@@ -210,7 +219,8 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         from petram.helper.variables import add_scalar
         from petram.helper.variables import add_components
         from petram.helper.variables import GFScalarVariable        
-           
+
+        
         if isVector:
             add_components(v, names[0], "", ind_vars, gfr, gfr)
         elif isNormal:

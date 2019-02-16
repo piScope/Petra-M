@@ -150,7 +150,11 @@ class Model(RestorableOrderedDict):
     
     @classmethod    
     def fancy_menu_name(cls):
-        return cls.__name__.split('_')[-1]        
+        return cls.__name__.split('_')[-1]
+    
+    @classmethod    
+    def fancy_tree_name(cls):
+        return cls.fancy_menu_name()
 
     def __init__(self, **kwargs):
         super(Model, self).__init__()

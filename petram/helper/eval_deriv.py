@@ -8,26 +8,32 @@ from petram.mfem_config import use_parallel
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('eval_deriv')
 
+print("use_Parallel", use_parallel)
 if use_parallel:
    import mfem.par as mfem
    FiniteElementSpace = mfem.ParFiniteElementSpace
    DiscreteLinearOperator = mfem.ParDiscreteLinearOperator
    GridFunction = mfem.ParGridFunction
+   getFESpace = 'ParFESpace'
+   getMesh = 'GetParMesh'   
 else:
    import mfem.ser as mfem
    FiniteElementSpace = mfem.FiniteElementSpace
    DiscreteLinearOperator = mfem.DiscreteLinearOperator
    GridFunction = mfem.GridFunction
-
+   getFESpace = 'FESpace'   
+   getMesh = 'GetMesh'
+   
 def eval_curl(gfr, gfi = None):
-    fes = gfr.FESpace()
+    fes = getattr(gfr, getFESpace)()
     ordering = fes.GetOrdering()
-    mesh = fes.GetMesh()
+    mesh = getattr(fes, getMesh)()
     vdim = 1
     sdim = mesh.SpaceDimension()
     p = fes.GetOrder(0)
     rt_coll = mfem.RT_FECollection(p-1, sdim)
 
+    print("mesh here",  mesh)
     rts = FiniteElementSpace(mesh,  rt_coll, vdim, ordering)
 
     
@@ -45,6 +51,6 @@ def eval_curl(gfr, gfi = None):
     else:
        bi = None
     ### needs to return rts to prevent rts to be collected.
-    return br, bi,  rts
+    return br, bi, (rt_coll, rts)
 
 
