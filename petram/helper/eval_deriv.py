@@ -33,9 +33,7 @@ def eval_curl(gfr, gfi = None):
     p = fes.GetOrder(0)
     rt_coll = mfem.RT_FECollection(p-1, sdim)
 
-    print("mesh here",  mesh)
     rts = FiniteElementSpace(mesh,  rt_coll, vdim, ordering)
-
     
     curl = DiscreteLinearOperator(fes, rts)
     itp = mfem.CurlInterpolator()

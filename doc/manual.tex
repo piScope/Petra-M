@@ -127,6 +127,7 @@ This module uses the Cartesian coordinate system (x, y, z), and solves the follo
  \notag \\
  - \gamma \langle  \mathbf{F}, \mathbf{n} \times \mathbf{n} \times  \mathbf{E}\rangle = i \omega (\mathbf{F}, \mathbf{J}_{\rm ext} ) ,
 \label{em3d_weak} \\
+\label{em3d_weakBC} 
  \mathbf{n} \times (\frac{1}{\mu} \nabla \times \mathbf{E}) + \gamma \mathbf{n} \times \mathbf{n} \times  \mathbf{E} = Q\,\,\,on\,\,\,\partial \Omega_{2}
  \end{align}
   where $(A , B)$ is the domain integral ($\int_{\Omega} AB dxdydz$) and $\langle A, B \rangle $ is the boundary integral ($\int_{\partial \Omega_{2}} ABdxdydz$). 
@@ -142,6 +143,55 @@ This module uses the Cartesian coordinate system (x, y, z), and solves the follo
   \subsubsection{Surface Current}
   
  \subsubsection{Port}
+ Port can be used  on the boundary $\partial\Omega$, where the mode profile ($\mathbf{E}_{\rm mode}$ and $\mathbf{H}_{\rm mode}$) and the amplitude incoming mode ($A_{\rm inc}$) is known. The outgoing wave amplitude ($A_{\rm out}$) is not known and is solved as a part of equation. We use $\gamma=0$ and $\frac{1}{\mu}\nabla\times\mathbf{E}=i \omega \mathbf{H}$ in Eq.~\ref{em3d_weak} and obtain a linear system in the block matrix from,
+\begin{equation}
+\label{port_BC_blockmatrix}
+ \begin{bmatrix}
+ \mathbf{S}   & -\mathbf{N} \\
+\mathbf{M}^t & 1\\
+\end{bmatrix}
+ \begin{bmatrix}
+ \mathbf{x} \\
+A_{\rm out}\\
+\end{bmatrix}
+=
+ \begin{bmatrix}
+A_{\rm inc} \mathbf{N}     \\
+0 \\
+\end{bmatrix},
+ \end{equation}
+where $\mathbf{N}$ is the linearform to impose  $\mathbf{H}_{\rm mode}$ using Eq.~\ref{em3d_weakBC} and is written as
+\begin{equation}
+\mathbf{N} = \langle \mathbf{F}, i \omega \mathbf{n} \times \mathbf{H}\rangle 
+ \end{equation}
+ 
+$\mathbf{M}^t$ is the weight to extract the mode amplitude from the solution vector $\mathbf{x}$. In the continuous form, it corresponds to the following 
+\begin{equation}
+\int \mathbf{E} \cdot \mathbf{E}_{\rm mode} \partial\Omega/\int \mathbf{E}_{\rm mode}  \cdot \mathbf{E}_{\rm mode} \partial\Omega
+\end{equation}
+
+In order to define $\mathbf{M}^t$ in the discrete space , we first the vector representation of $\mathbf{E}_{\rm mode}$ in the H(curl) space. This can be done by projecting the coefficient to GridFunction, and we note it as $\mathbf{E}_{\rm gf}$. Then $\mathbf{M}$ is given by
+\begin{equation}
+\mathbf{M} = \langle \mathbf{F}, \mathbf{E_{\rm mode}} \rangle / \langle \mathbf{F}, \mathbf{E}_{\rm mode} \rangle \cdot \mathbf{E}_{\rm gf},
+ \end{equation}
+where the dot product is computed between the second linearform and $\mathbf{E}_{\rm gf}$.
+
+Note that the current implementation assumes that there is only one out-going mode. If the geometry allows to sustain multiple modes, we needs to expand Eq.~\ref{port_BC_blockmatrix} to include multiple modes. 
+
+For the rectangular waveguide and coax port, we normalize the mode amplitude in such a way that the time averaged  incoming wave power is equal to 1[W]. For the coax (TEM) case, the following mode profiles are used.
+
+ \begin{align}
+E_{\rm mode} = A_{\rm n} \frac{\mathbf{r}}{r} \exp(kz)
+\\
+i \omega H_{\rm mode} = A_{\rm n} \omega \sqrt{\frac{\epsilon_{\rm 0}\epsilon_{\rm r}}{\mu_{\rm r}\mu_{\rm 0}}} \frac{\mathbf{r}}{r} \exp(kz)
+\\
+ A_{\rm n}^2 = \frac{1}{\pi \ln{(b/a)}} \sqrt{\frac{\mu_{\rm r}\mu_{\rm 0}}{\epsilon_{\rm 0}\epsilon_{\rm r}}}
+\end{align}
+
+For the waveguide (TE) case, the following mode profiles are used.
+(...do be documented...)
+
+
  
  \subsubsection{Periodic (Floquet-Bloch) BC}
  
@@ -202,7 +252,11 @@ rE_{\rm \phi}\\
  
  \subsubsection{PEC (perfect electric conductor/electric field BC}
   
-  
+\subsection{2D frequency domain(EM2D)}
+
+\subsection{1D frequency domain(EM1D)}
+
+
 \section{Thermal Modules}
 \subsection{3D static (TH3Ds)}
 
