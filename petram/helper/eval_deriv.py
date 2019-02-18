@@ -8,7 +8,6 @@ from petram.mfem_config import use_parallel
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('eval_deriv')
 
-print("use_Parallel", use_parallel)
 if use_parallel:
    import mfem.par as mfem
    FiniteElementSpace = mfem.ParFiniteElementSpace

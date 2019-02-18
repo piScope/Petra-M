@@ -152,9 +152,11 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
 
         if (self.element.startswith('ND') or
             self.element.startswith('RT')):
-            vdim = self.geom_dim
+            vdim = self.vdim/self.geom_dim
+            coeff_dim = self.geom_dim
         else:
-            vdim = self.vdim 
+            vdim = self.vdim
+            coeff_dim = vdim
         fes = engine.new_fespace(mesh, fec, vdim)
 
         engine.add_fec_fes(''.join(names), fec, fes)
@@ -175,10 +177,10 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         ind_vars = self.root()['Phys'].values()[0].ind_vars
 
 
-        def project_coeff(gf, vdim, c, ind_vars, real):
-            if vdim > 1:
+        def project_coeff(gf, coeff_dim, c, ind_vars, real):
+            if coeff_dim > 1:
                  #print("vector coeff", c)
-                 coeff = VCoeff(vdim, c[0], ind_vars,
+                 coeff = VCoeff(coeff_dim, c[0], ind_vars,
                                 local_ns, global_ns, real = real)
             else:
                  #print("coeff", c)                
@@ -186,9 +188,9 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
                                 local_ns, global_ns, real = real)
             gf.ProjectCoefficient(coeff)
             
-        project_coeff(gfr, vdim, c, ind_vars, True)
+        project_coeff(gfr, coeff_dim, c, ind_vars, True)
         if gfi is not None:
-            project_coeff(gfi, vdim, c, ind_vars, False)
+            project_coeff(gfi, coeff_dim, c, ind_vars, False)
 
         from petram.helper.variables import Variables
         v = Variables()
@@ -220,9 +222,8 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         from petram.helper.variables import add_components
         from petram.helper.variables import GFScalarVariable        
 
-        
         if isVector:
-            add_components(v, names[0], "", ind_vars, gfr, gfr)
+            add_components(v, names[0], "", ind_vars, gfr, gfi)
         elif isNormal:
             add_scalar(v, names[0]+"n", "", ind_vars, gfr, gfi)                
         else:

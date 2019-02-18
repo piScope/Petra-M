@@ -659,7 +659,6 @@ class GridFunctionVariable(Variable):
         self.isDerived = False
         self.deriv = deriv if deriv is not None else self._def_deriv
         self.deriv_args = (gf_real, gf_imag)
-        
     def _def_deriv(self, *args):
         return args[0], args[1], None
     

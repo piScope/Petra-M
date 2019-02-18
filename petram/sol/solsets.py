@@ -1,5 +1,6 @@
 import os
 import six
+import numpy as np
 
 class Solfiles(object):
     '''
@@ -49,10 +50,12 @@ class Solsets(object):
                fr, fi =  solf[key]
                i = fname2idx(fr)
                m = meshes[i]
+
                solr = (mfem.GridFunction(m, str(fr)) if fr is not None else None)
                soli = (mfem.GridFunction(m, str(fi)) if fi is not None else None)
                if solr is not None: solr._emesh_idx = i
                if soli is not None: soli._emesh_idx = i
+
                s[key] = (solr, soli)
             self.set.append((meshes, s))
 
