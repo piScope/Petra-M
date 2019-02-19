@@ -1,19 +1,32 @@
 import traceback
 from petram.model import Model
-class InitSetting(Model):
-    has_2nd_panel = False            
+from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
+
+data = [("init_value", VtableElement("init_value", type='array',
+         guilabel = "expression", default = 0.0, tip = "expression",))]
+
+class InitSetting(Model, Vtable_mixin):
+    has_2nd_panel = False
+    vt_coeff = Vtable(data)
+
+    @property
+    def _global_ns(self):
+        # used for text box validator        
+        return self.root()['General']._global_ns
+        
     def attribute_set(self, v):
         v = super(InitSetting, self).attribute_set(v)
         v["phys_model"] = ''
         v["init_mode"]    = 0
-        v["init_value_txt"]    = '0.0'
+        #v["init_value_txt"]    = '0.0'
         v["init_path"]    = ''
+        self.vt_coeff.attribute_set(v)                
         return v
 
     def panel1_param(self):
         from petram.pi.widget_init import InitSettingPanel
         return [["physics model",   self.phys_model,  0, {},],
-                [None, None, 99, {'UI':InitSettingPanel, 'validator':self.init_validator}],]
+                [None, None, 99, {'UI':InitSettingPanel, 'validator':self.check_phys_expr_array}],]
 
     def _init_eval(self, value):
         gg = self.root()['General']._global_ns.copy()
@@ -23,29 +36,32 @@ class InitSetting(Model):
         
         return eval(value, gg, ll)    
 
-    def init_validator(self, value, param, ctrl):
-        try:
-            x = self._init_eval(value)
-        except:
-            import traceback
-            traceback.print_exc()
-            return False
-        return True
+    #def init_validator(self, value, param, ctrl):
+    #    try:
+    #        x = self._init_eval(value)
+    #    except:
+    #        import traceback
+    #        traceback.print_exc()
+    #        return False
+    #    return True
         
     def get_panel1_value(self):
+        init_value_txt = self.vt_coeff.get_panel_value(self)[0]
         return [self.phys_model,
-                (self.init_mode, self.init_value_txt, self.init_path)]
+                (self.init_mode, init_value_txt, self.init_path)]
     
     def import_panel1_value(self, v):
         self.phys_model = str(v[0])
         self.init_mode = v[1][0]
-        self.init_value_txt = v[1][1]
+        #self.init_value_txt = v[1][1]
         self.init_path = v[1][2]
+        self.vt_coeff.import_panel_value(self, (v[1][1],))                
 
     def preprocess_params(self, engine):
         from petram.helper.init_helper import eval_value
         try:
-            self.init_value = self._init_eval(self.init_value_txt)
+            self.vt_coeff.preprocess_params(self)
+            self.init_value = self.vt_coeff.make_value_or_expression(self)[0]
         except:
             self.init_value = 0.0            
             assert False, traceback.format_exc()
@@ -57,7 +73,6 @@ class InitSetting(Model):
             
     def run(self, engine):
         phys_targets = self.get_phys()
-        #engine.run_alloc_sol(phys_targets)
         engine.run_apply_init0(phys_targets, self.init_mode,
                                init_value =self.init_value,
                                init_path=self.init_path)

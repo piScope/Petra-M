@@ -9,7 +9,9 @@ from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
 from petram.postprocess.pp_model import PostProcessBase
 
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
-         guilabel = "expression", default = 0.0, tip = "expression",))]
+                                       guilabel = "expression",
+                                       default = 0.0,
+                                       tip = "expression",))]
 
 class DerivedValue(PostProcessBase, Vtable_mixin):
     has_2nd_panel = True
@@ -26,7 +28,7 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         v['sel_index_txt'] = 'all'
         self.vt_coeff.attribute_set(v)        
         return v
-
+    
     @property
     def vdim(self):
         name = [x.strip() for x in self.projection_name.split(',')]
@@ -106,7 +108,7 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
            
         from petram.model import convert_sel_txt
         try:
-            g = self.root()['General']._global_ns            
+            g = self._global_ns            
             arr = convert_sel_txt(self.sel_index_txt, g)
             self.sel_index = arr            
         except:
@@ -133,7 +135,7 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         names = [x.strip() for x in self.projection_name.split(',')]
         
         from petram.helper.variables import var_g
-        global_ns = self.root()['General']._global_ns.copy()
+        global_ns = self._global_ns.copy()
         for k in engine.model._variables:
             global_ns[k] = engine.model._variables[k]
         local_ns = {}
@@ -153,14 +155,13 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         if (self.element.startswith('ND') or
             self.element.startswith('RT')):
             vdim = self.vdim/self.geom_dim
-            coeff_dim = self.geom_dim
+            #coeff_dim = self.geom_dim
         else:
             vdim = self.vdim
-            coeff_dim = vdim
+            #coeff_dim = vdim
         fes = engine.new_fespace(mesh, fec, vdim)
 
         engine.add_fec_fes(''.join(names), fec, fes)
-
 
         gfr = engine.new_gf(fes)
 
@@ -170,13 +171,24 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
             gfi = None
 
         from petram.phys.weakform import VCoeff, SCoeff
-        self._global_ns = global_ns
+
         self.vt_coeff.preprocess_params(self)
         c = self.vt_coeff.make_value_or_expression(self)
+        #self._global_ns = global_ns
 
-        ind_vars = self.root()['Phys'].values()[0].ind_vars
+        phys = self.root()['Phys'].values()
+        for p in phys:
+            if p.enabled:
+                ind_vars = p.ind_vars
+                break
+        else:
+            assert False, "no phys is enabled"
 
+        from petram.helper.variables import project_variable_to_gf
+        
+        project_variable_to_gf(c[0], ind_vars, gfr, gfi, global_ns=global_ns, local_ns = local_ns)
 
+        '''                       
         def project_coeff(gf, coeff_dim, c, ind_vars, real):
             if coeff_dim > 1:
                  #print("vector coeff", c)
@@ -191,7 +203,8 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         project_coeff(gfr, coeff_dim, c, ind_vars, True)
         if gfi is not None:
             project_coeff(gfi, coeff_dim, c, ind_vars, False)
-
+        '''
+                               
         from petram.helper.variables import Variables
         v = Variables()
             

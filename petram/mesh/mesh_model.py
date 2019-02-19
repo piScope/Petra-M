@@ -211,8 +211,8 @@ class Mesh1D(Mesh):
 
     def attribute_set(self, v):
         v = super(Mesh1D, self).attribute_set(v)
-        v['length'] = 1
-        v['nsegs'] = 100
+        v['length'] = [1,]
+        v['nsegs'] = [100,]
         v['length_txt'] = "1"
         v['nsegs_txt'] = "100"
         v['refine'] = 1

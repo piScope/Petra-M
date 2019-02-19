@@ -168,7 +168,6 @@ def SCoeff(*args, **kwargs):
                if len(val.shape) == 0: val = [val]
                if self.conj: val=np.conj(val)[self.component]
                v =  val[self.component]
-
            if np.iscomplexobj(v):
                if self.real:
                   return v.real
@@ -197,7 +196,7 @@ def SCoeff(*args, **kwargs):
     
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
          guilabel = "lambda", default = 0.0, tip = "coefficient",))]
-     
+
 class WeakIntegration(Phys):
     vt_coeff = Vtable(data)
     def attribute_set(self, v):

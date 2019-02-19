@@ -897,8 +897,8 @@ class PhysModule(Phys):
         d = mesh.extended_connectivity[kk]
         
         if d is None:
-           return [], []
-        
+           return [], [], []
+
         dom_choice = d.keys()
         bdr_choice = sum([list(d[x]) for x in d], [])
         

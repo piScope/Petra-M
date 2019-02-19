@@ -40,10 +40,12 @@ def evaluator_cls():
     from petram.sol.slice_evaluator import SliceEvaluator
     from petram.sol.edge_nodal_evaluator import EdgeNodalEvaluator
     from petram.sol.ncface_evaluator import NCFaceEvaluator
+    from petram.sol.ncedge_evaluator import NCEdgeEvaluator    
     from petram.sol.probe_evaluator import ProbeEvaluator        
     return {'BdrNodal': BdrNodalEvaluator,
             'EdgeNodal': EdgeNodalEvaluator,
-            'NCFace':   NCFaceEvaluator,            
+            'NCFace':   NCFaceEvaluator,
+            'NCEdge':   NCEdgeEvaluator,                        
             'Slice': SliceEvaluator,
             'Probe': ProbeEvaluator,}    
 
@@ -71,7 +73,6 @@ class Evaluator(object):
         return self._agent_params[0] == name
 
     def validate_evaluator(self, name, params, *args, **kwargs):
-        print(self._agent_params, params, name)
         val=  self.validate_param(params) and self.validate_cls(name)
         if not val: return False
         #print 'comparing', self._agent_kwargs, kwargs

@@ -137,10 +137,13 @@ class WF(PhysModule):
             return
         if sdim == 3:
             self.ind_vars = 'x, y, z'
+            self.ndim = sdim            
         elif sdim == 2:            
-            self.ind_vars = 'x, y'    
+            self.ind_vars = 'x, y'
+            self.ndim = sdim            
         elif sdim == 1:
             self.ind_vars = 'x'
+            self.ndim = sdim
         else:
             pass
     def is_complex(self):

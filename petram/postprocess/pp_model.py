@@ -1,3 +1,4 @@
+
 import traceback
 
 import petram.debug
@@ -8,6 +9,11 @@ ll = var_g.copy()
 
 from petram.model import Model
 class PostProcessBase(Model):
+    @property
+    def _global_ns(self):
+        # used for text box validator
+        return self.root()['General']._global_ns
+    
     def run_postprocess(self, engin):
         raise NotImplemented("Subclass must implement run_postprocess")
     
@@ -25,9 +31,18 @@ class PostProcessBase(Model):
 class PostProcess(PostProcessBase):
     def get_possible_child(self):
         from petram.postprocess.project_solution import DerivedValue
-        from petram.postprocess.discrt_v_integration import DiscrtVIntegration        
-        return [DerivedValue, DiscrtVIntegration]
-
+        from petram.postprocess.discrt_v_integration import LinearformIntegrator, BilinearformIntegrator 
+        return [DerivedValue, LinearformIntegrator, BilinearformIntegrator]
+    
+    def get_possible_child_menu(self):
+        from petram.postprocess.project_solution import DerivedValue
+        from petram.postprocess.discrt_v_integration import LinearformIntegrator, BilinearformIntegrator
+        
+        return [("", DerivedValue),
+                ("Integrator", LinearformIntegrator),
+                ("!", BilinearformIntegrator)
+                ]
+    
     def run_postprocess(self, engine):
         dprint1("running postprocess:" + self.name())
 

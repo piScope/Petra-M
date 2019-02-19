@@ -65,7 +65,8 @@ class EdgeNodalEvaluator(EvaluatorAgent):
             keys = l2e.keys() if eattrs == 'all' else list(np.atleast_1d(eattrs).flatten())
             iedges = list(set(sum([l2e[k] for k in keys],[])))
             iverts = [mesh.GetEdgeVertices(ie) for ie in iedges]
-            print l2e.keys(), iverts
+            self.ibeles = None # can not use boundary variable in this evaulator            
+
         elif mesh.Dimension() == 2:
             kbdr = mesh.GetBdrAttributeArray()
             if eattrs == 'all': eattrs = np.unique(kbdr)
@@ -75,6 +76,9 @@ class EdgeNodalEvaluator(EvaluatorAgent):
                 attr = mesh.GetBdrAttribute(i)
                 if attr in eattrs:
                     iverts.append(list(mesh.GetBdrElement(i).GetVerticesArray()))
+
+            x = np.unique([mesh.GetBdrArray(e) for e in eattrs]).astype(int, copy=False)
+            self.ibeles = x
                     #d[attr].extend(mesh.GetBdrElement(i).GetVerticesArray())
         elif mesh.Dimension() == 1:
             kbdr = mesh.GetAttributeArray()
@@ -86,10 +90,13 @@ class EdgeNodalEvaluator(EvaluatorAgent):
                 if attr in eattrs:
                     iverts.append(list(mesh.GetElement(i).GetVerticesArray()))
                     #d[attr].extend(mesh.GetBdrElement(i).GetVerticesArray())
+            x = np.unique([mesh.GetDomainArray(e) for e in eattrs]).astype(int, copy=False)
+            self.ibeles = x
+
         else:
             assert False, "Unsupported dim"
             
-        self.ibeles = None # can not use boundary variable in this evaulator
+
         self.emesh_idx = emesh_idx
         
         if len(iverts) == 0: return
@@ -106,6 +113,7 @@ class EdgeNodalEvaluator(EvaluatorAgent):
     def eval(self, expr, solvars, phys, **kwargs):
         
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
+        print("emesh_idx", emesh_idx)
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
         #if len(emesh_idx) < 1:
@@ -115,12 +123,33 @@ class EdgeNodalEvaluator(EvaluatorAgent):
         if len(emesh_idx) == 1:
             if self.emesh_idx != emesh_idx[0]:
                  self.preprocess_geometry(self.attrs, emesh_idx=emesh_idx[0])
+                 
+
         
         val = eval_at_nodals(self, expr, solvars, phys)
         if val is None: return None, None, None
 
 #        return self.locs[self.iverts_inv], val[self.iverts_inv, ...]
-        return self.locs, val, self.iverts_inv
+
+        refine = kwargs.pop('refine', 1)
+        
+        if refine == 1:
+            return self.locs, val, self.iverts_inv
+        else:
+            from nodal_refinement import refine_edge_data
+            try:
+                mesh = self.mesh()[self.emesh_idx]
+                if mesh.Dimension() == 3:
+                    assert False, "edge refinement is not supported for dim=3"
+                ptx, data, ridx = refine_edge_data(mesh,
+                                                  self.ibeles,
+                                                  val, self.iverts_inv,
+                                                  refine)
+            except:
+                import traceback
+                traceback.print_exc()
+            return ptx, data, ridx
+
 
 
          

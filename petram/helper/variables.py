@@ -226,10 +226,14 @@ class Variable(object):
     
     def make_nodal(self):
         raise NotImplementedError("Subclass need to implement")
+    
     def ncface_values(self, ifaces = None, irs = None,
                       gtypes = None, **kwargs):
         raise NotImplementedError("Subclass need to implement")
     
+    def ncedge_values(self, *args,  **kwargs):
+        return self.ncface_values(*args, **kwargs)
+        
 class TestVariable(Variable):
     def __init__(self, comp = -1, complex=False):
         super(TestVariable, self).__init__(complex = complex)
@@ -284,7 +288,7 @@ class Constant(Variable):
         size = len(locs)        
         shape = [size]+list(np.array(self.value).shape)
         return np.tile(self.value, shape)
-        
+    
 class CoordVariable(Variable):
     def __init__(self, comp = -1, complex=False):
         super(CoordVariable, self).__init__(complex = complex)
@@ -315,6 +319,7 @@ class CoordVariable(Variable):
             return locs
         else:
             return locs[:, self.comp-1]
+        
     
 class ExpressionVariable(Variable):
     def __init__(self, expr, ind_vars, complex=False):
@@ -399,7 +404,7 @@ class ExpressionVariable(Variable):
         ret = multi(ret, value)
         return ret
     
-    def ncface_values(self, ifaces = None, irs = None, gtypes = None,
+    def _ncx_values(self, method, ifaces = None, irs = None, gtypes = None,
                       g=None, attr1 = None, attr2 = None, locs = None,
                       **kwargs):
         
@@ -413,10 +418,12 @@ class ExpressionVariable(Variable):
         var_g2 = var_g.copy()
         for n in self.names:
             if (n in g and isinstance(g[n], Variable)):
-                l[n] = g[n].ncface_values(ifaces = ifaces, irs = irs,
-                                          gtypes = gtypes, locs = locs,
-                                          attr1 = attr1, attr2 = attr2, 
-                                          g = g, **kwargs)
+                m = getattr(g[n], method)
+                #l[n] = g[n].ncface_values(ifaces = ifaces, irs = irs,
+                l[n] = m(ifaces = ifaces, irs = irs,
+                         gtypes = gtypes, locs = locs,
+                         attr1 = attr1, attr2 = attr2, 
+                         g = g, **kwargs)
                 ll_name.append(n)
                 ll_value.append(l[n])
             elif (n in g):
@@ -434,6 +441,13 @@ class ExpressionVariable(Variable):
 
         return value
 
+    def ncface_values(self, *args, **kwargs):
+        return self._ncx_values('ncface_values', *args, **kwargs)
+    def ncedge_values(self, *args, **kwargs):
+        return self._ncx_values('ncedge_values', *args, **kwargs)
+
+    
+    
 class DomainVariable(Variable):
     def __init__(self, expr = '', ind_vars = None, domains = None,
                  complex = False, gdomain = None):
@@ -518,7 +532,7 @@ class DomainVariable(Variable):
         ret[idx, ...] = div(ret[idx, ...], w[idx])
         return ret
     
-    def ncface_values(self, ifaces = None, irs = None, gtypes = None,
+    def _ncx_values(self, method, ifaces = None, irs = None, gtypes = None,
                       g=None, attr1 = None, attr2 = None, locs = None,
                       **kwargs):
         
@@ -548,15 +562,20 @@ class DomainVariable(Variable):
             
             expr = self.domains[domains]
             gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
-            v = expr.ncface_values(ifaces = ifaces, irs = irs,
-                                   gtypes = gtypes, locs=locs, attr1 = attr1,
-                                   attr2 = attr2, g = gdomain, 
-                                   weight = w2, **kwargs)
+
+            m = getattr(expr, method)
+            v = m(ifaces = ifaces, irs = irs,
+                  gtypes = gtypes, locs=locs, attr1 = attr1,
+                  attr2 = attr2, g = gdomain, 
+                  weight = w2, **kwargs)
             v = multi(v, w2)
             ret = v if ret is None else add(ret, v)
-
         return ret
-        
+    
+    def ncface_values(self, *args, **kwargs):
+        return self._ncx_values('ncface_values', *args, **kwargs)
+    def ncedge_values(self, *args, **kwargs):
+        return self._ncx_values('ncedge_values', *args, **kwargs)
         
 class PyFunctionVariable(Variable):
     def __init__(self, func, complex=False, shape = tuple(), dependency=None):
@@ -624,7 +643,7 @@ class PyFunctionVariable(Variable):
         #print("PyFunctionVariable", ret)
         return ret
     
-    def ncface_values(self, ifaces = None, irs = None, gtypes = None,
+    def _ncx_values(self, ifaces = None, irs = None, gtypes = None,
                       g=None, attr1 = None, attr2 = None, locs = None,
                       knowns=None, **kwargs):
         if locs is None: return
@@ -647,6 +666,11 @@ class PyFunctionVariable(Variable):
             ret[idx] = self.func(*xyz, **kwargs) 
         ret = np.stack(ret).astype(dtype, copy=False)
         return ret
+    
+    def ncface_values(self, *args, **kwargs):
+        return self._ncx_values(*args, **kwargs)
+    def ncedge_values(self, *args, **kwargs):
+        return self._ncx_values(*args, **kwargs)
 
 
 class GridFunctionVariable(Variable):
@@ -851,6 +875,57 @@ class GFScalarVariable(GridFunctionVariable):
         data = np.hstack(data)                
         return data
     
+    def ncedge_values(self, ifaces = None, irs = None,
+                      gtypes = None, **kwargs):
+        if not self.isDerived: self.set_funcs()
+        
+        name = self.gfr.FESpace().FEColl().Name()
+        ndim = self.gfr.FESpace().GetMesh().Dimension()
+        
+        isVector = False
+        if (name.startswith('RT') or 
+            name.startswith('ND')):
+            d = mfem.DenseMatrix()
+            p  = mfem.DenseMatrix()
+            isVector = True
+        else:
+            d = mfem.Vector()
+            p  = mfem.DenseMatrix()
+        data = []
+
+        def get_method(gf, ndim, isVector):
+            if gf is None: return None
+            if ndim == 1:
+                if  gf.VectorDim()>1:
+                    def func(i, ir, vals, tr, in_gf = gf):
+                        in_gf.GetValues(i, ir, vals, tr, vdim=self.comp-1)
+                    return func
+                else:
+                    def func(i, ir, vals, tr, in_gf = gf):
+                        in_gf.GetValues(i, ir, vals, tr)
+                        return
+                    return func
+            else:
+                assert False, "ndim = 2/3 is not supported"
+            return None
+        
+        getvalr = get_method(self.gfr, ndim, isVector)
+        getvali = get_method(self.gfi, ndim, isVector)
+            
+        for i, gtype,  in zip(ifaces, gtypes):
+            ir = irs[gtype]
+            getvalr(i, ir,  d, p) # side = 2 (automatic?)
+            v = d.GetDataArray().copy()
+            if isVector:  v = v[self.comp-1,:]
+
+            if getvali is not None:
+                getvali(i,ir,  d, p) # side = 2 (automatic?)
+                vi = d.GetDataArray().copy()
+                if isVector:  vi = vi[self.comp-1,:]
+                v = v + 1j*vi
+            data.append(v)
+        data = np.hstack(data)                
+        return data
             
 class GFVectorVariable(GridFunctionVariable):
     def __repr__(self):
@@ -1040,7 +1115,7 @@ class SurfNormal(SurfVariable):
 
     def ncface_values(self, ifaces = None, irs = None, gtypes = None,
                       locs = None, mesh = None, **kwargs):
-    
+
         size = len(locs)
         ret = np.zeros((size, self.sdim))
         if ifaces is None: return
@@ -1067,6 +1142,9 @@ class SurfNormal(SurfVariable):
         ret = div(ret, np.sqrt(np.sum(ret**2, -1)))
         if self.comp == -1: return ret
         return ret[:, self.comp-1]
+    
+    def ncedge_values(self, *args, **kwargs):
+        raise NotImplementedError("Normal is not defined on Edge")
 
 class SurfExpressionVariable(ExpressionVariable, SurfVariable):
     '''
@@ -1181,6 +1259,40 @@ def add_coordinates(solvar, ind_vars):
     for k, p in enumerate(ind_vars):    
        solvar[p] = CoordVariable(comp = k+1)
 
+
+def project_variable_to_gf(c, ind_vars, gfr, gfi, global_ns=None, local_ns = None):
+
+    if global_ns is None: global_ns = {}
+    if local_ns  is None: local_ns = {}
+    
+    from petram.phys.weakform import VCoeff, SCoeff
+
+    fes = gfr.FESpace()
+    ndim = fes.GetMesh().Dimension()
+    sdim = fes.GetMesh().SpaceDimension()
+    vdim = fes.GetVDim()
+    fec = fes.FEColl().Name()
+
+    if (fec.startswith('ND') or fec.startswith('RT')):
+        coeff_dim = sdim
+    else:
+        coeff_dim = vdim        
+    
+    def project_coeff(gf, coeff_dim, c, ind_vars, real):
+        if coeff_dim > 1:
+            #print("vector coeff", c)
+            coeff = VCoeff(coeff_dim, c, ind_vars,
+                                local_ns, global_ns, real = real)
+        else:
+            #print("coeff", c)                
+            coeff = SCoeff(c, ind_vars,
+                           local_ns, global_ns, real = real)
+        gf.ProjectCoefficient(coeff)
+            
+    project_coeff(gfr, coeff_dim, c, ind_vars, True)
+    if gfi is not None:
+        project_coeff(gfi, coeff_dim, c, ind_vars, False)
+        
        
 
 

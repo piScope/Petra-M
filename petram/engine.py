@@ -454,6 +454,7 @@ class Engine(object):
                       rgf.Assign(0.0)
                       if igf is not None: igf.Assign(0.0)
               elif mode == 1:
+                  '''
                   v = np.atleast_1d(init_value).flatten()
                   if np.iscomplexobj(v):
                      rinit=v.real
@@ -469,14 +470,25 @@ class Engine(object):
                       rc = PhysVectorConstant(rinit)
                       ic = PhysVectorConstant(iinit)
                   dprint1("Constant Initial Value to Entire Doamin", rinit, iinit)
+                  '''
+                  from petram.helper.variables import project_variable_to_gf
+                  
+                  global_ns = phys._global_ns.copy()
                   for name in names:
                       r_ifes = self.r_ifes(name)
                       rgf = self.r_x[r_ifes]
                       igf = self.i_x[r_ifes]
-                      rgf.ProjectCoefficient(rc)                
-#                      rgf.Assign(rinit)
-                      if igf is not None:
-                         igf.ProjectCoefficient(ic)
+                      ind_vars = phys.ind_vars
+                      dprint1("applying init value to entire discrete space:" + name, init_value) 
+                      project_variable_to_gf(init_value,
+                                             ind_vars,
+                                             rgf, igf,
+                                             global_ns=global_ns)
+                      
+                      #rgf.ProjectCoefficient(rc)                
+                      #rgf.Assign(rinit)
+                      #if igf is not None:
+                      #   igf.ProjectCoefficient(ic)
               elif mode == 2: # apply Einit
                   self.apply_init_from_init_panel(phys)
               elif mode == 3:

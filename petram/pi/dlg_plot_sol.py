@@ -235,13 +235,18 @@ class DlgPlotSol(SimpleFramePlus):
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices)==0: choices = ['no physcs in model']
+            
+            s4 = {"style":wx.TE_PROCESS_ENTER,
+                  "choices":[str(x+1) for x in range(10)]}
             ll = [['Expression', '', 0, {}],
                   ['Expression(x)', '', 0, {}],
                   ['Edge ', text, 0, {}],
                   ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extension'}],
-                  [None, True, 3, {"text":'merge solutions'}],]
+                  [None, True, 3, {"text":'merge solutions'}],
+                  ['Refine', 1, 104, s4],            
+                  [None, True, 3, {"text":'averaging'}],]
 
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
@@ -845,8 +850,9 @@ class DlgPlotSol(SimpleFramePlus):
             cls = WaveViewer
         else:
             cls = None
+        refine = int(value[6])
             
-        data, data_x, battrs = self.eval_edge(mode = 'plot')
+        data, data_x, battrs = self.eval_edge(mode = 'plot', refine=refine)
         if data is None: return
 
         self.post_threadend(self.make_plot_edge, data, battrs,
@@ -916,7 +922,9 @@ class DlgPlotSol(SimpleFramePlus):
     '''
     def onExportEdge(self, evt):
         from petram.sol.evaluators import area_tri
-        data, data_x, battrs = self.eval_edge(mode = 'integ')
+        
+        refine = int(value[6])        
+        data, data_x, battrs = self.eval_edge(mode = 'integ', refine=refine)
         if data is None: return
         
         verts, cdata = data[0]
@@ -926,7 +934,7 @@ class DlgPlotSol(SimpleFramePlus):
     def get_attrs_field_Edge(self):
         return 2
                        
-    def eval_edge(self, mode = 'plot'):
+    def eval_edge(self, mode = 'plot', refine=1):
         from petram.sol.evaluators import area_tri
         value = self.elps['Edge'] .GetValue()
         
@@ -939,13 +947,19 @@ class DlgPlotSol(SimpleFramePlus):
         else:
             do_merge1 = True
 
+        average = value[7]
         data, void = self.evaluate_sol_edge(expr, battrs, phys_path,
-                                             do_merge1, True)
+                                            do_merge1, True,
+                                            average = average,
+                                            refine = refine)
         if data is None: return None, None, None
 
         if expr_x != '':
             data_x, void = self.evaluate_sol_edge(expr_x, battrs, phys_path,
-                                                    do_merge1, True)
+                                                  do_merge1, True,
+                                                  average = average,
+                                                  refine = refine)
+
             if data_x is None: return None, None, None
         else:
             data_x = None
@@ -1520,7 +1534,7 @@ class DlgPlotSol(SimpleFramePlus):
         
         battrs = str(battrs).strip()
         if battrs.lower() == 'all':
-            battrs = ['all']            
+            battrs = mesh.extended_connectivity['line2vert'].keys()
         else:
             try:
                battrs = list(np.atleast_1d(eval(battrs, ll, phys_ns)))
@@ -1528,35 +1542,43 @@ class DlgPlotSol(SimpleFramePlus):
                import traceback
                traceback.print_exc()
                assert False, "invalid selection: " + battrs
+
+        from petram.sol.evaluators import build_evaluator
         
-        if 'Edge' in self.evaluators:
+        average = kwargs.pop('average', True)        
+        if average:
+            key, name = 'Edge', 'EdgeNodal'
+        else:
+            key, name = 'NCEdge', 'NCEdge'
+        
+        if key in self.evaluators:
             try:
-                self.evaluators['Edge'].validate_evaluator('EdgeNodal',
+                self.evaluators[key].validate_evaluator('EdgeNodal',
                                                            battrs,
                                                            solfiles)
             except IOError:
                 dprint1("IOError detected setting failed=True")
-                self.evaluators['Edge'].failed = True
-           
-        from petram.sol.evaluators import build_evaluator
-        if (not 'Edge' in self.evaluators or
-            self.evaluators['Edge'].failed):
-            self.evaluators['Edge'] =  build_evaluator(battrs,
+                self.evaluators[key].failed = True
+        
+        if (not key in self.evaluators or
+            self.evaluators[key].failed):
+            self.evaluators[key] =  build_evaluator(battrs,
                                                mfem_model,
                                                solfiles,
-                                               name = 'EdgeNodal',
+                                                    name = name,
                                                config = self.config)
             
-            self.evaluators['Edge'].validate_evaluator('EdgeNodal',
+            self.evaluators[key].validate_evaluator(name,
                                                        battrs, 
                                                        solfiles)
 
         try:
-            self.evaluators['Edge'].set_phys_path(phys_path)
-            return self.evaluators['Edge'].eval(expr, do_merge1, do_merge2,
+            self.evaluators[key].set_phys_path(phys_path)
+            return self.evaluators[key].eval(expr, do_merge1, do_merge2,
                                                **kwargs)
         except:
             import traceback
+            traceback.print_exc()
             wx.CallAfter(dialog.showtraceback,parent = self,
                                 txt='Failed to evauate expression',
                                 title='Error',

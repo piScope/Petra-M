@@ -38,6 +38,11 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('Integration(PP)')
 from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
 
 from petram.postprocess.pp_model import PostProcessBase
+
+from petram.phys.weakform import get_integrators
+bilinintegs = get_integrators('BilinearOps')
+linintegs = get_integrators('LinearOps')
+
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
          guilabel = "lambda", default = 0.0, tip = "coefficient",))]
 
@@ -101,7 +106,6 @@ class DiscrtVIntegration(PostProcessBase, Vtable_mixin):
 
     def run_postprocess(self, engine):
         dprint1("running postprocess: " + self.name())
-        engine.store_pp_extra(self.integral_name, np.array([1,2,3]))
 
         var = engine.model._variables[self.discrt_variable]
         
@@ -261,9 +265,161 @@ class DiscrtVIntegration(PostProcessBase, Vtable_mixin):
         from mfem.common.chypre import LF2PyVec, PyVec2PyMat, MfemVec2PyVec
         v1 = MfemVec2PyVec(engine.b2B(lf1), None)
             
-        
-class LinearformIntg(PostProcessBase):
-    pass
+data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
+         guilabel = "lambda", default = '1.0', tip = "coefficient",))]
+
+class WeakformIntegrator(PostProcessBase, Vtable_mixin):
+    has_2nd_panel = True
+    vt_coeff = Vtable(data)
     
-class BilinierformIntg(PostProcessBase):
-    pass
+    @property
+    def geom_dim(self):  # dim of geometry
+        return self.root()['Mesh'].sdim
+    
+    def attribute_set(self, v):
+        v = super(WeakformIntegrator, self).attribute_set(v)        
+        v['coeff_type'] = 'S'
+        v['integrator'] = 'MassIntegrator'
+        v['variables']   = ''
+        v["sdim"] = 2
+        v['sel_index'] = ['all']
+        v['sel_index_txt'] = 'all'
+        self.vt_coeff.attribute_set(v)
+        return v
+
+    def panel1_param(self):
+        import wx       
+        p = ["coeff. type", "S", 4,
+             {"style":wx.CB_READONLY, "choices": ["Scalar", "Vector", "Diagonal", "Matrix"]}]
+
+        names = [x[0] for x in self.itg_choice()]
+        p2 = ["integrator", names[0], 4,
+              {"style":wx.CB_READONLY, "choices": names}]
+        
+        panels = self.vt_coeff.panel_param(self)
+        ll = [["Variable", self.variables, 0, {}],
+               p,
+               panels[0],
+               p2,]
+
+        return ll
+    
+    def get_panel1_value(self):
+        return [self.variables, 
+                self.coeff_type,
+                self.vt_coeff.get_panel_value(self)[0],
+                self.integrator,]
+              
+    def import_panel1_value(self, v):
+        self.variables = str(v[0])
+        self.coeff_type = str(v[1])
+        self.vt_coeff.import_panel_value(self, (v[2],))
+        self.integrator =  str(v[3])
+
+    def panel1_tip(self):
+        pass
+
+    def panel2_param(self):
+        import wx
+        
+        if self.geom_dim == 3:
+           choice = ("Volume", "Surface", "Edge")
+        elif self.geom_dim == 2:
+           choice = ("Surface", "Edge")
+        elif self.geom_dim == 1:
+           choice = ("Edge", )
+
+        p = ["Type", choice[0], 4,
+             {"style":wx.CB_READONLY, "choices": choice}]
+        return [p, ["index",  'all',  0,   {'changing_event':True,
+                                            'setfocus_event':True}, ]]
+              
+    def get_panel2_value(self):
+        choice = ["Point", "Edge", "Surface", "Volume",]
+        return choice[self.sdim], self.sel_index_txt
+     
+    def import_panel2_value(self, v):
+        if str(v[0]) == "Volume":
+           self.sdim = 3
+        elif str(v[0]) == "Surface":
+           self.sdim = 2
+        elif str(v[0]) == "Edge":
+           self.sdim = 1                      
+        else:
+           self.sdim = 1                                 
+        self.sel_index_txt = str(v[1])
+           
+        from petram.model import convert_sel_txt
+        try:
+            g = self._global_ns            
+            arr = convert_sel_txt(self.sel_index_txt, g)
+            self.sel_index = arr            
+        except:
+            import traceback
+            traceback.print_exc()
+            assert False, "failed to convert "+self.sel_index_txt
+            
+    def panel2_tip(self):
+        pass
+    
+class LinearformIntegrator(WeakformIntegrator):
+    def itg_choice(self):
+        return linintegs
+    
+    @classmethod    
+    def fancy_menu_name(self):
+        return "Using LinearForm"
+    
+    @classmethod    
+    def fancy_tree_name(self):
+        return 'Integration_LF'
+    
+    def run_postprocess(self, engine):
+        dprint1("running postprocess: " + self.name())
+        import warnings
+        warnings.warn("LinearIntegrator is not implemented", RuntimeWarning)
+        return 
+
+        var = engine.model._variables[self.discrt_variable]
+    
+class BilinearformIntegrator(WeakformIntegrator):
+    def itg_choice(self):
+        return bilinintegs
+    
+    @classmethod    
+    def fancy_menu_name(self):
+        return "Using BilinearForm"
+    
+    @classmethod    
+    def fancy_tree_name(self):
+        return 'Integration_BF'
+
+    def attribute_set(self, v):
+        v = super(BilinearformIntegrator, self).attribute_set(v)
+        v["use_conj"] = False
+        return v
+        
+    def panel1_param(self):
+        ll = super(BilinearformIntegrator, self).panel1_param()
+        ll[0][0] = "Variables"
+        ll.append(["use conj (ex. AB^)", self.use_conj, 3, {"text":""}])
+        return ll
+    
+    def get_panel1_value(self):
+        v = super(BilinearformIntegrator, self).get_panel1_value()
+        v.append(self.use_conj)
+        return v
+              
+    def import_panel1_value(self, v):
+        super(BilinearformIntegrator, self).import_panel1_value(v[:-1])
+        self.use_conj = bool(v[-1])
+
+    def run_postprocess(self, engine):
+        dprint1("running postprocess: " + self.name())
+        
+        import warnings
+        warnings.warn("BilinearIntegrator is not implemented", RuntimeWarning)
+        return 
+        var = engine.model._variables[self.discrt_variable]
+
+        assert False, "Not yet implemented"

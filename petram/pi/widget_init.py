@@ -16,14 +16,14 @@ class InitSettingPanel(wx.Panel):
 
         rb1 = wx.RadioButton(self, wx.ID_ANY, "Zero",
                               style=wx.RB_GROUP)
-        rb2 = wx.RadioButton(self, wx.ID_ANY, "Use Value")
+        rb2 = wx.RadioButton(self, wx.ID_ANY, "Use Value ")
         rb3 = wx.RadioButton(self, wx.ID_ANY, "Use init panel value")
         rb4 = wx.RadioButton(self, wx.ID_ANY, "From File")
         rb5 = wx.RadioButton(self, wx.ID_ANY, "From Previous SolveStep")        
 
         self.rbs = [rb1, rb2, rb3, rb4, rb5]
 
-        self.st1 = wx.StaticText(self, wx.ID_ANY, '     value: ')
+        self.st1 = wx.StaticText(self, wx.ID_ANY, '     value(*): ')
         self.tc1 = TextCtrlCopyPaste(self, wx.ID_ANY, '0.0', 
                                      validator = setting['validator'],
                                      style=wx.TE_PROCESS_ENTER)
@@ -72,7 +72,7 @@ class InitSettingPanel(wx.Panel):
             if rb.GetValue(): break
         val = self.tc1.GetValue()
         path = self.tc4.GetValue()
-        if not self.validator(val, None, None): val = '0.0'
+        #if not self.validator(val, None, None): val = '0.0'
 
         return sel, val, path
 

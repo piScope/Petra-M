@@ -1,6 +1,5 @@
 '''
-   NCFaceEvaluator:
-      not-continous face evaluator
+   NCEdgeEvaluator: not-continous edge evaluator
 '''
 import numpy as np
 import parser
@@ -23,7 +22,7 @@ Geom = mfem.Geometry()
 from petram.sol.evaluator_agent import EvaluatorAgent
 from petram.sol.bdr_nodal_evaluator import get_emesh_idx
 
-def eval_on_faces(obj, expr, solvars, phys):
+def eval_on_edges(obj, expr, solvars, phys):
     '''
     evaluate nodal valus based on preproceessed 
     geometry data
@@ -62,7 +61,7 @@ def eval_on_faces(obj, expr, solvars, phys):
        if (n in g and isinstance(g[n], Variable)):
            if not g[n] in obj.knowns:
               obj.knowns[g[n]] = (
-                  g[n].ncface_values(ifaces = obj.ifaces,
+                  g[n].ncedge_values(ifaces = obj.ifaces,
                                      irs = obj.irs,
                                      gtypes = obj.gtypes,
                                      locs  = obj.ptx,
@@ -84,9 +83,9 @@ def eval_on_faces(obj, expr, solvars, phys):
         val = np.array([eval(code, var_g2)]*len(obj.ptx))
     return val
 
-class NCFaceEvaluator(EvaluatorAgent):
+class NCEdgeEvaluator(EvaluatorAgent):
     def __init__(self, battrs, **kwargs):
-        super(NCFaceEvaluator, self).__init__()
+        super(NCEdgeEvaluator, self).__init__()
         self.battrs = battrs
         self.refine = -1
         self.decimate = kwargs.pop("decimate", 1)
@@ -100,17 +99,17 @@ class NCFaceEvaluator(EvaluatorAgent):
         self.iverts = []
         self.ifaces = []
 
-        if mesh.Dimension() == 3:
+        if mesh.Dimension() == 2:
             getface = mesh.GetBdrElementFace
             gettrans = mesh.GetBdrElementTransformation            
             getarray = mesh.GetBdrArray
             getelement = mesh.GetBdrElement
             getbasegeom = mesh.GetBdrElementBaseGeometry
             getvertices = mesh.GetBdrElementVertices
-            getattr1 = lambda x: mesh.GetFaceElementTransformations(x).Elem1No
-            getattr2 = lambda x: mesh.GetFaceElementTransformations(x).Elem2No
+            getattr1 = mesh.GetBdrAttribute
+            getattr2 = lambda x: -1
             
-        elif mesh.Dimension() == 2:
+        elif mesh.Dimension() == 1:
             getface = lambda x: (x, 1)
             gettrans = mesh.GetElementTransformation                        
             getarray = mesh.GetDomainArray
@@ -120,8 +119,8 @@ class NCFaceEvaluator(EvaluatorAgent):
             getattr1 = mesh.GetAttribute
             getattr2 = lambda x: -1
         else:
-            assert False, "NCFace Evaluator is not supported for this dimension"
-            
+            assert False, "NCEdge Evaluator is not supported for this dimension"
+
         x = [getarray(battr) for battr in battrs]
         if np.sum([len(xx) for xx in x]) == 0: return
         
@@ -140,12 +139,12 @@ class NCFaceEvaluator(EvaluatorAgent):
         
         gtype_st = -1
         nele = 0
-
+     
         for k, i in enumerate(self.ibeles):
             verts = getvertices(i)            
             gtype = getbasegeom(i)
             iface, ort = getface(i)
-            Trs = mesh.GetFaceElementTransformations(iface)
+            #Trs = mesh.GetEdgeElementTransformatio(iface)
             
             if gtype != gtype_st:
                 RefG = GR.Refine(gtype, self.refine)
@@ -185,18 +184,15 @@ class NCFaceEvaluator(EvaluatorAgent):
         if (refine != self.refine or self.emesh_idx != emesh_idx[0]):
              self.refine = refine
              self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
-        val = eval_on_faces(self, expr, solvars, phys)
+        val = eval_on_edges(self, expr, solvars, phys)
         if val is None: return None, None, None
 
-        edge_only = kwargs.pop('edge_only', False)
         export_type = kwargs.pop('export_type', 1)
 
         #print self.ptx.shape, val.shape, self.ridx.shape
         if export_type == 2:
             return self.ptx, val, None
-        if not edge_only:
-            return self.ptx, val, self.ridx
         else:
-            assert False, "NCFace does not support edge_only"
+            return self.ptx, val, self.ridx
     
 
