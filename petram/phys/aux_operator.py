@@ -167,14 +167,19 @@ class AUX_Operator(Phys):
 
         fes1 = engine.fespaces[trialname]
         fes2 = engine.fespaces[testname]        
+        ind_vars = self.get_root_phys().ind_vars
+        is_complex = self.get_root_phys().is_complex()
 
+        print("in aux_operator", ind_vars)
         diag_size = -1
         if oprt is not None:
            dprint1(self.name() + " Assembling Operator: ", oprt)
            assert isinstance(oprt, str), "operator1 must be an expression"               
            expr = Expression(oprt, engine=engine, trial=fes1, test=fes2,
                              trial_ess_tdof = trial_ess_tdof,
-                             test_ess_tdof = test_ess_tdof)           
+                             test_ess_tdof = test_ess_tdof,
+                             ind_vars = ind_vars,
+                             is_complex = is_complex)           
            op = expr.assemble(g=self._global_ns)
 
 

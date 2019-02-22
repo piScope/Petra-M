@@ -47,7 +47,7 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
     def panel1_param(self):
         import wx
         pa = self.vt_coeff.panel_param(self)        
-        panels  =[["name", "", 0, {}],
+        panels  =[["new variable name", "", 0, {}],
                   pa[0],
                   ["element", "H1_FECollection", 4,
                                  {"style":wx.CB_READONLY, 
@@ -134,23 +134,8 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
 
         names = [x.strip() for x in self.projection_name.split(',')]
         
-        from petram.helper.variables import var_g
-        global_ns = self._global_ns.copy()
-        for k in engine.model._variables:
-            global_ns[k] = engine.model._variables[k]
-        local_ns = {}
-        
-        isVector =  self.vdim > 1
-
         emesh_idx = self.get_emesh_idx(engine)
-        mesh = engine.emeshes[emesh_idx]
-
-        from petram.engine import mfem
-        
-        fec = getattr(mfem, self.element)
         sdim= self.geom_dim
-
-        fec = fec(self.order, sdim)
 
         if (self.element.startswith('ND') or
             self.element.startswith('RT')):
@@ -159,22 +144,21 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         else:
             vdim = self.vdim
             #coeff_dim = vdim
-        fes = engine.new_fespace(mesh, fec, vdim)
 
-        engine.add_fec_fes(''.join(names), fec, fes)
-
+        is_new, fec, fes = engine.get_or_allocate_fecfes(''.join(names),
+                                                         emesh_idx,
+                                                         self.element,
+                                                         self.order,
+                                                         vdim)
         gfr = engine.new_gf(fes)
-
         if self.is_complex_valued:
             gfi = engine.new_gf(fes)
         else:
             gfi = None
 
-        from petram.phys.weakform import VCoeff, SCoeff
 
         self.vt_coeff.preprocess_params(self)
         c = self.vt_coeff.make_value_or_expression(self)
-        #self._global_ns = global_ns
 
         phys = self.root()['Phys'].values()
         for p in phys:
@@ -183,10 +167,16 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
                 break
         else:
             assert False, "no phys is enabled"
-
+        from petram.helper.variables import var_g
+        global_ns = self._global_ns.copy()
+        for k in engine.model._variables:
+            global_ns[k] = engine.model._variables[k]
+        local_ns = {}
+        
         from petram.helper.variables import project_variable_to_gf
         
-        project_variable_to_gf(c[0], ind_vars, gfr, gfi, global_ns=global_ns, local_ns = local_ns)
+        project_variable_to_gf(c[0], ind_vars, gfr, gfi,
+                               global_ns=global_ns, local_ns = local_ns)
 
         '''                       
         def project_coeff(gf, coeff_dim, c, ind_vars, real):
@@ -208,12 +198,12 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         from petram.helper.variables import Variables
         v = Variables()
             
-        self.add_variables(v, names, gfr, gfi, mesh)
+        self.add_variables(v, names, gfr, gfi)
 
         engine.add_PP_to_NS(v)
         engine.save_solfile_fespace(''.join(names), emesh_idx, gfr, gfi)
         
-    def add_variables(self, v, names, gfr, gfi, mesh):
+    def add_variables(self, v, names, gfr, gfi):
         ind_vars = self.root()['Phys'].values()[0].ind_vars
         ind_vars = [x.strip() for x in ind_vars.split(',') if x.strip() != '']
 
@@ -247,7 +237,7 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
                     v[n] = GFScalarVariable(gfr, gfi, comp=k+1)
        
         
-    def soldict_to_solvars(self, mesh, soldict, variables):
+    def soldict_to_solvars(self, soldict, variables):
 
         keys = soldict.keys()
         suffix = ""
@@ -260,7 +250,7 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
                sol = soldict[k]
                solr = sol[0]
                soli = sol[1] if len(sol) > 1 else None
-               self.add_variables(variables, names, solr, soli, mesh)
+               self.add_variables(variables, names, solr, soli)
                
             
 class DerivedBdrValue(PostProcessBase, Vtable_mixin):

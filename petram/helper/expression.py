@@ -5,7 +5,8 @@ import petram.helper.operators as ops
 operators = {"integral" :ops.Integral,
              "identity":ops.Identity,
              "projection":ops.Projection,
-             "delta":ops.Delta}
+             "delta":ops.Delta,
+             "deltam":ops.DeltaM}
 
 def get_operators():
     return {key: operators[key]() for key in operators}
@@ -37,6 +38,8 @@ class Expression(object):
         #False (horizontal vector if it is vector,,,)        
         self._trial_ess_tdof = kwargs.pop('trial_ess_tdof', None)
         self._test_ess_tdof = kwargs.pop('test_ess_tdof', None)
+        self._ind_vars = kwargs.pop('ind_vars', 'x, y, z')
+        self._is_complex = kwargs.pop('is_complex', False)
         
         super(Expression, self).__init__()
         variables = []
@@ -86,7 +89,7 @@ class Expression(object):
         g = {} if g is None else g
         operators = get_operators()
         attrs = ['_fes1', '_fes2', '_sel', '_sel_mode', '_engine', '_transpose',
-                 '_trial_ess_tdof','_test_ess_tdof']
+                 '_trial_ess_tdof','_test_ess_tdof', '_ind_vars', '_is_complex']
 
         for op in operators:
             for attr in attrs:

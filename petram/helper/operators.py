@@ -37,7 +37,8 @@ class Operator(object):
     
     def assemble(self, fes):
         raise NotImplementedError("Subclass needs to implement this")
-    
+
+    ''' 
     def get_restriction_array(self, fes):
         mesh = fes.GetMesh()
         intArray = mfem.intArray
@@ -74,7 +75,7 @@ class Operator(object):
             return mfem.MatrixRestrictedCoefficient(coeff, arr)           
         else:
             return mfem.RestrictedCoefficient(coeff, arr)
-
+    '''
 
     def process_kwargs(self, engine, kwargs):
         '''
@@ -129,12 +130,13 @@ class Integral(Operator):
         '''
         integral()
         integral('boundary', [1,3])  # selection type and selection
-           H1: boundary integral
-           ND (2D): boundary integral of tangent 
+        integral('boundary', [1,3], integrator = 'auto' or other MFEM linearform integrator
+        integral('boundary', [1,3], weight = '1')
 
-        integral('boundary', [1,3], weight= 'tangent', 'flux', 'normal') # VectorFE tangent
         '''
-        itg_type = kwargs.pop("weight", "default")
+
+        coeff = kwargs.pop("coeff", "1")
+        coeff_type = kwargs.pop("coeff_type", "S")
 
         engine = self._engine()        
         self.process_kwargs(engine, kwargs)
@@ -142,82 +144,62 @@ class Integral(Operator):
         if len(args)>0: self._sel_mode = args[0]
         if len(args)>1: self._sel = args[1]
 
-        lf1 = engine.new_lf(self._fes1())
-
         if (self.fes1.FEColl().Name().startswith('ND') or
             self.fes1.FEColl().Name().startswith('RT')):
-            isVectorFE = True
+            cdim = self.fes1.GetMesh().SpaceDimension()
         else:
-            isVectorFE = False
-            
-        sdim = self.fes1.GetMesh().SpaceDimension()
-        dim = self.fes1.GetMesh().Dimension()        
+            cdim = self.fes1.GetVDim()
+
+        info1 = engine.get_fes_info(self.fes1)
+        emesh_idx = info1['emesh_idx']
+
+        isDomain = (self._sel_mode == 'domain')
+
+        from petram.helper.phys_module_util import default_lf_integrator        
+        integrator = kwargs.pop("integrator", "Auto")
+        if integrator == 'Auto':
+            integrator = default_lf_integrator(info1, isDomain)
         
-        def scalar_one(fes):
-            one = mfem.ConstantCoefficient(1.0)        
-            coeff = self.restrict_coeff(one, fes)
-            return coeff
+        global_ns = globals()
+        local_ns = {}
+        real = True
+
+        try:
+            is_complex = np.iscomplex(complex(eval(coeff), global_ns, local_ns))
+        except:
+            is_complex = kwargs.pop('is_complex', False)
+
+        if isDomain:
+            adder = 'AddDomainIntegrator'
+        else:
+            adder = 'AddBoundaryIntegrator'
             
-                              
-        if self._sel_mode == 'domain':
-            if isVectorFE:
-               assert False, "Not impolemented"
-               #intg = mfem.VectorFEDomainLFIntegrator(coff)                              
-            else:
-               if self.fes1.GetVDim() == 1:
-                  coff = scalar_one(self._fes1())                                         
-                  intg = mfem.DomainLFIntegrator(coff)
-               else:
-                  assert False, "Not impolemented"                  
-                  intg = mfem.VectorDomainLFIntegrator(coff)                              
-                              
-        elif self._sel_mode == 'boundary':
-            if isVectorFE:
-                if self.fes1.FEColl().Name().startswith('ND'):
-                     if dim == 2 and sdmi == 3:
-                         coeff = CurveTangent(sdim)
-                         intg = mfem.VectorFEBoundaryTangentLFIntegrator(coff)
-                     else:
-                         assert False, "Not impolemented"                        
-                elif self.fes1.FEColl().Name().startswith('RT'):
-                     assert False, "Not impolemented"                   
-                     #intg = mfem.VectorFEBoundaryFluxLFIntegrator(coff)
-                else:
-                     assert False, "Not impolemented"                                      
-                     #assert False, "Can not find proper LF integrator from kind/vdim/fec"
-            else:
-                if self.fes1.GetVDim() == 1:
-                    if itg_type == "default":
-                        coff = scalar_one(self._fes1())
-                        intg = mfem.BoundaryLFIntegrator(coff)
-                    elif itg_type == "tangent":
-                        coff = scalar_one(self._fes1())                       
-                        intg = mfem.BoundaryTangentLFIntegrator(coff)
-                    elif itg_type == "normal":
-                        coff = scalar_one(self._fes1())                       
-                        intg = mfem.BoundaryNormalLFIntegrator(coff)                       
-                    elif itg_type == "flow":
-                        coff = scalar_one(self._fes1())                       
-                        intg = mfem.BoundaryFlowIntegrator(coff)
-                    else:
-                        assert False, "Can not find proper LF integrator from kind/vdim/fec"
-                        
-                else:
-                    assert False, "Not impolemented"                                      
-                    if itg_type == "default":
-                        intg = mfem.VectorBoundaryLFIntegrator(coff)
-                    elif itg_type == "flux":
-                        intg = mfem.VectorBoundaryFluxLFIntegrator(coff)
-                    else:
-                        assert False, "Can not find proper LF integrator from kind/vdim/fec"
-        else:           
-            assert False, "Selection Type must be either domain or boundary"
-        lf1.AddDomainIntegrator(intg)
+        from petram.helper.phys_module_util import restricted_integrator
+        from mfem.common.chypre import LF2PyVec, PyVec2PyMat, MfemVec2PyVec
+
+        itg = restricted_integrator(engine, integrator, self._sel,
+                                    coeff, coeff_type, cdim, 
+                                    emesh_idx,
+                                    isDomain,
+                                    self._ind_vars, local_ns, global_ns, True)
+        
+        lf1 = engine.new_lf(self._fes1())                    
+        getattr(lf1, adder)(itg)
         lf1.Assemble()
         
-        from mfem.common.chypre import LF2PyVec, PyVec2PyMat, MfemVec2PyVec
-        v1 = MfemVec2PyVec(engine.b2B(lf1), None)
-        
+        if is_complex:
+            itg = restricted_integrator(engine, integrator, self._sel,
+                                        coeff, coeff_type, cdim, 
+                                        emesh_idx, isDomain,
+                                        self._ind_vars, local_ns, global_ns, False)
+            
+            lf2 = engine.new_lf(self._fes1())
+            getattr(lf2, adder)(itg)            
+            lf2.Assemble()
+            v1 = MfemVec2PyVec(engine.b2B(lf1), engine.b2B(lf2))
+        else:
+            v1 = MfemVec2PyVec(engine.b2B(lf1), None)                       
+            lf2 = None            
 
         v1 = PyVec2PyMat(v1)
         if not self._transpose:        
@@ -274,6 +256,7 @@ class Delta(Operator):
       delta(x, y, z)
 
       delta(x, y, z, direction=[1,0,0]))
+      delta(array) to set multiple points at once
     '''
     def assemble(self, *args, **kwargs):
         engine = self._engine()
@@ -325,7 +308,106 @@ class Delta(Operator):
         if not self._transpose:        
             v1 = v1.transpose()
         return v1
+
+class DeltaM(Operator):
+    '''
+    Delta function
+
+      delta(array, direction = None, weight = None, sum = False) to set multiple points at once
+
+      array = [x1, y1, z1, x2, y2, z2,....]
+      direction = [dx1, dy1, dz1, dx2, dy2, dz2,....]
+      weight = [w1, w2, w3,...]
+      sum = if True, all points are corrapsed to one array.
+
+    '''
+    def assemble(self, *args, **kwargs):
+        engine = self._engine()
+        direction = kwargs.pop("direction", None)
+        weight = kwargs.pop("weight", 1)
+        weight = np.atleast_1d(weight)
+        do_sum = kwargs.pop("sum", False)
+        
+        info1 = engine.get_fes_info(self.fes1)
+        sdim = info1['sdim']
+        vdim = info1['vdim']
+
+        if (info1['element'].startswith('ND') or
+            info1['element'].startswith('RT')):
+            vdim = sdim
+        if direction is None:
+            direction = [0]*vdim
+            direction[0] = 1
+        direction = np.atleast_2d(direction)
             
+        self.process_kwargs(engine, kwargs)
+
+        pts = np.array(args[0], copy = False).reshape(-1, sdim)
+
+        from mfem.common.chypre import LF2PyVec, PyVec2PyMat, MfemVec2PyVec, HStackPyVec
+        vecs = []
+            
+        for k, pt in enumerate(pts):
+            w = weight[0] if len(weight) == 1 else weight[k]
+            dir = direction[0] if len(direction) == 1 else direction[k]
+            if vdim == 1:
+                if sdim == 3:
+                    x, y, z = pt
+                    d = mfem.DeltaCoefficient(x, y, z, w)
+                elif sdim == 2:
+                    x, y = pt               
+                    d = mfem.DeltaCoefficient(x, y, w)
+                elif sdim == 1:
+                    x = pt                              
+                    d = mfem.DeltaCoefficient(x, w)
+                else:
+                     assert False, "unsupported dimension"
+                intg = mfem.DomainLFIntegrator(d)                
+            else:
+                dir = mfem.Vector(direction)
+                if sdim == 3:
+                    x, y, z = pt               
+                    d = mfem.VectorDeltaCoefficient(dir, x, y, z, w)
+                elif sdim == 2:
+                    x, y = pt                              
+                    d = mfem.VectorDeltaCoefficient(dir, x, y, w)
+                elif sdim == 1:
+                    x = pt                                             
+                    d = mfem.VectorDeltaCoefficient(dir,x, w)
+                else:
+                    assert False, "unsupported dimension"
+
+                if self.fes1.FEColl().Name().startswith('ND'):
+                    intg = mfem.VectorFEDomainLFIntegrator(d)                
+                elif self.fes1.FEColl().Name().startswith('RT'):
+                    intg = mfem.VectorFEDomainLFIntegrator(d)            
+                else:    
+                    intg = mfem.VectorDomainLFIntegrator(d)                                
+
+
+
+            if do_sum:
+                if k == 0:
+                   lf1 = engine.new_lf(self.fes1)
+                lf1.AddDomainIntegrator(intg)            
+            else:
+                lf1 = engine.new_lf(self.fes1)
+                lf1.AddDomainIntegrator(intg)                        
+                lf1.Assemble()            
+                vecs.append(LF2PyVec(lf1))
+
+
+        if do_sum: 
+            lf1.Assemble()                        
+            v1 = MfemVec2PyVec(engine.b2B(lf1), None)
+            v1 = PyVec2PyMat(v1)            
+        else:
+            v1 = HStackPyVec(vecs)
+
+        if not self._transpose:        
+            v1 = v1.transpose()
+        return v1
+     
 class Projection(Operator):
     '''
     DoF mapping (Dof of fes1 is mapped to fes2)

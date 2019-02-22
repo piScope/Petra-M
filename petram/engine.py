@@ -35,6 +35,7 @@ def enum_fes(phys, *args):
     for k in range(len(args[0][phys])):
         yield ([k] + [(None if a[phys] is None else a[phys][k][1])
                      for a in args])
+
 class Engine(object):
     def __init__(self, modelfile='', model = None):
         if modelfile != '':
@@ -1783,16 +1784,19 @@ class Engine(object):
             emesh_idx = phys.emesh_idx
             order = phys.order
 
-            mesh = self.emeshes[phys.emesh_idx]
-            isParMesh = hasattr(mesh, 'ParPrint')
-            dim = mesh.Dimension()
-            sdim= mesh.SpaceDimension()
-            if name.startswith('RT'): vdim = 1
-            if name.startswith('ND'): vdim = 1
-
-            dprint1("allocate_fespace: " + name, "(emesh_idx, elem, order, sdim, vdim, isParMesh) = ",
-                    (emesh_idx, elem, order, sdim, vdim, isParMesh))
-
+            #mesh = self.emeshes[phys.emesh_idx]
+            #isParMesh = hasattr(mesh, 'ParPrint')
+            #sdim= mesh.SpaceDimension()
+            #if name.startswith('RT'): vdim = 1
+            #if name.startswith('ND'): vdim = 1
+            if elem.startswith('RT'): vdim = 1
+            if elem.startswith('ND'): vdim = 1
+            
+            dprint1("allocate_fespace: " + name)            
+            is_new, fec, fes = self.get_or_allocate_fecfes(name, emesh_idx, elem,
+                                                           order, vdim)
+            
+            '''
             key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
             if key in self.fecfes_storage:
                 fec, fes = self.fecfes_storage[key]
@@ -1804,12 +1808,38 @@ class Engine(object):
                 fes = self.new_fespace(mesh, fec, vdim)
                 mesh.GetEdgeVertexTable()
                 self.fecfes_storage[key] = (fec, fes)
-                
+
             self.add_fec_fes(name, fec, fes)
+            '''                
+    def get_or_allocate_fecfes(self, name, emesh_idx, elem, order, vdim, make_new=True):
+        mesh = self.emeshes[emesh_idx]       
+        isParMesh = hasattr(mesh, 'ParPrint')
+        sdim= mesh.SpaceDimension()
+
+        is_new = False
+        key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
+        dprint1( "(emesh_idx, elem, order, sdim, vdim, isParMesh) = " + str(key))
+
+        if key in self.fecfes_storage:
+            fec, fes = self.fecfes_storage[key]
+        elif not make_new:
+            return False, None, None
+        else:
+            is_new = True
+            fec = getattr(mfem, elem)
+            #if fec is mfem.ND_FECollection:
+            #   mesh.ReorientTetMesh()
+            fec = fec(order, sdim)
+            fes = self.new_fespace(mesh, fec, vdim)
+            mesh.GetEdgeVertexTable()
+            self.fecfes_storage[key] = (fec, fes)
             
+        self.add_fec_fes(name, fec, fes)            
+        return is_new, fec, fes
+                            
     def add_fec_fes(self, name, fec, fes):
-       self.fec[name] = fec
-       self.fespaces[name] = fes
+        self.fec[name] = fec
+        self.fespaces[name] = fes
             
     def get_fes(self, phys, kfes = 0, name = None):
         if name is None:
@@ -1919,7 +1949,7 @@ class Engine(object):
         raise NotImplementedError(
              "you must specify this method in subclass")
 
-    def new_fespace(self, mesh, fec):
+    def new_fespace(self, mesh, fec, vdim):
         raise NotImplementedError(
              "you must specify this method in subclass")
 
@@ -2245,6 +2275,29 @@ class Engine(object):
             import traceback
             traceback.print_exc()
             assert False, "Direct Wrapper Call Failed"
+
+    def get_fes_info(self, fes):
+        # k = emesh_idx, elem, order, sdim, vdim, isParMesh
+        for k in self.fecfes_storage:       
+             if self.fecfes_storage[k][1] == fes:
+                 return {'emesh_idx': k[0],
+                         'element': k[1],
+                         'order': k[2],
+                         'sdim': k[3],
+                         'vdim': k[4],}
+        return None
+    def variable2vector(self, v, horizontal=False):
+        '''
+        GFFunctionVariable to PyVec
+        '''
+        from mfem.common.chypre import MfemVec2PyVec
+        rlf = self.x2X(v.deriv_args[0])
+        if v.deriv_args[1] is not None:
+            ilf = self.x2X(v.deriv_args[1])
+        else:
+            ilf = None
+        return MfemVec2PyVec(rlf, ilf, horizontal=horizontal)
+            
        
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
@@ -2265,7 +2318,7 @@ class SerialEngine(Engine):
     def new_lf(self, fes):
         return  mfem.LinearForm(fes)
 
-    def new_bf(self, fes):
+    def new_bf(self, fes, fes2=None):
         return  mfem.BilinearForm(fes)
 
     def new_mixed_bf(self, fes1, fes2):
@@ -2277,8 +2330,17 @@ class SerialEngine(Engine):
         if gf is None:
            gf = mfem.GridFunction(fes)
         else:
-           gf = mfem.GridFunction(gf.FESpace())               
+           assert False, "I don't think this is used..."
+           gf = mfem.GridFunction(gf.FESpace())
+           
         if init: gf.Assign(0.0)
+        
+        for k in self.fecfes_storage:
+            if self.fecfes_storage[k][1] == fes:
+               gf._emesh_idx = k[0]
+               break
+        else:
+            assert False, "new gf is called with unknonw fes"
         return gf
 
     def new_matrix(self, init = True):                                 
@@ -2442,7 +2504,7 @@ class ParallelEngine(Engine):
     def new_lf(self, fes):
         return  mfem.ParLinearForm(fes)
 
-    def new_bf(self, fes):
+    def new_bf(self, fes, fes2=None):
         return  mfem.ParBilinearForm(fes)
      
     def new_mixed_bf(self, fes1, fes2):
@@ -2454,8 +2516,15 @@ class ParallelEngine(Engine):
         if gf is None:
            gf = mfem.ParGridFunction(fes)
         else:
+           assert False, "I don't think this is used..."           
            gf = mfem.ParGridFunction(gf.ParFESpace())               
         if init: gf.Assign(0.0)
+        for k in self.fecfes_storage:
+            if self.fecfes_storage[k][1] == fes:
+               gf._emesh_idx = k[0]
+               break
+        else:
+            assert False, "new gf is called with unknonw fes"
         return gf
                
     def new_fespace(self,mesh, fec, vdim):

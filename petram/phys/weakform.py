@@ -66,6 +66,8 @@ def MCoeff(*args, **kwargs):
                   return val.real
                else:
                   return val.imag
+           elif not self.real:
+               return val*0.0
            else:
                return val
 
@@ -79,6 +81,8 @@ def MCoeff(*args, **kwargs):
             if conj:  e = np.conj(e)
             if real:  e = e.real
             else: e = e.imag
+        elif not real:
+            e = np.array(e*0.0, dtype=float, copy=False)           
         else:
             e = np.array(e, dtype=float, copy=False)
         return PhysMatrixConstant(e)
@@ -101,6 +105,8 @@ def DCoeff(*args, **kwargs):
                   return val.real
                else:
                   return val.imag
+           elif not self.real:
+               return val*0.0
            else:
                return val
 
@@ -115,6 +121,8 @@ def DCoeff(*args, **kwargs):
             if conj:  e = np.conj(e)
             if real:  e = e.real
             else: e = e.imag
+        elif not real:
+            e = np.array(e*0.0, dtype=float, copy=False)           
         else:
             e = np.array(e, dtype=float, copy=False)
         return PhysMatrixConstant(e)
@@ -134,6 +142,8 @@ def VCoeff(*args, **kwargs):
                   return val.real
                else:
                   return val.imag
+           elif not self.real:
+               return val*0.0
            else:
                return val
            
@@ -147,6 +157,8 @@ def VCoeff(*args, **kwargs):
             if conj:  e = np.conj(e)
             if real:  e = e.real
             else: e = e.imag
+        elif not real:
+            e = np.array(e*0.0, dtype=float, copy=False)           
         else:
             e = np.array(e, dtype=float, copy=False)
         return PhysVectorConstant(e)
@@ -173,6 +185,8 @@ def SCoeff(*args, **kwargs):
                   return v.real
                else:
                   return v.imag
+           elif not self.real:
+               return 0.0
            else:
                return v
                
@@ -192,6 +206,10 @@ def SCoeff(*args, **kwargs):
             if conj:  v = np.conj(v)
             if real:  v = v.real
             else: v = v.imag
+        elif not real:
+            v = 0.0
+        else:
+            pass
         return PhysConstant(float(v))
     
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',

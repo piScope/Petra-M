@@ -676,7 +676,8 @@ class PyFunctionVariable(Variable):
 class GridFunctionVariable(Variable):
     def __init__(self, gf_real, gf_imag = None, comp = 1,
                  deriv = None, complex = False):
-        
+
+        complex = not (gf_imag is None)
         super(GridFunctionVariable, self).__init__(complex = complex)
         self.dim = gf_real.VectorDim()
         self.comp = comp

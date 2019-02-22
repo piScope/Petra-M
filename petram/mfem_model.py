@@ -52,6 +52,10 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         import petram.debug
         if petram.debug.debug_default_level == 0:
             petram.debug.debug_default_level = int(self.debug_level)
+
+        from petram.helper.variables import Variables            
+        self.root()._variables = Variables()
+        self.root()._parameters = {}
             
     def get_defualt_local_ns(self):
         '''
@@ -172,7 +176,7 @@ class MFEM_PostProcessRoot(Model):
             solvar = solvars[k]
             for p in self.iter_enabled():
                 for pp in p.iter_enabled():                
-                    pp.soldict_to_solvars(mesh, soldict, solvar)
+                    pp.soldict_to_solvars(soldict, solvar)
             #solvars[k] = solvar
         return solvars
 

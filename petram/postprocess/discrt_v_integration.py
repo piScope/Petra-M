@@ -32,6 +32,8 @@
 '''
 import numpy as np
 import traceback
+import warnings
+
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Integration(PP)')
 
@@ -46,7 +48,7 @@ linintegs = get_integrators('LinearOps')
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
          guilabel = "lambda", default = 0.0, tip = "coefficient",))]
 
-
+'''
 from petram.helper.variables import var_g
 ll = var_g.copy()
 
@@ -264,7 +266,7 @@ class DiscrtVIntegration(PostProcessBase, Vtable_mixin):
         
         from mfem.common.chypre import LF2PyVec, PyVec2PyMat, MfemVec2PyVec
         v1 = MfemVec2PyVec(engine.b2B(lf1), None)
-            
+'''
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
          guilabel = "lambda", default = '1.0', tip = "coefficient",))]
 
@@ -277,7 +279,8 @@ class WeakformIntegrator(PostProcessBase, Vtable_mixin):
         return self.root()['Mesh'].sdim
     
     def attribute_set(self, v):
-        v = super(WeakformIntegrator, self).attribute_set(v)        
+        v = super(WeakformIntegrator, self).attribute_set(v)
+        v["integration_name"] = 'integ'        
         v['coeff_type'] = 'S'
         v['integrator'] = 'MassIntegrator'
         v['variables']   = ''
@@ -293,11 +296,13 @@ class WeakformIntegrator(PostProcessBase, Vtable_mixin):
              {"style":wx.CB_READONLY, "choices": ["Scalar", "Vector", "Diagonal", "Matrix"]}]
 
         names = [x[0] for x in self.itg_choice()]
+        names = ['Auto'] + names
         p2 = ["integrator", names[0], 4,
               {"style":wx.CB_READONLY, "choices": names}]
         
         panels = self.vt_coeff.panel_param(self)
-        ll = [["Variable", self.variables, 0, {}],
+        ll = [["name", "", 0, {}],
+              ["variable", self.variables, 0, {}],
                p,
                panels[0],
                p2,]
@@ -305,16 +310,18 @@ class WeakformIntegrator(PostProcessBase, Vtable_mixin):
         return ll
     
     def get_panel1_value(self):
-        return [self.variables, 
+        return [self.integration_name,
+                self.variables, 
                 self.coeff_type,
                 self.vt_coeff.get_panel_value(self)[0],
                 self.integrator,]
               
     def import_panel1_value(self, v):
-        self.variables = str(v[0])
-        self.coeff_type = str(v[1])
-        self.vt_coeff.import_panel_value(self, (v[2],))
-        self.integrator =  str(v[3])
+        self.integration_name = str(v[0])
+        self.variables = str(v[1])
+        self.coeff_type = str(v[2])
+        self.vt_coeff.import_panel_value(self, (v[3],))
+        self.integrator =  str(v[4])
 
     def panel1_tip(self):
         pass
@@ -362,13 +369,48 @@ class WeakformIntegrator(PostProcessBase, Vtable_mixin):
     def panel2_tip(self):
         pass
     
+                
+
+    def add_integrator(self, form, engine, integrator, cdim, emesh_idx, isDomain, real):
+        
+        self.vt_coeff.preprocess_params(self)
+        c = self.vt_coeff.make_value_or_expression(self)
+        
+        from petram.helper.variables import var_g
+        global_ns = self._global_ns.copy()
+        for k in engine.model._variables:
+            global_ns[k] = engine.model._variables[k]
+        local_ns = {}
+
+        phys = self.root()['Phys'].values()
+        for p in phys:
+            if p.enabled:
+                ind_vars = p.ind_vars
+                break
+        else:
+            assert False, "no phys is enabled"
+
+        from petram.helper.phys_module_util import restricted_integrator
+
+        itg = restricted_integrator(engine, integrator, self.sel_index, 
+                                    c[0], self.coeff_type[0], cdim, 
+                                    emesh_idx,
+                                    isDomain,
+                                    ind_vars, local_ns, global_ns, real)
+
+        if isDomain:
+            adder = form.AddDomainIntegrator
+        else:
+            adder = form.AddBoundaryIntegrator
+        adder(itg)
+    
 class LinearformIntegrator(WeakformIntegrator):
     def itg_choice(self):
         return linintegs
     
     @classmethod    
     def fancy_menu_name(self):
-        return "Using LinearForm"
+        return "LinearForm"
     
     @classmethod    
     def fancy_tree_name(self):
@@ -376,11 +418,66 @@ class LinearformIntegrator(WeakformIntegrator):
     
     def run_postprocess(self, engine):
         dprint1("running postprocess: " + self.name())
-        import warnings
-        warnings.warn("LinearIntegrator is not implemented", RuntimeWarning)
-        return 
 
-        var = engine.model._variables[self.discrt_variable]
+        
+        name = self.variables.strip()
+        if name not in engine.model._variables:
+            assert False, name + " is not defined"
+            
+        var1 = engine.model._variables[name]
+        emesh_idx1 = var1.get_emesh_idx()
+        emesh_idx = emesh_idx1[0]
+            
+        fes1 = engine.fespaces[name]
+        info1 = engine.get_fes_info(fes1)
+        if info1 is None:
+            assert False, "fes info is not found"
+
+        if info1['sdim']  == self.sdim:
+            isDomain = True
+        elif info1['sdim']  == self.sdim+1:
+            isDomain = False
+        else:
+            warnings.warn("Can not perform integration (skipping)", RuntimeWarning)
+            return
+
+        isComplex = var1.complex
+        new_lf = engine.new_lf
+
+        cdim = 1
+        if (info1['element'].startswith('ND') or
+            info1['element'].startswith('RT')):
+            cdim = info1['sdim']
+        else:
+            cdim = info1['vdim']
+
+        from petram.helper.phys_module_util import default_lf_integrator
+        if self.integrator == 'Auto':
+            integrator = default_lf_integrator(info1, isDomain)
+        else:
+            integrator = self.integrator
+            
+        lfr = new_lf(fes1)
+        self.add_integrator(lfr, engine, integrator, cdim, emesh_idx, isDomain, True)
+        lfr.Assemble()
+
+        if isComplex:
+            lfi = new_lf(fes1)
+            self.add_integrator(lfi, engine, integrator, cdim, emesh_idx, isDomain, False)
+            lfi.Assemble()
+        else:
+            lfi = None
+
+        from mfem.common.chypre import LF2PyVec
+        V = LF2PyVec(lfr, lfi, horizontal = True)
+   
+        V1 = engine.variable2vector(var1)
+        #print(V1.shape)
+        #print(V.shape)
+        value = np.array(V.dot(V1), copy=False)
+        #value = np.array(V1.dot(V2), copy=False)
+        dprint1("Integrated Value :" + self.integration_name + ":" + str(value))
+        engine.store_pp_extra(self.integration_name, value)
     
 class BilinearformIntegrator(WeakformIntegrator):
     def itg_choice(self):
@@ -388,7 +485,7 @@ class BilinearformIntegrator(WeakformIntegrator):
     
     @classmethod    
     def fancy_menu_name(self):
-        return "Using BilinearForm"
+        return "BilinearForm"
     
     @classmethod    
     def fancy_tree_name(self):
@@ -401,7 +498,7 @@ class BilinearformIntegrator(WeakformIntegrator):
         
     def panel1_param(self):
         ll = super(BilinearformIntegrator, self).panel1_param()
-        ll[0][0] = "Variables"
+        ll[1][0] = "variables"
         ll.append(["use conj (ex. AB^)", self.use_conj, 3, {"text":""}])
         return ll
     
@@ -416,10 +513,117 @@ class BilinearformIntegrator(WeakformIntegrator):
 
     def run_postprocess(self, engine):
         dprint1("running postprocess: " + self.name())
-        
-        import warnings
-        warnings.warn("BilinearIntegrator is not implemented", RuntimeWarning)
-        return 
-        var = engine.model._variables[self.discrt_variable]
 
-        assert False, "Not yet implemented"
+        
+        names = [x.strip() for x in self.variables.split(',')]
+        if len(names) != 2:
+            assert False, "wrong setting. specify two variables: " + self.variables
+        if names[0] not in engine.model._variables:
+            assert False, names[0] + " is not defined"
+        if names[1] not in engine.model._variables:            
+            assert False, names[1] + " is not defined"
+            
+        var1 = engine.model._variables[names[0]]
+        var2 = engine.model._variables[names[1]]
+        
+        emesh_idx1 = var1.get_emesh_idx()
+        emesh_idx2 = var2.get_emesh_idx()
+
+        if (len(emesh_idx1) != 1 or
+            len(emesh_idx2) != 1 or
+            emesh_idx1[0] != emesh_idx2[0]):
+            assert False, "can not perform integration between different extended-mesh"
+        emesh_idx = emesh_idx1[0]
+            
+
+        fes1 = engine.fespaces[names[0]]
+        fes2 = engine.fespaces[names[1]]
+        info1 = engine.get_fes_info(fes1)
+        info2 = engine.get_fes_info(fes2)        
+        if info1 is None or info2 is None:
+            assert False, "fes info is not found"
+
+        if info1['sdim']  == self.sdim:
+            isDomain = True
+        elif info1['sdim']  == self.sdim+1:
+            isDomain = False
+        else:
+            warnings.warn("Can not perform integration (skipping)", RuntimeWarning)
+            return
+
+        isComplex = var1.complex or var2.complex
+        if fes1 != fes2:
+            new_bf = engine.new_mixed_bf
+        else:
+            new_bf = engine.new_bf
+
+        cdim = 1
+        if (info1['element'].startswith('ND') or
+            info1['element'].startswith('RT')):
+            cdim = info1['sdim']
+        else:
+            cdim = info1['vdim']
+
+        from petram.helper.phys_module_util import default_bf_integrator
+        if self.integrator == 'Auto':
+            integrator = default_bf_integrator(info1, info2, isDomain)            
+            '''
+            if fes1 == fes2:
+                if (info1['element'].startswith('ND') or
+                    info1['element'].startswith('RT')):
+                    integrator = 'VectorFEMassIntegrator'
+                elif info1['element'].startswith('DG'):
+                    assert False, "auto selection is not supported for GD"
+                elif info1['vdim'] > 1:
+                    integrator = 'VectorMassIntegrator'
+                elif not isDomain:
+                    integrator = 'BoundaryMassIntegrator'
+                else:
+                    integrator = 'MassIntegrator'
+            else:
+                if (((info1['element'].startswith('ND') or
+                      info1['element'].startswith('RT'))and
+                     (info2['element'].startswith('ND') or
+                      info2['element'].startswith('RT')))):
+                    integrator = 'MixedVectorMassIntegrator'
+                elif info1['element'].startswith('DG'):
+                    assert False, "auto selection is not supported for GD"
+                elif (info1['vdim'] == 1 and info1['vdim'] == info2['vdim']):
+                    integrator = 'MixedScalarMassIntegrator'                    
+                else:
+                    assert False, "No proper integrator is found"
+            '''
+        else:
+            integrator = self.integrator
+            
+        bfr = new_bf(fes2, fes1)
+        self.add_integrator(bfr, engine, integrator, cdim,  emesh_idx, isDomain, True)
+        bfr.Assemble()
+
+        if isComplex:
+            bfi = new_bf(fes2, fes1)
+            self.add_integrator(bfi, engine, integrator, cdim, emesh_idx, isDomain, False)
+            bfi.Assemble()
+        else:
+            bfi = None
+
+        from mfem.common.chypre import BF2PyMat
+        
+        M = BF2PyMat(bfr, bfi, finalize = True)
+   
+        V1 = engine.variable2vector(var1, horizontal=True)
+        V2 = engine.variable2vector(var2)        
+        if self.use_conj:
+            try:
+                V2 = V2.conj()
+            except:
+                V2[1] *= -1
+        #print(M.shape)
+        #print(V1.shape)
+        #print(V2.shape)
+        value = np.array(V1.dot(M.dot(V2)), copy=False)
+        #value = np.array(V1.dot(V2), copy=False)
+        dprint1("Integrated Value :" + self.integration_name + ":" + str(value))        
+        engine.store_pp_extra(self.integration_name, value)
+        
+

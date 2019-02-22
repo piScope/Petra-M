@@ -29,10 +29,10 @@ from petram.helper.matrix_file import write_coo_matrix, write_vector
 #groups = ['Domain', 'Boundary', 'Edge', 'Point', 'Pair']
 groups = ['Domain', 'Boundary', 'Pair']
 
-data0 = [("oprt_diag", VtableElement("oprt_diag", type='complex',
-                                      guilabel = "diag", default = 0.0,
+data0 = [("oprt_diag", VtableElement("oprt_diag", type='array',
+                                      guilabel = "diag", default = "0.0",
                                       tip = "oprator (diag)",)),
-         ("rhs_vec", VtableElement("rhs_vec", type='any',
+         ("rhs_vec", VtableElement("rhs_vec", type='array',
                                    guilabel = "rhs", default = "0.0",
                                    tip = "rhs vector",))]
 
@@ -258,17 +258,22 @@ class AUX_Variable(Phys):
 
         name = phys.dep_vars[kfes]
         fes = engine.fespaces[name]
+        
+        ind_vars = self.get_root_phys().ind_vars
+        is_complex = self.get_root_phys().is_complex()
 
         diag_size = -1
         if opr1 is not None or opr2 is not None:
             if opr1 is not None:
                assert isinstance(opr1, str), "operator1 must be an expression"               
-               expr = Expression(opr1, engine=engine, trial=fes)
+               expr = Expression(opr1, engine=engine, trial=fes,
+                                 ind_vars = ind_vars, is_complex = is_complex)
                t1 = expr.assemble(g=self._global_ns)
                diag_size = t1.shape[0]
             if opr2 is not None:
                assert isinstance(opr2, str), "operator2 must be an expression"           
-               expr = Expression(opr2, engine=engine, trial=fes, transpose=True)   
+               expr = Expression(opr2, engine=engine, trial=fes, transpose=True, 
+                                 ind_vars = ind_vars, is_complex = is_complex)
                t2 = expr.assemble(g=self._global_ns)
                if diag_size > -1:
                   print t1.shape, t2.shape
