@@ -335,11 +335,13 @@ class DeltaM(Operator):
         if (info1['element'].startswith('ND') or
             info1['element'].startswith('RT')):
             vdim = sdim
-        if direction is None:
-            direction = [0]*vdim
-            direction[0] = 1
-        direction = np.atleast_1d(direction).astype(float, copy=False)
-        direction = direction.reshape(-1, sdim)
+
+        if vdim > 1:
+            if direction is None:
+                direction = [0]*vdim
+                direction[0] = 1
+            direction = np.atleast_1d(direction).astype(float, copy=False)
+            direction = direction.reshape(-1, sdim)
         
         self.process_kwargs(engine, kwargs)
 
@@ -350,7 +352,6 @@ class DeltaM(Operator):
 
         for k, pt in enumerate(pts):
             w = weight[0] if len(weight) == 1 else weight[k]
-            dir = direction[0] if len(direction) == 1 else direction[k]
             if vdim == 1:
                 if sdim == 3:
                     x, y, z = pt
@@ -365,6 +366,7 @@ class DeltaM(Operator):
                      assert False, "unsupported dimension"
                 intg = mfem.DomainLFIntegrator(d)                
             else:
+                dir = direction[0] if len(direction) == 1 else direction[k]               
                 dd = mfem.Vector(dir)
                 if sdim == 3:
                     x, y, z = pt               

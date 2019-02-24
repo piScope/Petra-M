@@ -79,7 +79,6 @@ class AUX_Operator(Phys):
         return ll1+ ll2 + ll3
 
     def import_panel1_value(self, v):
-        print v
         mfem_physroot = self.get_root_phys().parent
         names, pnames, pindex = mfem_physroot.dependent_values()
 
@@ -170,7 +169,6 @@ class AUX_Operator(Phys):
         ind_vars = self.get_root_phys().ind_vars
         is_complex = self.get_root_phys().is_complex()
 
-        print("in aux_operator", ind_vars)
         diag_size = -1
         if oprt is not None:
            dprint1(self.name() + " Assembling Operator: ", oprt)

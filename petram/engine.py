@@ -1564,7 +1564,9 @@ class Engine(object):
             else:
                 mm.postprocess_extra(data, t5, ret[extra_name])
             '''
-        dprint1("extra", ret)
+        for k in ret:
+            tmp = {x:ret[k][x].flatten() for x in ret[k]}
+            dprint1("extra", tmp)
         return ret
 
     #
