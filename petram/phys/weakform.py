@@ -482,13 +482,30 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
                 if b[0] == self.integrator: break
                
              if not "S*2" in b[3]:
-                 if real:
-                     args.append(float(np.array(c[0])[0].real))
+                 if isinstance(c[0], str):
+                      c_coeff = None                    
+                      #c_coeff = SCoeff(c[0],  self.get_root_phys().ind_vars,
+                      #                 self._local_ns, self._global_ns,
+                      #                 real = real, conj=is_conj)
+                      value = eval(c[0], self._global_ns, self._local_ns)
+                      dprint1("time depenent delta", value)
+                      args.append(float(value))
                  else:
-                     args.append(float(np.array(c[0])[0].imag))
+                     c_coeff = None
+                     if real:
+                         args.append(float(np.array(c[0])[0].real))
+                     else:
+                         args.append(float(np.array(c[0])[0].imag))
                  if args[-1] != 0:
                      d = mfem.DeltaCoefficient(*args)
-                     adder(integrator(d))
+                     if c_coeff is not None:
+                         assert False, "This option needs update of PyMFEM"
+                         d2 = mfem.ProductCoefficient(c_coeff, d)
+                         d2._linked_c = (c_coeff, d)
+                         adder(integrator(d2))                         
+                     else:
+                         adder(integrator(d))
+                     
              else: # so far this is only for an elastic integrator
                  if real:
                      args.append(float(np.array(c[0])[0].real))

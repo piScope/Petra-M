@@ -391,9 +391,12 @@ class DlgPlotSol(SimpleFramePlus):
 
             hbox = wx.BoxSizer(wx.HORIZONTAL)
             vbox.Add(hbox, 0, wx.EXPAND|wx.ALL,5)
+            ebutton=wx.Button(p, wx.ID_ANY, "Export")                                             
             button=wx.Button(p, wx.ID_ANY, "Apply")
+            ebutton.Bind(wx.EVT_BUTTON, self.onExport)                        
             button.Bind(wx.EVT_BUTTON, self.onApply)
-            hbox.AddStretchSpacer()
+            hbox.Add(ebutton, 0, wx.ALL,1)                                              
+            hbox.AddStretchSpacer()            
             hbox.Add(button, 0, wx.ALL,1)
             
         if 'Config' in tabs:
@@ -1490,6 +1493,13 @@ class DlgPlotSol(SimpleFramePlus):
             wx.CallAfter(self.set_title_no_status)        
             return
         self.post_threadend(self.make_plot_probe, (xdata, data), expr = expr)
+    def onExportProbe(self, evt):
+        value = self.elps['Probe'] .GetValue()
+        expr = str(value[0]).strip()
+        
+        xdata, data = self.eval_probe(mode = 'plot')
+        
+        self.export_to_piScope_shell((xdata, data),  ('xdata', 'ydata'))
         
     def make_plot_probe(self, data, expr='', cls=None):
         from ifigure.interactive import figure
@@ -1809,6 +1819,16 @@ class DlgPlotSol(SimpleFramePlus):
         app.shell.lvar[dataname] = data
         app.shell.SendShellEnterEvent()
         ret=dialog.message(app, dataname + ' is exported', 'Export', 0)
+        
+    def export_to_piScope_shell(self, datas, datanames):
+        import wx
+        import ifigure.widgets.dialog as dialog
+        
+        app = wx.GetApp().TopWindow
+        for data, dataname in zip(datas, datanames):
+            app.shell.lvar[dataname] = data
+            app.shell.SendShellEnterEvent()
+        ret=dialog.message(app, ','.join(datanames) + ' is exported', 'Export', 0)
         
     def get_model_soldfiles(self):
         model = self.GetParent().model
