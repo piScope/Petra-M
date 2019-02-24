@@ -338,8 +338,9 @@ class DeltaM(Operator):
         if direction is None:
             direction = [0]*vdim
             direction[0] = 1
-        direction = np.atleast_2d(direction).astype(float, copy=False)
-            
+        direction = np.atleast_1d(direction).astype(float, copy=False)
+        direction = direction.reshape(-1, sdim)
+        
         self.process_kwargs(engine, kwargs)
 
         pts = np.array(args[0], copy = False).reshape(-1, sdim)
@@ -347,7 +348,6 @@ class DeltaM(Operator):
         from mfem.common.chypre import LF2PyVec, PyVec2PyMat, MfemVec2PyVec, HStackPyVec
         vecs = []
 
-        print('direction', direction)
         for k, pt in enumerate(pts):
             w = weight[0] if len(weight) == 1 else weight[k]
             dir = direction[0] if len(direction) == 1 else direction[k]
