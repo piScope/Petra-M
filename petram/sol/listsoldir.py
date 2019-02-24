@@ -31,16 +31,17 @@ def gather_soldirinfo(path):
             cp[solvername][(idx, checkpoints[solvername][idx])] = nn
     cp.default_factory=None
 
-    probes = {}
+    probes = defaultdict(list)
     for nn in os.listdir(path):
         if nn.startswith('probe_'):
             if nn.find('.') == -1:
                signal = '_'.join(nn.split('_')[1:]) 
             else:
-                if int(nn.split('.')[1]) != 0: continue
+                #if int(nn.split('.')[1]) != 0: continue
                 signal = '_'.join(nn.split('.')[0].split('_')[1:])
-            probes[signal] = nn
+            probes[signal].append(nn)
 
+    probes = dict(probes)
     cases = []
     for nn in os.listdir(path):
         if nn.startswith('case'):

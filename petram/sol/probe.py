@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -16,11 +17,26 @@ def load_probe(name):
     if format == 0:
         value = load_format_0(fid)
     fid.close()
-    return value
+
+    ydata = np.squeeze(value[:,1:].transpose()) 
+    xdata = value[:,0]   
+    return xdata, ydata
+
+def load_probes(dir, names):
+    data = [load_probe(os.path.join(dir, n)) for n in names]
+
+    xdata = data[0][0]
+    ydata = [x[1] for x in data]
+
+    print("ydata shape", [x[1].shape for x in data])
+    ydata = np.vstack(ydata)
+    ydata = np.squeeze(ydata)
+    
+    return xdata, ydata
     
 def load_format_0(fid):
     lines = fid.readlines()
-    data = [[float(x) for x in l.split(',')] for l in lines]
+    data = [[float(x) for x in l.split(',') if x.strip() != ''] for l in lines]
     data = np.array(data)
     return data
     
@@ -33,8 +49,7 @@ class Probe(object):
         self.finalized = False
 
     def write_file(self, filename = None):
-        if not self.finalized:
-            valid = self.finalize()
+        valid = self.finalize()
         if not valid: return
         
         if filename is None:
@@ -43,7 +58,7 @@ class Probe(object):
         fid = open(filename, 'w')
         fid.write("format : 0\n")
 
-        for x, t in zip(self.sig, self.time):
+        for x, t in zip(self.sig_f, self.time):
            txt = ', '.join([str(xx) for xx in x])
            fid.write(str(t) + ', '+ txt +"\n")
         fid.close()
@@ -61,12 +76,13 @@ class Probe(object):
         
     def finalize(self):
         if len(self.sig) == 0:
-            self.sig = -1
+            self.sig_f = -1
             self.valid = False
         else:
-            self.sig = np.vstack(self.sig)
-            self.time= np.hstack(self.t)                    
-            self.valid = True
+            self.sig_f = np.vstack(self.sig)
+            self.time= np.hstack(self.t)
+            self.valid = self.sig_f.size != 0
+            #self.valid = True
         self.finalized = True
         return self.valid
         

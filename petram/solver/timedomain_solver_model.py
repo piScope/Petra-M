@@ -229,9 +229,11 @@ class TimeDomain(Solver):
                                     args = self.dwc_cp_arg,                                    
                                     time = instance.time,
                                     icheckpoint = instance.icheckpoint-1)
-                if cp_written and fid is not None:
-                    fid.write(str(instance.icheckpoint-1)+':'+str(instance.time)+"\n")
-                    fid.flush()
+                if cp_written:
+                    instance.save_probe()
+                    if fid is not None:
+                        fid.write(str(instance.icheckpoint-1)+':'+str(instance.time)+"\n")
+                        fid.flush()
         instance.save_solution(ksol = 0,
                                skip_mesh = False, 
                                mesh_only = False,

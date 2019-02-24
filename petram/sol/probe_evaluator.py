@@ -23,12 +23,12 @@ class ProbeEvaluator(EvaluatorAgent):
 
     def eval_probe(self, expr, probe_files, phys):
         from petram.helper.variables import Variable, var_g
-        from petram.sol.probe import load_probe
+        from petram.sol.probe import load_probes
         
         path = probe_files[0]
         path = os.path.expanduser(path)        
         probes = probe_files[1]
-        
+
         st = parser.expr(expr)
         code= st.compile('<string>')
         names = code.co_names
@@ -39,9 +39,9 @@ class ProbeEvaluator(EvaluatorAgent):
 
         for n in names:
             if n in probes:
-                data = load_probe(os.path.join(path, probes[n]))
-                g[n] = data[:,1]
-                xdata = data[:,0]
+                xdata, ydata = load_probes(path, probes[n])
+                g[n] = ydata
+
         val = np.array(eval(code, g, {}), copy=False)
         return xdata, val
 

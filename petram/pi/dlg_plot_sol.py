@@ -1675,8 +1675,7 @@ class DlgPlotSol(SimpleFramePlus):
             wx.CallAfter(dialog.showtraceback, parent = self,
                                 txt='Failed to evauate expression',
                                 title='Error',
-                  traceback=''.join(traceback.format_exception_only(
-                                    sys.exc_info()[0], sys.exc_info()[1])))
+                                traceback = traceback.format_exc())                         
             wx.CallAfter(self.set_title_no_status)        
         return None, None
 
@@ -1752,8 +1751,8 @@ class DlgPlotSol(SimpleFramePlus):
                          parent = self,
                          txt='Failed to evauate expression',
                          title='Error',
-                         traceback=''.join(traceback.format_exception_only(
-                                    sys.exc_info()[0], sys.exc_info()[1])))
+                         traceback = traceback.format_exc())                         
+
             wx.CallAfter(self.set_title_no_status)        
         return None, None
     
@@ -1794,8 +1793,8 @@ class DlgPlotSol(SimpleFramePlus):
                          parent = self,
                          txt='Failed to evauate expression (probe)',
                          title='Error',
-                         traceback=''.join(traceback.format_exception_only(
-                                    sys.exc_info()[0], sys.exc_info()[1])))
+                         traceback = traceback.format_exc())
+
             wx.CallAfter(self.set_title_no_status)        
         return None, None
 
