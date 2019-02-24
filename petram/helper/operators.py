@@ -338,7 +338,7 @@ class DeltaM(Operator):
         if direction is None:
             direction = [0]*vdim
             direction[0] = 1
-        direction = np.atleast_2d(direction)
+        direction = np.atleast_2d(direction).astype(float, copy=False)
             
         self.process_kwargs(engine, kwargs)
 
@@ -346,7 +346,8 @@ class DeltaM(Operator):
 
         from mfem.common.chypre import LF2PyVec, PyVec2PyMat, MfemVec2PyVec, HStackPyVec
         vecs = []
-            
+
+        print('direction', direction)
         for k, pt in enumerate(pts):
             w = weight[0] if len(weight) == 1 else weight[k]
             dir = direction[0] if len(direction) == 1 else direction[k]
@@ -364,16 +365,16 @@ class DeltaM(Operator):
                      assert False, "unsupported dimension"
                 intg = mfem.DomainLFIntegrator(d)                
             else:
-                dir = mfem.Vector(direction)
+                dd = mfem.Vector(dir)
                 if sdim == 3:
                     x, y, z = pt               
-                    d = mfem.VectorDeltaCoefficient(dir, x, y, z, w)
+                    d = mfem.VectorDeltaCoefficient(dd, x, y, z, w)
                 elif sdim == 2:
                     x, y = pt                              
-                    d = mfem.VectorDeltaCoefficient(dir, x, y, w)
+                    d = mfem.VectorDeltaCoefficient(dd, x, y, w)
                 elif sdim == 1:
                     x = pt                                             
-                    d = mfem.VectorDeltaCoefficient(dir,x, w)
+                    d = mfem.VectorDeltaCoefficient(dd,x, w)
                 else:
                     assert False, "unsupported dimension"
 

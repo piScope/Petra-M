@@ -289,7 +289,10 @@ class AUX_Variable(Phys):
         # all node does do the same job, but Array2PyVec will use the data from
         # root node.
         if t4 is None: t4 = np.zeros(diag_size)
-        t4 = np.atleast_1d(rhs_vec)
+        rhs = np.atleast_1d(rhs_vec)
+        if len(t4) != 1 and len(rhs) == 1:
+           rhs = np.hstack([rhs_vec]*diag_size).flatten()         
+        
         if self.get_root_phys().is_complex():
             t4 = t4.astype(complex, copy = False)
         if not self.get_root_phys().is_complex():              
