@@ -488,7 +488,7 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
                       #                 self._local_ns, self._global_ns,
                       #                 real = real, conj=is_conj)
                       value = eval(c[0], self._global_ns, self._local_ns)
-                      dprint1("time depenent delta", value)
+                      dprint1("time depedent delta", value)
                       args.append(float(value))
                  else:
                      c_coeff = None
