@@ -17,21 +17,23 @@ else:
 # define variable for this BC.
 from petram.phys.vtable import VtableElement, Vtable
 
+'''
 class InitValue(PhysCoefficient):
    def EvalValue(self, x):
        v = super(InitValue, self).EvalValue(x)
        if self.real:  val = v.real
        else: val =  v.imag
        return val
+'''
+'''    
    
 class InitValueV(VectorPhysCoefficient):
    def EvalValue(self, x):
-       v = super(Einit_p, self).EvalValue(x)
-       v = np.array((v[0], v[2]))
+       v = super(InitValueV, self).EvalValue(x)
        if self.real:  val = v.real
        else: val =  v.imag
        return val
-
+'''
 class WF_common(object):
     can_timedpendent = True
     @property
@@ -44,8 +46,8 @@ class WF_common(object):
             if vt3.keys() == names2: return vt3
             
         data = [(n+'_init', VtableElement(n+'_init',
-                                          type='float', guilabel = n+'(init)',
-                                          default = 0.0, tip = "initial value",
+                                          type='array', guilabel = n+'(init)',
+                                          default ="0.0", tip = "initial value",
                                           chkbox = True)) for n in names]
         self._vt3 = Vtable(data)
         self.update_attribute_set()
@@ -62,20 +64,24 @@ class WF_common(object):
         if el.startswith('H1') or el.startswith('L2'):
             ll = self.get_root_phys().vdim
         else:
-            ll = engine.emeshes[self.get_root_phys().emesh].Dimension()
+            ll = self.get_root_phys().ndim
 
+        kwargs = {}
+
+        from petram.phys.weakform import SCoeff, VCoeff
         if ll == 1:
-            coeff = InitValue(f_name[0],
-                       self.get_root_phys().ind_vars,
-                       self._local_ns, self._global_ns,
-                       real = real)
-        else:
-            coeff = InitValueV(len(f_name), f_name,
+            coeff = SCoeff(f_name[0],
                        self.get_root_phys().ind_vars,
                        self._local_ns, self._global_ns,
                        real = real)
             
-        return self.restrict_coeff(coeff, engine)
+        else:
+            coeff = VCoeff(ll, f_name,  self.get_root_phys().ind_vars,
+                             self._local_ns, self._global_ns,
+                             real = real)
+            kwargs['vec'] = True
+            
+        return self.restrict_coeff(coeff, engine, **kwargs)
 
 class WF_WeakDomainBilinConstraint(WF_common, Domain, WeakBilinIntegration):
     has_3rd_panel = True
