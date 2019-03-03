@@ -792,7 +792,8 @@ class Engine(object):
             
             for j in range(self.n_matrix):
                 self.access_idx = j
-                
+
+                # if it is not using name defined in init, skip it...
                 if not self.has_rfes(name):   continue
 
                 r_ifes = self.r_ifes(name)
@@ -2242,6 +2243,7 @@ class Engine(object):
         self.access_idx = 0      
         for phys in phys_range:
             for name in phys.dep_vars:
+                if not self.has_rfes(name):   continue               
                 rifes = self.r_ifes(name)
                 rgf = self.r_x[rifes]
                 igf = self.i_x[rifes]
