@@ -28,7 +28,8 @@ def gather_soldirinfo(path):
         if (nn.startswith('checkpoint_') and os.path.isdir(os.path.join(path, nn))):
             solvername = '_'.join(nn.split('_')[1:-1])
             idx = int(nn.split('_')[-1])
-            cp[solvername][(idx, checkpoints[solvername][idx])] = nn
+            if len(checkpoints[solvername]) > idx:            
+                cp[solvername][(idx, checkpoints[solvername][idx])] = nn
     cp.default_factory=None
 
     probes = defaultdict(list)

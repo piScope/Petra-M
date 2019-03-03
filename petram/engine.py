@@ -475,12 +475,14 @@ class Engine(object):
                   from petram.helper.variables import project_variable_to_gf
                   
                   global_ns = phys._global_ns.copy()
+                  for key in self.model.root()._variables:
+                      global_ns[key] = self.model.root()._variables[key]
                   for name in names:
                       r_ifes = self.r_ifes(name)
                       rgf = self.r_x[r_ifes]
                       igf = self.i_x[r_ifes]
                       ind_vars = phys.ind_vars
-                      dprint1("applying init value to entire discrete space:" + name, init_value) 
+                      dprint1("applying init value to entire discrete space:" + name, init_value)
                       project_variable_to_gf(init_value,
                                              ind_vars,
                                              rgf, igf,
@@ -504,8 +506,6 @@ class Engine(object):
         
     def run_apply_init(self, phys_range, inits=None):
         if len(inits) == 0:
-            # in this case alloate all fespace and initialize all
-            # to zero
             self.run_apply_init0(phys_range, 0)
         else:
             for init in inits:
@@ -569,14 +569,21 @@ class Engine(object):
                if self.mask_M[j, r1, c1]:
                    form.Assemble()
             
-            self.extras = {}        
-            for phys in phys_target:               
+            self.extras = {}
+            updated_extra = []
+            for phys in phys_target:
                 self.assemble_extra(phys, phys_range)
+                updated_extra.extend(self.extra_update_check_M(phys, phys_range))
+            for extra_name, dep_name, kfes in updated_extra:
+                r = self.dep_var_offset(extra_name)
+                c = self.r_dep_var_offset(dep_name)
+                self.mask_M[j, r, c] = True
+                
             self.aux_ops = {}
             #for phys in phys_target:               
             self.assemble_aux_ops(phys_target, phys_range)
                 
-        return np.any(self.mask_M)
+        return np.any(self.mask_M) or len(updated_extra) > 0
 
     def run_assemble_b(self, phys_target = None, update=False):
         '''
@@ -617,7 +624,16 @@ class Engine(object):
             name = self.fes_vars[r]
             offset = self.dep_var_offset(name)
             if self.mask_B[offset]: form.Assemble()
+
+        updated_extra = []
+        for phys in phys_target:
+            updated_extra.extend(self.extra_update_check_B(phys, phys_target))
             
+        #  (extra_name, dep_var, kfes)
+        for n, dep_var, kfes in updated_extra:
+            r = self.dep_var_offset(n)
+            self.mask_B[r] = True
+
         return np.any(self.mask_B)
      
     def run_fill_X_block(self, update=False):
@@ -1072,6 +1088,31 @@ class Engine(object):
                          assert False, "extra with key= " + str(key) + " already exists."
                     self.extras[key] = tmp
                     self.extras_mm[key] = mm.fullpath()
+
+    def _extra_update_check(self, phys, phys_range, mode = 'B'):
+        updated_name = []
+        for mm in phys.walk():
+            if not mm.enabled: continue
+            for phys2 in phys_range:
+                names = phys2.dep_vars      
+                for kfes, name in enumerate(names):
+                    if not mm.has_extra_DoF2(kfes, phys2, self.access_idx): continue
+                    
+                    dep_var = names[kfes]
+                    extra_name = mm.extra_DoF_name2(kfes)
+                    key = (extra_name, dep_var, kfes)
+
+                    if mm.update_flag:
+                        if mode == 'B' and mm.check_extra_update('B'):
+                            updated_name.append(key)
+                        if mode == 'M' and mm.check_extra_update('M'):
+                            updated_name.append(key)
+        return updated_name
+     
+    def extra_update_check_M(self, phys, phys_range):
+        return self._extra_update_check(phys, phys_range, mode='M')
+    def extra_update_check_B(self, phys, phys_range):
+        return self._extra_update_check(phys, phys_range, mode='B')       
                     
     def assemble_aux_ops(self, phys_target, phys_range):
         allmm = [mm for phys in phys_target for mm in phys.walk() if mm.is_enabled()]
@@ -2216,6 +2257,7 @@ class Engine(object):
                mm._update_flag = False
                if mode == 'TimeDependent':
                   if mm.isTimeDependent: mm._update_flag = True
+                  if mm.isTimeDependent_RHS: mm._update_flag = True                  
                elif mode == 'UpdateAll':
                   mm._update_flag = True
                elif mode == 'ParametricRHS':

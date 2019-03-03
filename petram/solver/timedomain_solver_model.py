@@ -287,11 +287,12 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         if not update:
             engine.run_verify_setting(phys_target, self.gui)
             
-        isUpdated1 = engine.run_assemble_mat(phys_target, phys_range,
+        M_Updated = engine.run_assemble_mat(phys_target, phys_range,
                                              update=update)
-        isUpdated2 = engine.run_assemble_b(phys_target, update=update)
+        B_Updated = engine.run_assemble_b(phys_target, update=update)
         self.pre_assembled = True
-        return (isUpdated1 or isUpdated2)
+
+        return M_Updated, B_Updated
 
 
     def compute_A(self, M, B, X, mask_M, mask_B):
@@ -307,6 +308,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         one_dt = 1./float(self.time_step)
         MM = M[1]*one_dt
         RHS = MM.dot(self.engine.sol) + B
+        print(B, B[2].toarray())
         return RHS
 
     def assemble(self, update=False):
@@ -337,7 +339,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             engine.run_apply_essential(self.get_phys(), self.get_phys_range(),
                                        update=True)
             engine.run_fill_X_block(update=True)        
-            self.pre_assemble(update=True)
+            M_updated, B_updated = self.pre_assemble(update=True)
             M_changed = self.assemble(update=True)
 
         A, X, RHS, Ae, B, M, depvars = self.blocks

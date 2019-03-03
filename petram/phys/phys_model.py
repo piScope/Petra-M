@@ -79,7 +79,6 @@ class Coefficient_Evaluator(object):
               if variable is used it is become string element '['=variable', 1, 2, 3, 4]'
               if =Varialbe in matrix form, it is passed as [['Variable']]
         '''
-        #dprint1("exprs", exprs, type(exprs))
         flag, exprs = try_eval(exprs, l, g)
         #print("after try_eval", flag, exprs)
         if not flag:
@@ -97,7 +96,9 @@ class Coefficient_Evaluator(object):
             exprs = exprs[0]
         #dprint1("final exprs", exprs)
         self.l = {}
-        self.g = g
+        #### TODO g must be copied since some may passs _global_ns.
+        #### (I don't do it now since it requires a substantial testing)
+        self.g = g  
         for key in l.keys():
            self.g[key] = l[key]
         self.real = real
@@ -254,10 +255,12 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
     @property
     def update_flag(self):
+        if not hasattr(self, '_update_flag'):
+            self._update_flag = False
         return self._update_flag
     @update_flag.setter
     def update_flag(self, prop):
-        self._update_flag = getattr(self, prop)
+        self._update_flag = prop
         
     def attribute_set(self, v):
         v = super(Phys, self).attribute_set(v)
@@ -270,6 +273,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         v['timestep_config'] = [True, False, False]
         v['timestep_weight'] = ["1", "0", "0"]
         v['isTimeDependent'] = False
+        v['isTimeDependent_RHS'] = False        
         return v
         
     def get_possible_bdry(self):
@@ -402,7 +406,18 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         default DoF name
         '''
         return self.extra_DoF_name()
-       
+
+    def check_extra_update(self, mode):
+        '''
+        mode = 'B' or 'M'
+        'M' return True, if M needs to be updated
+        'B' return True, if B needs to be updated
+        default, return true for B not M
+        '''
+        if self._update_flag:
+           if mode == 'B': return True
+        return False
+
     def has_bf_contribution(self, kfes):
         return False
      

@@ -297,7 +297,7 @@ class WeakIntegration(Phys):
                 dim = self.get_root_phys().geom_dim
             else:
                 dim = 1  #H1 scalar (this case does not exist..)
-            '''    
+            '''
         if cotype == 'S':
              for b in self.itg_choice():
                 if b[0] == self.integrator: break
@@ -324,6 +324,7 @@ class WeakIntegration(Phys):
              c_coeff = DCoeff(dim, c[0],  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
+
         integrator = getattr(mfem, self.integrator)
         if isinstance(self, Bdry):
             #print "Bdry Integrator"
@@ -335,6 +336,7 @@ class WeakIntegration(Phys):
             assert False, "this class is not supported in weakform"
         self.add_integrator(engine, 'c', c_coeff,
                             adder, integrator, transpose=is_trans)
+
         
         
     def add_bf_contribution(self, engine, a, real = True, kfes=0):
@@ -373,15 +375,19 @@ class WeakBilinIntegration(WeakIntegration):
         return v
      
     def get_panel1_value(self):
+        if self.paired_var is not None:
+            try:
+                mfem_physroot = self.get_root_phys().parent
+                var_s = mfem_physroot[self.paired_var[0]].dep_vars
+                n  = var_s[self.paired_var[1]]
+                p  = self.paired_var[0]
+            except:
+                self.paired_var = None
+                
         if self.paired_var is None:
             n = self.get_root_phys().dep_vars[0]
             p = self.get_root_phys().name()
-        else:
-            mfem_physroot = self.get_root_phys().parent
-            var_s = mfem_physroot[self.paired_var[0]].dep_vars
-            n  = var_s[self.paired_var[1]]
-            p  = self.paired_var[0]
-
+                
         var = n + " ("+p + ")"             
         v1 = [var]
         v2 = super(WeakBilinIntegration, self).get_panel1_value()

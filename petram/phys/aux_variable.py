@@ -188,7 +188,38 @@ class AUX_Variable(Phys):
     
     def get_panel3_value(self):
         return [None]
+ 
+    def panel4_param(self):
+        ll = super(AUX_Variable, self).panel4_param()
+        ll.append(['', False, 3, {"text": "Time dependent (RHS)"}])
+        return ll
      
+    def panel4_tip(self):
+        return None
+     
+    def import_panel4_value(self, value):
+        super(AUX_Variable, self).import_panel4_value(value[:-1])
+        self.isTimeDependent_RHS = value[-1]        
+        
+    def get_panel4_value(self):
+        value = super(AUX_Variable, self).get_panel4_value()
+        value.append(self.isTimeDependent_RHS)
+        return value
+
+    def check_extra_update(self, mode):
+        '''
+        mode = 'B' or 'M'
+        'M' return True, if M needs to be updated
+        'B' return True, if B needs to be updated
+        '''
+        if self._update_flag:
+           if mode == 'B':
+              return self.isTimeDependent_RHS
+           if mode == 'M':
+              return self.isTimeDependent
+        return False
+        
+        
     def onAddConnection(self, evt):
         mfem_physroot = self.get_root_phys().parent
         names, pnames, pindex = mfem_physroot.dependent_values()
@@ -247,6 +278,19 @@ class AUX_Variable(Phys):
         range = self.get_root_phys().dep_vars[kfes]
         
         diag, rhs_vec = self.vt_diag_rhs.make_value_or_expression(self)
+
+        if isinstance(rhs_vec, str):
+            g = self._global_ns.copy()
+            l = self._local_ns.copy()
+            rhs_vec = np.atleast_1d(eval(rhs_vec, g, l)).flatten()
+            dprint1("rhs after evaluation", rhs_vec)
+            
+        if isinstance(diag, str):
+            g = self._global_ns.copy()
+            l = self._local_ns.copy()
+            diag = np.atleast_1d(eval(diag, g, l)).flatten()
+            dprint1("diag after evaluation", diag)
+            
         for i, key in enumerate(self.aux_connection):        
             if len(self._vt_array) < i+1:
                self._add_vt_array(str(key))
@@ -288,26 +332,26 @@ class AUX_Variable(Phys):
 
         # all node does do the same job, but Array2PyVec will use the data from
         # root node.
-        if t4 is None: t4 = np.zeros(diag_size)
+
         rhs = np.atleast_1d(rhs_vec)
-        if len(t4) != 1 and len(rhs) == 1:
-           rhs = np.hstack([rhs_vec]*diag_size).flatten()         
+        if diag_size != 1 and len(rhs) == 1:
+           rhs = np.hstack([rhs[0]]*diag_size).flatten()         
         
         if self.get_root_phys().is_complex():
-            t4 = t4.astype(complex, copy = False)
+            rhs = rhs.astype(complex, copy = False)
         if not self.get_root_phys().is_complex():              
-            if np.iscomplexobj(t4): t4 = t4.real
+            if np.iscomplexobj(rhs): rhs = rhs.real
 
-        t4 = Array2PyVec(t4)
+        t4 = Array2PyVec(rhs)
 
         '''
-        Format of extar.
+        Format of extra.
      
         horizontal, vertical, diag, rhs, flag
   
-        [M,  t1]   [  ]
+        [M,  t2]   [  ]
         [      ] = [  ]
-        [t2, t3]   [t4]
+        [t1, t3]   [t4]
 
         and it returns if Lagurangian will be saved.
 
