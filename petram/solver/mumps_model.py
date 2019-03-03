@@ -28,12 +28,14 @@ class MUMPS(LinearSolverModel):
                 ["write matrix",  self.write_mat,   3, {"text":""}],
 #                ["centralize matrix",  self.central_mat,   3, {"text":""}],
                 ["use BLR",  self.use_blr,   3, {"text":""}],
-                ["BLR drop parameter",  self.blr_drop,   300, {}],]
+                ["BLR drop parameter",  self.blr_drop,   300, {}],
+                ["WS Inc. (ICNTL14)",  self.icntl14,   400, {}],
+                ["WS Size (ICNTL23)",  self.icntl23,   400, {}],]        
     
     def get_panel1_value(self):
         return (long(self.log_level), self.ordering, self.out_of_core,
                 self.error_ana, self.write_mat, #self.central_mat,
-                self.use_blr, self.blr_drop)
+                self.use_blr, self.blr_drop, self.icntl14, self.icntl23)
     
     def import_panel1_value(self, v):
         self.log_level = long(v[0])
@@ -44,6 +46,8 @@ class MUMPS(LinearSolverModel):
         #self.central_mat = v[5]
         self.use_blr = v[5]
         self.blr_drop = v[6]
+        self.icntl14 = v[7]
+        self.icntl23 = v[8]        
         
     def attribute_set(self, v):
         v = super(MUMPS, self).attribute_set(v)
@@ -63,6 +67,8 @@ class MUMPS(LinearSolverModel):
         v['error_ana'] = 'none'
         v['use_blr'] = False
         v['blr_drop'] = 0.0
+        v['icntl14'] = 200
+        v['icntl23'] = 0        
         return v
     
     def linear_system_type(self, assemble_real, phys_real):
@@ -249,7 +255,8 @@ class MUMPSSolver(LinearSolver):
             s.set_jcn_loc(i_array(col))            
             s.set_a_loc(self.data_array(A.data))
 
-            s.set_icntl(14,  200)
+            s.set_icntl(14, gui.icntl14)
+            s.set_icntl(23, gui.icntl23)            
             s.set_icntl(2, 1)
 
             self.dataset = (A.data, row, col)
@@ -281,7 +288,8 @@ class MUMPSSolver(LinearSolver):
                 s.set_jcn(i_array(col))            
                 s.set_a(self.data_array(A.data))
                 self.dataset = (A.data, row, col)                
-            s.set_icntl(14,  50)
+            s.set_icntl(14,  gui.icntl14)
+            s.set_icntl(23, gui.icntl23)                        
             s.set_icntl(6,  5)    # column permutation
 
         # blr
