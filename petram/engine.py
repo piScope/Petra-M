@@ -793,6 +793,8 @@ class Engine(object):
             for j in range(self.n_matrix):
                 self.access_idx = j
                 
+                if not self.has_rfes(name):   continue
+
                 r_ifes = self.r_ifes(name)
                 rgf = self.r_x[r_ifes]
                 igf = self.i_x[r_ifes]
@@ -2089,6 +2091,12 @@ class Engine(object):
 
     def r_ifes(self, name):
         return self._rfes_vars.index(name)
+     
+    def has_rfes(self, name):
+        return name in self._rfes_vars.index
+       
+    def has_fes(self, name):
+        return name in self._fes_vars.index
      
     def phys_offsets(self, phys):
         name = phys.dep_vars[0]
