@@ -308,7 +308,6 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         one_dt = 1./float(self.time_step)
         MM = M[1]*one_dt
         RHS = MM.dot(self.engine.sol) + B
-        print(B, B[2].toarray())
         return RHS
 
     def assemble(self, update=False):
