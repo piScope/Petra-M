@@ -2094,10 +2094,10 @@ class Engine(object):
         return self._rfes_vars.index(name)
      
     def has_rfes(self, name):
-        return name in self._rfes_vars.index
+        return name in self._rfes_vars
        
     def has_fes(self, name):
-        return name in self._fes_vars.index
+        return name in self._fes_vars
      
     def phys_offsets(self, phys):
         name = phys.dep_vars[0]
