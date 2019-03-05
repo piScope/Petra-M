@@ -3,6 +3,7 @@ import weakref
 
 import petram.helper.operators as ops
 operators = {"integral" :ops.Integral,
+             "loopintegral" :ops.LoopIntegral,
              "identity":ops.Identity,
              "projection":ops.Projection,
              "delta":ops.Delta,

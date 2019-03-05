@@ -159,6 +159,7 @@ class Engine(object):
         self.ess_tdofs = {n:[] for n in self.fes_vars}        
         
         self._extras = [None for i in range(n_mat)]
+        self._aux_ops = [None for i in range(n_mat)]        
 
     @property
     def access_idx(self):
@@ -206,6 +207,13 @@ class Engine(object):
     @extras.setter     
     def extras(self, v):
         self._extras[self._access_idx] = v
+        
+    @property
+    def aux_ops(self):
+        return self._aux_ops[self._access_idx]
+    @aux_ops.setter     
+    def aux_ops(self, v):
+        self._aux_ops[self._access_idx] = v
 
     @property
     def matvecs(self):
@@ -578,7 +586,7 @@ class Engine(object):
                 r = self.dep_var_offset(extra_name)
                 c = self.r_dep_var_offset(dep_name)
                 self.mask_M[j, r, c] = True
-                
+
             self.aux_ops = {}
             #for phys in phys_target:               
             self.assemble_aux_ops(phys_target, phys_range)
@@ -1228,7 +1236,7 @@ class Engine(object):
                                    i, j, MfemMat2PyMat)
 
                 M[k][r,c] = m if M[k][r,c] is None else M[k][r,c] + m
-                
+
             for extra_name, dep_name, kfes in self.extras.keys():
                 r = self.dep_var_offset(extra_name)
                 c = self.r_dep_var_offset(dep_name)
@@ -1241,12 +1249,12 @@ class Engine(object):
                 M[k][c,r] = t1 if M[k][c,r] is None else M[k][c,r]+t1
                 M[k][r,c] = t2 if M[k][r,c] is None else M[k][r,c]+t2
                 M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3
-                                     
+                
+            #print("aux", k, self.aux_ops.keys())                
             for key in self.aux_ops.keys():
                 testname, trialname, mm_fullpath = key
                 r = self.dep_var_offset(testname)
                 c = self.r_dep_var_offset(trialname)
-                
                 if update and not self.mask_M[k, r, c]: continue
                 
                 m = self.aux_ops[key]

@@ -302,12 +302,14 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         one_dt = 1./float(self.time_step)
         MM = M[1]*one_dt
         A = M[0]+ M[1]*one_dt
+        dprint1("A", A)
         return A, np.any(mask_M)
 
     def compute_rhs(self, M, B, X):
         one_dt = 1./float(self.time_step)
         MM = M[1]*one_dt
         RHS = MM.dot(self.engine.sol) + B
+        dprint1("RHS", RHS)        
         return RHS
 
     def assemble(self, update=False):

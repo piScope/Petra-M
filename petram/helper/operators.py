@@ -8,6 +8,7 @@ if use_parallel:
    num_proc = MPI.COMM_WORLD.size
    myid     = MPI.COMM_WORLD.rank
    comm = MPI.COMM_WORLD
+   from petram.helper.mpi_recipes import  gather_vector, allgather_vector
    from mfem.common.mpi_debug import nicePrint   
 else:
    import mfem.ser as mfem
@@ -106,24 +107,88 @@ class Operator(object):
     def sel_mode(self):
         return self._sel_mode
 
-class CurveTangent(mfem.VectorPyCoefficient):
-    def Eval(self, V, T, ip):
-        # if V is Matrix, we need to make our own loop to
-        # properly set spacial points in variables.
-        if isinstance(ip, mfem.IntegrationPoint):
-            T.SetIntPoint(ip)
-            for kk, v in enumerate( Tr.Jacobian().GetDataArray()):
-                V[kk] = v
-        elif isinstance(ip, mfem.IntegrationRule):       
-            M = V; ir=ip
-            Mi = mfem.Vector()
-            M.SetSize(self.sdim, ir.GetNPoints())
-            for k in range(ir.GetNPoints()):
-                M.GetColumnReference(k, Mi);
-                ip = ir.IntPoint(k)
-                Tr.SetIntPoint(ip)
-                for kk, v in enumerate( Tr.Jacobian().GetDataArray()):
-                   Mi[kk] = v
+class LoopIntegral(Operator):
+    def assemble(self, *args, **kwargs):
+        '''
+        looplintegral(18)   # integrate around the bdr 18
+        '''
+        coeff = kwargs.pop("coeff", "1")
+        coeff_type = kwargs.pop("coeff_type", "S")
+
+        engine = self._engine()        
+        self.process_kwargs(engine, kwargs)
+
+        face = args[0]
+        
+        if not self.fes1.FEColl().Name().startswith('ND'):
+            assert False, "line integration is only implemented for ND"
+
+        fes1 = self.fes1
+        info1 = engine.get_fes_info(self.fes1)
+        emesh_idx = info1['emesh_idx']
+        mesh = engine.emeshes[emesh_idx]
+
+        if use_parallel:
+            from petram.mesh.find_loop_par import find_loop_par
+            idx, signs = find_loop_par(mesh, face)
+            fesize1 = fes1.GetTrueVSize()
+            P = fes1.Dof_TrueDof_Matrix()
+            from mfem.common.parcsr_extra import ToScipyCoo
+            P = ToScipyCoo(P).tocsr()
+            VDoFtoGTDoF = P.indices
+            rstart = fes1.GetMyTDofOffset()            
+        else:
+            battrs = mesh.GetBdrAttributeArray()
+            bidx = np.where(battrs == face)[0]
+
+            edges = [mesh.GetBdrElementEdges(i) for i in bidx]
+            iedges = sum([e1[0] for e1 in edges], [])
+            dirs =  sum([e1[1] for e1 in edges], [])
+
+            from collections import defaultdict
+            seens = defaultdict(int)
+            seendirs  = defaultdict(int)        
+            for k, ie in enumerate(iedges):
+               seens[ie] = seens[ie] + 1
+               seendirs[ie] = dirs[k]
+            seens.default_factory = None
+     
+            idx = []
+            signs = []
+            for k in seens.keys():
+                if seens[k] == 1:
+                   idx.append(k)
+                   signs.append(seendirs[k])
+
+            fesize1 = fes1.GetNDofs()
+            
+        map = np.zeros((fesize1,1), dtype=float)       
+
+        w = []
+        for sign, ie in zip(signs, idx):
+           dofs = fes1.GetEdgeDofs(ie)
+           # don't put this Tr outside the loop....
+           Tr = mesh.GetEdgeTransformation(ie)
+           weight = Tr.Weight()
+           w.append(Tr.Weight())
+           for dof in dofs:
+              if use_parallel:
+                 dof = VDoFtoGTDoF[dof] - rstart
+              map[dof] = weight*sign
+#        nicePrint(list(map.flatten()))
+        nicePrint("weight", w)
+        
+        from mfem.common.chypre import PyVec2PyMat, CHypreVec
+        if use_parallel:
+            v1 = CHypreVec(map.flatten(), None)
+        else:
+            v1 = map.reshape((-1, 1))
+
+        v1 = PyVec2PyMat(v1)
+        print(v1)
+        if not self._transpose:        
+            v1 = v1.transpose()
+        return v1
 
 class Integral(Operator):
     def assemble(self, *args, **kwargs):
@@ -403,7 +468,7 @@ class DeltaM(Operator):
         if do_sum: 
             lf1.Assemble()                        
             v1 = MfemVec2PyVec(engine.b2B(lf1), None)
-            v1 = PyVec2PyMat(v1)            
+            v1 = PyVec2PyMat(v1)
         else:
             v1 = HStackPyVec(vecs)
 
