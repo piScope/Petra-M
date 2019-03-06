@@ -129,7 +129,7 @@ class LoopIntegral(Operator):
         mesh = engine.emeshes[emesh_idx]
 
         if use_parallel:
-            from petram.mesh.find_loop_par import find_loop_par
+            from petram.mesh.find_loop import find_loop_par
             idx, signs = find_loop_par(mesh, face)
             fesize1 = fes1.GetTrueVSize()
             P = fes1.Dof_TrueDof_Matrix()
@@ -138,28 +138,8 @@ class LoopIntegral(Operator):
             VDoFtoGTDoF = P.indices
             rstart = fes1.GetMyTDofOffset()            
         else:
-            battrs = mesh.GetBdrAttributeArray()
-            bidx = np.where(battrs == face)[0]
-
-            edges = [mesh.GetBdrElementEdges(i) for i in bidx]
-            iedges = sum([e1[0] for e1 in edges], [])
-            dirs =  sum([e1[1] for e1 in edges], [])
-
-            from collections import defaultdict
-            seens = defaultdict(int)
-            seendirs  = defaultdict(int)        
-            for k, ie in enumerate(iedges):
-               seens[ie] = seens[ie] + 1
-               seendirs[ie] = dirs[k]
-            seens.default_factory = None
-     
-            idx = []
-            signs = []
-            for k in seens.keys():
-                if seens[k] == 1:
-                   idx.append(k)
-                   signs.append(seendirs[k])
-
+            from petram.mesh.find_loop import find_loop_ser
+            idx, signs = find_loop_ser(mesh, face)            
             fesize1 = fes1.GetNDofs()
             
         map = np.zeros((fesize1,1), dtype=float)       
@@ -175,8 +155,8 @@ class LoopIntegral(Operator):
               if use_parallel:
                  dof = VDoFtoGTDoF[dof] - rstart
               map[dof] = sign
-#        nicePrint(list(map.flatten()))
-        nicePrint("weight", w)
+              
+        if len(w) > 0: print("weight", w)
         
         from mfem.common.chypre import PyVec2PyMat, CHypreVec
         if use_parallel:
@@ -185,7 +165,6 @@ class LoopIntegral(Operator):
             v1 = map.reshape((-1, 1))
 
         v1 = PyVec2PyMat(v1)
-        print(v1)
         if not self._transpose:        
             v1 = v1.transpose()
         return v1

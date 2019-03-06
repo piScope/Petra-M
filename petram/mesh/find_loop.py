@@ -4,6 +4,34 @@
    (parallel) find edge index surrouding a face
 
 '''
+import numpy as np
+from collections import defaultdict
+
+def find_loop_ser(mesh, face):
+    battrs = mesh.GetBdrAttributeArray()
+    bidx = np.where(battrs == face)[0]
+
+    edges = [mesh.GetBdrElementEdges(i) for i in bidx]
+    iedges = sum([e1[0] for e1 in edges], [])
+    dirs =  sum([e1[1] for e1 in edges], [])
+
+    seens = defaultdict(int)
+    seendirs  = defaultdict(int)
+    
+    for k, ie in enumerate(iedges):
+        seens[ie] = seens[ie] + 1
+        seendirs[ie] = dirs[k]
+    seens.default_factory = None
+     
+    idx = []
+    signs = []
+    for k in seens.keys():
+        if seens[k] == 1:
+            idx.append(k)
+            signs.append(seendirs[k])
+            
+    return idx, signs
+    
 def find_loop_par(pmesh, face):
     import mfem.par as mfem
     from mpi4py import MPI
@@ -14,7 +42,6 @@ def find_loop_par(pmesh, face):
 
     from mfem.common.mpi_debug import nicePrint
     from petram.helper.mpi_recipes import allgather, allgather_vector, gather_vector    
-    import numpy as np
 
     battrs = pmesh.GetBdrAttributeArray()
     bidx = np.where(battrs == face)[0]
@@ -46,7 +73,6 @@ def find_loop_par(pmesh, face):
     iedges_all = allgather_vector(iedges)
     dirs = allgather_vector(dirs)
 
-    from collections import defaultdict
     seens = defaultdict(int)
     seendirs  = defaultdict(int)        
     for k, ie in enumerate(iedges_all):
@@ -76,6 +102,6 @@ def find_loop_par(pmesh, face):
     iedges_l = np.array(iedges_l) - offset_e[myid]
     signs_l = np.array(signs_l)
 
-    nicePrint("local_index", iedges_l, signs_l)
+    #nicePrint("local_index", iedges_l, signs_l)
 
     return iedges_l, signs_l
