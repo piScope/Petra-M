@@ -174,7 +174,7 @@ class LoopIntegral(Operator):
            for dof in dofs:
               if use_parallel:
                  dof = VDoFtoGTDoF[dof] - rstart
-              map[dof] = weight*sign
+              map[dof] = sign
 #        nicePrint(list(map.flatten()))
         nicePrint("weight", w)
         
