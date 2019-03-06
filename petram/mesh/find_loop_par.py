@@ -42,7 +42,7 @@ def find_loop_par(pmesh, face):
         else:
             own_edges.append(ie)
 
-    nicePrint("iedges", iedges)
+    #nicePrint("iedges", iedges)
     iedges_all = allgather_vector(iedges)
     dirs = allgather_vector(dirs)
 
@@ -61,9 +61,11 @@ def find_loop_par(pmesh, face):
             idx.append(k)
             signs.append(seendirs[k])
     iedges_g = np.array(idx)
-    # here idx is global numbering    
-    nicePrint("global_index", idx, signs)
-    nicePrint("own_edges", own_edges)
+    # here idx is global numbering
+    
+    #nicePrint("global_index", idx, signs)
+    #nicePrint("own_edges", own_edges)
+    
     iedges_l = []
     signs_l = []
     for k, ie in enumerate(iedges_g):
