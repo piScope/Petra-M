@@ -11,7 +11,9 @@ import glob
 modulenames = []
 for p in petram.phys.__path__:
     mm = glob.glob(join(p, "*", "__init__.py"))
-    modulenames.extend([basename(dirname(m)) for m in mm])
+    for item in [basename(dirname(m)) for m in mm]:
+        if not item in modulenames:
+            modulenames.append(item)
     
 for m in modulenames:
     try:
