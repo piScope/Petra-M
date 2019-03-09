@@ -269,8 +269,13 @@ class DlgEditModel(SimpleFramePlus):
         mm = self.model.GetItem(indices)
  
         import wx
+        import ifigure.widgets.dialog as dialog
+        
         app = wx.GetApp().TopWindow
         app.shell.lvar[mm.name()] = mm
+        app.shell.SendShellEnterEvent()
+        ret=dialog.message(app, mm.name() + ' is exported', 'Export', 0)
+        
         
     def OnCopyItemFromModelMult(self, evt):
         import cPickle as pickle

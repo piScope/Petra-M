@@ -1085,7 +1085,8 @@ class DlgPlotSol(SimpleFramePlus):
         verts, cdata, adata = data[0]
         data = {'vertices': verts, 'data': cdata, 'index': adata}
         self.export_to_piScope_shell(data, 'bdr_data')
-        
+
+    @run_in_piScope_thread                
     def onExportR1Bdr(self, evt):
         remote, base, subs = self.get_current_choices()
         
@@ -1107,7 +1108,8 @@ class DlgPlotSol(SimpleFramePlus):
             cdata.append(cc)
             
         data = {'vertices': verts, 'data': cdata, 'index': adata}
-        self.export_to_piScope_shell(data, 'bdr_data')
+        self.post_threadend(self.export_to_piScope_shell,
+                            data, 'bdr_data')
         
     def onExportR2Bdr(self, evt):
         wx.CallAfter(dialog.showtraceback, parent = self,
@@ -1498,8 +1500,9 @@ class DlgPlotSol(SimpleFramePlus):
         expr = str(value[0]).strip()
         
         xdata, data = self.eval_probe(mode = 'plot')
-        
-        self.export_to_piScope_shell((xdata, data),  ('xdata', 'ydata'))
+
+        data = {'xdata': xdata, 'data': data}
+        self.export_to_piScope_shell(data,  'probe_data')
         
     def make_plot_probe(self, data, expr='', cls=None):
         from ifigure.interactive import figure
@@ -1819,7 +1822,7 @@ class DlgPlotSol(SimpleFramePlus):
         app.shell.lvar[dataname] = data
         app.shell.SendShellEnterEvent()
         ret=dialog.message(app, dataname + ' is exported', 'Export', 0)
-        
+    '''       
     def export_to_piScope_shell(self, datas, datanames):
         import wx
         import ifigure.widgets.dialog as dialog
@@ -1829,7 +1832,7 @@ class DlgPlotSol(SimpleFramePlus):
             app.shell.lvar[dataname] = data
             app.shell.SendShellEnterEvent()
         ret=dialog.message(app, ','.join(datanames) + ' is exported', 'Export', 0)
-        
+    '''        
     def get_model_soldfiles(self):
         model = self.GetParent().model
         solfiles = model.variables.getvar('solfiles')

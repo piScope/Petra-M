@@ -144,6 +144,9 @@ class PrcCommon(object):
         r = self.get_row_by_name(name)
         c = self.get_row_by_name(name)
         return self.get_operator_block(r, c)
+
+    def get_test_fespace(self, name):
+        return self.engine.fespaces[name]
              
 class PrcGenBase(PrcCommon):
     def __init__(self, func=None, opr=None, engine=None, gui=None):
