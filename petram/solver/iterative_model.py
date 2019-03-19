@@ -201,11 +201,12 @@ class IterativeSolver(LinearSolver):
         if use_parallel:
             if self.gui.use_ls_reducer:
                 self.reducer = LinearSystemReducer(opr, name)
-                self.M_reduced = self.make_preconditioner(self.A, name = self.reducer.Aname,
-                                                      parallel=True)
+                self.M_reduced = self.make_preconditioner(self.reducer.A,
+                                                          name = self.reducer.Aname,
+                                                          parallel=True)
                 solver  = self.make_solver(self.reducer.A,
-                                                   self.M_reduced,
-                                                   use_mpi=True)
+                                           self.M_reduced,
+                                           use_mpi=True)
                 self.reducer.set_solver(solver)
             else:
                 self.M = self.make_preconditioner(self.A, parallel=True)

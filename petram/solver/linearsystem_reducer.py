@@ -45,9 +45,12 @@ if use_parallel:
     import mfem.par as mfem
    
     from mpi4py import MPI                                   
-    num_proc = MPI.COMM_WORLD.size    
+    num_proc = MPI.COMM_WORLD.size
+    myid = MPI.COMM_WORLD.rank    
 else:
-    import mfem.ser as mfem    
+    import mfem.ser as mfem
+    num_proc = 1
+    myid = 0
     def nicePrint(x):
         print(x)
 
@@ -187,7 +190,6 @@ class LinearSystemReducer(object):
         ro = mfem.intArray(list(roffset))
         co = mfem.intArray(list(coffset))
         mat = mfem.BlockOperator(ro, co)
-        
         for ii, i in enumerate(row_idx):
            for jj, j in enumerate(col_idx):
                m = get_block(src_mat, i, j)
@@ -213,16 +215,20 @@ class LinearSystemReducer(object):
         offset = mfem.intArray(list(offset))
         
         sub_vec = mfem.BlockVector(offset)
-        if not nocopy:
-            for k, i in enumerate(idx):
-                sub_vec.GetBlock(k).Assign(src_vec.GetBlock(i).GetDataArray())
+        sub_vec._offsets = offset # in order to keep it from freed
+
+        for k, i in enumerate(idx):
+           if nocopy:
+               sub_vec.GetBlock(k).Assign(0.0)
+           else:
+               sub_vec.GetBlock(k).Assign(src_vec.GetBlock(i).GetDataArray())
+
         return sub_vec
 
     def set_solver(self, solver):
         self.solver = solver
         
     def Mult(self, bb, xx, assert_convergence = False):
-
         bb_1 = self.make_sub_vec(bb, self.idx_step1)
         xx_1 = self.make_sub_vec(xx, self.idx_step1)        
         self.Ainv_step1.Mult(bb_1, xx_1)
@@ -240,8 +246,7 @@ class LinearSystemReducer(object):
         for k, i in enumerate(self.idx_step2+self.idx_step3):
             v = bb.GetBlock(i)
             v -= bb_1_2.GetBlock(k)
-        #nicePrint("bb", np.sum(np.abs(bb.GetBlock(0).GetDataArray())))
-        #nicePrint("xx", np.sum(np.abs(xx.GetBlock(0).GetDataArray())))        
+
         bb_2 = self.make_sub_vec(bb, self.idx_step2)
         xx_2 = self.make_sub_vec(xx, self.idx_step2)
 

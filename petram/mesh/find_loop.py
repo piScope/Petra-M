@@ -40,6 +40,9 @@ def find_loop_par(pmesh, face):
     nprc = MPI.COMM_WORLD.size   
     comm  = MPI.COMM_WORLD
 
+    if nprc == 1:
+        return find_loop_ser(pmesh, face)
+
     from mfem.common.mpi_debug import nicePrint
     from petram.helper.mpi_recipes import allgather, allgather_vector, gather_vector    
 
