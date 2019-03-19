@@ -366,6 +366,7 @@ class MFEMViewer(BookViewer):
             m = imp.load_source('petram.user_model', path)        
             model = m.make_model()
         except:
+            print(path)
             dialog.showtraceback(parent = self,
                                txt='Model file load error',
                                title='Error',

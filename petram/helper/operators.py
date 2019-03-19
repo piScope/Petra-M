@@ -156,7 +156,7 @@ class LoopIntegral(Operator):
                  dof = VDoFtoGTDoF[dof] - rstart
               map[dof] = sign
               
-        if len(w) > 0: print("weight", w)
+        #if len(w) > 0: print("weight", w)
         
         from mfem.common.chypre import PyVec2PyMat, CHypreVec
         if use_parallel:

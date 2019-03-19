@@ -30,7 +30,7 @@ SparseSmootherCls = {"Jacobi": (mfem.DSmoother, 0),
                      "GS": (mfem.GSSmoother, 0),
                      "forwardGS": (mfem.GSSmoother, 1),
                      "backwardGS": (mfem.GSSmoother, 2),
-                     "MUMPS": (MUMPSPreconditioner, None),}                                          
+                     "MUMPS": (MUMPSPreconditioner, None),}
 
 class Iterative(LinearSolverModel, NS_mixin): 
     hide_ns_menu = True
@@ -61,8 +61,9 @@ class Iterative(LinearSolverModel, NS_mixin):
                 [None,  [False, [''], [[],]], 27, [{'text':'advanced mode'},
                                                {'elp':[['preconditioner', '', 0, None],]},
                                                {'elp':[smp1,]}],],
-                ["write matrix",  self.write_mat,   3, {"text":""}],
-                ["check convergence", self.assert_no_convergence,  3, {"text":""}],]
+                [None,  self.write_mat,   3, {"text":"write matrix"}],
+                [None, self.assert_no_convergence,  3, {"text":"check converegence"}],
+                [None, self.use_ls_reducer,  3, {"text":"Reduce linear system when possible"}],]     
      
     
     def get_panel1_value(self):
@@ -88,7 +89,7 @@ class Iterative(LinearSolverModel, NS_mixin):
                 long(self.log_level), long(self.maxiter),
                 self.reltol, self.abstol, long(self.kdim),
                 [self.adv_mode, [self.adv_prc, ], [self.preconditioners,]],
-                self.write_mat, self.assert_no_convergence)
+                self.write_mat, self.assert_no_convergence, self.use_ls_reducer)
     
     def import_panel1_value(self, v):
         self.solver_type = str(v[0])
@@ -100,6 +101,7 @@ class Iterative(LinearSolverModel, NS_mixin):
         self.preconditioners = v[6][2][0]
         self.write_mat = bool(v[7])
         self.assert_no_convergence = bool(v[8])
+        self.use_ls_reducer = bool(v[9])        
         self.adv_mode = v[6][0]
         self.adv_prc = v[6][1][0]      
         
@@ -116,6 +118,7 @@ class Iterative(LinearSolverModel, NS_mixin):
         v['write_mat'] = False
         v['solver_type'] = 'GMRES'
         v['assert_no_convergence'] = True
+        v['use_ls_reducer'] = False
         v['adv_mode'] = False
         v['adv_prc'] = ''
         return v
@@ -192,7 +195,28 @@ class IterativeSolver(LinearSolver):
 
     def SetOperator(self, opr, dist=False, name = None):
         self.Aname = name
-        self.A = opr                     
+        self.A = opr
+        
+        from petram.solver.linearsystem_reducer import LinearSystemReducer
+        if use_parallel:
+            if self.gui.use_ls_reducer:
+                self.reducer = LinearSystemReducer(opr, name)
+                self.M_reduced = self.make_preconditioner(self.A, name = self.reducer.Aname,
+                                                      parallel=True)
+                solver  = self.make_solver(self.reducer.A,
+                                                   self.M_reduced,
+                                                   use_mpi=True)
+                self.reducer.set_solver(solver)
+            else:
+                self.M = self.make_preconditioner(self.A, parallel=True)
+                self.solver = self.make_solver(self.A, self.M, use_mpi=True)
+        else:
+            if self.gui.use_ls_reducer:
+                dprint1("Linear system reducer is not implemented in serial")
+            self.M = self.make_preconditioner(self.A)
+            self.solver = self.make_solver(self.A, self.M)
+
+            self.reducer = None
                              
     def Mult(self, b, x=None, case_base=0):
         if use_parallel:
@@ -223,12 +247,13 @@ class IterativeSolver(LinearSolver):
         solver.SetAbsTol(atol)
         solver.SetRelTol(rtol)
         solver.SetMaxIter(maxiter)
-
         solver.SetPrintLevel(self.gui.log_level)
         
         return solver
 
-    def make_preconditioner(self, A, parallel=False):
+    def make_preconditioner(self, A, name = None, parallel=False):
+        name = self.Aname if name is None else name
+        
         if self.gui.adv_mode:
             expr = self.gui.adv_prc
             gen = eval(expr, self.gui._global_ns)
@@ -236,7 +261,6 @@ class IterativeSolver(LinearSolver):
             M = gen()
         else:
             prcs_gui = dict(self.gui.preconditioners)
-            name = self.Aname
             assert not self.gui.parent.is_complex(), "can not solve complex"
             if self.gui.parent.is_converted_from_complex():
                 name = sum([[n, n] for n in name], [])
@@ -253,6 +277,7 @@ class IterativeSolver(LinearSolver):
                 prcargs = "(".join(prctxt.split("(")[-1:])
                 
                 nn = prctxt.split("(")[0]
+                dprint1(nn)
                 try:
                     blkgen = getattr(prcs, nn)
                 except:
@@ -261,7 +286,6 @@ class IterativeSolver(LinearSolver):
                     else:
                         raise
 
-               
                 blkgen.set_param(g, n)
                 blk = eval("blkgen("+prcargs)
 
@@ -303,13 +327,12 @@ class IterativeSolver(LinearSolver):
         if self.gui.assert_no_convergence:
             if not solver.GetConverged():
                self.gui.set_solve_error((True, "No Convergence: " + self.gui.name()))
+               assert False, "No convergence"
      
     def solve_parallel(self, A, b, x=None):
         if self.gui.write_mat:                      
             self. write_mat(A, b, x, "."+smyid)
-        M = self.make_preconditioner(A, parallel=True)
-              
-        solver = self.make_solver(A, M, use_mpi=True)
+            
         sol = []
 
         # solve the problem and gather solution to head node...
@@ -319,18 +342,22 @@ class IterativeSolver(LinearSolver):
         offset = A.RowOffsets()
         for bb in b:
            rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
-           rowstarts = np.hstack((0, np.cumsum(rows)))
-           dprint1("rowstarts/offser",rowstarts, offset.ToList())
+           #rowstarts = np.hstack((0, np.cumsum(rows)))
+           dprint1("row offset", offset.ToList())
            if x is None:           
               xx = mfem.BlockVector(offset)
               xx.Assign(0.0)
            else:
               xx = x
-              #for j in range(cols):
-              #   dprint1(x.GetBlock(j).Size())
-              #   dprint1(x.GetBlock(j).GetDataArray())
-              #assert False, "must implement this"
-           self.call_mult(solver, bb, xx)
+
+           if self.gui.use_ls_reducer:
+               try:
+                   self.reducer.Mult(bb, xx, self.gui.assert_no_convergence)
+               except debug.ConvergenceError:
+                   self.gui.set_solve_error((True, "No Convergence: " + self.gui.name()))
+                   assert False, "No convergence"                   
+           else:
+               self.call_mult(self.solver, bb, xx)
 
            s = []
            for i in range(offset.Size()-1):
@@ -351,9 +378,10 @@ class IterativeSolver(LinearSolver):
     def solve_serial(self, A, b, x=None):
         if self.gui.write_mat:                      
             self. write_mat(A, b, x)
-        M = self.make_preconditioner(A)
 
-        solver = self.make_solver(A, M, use_mpi=False)
+        M = self.M
+        solver = self.solver
+            
         sol = []
         
         for bb in b:

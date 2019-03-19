@@ -173,4 +173,10 @@ def use_profiler(method):
         return val
     return method2
 
+class ConvergenceError(Exception):
+    """Base class for exceptions in this module."""
+    pass
+    def __init__(self, message = "Failed to converge"):
+        self.message = message
+
     

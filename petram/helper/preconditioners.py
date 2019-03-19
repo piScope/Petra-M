@@ -313,7 +313,6 @@ def FIR(**kwargs):
 def ams(singular=True, **kwargs):
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
-    
     print_level = kwargs.pop('print_level', -1)
     
     row = prc.get_row_by_name(blockname)
@@ -324,6 +323,7 @@ def ams(singular=True, **kwargs):
     if singular:
         inv_ams.SetSingularProblem()
     inv_ams.SetPrintLevel(print_level)
+    inv_ams.iterative_mode = False    
     return inv_ams
 
 @prc.block
@@ -392,7 +392,6 @@ def gmres(atol=1e-24, rtol=1e-12, max_num_iter=5,
     gmres.SetRelTol(rtol)
     gmres.SetAbsTol(atol)
     gmres.SetMaxIter(max_num_iter)
-    gmres.SetKDim(kdim)
     gmres.SetPrintLevel(print_level)    
     gmres.SetKDim(kdim)
     r0 = prc.get_row_by_name(blockname)
@@ -406,6 +405,33 @@ def gmres(atol=1e-24, rtol=1e-12, max_num_iter=5,
         # keep this object from being freed...
         gmres._prc = preconditioner
     return gmres
+ 
+@prc.block
+def pcg(atol=1e-24, rtol=1e-12, max_num_iter=5,
+        print_level=-1, preconditioner=None, **kwargs):
+    prc = kwargs.pop('prc')
+    blockname = kwargs.pop('blockname')
+
+    if use_parallel:
+        pcg = mfem.CGSolver(MPI.COMM_WORLD)
+    else:
+        pgc = mfem.CGSolver()
+    pcg.iterative_mode = False
+    pcg.SetRelTol(rtol)
+    pcg.SetAbsTol(atol)
+    pcg.SetMaxIter(max_num_iter)
+    pcg.SetPrintLevel(print_level)    
+    r0 = prc.get_row_by_name(blockname)
+    c0 = prc.get_col_by_name(blockname)
+    
+    A0 = prc.get_operator_block(r0, c0)    
+
+    pcg.SetOperator(A0)
+    if preconditioner is not None:
+        pcg.SetPreconditioner(preconditioner)
+        # keep this object from being freed...
+        pcg._prc = preconditioner
+    return pcg
 
 
 # these are here to use them in script w/o disnginguishing

@@ -63,7 +63,7 @@ class EdgeNodalEvaluator(EvaluatorAgent):
             
             l2e = mesh.extended_connectivity['line2edge']
             keys = l2e.keys() if eattrs == 'all' else list(np.atleast_1d(eattrs).flatten())
-            iedges = list(set(sum([l2e[k] for k in keys],[])))
+            iedges = list(set(sum([l2e[k] for k in keys if k in l2e],[])))
             iverts = [mesh.GetEdgeVertices(ie) for ie in iedges]
             self.ibeles = None # can not use boundary variable in this evaulator            
 
@@ -124,8 +124,6 @@ class EdgeNodalEvaluator(EvaluatorAgent):
             if self.emesh_idx != emesh_idx[0]:
                  self.preprocess_geometry(self.attrs, emesh_idx=emesh_idx[0])
                  
-
-        
         val = eval_at_nodals(self, expr, solvars, phys)
         if val is None: return None, None, None
 

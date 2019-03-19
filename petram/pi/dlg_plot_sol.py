@@ -926,13 +926,17 @@ class DlgPlotSol(SimpleFramePlus):
     def onExportEdge(self, evt):
         from petram.sol.evaluators import area_tri
         
+        value = self.elps['Edge'] .GetValue()        
         refine = int(value[6])        
         data, data_x, battrs = self.eval_edge(mode = 'integ', refine=refine)
         if data is None: return
-        
-        verts, cdata = data[0]
+
+        ndim = data[0][0].shape[1]
+        verts = np.hstack([v.flatten() for v, c, a in data]).flatten()
+        cdata = np.hstack([c.flatten() for v, c, a in data]).flatten()
+        verts = verts.reshape(-1, ndim)
         data = {'vertices': verts, 'data': cdata}
-        self.export_to_piScope_shell(data, 'bdr_data')
+        self.export_to_piScope_shell(data, 'edge_data')
                        
     def get_attrs_field_Edge(self):
         return 2
@@ -949,7 +953,6 @@ class DlgPlotSol(SimpleFramePlus):
             do_merge1 = value[5]
         else:
             do_merge1 = True
-
         average = value[7]
         data, void = self.evaluate_sol_edge(expr, battrs, phys_path,
                                             do_merge1, True,
@@ -1566,9 +1569,9 @@ class DlgPlotSol(SimpleFramePlus):
         
         if key in self.evaluators:
             try:
-                self.evaluators[key].validate_evaluator('EdgeNodal',
-                                                           battrs,
-                                                           solfiles)
+                self.evaluators[key].validate_evaluator(name,
+                                                        battrs,
+                                                        solfiles)
             except IOError:
                 dprint1("IOError detected setting failed=True")
                 self.evaluators[key].failed = True
