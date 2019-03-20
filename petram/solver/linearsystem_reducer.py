@@ -65,7 +65,6 @@ def do_easy_invert(M):
     set diagonal element to value (normally 1)
     '''
     col_starts = M.GetColPartArray()
-
     num_rows, ilower, iupper, jlower, jupper, irn, jcn, data = M.GetCooDataArray()
 
 
@@ -74,9 +73,10 @@ def do_easy_invert(M):
      
     m = iupper - ilower + 1
     n = jupper - jlower + 1
-    n = M.N()    
+    n = M.N()
+
     from scipy.sparse import coo_matrix, lil_matrix
-    for i, j in zip(irn-ilower, jcn):
+    for i, j in zip(irn, jcn):
         if i != j:
             return -1, None
     try:
@@ -182,9 +182,6 @@ class LinearSystemReducer(object):
 
         self.Ainv_step1 = self.make_inv_mat(self.idx_step1, easy_inv)
         self.Ainv_step3 = self.make_inv_mat(self.idx_step3, easy_inv)
-
-
-
         
     def make_sub_matrix(self, src_mat, roffset, coffset, row_idx, col_idx):
         ro = mfem.intArray(list(roffset))
