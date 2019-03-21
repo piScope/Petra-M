@@ -336,7 +336,6 @@ def schur(*names, **kwargs):
     
     r0 = prc.get_row_by_name(blockname)
     c0 = prc.get_col_by_name(blockname)
-    A0 = prc.get_operator_block(r0, c0)
 
     scales = kwargs.pop('scale', [1]*len(names))
     print_level = kwargs.pop('print_level', -1)
@@ -459,6 +458,33 @@ def pcg(atol=1e-24, rtol=1e-12, max_num_iter=5,
         pcg._prc = preconditioner
     return pcg
 
+@prc.block
+def bicgstab(atol=1e-24, rtol=1e-12, max_num_iter=5,
+        print_level=-1, preconditioner=None, **kwargs):
+    prc = kwargs.pop('prc')
+    blockname = kwargs.pop('blockname')
+
+    if use_parallel:
+        bicg = mfem.BiCGSTABSolver(MPI.COMM_WORLD)
+    else:
+        bicg = mfem.BiCGSTABSolver()
+    bicg.iterative_mode = False
+    bicg.SetRelTol(rtol)
+    bicg.SetAbsTol(atol)
+    bicg.SetMaxIter(max_num_iter)
+    bicg.SetPrintLevel(print_level)    
+    r0 = prc.get_row_by_name(blockname)
+    c0 = prc.get_col_by_name(blockname)
+    
+    A0 = prc.get_operator_block(r0, c0)    
+
+    bicg.SetOperator(A0)
+    if preconditioner is not None:
+        bicg.SetPreconditioner(preconditioner)
+        # keep this object from being freed...
+        bicg._prc = preconditioner
+    return bicg
+
 
 # these are here to use them in script w/o disnginguishing
 # if mfem is mfem.par or mfem.ser
@@ -470,6 +496,7 @@ class GenericPreconditioner(mfem.Solver, PrcCommon):
         self.offset = gen.opr.RowOffsets()
         self.mult_func = gen.mult_func
         self.setoperator_func = gen.setoperator_func
+        self.name = gen.name
         super(GenericPreconditioner, self).__init__()
         self.copy_param(gen)
         
