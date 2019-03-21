@@ -519,10 +519,10 @@ def surface(mesh, in_attr, filename = '', precision=8):
     #eindices = np.array([np.where(u == biv)[0][0] for biv in eivert])
     
     iv, ivi = np.unique(ivert, return_inverse=True)
-    tmp  = np.where(np.isin(u,  ivert,  assume_unique=True))[0]
+    tmp  = np.where(np.in1d(u,  ivert,  assume_unique=True))[0]
     indices = tmp[ivi]
     iv, ivi = np.unique(eivert, return_inverse=True)
-    tmp  = np.where(np.isin(u,  eivert, assume_unique=True))[0]
+    tmp  = np.where(np.in1d(u,  eivert, assume_unique=True))[0]
     eindices = tmp[ivi]
 
     Nvert = len(vtx)
@@ -700,10 +700,10 @@ def volume(mesh, in_attr, filename = '', precision=8):
     #bindices0 = np.array([np.where(u == biv)[0][0] for biv in bivert])
 
     iv, ivi = np.unique(ivert, return_inverse=True)
-    tmp  = np.where(np.isin(u,  ivert,  assume_unique=True))[0]
+    tmp  = np.where(np.in1d(u,  ivert,  assume_unique=True))[0]
     indices = tmp[ivi]
     iv, ivi = np.unique(bivert, return_inverse=True)
-    tmp  = np.where(np.isin(u,  bivert, assume_unique=True))[0]
+    tmp  = np.where(np.in1d(u,  bivert, assume_unique=True))[0]
     bindices = tmp[ivi]
     
     #print('check', np.sum(np.abs(indices - indices0)))    
