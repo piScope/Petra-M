@@ -101,9 +101,10 @@ class PreconditionerBlock(object):
         return self.func(*args, **kwargs)
      
 class PrcCommon(object):
-    def set_param(self, opr, engine, gui):
+    def set_param(self, opr, name, engine, gui):
         self._opr = weakref.ref(opr)
         self.gui = gui
+        self.name = name # variable name on opr
         self._engine  = weakref.ref(engine)
         
     def copy_param(self, g):
@@ -120,14 +121,15 @@ class PrcCommon(object):
         return self._opr()
         
     def get_row_by_name(self, name):
-        return self.engine.masked_dep_var_offset(name)
+        return self.name.index(name)
 
     def get_col_by_name(self, name):
-        return self.engine.masked_r_dep_var_offset(name)
+        return self.name.index(name)       
 
     def get_operator_block(self, r, c):
         # if linked_op exists (= op is set from python).
         # try to get it
+        #print(self.opr._linked_op)
         if hasattr(self.opr, "_linked_op"):
             try:
                 return self.opr._linked_op[(r, c)]
@@ -149,11 +151,11 @@ class PrcCommon(object):
         return self.engine.fespaces[name]
              
 class PrcGenBase(PrcCommon):
-    def __init__(self, func=None, opr=None, engine=None, gui=None):
+    def __init__(self, func=None, opr=None, engine=None, gui=None, name=None):
         self.func = func
         self._params = (tuple(), dict())
-        self.setoperator_func = None        
-        if gui is not None: self.set_param(opr, engine, gui)
+        self.setoperator_func = None
+        if gui is not None: self.set_param(opr, name, engine, gui)
         
     def SetOperator(self, func):
         self.setoperator_func = func
@@ -316,7 +318,7 @@ def ams(singular=True, **kwargs):
     print_level = kwargs.pop('print_level', -1)
     
     row = prc.get_row_by_name(blockname)
-    col = prc.get_col_by_name(blockname)    
+    col = prc.get_col_by_name(blockname)
     mat = prc.get_operator_block(row, col)
     fes = prc.get_test_fespace(blockname)
     inv_ams = mfem.HypreAMS(mat, fes)
@@ -328,7 +330,7 @@ def ams(singular=True, **kwargs):
 
 @prc.block
 def schur(*names, **kwargs):
-    # shucr("A1", "B1", scale=(1.0, 1e3))
+    # schur("A1", "B1", scale=(1.0, 1e3))
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
     

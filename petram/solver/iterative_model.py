@@ -254,11 +254,11 @@ class IterativeSolver(LinearSolver):
 
     def make_preconditioner(self, A, name = None, parallel=False):
         name = self.Aname if name is None else name
-        
+        print("name here", name)
         if self.gui.adv_mode:
             expr = self.gui.adv_prc
             gen = eval(expr, self.gui._global_ns)
-            gen.set_param(A, self.engine, self.gui)
+            gen.set_param(A, name, self.engine, self.gui)
             M = gen()
         else:
             prcs_gui = dict(self.gui.preconditioners)
@@ -268,7 +268,7 @@ class IterativeSolver(LinearSolver):
 
             import petram.helper.preconditioners as prcs
 
-            g = prcs.DiagonalPrcGen(opr=A, engine=self.engine, gui=self.gui)
+            g = prcs.DiagonalPrcGen(opr=A, engine=self.engine, gui=self.gui, name=name)
             M = g()
 
             for k, n in enumerate(name):

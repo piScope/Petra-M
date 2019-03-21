@@ -326,6 +326,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
     def step(self, is_first):
         engine = self.engine
         mask = self.blk_mask
+        engine.copy_block_mask(mask)
         
         #if not self.pre_assembled:
         #    assert False, "pre_assmeble must have been called"

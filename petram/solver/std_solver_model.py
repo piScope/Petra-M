@@ -215,6 +215,7 @@ class StandardSolver(SolverInstance):
             
         A, X, RHS, Ae, B, M, depvars = self.blocks
         mask = self.blk_mask
+        engine.copy_block_mask(mask)        
 
         depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
 

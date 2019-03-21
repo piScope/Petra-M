@@ -400,7 +400,10 @@ class Model(RestorableOrderedDict):
         m = []
         for k in self.keys():
             if k.startswith(txt):
-                m.append(long(k[len(txt):]))
+                for x in k[len(txt):]:
+                    if not x.isdigit(): break
+                else:
+                    m.append(long(k[len(txt):]))
         if len(m) == 0:
            if nosuffix:
                name = txt

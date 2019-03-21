@@ -43,6 +43,7 @@ class AUX_Operator(Phys):
         v['paired_var'] = None #(phys_name, index)
         v['src_var'] = 0     #(index)
         v['use_symmetric'] = False
+        v['use_anti_symmetric'] = False        
         v['use_conj'] = False
         v = self.vt_oprt.attribute_set(v)
         #vv = self.vt_oprt.attribute_set({})
@@ -73,8 +74,9 @@ class AUX_Operator(Phys):
                 {"style":wx.CB_READONLY, "choices": dep_vars}]]
 
         ll2 = self.vt_oprt.panel_param(self)
-        ll3 = [["make symmetric",  self.use_symmetric,   3, {"text":""}],  
-               ["use  conjugate",  self.use_conj,   3, {"text":""}],  ]
+        ll3 = [["add transpose",  self.use_symmetric,        3, {"text":""}],
+               ["anti-symmetric",  self.use_anti_symmetric,   3, {"text":""}],  
+               ["use  conjugate",  self.use_conj,             3, {"text":""}],  ]
         
         return ll1+ ll2 + ll3
 
@@ -86,8 +88,9 @@ class AUX_Operator(Phys):
         self.paired_var = (pnames[idx], pindex[idx])
 
         self.src_var = self.get_root_phys().dep_vars.index(str(v[1]))
-        self.vt_oprt.import_panel_value(self, v[2:-2])
-        self.use_symmetric = v[-2]
+        self.vt_oprt.import_panel_value(self, v[2:-3])
+        self.use_symmetric = v[-3]
+        self.use_anti_symmetric = v[-2]        
         self.use_conj = v[-1]        
 
     def get_panel1_value(self):
@@ -106,7 +109,7 @@ class AUX_Operator(Phys):
         
         v1 = [var, svar]
         v1.extend(self.vt_oprt.get_panel_value(self))
-        v3 = [self.use_symmetric, self.use_conj]        
+        v3 = [self.use_symmetric, self.use_anti_symmetric, self.use_conj]        
         return v1 + v3
         
     def panel2_param(self):
@@ -183,8 +186,10 @@ class AUX_Operator(Phys):
 
         trialname2 = phys2.dep_vars[kfes2]
         
-        if testname == trialname2 and self.use_symmetric:
+        if testname == trialname2 and (self.use_symmetric or self.use_anti_symmetric):
            op = op.transpose()
+           if self.use_anti_symmetric:
+              op *= -1.0
            if self.use_conj:
               op = op.conj()
 

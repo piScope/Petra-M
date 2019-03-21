@@ -2178,6 +2178,9 @@ class Engine(object):
                     offset = self.dep_var_offset(name)
                 mask[offset] = True
         return mask
+
+    def copy_block_mask(self, mask):
+        self._matrix_blk_mask = mask
         
     def collect_dependent_vars(self, phys_target=None, range_space=False):
         if phys_target is None:
