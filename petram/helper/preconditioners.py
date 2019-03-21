@@ -340,30 +340,54 @@ def schur(*names, **kwargs):
 
     scales = kwargs.pop('scale', [1]*len(names))
     print_level = kwargs.pop('print_level', -1)
+
+    S = []
     for name, scale in zip(names, scales):
         r1 = prc.get_row_by_name(name)
         c1 = prc.get_col_by_name(name)
         B  = prc.get_operator_block(r0, c1)
         Bt = prc.get_operator_block(r1, c0)
-        Bt  = Bt.Copy()
-        B0 = get_block(A, r1, c1)
+
+        B0 = prc.get_operator_block(r1, c1)
         if use_parallel:
-             Md = mfem.HyprePaarVector(MPI.COMM_WORLD,
+             Bt = Bt.Transpose()
+             Bt = Bt.Transpose()             
+             Md = mfem.HypreParVector(MPI.COMM_WORLD,
                                       B0.GetGlobalNumRows(),
                                       B0.GetColStarts())
         else:
+            Bt  = Bt.Copy()           
             Md = mfem.Vector()
-        A0.GetDiag(Md)
+        B0.GetDiag(Md)
         Md *= scale
-        if use_parallel:        
+        if use_parallel:
+
+            
             Bt.InvScaleRows(Md)
-            S = mfem.ParMult(B, Bt)
-            invA0 = mfem.HypreBoomerAMG(S)
+            S.append(mfem.ParMult(B, Bt))
         else:
-            S = mfem.Mult(B, Bt)
-            invA0 = mfem.DSmoother(S)
-        invA0.iterative_mode = False
-        invA0.SetPrintLevel(print_level)
+            S.append(mfem.Mult(B, Bt))
+
+    if use_parallel:
+        from mfem.common.parcsr_extra import ToHypreParCSR, ToScipyCoo
+        
+        S2 = [ToScipyCoo(s) for s in S]
+        for s in S2[1:]: S2[0] = S2[0]+s
+        S = ToHypreParCSR(S2[0].tocsr())
+        invA0 = mfem.HypreBoomerAMG(S)
+        
+    else:
+        from mfem.common.sparse_utils import sparsemat_to_scipycsr
+        
+        S2 = [sparsemat_to_scipycsr(s).tocoo() for s in S]
+        for s in S2[1:]: S2[0] = S2[0]+s
+        S = mfem.SparseMatrix(S2.tocsr())
+        invA0 = mfem.DSmoother(S)
+        
+    invA0.iterative_mode = False
+    invA0.SetPrintLevel(print_level)
+    invA0._S = S
+        
     return invA0
 @prc.block
 def mumps(guiname, **kwargs):
