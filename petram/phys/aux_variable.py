@@ -274,7 +274,7 @@ class AUX_Variable(Phys):
         
     def add_extra_contribution(self, engine, ess_tdof = None,
                                kfes = 0, phys = None):
-
+        dprint1(self.name() + " Assembling extra")
         range = self.get_root_phys().dep_vars[kfes]
         
         diag, rhs_vec = self.vt_diag_rhs.make_value_or_expression(self)

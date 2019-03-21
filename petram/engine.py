@@ -582,15 +582,22 @@ class Engine(object):
             for phys in phys_target:
                 self.assemble_extra(phys, phys_range)
                 updated_extra.extend(self.extra_update_check_M(phys, phys_range))
+                
             for extra_name, dep_name, kfes in updated_extra:
                 r = self.dep_var_offset(extra_name)
                 c = self.r_dep_var_offset(dep_name)
                 self.mask_M[j, r, c] = True
 
             self.aux_ops = {}
+            updated_extra = []            
             #for phys in phys_target:               
-            self.assemble_aux_ops(phys_target, phys_range)
-                
+            updated_aux_ops = self.assemble_aux_ops(phys_target, phys_range, update)
+            for key in updated_aux_ops:
+                testname, trialname, mm_fullpath = key
+                r = self.dep_var_offset(testname)
+                c = self.r_dep_var_offset(trialname)
+                self.mask_M[j, r, c]=True
+            
         return np.any(self.mask_M) or len(updated_extra) > 0
 
     def run_assemble_b(self, phys_target = None, update=False):
@@ -1125,7 +1132,8 @@ class Engine(object):
     def extra_update_check_B(self, phys, phys_range):
         return self._extra_update_check(phys, phys_range, mode='B')       
                     
-    def assemble_aux_ops(self, phys_target, phys_range):
+    def assemble_aux_ops(self, phys_target, phys_range, update):
+        updated_name = []       
         allmm = [mm for phys in phys_target for mm in phys.walk() if mm.is_enabled()]
         for phys1 in phys_target:
             names = phys1.dep_vars           
@@ -1134,6 +1142,8 @@ class Engine(object):
                     names2 = phys2.dep_vars
                     for kfes2, name2 in enumerate(names2):
                       for mm in allmm:
+                        if update and not mm.update_flag: continue
+                        
                         if not mm.has_aux_op2(phys1, kfes1,
                                               phys2, kfes2, self.access_idx): continue
                         gl_ess_tdof1 = self.gl_ess_tdofs[name1]
@@ -1141,7 +1151,10 @@ class Engine(object):
                         op = mm.get_aux_op(self, phys1, kfes1, phys2, kfes2,
                                            test_ess_tdof=gl_ess_tdof1,
                                            trial_ess_tdof=gl_ess_tdof2)
-                        self.aux_ops[(name1, name2, mm.fullpath())] = op
+                        key = (name1, name2, mm.fullpath())
+                        self.aux_ops[key] = op
+                        updated_name.append(key)
+        return updated_name                        
 
     def assemble_interp(self, phys):
         names = phys.dep_vars
