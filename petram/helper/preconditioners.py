@@ -394,13 +394,14 @@ def mumps(guiname, **kwargs):
     from petram.solver.mumps_model import MUMPSPreconditioner
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
-    
+    silent =  kwargs.pop('silent', False)
     r0 = prc.get_row_by_name(blockname)
     c0 = prc.get_col_by_name(blockname)
     A0 = prc.get_operator_block(r0, c0)
 
     invA0 =  MUMPSPreconditioner(A0, gui=prc.gui[guiname],
-                                 engine=prc.engine)
+                                 engine=prc.engine,
+                                 silent = silent)
     return invA0
     
 @prc.block

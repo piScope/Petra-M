@@ -139,6 +139,13 @@ class MUMPS(LinearSolverModel):
         
 class MUMPSSolver(LinearSolver):
     is_iterative = False
+    def __init__(self, *args, **kwargs):
+        super(MUMPSSolver, self).__init__(*args, **kwargs)
+        self.silent = False
+        
+    def set_silent(self, silent):
+        self.silent = silent
+        
     def set_ordering_flag(self, s):
         from petram.mfem_config import use_parallel
         gui = self.gui
@@ -337,7 +344,8 @@ class MUMPSSolver(LinearSolver):
             bstack = np.hstack(np.transpose(b))
             s.set_rhs(self.data_array(bstack))
 
-        dprint1("job3")    
+        if not self.silent:
+            dprint1("job3")    
         self.set_error_analysis(s)        
         s.set_job(3)
         s.run()
@@ -361,10 +369,11 @@ else:
    import mfem.ser as mfem
 
 class MUMPSPreconditioner(mfem.PyOperator):
-    def __init__(self, A0, gui=None, engine=None):
+    def __init__(self, A0, gui=None, engine=None, silent=False):
         mfem.PyOperator.__init__(self, A0.Height())
         self.gui = gui
         self.engine = engine
+        self.silent = silent        
         self.SetOperator(A0)
 
     def SetOperator(self, opr):
@@ -389,6 +398,7 @@ class MUMPSPreconditioner(mfem.PyOperator):
             self.solver.SetOperator(gcoo, True)
             self.is_parallel=True            
             self.row_part = opr.GetRowPartArray()
+        self.solver.set_silent(self.silent)
             
     def Mult(self, x, y):
         # in the parallel enviroment, we need to collect x and
