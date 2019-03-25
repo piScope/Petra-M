@@ -7,13 +7,38 @@
 import numpy as np
 from collections import defaultdict
 
-def find_loop_ser(mesh, face):
-    battrs = mesh.GetBdrAttributeArray()
-    bidx = np.where(battrs == face)[0]
+def find_loop_ser(mesh, *face):
+    '''
+    find_loop_ser(mesh, 1)                 # loop around boundary index = 1
+    find_loop_ser(mesh, [1,2,3], [4, 5]) # loop made by two set of boundaries 
+                                              # (1,2,3) and (4, 5)
 
-    edges = [mesh.GetBdrElementEdges(i) for i in bidx]
-    iedges = sum([e1[0] for e1 in edges], [])
-    dirs =  sum([e1[1] for e1 in edges], [])
+    '''
+    if len(face) == 1:
+        face = face[0]
+        battrs = mesh.GetBdrAttributeArray()
+        bidx = np.where(battrs == face)[0]
+        edges = [mesh.GetBdrElementEdges(i) for i in bidx]
+        iedges = sum([e1[0] for e1 in edges], [])
+        dirs =  sum([e1[1] for e1 in edges], [])
+    else:
+        battrs = mesh.GetBdrAttributeArray()
+        
+        bidx1 = np.where(np.in1d(battrs, face[0]))[0]
+        edges1 = np.unique(np.hstack([mesh.GetBdrElementEdges(i)[0] for i in bidx1]))
+        bidx2 = np.where(np.in1d(battrs, face[1]))[0]
+        edges2 = np.unique(np.hstack([mesh.GetBdrElementEdges(i)[0] for i in bidx2]))
+
+        iedges = np.intersect1d(edges1, edges2)
+
+        #dirs = {}
+        #for i in bidx2:
+        #     print(mesh.GetBdrElementEdges(i))
+        #     for ei, dir in zip(*mesh.GetBdrElementEdges(i)):
+        #         if ei in dirs and  dirs[ei] != dir:
+        #             print("orientation is not obtained by this way")
+        #         dirs[ei] = dir
+        #dirs = [dirs[i] for i in iedges]
 
     seens = defaultdict(int)
     seendirs  = defaultdict(int)
@@ -29,7 +54,22 @@ def find_loop_ser(mesh, face):
         if seens[k] == 1:
             idx.append(k)
             signs.append(seendirs[k])
-            
+    print("here(check)",idx, signs)               
+    ll = {tuple(mesh.GetEdgeVertices(i)):i for i in idx}
+
+    from petram.helper.geom import connect_pairs
+
+    loop = connect_pairs(ll.keys())
+    print(loop)
+    dirs = {}
+    for i in range(len(loop)-1):
+        if (loop[i], loop[i+1]) in ll: dirs[(loop[i], loop[i+1])] = 1
+        if (loop[i+1], loop[i]) in ll: dirs[(loop[i+1], loop[i])] = -1
+
+    signs = [dirs[key] for key in ll.keys()]
+    idx = [ll[key] for key in ll.keys()]    
+        
+    print("here",idx, signs)
     return idx, signs
     
 def find_loop_par(pmesh, face):

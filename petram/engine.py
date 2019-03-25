@@ -326,11 +326,11 @@ class Engine(object):
         
         self.assign_sel_index()
         self.run_preprocess()  # this must run when mesh is serial
-        
-        self.run_mesh() # make ParMesh and Par-Extended-Mesh
 
         from petram.mfem_config import use_parallel
-        if use_parallel:        
+        if use_parallel:
+            # make ParMesh and Par-Extended-Mesh                      
+            self.run_mesh() 
             self.emeshes = []
             for k in self.model['Phys'].keys():
                 phys = self.model['Phys'][k]
@@ -350,6 +350,7 @@ class Engine(object):
         self.build_ns()
       
     def run_preprocess(self, ns_folder = None, data_folder = None):
+        dprint1("!!!!! run preprocess !!!!!")
         if ns_folder is not None:
            self.preprocess_ns(ns_folder, data_folder)
 
@@ -399,6 +400,7 @@ class Engine(object):
             m.ReorientTetMesh()
             self.emeshes.extend([None]*(1+idx-len(self.emeshes)))
             self.emeshes[idx] = m
+            dprint1("emehs index is :", idx)
         
     #
     #  assembly 
@@ -1862,6 +1864,7 @@ class Engine(object):
             dprint1("allocate_fespace: " + name)            
             is_new, fec, fes = self.get_or_allocate_fecfes(name, emesh_idx, elem,
                                                            order, vdim)
+            dprint1("debug", fec.Name(), fes.GetMesh().GetNE())
             
             '''
             key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
@@ -1892,6 +1895,7 @@ class Engine(object):
         elif not make_new:
             return False, None, None
         else:
+            dprint1("making a new fec/fes")
             is_new = True
             fec = getattr(mfem, elem)
             #if fec is mfem.ND_FECollection:

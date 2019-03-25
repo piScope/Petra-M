@@ -887,9 +887,9 @@ class BlockMatrix(object):
                 else:
                     assert False, "not implemented, "+ str(type(self[i,0]))
             else:
-                vec.GetBlock(ii).Assign(0)
+                vec.GetBlock(ii).Assign(0.0)
                 if self.complex:
-                    vec.GetBlock(ii+1).Assign(0)                   
+                    vec.GetBlock(ii+1).Assign(0.0)                   
             ii = ii + 2 if self.complex else ii+1
 
         return vec

@@ -333,7 +333,7 @@ class AUX_Variable(Phys):
         # all node does do the same job, but Array2PyVec will use the data from
         # root node.
 
-        rhs = np.atleast_1d(rhs_vec)
+        rhs = np.atleast_1d(rhs_vec).astype(float)
         if diag_size != 1 and len(rhs) == 1:
            rhs = np.hstack([rhs[0]]*diag_size).flatten()         
         

@@ -312,7 +312,7 @@ def FIR(**kwargs):
     return mfem_smoother('FIR', **kwargs)
     
 @prc.block
-def ams(singular=True, **kwargs):
+def ams(singular=False, **kwargs):
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
     print_level = kwargs.pop('print_level', -1)

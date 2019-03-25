@@ -111,6 +111,9 @@ class LoopIntegral(Operator):
     def assemble(self, *args, **kwargs):
         '''
         looplintegral(18)   # integrate around the bdr 18
+
+        # this mode is only avaiable on serial version.
+        looplintegral([1,2,3], [4, 5]) # loop defined by two groups of boundaries 
         '''
         coeff = kwargs.pop("coeff", "1")
         coeff_type = kwargs.pop("coeff_type", "S")
@@ -118,7 +121,7 @@ class LoopIntegral(Operator):
         engine = self._engine()        
         self.process_kwargs(engine, kwargs)
 
-        face = args[0]
+        face = args
         
         if not self.fes1.FEColl().Name().startswith('ND'):
             assert False, "line integration is only implemented for ND"
@@ -130,7 +133,7 @@ class LoopIntegral(Operator):
 
         if use_parallel:
             from petram.mesh.find_loop import find_loop_par
-            idx, signs = find_loop_par(mesh, face)
+            idx, signs = find_loop_par(mesh, *face)
             fesize1 = fes1.GetTrueVSize()
             P = fes1.Dof_TrueDof_Matrix()
             from mfem.common.parcsr_extra import ToScipyCoo
@@ -139,7 +142,7 @@ class LoopIntegral(Operator):
             rstart = fes1.GetMyTDofOffset()            
         else:
             from petram.mesh.find_loop import find_loop_ser
-            idx, signs = find_loop_ser(mesh, face)            
+            idx, signs = find_loop_ser(mesh, *face)            
             fesize1 = fes1.GetNDofs()
             
         map = np.zeros((fesize1,1), dtype=float)       
@@ -156,7 +159,7 @@ class LoopIntegral(Operator):
                  dof = VDoFtoGTDoF[dof] - rstart
               map[dof] = sign
               
-        #if len(w) > 0: print("weight", w)
+        if len(w) > 0: print("weight", w)
         
         from mfem.common.chypre import PyVec2PyMat, CHypreVec
         if use_parallel:
@@ -622,8 +625,13 @@ class Projection(Operator):
 
 
                
-               
-           
+class Gradient(Operator):               
+    '''
+
+
+    '''
+    pass
+
 
         
     
