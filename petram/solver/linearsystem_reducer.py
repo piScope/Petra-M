@@ -249,7 +249,7 @@ class LinearSystemReducer(object):
 
         self.solver.Mult(bb_2, xx_2)
         max_iter = self.solver.GetNumIterations();
-        tol = self.solver.GetFinalNorm()**2
+        tol = self.solver.GetFinalNorm()
         
         dprint1("convergence check (max_iter, tol) ", max_iter, " ", tol)
         if assert_convergence:
