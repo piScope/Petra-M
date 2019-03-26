@@ -34,6 +34,7 @@ class TimeDomain(Solver):
     def attribute_set(self, v):
         v['st_et_nt'] = [0, 1, 0.1]
         v['time_step'] = 0.01
+        v['time_step_cnk'] = 0.01        
         v['ts_method'] = "Backward Eular"
         v['abe_minstep']= 0.01
         v['abe_maxstep']= 1.0
@@ -58,8 +59,11 @@ class TimeDomain(Solver):
                 ["physics model",   self.phys_model,  0, {},],
                 ["start/end/#step",  "",  0, {},],
                 ["probes",   self.probe,  0, {},],                                
-                [None, None, 34, ({'text':'method','choices': ["Backward Eular", "Adaptive BE"], 'call_fit':False},
+                [None, None, 34, ({'text':'method','choices': ["Backward Eular",
+                                                               "CrankNicolson",
+                                                               "Adaptive BE"], 'call_fit':False},
                                   {'elp':elp_be},
+                                  {'elp':elp_be},                                  
                                   {'elp':elp_abe},)],
                 [None, [False, [value_cp]], 27, [{'text':'Use DWC (check point)'},
                                               {'elp': [ret_cp]}]],
@@ -84,6 +88,7 @@ class TimeDomain(Solver):
                 self.probe,                                
                 [self.ts_method,
                  [str(self.time_step),],
+                 [str(self.time_step_cnk),],                 
                  [str(self.abe_minstep), str(self.abe_maxstep),],
                 ],
                 [self.use_dwc_cp, [self.dwc_cp_arg,]],
@@ -110,8 +115,9 @@ class TimeDomain(Solver):
         
         self.ts_method = str(v[3][0])
         self.time_step= str(v[3][1][0])
-        self.abe_minstep= float(v[3][2][0])
-        self.abe_maxstep= float(v[3][2][1])
+        self.time_step_cnk= str(v[3][2][0])        
+        self.abe_minstep= float(v[3][3][0])
+        self.abe_maxstep= float(v[3][3][1])
         self.use_dwc_cp   = v[4][0]
         self.dwc_cp_arg   = v[4][1][0]         
         self.use_dwc_ts   = v[5][0]
@@ -173,6 +179,12 @@ class TimeDomain(Solver):
             instance = FirstOrderBackwardEuler(self, engine)
             time_step = self.eval_text_in_global(self.time_step)
             dprint1("time step configuration: " + str(self.time_step) + ':' +  str(time_step))            
+            instance.set_timestep(TimeStep(time_step))
+            
+        elif self.ts_method == "CrankNicolson":
+            instance = CrankNicolson(self, engine)
+            time_step = self.eval_text_in_global(self.time_step_cnk)
+            dprint1("time step configuration: " + str(self.time_step_cnk) + ':' +  str(time_step))            
             instance.set_timestep(TimeStep(time_step))
             
         elif self.ts_method == "Adaptive BE":
@@ -431,8 +443,27 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.engine.cleancwd() 
         self.save_solution()
         self.engine.symlink('../model.pmfm', 'model.pmfm')        
-        os.chdir(od)        
+        os.chdir(od)
+        
+class CrankNicolson(FirstOrderBackwardEuler):
+    def compute_A(self, M, B, X, mask_M, mask_B):
+        '''
+        M/dt u_1 + K/2 u_1 = M/dt u_0 - K/2 u_0 + b
+        '''
+        one_dt = 1./float(self.time_step)
+        #MM = M[1]*one_dt
+        A = M[0]*0.5+ M[1]*one_dt
+        dprint1("A", A)
+        return A, np.any(mask_M)
 
+    def compute_rhs(self, M, B, X):
+        one_dt = 1./float(self.time_step)
+        MM = (-M[0]*0.5 + M[1]*one_dt)
+        RHS = MM.dot(self.engine.sol) + B
+        dprint1("RHS", RHS)        
+        return RHS
+
+    
 class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
     def __init__(self, gui, engine):
         FirstOrderBackwardEuler.__init__(self, gui, engine)

@@ -399,7 +399,7 @@ class BlockMatrix(object):
                     ret[i,j] = self[i,j]*other
         return ret
      
-    def __neg__(self, other):
+    def __neg__(self):
         shape = self.shape
         ret = BlockMatrix(shape, kind = self.kind)
 
