@@ -321,7 +321,7 @@ class IterativeSolver(LinearSolver):
     def call_mult(self, solver, bb, xx):
         solver.Mult(bb, xx)
         max_iter = solver.GetNumIterations();
-        tol = solver.GetFinalNorm()**2
+        tol = solver.GetFinalNorm()
         
         dprint1("convergence check (max_iter, tol) ", max_iter, " ", tol)
         if self.gui.assert_no_convergence:

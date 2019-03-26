@@ -54,13 +54,13 @@ def find_loop_ser(mesh, *face):
         if seens[k] == 1:
             idx.append(k)
             signs.append(seendirs[k])
-    print("here(check)",idx, signs)               
+
     ll = {tuple(mesh.GetEdgeVertices(i)):i for i in idx}
 
     from petram.helper.geom import connect_pairs
 
     loop = connect_pairs(ll.keys())
-    print(loop)
+
     dirs = {}
     for i in range(len(loop)-1):
         if (loop[i], loop[i+1]) in ll: dirs[(loop[i], loop[i+1])] = 1
