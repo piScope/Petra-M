@@ -1740,8 +1740,8 @@ class Engine(object):
     #
     def assign_sel_index(self, phys = None):
         if len(self.meshes) == 0:
-           dprint1('!!!! mesh is None !!!!')
-           return
+            dprint1('!!!! mesh is None !!!!')
+            return
         if phys is None:
             all_phys = [self.model['Phys'][k] for
                         k in self.model['Phys'].keys()]

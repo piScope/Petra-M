@@ -115,8 +115,10 @@ def find_el_center(fes, ibdr1, trans1, mode = 'Bdr'):
     if len(ibdr1) == 0: return np.empty(shape=(0,2))
     mesh = fes.GetMesh()
     m = getattr(mesh, methods[mode]['Vertices'])
-    pts = np.vstack([np.mean([trans1(mesh.GetVertexArray(kk))
-                              for kk in m(k)],0) for k in ibdr1])
+    pts = np.mean(np.array([[trans1(mesh.GetVertexArray(i)) for i in m(k)]
+                            for k in ibdr1]), 1)
+    #pts = np.vstack([np.mean([trans1(mesh.GetVertexArray(kk))
+    #                          for kk in m(k)],0) for k in ibdr1])
     return pts
 
 def get_element_data(fes, idx, trans, mode='Bdr'):
@@ -131,10 +133,11 @@ def get_element_data(fes, idx, trans, mode='Bdr'):
        tr1 = GetTrans(k1)
        nodes1 = GetElement(k1).GetNodes()
        vdof1 = GetVDofs(k1)
-       pt1 = np.vstack([trans(tr1.Transform(nodes1.IntPoint(kk)))
-                        for kk in range(len(vdof1))])
+       #pt1 = np.vstack([trans(tr1.Transform(nodes1.IntPoint(kk)))
+       #                 for kk in range(len(vdof1))])
        pt1o = np.vstack([tr1.Transform(nodes1.IntPoint(kk))
-                         for kpk in range(len(vdof1))])
+                         for kk in range(len(vdof1))])
+       pt1 = np.vstack([trans(pt) for pt in pt1o])
 
        subvdof1 = [x if x>= 0 else -1-x for x in vdof1]
        if use_parallel:
@@ -152,8 +155,10 @@ def get_element_data(fes, idx, trans, mode='Bdr'):
 
        newk1 = np.vstack([(k, xx[0], xx[1])
                            for k, xx in enumerate(zip(vdof1, subvdof2))])
-       pt1 =  np.vstack([pt1[kk] for kk, v, s in newk1])
-       pt1o = np.vstack([pt1o[kk] for kk, v, s in newk1])
+
+       # this doesn't do anything since kk is [0, 1,2,3,...]??
+       #pt1 =  np.vstack([pt1[kk] for kk, v, s in newk1])
+       #pt1o = np.vstack([pt1o[kk] for kk, v, s in newk1])
 
        ret[iii] = (newk1, pt1, pt1o)
     return ret
@@ -609,13 +614,21 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
        fesize1 = fes1.GetNDofs()
        fesize2 = fes2.GetNDofs()
        rstart = 0
-    
+
+    # mapping between elements
+
+    from scipy.spatial import cKDTree
+    tree = cKDTree(ct2)
+    ctr_dist, map_1_2 = tree.query(ct1)
+    '''
     ctr_dist = np.array([np.min(np.sum((ct2-c)**2, 1)) for c in ct1])
+    map_1_2= [np.argmin(np.sum((ct2-c)**2, 1)) for c in ct1]
+    '''
     if ctr_dist.size > 0 and np.max(ctr_dist) > 1e-15:
        print('Center Dist may be too large (check mesh): ' + 
             str(np.max(ctr_dist)))
-    # mapping between elements
-    map_1_2= [np.argmin(np.sum((ct2-c)**2, 1)) for c in ct1]
+
+
 
     if use_parallel:
        pt2all =  sum(comm.allgather(pt2all),())
