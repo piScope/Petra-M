@@ -1739,7 +1739,6 @@ class Engine(object):
     #  helper methods
     #
     def assign_sel_index(self, phys = None):
-        
         if len(self.meshes) == 0:
            dprint1('!!!! mesh is None !!!!')
            return
@@ -1753,6 +1752,7 @@ class Engine(object):
             mesh = self.meshes[p.mesh_idx]
             if mesh is None: continue
             
+            p.update_dom_selection()
             if len(p.sel_index) == 0: continue
 
             dom_choice, bdr_choice, internal_bdr = p.get_dom_bdr_choice(self.meshes[p.mesh_idx])

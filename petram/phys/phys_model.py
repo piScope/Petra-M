@@ -805,12 +805,7 @@ class PhysModule(Phys):
               self.dim = 1                                 
            self.sel_index_txt = str(v[1])
            
-        from petram.model import convert_sel_txt
-        try:
-            arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
-            self.sel_index = arr            
-        except:
-            assert False, "failed to convert "+self.sel_index_txt
+        self.update_dom_selection()
         
     @property
     def dep_vars(self):
@@ -892,7 +887,16 @@ class PhysModule(Phys):
         if self.sel_index[0] != 'all':        
            info.set_selection(self.sel_index)
         return info
-     
+
+    def update_dom_selection(self):
+        from petram.model import convert_sel_txt
+        try:
+            arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
+            self.sel_index = arr            
+        except:
+            assert False, "failed to convert "+self.sel_index_txt
+        
+       
     def get_dom_bdr_choice(self, mesh):
 
         from collections import defaultdict

@@ -19,8 +19,18 @@ from petram.namespace_mixin import NS_mixin
 
 def validate_sel(value, obj, w):
     g = obj._global_ns
+    l = {"remaining": [], "all":[]}
     try:
-        value = eval(value, g)
+        value = eval(value, g, l)
+        return True
+    except:
+        return False
+    
+def validate_sel2(value, obj, w):
+    g = obj._global_ns
+    l = {"remaining": [], "all":[], "internal_bdr":[]}
+    try:
+        value = eval(value, g, l)
         return True
     except:
         return False
@@ -840,7 +850,7 @@ class Bdry(Model):
     def panel2_param(self):
         return [["Boundary",  'remaining',  0, {'changing_event': True,
                                                 'setfocus_event': True,
-                                                 'validator': validate_sel,
+                                                 'validator': validate_sel2,
                                                  'validator_param':self}] ]
 
 class Pair(Model):
