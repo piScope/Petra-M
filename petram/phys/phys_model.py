@@ -888,14 +888,28 @@ class PhysModule(Phys):
            info.set_selection(self.sel_index)
         return info
 
-    def update_dom_selection(self):
+    def update_dom_selection(self, all_sel=None):
         from petram.model import convert_sel_txt
         try:
             arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
             self.sel_index = arr            
         except:
             assert False, "failed to convert "+self.sel_index_txt
-        
+
+
+        if all_sel is None:
+            # clinet GUI panel operation ends here
+            return
+         
+        allv, alls, alle = all_sel
+        if len(self.sel_index) != 0 and self.sel_index[0] == 'all':
+            if self.dim == 3:
+               self.sel_index = allv
+            if self.dim == 2:
+               self.sel_index = alls
+            if self.dim == 1:               
+               self.sel_index = alle
+               
        
     def get_dom_bdr_choice(self, mesh):
 

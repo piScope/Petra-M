@@ -323,7 +323,8 @@ class Engine(object):
             if node.has_ns() and node.ns_name is not None:
                 node.read_ns_script_data(dir = dir)
         self.build_ns()
-        
+
+
         self.assign_sel_index()
         self.run_preprocess()  # this must run when mesh is serial
 
@@ -354,7 +355,10 @@ class Engine(object):
         if ns_folder is not None:
            self.preprocess_ns(ns_folder, data_folder)
 
-        from .model import Domain, Bdry               
+        from .model import Domain, Bdry
+
+        self.assign_phys_sel_index()
+        
         for k in self.model['Phys'].keys():
             phys = self.model['Phys'][k]
             if not phys.enabled: continue            
@@ -390,7 +394,10 @@ class Engine(object):
         if len(self.emeshes) == 0:
             self.emeshes = self.meshes[:]
             for j in range(len(self.emeshes)):
-                self.emesh_data.add_default_info(j, self.emeshes[j].Dimension())
+                attrs = np.unique(self.emeshes[j].GetAttributeArray())
+                self.emesh_data.add_default_info(j,
+                                                 self.emeshes[j].Dimension(),
+                                                 attrs)
         info = phys.get_mesh_ext_info()
         idx = self.emesh_data.add_info(info)
 
@@ -400,7 +407,7 @@ class Engine(object):
             m.ReorientTetMesh()
             self.emeshes.extend([None]*(1+idx-len(self.emeshes)))
             self.emeshes[idx] = m
-            dprint1("emehs index is :", idx)
+        dprint1(phys.name() + ":  emesh index =", idx)
         
     #
     #  assembly 
@@ -1738,6 +1745,26 @@ class Engine(object):
     #
     #  helper methods
     #
+    def assign_phys_sel_index(self):
+        if len(self.meshes) == 0:
+            dprint1('!!!! mesh is None !!!!')
+            return
+        all_phys = [self.model['Phys'][k] for
+                        k in self.model['Phys'].keys()]
+        for p in all_phys:
+            if p.mesh_idx < 0: continue
+            base_mesh = self.meshes[p.mesh_idx]
+
+            if base_mesh is None:
+               assert False, "base_mesh not selected"
+
+            ec = base_mesh.extended_connectivity
+            allv = ec['vol2surf'].keys()  if ec['vol2surf'] is not None else []
+            alls = ec['surf2line'].keys() if ec['surf2line'] is not None else []
+            alle = ec['line2vert'].keys() if ec['line2vert'] is not None else []
+            
+            p.update_dom_selection( all_sel = (allv, alls, alle))
+        
     def assign_sel_index(self, phys = None):
         if len(self.meshes) == 0:
             dprint1('!!!! mesh is None !!!!')
@@ -1752,7 +1779,6 @@ class Engine(object):
             mesh = self.meshes[p.mesh_idx]
             if mesh is None: continue
             
-            p.update_dom_selection()
             if len(p.sel_index) == 0: continue
 
             dom_choice, bdr_choice, internal_bdr = p.get_dom_bdr_choice(self.meshes[p.mesh_idx])

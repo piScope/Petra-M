@@ -208,7 +208,7 @@ class LinearSystemReducer(object):
         if inv:
             idx = [k for k in range(self.nb) if not k in idx]
         size = [src_vec.BlockSize(i) for i in idx]
-        offset = np.hstack([0, np.cumsum(size)])
+        offset = np.hstack([0, np.cumsum(size, dtype=int)])
         offset = mfem.intArray(list(offset))
         
         sub_vec = mfem.BlockVector(offset)

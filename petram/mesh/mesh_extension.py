@@ -18,8 +18,8 @@ class MeshExtInfo(dict):
         sel = set(kwargs.pop('sel', []))
         dim = kwargs.pop('dim', 1)
         base = kwargs.pop('base', 0)        
-        self['cut'] = cut
-        self['sel'] = sel
+        self.set_selection(sel)
+        self.set_cut(cut)
         self['dim'] = dim
         self['base'] = base
 
@@ -58,8 +58,8 @@ class MeshExt(object):
         self.info.append(info)
         return len(self.info)-1
     
-    def add_default_info(self, j, dim):
-        info = MeshExtInfo(base = j, dim = dim)
+    def add_default_info(self, j, dim, sel):
+        info = MeshExtInfo(base = j, dim = dim, sel = sel)
         self.do_add_info(info)
         
     def add_info(self, info):
