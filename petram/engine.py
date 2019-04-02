@@ -428,10 +428,11 @@ class Engine(object):
         idx = phys.emesh_idx
         info = self.emesh_data.get_info(idx)
         
-        if len(self.emeshes) <= idx: 
+        if len(self.emeshes) <= idx or self.emeshes[idx] is None:
             m = generate_emesh(self.emeshes, info)
             m.ReorientTetMesh()
-            self.emeshes.extend([None]*(1+idx-len(self.emeshes)))
+            if len(self.emeshes) <= idx:
+                self.emeshes.extend([None]*(1+idx-len(self.emeshes)))
             self.emeshes[idx] = m
         dprint1(phys.name() + ":  emesh index =", idx)
         
@@ -1463,6 +1464,8 @@ class Engine(object):
         and 
              x  = P^t y
         '''
+        #import traceback
+        #traceback.print_stack()
         for name in self.interps:
             idx1 = self.dep_var_offset(name)
             idx2 = self.r_dep_var_offset(name)            
