@@ -359,7 +359,7 @@ class Engine(object):
 
         from .model import Domain, Bdry
 
-        self.assign_phys_sel_index()
+        self.assign_phys_pp_sel_index()
         self.run_mesh_extension_prep()
         
         for k in self.model['Phys'].keys():
@@ -1771,15 +1771,22 @@ class Engine(object):
     #
     #  helper methods
     #
-    def assign_phys_sel_index(self):
+    def assign_phys_pp_sel_index(self):
         if len(self.meshes) == 0:
             dprint1('!!!! mesh is None !!!!')
             return
         all_phys = [self.model['Phys'][k] for
                         k in self.model['Phys'].keys()]
-        for p in all_phys:
-            if p.mesh_idx < 0: continue
-            base_mesh = self.meshes[p.mesh_idx]
+        all_pp = []
+        for k in self.model['PostProcess']:
+            for kk in self.model['PostProcess'][k]:           
+                all_pp.append(self.model['PostProcess'][k][kk])
+        
+        for p in all_phys + all_pp:
+            #
+            if hasattr(p, "mesh_idx") and p.mesh_idx != 0:
+                assert False, "We don't support mesh_idx != 0, Contact developer if this is needed"
+            base_mesh = self.meshes[0]
 
             if base_mesh is None:
                assert False, "base_mesh not selected"
@@ -1817,7 +1824,7 @@ class Engine(object):
             
     def do_assign_sel_index(self, m, choice, cls, internal_bdr=None):
         dprint1("## setting _sel_index (1-based number): " + cls.__name__ +
-                ":" + m.fullname())
+                ":" + m.fullname() + ":" + str(choice))
         #_sel_index is 0-base array
         def _walk_physics(node):
             yield node

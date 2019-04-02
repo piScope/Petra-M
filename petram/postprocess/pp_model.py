@@ -28,6 +28,28 @@ class PostProcessBase(Model):
     def soldict_to_solvars(self, soldict, variables):
         pass
     
+    def update_dom_selection(self, all_sel=None):
+        from petram.model import convert_sel_txt
+        try:
+            arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
+            self.sel_index = arr            
+        except:
+            assert False, "failed to convert "+self.sel_index_txt
+
+
+        if all_sel is None:
+            # clinet GUI panel operation ends here
+            return
+         
+        allv, alls, alle = all_sel
+        if len(self.sel_index) != 0 and self.sel_index[0] == 'all':
+            if self.sdim == 3:
+               self.sel_index = allv
+            if self.sdim == 2:
+               self.sel_index = alls
+            if self.sdim == 1:               
+               self.sel_index = alle
+    
 class PostProcess(PostProcessBase):
     def get_possible_child(self):
         from petram.postprocess.project_solution import DerivedValue

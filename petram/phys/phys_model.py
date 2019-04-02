@@ -934,15 +934,14 @@ class PhysModule(Phys):
 
         dom_choice = d.keys()
         bdr_choice = sum([list(d[x]) for x in d], [])
-        
 
         if self.sel_index[0] != 'all':
             dom_choice = [int(x) for x in self.sel_index]
-            bdr_choice = list(np.unique(np.hstack([d[int(x)]
-                                              for x in self.sel_index])))
+            bdrs = [d[int(x)] for x in self.sel_index]
+            bdr_choice = list(np.unique(np.hstack(bdrs)).astype(int))
 
         internal_bdr = get_internal_bdr(d, dom_choice)
-                
+
         from petram.mfem_config import use_parallel
         if use_parallel:
              from mfem.common.mpi_debug import nicePrint
