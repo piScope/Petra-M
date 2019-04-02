@@ -138,7 +138,7 @@ class WF_PeriodicCommon(Pair, Phys):
         dprint1("Add interpolation contribution(real)" + str(self._sel_index))
         dprint1("kfes = ", str(kfes))
 
-        weight, tol = self.eval_wtol()        
+        weight, tol = self.eval_wtol()
         dprint1("weight = ", str(weight))
         dprint1("tol = ", str(tol))                
 
@@ -173,7 +173,7 @@ class WF_PeriodicCommon(Pair, Phys):
         from petram.helper.dof_map import projection_matrix
         M, r, c = projection_matrix(src, dst, fes, ess_tdof, fes2=fes,
                                     trans1 = dst_mapper, trans2=src_mapper,
-                                    weight = weight, tol = self.tol, mode = mode)
+                                    weight = -weight, tol = self.tol, mode = mode)
 
         return M, r, c
         

@@ -62,6 +62,9 @@ class MeshExt(object):
         info = MeshExtInfo(base = j, dim = dim, sel = sel)
         self.do_add_info(info)
         
+    def get_info(self, idx):
+        return self.info[idx]
+     
     def add_info(self, info):
         '''
         add info and return mesh index

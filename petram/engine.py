@@ -424,8 +424,10 @@ class Engine(object):
 
         if len(self.emeshes) == 0:
             self.emeshes = self.meshes[:]
-            
+
         idx = phys.emesh_idx
+        info = self.emesh_data.get_info(idx)
+        
         if len(self.emeshes) <= idx: 
             m = generate_emesh(self.emeshes, info)
             m.ReorientTetMesh()
@@ -2017,10 +2019,14 @@ class Engine(object):
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
         from petram.mesh.mesh_extension import MeshExt
         from petram.mesh.mesh_utils import  get_extended_connectivity
-    
+        
+        dprint1("Loading mesh (serial)")
+        
         self.meshes = []
         self.emeshes = []
-        self.emesh_data = MeshExt()
+        if self.emesh_data is None:
+            self.emesh_data = MeshExt()
+
         if meshmodel is None:
             parent = self.model['Mesh']
             children =  [parent[g] for g in parent.keys()
@@ -2593,11 +2599,12 @@ class ParallelEngine(Engine):
         from petram.mesh.mesh_extension import MeshExt
         from petram.mesh.mesh_utils import  get_extended_connectivity
 
-
+        dprint1("Loading mesh (parallel)")
+        
         self.meshes = []
         self.emeshes = []
         if self.emesh_data is None:
-            self.emesh_data = MeshExt()
+            assert False, "emesh data must be generated before parallel mesh generation"
         
         if meshmodel is None:
             parent = self.model['Mesh']
