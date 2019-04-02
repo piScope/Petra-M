@@ -65,6 +65,7 @@ class Engine(object):
         # this point...
         self.meshes = []
         self.emeshes = []
+        self.emesh_data = None
 
         ## number of matrices to be filled
         ##  
@@ -324,7 +325,6 @@ class Engine(object):
                 node.read_ns_script_data(dir = dir)
         self.build_ns()
 
-
         self.assign_sel_index()
         self.run_preprocess()  # this must run when mesh is serial
 
@@ -348,6 +348,8 @@ class Engine(object):
         fill namespace dict
         '''
         self.model['General'].run()
+        self.run_mesh_serial()
+        self.run_mesh_extension_prep()        
         self.build_ns()
       
     def run_preprocess(self, ns_folder = None, data_folder = None):
@@ -358,6 +360,7 @@ class Engine(object):
         from .model import Domain, Bdry
 
         self.assign_phys_sel_index()
+        self.run_mesh_extension_prep()
         
         for k in self.model['Phys'].keys():
             phys = self.model['Phys'][k]
@@ -387,7 +390,13 @@ class Engine(object):
 
     #  mesh manipulation
     #
-    def run_mesh_extension(self, phys):
+    def run_mesh_extension_prep(self):
+        for k in self.model['Phys'].keys():
+            phys = self.model['Phys'][k]
+            if not phys.enabled: continue            
+            self.do_run_mesh_extension_prep(phys)
+    
+    def do_run_mesh_extension_prep(self, phys):
         from petram.mesh.mesh_extension import MeshExt, generate_emesh
         from petram.mesh.mesh_model import MFEMMesh
 
@@ -402,6 +411,21 @@ class Engine(object):
         idx = self.emesh_data.add_info(info)
 
         phys.emesh_idx = idx
+        #if len(self.emeshes) <= idx: 
+        #    m = generate_emesh(self.emeshes, info)
+        #    m.ReorientTetMesh()
+        #    self.emeshes.extend([None]*(1+idx-len(self.emeshes)))
+        #    self.emeshes[idx] = m
+        dprint1(phys.name() + ":  emesh index =", idx)
+        
+    def run_mesh_extension(self, phys):
+        from petram.mesh.mesh_extension import MeshExt, generate_emesh
+        from petram.mesh.mesh_model import MFEMMesh
+
+        if len(self.emeshes) == 0:
+            self.emeshes = self.meshes[:]
+            
+        idx = phys.emesh_idx
         if len(self.emeshes) <= idx: 
             m = generate_emesh(self.emeshes, info)
             m.ReorientTetMesh()
@@ -2572,7 +2596,8 @@ class ParallelEngine(Engine):
 
         self.meshes = []
         self.emeshes = []
-        self.emesh_data = MeshExt()
+        if self.emesh_data is None:
+            self.emesh_data = MeshExt()
         
         if meshmodel is None:
             parent = self.model['Mesh']
