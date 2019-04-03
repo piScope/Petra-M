@@ -209,7 +209,6 @@ class TimeDomain(Solver):
             if is_first:
                 instance.pre_assemble()                                
                 instance.assemble()
-                is_first=False
                 
             #instance.solve()            
             #if is_first:
@@ -228,6 +227,8 @@ class TimeDomain(Solver):
                 fid.write(str(0)+':'+str(instance.time)+"\n")
             while not finished:
                 finished, cp_written = instance.step(is_first)
+                is_first=False
+                
                 if self.use_dwc_ts:
                     engine.call_dwc(self.get_phys_range(),
                                     method="timestep",
@@ -246,6 +247,7 @@ class TimeDomain(Solver):
                     if fid is not None:
                         fid.write(str(instance.icheckpoint-1)+':'+str(instance.time)+"\n")
                         fid.flush()
+                        
         instance.save_solution(ksol = 0,
                                skip_mesh = False, 
                                mesh_only = False,
@@ -312,7 +314,6 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         M/dt u_1 + K u_1 = M/dt u_0 + b
         '''
         one_dt = 1./float(self.time_step)
-        MM = M[1]*one_dt
         A = M[0]+ M[1]*one_dt
         dprint1("A", A)
         return A, np.any(mask_M)
@@ -321,7 +322,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         one_dt = 1./float(self.time_step)
         MM = M[1]*one_dt
         RHS = MM.dot(self.engine.sol) + B
-        dprint1("RHS", RHS)        
+        dprint1("RHS", RHS)
         return RHS
 
     def assemble(self, update=False):
@@ -396,6 +397,8 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
 
         A.reformat_central_mat(solall, 0, X[0], mask)
 
+        # this apply interpolation operator 
+        sol, sol_extra = engine.split_sol_array(X[0])
 
         for name in self.time_deriv_vars:
             offset1 = engine.dep_var_offset(name)       # vt
@@ -411,13 +414,13 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         self.counter += 1
         for p in self.probe:
             p.append_sol(X[0], self.time)
-            
+
+        
         # swap X[0] and X[-1] for next computing
         tmp = X[0]; X[0] = X[-1]; X[-1]=tmp
         self.sol = X[-1]
         engine.sol = self.sol
 
-        sol, sol_extra = engine.split_sol_array(self.sol)
         engine.recover_sol(sol, access_idx=-1)
         ## ToDo. Provide a way to use Lagrange multipler in model
         extra_data = engine.process_extra(sol_extra)
@@ -460,7 +463,8 @@ class CrankNicolson(FirstOrderBackwardEuler):
         one_dt = 1./float(self.time_step)
         MM = (-M[0]*0.5 + M[1]*one_dt)
         RHS = MM.dot(self.engine.sol) + B
-        dprint1("RHS", RHS)        
+        dprint1("RHS", RHS)
+        dprint1("57th here?", RHS[0].GlobalVector())
         return RHS
 
     

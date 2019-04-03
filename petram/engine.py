@@ -1484,7 +1484,6 @@ class Engine(object):
                    if idx1 == i: continue
                    if A[idx1,i] is not None:
                        A[idx1,i] = PP.dot(A[idx1,i])
-
                P = PP.conj(inplace=True)                        
                for i in range(shape[0]):
                    if idx2 == i: continue
@@ -1493,7 +1492,6 @@ class Engine(object):
             if RHS is not None:
                 RHS[idx1] = P.conj(inplace=True).dot(RHS[idx1])
                 P.conj(inplace=True)
-
         
         if A is not None and RHS is not None: return A, RHS
         if A is not None : return A, 
@@ -1602,10 +1600,11 @@ class Engine(object):
                P, nonzeros, zeros = self.interps[name]
                if P is not None:
                    sol_section = (P.transpose()).dot(sol_section)
-
+                   
             ifes = self.r_ifes(name)
             s[ifes] = sol_section
-
+            sol[j, 0] = sol_section
+            
         e = []    
         for name in self.dep_vars:
            if not self.isFESvar(name):

@@ -144,6 +144,8 @@ class MFEMViewer(BookViewer):
                                                 refresh = refresh)
             
         od = self.model.param.getvar('mfem_model')
+        od.set_root_path(self.model.owndir())
+        
         if od is None:
             self.model.scripts.helpers.reset_model()
 
