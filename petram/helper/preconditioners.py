@@ -404,6 +404,37 @@ def gmres(atol=1e-24, rtol=1e-12, max_num_iter=5,
         gmres._prc = preconditioner
     return gmres
 
+@prc.block
+def fgmres(atol=1e-24, rtol=1e-12, max_num_iter=5,
+          kdim=50, print_level=-1, preconditioner=None, **kwargs):
+    prc = kwargs.pop('prc')
+    blockname = kwargs.pop('blockname')
+
+    if use_parallel:
+        fgmres = mfem.FGMRESSolver(MPI.COMM_WORLD)
+    else:
+        fgmres = mfem.FGMRESSolver()
+    fgmres.iterative_mode = False
+    fgmres.SetRelTol(rtol)
+    fgmres.SetAbsTol(atol)
+    fgmres.SetMaxIter(max_num_iter)
+    fgmres.SetKDim(kdim)
+    fgmres.SetPrintLevel(print_level)    
+    fgmres.SetKDim(kdim)
+    r0 = prc.get_row_by_name(blockname)
+    c0 = prc.get_col_by_name(blockname)
+    
+    A0 = prc.get_operator_block(r0, c0)    
+
+    fgmres.SetOperator(A0)
+    if preconditioner is not None:
+        fgmres.SetPreconditioner(preconditioner)
+        # keep this object from being freed...
+        fgmres._prc = preconditioner
+    return fgmres
+
+
+
 
 # these are here to use them in script w/o disnginguishing
 # if mfem is mfem.par or mfem.ser
