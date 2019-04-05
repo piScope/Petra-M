@@ -464,7 +464,6 @@ class CrankNicolson(FirstOrderBackwardEuler):
         MM = (-M[0]*0.5 + M[1]*one_dt)
         RHS = MM.dot(self.engine.sol) + B
         dprint1("RHS", RHS)
-        dprint1("57th here?", RHS[0].GlobalVector())
         return RHS
 
     
