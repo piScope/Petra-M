@@ -312,6 +312,7 @@ def FIR(**kwargs):
     return mfem_smoother('FIR', **kwargs)
     
 @prc.block
+
 def ams(singular=False, **kwargs):
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
@@ -327,6 +328,22 @@ def ams(singular=False, **kwargs):
     inv_ams.SetPrintLevel(print_level)
     inv_ams.iterative_mode = False    
     return inv_ams
+
+@prc.block
+def boomerAMG(**kwargs):
+   prc = kwargs.pop('prc')
+   blockname = kwargs.pop('blockname')
+   print_level = kwargs.pop('print_level', -1)
+   
+   row = prc.get_row_by_name(blockname)
+   col = prc.get_col_by_name(blockname)
+   mat = prc.get_operator_block(row, col)
+  
+   inv_boomeramg = mfem.HypreBoomerAMG(mat)
+   inv_boomeramg.SetPrintLevel(print_level)
+   inv_boomeramg.iterative_mode = False
+   
+   return inv_boomeramg
 
 @prc.block
 def schur(*names, **kwargs):
