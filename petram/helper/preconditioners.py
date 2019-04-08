@@ -494,25 +494,25 @@ def bicgstab(atol=1e-24, rtol=1e-12, max_num_iter=5,
     blockname = kwargs.pop('blockname')
 
     if use_parallel:
-        bicg = mfem.BiCGSTABSolver(MPI.COMM_WORLD)
+        bicgstab = mfem.BiCGSTABSolver(MPI.COMM_WORLD)
     else:
-        bicg = mfem.BiCGSTABSolver()
-    bicg.iterative_mode = False
-    bicg.SetRelTol(rtol)
-    bicg.SetAbsTol(atol)
-    bicg.SetMaxIter(max_num_iter)
-    bicg.SetPrintLevel(print_level)    
+        bicgstab = mfem.BiCGSTABSolver()
+    bicgstab.iterative_mode = False
+    bicgstab.SetRelTol(rtol)
+    bicgstab.SetAbsTol(atol)
+    bicgstab.SetMaxIter(max_num_iter)
+    bicgstab.SetPrintLevel(print_level)    
     r0 = prc.get_row_by_name(blockname)
     c0 = prc.get_col_by_name(blockname)
     
     A0 = prc.get_operator_block(r0, c0)    
 
-    bicg.SetOperator(A0)
+    bicgstab.SetOperator(A0)
     if preconditioner is not None:
-        bicg.SetPreconditioner(preconditioner)
+        bicgstab.SetPreconditioner(preconditioner)
         # keep this object from being freed...
-        bicg._prc = preconditioner
-    return bicg
+        bicgstab._prc = preconditioner
+    return bicgstab
 
 
 # these are here to use them in script w/o disnginguishing
