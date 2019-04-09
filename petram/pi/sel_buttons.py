@@ -61,8 +61,11 @@ def show_all(evt):
 
     namestart = mode if mode != 'volume' else 'face'
     for name, child in ax.get_children():
-       if name.startswith(namestart):
+       if name.startswith('point'):continue
+       if name.startswith('face'):
            child.hide_component([])
+       elif name.startswith('edge'):           
+           child.hide_component([])           
            
     viewer._hidden_volume = []
     viewer._hidden_face = []
@@ -77,25 +80,27 @@ def hide_elem(evt, inverse=False):
     ax = viewer.get_axes()
     namestart = mode if mode != 'volume' else 'face'
     objs = [child for name, child in ax.get_children() if name.startswith(namestart)]
+    Eobjs = [child for name, child in ax.get_children() if name.startswith('edge')]
+    Fobjs = [child for name, child in ax.get_children() if name.startswith('face')]
+    s2l, v2s = viewer._s_v_loop['phys']
     
     if mode == 'volume':
         facesa = []
         facesb = []        
-        s, v = viewer._s_v_loop['phys']
         selected_volume = viewer._dom_bdr_sel[0]
 
         target_volumes = selected_volume
         if not inverse:
             target_volumes.extend(viewer._hidden_volume)
-        for key in v.keys():
+        for key in v2s.keys():
             if key in target_volumes:
-                facesa.extend(v[key])
+                facesa.extend(v2s[key])
             else:
-                facesb.extend(v[key])
+                facesb.extend(v2s[key])
         if inverse:
             for o in objs:             
                 o.hide_component(facesa, inverse=True)
-            hidden_volume = [x for x in v.keys() if not x in selected_volume]            
+            hidden_volume = [x for x in v2s.keys() if not x in selected_volume]            
             viewer._hidden_volume = hidden_volume
         else:
             facesa = np.unique(np.array(facesa))
@@ -110,12 +115,26 @@ def hide_elem(evt, inverse=False):
     elif mode == 'face' or mode == 'edge':
         for o in objs:
             idx = o.getSelectedIndex()
-            idx = list(set(o.hidden_component+idx))                
+            idx = list(set(o.hidden_component+idx))
+            print(idx)
             o.hide_component(idx, inverse=inverse)
     elif mode == 'point':
         pass
     else:
         pass
+
+    if mode == 'volume' or mode == 'face':
+        from petram.mesh.mesh_utils import line2surf        
+        hidden_face = sum([o.hidden_component for o in Fobjs], [])
+        l2s = line2surf(s2l)
+        hide_this_edge = [l for l, ss in l2s.iteritems()
+                      if np.intersect1d(ss, hidden_face).size==len(ss)]
+
+        for o in Eobjs:
+           idx = o.getSelectedIndex()
+           idx = list(set(o.hidden_component+hide_this_edge))                
+           o.hide_component(idx)
+
     viewer.canvas.unselect_all()
     viewer._dom_bdr_sel  = ([], [], [], [])    
     viewer.draw_all()

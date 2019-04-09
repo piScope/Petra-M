@@ -1925,7 +1925,7 @@ class Engine(object):
             dprint1("allocate_fespace: " + name)            
             is_new, fec, fes = self.get_or_allocate_fecfes(name, emesh_idx, elem,
                                                            order, vdim)
-            dprint1("debug", fec.Name(), fes.GetMesh().GetNE())
+            #dprint1("debug", fec.Name(), fes.GetMesh().GetNE())
             
             '''
             key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
