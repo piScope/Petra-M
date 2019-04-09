@@ -116,7 +116,6 @@ def hide_elem(evt, inverse=False):
         for o in objs:
             idx = o.getSelectedIndex()
             idx = list(set(o.hidden_component+idx))
-            print(idx)
             o.hide_component(idx, inverse=inverse)
     elif mode == 'point':
         pass
