@@ -1837,7 +1837,7 @@ class Engine(object):
 
         for node in m.walk():
            if not isinstance(node, cls): continue
-           if not node.enabled: continue
+           if not node.is_enabled(): continue
            ret = node.process_sel_index(choice, internal_bdr=internal_bdr)
            
            if ret is None:
