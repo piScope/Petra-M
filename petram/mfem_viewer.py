@@ -168,7 +168,7 @@ class MFEMViewer(BookViewer):
                                traceback=traceback.format_exc())
         self.plot_mfem_geom()        
         self.model.scripts.helpers.rebuild_ns()                
-        self.engine.run_config()
+        #self.engine.run_config()
 
         self.canvas._popup_style = 1 # popup_skip_2d
         #self.canvas.__class__ = MFEMViewerCanvas

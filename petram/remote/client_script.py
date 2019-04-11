@@ -80,6 +80,7 @@ def send_file(model, skip_mesh = False):
 
     if skip_mesh: return
     for od in mfem_model.walk():
+        if not od.is_enabled(): continue
         if hasattr(od, 'use_relative_path'):
             path = od.get_real_path()
             dpath = rwdir+'/'+os.path.basename(od.path)
