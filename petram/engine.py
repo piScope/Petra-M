@@ -225,11 +225,17 @@ class Engine(object):
         
      
     def set_model(self, model):
+        dprint1("set model")
         self.model = model
         self.is_assembled = False
         self.is_initialized = False        
         self.meshes = []
         self.emeshes = []
+        self.emesh_data = None
+        self.fec = {}        
+        self.fespaces = {}
+        self.fecfes_storage = {}
+        self.pp_extra = {}
         if model is None: return
             
         self.alloc_flag  = {}
@@ -342,15 +348,17 @@ class Engine(object):
         solver = model["Solver"].get_active_solvers()
         return solver
      
-    def run_config(self):
+    def run_config(self, skip_refine = False):
         '''
         this runs model['General'] and
         fill namespace dict
         '''
         self.model['General'].run()
-        self.run_mesh_serial()
-        self.run_mesh_extension_prep()        
+        self.run_mesh_serial(skip_refine=skip_refine)
         self.build_ns()
+        self.assign_phys_pp_sel_index()                    
+        self.run_mesh_extension_prep()        
+        self.assign_sel_index()
       
     def run_preprocess(self, ns_folder = None, data_folder = None):
         dprint1("!!!!! run preprocess !!!!!")
@@ -2118,7 +2126,9 @@ class Engine(object):
             if file.startswith('proble'): os.remove(os.path.join(d, file))
             if file.startswith('matrix'): os.remove(os.path.join(d, file))
             if file.startswith('rhs'): os.remove(os.path.join(d, file))
-            if file.startswith('checkpoint_'): shutil.rmtree(os.path.join(d, file))   
+            if file.startswith('checkpoint_'):
+               print("removing checkpoint_", file)
+               shutil.rmtree(os.path.join(d, file))   
 
     def clear_solmesh_files(self, header):
         try:

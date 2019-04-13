@@ -662,7 +662,8 @@ class Model(RestorableOrderedDict):
         return ans
     
     def _generate_model_script(self, script = None,
-                               skip_def_check = False, dir = None):
+                               skip_def_check = False,
+                               dir = None):
         # assigne script index if root node
         if script is None:
             self.set_script_idx()

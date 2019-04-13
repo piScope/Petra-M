@@ -37,8 +37,8 @@ from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
 def MFEM_menus(parent):
     self = parent
     menus = [("+Open Model...", None, None),
-             #("Binary...", self.onOpenPMFEM, None, None),
-             ("Script/Data Files...", self.onOpenModelS, None),
+             ("Binary...", self.onOpenPMFEM, None, None),
+             #("Script/Data Files...", self.onOpenModelS, None),
              ("!", None, None),                 
              ("+Mesh", None, None), 
              ("New Mesh File...",  self.onNewMesh, None),
@@ -274,36 +274,6 @@ class MFEMViewer(BookViewer):
             mm = []
             from petram.sol.solsets import read_solsets, find_solfiles            
             for m0, m2 in menus:
-                '''
-                def handler(evt, dir0 = m0):
-                    self.model.scripts.helpers.rebuild_ns()                    
-                    self.engine.assign_sel_index()
-                    path = os.path.join(dir, dir0)
-                    print('loading sol from ' + path)
-
-                    solfiles = find_solfiles(path = path)
-                    self.model.variables.setvar('solfiles', solfiles)                    
-                    #solsets = read_solsets(path = path)
-                    #self.model.variables.setvar('solsets', solsets)
-                    m = self.model.param.getvar('mfem_model')        
-                    m.set_root_path(self.model.owndir())
-                    
-                    evt.Skip()
-                def handler2(evt):
-                    path = dialog.readdir(message='Select solution directory',)
-                    if path == '': return
-                    self.model.scripts.helpers.rebuild_ns()            
-                    self.engine.assign_sel_index()                    
-
-                    solfiles = find_solfiles(path = path)
-                    self.model.variables.setvar('solfiles', solfiles)                    
-                    #solsets = read_solsets(path = str(path))
-                    #self.model.variables.setvar('solsets', solsets)
-                    m = self.model.param.getvar('mfem_model')        
-                    m.set_root_path(self.model.owndir())
-                    
-                    evt.Skip()
-                '''
                 def handler(evt, dir0 = m0):
                     #self.model.scripts.helpers.rebuild_ns()                    
                     #self.engine.assign_sel_index()
@@ -343,13 +313,48 @@ class MFEMViewer(BookViewer):
         #self.model.variables.setvar('engine', self.engine)
 
     def onOpenPMFEM(self, evt):
+        import cPickle as pickle        
+        from ifigure.mto.py_code import PyData
+        from ifigure.mto.py_script import PyScript        
+        
         from petram.mesh.mesh_model import MeshFile        
         path = dialog.read(message='Select model file to read', wildcard='*.pmfm')
         if path == '': return
 
-        import cPickle as pickle
         od = pickle.load(open(path, 'rb'))
         self.model.param.setvar('mfem_model', od)
+
+        # clean up namespaces/datasets
+        for name, child in self.model.namespaces.get_children():
+            child.destroy()
+        for name, child in self.model.datasets.get_children():
+            child.destroy()
+            
+        # first expand all namelist under namespaces
+        dir = self.model.namespaces.owndir()
+        
+        ns_names = []
+        for node in od.walk():
+            if node.has_ns():
+                if node.ns_name is None: continue
+                if not node.ns_name in ns_names:
+                    ns_names.append(node.ns_name)
+                    node.write_ns_script_data(dir = dir)
+                    
+        for file in os.listdir(dir):
+            print("processing file", file)
+            if file == os.path.basename(path): continue
+            if file.endswith('.py'):
+                #shutil.copy(os.path.join(dir, file), self.model.namespaces.owndir())
+                sc = self.model.namespaces.add_childobject(PyScript, file[:-3])
+                sc.load_script(os.path.join(self.model.namespaces.owndir(), file))
+            if file.endswith('.dat'):
+                fid = open(os.path.join(dir, file), 'r')
+                data = pickle.load(fid)
+                fid.close()
+                obj = self.model.datasets.add_childobject(PyData, file[:-6]+'data')
+                obj.setvar(data)
+        
         self.cla()
         self.load_mesh()
 
@@ -357,7 +362,8 @@ class MFEMViewer(BookViewer):
             od = self.model.param.getvar('mfem_model')        
             self.editdlg.set_model(od)        
         self.model.variables.setvar('modelfile_path', path)
-        
+        evt.Skip()
+    '''    
     def onOpenModelS(self, evt):
         import imp, shutil
         import cPickle as pickle
@@ -402,7 +408,7 @@ class MFEMViewer(BookViewer):
             self.editdlg.set_model(od)        
 
         evt.Skip()
-        
+    '''   
     def _getSelectedIndex(self, mode='face'):
         objs = [o().figobj for o in self.canvas.selection]
 
@@ -566,10 +572,12 @@ class MFEMViewer(BookViewer):
         
         try:
             os.chdir(self.model.owndir())
-            self.engine.run_mesh(skip_refine = True)
+            #self.engine.run_mesh(skip_refine = True)
+            self.engine.run_config(skip_refine = True)
             mesh = self.engine.get_mesh()
             self.model.variables.setvar('mesh', mesh)
             os.chdir(cdir)
+            
         except:
             os.chdir(cdir)            
             dialog.showtraceback(parent = self,
@@ -760,6 +768,7 @@ class MFEMViewer(BookViewer):
     def onEditModel(self, evt):
         from pi.dlg_edit_model import DlgEditModel
         try:
+           self.engine.assign_phys_pp_sel_index()            
            self.engine.assign_sel_index()
         except:
            traceback.print_exc()

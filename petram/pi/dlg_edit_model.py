@@ -472,6 +472,7 @@ class DlgEditModel(SimpleFramePlus):
             elif isinstance(mm, Bdry):
                 if not hasattr(mm, '_sel_index') or mm.sel_index == 'remaining':
                     phys = mm.get_root_phys()
+                    engine.assign_phys_pp_sel_index()                                
                     engine.assign_sel_index(phys)
 
                 if mm.dim == 3:
@@ -492,6 +493,7 @@ class DlgEditModel(SimpleFramePlus):
             elif isinstance(mm, Domain):
                 if not hasattr(mm, '_sel_index') or mm.sel_index == 'remaining':
                     phys = mm.get_root_phys()
+                    engine.assign_phys_pp_sel_index()
                     engine.assign_sel_index(phys)
 
                 if mm.dim == 3:
