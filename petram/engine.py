@@ -225,7 +225,6 @@ class Engine(object):
         
      
     def set_model(self, model):
-        dprint1("set model")
         self.model = model
         self.is_assembled = False
         self.is_initialized = False        

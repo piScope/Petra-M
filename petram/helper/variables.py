@@ -83,8 +83,13 @@ def eval_code(co, g, l, flag = None):
     if flag is not None:
         if not flag: return co
     else:
-        if not isinstance(co, types.CodeType): return co        
-    a = eval(co, g, l)        
+        if not isinstance(co, types.CodeType): return co
+    try:
+        a = eval(co, g, l)
+    except NameError:
+        dprint1("global names", g.keys())
+        dprint1("local names",  l.keys())        
+        raise
     if callable(a): return a()
     return a
 
