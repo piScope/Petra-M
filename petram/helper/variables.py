@@ -57,6 +57,9 @@ if use_parallel:
     import mfem.par as mfem
 else:
     import mfem.ser as mfem
+    
+import petram.debug
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('Variables')
 
 class _decorator(object):
     def float(self, dependency=None):
