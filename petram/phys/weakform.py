@@ -352,7 +352,7 @@ class WeakIntegration(Phys):
      
 class WeakLinIntegration(WeakIntegration):
     def has_lf_contribution(self, kfes):
-        return True
+        return self.test_idx == kfes
      
     def itg_choice(self):
         t = self.get_root_phys().fes_type
@@ -432,7 +432,7 @@ class WeakBilinIntegration(WeakIntegration):
         trialname  = var_s[self.paired_var[1]]
         testname = self.get_root_phys().dep_vars[self.test_idx]
 
-        return (trialname == testname)
+        return (trialname == testname) and (self.test_idx == kfes)
      
     def has_mixed_contribution(self):
         mfem_physroot = self.get_root_phys().parent

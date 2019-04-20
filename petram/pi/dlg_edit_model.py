@@ -128,6 +128,8 @@ class DlgEditModel(SimpleFramePlus):
                   self.OnItemRightClick)
         self.Bind(wx.EVT_TREE_SEL_CHANGED, 
                   self.OnItemSelChanged)
+        self.Bind(wx.EVT_TREE_SEL_CHANGING, 
+                  self.OnItemSelChanging)
         #s.Add(self.tree, 0, wx.EXPAND|wx.ALL, 1)
         #s2.Add(self.nb, 1, wx.EXPAND|wx.ALL, 1)        
         wx.GetApp().add_palette(self)
@@ -388,7 +390,62 @@ class DlgEditModel(SimpleFramePlus):
     def OnRefreshTree(self, evt=None):
         self.tree.RefreshItems()
         if evt is not None: evt.Skip()
+        
+    def OnItemSelChanging(self, evt):
+        if self.tree.GetSelection() is None: return
+        
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
 
+        p1children = self.p1sizer.GetChildren()
+        phys = None
+        viewer_update = False
+        if len(p1children) > 0:
+            elp1 = p1children[0].GetWindow()
+            v1 = elp1.GetValue()
+            viewer_update = mm.import_panel1_value(v1)
+            try:
+                phys = mm.get_root_phys()
+            except:
+                pass
+            elp1.SetValue(mm.get_panel1_value())
+            
+        if mm.has_2nd_panel:
+            p2children = self.p2sizer.GetChildren()
+            if len(p2children) > 0:
+                elp2 = p2children[0].GetWindow()
+                v2 = elp2.GetValue()
+                viewer_update = mm.import_panel2_value(v2)
+                elp2.SetValue(mm.get_panel2_value())
+            
+        if mm.has_3rd_panel:                
+            p3children = self.p3sizer.GetChildren()
+            if len(p3children) > 0:
+                elp3 = p3children[0].GetWindow()
+                v3 = elp3.GetValue()
+                viewer_update = mm.import_panel3_value(v3)
+                elp3.SetValue(mm.get_panel3_value())
+
+        if mm.has_4th_panel:                
+            p4children = self.p4sizer.GetChildren()
+            if len(p4children) > 0:
+                elp4 = p4children[0].GetWindow()
+                v4 = elp4.GetValue()
+                viewer_update = mm.import_panel4_value(v4)
+                elp4.SetValue(mm.get_panel4_value())
+                
+        if phys is not None:
+           viewer = self.GetParent()
+           try:
+               engine = viewer.engine.assign_sel_index(phys)
+           except:
+               traceback.print_exc()
+               
+        if viewer_update:
+            mm.update_after_ELChanged(self)
+        self.tree.RefreshItems()            
+        evt.Skip()
+    
     def OnItemSelChanged(self, evt = None):
         if self.tree.GetSelection() is None: return
 

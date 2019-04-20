@@ -924,7 +924,6 @@ class Engine(object):
     #  Step 2  fill matrix/rhs elements
     #
     def fill_bf(self, phys, update):
-       
         renewargs = []
         if update:
             # make mask to renew r_a/i_a           
@@ -932,7 +931,7 @@ class Engine(object):
 
             for kfes, name in enumerate(phys.dep_vars):
                 ifes  = self.ifes(name)
-                rifes = self.r_ifes(name)                
+                rifes = self.r_ifes(name)
                 for mm in phys.walk():
                     if not mm.enabled: continue
                     if not mm.has_bf_contribution2(kfes, self.access_idx):continue
@@ -1782,7 +1781,7 @@ class Engine(object):
     #
     def assign_phys_pp_sel_index(self):
         if len(self.meshes) == 0:
-            dprint1('!!!! mesh is None !!!!')
+            #dprint1('!!!! mesh is None !!!!')
             return
         all_phys = [self.model['Phys'][k] for
                         k in self.model['Phys'].keys()]
@@ -1809,7 +1808,7 @@ class Engine(object):
         
     def assign_sel_index(self, phys = None):
         if len(self.meshes) == 0:
-            dprint1('!!!! mesh is None !!!!')
+            #dprint1('!!!! mesh is None !!!!')
             return
         if phys is None:
             all_phys = [self.model['Phys'][k] for
@@ -2036,8 +2035,6 @@ class Engine(object):
         from petram.mesh.mesh_extension import MeshExt
         from petram.mesh.mesh_utils import  get_extended_connectivity
         
-        dprint1("Loading mesh (serial)")
-        
         self.meshes = []
         self.emeshes = []
         if self.emesh_data is None:
@@ -2055,6 +2052,7 @@ class Engine(object):
                     o = child[k]
                     if not o.enabled: continue
                     if o.isMeshGenerator:
+                        dprint1("Loading mesh (serial)")                       
                         self.meshes[idx] = o.run()
                         target = self.meshes[idx]
                     else:

@@ -744,9 +744,12 @@ class PhysModule(Phys):
     def get_var_suffix_var_name_panel(self):
         from petram.pi.widgets import TextCtrlCallBack
         a = ["dep. vars. suffix", self.dep_vars_suffix, 99, {'UI': TextCtrlCallBack,
-                                           'callback_method':self.onVarNameChanged}]      
+                                                             'callback_on_enter': True,                                                             
+                                                             'callback_method':self.onVarNameChanged}]      
         b = ["dep. vars.", ','.join(self.dep_vars_base), 99, {'UI': TextCtrlCallBack,
-                                           'callback_method':self.onVarNameChanged}]
+                                                              'callback_on_enter': True,
+                                                              'callback_method':self.onVarNameChanged}]
+        
         return a, b        
      
     def panel1_param(self):

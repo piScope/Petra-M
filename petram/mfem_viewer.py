@@ -653,6 +653,9 @@ class MFEMViewer(BookViewer):
         '''
         i is 1-based index
         '''
+        if not self._view_mode in self._s_v_loop:
+            return
+        
         _s_v_loop = self._s_v_loop[self._view_mode]
         ax = self.get_axes()
         
