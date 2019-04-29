@@ -230,7 +230,9 @@ class WF(PhysModule):
     def get_possible_point(self):
         from wf_constraints import WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint
         #from wf_essential import WF_Essential
-        return [WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint]
+        #return [WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint]
+        # Bilinear form does not suppoert delta coefficent
+        return [WF_WeakPointLinConstraint]
     
     def get_possible_pair(self):
         from wf_pairs import WF_PeriodicBdr

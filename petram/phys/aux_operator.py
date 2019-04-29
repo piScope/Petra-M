@@ -74,7 +74,7 @@ class AUX_Operator(Phys):
                 {"style":wx.CB_READONLY, "choices": dep_vars}]]
 
         ll2 = self.vt_oprt.panel_param(self)
-        ll3 = [["add transpose",  self.use_symmetric,        3, {"text":""}],
+        ll3 = [["symmetric",  self.use_symmetric,        3, {"text":""}],
                ["anti-symmetric",  self.use_anti_symmetric,   3, {"text":""}],  
                ["use  conjugate",  self.use_conj,             3, {"text":""}],  ]
         
@@ -147,7 +147,7 @@ class AUX_Operator(Phys):
          
         if (trialname == testname2 and 
             testname == trialname2 and
-            self.use_symmetric):
+            (self.use_symmetric or self.use_anti_symmetric)):
             return True           
 
         return False

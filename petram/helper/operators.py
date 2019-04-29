@@ -293,7 +293,42 @@ class Identity(Operator):
         m1.setDiag(idx)
         
         return m1
+     
+class Zero(Operator):
+    def assemble(self, *args, **kwargs):
+        engine = self._engine()
+        self.process_kwargs(engine, kwargs)
+        
+        fes1 = self._fes1()
+        fes2 = fes1 if self._fes2 is None else self._fes2()
+        if fes1 == fes2:
+            bf = engine.new_bf(fes1)
+            bf.Assemble()
+            bf.Finalize()
+            mat = engine.a2A(bf)
+        else:
+            bf = engine.new_mixed_bf(fes1, fes2)
+            bf.Assemble()
+            mat = engine.a2Am(bf)
 
+        if use_parallel:
+            mat.CopyRowStarts()
+            mat.CopyColStarts()
+            
+        from mfem.common.chypre import MfemMat2PyMat
+        m1 = MfemMat2PyMat(mat, None)
+        
+        if not use_parallel:
+            from petram.helper.block_matrix import convert_to_ScipyCoo
+            m1 = convert_to_ScipyCoo(m1)
+        shape = m1.shape
+        assert shape[0]==shape[1], "Zero Operator must be square"
+        idx = range(shape[0])
+        m1.setDiag(idx)
+        m1 *= 0.0
+        
+        return m1
+   
 class Delta(Operator):
     '''
     Delta function

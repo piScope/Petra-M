@@ -7,7 +7,8 @@ operators = {"integral" :ops.Integral,
              "identity":ops.Identity,
              "projection":ops.Projection,
              "delta":ops.Delta,
-             "deltam":ops.DeltaM}
+             "deltam":ops.DeltaM,
+             "zero":ops.Zero}
 
 def get_operators():
     return {key: operators[key]() for key in operators}
