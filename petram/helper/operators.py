@@ -252,6 +252,38 @@ class Integral(Operator):
         if not self._transpose:        
             v1 = v1.transpose()
         return v1
+     
+def make_diagonal_mat(engine, fes1, fes2, value):
+    if fes1 == fes2:
+        bf = engine.new_bf(fes1)
+        bf.Assemble()
+        bf.Finalize()
+        mat = engine.a2A(bf)
+    else:
+        bf = engine.new_mixed_bf(fes1, fes2)
+        #one = mfem.ConstantCoefficient(0.0001)
+        #itg = mfem.MixedScalarMassIntegrator()
+        #bf.AddDomainIntegrator(itg)
+        bf.Assemble()
+        mat = engine.a2Am(bf)
+
+    if use_parallel:
+        mat.CopyRowStarts()
+        mat.CopyColStarts()
+            
+    from mfem.common.chypre import MfemMat2PyMat
+    m1 = MfemMat2PyMat(mat, None)
+        
+    if not use_parallel:
+        from petram.helper.block_matrix import convert_to_ScipyCoo
+        m1 = convert_to_ScipyCoo(m1)
+    shape = m1.shape
+    assert shape[0]==shape[1], "Identity Operator must be square"
+
+    idx = range(shape[0])
+    m1.setDiag(idx, value=value)
+    
+    return m1
 
 class Identity(Operator):    
     def assemble(self, *args, **kwargs):
@@ -260,6 +292,8 @@ class Identity(Operator):
         
         fes1 = self._fes1()
         fes2 = fes1 if self._fes2 is None else self._fes2()
+        return make_diagonal_mat(engine, fes1, fes2, 1.0)
+        '''
         if fes1 == fes2:
             bf = engine.new_bf(fes1)
             #one = mfem.ConstantCoefficient(0.0001)
@@ -291,8 +325,9 @@ class Identity(Operator):
 
         idx = range(shape[0])
         m1.setDiag(idx)
-        
+
         return m1
+        '''
      
 class Zero(Operator):
     def assemble(self, *args, **kwargs):
@@ -301,6 +336,9 @@ class Zero(Operator):
         
         fes1 = self._fes1()
         fes2 = fes1 if self._fes2 is None else self._fes2()
+        return make_diagonal_mat(engine, fes1, fes2, 0.0)
+
+        '''
         if fes1 == fes2:
             bf = engine.new_bf(fes1)
             bf.Assemble()
@@ -324,11 +362,10 @@ class Zero(Operator):
         shape = m1.shape
         assert shape[0]==shape[1], "Zero Operator must be square"
         idx = range(shape[0])
-        m1.setDiag(idx)
-        m1 *= 0.0
+        m1.setDiag(idx, value=0.0)
         
         return m1
-   
+        '''
 class Delta(Operator):
     '''
     Delta function

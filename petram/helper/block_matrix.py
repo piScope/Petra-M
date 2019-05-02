@@ -82,6 +82,7 @@ class ScipyCoo(coo_matrix):
         return convert_to_ScipyCoo(ret)
 
     def setDiag(self, idx, value=1.0):
+       
         ret = self.tolil()
         idx = np.array(idx, dtype=int, copy=False)
         ret[idx,idx] = value
@@ -713,6 +714,48 @@ class BlockMatrix(object):
                                      ":" + str(type(self[i,0])))
             return np.hstack(data).reshape(-1,1)
 
+    def add_empty_square_block(self, r, c):
+        '''
+        add a square matrix to r, c element
+ 
+        note: this is used to add diagnal block so that essential BC elimination
+              works when diagnaol block is not specified in the model tree
+          
+              it is assuemd that the size of matrix can be inferred from
+              off-diagonal blocks
+
+              It generate a matrix whose memory for diag elements is allocated.
+
+        '''
+        dprint1("adding empty block ", r, c)
+        if self[r,c] is not None:
+           assert False, "block is already filled"
+        roffset = []
+        coffset = []
+        rsize = -1
+        csize = -1       
+        for i in range(self.shape[0]):
+            if self[i, c] is not None:
+                csize = self[i,c].shape[1]
+                if self.kind != 'scipy':
+                     cp = self[i,c].GetColPartArray()                  
+        for j in range(self.shape[1]):
+            if self[r, j] is not None:
+                rsize = self[r,j].shape[0]
+                if self.kind != 'scipy':
+                     rp = self[r,j].GetRowPartArray()
+
+        if rsize < 0 or csize < 0:
+            assert False, "can not determine the size of element"
+        if rsize != csize:
+            assert False, "matrix is not squre"
+        if self.kind == 'scipy':
+            m = scipy.sparse.eye(rsize, format='coo', dtype=float)
+            self[r,c] = convert_to_ScipyCoo(m)
+        else:
+            from mfem.common.chypre import SquareCHypreMat
+            self[r,c] = SquareCHypreMat(rp, real=True)
+    
     def get_global_offsets(self, convert_real = False,
                                  interleave = True):
         '''

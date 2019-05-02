@@ -24,6 +24,11 @@ import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Engine')
 from petram.helper.matrix_file import write_coo_matrix, write_vector
 
+# if you need to turn a specific warning to exception
+#import scipy.sparse
+#import warnings
+#warnings.filterwarnings('error', category=scipy.sparse.SparseEfficiencyWarning)
+
 def iter_phys(phys_targets, *args):
     for phys in phys_targets:
         yield [phys] + [a[phys] for a in args]
@@ -1406,7 +1411,10 @@ class Engine(object):
            gl_ess_tdof = self.gl_ess_tdofs[name]
            ess_tdof = self.ess_tdofs[name]
            idx1 = self.dep_var_offset(name)
-           idx2 = self.r_dep_var_offset(name)           
+           idx2 = self.r_dep_var_offset(name)
+           if A[idx1, idx2] is None:
+              A.add_empty_square_block(idx1, idx2)
+
            if A[idx1, idx2] is not None:
               Aee, A[idx1, idx2] = A[idx1, idx2].eliminate_RowsCols(ess_tdof,
                                                                   inplace=inplace)
@@ -2452,10 +2460,10 @@ class Engine(object):
             ilf = None
         return MfemVec2PyVec(rlf, ilf, horizontal=horizontal)
             
-       
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(SerialEngine, self).__init__(modelfile = modelfile, model=model)
+        self.isParallel = False       
 
     def run_mesh(self, meshmodel = None, skip_refine=False):
         '''
@@ -2607,7 +2615,7 @@ class SerialEngine(Engine):
 class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(ParallelEngine, self).__init__(modelfile = modelfile, model=model)
-
+        self.isParallel = True
 
     def run_mesh(self, meshmodel = None):
         from mpi4py import MPI
@@ -2914,6 +2922,7 @@ class ParallelEngine(Engine):
         else:
             pass
         MPI.COMM_WORLD.Barrier()
+
 
     def a2A(self, a):   # BilinearSystem to matrix
         # we dont eliminate essentiaal at this level...                 
