@@ -42,6 +42,13 @@ def gather_soldirinfo(path):
                 signal = '_'.join(nn.split('.')[0].split('_')[1:])
             probes[signal].append(nn)
 
+    # sort probe files using the process number
+    for key in probes:
+        if len(probes[key]) > 1:
+             xxx = [(int(x.split('.')[1]), x) for x in	probes[key]]
+      	     xxx = [x[1] for x in sorted(xxx)]
+             probes[key] = xxx            
+
     probes = dict(probes)
     cases = []
     for nn in os.listdir(path):

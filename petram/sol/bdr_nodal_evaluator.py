@@ -161,7 +161,7 @@ def eval_at_nodals(obj, expr, solvars, phys):
                                     locs  = obj.locs,
                                     elvertloc = obj.elvertloc,
                                     wverts = obj.wverts,
-                                    mesh = obj.mesh(),
+                                    mesh = obj.mesh()[obj.emesh_idx],
                                     iverts_f = obj.iverts_f,
                                     g  = g,
                                     knowns = obj.knowns))
