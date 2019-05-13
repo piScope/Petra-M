@@ -946,7 +946,9 @@ class BlockMatrix(object):
         '''
         roffsets, coffsets = self.get_local_partitioning(convert_real=True,
                                                          interleave=True)
-        dprint1("offsets", roffsets, coffsets)
+        dprint1("Generating MFEM BlockMatrix: shape = "+str((len(roffsets)-1, len(coffsets)-1)))
+        dprint1("Generating MFEM BlockMatrix: roffset/coffset = ", roffsets, coffsets)
+
         ro = mfem.intArray(list(roffsets))
         co = mfem.intArray(list(coffsets))        
         glcsr = mfem.BlockOperator(ro, co)

@@ -346,9 +346,6 @@ class AUX_Variable(Phys):
 
         '''
         Format of extra.
-     
-        horizontal, vertical, diag, rhs, flag
-  
         [M,  t2]   [  ]
         [      ] = [  ]
         [t1, t3]   [t4]

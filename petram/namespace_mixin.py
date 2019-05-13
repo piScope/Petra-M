@@ -217,6 +217,14 @@ class NS_mixin(object):
         for k in l.keys():
             g[k] = l[k]  # copying default ns
 
+        import mfem
+        if mfem.mfem_mode == 'serial':
+            g['mfem'] = mfem.ser
+        elif mfem.mfem_mode == 'parallel':
+            g['mfem'] = mfem.par
+        else:
+            assert False, "PyMFEM is not loaded"
+
         try:
             l = {}
             if (self.ns_string != '' and self.ns_string is not None):

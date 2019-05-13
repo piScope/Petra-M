@@ -24,7 +24,7 @@ if use_parallel:
 else:
    import mfem.ser as mfem
    
-from petram.phys.vtable import VtableElement, Vtable   
+from petram.phys.vtable import VtableElement, Vtable  
 
 def get_integrators(filename):
     import petram
@@ -51,6 +51,8 @@ def get_integrators(filename):
  
 bilinintegs = get_integrators('BilinearOps')
 linintegs = get_integrators('LinearOps')
+
+from petram.helper.variables import NativeCoefficientGenBase
 
 def MCoeff(*args, **kwargs):
     class MCoeff(MatrixPhysCoefficient):
@@ -163,13 +165,13 @@ def VCoeff(*args, **kwargs):
             e = np.array(e, dtype=float, copy=False)
         return PhysVectorConstant(e)
      
-def SCoeff(*args, **kwargs):
+def SCoeff(exprs, ind_vars, l, g, **kwargs):
     class SCoeff(PhysCoefficient):
-       def __init__(self, *args, **kwargs):
+       def __init__(self, exprs, ind_vars, l, g, **kwargs):
            #print("SCoeff, args", args[:1])       
            self.component = kwargs.pop('component', None)
            self.conj = kwargs.pop('conj', False)       
-           super(SCoeff, self).__init__(*args, **kwargs)
+           super(SCoeff, self).__init__(exprs, ind_vars, l, g, **kwargs)
 
        def EvalValue(self, x):
            val = super(SCoeff, self).EvalValue(x)
@@ -190,18 +192,23 @@ def SCoeff(*args, **kwargs):
            else:
                return v
                
-    e = args[0]
     component = kwargs.get('component', None)
     conj = kwargs.get('conj', False)
     real = kwargs.get('real', True)
-    if any([isinstance(ee, str) for ee in e]):
-        return SCoeff(*args, **kwargs)
+    if any([isinstance(ee, str) for ee in exprs]):
+        return SCoeff(exprs, ind_vars, l, g, **kwargs)
+     
     else:
         # conj is ignored..(this doesn't no meaning...)       
         if component is None:
-            v = args[0]
+            v = exprs[0]
         else:
-            v = args[0][component]
+            v = exprs[0][component]
+          
+        if isinstance(v, NativeCoefficientGenBase):
+            # generate NativeCoefficient by calling it
+            return v(l, g)
+         
         if np.iscomplexobj(v):
             if conj:  v = np.conj(v)
             if real:  v = v.real

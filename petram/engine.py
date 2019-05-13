@@ -137,8 +137,8 @@ class Engine(object):
         from petram.helper.formholder import FormBlock
         
         self.n_matrix = n_matrix
-        self.collect_dependent_vars(phys_target)
-        self.collect_dependent_vars(phys_range, range_space=True)
+        self.collect_dependent_vars(phys_target, phys_range)
+        self.collect_dependent_vars(phys_range,  phys_range, range_space=True)
 
         n_fes  = len(self.fes_vars)
         n_rfes = len(self.r_fes_vars)
@@ -930,6 +930,7 @@ class Engine(object):
     #
     def fill_bf(self, phys, update):
         renewargs = []
+
         if update:
             # make mask to renew r_a/i_a           
             mask = [False]*len(phys.dep_vars)
@@ -959,14 +960,16 @@ class Engine(object):
         for kfes, name in enumerate(phys.dep_vars):
             if not mask[kfes]: continue           
             ifes  = self.ifes(name)
-            rifes = self.r_ifes(name)                
+            rifes = self.r_ifes(name)
+            
             for mm in phys.walk():
                 if not mm.enabled: continue
                 if not mm.has_bf_contribution2(kfes, self.access_idx):continue
                 if len(mm._sel_index) == 0: continue
 
                 proj = mm.get_projection()
-                ra = self.r_a[ifes, rifes, proj]                
+                ra = self.r_a[ifes, rifes, proj]
+                
                 mm.add_bf_contribution(self, ra, real = True, kfes = kfes)
             
         if not is_complex: return
@@ -984,7 +987,8 @@ class Engine(object):
                 if not mm.has_bf_contribution2(kfes, self.access_idx):continue
                 if len(mm._sel_index) == 0: continue
                 proj = mm.get_projection()                
-                ia = self.i_a[ifes, rifes, proj]                                
+                ia = self.i_a[ifes, rifes, proj]
+
                 mm.add_bf_contribution(self, ia, real = False, kfes = kfes)
         
     def fill_lf(self, phys, update):
@@ -1239,7 +1243,7 @@ class Engine(object):
     #
     def prepare_M_B_blocks(self):
         size1 = len(self.dep_vars)
-        size2 = len(self.r_dep_vars)                                 
+        size2 = len(self.r_dep_vars)
         M_block = [self.new_blockmatrix((size1, size2)) for i in range(self.n_matrix)]
         B_block = self.new_blockmatrix((size1, 1))
         return (M_block, B_block)
@@ -1259,9 +1263,6 @@ class Engine(object):
         from mfem.common.chypre import BF2PyMat, LF2PyVec, Array2PyVec
         from mfem.common.chypre import MfemVec2PyVec, MfemMat2PyMat    
         from itertools import product
-
-        #print 'mask_M', self.mask_M
-        #print 'mask_B', self.mask_B
 
         if update:
             M_changed = False
@@ -1286,10 +1287,9 @@ class Engine(object):
             self.i_a.generateMatVec(self.a2A, self.a2Am)
             
             for i, j in product(range(nfes),range(nrfes)):
-               
                 r = self.dep_var_offset(self.fes_vars[i])
                 c = self.r_dep_var_offset(self.r_fes_vars[j])
-                
+
                 if update and not self.mask_M[k, r, c]: continue
                                           
                 m = convertElement(self.r_a, self.i_a,
@@ -1300,15 +1300,24 @@ class Engine(object):
             for extra_name, dep_name, kfes in self.extras.keys():
                 r = self.dep_var_offset(extra_name)
                 c = self.r_dep_var_offset(dep_name)
+                c1 = self.dep_var_offset(extra_name)
+                if dep_name in self._dep_vars:
+                   r1 = self.dep_var_offset(dep_name)
+                else:
+                   r1 = -1
+
                 
                 if update and not self.mask_M[k, r, c]: continue
                 
-                # t1,t2,t3,t4 = (horizontal, vertical, diag, rhs). 
+                # t1,t2,t3,t4 = (vertical, horizontal, diag, rhs). 
                 t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]
                 
-                M[k][c,r] = t1 if M[k][c,r] is None else M[k][c,r]+t1
+                if r1 != -1:                
+                    M[k][c1,r1] = t1 if M[k][c1,r1] is None else M[k][c1,r1]+t1
+
                 M[k][r,c] = t2 if M[k][r,c] is None else M[k][r,c]+t2
-                M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3
+                #M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3                
+                M[k][r,c1] = t3 if M[k][r,c1] is None else M[k][r,c1]+t3
                 
             #print("aux", k, self.aux_ops.keys())                
             for key in self.aux_ops.keys():
@@ -1319,7 +1328,7 @@ class Engine(object):
                 
                 m = self.aux_ops[key]
                 M[k][r,c] = m if M[k][r,c] is None else M[k][r,c]+m
-                
+
         self.fill_B_blocks(B, update=update)
         '''
         self.access_idx = 0
@@ -1555,7 +1564,6 @@ class Engine(object):
             BB = np.hstack(BB)
         elif format == 'blk_interleave': # real coo converted from complex
             BB = [b.gather_blkvec_interleave() for b in B_blocks]
-            
         return BB
      
     def finalize_x(self,  X_block, RHS, mask, is_complex,
@@ -2076,7 +2084,7 @@ class Engine(object):
                 self.max_attr = np.max([self.max_attr, max(m.GetAttributeArray())])
             m.ReorientTetMesh()
             m.GetEdgeVertexTable()                                   
-            get_extended_connectivity(m)           
+            get_extended_connectivity(m)
            
     def run_mesh(self):
         raise NotImplementedError(
@@ -2279,7 +2287,7 @@ class Engine(object):
     def copy_block_mask(self, mask):
         self._matrix_blk_mask = mask
         
-    def collect_dependent_vars(self, phys_target=None, range_space=False):
+    def collect_dependent_vars(self, phys_target=None, phys_range=None, range_space=False):
         if phys_target is None:
            phys_target = [self.model['Phys'][k] for k in self.model['Phys']
                           if self.model['Phys'].enabled]
@@ -2302,7 +2310,8 @@ class Engine(object):
 
                for j in range(self.n_matrix):
                   for k in range(len(dv)):
-                      for phys2 in phys_target:
+                      #for phys2 in phys_target:
+                      for phys2 in phys_range:
                           if not phys2.enabled: continue                         
                           if not mm.has_extra_DoF2(k, phys2, j): continue
                       
@@ -2332,6 +2341,7 @@ class Engine(object):
             self._fes_vars = [x for x, flag in zip(self._dep_vars, self._isFESvar) if flag]
             dprint1("dependent variables", self._dep_vars)
             dprint1("is FEspace variable?", self._isFESvar)
+        
 
     def add_PP_to_NS(self, variables):
         for k in variables.keys():
