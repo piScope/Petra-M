@@ -1306,15 +1306,14 @@ class Engine(object):
                 else:
                    r1 = -1
 
-                
+
                 if update and not self.mask_M[k, r, c]: continue
                 
                 # t1,t2,t3,t4 = (vertical, horizontal, diag, rhs). 
                 t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]
                 
                 if r1 != -1:                
-                    M[k][c1,r1] = t1 if M[k][c1,r1] is None else M[k][c1,r1]+t1
-
+                    M[k][r1,c1] = t1 if M[k][r1,c1] is None else M[k][r1,c1]+t1
                 M[k][r,c] = t2 if M[k][r,c] is None else M[k][r,c]+t2
                 #M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3                
                 M[k][r,c1] = t3 if M[k][r,c1] is None else M[k][r,c1]+t3
