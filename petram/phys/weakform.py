@@ -27,8 +27,8 @@ else:
 from petram.phys.vtable import VtableElement, Vtable  
 
 def get_integrators(filename):
-    import petram
-    fid = open(os.path.join(os.path.dirname(petram.__file__), 'data', filename), 'r')
+    import petram.engine
+    fid = open(os.path.join(os.path.dirname(petram.engine.__file__), 'data', filename), 'r')
     lines = fid.readlines()
     fid.close()
     
