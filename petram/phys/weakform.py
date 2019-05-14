@@ -199,11 +199,12 @@ def SCoeff(exprs, ind_vars, l, g, **kwargs):
         return SCoeff(exprs, ind_vars, l, g, **kwargs)
      
     else:
-        # conj is ignored..(this doesn't no meaning...)       
+        # conj is ignored..(this doesn't no meaning...)
+        print("exprs",exprs)
         if component is None:
-            v = exprs[0]
+            v = exprs[0]         ## exprs[0]
         else:
-            v = exprs[0][component]
+            v = exprs[component] ## weakform10 didn't work with-> exprs[0][component]
           
         if isinstance(v, NativeCoefficientGenBase):
             # generate NativeCoefficient by calling it

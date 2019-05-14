@@ -1142,7 +1142,6 @@ class Engine(object):
                 names = phys2.dep_vars      
                 for kfes, name in enumerate(names):
                     if not mm.has_extra_DoF2(kfes, phys2, self.access_idx): continue
-                    
                     gl_ess_tdof = self.gl_ess_tdofs[name]                    
                     tmp  = mm.add_extra_contribution(self,
                                                      ess_tdof=gl_ess_tdof, 
@@ -1411,7 +1410,6 @@ class Engine(object):
         nblock2 = A.shape[1]        
         
         Ae = self.new_blockmatrix(A.shape)
-
         for name in self.gl_ess_tdofs:
            # we do elimination only for the varialbes to be solved
            if not name in self._dep_vars: continue
@@ -1912,7 +1910,6 @@ class Engine(object):
                 if not node.enabled: continue
                 if node.has_essential:
                     index = index + node.get_essential_idx(k)
-
             ess_bdr = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
             for kk in index: ess_bdr[kk-1] = 1
             flag.append((name, ess_bdr))
