@@ -200,7 +200,7 @@ def SCoeff(exprs, ind_vars, l, g, **kwargs):
      
     else:
         # conj is ignored..(this doesn't no meaning...)
-        print("exprs",exprs)
+        #print("exprs",exprs)
         if component is None:
             v = exprs[0]         ## exprs[0]
         else:

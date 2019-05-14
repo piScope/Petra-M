@@ -310,7 +310,7 @@ class EvaluatorMP(Evaluator):
         
     def eval(self, expr, merge_flag1, merge_flag2, **kwargs):
         self.tasks.put((7, expr, kwargs), join = True)
-        print("waiting for answer'")
+
         res = [self.results.get() for x in range(len(self.workers))]
         for x in range(len(self.workers)):
             self.results.task_done()
