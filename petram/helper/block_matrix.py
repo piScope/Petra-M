@@ -726,6 +726,9 @@ class BlockMatrix(object):
 
               It generate a matrix whose memory for diag elements is allocated.
 
+              If the size cannot be inferred, it does not do anything. This
+              means form has zero col/row blocks. This happens when time-dependent
+              solver fills the matrix (row corresponding to d/dt)
         '''
         dprint1("adding empty block ", r, c)
         if self[r,c] is not None:
@@ -733,20 +736,24 @@ class BlockMatrix(object):
         roffset = []
         coffset = []
         rsize = -1
-        csize = -1       
+        csize = -1
         for i in range(self.shape[0]):
             if self[i, c] is not None:
                 csize = self[i,c].shape[1]
                 if self.kind != 'scipy':
-                     cp = self[i,c].GetColPartArray()                  
+                     cp = self[i,c].GetColPartArray()
+                     shape = self[i,c].shape
         for j in range(self.shape[1]):
             if self[r, j] is not None:
                 rsize = self[r,j].shape[0]
                 if self.kind != 'scipy':
                      rp = self[r,j].GetRowPartArray()
+                     gsize =self[r,j].shape[0]                    
 
         if rsize < 0 or csize < 0:
-            assert False, "can not determine the size of element"
+            # this case does not fill the dialgona matrix
+            return
+
         if rsize != csize:
             assert False, "matrix is not squre"
         if self.kind == 'scipy':
@@ -754,6 +761,8 @@ class BlockMatrix(object):
             self[r,c] = convert_to_ScipyCoo(m)
         else:
             from mfem.common.chypre import SquareCHypreMat
+            print("rp", "cp", rp, cp, shape, gsize)
+            rp = [rp[0], rp[1], gsize]
             self[r,c] = SquareCHypreMat(rp, real=True)
     
     def get_global_offsets(self, convert_real = False,
@@ -946,7 +955,9 @@ class BlockMatrix(object):
         '''
         roffsets, coffsets = self.get_local_partitioning(convert_real=True,
                                                          interleave=True)
-        dprint1("offsets", roffsets, coffsets)
+        dprint1("Generating MFEM BlockMatrix: shape = "+str((len(roffsets)-1, len(coffsets)-1)))
+        dprint1("Generating MFEM BlockMatrix: roffset/coffset = ", roffsets, coffsets)
+
         ro = mfem.intArray(list(roffsets))
         co = mfem.intArray(list(coffsets))        
         glcsr = mfem.BlockOperator(ro, co)

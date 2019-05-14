@@ -494,6 +494,9 @@ class LinearSolverModel(SolverBase):
     is_iterative = True    
     def get_phys(self):
         return self.parent.get_phys()
+    
+    def get_phys_range(self):
+        return self.parent.get_phys_range()
 
     def linear_system_type(self, assemble_real, phys_real):
         '''

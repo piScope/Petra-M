@@ -124,7 +124,7 @@ class MFEM_PhysRoot(Model):
         return num_matrix
             
 
-    def all_dependent_vars(self, num_matrix, phys_target=None):
+    def all_dependent_vars(self, num_matrix, phys_target, phys_range):
         '''
         FES variable + extra variable
         '''
@@ -142,7 +142,7 @@ class MFEM_PhysRoot(Model):
                 if not mm.enabled: continue                
                 for j in range(num_matrix):
                   for k in range(len(dv)):                    
-                      for phys2 in phys_target:
+                      for phys2 in phys_range:
                           #if not phys2.enabled: continue
                           if not mm.has_extra_DoF2(k, phys2, j): continue
                           name = mm.extra_DoF_name2(k)

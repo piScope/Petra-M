@@ -25,7 +25,7 @@
     
     from petram.helper.variables import variable
 
-    @variable.float
+    @variable.float()
     def test(x, y, z):
        return 1-0.1j
 
@@ -35,7 +35,7 @@
        value = u()
        return value
 
-    @variable.complex
+    @variable.complex()
     def ctest(x, y, z):
        return 1-0.1j
 
@@ -689,11 +689,29 @@ class GridFunctionVariable(Variable):
         super(GridFunctionVariable, self).__init__(complex = complex)
         self.dim = gf_real.VectorDim()
         self.comp = comp
+        self.isGFSet= False
         self.isDerived = False
         self.deriv = deriv if deriv is not None else self._def_deriv
         self.deriv_args = (gf_real, gf_imag)
+        
     def _def_deriv(self, *args):
         return args[0], args[1], None
+
+    def get_gf_real(self):
+        if not self.isGFSet: self.set_gfr_gfi()
+        return self.gfr
+    
+    def get_gf_imag(self):
+        if not self.isGFSet: self.set_gfr_gfi()
+        return self.gfi
+    
+    def set_gfr_gfi(self):
+        gf_real, gf_imag, extra = self.deriv(*self.deriv_args)
+        self.gfr = gf_real
+        self.gfi = gf_imag
+        self.extra = extra
+        self.isGFSet= True
+        return gf_real, gf_imag
     
     def set_point(self,T, ip, g, l, t = None):
         self.T = T
@@ -751,9 +769,9 @@ class GFScalarVariable(GridFunctionVariable):
     def set_funcs(self):
         # I should come back here to check if this works
         # with vector gf and/or boundary element. probably not...
-        gf_real, gf_imag, extra = self.deriv(*self.deriv_args)
-        self.gfr = gf_real
-        self.gfi = gf_imag
+        if not self.isGFSet:
+            gf_real, gf_imag = self.set_gfr_gfi()
+
         name = gf_real.FESpace().FEColl().Name()
         if name.startswith("ND") or name.startswith("RT"):
             self.isVectorFE=True
@@ -772,7 +790,6 @@ class GFScalarVariable(GridFunctionVariable):
             else:
                 self.func_i = None
         self.isDerived = True
-        self.extra = extra
         
     def eval_local_from_T_ip(self):        
         if not self.isDerived: self.set_funcs()
@@ -941,9 +958,9 @@ class GFVectorVariable(GridFunctionVariable):
         return "GridFunctionVariable (Vector)"
     
     def set_funcs(self):
-        gf_real, gf_imag, extra = self.deriv(*self.deriv_args)
-        self.gfr = gf_real
-        self.gfi = gf_imag
+        if not self.isGFSet: 
+            gf_real, gf_imag = self.set_gfr_gfi()        
+        
         self.dim = gf_real.VectorDim()
         name = gf_real.FESpace().FEColl().Name()
         if name.startswith("ND") or name.startswith("RT"):
@@ -965,7 +982,6 @@ class GFVectorVariable(GridFunctionVariable):
             else:
                self.func_i = None
         self.isDerived = True
-        self.extra = extra
 
     def eval_local_from_T_ip(self):        
         if not self.isDerived: self.set_funcs()
@@ -1303,13 +1319,203 @@ def project_variable_to_gf(c, ind_vars, gfr, gfi, global_ns=None, local_ns = Non
         project_coeff(gfi, coeff_dim, c, ind_vars, False)
         
        
+'''  
+ 
+   NativeCoefficient class 
 
+   This class opens the possibility ot use mfem native coefficient (C++)
+   class object in BF/LF.
 
-       
-  
+   We can define  math operatios between native coefficent class objects 
+   in the way to map the operatio to SumCoefficient/ProductCofficient/...
+   recently added in MFEM.
 
+   Full implementation needs to wait update of PyMFEM. Eventually, this
+   class may move to PyMFEM (under mfem.common)
+
+'''
+
+class _coeff_decorator(object):
+    def float(self, dependency=None):
+        def dec(func):
+            obj = NativeCoefficientGen(func, dependency=dependency)
+            return obj
+        return dec
+    def complex(self, dependency=None):
+        def dec(func):        
+            obj = ComplexNativeCoefficientGen(func, dependency=dependency)
+            return obj
+        return dec
+    def array(self, complex=False, shape = (1,), dependency=None):
+        def dec(func):
+            if len(shape) == 1:
+                if complex:
+                     obj = VectorComplexNativeCoefficientGen(func, dependency=dependency)
+                else:
+                     obj = VectorNativeCoefficientGen(func, dependency=dependency)
+            elif len(shape) == 2:
+                if complex:                
+                     obj = MatrixComplexNativeCoefficientGen(func, dependency=dependency)
+                else:
+                     obj = NativeCoefficientGen(func, dependency=dependency)
+            return obj
+        return dec
+        
+coefficient = _coeff_decorator()     
+
+class NativeCoefficientGenBase(object):
+    '''
+    define everything which we define algebra
+    '''
+    def __init__(self, fgen, complex=False, dependency=None):
+        self.complex = complex
+        # dependency stores a list of Finite Element space discrite variable
+        # names whose set_point has to be called
+        self.dependency=[] if dependency is None else dependency
+        self.fgen = fgen
+
+    def __call__(self, l, g):
+        '''
+        call fgen to generate coefficient
+
+        '''
+        
+        m = getattr(self, 'fgen')
+        args = []
+        for n in self.dependency:      
+             args.append(l[n].get_gf_real())
+             if self.complex:
+                 args.append(l[n].get_gf_imag())                 
+        return m(*args)
+
+        
+    '''
+    def __add__(self, other):
+        if isinstance(other, Variable):
+            return self() + other()
+        else:
+            return self() + other
+        
+    def __sub__(self, other):
+        if isinstance(other, Variable):
+            return self() - other()
+        else:
+            return self() - other
+    def __mul__(self, other):
+        if isinstance(other, Variable):
+            return self() * other()
+        else:
+            return self() * other
+    def __div__(self, other):
+        if isinstance(other, Variable):
+            return self() / other()
+        else:
+            return self() / other
+
+    def __radd__(self, other):
+        if isinstance(other, Variable):
+            return self() + other()
+        else:
+            return self() + other
+
+    def __rsub__(self, other):
+        if isinstance(other, Variable):
+            return other() - self()
+        else:
+            return other - self()
+        
+    def __rmul__(self, other):
+        if isinstance(other, Variable):
+            return self() * other()
+        else:
+            return self() * other
+        
+    def __rdiv__(self, other):
+        if isinstance(other, Variable):
+            return other()/self()
+        else:
+            return other/self()
+
+    def __divmod__(self, other):
+        if isinstance(other, Variable):
+            return self().__divmod__(other())
+        else:
+            return self().__divmod__(other)
+
+    def __floordiv__(self, other):
+        if isinstance(other, Variable):
+            return self().__floordiv__(other())
+        else:
+            return self().__floordiv__(other)
+        
+    def __mod__(self, other):
+        if isinstance(other, Variable):
+            return self().__mod__(other())
+        else:
+            return self().__mod__(other)
+        
+    def __pow__(self, other):
+        if isinstance(other, Variable):
+            return self().__pow__(other())
+        else:
+            return self().__pow__(other)
+        
+    def __neg__(self):
+        return self().__neg__()
+        
+    def __pos__(self):
+        return self().__pos__()
+    
+    def __abs__(self):
+        return self().__abs__()
+
+    def __getitem__(self, idx):
+        #print idx
+        #print self().shape
+        return self()[idx]
+
+    def get_emesh_idx(self, idx = None, g=None):
+        if idx is None: idx = []
+        return idx
+
+    def make_callable(self):
+        raise NotImplementedError("Subclass need to implement")
+    
+    def make_nodal(self):
+        raise NotImplementedError("Subclass need to implement")
+    
+    def ncface_values(self, ifaces = None, irs = None,
+                      gtypes = None, **kwargs):
+        raise NotImplementedError("Subclass need to implement")
+    
+    def ncedge_values(self, *args,  **kwargs):
+        return self.ncface_values(*args, **kwargs)
+    '''
     
 
+class NativeCoefficientGen(NativeCoefficientGenBase):
+    def __init__(self, func, dependency=None):
+        NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency)
+        
+class ComplexNativeCoefficientGen(NativeCoefficientGenBase):
+    def __init__(self, func, dependency=None):
+        NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency)        
 
-            
+class VectorNativeCoefficientGen(NativeCoefficientGenBase):
+    def __init__(self, func, dependency=None):
+        NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency)                
+
+class VectorComplexNativeCoefficientGen(NativeCoefficientGenBase):
+    def __init__(self, func, dependency=None):
+        NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency)
+        
+class MatrixNativeCoefficientGen(NativeCoefficientGenBase):
+    def __init__(self, func, dependency=None):
+        NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency)                
+
+class MatrixComplexNativeCoefficientGen(NativeCoefficientGenBase):
+    def __init__(self, func, dependency=None):
+        NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency)                
+    
+   
    

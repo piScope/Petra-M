@@ -57,7 +57,10 @@ class GMRES(LinearSolverModel):
                 assert False, "GMRES is not under SolveStep"
         num_matrix = p.get_num_matrix(self.get_phys())
         
-        all_dep_vars = self.root()['Phys'].all_dependent_vars(num_matrix, self.get_phys())
+        all_dep_vars = self.root()['Phys'].all_dependent_vars(num_matrix,
+                                                              self.get_phys(),
+                                                              self.get_phys_range())
+
         
         prec = [x for x in  self.preconditioners if x[0] in all_dep_vars]        
         names = [x[0] for x in  prec]
