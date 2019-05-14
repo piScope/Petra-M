@@ -213,7 +213,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         phys = self.mfem_model()[phys_path]
         solvars = self.load_solfiles()
         
-        if solvars is None: return None, None, None
+        if solvars is None: return self.myid, None, None
 
         data = []
         attrs = []
