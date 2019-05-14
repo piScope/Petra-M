@@ -227,7 +227,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     v = None; c = None; a = None
                 data[-1].append((v, c, a))
         #print("eval result", data, attrs)
-        return data, attrs
+        return self.myid, data, attrs
     
     def eval_probe(self, expr, probes):
         if self.phys_path == '': return None, None
@@ -314,6 +314,8 @@ class EvaluatorMP(Evaluator):
         res = [self.results.get() for x in range(len(self.workers))]
         for x in range(len(self.workers)):
             self.results.task_done()
+        # sort it so that the data is in the order of workes.rank    
+        res = [(x[1], x[2]) for x in sorted(res)]
             
         results = [x[0] for x in res if x[0] is not None]
         attrs = [x[1] for x in res if x[0] is not None]
