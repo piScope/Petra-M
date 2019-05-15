@@ -675,7 +675,9 @@ class DlgPlotSol(SimpleFramePlus):
                     if model.variables.hasvar('solfiles'):
                          model.variables.delvar('solfiles')
                 else:
-                    model.variables.setvar('solfiles', solfiles)          
+                    model.variables.setvar('solfiles', solfiles)
+                mfem_model = model.param.getvar('mfem_model')
+                mfem_model.local_sol_path = npath
             except:
                 import traceback
                 traceback.print_exc()
