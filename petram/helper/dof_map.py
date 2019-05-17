@@ -811,8 +811,6 @@ def map_volume_rt(*args, **kwargs):
 def map_surface_rt(*args, **kwargs):
     return map_xxx_rt('surface', *args, **kwargs)
  
-# ToDO test these
-# map_surface_l2 = map_surface_h1
 
 def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
                       trans1=None, trans2 = None, dphase=0.0, weight = None,
@@ -835,6 +833,10 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
         mapper = map_surface_h1
     elif fec_name.startswith('H1') and mode == 'edge':
         mapper = map_edge_h1
+    elif fec_name.startswith('L2') and mode == 'volume':
+        mapper = map_volume_h1
+    elif fec_name.startswith('L2') and mode == 'surface':
+        mapper = map_surface_h1
     elif fec_name.startswith('RT') and mode == 'volume':
         mapper = map_volume_rt
     elif fec_name.startswith('RT') and mode == 'surface':

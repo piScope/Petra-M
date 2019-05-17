@@ -118,7 +118,7 @@ class StdSolver(Solver):
                                mesh_only = False,
                                save_parmesh=self.save_parmesh)
         engine.sol = instance.sol        
-        print(debug.format_memory_usage())
+        dprint1(debug.format_memory_usage())
         return is_first
 
 
