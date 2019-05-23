@@ -32,7 +32,7 @@ class TimeDomain(Solver):
     has_2nd_panel = False
 
     def attribute_set(self, v):
-        v['st_et_nt'] = [0, 1, 0.1]
+        v['st_et_nt'] = [0, 1, 5]
         v['time_step'] = 0.01
         v['time_step_cnk'] = 0.01
         v['time_step_fe'] = 0.01                
