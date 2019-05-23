@@ -326,8 +326,14 @@ class Engine(object):
         from __main__ import __file__ as mainfile        
         model = self.model
         model['General'].run()
-        self.run_mesh_serial()
 
+        from petram.mfem_config import use_parallel
+        
+        if use_parallel:        
+            self.run_mesh_serial(skip_refine = True)
+        else:
+            self.run_mesh_serial()
+            
         if dir is None:
             dir = os.path.dirname(os.path.realpath(mainfile))           
         for node in model.walk():
@@ -338,7 +344,6 @@ class Engine(object):
         self.assign_sel_index()
         self.run_preprocess()  # this must run when mesh is serial
 
-        from petram.mfem_config import use_parallel
         if use_parallel:
             # make ParMesh and Par-Extended-Mesh                      
             self.run_mesh() 
