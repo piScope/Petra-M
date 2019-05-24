@@ -663,7 +663,7 @@ def map_xxx_h1(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     if tdof2 is None: tdof2=[]    
 
     tdof = tdof1 # ToDo support tdof2
-    map, restart = get_empty_map(fes1, fes2)
+    map, rstart = get_empty_map(fes1, fes2)
     data, elmap = gather_dataset(idx1, idx2, fes1, fes2, trans1,
                                  trans2, tol, shape_type = 'scalar',
                                  mode=xxx)
@@ -705,7 +705,7 @@ def map_xxx_nd(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     if tdof2 is None: tdof2=[]    
 
     tdof = tdof1 # ToDo support tdof2
-    map, restart = get_empty_map(fes1, fes2)    
+    map, rstart = get_empty_map(fes1, fes2)    
     data, elmap = gather_dataset(idx1, idx2, fes1, fes2, trans1,
                                  trans2, tol, shape_type = 'vector',
                                  mode=xxx)
@@ -743,7 +743,7 @@ def map_xxx_rt(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     if tdof1 is None: tdof1=[]
     if tdof2 is None: tdof2=[]
     
-    map, restart = get_empty_map(fes1, fes2)    
+    map, rstart = get_empty_map(fes1, fes2)    
     if xxx == 'volume':
         tdof = tdof1 # ToDo support tdof2    
         data, elmap = gather_dataset(idx1, idx2, fes1, fes2, trans1,
