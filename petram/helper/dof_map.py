@@ -607,28 +607,16 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
        ct1 = np.atleast_2d(ct1).reshape(-1, max(ct1dim))       
        ct2 = np.atleast_2d(ct2).reshape(-1, max(ct1dim))
        ct2 =  allgather_vector(ct2, MPI.DOUBLE)
-       fesize1 = fes1.GetTrueVSize()
-       fesize2 = fes2.GlobalTrueVSize()
-       rstart = fes1.GetMyTDofOffset()
-    else:
-       fesize1 = fes1.GetNDofs()
-       fesize2 = fes2.GetNDofs()
-       rstart = 0
 
     # mapping between elements
 
     from scipy.spatial import cKDTree
     tree = cKDTree(ct2)
     ctr_dist, map_1_2 = tree.query(ct1)
-    '''
-    ctr_dist = np.array([np.min(np.sum((ct2-c)**2, 1)) for c in ct1])
-    map_1_2= [np.argmin(np.sum((ct2-c)**2, 1)) for c in ct1]
-    '''
+    
     if ctr_dist.size > 0 and np.max(ctr_dist) > 1e-15:
        print('Center Dist may be too large (check mesh): ' + 
             str(np.max(ctr_dist)))
-
-
 
     if use_parallel:
        pt2all =  sum(comm.allgather(pt2all),())
@@ -638,12 +626,24 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
        k2all = resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2)
 
     # map is fill as transposed shape (row = fes1)
-    
-    map = lil_matrix((fesize1, fesize2), dtype=float)
+
     data = pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all,
 
-    return  map, data, map_1_2, rstart    
-
+    return data, map_1_2
+ 
+def get_empty_map(fes1, fes2):
+    if use_parallel:   
+       fesize1 = fes1.GetTrueVSize()
+       fesize2 = fes2.GlobalTrueVSize()
+       rstart = fes1.GetMyTDofOffset()
+    else:
+       fesize1 = fes1.GetNDofs()
+       fesize2 = fes2.GetNDofs()
+       rstart = 0
+       
+    map = lil_matrix((fesize1, fesize2), dtype=float)       
+    return  map, rstart
+ 
 def map_xxx_h1(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
                    trans2=None, tdof1=None, tdof2=None, tol=1e-4):
     '''
@@ -662,10 +662,11 @@ def map_xxx_h1(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     if tdof1 is None: tdof1=[]
     if tdof2 is None: tdof2=[]    
 
-    tdof = tdof1 # ToDo support tdof2    
-    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                                              trans2, tol, shape_type = 'scalar',
-                                              mode=xxx)
+    tdof = tdof1 # ToDo support tdof2
+    map, restart = get_empty_map(fes1, fes2)
+    data, elmap = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                                 trans2, tol, shape_type = 'scalar',
+                                 mode=xxx)
 
 
     pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
@@ -675,6 +676,7 @@ def map_xxx_h1(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
                    trans1, trans2, tol, tdof1, rstart)
 
     return map
+ 
 def map_volume_h1(*args, **kwargs):
     return map_xxx_h1('volume', *args, **kwargs)
 def map_surface_h1(*args, **kwargs):
@@ -682,51 +684,7 @@ def map_surface_h1(*args, **kwargs):
 def map_edge_h1(*args, **kwargs):
     return map_xxx_h1('edge', *args, **kwargs)
 
-''' 
-def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
-                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
-    if fes2 is None: fes2 = fes1
-    if trans1 is None: trans1=notrans
-    if trans2 is None: trans2=trans1
-    if tdof1 is None: tdof1=[]
-    if tdof2 is None: tdof2=[]    
 
-    tdof = tdof1 # ToDo support tdof2    
-    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                                              trans2, tol, shape_type = 'scalar',
-                                              mode='surface')
-
-
-    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
-
-    map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
-                   k1all, k2all, sh1all, sh2all, elmap,
-                   trans1, trans2, tol, tdof1, rstart)
-
-    return map
-
-def map_edge_h1(idx1, idx2, fes1, fes2=None, trans1=None,
-                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
-    if fes2 is None: fes2 = fes1
-    if trans1 is None: trans1=notrans
-    if trans2 is None: trans2=trans1
-    if tdof1 is None: tdof1=[]
-    if tdof2 is None: tdof2=[]    
-
-    tdof = tdof1 # ToDo support tdof2
-
-    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                                              trans2, tol, shape_type = 'scalar',
-                                              mode="edge")
-
-    
-    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
-    map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
-                   k1all, k2all, sh1all, sh2all, elmap,
-                   trans1, trans2, tol, tdof1, rstart)
-
-    return map
-''' 
 def map_xxx_nd(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
                    trans2=None, tdof1=None, tdof2=None, tol=1e-4):
  
@@ -746,10 +704,12 @@ def map_xxx_nd(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     if tdof1 is None: tdof1=[]
     if tdof2 is None: tdof2=[]    
 
-    tdof = tdof1 # ToDo support tdof2    
-    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                                              trans2, tol, shape_type = 'vector',
-                                              mode=xxx)
+    tdof = tdof1 # ToDo support tdof2
+    map, restart = get_empty_map(fes1, fes2)    
+    data, elmap = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                                 trans2, tol, shape_type = 'vector',
+                                 mode=xxx)
+    
     pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
     
     map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
@@ -781,11 +741,12 @@ def map_xxx_rt(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     if trans1 is None: trans1=notrans
     if trans2 is None: trans2=trans1
     if tdof1 is None: tdof1=[]
-    if tdof2 is None: tdof2=[]    
-
+    if tdof2 is None: tdof2=[]
+    
+    map, restart = get_empty_map(fes1, fes2)    
     if xxx == 'volume':
         tdof = tdof1 # ToDo support tdof2    
-        map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+        data, elmap = gather_dataset(idx1, idx2, fes1, fes2, trans1,
                                               trans2, tol, shape_type = 'vector',
                                               mode=xxx)
         pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
@@ -794,9 +755,9 @@ def map_xxx_rt(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
                    trans1, trans2, tol, tdof1, rstart)
     else:
         tdof = tdof1 # ToDo support tdof2    
-        map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                                              trans2, tol, shape_type = 'scalar',
-                                              mode=xxx)
+        data, elmap = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                                     trans2, tol, shape_type = 'scalar',
+                                     mode=xxx)
 
 
         pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
