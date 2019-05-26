@@ -249,7 +249,7 @@ def redistribute_external_entry(external_entry, rstart):
     import bisect
     
     rstarts = comm.allgather(rstart)
-    dests =  [bisect.bisect_rigth(rstarts, r)for r, c, d in external_entry]
+    dests =  [bisect.bisect_right(rstarts, r)for r, c, d in external_entry]
 
     data = [[] for x in range(num_proc)]
     for i, d in zip(dests, external_entry):
