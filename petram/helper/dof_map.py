@@ -27,11 +27,13 @@
 
 import numpy as np
 import scipy
+import warnings
 from scipy.sparse import lil_matrix
 import petram.debug as debug
 debug.debug_default_level = 1
 dprint1, dprint2, dprint3 = debug.init_dprints('dof_map')
 
+warnings.filterwarnings('error', category=RuntimeWarning)
 
 from petram.helper.matrix_file import write_matrix, write_vector
 
@@ -121,7 +123,7 @@ def find_el_center(fes, ibdr1, trans1, mode = 'Bdr'):
     #                          for kk in m(k)],0) for k in ibdr1])
     return pts
 
-def get_element_data(fes, idx, trans, mode='Bdr'):
+def get_element_data(fes, idx, trans, mode='Bdr', use_global=False):
     mesh = fes.GetMesh()  
 
     GetTrans = getattr(fes, methods[mode]['Transformation'])
@@ -141,14 +143,18 @@ def get_element_data(fes, idx, trans, mode='Bdr'):
 
        subvdof1 = [x if x>= 0 else -1-x for x in vdof1]
        if use_parallel:
-            subvdof2= [fes.GetLocalTDofNumber(i) for i in subvdof1]
-            flag = False
-            for k, x in enumerate(subvdof2):
-                if x >=0:
-                    subvdof2[k] = fes.GetMyTDofOffset()+ x
-                else: flag = True
-            if element_data_debug and flag:
-               dprint2(subvdof1, vdof1, subvdof2)
+            if use_global:
+               subvdof2= [fes.GetGlobalTDofNumber(i) for i in subvdof1]
+            else:
+               subvdof2= [fes.GetLocalTDofNumber(i) for i in subvdof1]
+               flag = False
+               myoffset = fes.GetMyTDofOffset()
+               for k, x in enumerate(subvdof2):
+                   if x >=0:
+                       subvdof2[k] = myoffset + x
+                   else: flag = True
+               if element_data_debug and flag:
+                  dprint2(subvdof1, vdof1, subvdof2)
             ## note subdof2 = -1 if it is not owned by the node
        else:
            subvdof2 = subvdof1
@@ -204,48 +210,113 @@ def get_vshape(fes, ibdr , mode='Bdr'):
             shape[idx] = m.GetDataArray()[idx,:].copy()
         ret[iii]  = shape
     return ret
+''' 
+def resolve_nonowned_dof_new(pt1all, pt2all, k1all, k2all, map_1_2):
+    #nicePrint("len(k1)", len(k1all))  this is the same as map length
+    #nicePrint("len(k2)", len(k2all))
+    
+    # find element to go through resolve process
 
-def resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2):
-    '''
-    resolves shadowed DoF
-    this is done based on integration point distance.
-    It searches a closeest true (non-shadow) DoF point
-    '''
-    k2all = np.stack(k2all)
-    for k in range(len(pt1all)):
-        subvdof1 = k1all[k][:,2]
-        k2 = map_1_2[k]
-        subvdof2 = k2all[k2][:,2]
-        pt2 = pt2all[k2]
-        check = False
+    need_resolve = []
+    for j, k2 in enumerate(k2all):
+        subvdof2 = k2[:,2]
         if -1 in subvdof2:
-                check = True
-                dprint2('before resolving dof', subvdof2)
-        for kk, x in enumerate(subvdof2):
-             if x == -1:
-                dist = pt2all-pt2[kk]
-                dist = np.sqrt(np.sum((dist)**2, -1))
-                fdist= dist.flatten()
-                isort = np.argsort(fdist)
-                minidx =  np.where(dist.flatten() == np.min(dist.flatten()))[0]
-                #dprint1("distances", np.min(dist),fdist[isort[:25]])
-                while all(k2all[:,:,2].flatten()[minidx] == -1):
-                    dprint2("distances (non -1 exists?)", fdist[minidx],
-                            k2all[:,:,2].flatten()[minidx])
-                    minidx = np.hstack((minidx, isort[len(minidx)]))
-                dprint2("distances", np.min(dist),fdist[minidx],
-                        fdist[isort[:len(minidx)+1]])                    
-                dprint2("minidx",  minidx, k2all[:,:,2].flatten()[minidx])
-                for i in minidx:
-                    if k2all[:,:,2].flatten()[i] != -1:
-                       subvdof2[kk] = k2all[:,:,2].flatten()[i]
+           need_resolve.append((j, subvdof2, pt2all[j]))
 
-        if check:
-             dprint2('resolved dof', k2all[k2][:,2])
-             if -1 in subvdof2: 
-                 assert False, "failed to resolve shadow DoF"
-    return k2all
+    # share 
+    need_resolves = comm.allgather(need_resolve)
+    
+    if len(k2all) > 0 :
+       sk2all = np.stack(k2all)
+       from scipy.spatial import cKDTree
+       #print("shape", pt2all[0].shape)       
+       #print("shape", np.vstack(pt2all).shape)
+       tree = cKDTree(np.vstack(pt2all))
+       fk2all = sk2all[:,:,2].flatten()
 
+    # for each element which has shadow, search all elements'
+    # own nodes to see nodes' DoF cloeset to the shadowed DoF
+    # point is real DoF. If so, it records the distance and DoF
+    # Need special care for the case whne more than two DoFs
+    # are assigned to the same points
+                               
+    match = []
+    for data in need_resolves:
+        match2 = []
+        if len(k2all) == 0 :
+            pass
+        else:
+            for j, subvdof2, pt2 in data:
+                mapped = []               
+                for jj, x in enumerate(subvdof2):
+                    if x != -1: continue
+                    dists, minidx = tree.query(pt2[jj], k=10)                               
+                    #dist = np.sqrt(np.sum((dist)**2, -1))
+                    #fdist= dist.flatten()
+                    mindist = dists[0]
+                    minidx =  minidx[np.where(dists == mindist)[0]]
+                    #print("distances", mindist, minidx, fk2all[minidx])
+                    idx = fk2all[minidx]
+                    for jr in idx:
+                        if jr in mapped: continue
+                        if jr == -1: continue
+                        match2.append((mindist, j, jj, jr))
+                        mapped.append(jr)
+
+        match.append(match2)
+    nicePrint(match)
+    match_result = comm.alltoall(match)
+    #nicePrint(match_result)
+    #nicePrint(k2all)
+    #
+    #  resolve the shadow by picking the real DoF closest to
+    #  the shadow location. 
+    #
+    resolved = {}
+    for dataset in match_result:
+        for d, j, jj, jr in dataset:
+            if (j, jj) in resolved:
+                if resolved[(j, jj)] < d: continue
+            resolved[(j, jj)] = d
+            k2all[j][jj, 2] = jr
+    nicePrint(resolved)            
+'''            
+        
+
+def redistribute_pt2_k2(pt2all,  pto2all, k2all, sh2all,map_1_2):
+    # map matrix is filled where fes1 elements are owned
+    # we deliver pt2 data to nodes where map filling takes place.
+    k1offset =  np.cumsum(comm.allgather(len(k2all)))
+    dprint1(k1offset)
+    import bisect
+    segs = [0]+[bisect.bisect_left(map_1_2, i) for i in k1offset]
+
+    data = [map_1_2[segs[i]:segs[i+1]] for i in range(num_proc)]
+
+    destinations  = comm.alltoall(data)       
+    #nicePrint(destinations)
+    k2offset =  np.hstack(([0], np.cumsum(comm.allgather(len(k2all)))))
+    myoffset2 = k2offset[myid]
+
+    data1 = []
+    data2 = []
+    data3 = []
+    data4 = []    
+    for mm in destinations:
+        idx = [x-myoffset2 for x in mm]
+        data1.append([pt2all[x] for x in idx])
+        data2.append([pto2all[x] for x in idx])
+        data3.append([k2all[x] for x in idx])
+        data4.append([sh2all[x] for x in idx])
+        
+    pt2all = sum(comm.alltoall(data1), [])
+    pto2all = sum(comm.alltoall(data2), [])
+    k2all = sum(comm.alltoall(data3),[])
+    sh2all = sum(comm.alltoall(data4),[])
+    map_1_2 = np.arange(len(pt2all))
+    #nicePrint(k2all)
+    return pt2all,  pto2all, k2all, sh2all, map_1_2
+    
 def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                k1all, k2all, sh1all, sh2all, map_1_2,
                trans1, trans2, tol, tdof, rstart):
@@ -308,8 +379,6 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                    if not gtdof in gtdof_check:
                        external_entry.append((gtdof, newk2[d][2], value))
                        gtdof_check.append(gtdof)
-                   
-
             else:
                 raise AssertionError("more than two dofs at same plase is not asupported. ")
         #subvdofs1.extend([s for k, v, s in newk1])
@@ -409,12 +478,16 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                s = np.sign(newk1[k,1] +0.5)*np.sign(newk2[d,1] + 0.5)
 
                p1 = pto1[k]; p2 = pto2[d]
-               delta = np.sum(np.std(p1, 0))/np.sum(np.std(sh1, 0))/10.
+               delta = np.sum(np.std(pto1, 0))/np.sum(np.std(sh1, 0))/10.
 
                v1 = trans1(p1) - trans1(p1 + delta*sh1[newk1[k, 0]])
                v2 = trans2(p2) - trans2(p2 + delta*sh2[newk2[d, 0]])
 
-               fac = np.sum(v1*v2)/np.sum(v1*v1)*s
+               try:
+                  fac = np.sum(v1*v2)/np.sum(v1*v1)*s
+               except RuntimeWarning:
+                  print(pto1, pto1.shape, p1,p2, s, delta, sh1[newk1[k, 0]], sh2[newk2[d, 0]])
+                  assert False, "Got Here"
 
                num1 = make_entry(newk1[k, [1,2]], newk2[d, 2], fac, num1)
                              
@@ -423,7 +496,7 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                    
                p1 = pto1[dd[0]]; p3 = pto2[d[0]]
                p2 = pto1[dd[1]]; p4 = pto2[d[1]]
-               delta = np.sum(np.std(p1, 0))/np.sum(np.std(sh1, 0))/10.
+               delta = np.sum(np.std(pto1, 0))/np.sum(np.std(sh1, 0))/10.
                    
                v1 = trans1(p1) - trans1(p1 + delta*sh1[newk1[dd[0], 0]])
                v2 = trans1(p2) - trans1(p2 + delta*sh1[newk1[dd[1], 0]])
@@ -478,7 +551,7 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                 p1 = [pto1[dd[i]] for i in [0, 1, 2]]
                 p2 = [pto2[d[i]]  for i in [0, 1, 2]]                       
 
-                delta = np.sum(np.std(p1[0], 0))/np.sum(np.std(sh1, 0))/10.
+                delta = np.sum(np.std(pto1, 0))/np.sum(np.std(sh1, 0))/10.
                  
                 v1 = [trans1(p1[i]) - trans1(p1[i] + delta*sh1[newk1[dd[i], 0]])
                        for i in [0, 1, 2]]
@@ -527,7 +600,8 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
     
     if use_parallel:
         dprint1("total entry (before)",sum(allgather(num_entry)))
-        #nicePrint(len(subvdofs1), subvdofs1)
+        
+        nicePrint("data to exchange", len(external_entry))
         external_entry =  sum(comm.allgather(external_entry),[])
         #nicePrint(external_entry)        
         for r, c, d in external_entry:
@@ -579,7 +653,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
     ct1 = find_el_center(fes1, ibdr1, trans1, mode=mode1)
     ct2 = find_el_center(fes2, ibdr2, trans2, mode=mode2)
     arr1 = get_element_data(fes1, ibdr1, trans1, mode=mode1)
-    arr2 = get_element_data(fes2, ibdr2, trans1, mode=mode2)
+    arr2 = get_element_data(fes2, ibdr2, trans1, mode=mode2, use_global = True)
 
     if shape_type == 'scalar':
         sh1all = get_shape(fes1, ibdr1, mode=mode1)
@@ -619,12 +693,16 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
             str(np.max(ctr_dist)))
 
     if use_parallel:
+       pt2all, pto2all, k2all, sh2all, map_1_2 = redistribute_pt2_k2(pt2all, 
+                                                            pto2all, k2all, sh2all,
+                                                            map_1_2)
+       '''
        pt2all =  sum(comm.allgather(pt2all),())
        pto2all = sum(comm.allgather(pto2all),())
        k2all =  sum(comm.allgather(k2all),())
        sh2all =  sum(comm.allgather(sh2all),[])
        k2all = resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2)
-
+       '''
     # map is fill as transposed shape (row = fes1)
 
     data = pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all,
@@ -730,8 +808,8 @@ def map_xxx_rt(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     '''
     map DoF on surface to surface
 
-      fes1: source finite element space
-      fes2: destination finite element space
+      fes1: source finite element space (row)
+      fes2: destination finite element space (col)
 
       idx1: surface attribute (Bdr for 3D/3D, Domain for 2D/3D or 2D/2D)
 

@@ -320,7 +320,7 @@ class AUX_Variable(Phys):
                                  ind_vars = ind_vars, is_complex = is_complex)
                t2 = expr.assemble(g=self._global_ns)
                if diag_size > -1:
-                  print t1.shape, t2.shape
+                  #print t1.shape, t2.shape
                   assert diag_size == t2.shape[1], "t1 and t2 shapes are inconsistent"
                diag_size = t2.shape[1]
 

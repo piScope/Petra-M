@@ -16,3 +16,4 @@ Makefile
 
 error_log.0
 doc/manual.synctex.gz
+.DS_Store
