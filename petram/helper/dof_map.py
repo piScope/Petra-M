@@ -217,7 +217,7 @@ def redistribute_pt2_k2(pt2all,  pto2all, k2all, sh2all,map_1_2):
     k1offset =  np.cumsum(comm.allgather(len(k2all)))
     dprint1(k1offset)
     import bisect
-    segs = [0]+[bisect.bisect_left(map_1_2, i) for i in k1offset]
+    segs = [0]+[bisect.bisect_right(map_1_2, i) for i in k1offset]
 
     data = [map_1_2[segs[i]:segs[i+1]] for i in range(num_proc)]
 
