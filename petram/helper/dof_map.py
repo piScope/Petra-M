@@ -215,7 +215,6 @@ def redistribute_pt2_k2(pt2all,  pto2all, k2all, sh2all,map_1_2):
     # map matrix is filled where fes1 elements are owned
     # we deliver pt2 data to nodes where map filling takes place.
     k1offset =  np.cumsum(comm.allgather(len(k2all)))
-    dprint1(k1offset)
     import bisect
     segs = [0]+[bisect.bisect_left(map_1_2, i) for i in k1offset]
 
@@ -552,9 +551,9 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
     if use_parallel:
         dprint1("total entry (before)",sum(allgather(num_entry)))
         
-        nicePrint("data to exchange", len(external_entry))
+        #nicePrint("data to exchange", len(external_entry))
         external_entry = redistribute_external_entry(external_entry, rstart+map.shape[0])
-        nicePrint(external_entry)
+        #nicePrint(external_entry)
         for r, c, d in external_entry:
            if not r in subvdofs1:
                num_entry = num_entry + 1                                 
