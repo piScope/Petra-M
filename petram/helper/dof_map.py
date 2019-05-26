@@ -210,78 +210,6 @@ def get_vshape(fes, ibdr , mode='Bdr'):
             shape[idx] = m.GetDataArray()[idx,:].copy()
         ret[iii]  = shape
     return ret
-''' 
-def resolve_nonowned_dof_new(pt1all, pt2all, k1all, k2all, map_1_2):
-    #nicePrint("len(k1)", len(k1all))  this is the same as map length
-    #nicePrint("len(k2)", len(k2all))
-    
-    # find element to go through resolve process
-
-    need_resolve = []
-    for j, k2 in enumerate(k2all):
-        subvdof2 = k2[:,2]
-        if -1 in subvdof2:
-           need_resolve.append((j, subvdof2, pt2all[j]))
-
-    # share 
-    need_resolves = comm.allgather(need_resolve)
-    
-    if len(k2all) > 0 :
-       sk2all = np.stack(k2all)
-       from scipy.spatial import cKDTree
-       #print("shape", pt2all[0].shape)       
-       #print("shape", np.vstack(pt2all).shape)
-       tree = cKDTree(np.vstack(pt2all))
-       fk2all = sk2all[:,:,2].flatten()
-
-    # for each element which has shadow, search all elements'
-    # own nodes to see nodes' DoF cloeset to the shadowed DoF
-    # point is real DoF. If so, it records the distance and DoF
-    # Need special care for the case whne more than two DoFs
-    # are assigned to the same points
-                               
-    match = []
-    for data in need_resolves:
-        match2 = []
-        if len(k2all) == 0 :
-            pass
-        else:
-            for j, subvdof2, pt2 in data:
-                mapped = []               
-                for jj, x in enumerate(subvdof2):
-                    if x != -1: continue
-                    dists, minidx = tree.query(pt2[jj], k=10)                               
-                    #dist = np.sqrt(np.sum((dist)**2, -1))
-                    #fdist= dist.flatten()
-                    mindist = dists[0]
-                    minidx =  minidx[np.where(dists == mindist)[0]]
-                    #print("distances", mindist, minidx, fk2all[minidx])
-                    idx = fk2all[minidx]
-                    for jr in idx:
-                        if jr in mapped: continue
-                        if jr == -1: continue
-                        match2.append((mindist, j, jj, jr))
-                        mapped.append(jr)
-
-        match.append(match2)
-    nicePrint(match)
-    match_result = comm.alltoall(match)
-    #nicePrint(match_result)
-    #nicePrint(k2all)
-    #
-    #  resolve the shadow by picking the real DoF closest to
-    #  the shadow location. 
-    #
-    resolved = {}
-    for dataset in match_result:
-        for d, j, jj, jr in dataset:
-            if (j, jj) in resolved:
-                if resolved[(j, jj)] < d: continue
-            resolved[(j, jj)] = d
-            k2all[j][jj, 2] = jr
-    nicePrint(resolved)            
-'''            
-        
 
 def redistribute_pt2_k2(pt2all,  pto2all, k2all, sh2all,map_1_2):
     # map matrix is filled where fes1 elements are owned
@@ -316,7 +244,20 @@ def redistribute_pt2_k2(pt2all,  pto2all, k2all, sh2all,map_1_2):
     map_1_2 = np.arange(len(pt2all))
     #nicePrint(k2all)
     return pt2all,  pto2all, k2all, sh2all, map_1_2
+
+def redistribute_external_entry(external_entry, rstart):
+    import bisect
     
+    rstarts = comm.allgather(rstart)
+    dests =  [bisect.bisect_left(rstarts, r)for r, c, d in external_entry]
+
+    data = [[] for x in range(num_proc)]
+    for i, d in zip(dests, external_entry):
+       data[i].append(d)
+
+    external_entry = sum(comm.alltoall(data),[])
+    return external_entry
+ 
 def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                k1all, k2all, sh1all, sh2all, map_1_2,
                trans1, trans2, tol, tdof, rstart):
@@ -388,7 +329,16 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
     if use_parallel:
         dprint1("total entry (before)",sum(allgather(num_entry)))
         #nicePrint(len(subvdofs1), subvdofs1)
-        external_entry =  sum(comm.allgather(external_entry),[])
+        external_entry = redistribute_external_entry(external_entry, rstart+map.shape[0])
+        
+        for r, c, d in external_entry:
+           if not r in subvdofs1:
+               num_entry = num_entry + 1                                 
+               print("adding",myid, r,  c, d )
+               map[r-rstart, c] = d
+               subvdofs1.append(r)
+        '''
+        external_entry =  sum(comm.allgather(external_entry),[])           
         for r, c, d in external_entry:
            h = map.shape[0]
            if (r - rstart >= 0 and r - rstart < h and
@@ -397,6 +347,7 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                print("adding",myid, r,  c, d )
                map[r-rstart, c] = d
                subvdofs1.append(r)
+        '''
         total_entry = sum(allgather(num_entry))
         total_pts = sum(allgather(num_pts))
         if sum(allgather(map.nnz)) != total_entry:
@@ -602,6 +553,15 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
         dprint1("total entry (before)",sum(allgather(num_entry)))
         
         nicePrint("data to exchange", len(external_entry))
+        external_entry = redistribute_external_entry(external_entry, rstart+map.shape[0])
+        nicePrint(external_entry)
+        for r, c, d in external_entry:
+           if not r in subvdofs1:
+               num_entry = num_entry + 1                                 
+               print("adding",myid, r,  c, d )
+               map[r-rstart, c] = d
+               subvdofs1.append(r)
+        '''        
         external_entry =  sum(comm.allgather(external_entry),[])
         #nicePrint(external_entry)        
         for r, c, d in external_entry:
@@ -612,6 +572,7 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                print("adding",myid, r,  c, d )
                map[r-rstart, c] = d
                subvdofs1.append(r)
+        '''
         total_entry = sum(allgather(num_entry))
         total_pts = sum(allgather(num_pts))
         if sum(allgather(map.nnz)) != total_entry:
