@@ -2140,6 +2140,8 @@ class Engine(object):
             if file.startswith('proble'): os.remove(os.path.join(d, file))
             if file.startswith('matrix'): os.remove(os.path.join(d, file))
             if file.startswith('rhs'): os.remove(os.path.join(d, file))
+            if file.startswith('SolveStep'): os.remove(os.path.join(d, file))
+            if file.startswith('cProfile_'): os.remove(os.path.join(d, file))                        
             if file.startswith('checkpoint_'):
                print("removing checkpoint_", file)
                shutil.rmtree(os.path.join(d, file))   
