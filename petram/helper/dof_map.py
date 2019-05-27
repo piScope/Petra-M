@@ -214,9 +214,15 @@ def get_vshape(fes, ibdr , mode='Bdr'):
 def redistribute_pt2_k2(pt2all,  pto2all, k2all, sh2all,map_1_2):
     # map matrix is filled where fes1 elements are owned
     # we deliver pt2 data to nodes where map filling takes place.
-    k1offset =  np.cumsum(comm.allgather(len(k2all)))
+
+    # sort map_1_2 to make bisect work
+    sort_idx = np.argsort(map_1_2)
+    map_1_2 = np.sort(map_1_2)
+    isort_idx = np.arange(len(sort_idx))[np.argsort(sort_idx)]
+
+    k2offset =  np.cumsum(comm.allgather(len(k2all)))
     import bisect
-    segs = [0]+[bisect.bisect_left(map_1_2, i) for i in k1offset]
+    segs = [0]+[bisect.bisect_left(map_1_2, i) for i in k2offset]
 
     data = [map_1_2[segs[i]:segs[i+1]] for i in range(num_proc)]
 
@@ -240,11 +246,19 @@ def redistribute_pt2_k2(pt2all,  pto2all, k2all, sh2all,map_1_2):
     pto2all = sum(comm.alltoall(data2), [])
     k2all = sum(comm.alltoall(data3),[])
     sh2all = sum(comm.alltoall(data4),[])
+    
+    pt2all = [pt2all[x] for x in isort_idx]
+    pto2all = [pto2all[x] for x in isort_idx]
+    k2all = [k2all[x] for x in isort_idx]
+    sh2all = [sh2all[x] for x in isort_idx]
+    
     map_1_2 = np.arange(len(pt2all))
     #nicePrint(k2all)
     return pt2all,  pto2all, k2all, sh2all, map_1_2
 
 def redistribute_external_entry(external_entry, rstart):
+    #  redistribute external entry. first regroup
+    #  entries to the destination. then all-to-all
     import bisect
     
     rstarts = comm.allgather(rstart)
