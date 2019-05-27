@@ -261,8 +261,6 @@ class TimeDomain(Solver):
         if fid is not None: fid.close()
         
         return is_first       
-        print(debug.format_memory_usage())
-
 
 from petram.solver.solver_model import TimeDependentSolverInstance
 

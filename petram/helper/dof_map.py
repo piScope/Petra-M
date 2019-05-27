@@ -27,7 +27,9 @@
 
 import numpy as np
 import scipy
+import bisect
 import warnings
+import traceback
 from scipy.sparse import lil_matrix
 import petram.debug as debug
 debug.debug_default_level = 1
@@ -221,14 +223,14 @@ def redistribute_pt2_k2(pt2all,  pto2all, k2all, sh2all,map_1_2):
     isort_idx = np.arange(len(sort_idx))[np.argsort(sort_idx)]
 
     k2offset =  np.cumsum(comm.allgather(len(k2all)))
-    import bisect
+
     segs = [0]+[bisect.bisect_left(map_1_2, i) for i in k2offset]
 
     data = [map_1_2[segs[i]:segs[i+1]] for i in range(num_proc)]
 
     destinations  = comm.alltoall(data)       
     #nicePrint(destinations)
-    k2offset =  np.hstack(([0], np.cumsum(comm.allgather(len(k2all)))))
+    k2offset =  np.hstack(([0], k2offset))
     myoffset2 = k2offset[myid]
 
     data1 = []
@@ -259,7 +261,7 @@ def redistribute_pt2_k2(pt2all,  pto2all, k2all, sh2all,map_1_2):
 def redistribute_external_entry(external_entry, rstart):
     #  redistribute external entry. first regroup
     #  entries to the destination. then all-to-all
-    import bisect
+
     
     rstarts = comm.allgather(rstart)
     dests =  [bisect.bisect_right(rstarts, r)for r, c, d in external_entry]
@@ -269,12 +271,14 @@ def redistribute_external_entry(external_entry, rstart):
        data[i].append(d)
 
     external_entry = sum(comm.alltoall(data),[])
-    return external_entry
+    return np.array(external_entry)
  
 def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                k1all, k2all, sh1all, sh2all, map_1_2,
                trans1, trans2, tol, tdof, rstart):
-
+   
+    dprint1("map_dof_scalar1", debug.format_memory_usage())
+    
     pt = []
     subvdofs1 = []
     subvdofs2 = []
@@ -304,9 +308,15 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
         sh2 = sh2all[k2]
         for k, p in enumerate(pt1):
             num_pts = num_pts + 1
-            if newk1[k,2] in tdof: continue
-            if newk1[k,2] in subvdofs1: continue               
 
+            #if newk1[k,2] in tdof: continue
+            iii = bisect.bisect_left(tdof, newk1[k,2])
+            if iii != len(tdof) and tdof[iii] == newk1[k,2]: continue
+
+            #if newk1[k,2] in subvdofs1: continue
+            iii = bisect.bisect_left(subvdofs1, newk1[k,2])
+            if iii != len(subvdofs1) and subvdofs1[iii] == newk1[k,2]: continue
+            
             dist = np.sum((pt2-p)**2, 1)
             d = np.where(dist == np.min(dist))[0]
             if myid == 1: dprint2('min_dist', np.min(dist))
@@ -323,7 +333,8 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                    map[newk1[k][2]-rstart, 
                        newk2[d][2]] = value
                    num_entry = num_entry + 1
-                   subvdofs1.append(newk1[k][2])
+                   bisect.insort_left(subvdofs1, newk1[k][2])
+                   #subvdofs1.append(newk1[k][2])
                else:
                    # for scalar, this is perhaps not needed
                    # rr = newk1[k][1]] if newk1[k][1]] >= 0 else -1-newk1[k][1]]
@@ -337,19 +348,29 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                 raise AssertionError("more than two dofs at same plase is not asupported. ")
         #subvdofs1.extend([s for k, v, s in newk1])
         subvdofs2.extend([s for k, v, s in newk2])
-        #print len(subvdofs1), len(subvdofs2)
 
+        
+    dprint1("map_dof_scalar2", debug.format_memory_usage())
+    
     if use_parallel:
         dprint1("total entry (before)",sum(allgather(num_entry)))
         #nicePrint(len(subvdofs1), subvdofs1)
         external_entry = redistribute_external_entry(external_entry, rstart+map.shape[0])
+
+        if len(external_entry.shape) == 2:
+            idx1 = np.in1d(external_entry[:,0], subvdofs1, invert=True)
+            val, idx2 = np.unique(external_entry[idx1,0], return_index=True)
+            external_entry = external_entry[idx1][idx2]
         
-        for r, c, d in external_entry:
-           if not r in subvdofs1:
+            for r, c, d in external_entry:
+               #if not r in subvdofs1:
                num_entry = num_entry + 1                                 
-               print("adding",myid, r,  c, d )
                map[r-rstart, c] = d
-               subvdofs1.append(r)
+               
+               #print("adding",myid, r,  c, d )
+               #subvdofs1.append(r)
+        
+        dprint1("map_dof_scalar3", debug.format_memory_usage())
         '''
         external_entry =  sum(comm.allgather(external_entry),[])           
         for r, c, d in external_entry:
@@ -377,7 +398,9 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
 def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                    k1all, k2all, sh1all, sh2all, map_1_2,
                    trans1, trans2, tol, tdof, rstart):
-
+   
+    dprint1("map_dof_vector1", debug.format_memory_usage())
+    
     pt = []
     subvdofs1 = []
     subvdofs2 = []
@@ -402,7 +425,8 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
         if r[1] != -1: 
             map[r[1]-rstart, c] = value 
             num_entry = num_entry + 1
-            subvdofs1.append(r[1])
+            bisect.insort_left(subvdofs1, r[1])
+            #subvdofs1.append(r[1])
         else:
             rr = r[0] if r[0] >= 0 else -1-r[0]
             gtdof = VDoFtoGTDoF[rr]
@@ -410,7 +434,9 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                external_entry.append((gtdof, c, value))
                gtdof_check.append(gtdof)
         return num_entry      
-        
+
+    tdof = sorted(tdof)
+    
     for k0 in range(len(pt1all)):
         k2 = map_1_2[k0]
         pt1 = pt1all[k0]
@@ -421,17 +447,29 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
         pto2 = pto2all[k2]
         newk2 = k2all[k2]
         sh2 = sh2all[k2]
+
         #if myid == 1: print newk1[:,2], newk1[:,1], rstart
         #if myid == 1:
         #    x = [r if r >= 0 else -1-r for r in newk1[:,1]]
         #    print [VDoFtoGTDoF[r] for r in x]
+
+        #dprint1(len(np.unique(newk1[:,2])) == len(newk1[:,2]))
         for k, p in enumerate(pt1):
+            #if idx[k]: continue                 
             num_pts = num_pts + 1
-            if newk1[k,2] in tdof: continue
-            if newk1[k,2] in subvdofs1: continue               
+            
+            #if newk1[k,2] in tdof: continue
+            iii = bisect.bisect_left(tdof, newk1[k,2])
+            if iii != len(tdof) and tdof[iii] == newk1[k,2]: continue
+
+            #if newk1[k,2] in subvdofs1: continue
+            iii = bisect.bisect_left(subvdofs1, newk1[k,2])
+            if iii != len(subvdofs1) and subvdofs1[iii] == newk1[k,2]: continue
+
 
             dist = np.sum((pt2-p)**2, 1)
             d = np.where(dist == np.min(dist))[0]
+
             #if myid == 1: dprint1('min_dist', np.min(dist))
             if len(d) == 1:            
                '''
@@ -447,17 +485,17 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                v1 = trans1(p1) - trans1(p1 + delta*sh1[newk1[k, 0]])
                v2 = trans2(p2) - trans2(p2 + delta*sh2[newk2[d, 0]])
 
-               try:
-                  fac = np.sum(v1*v2)/np.sum(v1*v1)*s
-               except RuntimeWarning:
-                  print(pto1, pto1.shape, p1,p2, s, delta, sh1[newk1[k, 0]], sh2[newk2[d, 0]])
-                  assert False, "Got Here"
+               
+               fac = np.sum(v1*v2)/np.sum(v1*v1)*s
+               #except RuntimeWarning:
+               #   print(pto1, pto1.shape, p1,p2, s, delta, sh1[newk1[k, 0]], sh2[newk2[d, 0]])
+               #   assert False, "Got Here"
 
                num1 = make_entry(newk1[k, [1,2]], newk2[d, 2], fac, num1)
                              
             elif len(d) == 2:
                dd = np.argsort(np.sum((pt1 - p)**2, 1))
-                   
+
                p1 = pto1[dd[0]]; p3 = pto2[d[0]]
                p2 = pto1[dd[1]]; p4 = pto2[d[1]]
                delta = np.sum(np.std(pto1, 0))/np.sum(np.std(sh1, 0))/10.
@@ -511,7 +549,7 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                    
             elif len(d) == 3:
                 dd = np.argsort(np.sum((pt1 - p)**2, 1))
-                   
+
                 p1 = [pto1[dd[i]] for i in [0, 1, 2]]
                 p2 = [pto2[d[i]]  for i in [0, 1, 2]]                       
 
@@ -559,21 +597,30 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                 # to do support three vectors
                 raise AssertionError("more than three dofs at same place")
         subvdofs2.extend([s for k, v, s in newk2])
-
+        
+    dprint1("map_dof_vector2", debug.format_memory_usage())
     num_entry = num1 + num2
     
     if use_parallel:
+
         dprint1("total entry (before)",sum(allgather(num_entry)))
         
         #nicePrint("data to exchange", len(external_entry))
         external_entry = redistribute_external_entry(external_entry, rstart+map.shape[0])
-        #nicePrint(external_entry)
-        for r, c, d in external_entry:
-           if not r in subvdofs1:
+        
+        if len(external_entry.shape) == 2:
+            idx1 = np.in1d(external_entry[:,0], subvdofs1, invert=True)
+            val, idx2 = np.unique(external_entry[idx1,0], return_index=True)
+            external_entry = external_entry[idx1][idx2]
+        
+            for r, c, d in external_entry:
+               #if not r in subvdofs1:
                num_entry = num_entry + 1                                 
-               print("adding",myid, r,  c, d )
+               #print("adding",myid, r,  c, d )
                map[r-rstart, c] = d
-               subvdofs1.append(r)
+               #subvdofs1.append(r)
+               
+        dprint1("map_dof_vector3", debug.format_memory_usage())
         '''        
         external_entry =  sum(comm.allgather(external_entry),[])
         #nicePrint(external_entry)        
@@ -603,7 +650,9 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
 def gather_dataset(idx1, idx2, fes1, fes2, trans1,
                                trans2, tol, shape_type = 'scalar',
                                mode = 'surface'):
-
+   
+    dprint1("gather_dataset1", debug.format_memory_usage())
+    
     if fes2 is None: fes2 = fes1
     if trans1 is None: trans1=notrans
     if trans2 is None: trans2=notrans
@@ -637,7 +686,9 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
         sh2all = get_vshape(fes2, ibdr2, mode=mode2)
     else:
         assert False, "Unknown shape type"
-
+        
+    dprint1("gather_dataset2", debug.format_memory_usage())
+    
     # pt is on (u, v), pto is (x, y, z)
     try:
        k1all, pt1all, pto1all = zip(*arr1)
@@ -655,28 +706,29 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
        ct1 = np.atleast_2d(ct1).reshape(-1, max(ct1dim))       
        ct2 = np.atleast_2d(ct2).reshape(-1, max(ct1dim))
        ct2 =  allgather_vector(ct2, MPI.DOUBLE)
-
+       
+    dprint1("gather_dataset3", debug.format_memory_usage())
+    
     # mapping between elements
 
     from scipy.spatial import cKDTree
     tree = cKDTree(ct2)
     ctr_dist, map_1_2 = tree.query(ct1)
+
+    dprint1("gather_dataset4", debug.format_memory_usage())    
     
     if ctr_dist.size > 0 and np.max(ctr_dist) > 1e-15:
        print('Center Dist may be too large (check mesh): ' + 
             str(np.max(ctr_dist)))
 
     if use_parallel:
+       
        pt2all, pto2all, k2all, sh2all, map_1_2 = redistribute_pt2_k2(pt2all, 
                                                             pto2all, k2all, sh2all,
                                                             map_1_2)
-       '''
-       pt2all =  sum(comm.allgather(pt2all),())
-       pto2all = sum(comm.allgather(pto2all),())
-       k2all =  sum(comm.allgather(k2all),())
-       sh2all =  sum(comm.allgather(sh2all),[])
-       k2all = resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2)
-       '''
+       
+       dprint1("gather_dataset5", debug.format_memory_usage())
+       
     # map is fill as transposed shape (row = fes1)
 
     data = pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all,
