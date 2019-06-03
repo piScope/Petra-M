@@ -183,6 +183,7 @@ class MUMPSSolver(LinearSolver):
     def AllocSolver(self, is_complex, use_single_precision):
         if is_complex:
             if use_single_precision:
+                from petram.ext.mumps.mumps_solve import c_array as data_array
                 from petram.ext.mumps.mumps_solve import CMUMPS                
                 s = CMUMPS()                
             else:
