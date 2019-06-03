@@ -236,7 +236,7 @@ class MUMPSSolver(LinearSolver):
             else:
                 return B.astype(np.float32, copy=False)
         else:
-            B
+            return B
         
     def SetOperator(self, A, dist, name=None):
         try:
@@ -409,14 +409,23 @@ else:
    import mfem.ser as mfem
 
 class MUMPSPreconditioner(mfem.PyOperator):
-    def __init__(self, A0, gui=None, engine=None, silent=False, single=False):
+    def __init__(self, A0, gui=None, engine=None, silent=False, **kwargs):
         mfem.PyOperator.__init__(self, A0.Height())
         self.gui = gui
         self.engine = engine
         self.silent = silent
-        self.single = single
-        if single:
-            self.gui.use_single_precision = True
+
+        if 'single' in kwargs and not 'double' in kwargs:
+            self.single = kwargs.pop('single')
+            self.gui.use_single_precision = self.single
+        elif not 'single' in kwargs and 'double' in kwargs:
+            self.single = not kwargs.pop('double')
+            self.gui.use_single_precision = self.single
+        elif 'single' in kwargs and 'double' in kwargs:            
+            assert False, "singel and double can not be uset together"
+        else:
+            pass
+            
         self.SetOperator(A0)
 
     def SetOperator(self, opr):
