@@ -68,7 +68,8 @@ class MUMPS(LinearSolverModel):
         v['use_blr'] = False
         v['blr_drop'] = 0.0
         v['icntl14'] = 200
-        v['icntl23'] = 0        
+        v['icntl23'] = 0
+        v['use_single_precesion'] = False
         return v
     
     def linear_system_type(self, assemble_real, phys_real):
@@ -181,22 +182,28 @@ class MUMPSSolver(LinearSolver):
             pass
         
     def AllocSolver(self, datatype):
-        from petram.ext.mumps.mumps_solve import DMUMPS, d_to_list
-        from petram.ext.mumps.mumps_solve import ZMUMPS, z_to_list
-        from petram.ext.mumps.mumps_solve import i_array, JOB_1_2_3
-
         if datatype == 'Z':
             from petram.ext.mumps.mumps_solve import z_array as data_array
-            from petram.ext.mumps.mumps_solve import z_to_list as to_list
+            #from petram.ext.mumps.mumps_solve import z_to_list as to_list
             s = ZMUMPS()
             is_complex = True
         elif datatype == 'D':            
             from petram.ext.mumps.mumps_solve import d_array as data_array
-            from petram.ext.mumps.mumps_solve import d_to_list as to_list
+            #from petram.ext.mumps.mumps_solve import d_to_list as to_list
             s = DMUMPS()
+            is_complex = False
+        if datatype == 'S':
+            from petram.ext.mumps.mumps_solve import s_array as data_array
+            #from petram.ext.mumps.mumps_solve import s_to_list as to_list
+            s = SMUMPS()
+            is_complex = True
+        elif datatype == 'C':            
+            from petram.ext.mumps.mumps_solve import c_array as data_array
+            #from petram.ext.mumps.mumps_solve import c_to_list as to_list
+            s = CMUMPS()
             is_complex = False            
         else:
-            assert False, "datatype S and F are not supported"
+            assert False, "unknown data type"
             
         self.s = s
         self.is_complex = is_complex
