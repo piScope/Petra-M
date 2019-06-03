@@ -354,7 +354,6 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
     
     if use_parallel:
         dprint1("total entry (before)",sum(allgather(num_entry)))
-        #nicePrint(len(subvdofs1), subvdofs1)
         external_entry = redistribute_external_entry(external_entry, rstart+map.shape[0])
 
         if len(external_entry.shape) == 2:
