@@ -40,7 +40,7 @@ def run_parallel(path='', nproc = 1, debug=0, thread=True):
             return
         del_path = True
         
-    print path    
+    print(path)
     import petram
     from petram.helper.driver_path import parallel as driver
 
@@ -67,7 +67,7 @@ def run_parallel(path='', nproc = 1, debug=0, thread=True):
                print(line.rstrip('\r\n'))
     else:
         stdoutdata, stderrdata = p.communicate()
-        print stdoutdata
+        print(stdoutdata)
     globals()['default_sol_path'] = os.path.dirname(path)
     globals()['default_glvis_args'] = ['-np', nproc]
 

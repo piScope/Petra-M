@@ -13,8 +13,7 @@ dist
 *.egg-info
 petram/trash
 Makefile
+
+error_log.0
 doc/manual.synctex.gz
-doc/manual.synctex.gz
-doc/manual.pdf
-doc/manual.log
-doc/manual.aux
+.DS_Store

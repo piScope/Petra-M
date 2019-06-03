@@ -34,7 +34,7 @@ def call_glvis(solpath = None,
     else:
         args.extend(['-np', str(np)])
     args.extend(['-m', 'solmesh',  '-g',  'solr', '-gc', '2'])
-    print args
+    print(args)
     p = sp.Popen(args, stdout=sp.PIPE, stderr=sp.STDOUT)
     os.chdir(od)
     if thread:
