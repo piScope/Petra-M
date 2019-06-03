@@ -375,11 +375,8 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
 
         depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
         if self.linearsolver is None:
-            if self.ls_type.startswith('coo'):
-                datatype = 'Z' if (AA.dtype == 'complex') else 'D'
-            else:
-                datatype = 'D'
-            self.linearsolver  = self.linearsolver_model.allocate_solver(datatype, engine)
+            is_complex = (AA.dtype == 'complex') 
+            self.linearsolver  = self.linearsolver_model.allocate_solver(is_complex, engine)
             M_changed = True
             
         if M_changed:

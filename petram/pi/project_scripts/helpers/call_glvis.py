@@ -52,6 +52,6 @@ def call_glvis(solpath = None,
                print(line.rstrip('\r\n'))
     else:
         stdoutdata, stderrdata = p.communicate()
-        print stdoutdata
+        print(stdoutdata)
   
 ans(call_glvis(*args, **kwargs))

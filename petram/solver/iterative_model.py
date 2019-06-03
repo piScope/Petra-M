@@ -37,7 +37,6 @@ class Iterative(LinearSolverModel, NS_mixin):
     has_2nd_panel = False
     accept_complex = False
     always_new_panel = False
-
     def __init__(self,  *args, **kwargs):
         LinearSolverModel.__init__(self, *args, **kwargs)
         NS_mixin.__init__(self, *args, **kwargs)
@@ -167,7 +166,7 @@ class Iterative(LinearSolverModel, NS_mixin):
 
         return result
 
-    def allocate_solver(self, datatype='D', engine=None):
+    def allocate_solver(self, is_complex = False, engine=None):
         solver = IterativeSolver(self, engine, int(self.maxiter),
                              self.abstol, self.reltol, int(self.kdim))
         #solver.AllocSolver(datatype)

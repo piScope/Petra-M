@@ -124,7 +124,7 @@ class Strumpack(LinearSolverModel):
 
         return result
     
-    def allocate_solver(self, datatype='D', engine=None):
+    def allocate_solver(self, is_complex=False, engine=None):
         solver = StrumpackSolver(self, engine, int(self.maxiter),
                                  self.actol, self.rctol, self.mc64job,
                                  self.hss, self.hss_front_size,
