@@ -1550,6 +1550,13 @@ class Engine(object):
         elif format == 'blk_interleave': # real coo converted from complex
             M = M_block.get_global_blkmat_interleave()
             
+
+        elif format == 'blk_merged': # real coo converted from complex
+            M = M_block.get_global_blkmat_merged()
+            
+        elif format == 'blk_merged_s': # real coo converted from complex
+            M = M_block.get_global_blkmat_merged(symmetric = True)
+
         dprint2('exiting finalize_matrix')
         self.is_assembled = True
         return M
@@ -1574,8 +1581,19 @@ class Engine(object):
                                        convert_real = True, verbose=verbose)
                     for b in B_blocks]
             BB = np.hstack(BB)
+            
         elif format == 'blk_interleave': # real coo converted from complex
             BB = [b.gather_blkvec_interleave() for b in B_blocks]
+            
+        elif format == 'blk_merged':
+            BB = [b.gather_blkvec_merged() for b in B_blocks]
+            
+        elif format == 'blk_merged_s':
+            BB = [b.gather_blkvec_merged(symmetric=True) for b in B_blocks]
+
+        else:
+            assert False, "unsupported format for B"
+            
         return BB
      
     def finalize_x(self,  X_block, RHS, mask, is_complex,
@@ -1584,6 +1602,10 @@ class Engine(object):
         RHS = RHS.get_subblock(mask[0], [True])
         if format == 'blk_interleave': # real coo converted from complex
             X = X_block.gather_blkvec_interleave(size_hint=RHS)
+            
+        elif format == 'blk_merged' or format == 'blk_merged_s':           
+            X = X_block.gather_blkvec_merged(size_hint=RHS)
+            
         else:
             assert False, "unsupported format for X"
         

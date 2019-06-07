@@ -408,12 +408,11 @@ class SolverInstance(object):
                 self.probe.append(Probe(n, i))
 
     def allocate_linearsolver(self, is_complex, engine):
-        if self.ls_type.startswith('coo'):
-            datatype = 'Z' if (is_complex) else 'D'
+        if self.linearsolver_model.accept_complex:
+            linearsolver  = self.linearsolver_model.allocate_solver(is_complex, engine)            
         else:
-            datatype = 'D'
-            
-        linearsolver  = self.linearsolver_model.allocate_solver(datatype, engine)
+            linearsolver  = self.linearsolver_model.allocate_solver(False, engine)                        
+
         return linearsolver
         
     def solve(self):
@@ -513,8 +512,8 @@ class LinearSolverModel(SolverBase):
         '''
         raise NotImplementedError(
              "you must specify this method in subclass")
-    def allocate_solver(self, datatype='D', engine=None):
-        # datatype = S, D, C, Z
+    
+    def allocate_solver(self, is_complex = False, engine=None):
         raise NotImplementedError(
              "you must specify this method in subclass")
 

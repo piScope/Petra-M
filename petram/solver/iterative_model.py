@@ -37,7 +37,6 @@ class Iterative(LinearSolverModel, NS_mixin):
     has_2nd_panel = False
     accept_complex = False
     always_new_panel = False
-
     def __init__(self,  *args, **kwargs):
         LinearSolverModel.__init__(self, *args, **kwargs)
         NS_mixin.__init__(self, *args, **kwargs)
@@ -50,6 +49,8 @@ class Iterative(LinearSolverModel, NS_mixin):
         from petram.pi.widget_smoother import WidgetSmoother
 
         smp1 = [None, None, 99, {"UI":WidgetSmoother, "span":(1,2)}]
+
+        mm = [[None, self.use_block_symmetric,  3, {"text":"block symmetric format"}], ]        
         return [[None, 'GMRES', 4, {'style':wx.CB_READONLY,
                                      'choices': ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB',
                                                  'MINRES', 'SLI']}],      
@@ -63,7 +64,9 @@ class Iterative(LinearSolverModel, NS_mixin):
                                                {'elp':[smp1,]}],],
                 [None,  self.write_mat,   3, {"text":"write matrix"}],
                 [None, self.assert_no_convergence,  3, {"text":"check converegence"}],
-                [None, self.use_ls_reducer,  3, {"text":"Reduce linear system when possible"}],]     
+                [None, self.use_ls_reducer,  3, {"text":"Reduce linear system when possible"}],
+                [None, (self.merge_real_imag,(self.use_block_symmetric,)),
+                 27, ({"text":"Handle real/imag as one block"}, {"elp":mm},)],]          
      
     
     def get_panel1_value(self):
@@ -91,7 +94,9 @@ class Iterative(LinearSolverModel, NS_mixin):
                 long(self.log_level), long(self.maxiter),
                 self.reltol, self.abstol, long(self.kdim),
                 [self.adv_mode, [self.adv_prc, ], [self.preconditioners,]],
-                self.write_mat, self.assert_no_convergence, self.use_ls_reducer)
+                self.write_mat, self.assert_no_convergence,
+                self.use_ls_reducer,
+                (self.merge_real_imag, (self.use_block_symmetric,)), )
     
     def import_panel1_value(self, v):
         self.solver_type = str(v[0])
@@ -103,9 +108,11 @@ class Iterative(LinearSolverModel, NS_mixin):
         self.preconditioners = v[6][2][0]
         self.write_mat = bool(v[7])
         self.assert_no_convergence = bool(v[8])
-        self.use_ls_reducer = bool(v[9])        
+        self.use_ls_reducer = bool(v[9])
         self.adv_mode = v[6][0]
-        self.adv_prc = v[6][1][0]      
+        self.adv_prc = v[6][1][0]
+        self.merge_real_imag = bool(v[10][0])
+        self.use_block_symmetric = bool(v[10][1][0])                                
         
     def attribute_set(self, v):
         v = super(Iterative, self).attribute_set(v)
@@ -123,6 +130,8 @@ class Iterative(LinearSolverModel, NS_mixin):
         v['use_ls_reducer'] = False
         v['adv_mode'] = False
         v['adv_prc'] = ''
+        v['merge_real_imag'] = False
+        v['use_block_symmetric'] = False
         return v
     
     def verify_setting(self):
@@ -134,11 +143,21 @@ class Iterative(LinearSolverModel, NS_mixin):
 
     def linear_system_type(self, assemble_real, phys_complex):
         #if not phys_complex: return 'block'
-        return 'blk_interleave'
+        if self.merge_real_imag and self.use_block_symmetric:
+             return 'blk_merged_s'
+        elif self.merge_real_imag and not self.use_block_symmetric:
+             return 'blk_merged'           
+        else:
+             return 'blk_interleave'
         #return None
 
-
     def real_to_complex(self, solall, M):
+        if self.merge_real_imag:
+            return self.real_to_complex_merged(solall, M)
+        else:
+            return self.real_to_complex_interleaved(solall, M)
+
+    def real_to_complex_interleaved(self, solall, M):
         if use_parallel:
            from mpi4py import MPI
            myid     = MPI.COMM_WORLD.rank
@@ -167,7 +186,35 @@ class Iterative(LinearSolverModel, NS_mixin):
 
         return result
 
-    def allocate_solver(self, datatype='D', engine=None):
+    def real_to_complex_merged(self, solall, M):
+        if use_parallel:
+           from mpi4py import MPI
+           myid     = MPI.COMM_WORLD.rank
+
+
+           offset = M.RowOffsets().ToList()
+           of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o))) for o in offset]
+           if myid != 0: return           
+
+        else:
+           offset = M.RowOffsets()
+           of = offset.ToList()
+        dprint1(of)
+        rows = M.NumRowBlocks()
+        s = solall.shape
+        i = 0
+        pt = 0
+        result = np.zeros((s[0]/2, s[1]), dtype='complex')
+        for i in range(rows):
+           l = of[i+1]-of[i]
+           w = int(l/2)
+           result[pt:pt+w,:] = (solall[of[i]:of[i]+w,:]
+                            +  1j*solall[(of[i]+w):of[i+1],:])
+           pt = pt + w
+        return result
+           
+       
+    def allocate_solver(self, is_complex = False, engine=None):
         solver = IterativeSolver(self, engine, int(self.maxiter),
                              self.abstol, self.reltol, int(self.kdim))
         #solver.AllocSolver(datatype)
@@ -264,7 +311,7 @@ class IterativeSolver(LinearSolver):
         else:
             prcs_gui = dict(self.gui.preconditioners)
             assert not self.gui.parent.is_complex(), "can not solve complex"
-            if self.gui.parent.is_converted_from_complex():
+            if self.gui.parent.is_converted_from_complex() and not self.gui.merge_real_imag:
                 name = sum([[n, n] for n in name], [])
 
             import petram.helper.preconditioners as prcs
@@ -364,7 +411,13 @@ class IterativeSolver(LinearSolver):
            s = []
            for i in range(offset.Size()-1):
                v = xx.GetBlock(i).GetDataArray()
-               vv = gather_vector(v)
+               if self.gui.merge_real_imag:
+                   w = int(len(v)/2)
+                   vv1 = gather_vector(v[:w])
+                   vv2 = gather_vector(v[w:])                   
+                   vv = np.hstack((vv1, vv2))
+               else:
+                   vv = gather_vector(v)
                if myid == 0:
                    s.append(vv)
                else:
