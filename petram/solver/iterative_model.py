@@ -49,6 +49,8 @@ class Iterative(LinearSolverModel, NS_mixin):
         from petram.pi.widget_smoother import WidgetSmoother
 
         smp1 = [None, None, 99, {"UI":WidgetSmoother, "span":(1,2)}]
+
+        mm = [[None, self.use_block_symmetric,  3, {"text":"block symmetric format"}], ]        
         return [[None, 'GMRES', 4, {'style':wx.CB_READONLY,
                                      'choices': ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB',
                                                  'MINRES', 'SLI']}],      
@@ -63,7 +65,8 @@ class Iterative(LinearSolverModel, NS_mixin):
                 [None,  self.write_mat,   3, {"text":"write matrix"}],
                 [None, self.assert_no_convergence,  3, {"text":"check converegence"}],
                 [None, self.use_ls_reducer,  3, {"text":"Reduce linear system when possible"}],
-                [None, self.merge_real_imag,  3, {"text":"Handle real/imag as one block"}],]          
+                [None, (self.merge_real_imag,(self.use_block_symmetric,)),
+                 27, ({"text":"Handle real/imag as one block"}, {"elp":mm},)],]          
      
     
     def get_panel1_value(self):
@@ -92,7 +95,8 @@ class Iterative(LinearSolverModel, NS_mixin):
                 self.reltol, self.abstol, long(self.kdim),
                 [self.adv_mode, [self.adv_prc, ], [self.preconditioners,]],
                 self.write_mat, self.assert_no_convergence,
-                self.use_ls_reducer, self.merge_real_imag)
+                self.use_ls_reducer,
+                (self.merge_real_imag, (self.use_block_symmetric,)), )
     
     def import_panel1_value(self, v):
         self.solver_type = str(v[0])
@@ -105,9 +109,10 @@ class Iterative(LinearSolverModel, NS_mixin):
         self.write_mat = bool(v[7])
         self.assert_no_convergence = bool(v[8])
         self.use_ls_reducer = bool(v[9])
-        self.merge_real_imag = bool(v[10])                
         self.adv_mode = v[6][0]
-        self.adv_prc = v[6][1][0]      
+        self.adv_prc = v[6][1][0]
+        self.merge_real_imag = bool(v[10][0])
+        self.use_block_symmetric = bool(v[10][1][0])                                
         
     def attribute_set(self, v):
         v = super(Iterative, self).attribute_set(v)
@@ -126,6 +131,7 @@ class Iterative(LinearSolverModel, NS_mixin):
         v['adv_mode'] = False
         v['adv_prc'] = ''
         v['merge_real_imag'] = False
+        v['use_block_symmetric'] = False
         return v
     
     def verify_setting(self):
@@ -137,8 +143,10 @@ class Iterative(LinearSolverModel, NS_mixin):
 
     def linear_system_type(self, assemble_real, phys_complex):
         #if not phys_complex: return 'block'
-        if self.merge_real_imag:
-             return 'blk_merged'
+        if self.merge_real_imag and self.use_block_symmetric:
+             return 'blk_merged_s'
+        elif self.merge_real_imag and not self.use_block_symmetric:
+             return 'blk_merged'           
         else:
              return 'blk_interleave'
         #return None
@@ -169,7 +177,7 @@ class Iterative(LinearSolverModel, NS_mixin):
         i = 0
         pt = 0
         result = np.zeros((s[0]/2, s[1]), dtype='complex')
-        for i in range(nb):
+        for j in range(nb):
            l = of[i+1]-of[i]
            result[pt:pt+l,:] = (solall[of[i]:of[i+1],:]
                              +  1j*solall[of[i+1]:of[i+2],:])

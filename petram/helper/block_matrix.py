@@ -1013,7 +1013,7 @@ class BlockMatrix(object):
 
         return glcsr
      
-    def gather_blkvec_merged(self, size_hint = None):
+    def gather_blkvec_merged(self, size_hint = None, symmetric=False):
         '''
         Construct MFEM::BlockVector
 
@@ -1042,15 +1042,21 @@ class BlockMatrix(object):
             if self[i,0] is not None:
                 if isinstance(self[i,0], chypre.CHypreVec):
                     rr = self[i,0][0].GetDataArray()
-                    if self[i,0][1] is not None:                    
-                        ii = self[i,0][1].GetDataArray()
+                    if self[i,0][1] is not None:
+                        if symmetric:
+                            ii = -self[i,0][1].GetDataArray()
+                        else:                           
+                            ii = self[i,0][1].GetDataArray()
                     else:
                         ii = rr*0
                     vv = np.hstack([rr, ii])
                     vec.GetBlock(i).Assign(vv)
                 elif isinstance(self[i,0], ScipyCoo):
                     arr =np.atleast_1d(self[i,0].toarray().squeeze())
-                    arr = np.hstack([np.real(arr), np.imag(arr)])
+                    if symmetric:
+                        arr = np.hstack([np.real(arr), -np.imag(arr)])
+                    else:
+                        arr = np.hstack([np.real(arr), np.imag(arr)])
                     vec.GetBlock(i).Assign(arr)
                 else:
                     assert False, "not implemented, "+ str(type(self[i,0]))
@@ -1058,7 +1064,7 @@ class BlockMatrix(object):
                 vec.GetBlock(i).Assign(0.0)
         return vec
 
-    def get_global_blkmat_merged(self):
+    def get_global_blkmat_merged(self, symmetric=False):
         '''
         This routine ordered unkonws in the following order
            Re FFE1, Im FES1, ReFES2, Im FES2, ...
@@ -1099,18 +1105,27 @@ class BlockMatrix(object):
                             if gcsr[0] is not None:
                                 csc = ToScipyCoo(gcsr[0]).tocsc()
                                 csc1 = [csc[:,cstarts[k]:cstarts[k+1]] for k in range(len(cstarts)-1)]
+                                if symmetric:
+                                   csc1m = [-csc[:,cstarts[k]:cstarts[k+1]] for k in range(len(cstarts)-1)]                                   
                             else:
                                 csc1 = [None]*len(csize)
+                                csc1m = [None]*len(csize)
+                                
                             if gcsr[1] is not None:
                                 csc   = ToScipyCoo(gcsr[1]).tocsc()
-                                csc2  = [ csc[:,cstarts[k]:cstarts[k+1]] for k in range(len(cstarts)-1)]
+                                if not symmetric:
+                                    csc2  = [ csc[:,cstarts[k]:cstarts[k+1]] for k in range(len(cstarts)-1)]
                                 csc2m = [-csc[:,cstarts[k]:cstarts[k+1]] for k in range(len(cstarts)-1)]
                             else:
                                 csc2  = [None]*len(csize)
                                 csc2m = [None]*len(csize)
-
-                            csr = scipy.sparse.bmat([sum(zip(csc1, csc2m), ()),
-                                                     sum(zip(csc2, csc1),  ())]).tocsr()
+                                
+                            if symmetric:
+                                csr = scipy.sparse.bmat([sum(zip(csc1, csc2m), ()),
+                                                         sum(zip(csc2m, csc1m),  ())]).tocsr()
+                            else:
+                                csr = scipy.sparse.bmat([sum(zip(csc1, csc2m), ()),
+                                                         sum(zip(csc2, csc1),  ())]).tocsr()
 
                             cp2 = [(cp*2)[0], (cp*2)[1], np.sum(csize)*2]
                             #gcsr[1] = ToHypreParCSR(csr, col_starts =cp)
@@ -1119,8 +1134,12 @@ class BlockMatrix(object):
                             assert False, "unsupported block element "+str(type(self[i,j]))
                     else:
                         if isinstance(self[i,j], ScipyCoo):
-                            tmp  = scipy.sparse.bmat([[self[i, j].real, -self[i, j].imag],
-                                                      [self[i, j].imag,  self[i, j].real]])
+                            if symmetric:
+                                tmp  = scipy.sparse.bmat([[ self[i, j].real, -self[i, j].imag],
+                                                          [-self[i, j].imag, -self[i, j].real]])
+                            else:   
+                                tmp  = scipy.sparse.bmat([[self[i, j].real, -self[i, j].imag],
+                                                          [self[i, j].imag,  self[i, j].real]])
                             csr = tmp.tocsr()
                             csr.eliminate_zeros()
                             gcsr = mfem.SparseMatrix(csr)
