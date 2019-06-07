@@ -8,6 +8,7 @@ from scipy.sparse import coo_matrix, spmatrix, lil_matrix, csc_matrix
 
 from petram.mfem_config import use_parallel
 import mfem.common.chypre as chypre
+from mfem.common.mpi_debug import nicePrint
 
 if use_parallel:
    from petram.helper.mpi_recipes import *
@@ -819,7 +820,8 @@ class BlockMatrix(object):
     #  methods for distributed csr format
     #
     def get_local_partitioning(self, convert_real = True,
-                                     interleave = True):
+                                     interleave = True,
+                                     merge_realimag = False):
         '''
         build matrix in coordinate format
         '''
@@ -850,12 +852,16 @@ class BlockMatrix(object):
                    
         #coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
         if self.complex and convert_real:
-            if interleave:
-                roffset = np.repeat(roffset, 2)
-                coffset = np.repeat(coffset, 2)
+            if merge_realimag:
+                roffset = roffset*2
+                coffset = coffset*2
             else:
-                roffset = np.hstack((roffset, roffset))
-                coffset = np.hstack((roffset, roffset))  
+                if interleave:
+                    roffset = np.repeat(roffset, 2)
+                    coffset = np.repeat(coffset, 2)
+                else:
+                    roffset = np.hstack((roffset, roffset))
+                    coffset = np.hstack((coffset, coffset))  
 
         roffsets = np.hstack([0, np.cumsum(roffset)])
         coffsets = np.hstack([0, np.cumsum(coffset)])
@@ -945,13 +951,14 @@ class BlockMatrix(object):
             ii = ii + 2 if self.complex else ii+1
 
         return vec
-       
+     
+
     def get_global_blkmat_interleave(self):
         '''
         This routine ordered unkonws in the following order
+           FFE1, FES2, 
+        If it is complex
            Re FFE1, Im FES1, ReFES2, Im FES2, ...
-        If self.complex is False, it assembles a nomal block
-        matrix FES1, FES2...
         '''
         roffsets, coffsets = self.get_local_partitioning(convert_real=True,
                                                          interleave=True)
@@ -977,6 +984,7 @@ class BlockMatrix(object):
                             #if (cp == rp).all() and s[0] == s[1]:
                             if gcsr[0] is not None:
                                   csr = ToScipyCoo(gcsr[0]).tocsr()
+                                  dprint1("here", csr.shape)
                                   gcsr[0] = ToHypreParCSR(csr, col_starts =cp)
                             if gcsr[1] is not None:
                                   csr = ToScipyCoo(gcsr[1]).tocsr()
@@ -993,6 +1001,7 @@ class BlockMatrix(object):
                                gcsrm *= -1.
                         else:
                             assert False, "unsupported block element "+type(self[i,j])
+
                     glcsr.SetBlock(ii, jj, gcsr[0])
                     if self.complex:
                         glcsr.SetBlock(ii+1, jj+1, gcsr[0])
@@ -1003,7 +1012,125 @@ class BlockMatrix(object):
             ii = ii + 2 if self.complex else ii+1
 
         return glcsr
+     
+    def gather_blkvec_merged(self, size_hint = None):
+        '''
+        Construct MFEM::BlockVector
 
+        This routine ordered unkonws in the following order
+           (Re_FES1_node1, Im_FES1_node1, Re_FES1_node2, Im_FES1_node2, ...)
+
+        '''
+        assert self.complex, "this format is complex only"
+        
+        roffsets = self.get_local_partitioning_v(size_hint = size_hint)
+        roffsets = np.sum(np.diff(roffsets).reshape(-1, 2), 1)
+        roffsets = np.hstack([0, np.cumsum(roffsets)])
+        
+        dprint1("roffsets(vector)", roffsets)
+        offset = mfem.intArray(list(roffsets))
+        
+        vec = mfem.BlockVector(offset)
+        vec._offsets = offset # in order to keep it from freed
+        
+        data = []
+        ii = 0; jj = 0
+
+        # Here I don't like that I am copying the data between two vectors..
+        # But, avoiding this takes the large rearangement of program flow...
+        for i in range(self.shape[0]):        
+            if self[i,0] is not None:
+                if isinstance(self[i,0], chypre.CHypreVec):
+                    rr = self[i,0][0].GetDataArray()
+                    if self[i,0][1] is not None:                    
+                        ii = self[i,0][1].GetDataArray()
+                    else:
+                        ii = rr*0
+                    vv = np.hstack([rr, ii])
+                    vec.GetBlock(i).Assign(vv)
+                elif isinstance(self[i,0], ScipyCoo):
+                    arr =np.atleast_1d(self[i,0].toarray().squeeze())
+                    arr = np.hstack([np.real(arr), np.imag(arr)])
+                    vec.GetBlock(i).Assign(arr)
+                else:
+                    assert False, "not implemented, "+ str(type(self[i,0]))
+            else:
+                vec.GetBlock(i).Assign(0.0)
+        return vec
+
+    def get_global_blkmat_merged(self):
+        '''
+        This routine ordered unkonws in the following order
+           Re FFE1, Im FES1, ReFES2, Im FES2, ...
+        matrix FES1, FES2...
+        '''
+        assert self.complex, "this format is complex only"
+        
+        roffsets, coffsets = self.get_local_partitioning()
+        roffsets = np.sum(np.diff(roffsets).reshape(-1, 2), 1)
+        coffsets = np.sum(np.diff(coffsets).reshape(-1, 2), 1)
+        roffsets = np.hstack([0, np.cumsum(roffsets)])
+        coffsets = np.hstack([0, np.cumsum(coffsets)])        
+        dprint1("Generating MFEM BlockMatrix: shape = "+str((len(roffsets)-1, len(coffsets)-1)))
+        dprint1("Generating MFEM BlockMatrix: roffset/coffset = ", roffsets, coffsets)
+
+        ro = mfem.intArray(list(roffsets))
+        co = mfem.intArray(list(coffsets))        
+        glcsr = mfem.BlockOperator(ro, co)
+
+        ii = 0
+
+        for j in range(self.shape[1]):
+            jfirst = True
+            for i in range(self.shape[0]):
+                if self[i,j] is not None:
+                    if use_parallel:
+                        if isinstance(self[i,j], chypre.CHypreMat):
+                            gcsr =  self[i,j]
+                            cp = self[i,j].GetColPartArray()
+                            rp = self[i,j].GetRowPartArray()
+                            if jfirst:                            
+                                csize_local =cp[1] - cp[0]                            
+                                csize = allgather(csize_local)
+                                cstarts = np.hstack([0, np.cumsum(csize)])
+                                jfirst = False                                
+                            s = self[i,j].shape
+                            #if (cp == rp).all() and s[0] == s[1]:
+                            if gcsr[0] is not None:
+                                csc = ToScipyCoo(gcsr[0]).tocsc()
+                                csc1 = [csc[:,cstarts[k]:cstarts[k+1]] for k in range(len(cstarts)-1)]
+                            else:
+                                csc1 = [None]*len(csize)
+                            if gcsr[1] is not None:
+                                csc   = ToScipyCoo(gcsr[1]).tocsc()
+                                csc2  = [ csc[:,cstarts[k]:cstarts[k+1]] for k in range(len(cstarts)-1)]
+                                csc2m = [-csc[:,cstarts[k]:cstarts[k+1]] for k in range(len(cstarts)-1)]
+                            else:
+                                csc2  = [None]*len(csize)
+                                csc2m = [None]*len(csize)
+
+                            csr = scipy.sparse.bmat([sum(zip(csc1, csc2m), ()),
+                                                     sum(zip(csc2, csc1),  ())]).tocsr()
+
+                            cp2 = [(cp*2)[0], (cp*2)[1], np.sum(csize)*2]
+                            #gcsr[1] = ToHypreParCSR(csr, col_starts =cp)
+                            gcsr  = ToHypreParCSR(csr, col_starts =cp2)
+                        else:
+                            assert False, "unsupported block element "+str(type(self[i,j]))
+                    else:
+                        if isinstance(self[i,j], ScipyCoo):
+                            tmp  = scipy.sparse.bmat([[self[i, j].real, -self[i, j].imag],
+                                                      [self[i, j].imag,  self[i, j].real]])
+                            csr = tmp.tocsr()
+                            csr.eliminate_zeros()
+                            gcsr = mfem.SparseMatrix(csr)
+                        else:
+                            assert False, "unsupported block element "+type(self[i,j])
+
+                    glcsr.SetBlock(i, j, gcsr)
+
+        return glcsr
+     
 
 
                 

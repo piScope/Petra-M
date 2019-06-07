@@ -281,7 +281,7 @@ class MUMPSSolver(LinearSolver):
 
             s.set_nz_loc(len(A.data))
             s.set_irn_loc(i_array(row))
-            s.set_jcn_loc(i_array(col))            
+            s.set_jcn_loc(i_array(col))
             s.set_a_loc(self.data_array(AA))
 
             s.set_icntl(14, gui.icntl14)
@@ -306,6 +306,8 @@ class MUMPSSolver(LinearSolver):
                 col = A.col
                 row = row.astype(dtype_int) + 1
                 col = col.astype(dtype_int) + 1
+                AA = self.make_matrix_entries(A)                        
+                
                 if len(col) > 0:
                     dprint1('index data size ' , type(col[0]))
                     dprint1('matrix data type ' , type(AA[0]))
@@ -314,7 +316,6 @@ class MUMPSSolver(LinearSolver):
                 s.set_nz(len(A.data))
                 s.set_irn(i_array(row))
                 s.set_jcn(i_array(col))
-                AA = self.make_matrix_entries(A)                        
                 s.set_a(self.data_array(AA))
                 self.dataset = (A.data, row, col)                
             s.set_icntl(14,  gui.icntl14)

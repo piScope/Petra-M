@@ -375,7 +375,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
 
         depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
         if self.linearsolver is None:
-            is_complex = (AA.dtype == 'complex') 
+            is_complex = self.gui.is_complex()
             self.linearsolver  = self.linearsolver_model.allocate_solver(is_complex, engine)
             M_changed = True
             
