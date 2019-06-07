@@ -140,7 +140,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     
                 elif task[0] == 7: # (7, expr)  = eval
                     if self.solfiles is None:
-                        value = (None, None)
+                        value = (self.myid, None, None)
                     else:
                         value =  self.eval(task[1], **task[2])
                         
@@ -152,7 +152,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                         
             except:
                 traceback.print_exc()
-                value = (None, None)
+                value = (self.myid, None, None)
             finally:
                 self.task_queue.task_done()
                 
@@ -193,12 +193,25 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         try:
             from petram.engine import SerialEngine
             s = SerialEngine(modelfile = model_path)
-            s.run_config()
-            s.run_mesh()
-            s.assign_sel_index()        
+
+            if (os.path.basename(model_path) == 'model_proc.pmfm'):
+                s.build_ns()
+            else:
+                s.run_config()            
+                model_path = os.path.join(os.path.dirname(model_path), 'model_proc.pmfm')
+                if (self.myid == 0):
+                    s.model.save_to_file(model_path,
+                                meshfile_relativepath = False)
+            
+            ### can we skip this (run_config read mesh...)
+            #s.run_config()
+            ### (we don't need this for sure???)
+            #s.run_mesh()
+            #s.assign_sel_index()
+            ###
             self.model_real = s.model
         except:
-             print(traceback.format_exc())
+            print(traceback.format_exc())
         super(EvaluatorMPChild, self).set_model(s.model)
 
     def call_preprocesss_geometry(self, attr, **kwargs):
@@ -222,11 +235,16 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             attrs.append(key)                                  
             evaluators = self.agents[key]
             for o, solvar in zip(evaluators, solvars): # scan over sol files
-                v, c, a = o.eval(expr, solvar, phys, **kwargs)
+                try:
+                     v, c, a = o.eval(expr, solvar, phys, **kwargs)
+                except:
+                     import traceback
+                     return self.myid, None, traceback.format_exc()
+                     
                 if v is None:
                     v = None; c = None; a = None
                 data[-1].append((v, c, a))
-        #print("eval result", data, attrs)
+
         return self.myid, data, attrs
     
     def eval_probe(self, expr, probes):
@@ -268,13 +286,28 @@ class EvaluatorMP(Evaluator):
         self.terminate_all()
 
     def set_model(self, model):
-        import tempfile, shutil
-        tmpdir = tempfile.mkdtemp()
-        model_path = os.path.join(tmpdir, 'model.pmfm')
-        model.save_to_file(model_path,
-                           meshfile_relativepath = False)
-        self.tasks.put((3, model_path), join = True)
-        shutil.rmtree(tmpdir)
+        #print("looking for model file in " + os.getcwd())
+        #print(model)
+        #print(model.local_sol_path)
+        
+        tmpdir = model.local_sol_path
+        file1 = os.path.join(tmpdir, "model_proc.pmfm")
+        file2 = os.path.join(tmpdir, "model.pmfm")
+        
+        if os.path.exists(file1):
+            self.tasks.put((3, file1), join = True)
+        elif os.path.exists(file2):
+            self.tasks.put((3, file2), join = True)
+        else:
+            assert False, "No model file in " + os.getcwd()
+        #import tempfile, shutil
+        #tmpdir = tempfile.mkdtemp()
+        #model_path = os.path.join(tmpdir, 'model.pmfm')
+        #model.save_to_file(model_path,
+        #                   meshfile_relativepath = False)
+        #self.tasks.put((3, model_path), join = True)
+
+        #shutil.rmtree(tmpdir)
         
     def set_solfiles(self, solfiles):
         self.solfiles = weakref.ref(solfiles)        
@@ -314,8 +347,13 @@ class EvaluatorMP(Evaluator):
         res = [self.results.get() for x in range(len(self.workers))]
         for x in range(len(self.workers)):
             self.results.task_done()
-        # sort it so that the data is in the order of workes.rank    
+            
+        # sort it so that the data is in the order of workes.rank
         res = [(x[1], x[2]) for x in sorted(res)]
+
+        for x1, x2 in res:
+            if x1 is None and x2 is not None:
+                assert False, x2
             
         results = [x[0] for x in res if x[0] is not None]
         attrs = [x[1] for x in res if x[0] is not None]

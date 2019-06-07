@@ -32,10 +32,11 @@ class TimeDomain(Solver):
     has_2nd_panel = False
 
     def attribute_set(self, v):
-        v['st_et_nt'] = [0, 1, 0.1]
+        v['st_et_nt'] = [0, 1, 5]
         v['time_step'] = 0.01
-        v['time_step_cnk'] = 0.01        
-        v['ts_method'] = "Backward Eular"
+        v['time_step_cnk'] = 0.01
+        v['time_step_fe'] = 0.01                
+        v['ts_method'] = "Backward Euler"
         v['abe_minstep']= 0.01
         v['abe_maxstep']= 1.0
         v['use_dwc_cp']   = False   # check point               
@@ -59,11 +60,13 @@ class TimeDomain(Solver):
                 ["physics model",   self.phys_model,  0, {},],
                 ["start/end/#step",  "",  0, {},],
                 ["probes",   self.probe,  0, {},],                                
-                [None, None, 34, ({'text':'method','choices': ["Backward Eular",
+                [None, None, 34, ({'text':'method','choices': ["Backward Euler",
                                                                "CrankNicolson",
+                                                               "Forward Euler",
                                                                "Adaptive BE"], 'call_fit':False},
                                   {'elp':elp_be},
-                                  {'elp':elp_be},                                  
+                                  {'elp':elp_be},
+                                  {'elp':elp_be},                                                                    
                                   {'elp':elp_abe},)],
                 [None, [False, [value_cp]], 27, [{'text':'Use DWC (check point)'},
                                               {'elp': [ret_cp]}]],
@@ -88,7 +91,8 @@ class TimeDomain(Solver):
                 self.probe,                                
                 [self.ts_method,
                  [str(self.time_step),],
-                 [str(self.time_step_cnk),],                 
+                 [str(self.time_step_cnk),],
+                 [str(self.time_step_fe),],                                  
                  [str(self.abe_minstep), str(self.abe_maxstep),],
                 ],
                 [self.use_dwc_cp, [self.dwc_cp_arg,]],
@@ -114,10 +118,11 @@ class TimeDomain(Solver):
         self.use_profiler = v[10]
         
         self.ts_method = str(v[3][0])
-        self.time_step= str(v[3][1][0])
-        self.time_step_cnk= str(v[3][2][0])        
-        self.abe_minstep= float(v[3][3][0])
-        self.abe_maxstep= float(v[3][3][1])
+        self.time_step = str(v[3][1][0])
+        self.time_step_cnk = str(v[3][2][0])
+        self.time_step_fe = str(v[3][3][0])                
+        self.abe_minstep  = float(v[3][4][0])
+        self.abe_maxstep  = float(v[3][4][1])
         self.use_dwc_cp   = v[4][0]
         self.dwc_cp_arg   = v[4][1][0]         
         self.use_dwc_ts   = v[5][0]
@@ -132,12 +137,6 @@ class TimeDomain(Solver):
         except ImportError:
             pass
 
-        #try:
-        #    from petram.solver.gmres_model import GMRES
-        #    choice.append(GMRES)
-        #except ImportError:
-        #    pass
-        
         try:
             from petram.solver.iterative_model import Iterative
             choice.append(Iterative)
@@ -175,7 +174,7 @@ class TimeDomain(Solver):
         fid = engine.open_file('checkpoint.'+self.parent.name()+'_'+self.name()+'.txt', 'w')
         st, et, nt = self.st_et_nt
         
-        if self.ts_method == 'Backward Eular':
+        if self.ts_method == 'Backward Euler' or self.ts_method == 'Backward Eular':
             instance = FirstOrderBackwardEuler(self, engine)
             time_step = self.eval_text_in_global(self.time_step)
             dprint1("time step configuration: " + str(self.time_step) + ':' +  str(time_step))            
@@ -185,6 +184,12 @@ class TimeDomain(Solver):
             instance = CrankNicolson(self, engine)
             time_step = self.eval_text_in_global(self.time_step_cnk)
             dprint1("time step configuration: " + str(self.time_step_cnk) + ':' +  str(time_step))            
+            instance.set_timestep(TimeStep(time_step))
+            
+        elif self.ts_method == "Forward Euler":
+            instance = FirstOrderForwardEuler(self, engine)            
+            time_step = self.eval_text_in_global(self.time_step_fe)
+            dprint1("time step configuration: " + str(self.time_step_fe) + ':' +  str(time_step))            
             instance.set_timestep(TimeStep(time_step))
             
         elif self.ts_method == "Adaptive BE":
@@ -256,8 +261,6 @@ class TimeDomain(Solver):
         if fid is not None: fid.close()
         
         return is_first       
-        print(debug.format_memory_usage())
-
 
 from petram.solver.solver_model import TimeDependentSolverInstance
 
@@ -466,6 +469,24 @@ class CrankNicolson(FirstOrderBackwardEuler):
         dprint1("RHS", RHS)
         return RHS
 
+class FirstOrderForwardEuler(FirstOrderBackwardEuler):
+    def compute_A(self, M, B, X, mask_M, mask_B):
+        '''
+        M/dt u_1  = M/dt u_0 - K u_0 + b
+        '''
+        one_dt = 1./float(self.time_step)
+        #MM = M[1]*one_dt
+        A = M[1]*one_dt
+        dprint1("A", A)
+        return A, np.any(mask_M)
+
+    def compute_rhs(self, M, B, X):
+        one_dt = 1./float(self.time_step)
+        MM = (-M[0] + M[1]*one_dt)
+        RHS = MM.dot(self.engine.sol) + B
+        dprint1("RHS", RHS)
+        return RHS
+    
     
 class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
     def __init__(self, gui, engine):

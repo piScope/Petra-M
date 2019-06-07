@@ -73,7 +73,7 @@ def run_serial(path='', debug=0, thread =  True):
            if line == 'process terminated':break
     else:
         stdoutdata, stderrdata = p.communicate()
-        print stdoutdata
+        print(stdoutdata)
 
     globals()['default_sol_path'] = os.path.dirname(path)
     globals()['default_glvis_args'] = []

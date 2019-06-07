@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 import numpy as np
@@ -163,7 +164,8 @@ def connection_test(host = 'localhost'):
        out, alive = wait_for_prompt(p)
     p.stdin.write('e\n')
     out, alive = wait_for_prompt(p)
-
+    
+            
 from petram.sol.evaluator_mp import EvaluatorMP
 class EvaluatorServer(EvaluatorMP):
     def __init__(self, nproc = 2, logfile = 'queue'):
@@ -173,14 +175,31 @@ class EvaluatorServer(EvaluatorMP):
     def set_model(self, soldir):
         import os
         soldir = os.path.expanduser(soldir)        
-        model_path = os.path.join(soldir, 'model.pmfm')
+        model_path = os.path.join(soldir, 'model_proc.pmfm')
         if not os.path.exists(model_path):
            if 'case' in os.path.split(soldir)[-1]:
-               model_path = os.path.join(os.path.dirname(soldir), 'model.pmfm')
+               model_path = os.path.join(os.path.dirname(soldir), 'model_proc.pmfm')
+
+        # if model_proc.pmfm is not available, try to make it from
+        # model.pmfm
+
         if not os.path.exists(model_path):
-            assert False, "Model File not found: " + model_path
+            model0_path = os.path.join(soldir, 'model.pmfm')
+            if not os.path.exists(model0_path):
+                if 'case' in os.path.split(soldir)[-1]:
+                    model0_path = os.path.join(os.path.dirname(soldir), 'model.pmfm')
+            if not os.path.exists(model0_path):           
+                assert False, "Model File not found: " + model0_path
+            model_path = model0_path
             
         self.tasks.put((3, model_path), join = True)
+        
+        #import tempfile, shutil
+        #tmpdir = tempfile.mkdtemp()
+        #model_path = os.path.join(tmpdir, 'model.pmfm')
+        #self.tasks.put((3, model_path), join = True)
+        #self.tasks.put((3, "model_proc.pmfm"), join = True)
+        #shutil.rmtree(tmpdir)
 
     
 class EvaluatorClient(Evaluator):

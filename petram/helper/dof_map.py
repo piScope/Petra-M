@@ -27,11 +27,15 @@
 
 import numpy as np
 import scipy
+import bisect
+import warnings
+import traceback
 from scipy.sparse import lil_matrix
 import petram.debug as debug
 debug.debug_default_level = 1
 dprint1, dprint2, dprint3 = debug.init_dprints('dof_map')
 
+warnings.filterwarnings('error', category=RuntimeWarning)
 
 from petram.helper.matrix_file import write_matrix, write_vector
 
@@ -121,7 +125,7 @@ def find_el_center(fes, ibdr1, trans1, mode = 'Bdr'):
     #                          for kk in m(k)],0) for k in ibdr1])
     return pts
 
-def get_element_data(fes, idx, trans, mode='Bdr'):
+def get_element_data(fes, idx, trans, mode='Bdr', use_global=False):
     mesh = fes.GetMesh()  
 
     GetTrans = getattr(fes, methods[mode]['Transformation'])
@@ -141,14 +145,18 @@ def get_element_data(fes, idx, trans, mode='Bdr'):
 
        subvdof1 = [x if x>= 0 else -1-x for x in vdof1]
        if use_parallel:
-            subvdof2= [fes.GetLocalTDofNumber(i) for i in subvdof1]
-            flag = False
-            for k, x in enumerate(subvdof2):
-                if x >=0:
-                    subvdof2[k] = fes.GetMyTDofOffset()+ x
-                else: flag = True
-            if element_data_debug and flag:
-               dprint2(subvdof1, vdof1, subvdof2)
+            if use_global:
+               subvdof2= [fes.GetGlobalTDofNumber(i) for i in subvdof1]
+            else:
+               subvdof2= [fes.GetLocalTDofNumber(i) for i in subvdof1]
+               flag = False
+               myoffset = fes.GetMyTDofOffset()
+               for k, x in enumerate(subvdof2):
+                   if x >=0:
+                       subvdof2[k] = myoffset + x
+                   else: flag = True
+               if element_data_debug and flag:
+                  dprint2(subvdof1, vdof1, subvdof2)
             ## note subdof2 = -1 if it is not owned by the node
        else:
            subvdof2 = subvdof1
@@ -205,51 +213,72 @@ def get_vshape(fes, ibdr , mode='Bdr'):
         ret[iii]  = shape
     return ret
 
-def resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2):
-    '''
-    resolves shadowed DoF
-    this is done based on integration point distance.
-    It searches a closeest true (non-shadow) DoF point
-    '''
-    k2all = np.stack(k2all)
-    for k in range(len(pt1all)):
-        subvdof1 = k1all[k][:,2]
-        k2 = map_1_2[k]
-        subvdof2 = k2all[k2][:,2]
-        pt2 = pt2all[k2]
-        check = False
-        if -1 in subvdof2:
-                check = True
-                dprint2('before resolving dof', subvdof2)
-        for kk, x in enumerate(subvdof2):
-             if x == -1:
-                dist = pt2all-pt2[kk]
-                dist = np.sqrt(np.sum((dist)**2, -1))
-                fdist= dist.flatten()
-                isort = np.argsort(fdist)
-                minidx =  np.where(dist.flatten() == np.min(dist.flatten()))[0]
-                #dprint1("distances", np.min(dist),fdist[isort[:25]])
-                while all(k2all[:,:,2].flatten()[minidx] == -1):
-                    dprint2("distances (non -1 exists?)", fdist[minidx],
-                            k2all[:,:,2].flatten()[minidx])
-                    minidx = np.hstack((minidx, isort[len(minidx)]))
-                dprint2("distances", np.min(dist),fdist[minidx],
-                        fdist[isort[:len(minidx)+1]])                    
-                dprint2("minidx",  minidx, k2all[:,:,2].flatten()[minidx])
-                for i in minidx:
-                    if k2all[:,:,2].flatten()[i] != -1:
-                       subvdof2[kk] = k2all[:,:,2].flatten()[i]
+def redistribute_pt2_k2(pt2all,  pto2all, k2all, sh2all,map_1_2):
+    # map matrix is filled where fes1 elements are owned
+    # we deliver pt2 data to nodes where map filling takes place.
 
-        if check:
-             dprint2('resolved dof', k2all[k2][:,2])
-             if -1 in subvdof2: 
-                 assert False, "failed to resolve shadow DoF"
-    return k2all
+    # sort map_1_2 to make bisect work
+    sort_idx = np.argsort(map_1_2)
+    map_1_2 = np.sort(map_1_2)
+    isort_idx = np.arange(len(sort_idx))[np.argsort(sort_idx)]
 
+    k2offset =  np.cumsum(comm.allgather(len(k2all)))
+
+    segs = [0]+[bisect.bisect_left(map_1_2, i) for i in k2offset]
+
+    data = [map_1_2[segs[i]:segs[i+1]] for i in range(num_proc)]
+
+    destinations  = comm.alltoall(data)       
+    #nicePrint(destinations)
+    k2offset =  np.hstack(([0], k2offset))
+    myoffset2 = k2offset[myid]
+
+    data1 = []
+    data2 = []
+    data3 = []
+    data4 = []    
+    for mm in destinations:
+        idx = [x-myoffset2 for x in mm]
+        data1.append([pt2all[x] for x in idx])
+        data2.append([pto2all[x] for x in idx])
+        data3.append([k2all[x] for x in idx])
+        data4.append([sh2all[x] for x in idx])
+        
+    pt2all = sum(comm.alltoall(data1), [])
+    pto2all = sum(comm.alltoall(data2), [])
+    k2all = sum(comm.alltoall(data3),[])
+    sh2all = sum(comm.alltoall(data4),[])
+    
+    pt2all = [pt2all[x] for x in isort_idx]
+    pto2all = [pto2all[x] for x in isort_idx]
+    k2all = [k2all[x] for x in isort_idx]
+    sh2all = [sh2all[x] for x in isort_idx]
+    
+    map_1_2 = np.arange(len(pt2all))
+    #nicePrint(k2all)
+    return pt2all,  pto2all, k2all, sh2all, map_1_2
+
+def redistribute_external_entry(external_entry, rstart):
+    #  redistribute external entry. first regroup
+    #  entries to the destination. then all-to-all
+
+    
+    rstarts = comm.allgather(rstart)
+    dests =  [bisect.bisect_right(rstarts, r)for r, c, d in external_entry]
+
+    data = [[] for x in range(num_proc)]
+    for i, d in zip(dests, external_entry):
+       data[i].append(d)
+
+    external_entry = sum(comm.alltoall(data),[])
+    return np.array(external_entry)
+ 
 def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                k1all, k2all, sh1all, sh2all, map_1_2,
                trans1, trans2, tol, tdof, rstart):
-
+   
+    dprint1("map_dof_scalar1", debug.format_memory_usage())
+    
     pt = []
     subvdofs1 = []
     subvdofs2 = []
@@ -279,9 +308,15 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
         sh2 = sh2all[k2]
         for k, p in enumerate(pt1):
             num_pts = num_pts + 1
-            if newk1[k,2] in tdof: continue
-            if newk1[k,2] in subvdofs1: continue               
 
+            #if newk1[k,2] in tdof: continue
+            iii = bisect.bisect_left(tdof, newk1[k,2])
+            if iii != len(tdof) and tdof[iii] == newk1[k,2]: continue
+
+            #if newk1[k,2] in subvdofs1: continue
+            iii = bisect.bisect_left(subvdofs1, newk1[k,2])
+            if iii != len(subvdofs1) and subvdofs1[iii] == newk1[k,2]: continue
+            
             dist = np.sum((pt2-p)**2, 1)
             d = np.where(dist == np.min(dist))[0]
             if myid == 1: dprint2('min_dist', np.min(dist))
@@ -298,7 +333,8 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                    map[newk1[k][2]-rstart, 
                        newk2[d][2]] = value
                    num_entry = num_entry + 1
-                   subvdofs1.append(newk1[k][2])
+                   bisect.insort_left(subvdofs1, newk1[k][2])
+                   #subvdofs1.append(newk1[k][2])
                else:
                    # for scalar, this is perhaps not needed
                    # rr = newk1[k][1]] if newk1[k][1]] >= 0 else -1-newk1[k][1]]
@@ -308,18 +344,34 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                    if not gtdof in gtdof_check:
                        external_entry.append((gtdof, newk2[d][2], value))
                        gtdof_check.append(gtdof)
-                   
-
             else:
                 raise AssertionError("more than two dofs at same plase is not asupported. ")
         #subvdofs1.extend([s for k, v, s in newk1])
         subvdofs2.extend([s for k, v, s in newk2])
-        #print len(subvdofs1), len(subvdofs2)
 
+        
+    dprint1("map_dof_scalar2", debug.format_memory_usage())
+    
     if use_parallel:
         dprint1("total entry (before)",sum(allgather(num_entry)))
-        #nicePrint(len(subvdofs1), subvdofs1)
-        external_entry =  sum(comm.allgather(external_entry),[])
+        external_entry = redistribute_external_entry(external_entry, rstart+map.shape[0])
+
+        if len(external_entry.shape) == 2:
+            idx1 = np.in1d(external_entry[:,0], subvdofs1, invert=True)
+            val, idx2 = np.unique(external_entry[idx1,0], return_index=True)
+            external_entry = external_entry[idx1][idx2]
+        
+            for r, c, d in external_entry:
+               #if not r in subvdofs1:
+               num_entry = num_entry + 1                                 
+               map[r-rstart, c] = d
+               
+               #print("adding",myid, r,  c, d )
+               #subvdofs1.append(r)
+        
+        dprint1("map_dof_scalar3", debug.format_memory_usage())
+        '''
+        external_entry =  sum(comm.allgather(external_entry),[])           
         for r, c, d in external_entry:
            h = map.shape[0]
            if (r - rstart >= 0 and r - rstart < h and
@@ -328,6 +380,7 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                print("adding",myid, r,  c, d )
                map[r-rstart, c] = d
                subvdofs1.append(r)
+        '''
         total_entry = sum(allgather(num_entry))
         total_pts = sum(allgather(num_pts))
         if sum(allgather(map.nnz)) != total_entry:
@@ -344,7 +397,9 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
 def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                    k1all, k2all, sh1all, sh2all, map_1_2,
                    trans1, trans2, tol, tdof, rstart):
-
+   
+    dprint1("map_dof_vector1", debug.format_memory_usage())
+    
     pt = []
     subvdofs1 = []
     subvdofs2 = []
@@ -369,7 +424,8 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
         if r[1] != -1: 
             map[r[1]-rstart, c] = value 
             num_entry = num_entry + 1
-            subvdofs1.append(r[1])
+            bisect.insort_left(subvdofs1, r[1])
+            #subvdofs1.append(r[1])
         else:
             rr = r[0] if r[0] >= 0 else -1-r[0]
             gtdof = VDoFtoGTDoF[rr]
@@ -377,7 +433,9 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                external_entry.append((gtdof, c, value))
                gtdof_check.append(gtdof)
         return num_entry      
-        
+
+    tdof = sorted(tdof)
+    
     for k0 in range(len(pt1all)):
         k2 = map_1_2[k0]
         pt1 = pt1all[k0]
@@ -388,17 +446,29 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
         pto2 = pto2all[k2]
         newk2 = k2all[k2]
         sh2 = sh2all[k2]
+
         #if myid == 1: print newk1[:,2], newk1[:,1], rstart
         #if myid == 1:
         #    x = [r if r >= 0 else -1-r for r in newk1[:,1]]
         #    print [VDoFtoGTDoF[r] for r in x]
+
+        #dprint1(len(np.unique(newk1[:,2])) == len(newk1[:,2]))
         for k, p in enumerate(pt1):
+            #if idx[k]: continue                 
             num_pts = num_pts + 1
-            if newk1[k,2] in tdof: continue
-            if newk1[k,2] in subvdofs1: continue               
+            
+            #if newk1[k,2] in tdof: continue
+            iii = bisect.bisect_left(tdof, newk1[k,2])
+            if iii != len(tdof) and tdof[iii] == newk1[k,2]: continue
+
+            #if newk1[k,2] in subvdofs1: continue
+            iii = bisect.bisect_left(subvdofs1, newk1[k,2])
+            if iii != len(subvdofs1) and subvdofs1[iii] == newk1[k,2]: continue
+
 
             dist = np.sum((pt2-p)**2, 1)
             d = np.where(dist == np.min(dist))[0]
+
             #if myid == 1: dprint1('min_dist', np.min(dist))
             if len(d) == 1:            
                '''
@@ -409,21 +479,25 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                s = np.sign(newk1[k,1] +0.5)*np.sign(newk2[d,1] + 0.5)
 
                p1 = pto1[k]; p2 = pto2[d]
-               delta = np.sum(np.std(p1, 0))/np.sum(np.std(sh1, 0))/10.
+               delta = np.sum(np.std(pto1, 0))/np.sum(np.std(sh1, 0))/10.
 
                v1 = trans1(p1) - trans1(p1 + delta*sh1[newk1[k, 0]])
                v2 = trans2(p2) - trans2(p2 + delta*sh2[newk2[d, 0]])
 
+               
                fac = np.sum(v1*v2)/np.sum(v1*v1)*s
+               #except RuntimeWarning:
+               #   print(pto1, pto1.shape, p1,p2, s, delta, sh1[newk1[k, 0]], sh2[newk2[d, 0]])
+               #   assert False, "Got Here"
 
                num1 = make_entry(newk1[k, [1,2]], newk2[d, 2], fac, num1)
                              
             elif len(d) == 2:
                dd = np.argsort(np.sum((pt1 - p)**2, 1))
-                   
+
                p1 = pto1[dd[0]]; p3 = pto2[d[0]]
                p2 = pto1[dd[1]]; p4 = pto2[d[1]]
-               delta = np.sum(np.std(p1, 0))/np.sum(np.std(sh1, 0))/10.
+               delta = np.sum(np.std(pto1, 0))/np.sum(np.std(sh1, 0))/10.
                    
                v1 = trans1(p1) - trans1(p1 + delta*sh1[newk1[dd[0], 0]])
                v2 = trans1(p2) - trans1(p2 + delta*sh1[newk1[dd[1], 0]])
@@ -474,11 +548,11 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                    
             elif len(d) == 3:
                 dd = np.argsort(np.sum((pt1 - p)**2, 1))
-                   
+
                 p1 = [pto1[dd[i]] for i in [0, 1, 2]]
                 p2 = [pto2[d[i]]  for i in [0, 1, 2]]                       
 
-                delta = np.sum(np.std(p1[0], 0))/np.sum(np.std(sh1, 0))/10.
+                delta = np.sum(np.std(pto1, 0))/np.sum(np.std(sh1, 0))/10.
                  
                 v1 = [trans1(p1[i]) - trans1(p1[i] + delta*sh1[newk1[dd[i], 0]])
                        for i in [0, 1, 2]]
@@ -522,12 +596,31 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                 # to do support three vectors
                 raise AssertionError("more than three dofs at same place")
         subvdofs2.extend([s for k, v, s in newk2])
-
+        
+    dprint1("map_dof_vector2", debug.format_memory_usage())
     num_entry = num1 + num2
     
     if use_parallel:
+
         dprint1("total entry (before)",sum(allgather(num_entry)))
-        #nicePrint(len(subvdofs1), subvdofs1)
+        
+        #nicePrint("data to exchange", len(external_entry))
+        external_entry = redistribute_external_entry(external_entry, rstart+map.shape[0])
+        
+        if len(external_entry.shape) == 2:
+            idx1 = np.in1d(external_entry[:,0], subvdofs1, invert=True)
+            val, idx2 = np.unique(external_entry[idx1,0], return_index=True)
+            external_entry = external_entry[idx1][idx2]
+        
+            for r, c, d in external_entry:
+               #if not r in subvdofs1:
+               num_entry = num_entry + 1                                 
+               #print("adding",myid, r,  c, d )
+               map[r-rstart, c] = d
+               #subvdofs1.append(r)
+               
+        dprint1("map_dof_vector3", debug.format_memory_usage())
+        '''        
         external_entry =  sum(comm.allgather(external_entry),[])
         #nicePrint(external_entry)        
         for r, c, d in external_entry:
@@ -538,6 +631,7 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                print("adding",myid, r,  c, d )
                map[r-rstart, c] = d
                subvdofs1.append(r)
+        '''
         total_entry = sum(allgather(num_entry))
         total_pts = sum(allgather(num_pts))
         if sum(allgather(map.nnz)) != total_entry:
@@ -555,7 +649,9 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
 def gather_dataset(idx1, idx2, fes1, fes2, trans1,
                                trans2, tol, shape_type = 'scalar',
                                mode = 'surface'):
-
+   
+    dprint1("gather_dataset1", debug.format_memory_usage())
+    
     if fes2 is None: fes2 = fes1
     if trans1 is None: trans1=notrans
     if trans2 is None: trans2=notrans
@@ -579,7 +675,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
     ct1 = find_el_center(fes1, ibdr1, trans1, mode=mode1)
     ct2 = find_el_center(fes2, ibdr2, trans2, mode=mode2)
     arr1 = get_element_data(fes1, ibdr1, trans1, mode=mode1)
-    arr2 = get_element_data(fes2, ibdr2, trans1, mode=mode2)
+    arr2 = get_element_data(fes2, ibdr2, trans1, mode=mode2, use_global = True)
 
     if shape_type == 'scalar':
         sh1all = get_shape(fes1, ibdr1, mode=mode1)
@@ -589,7 +685,9 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
         sh2all = get_vshape(fes2, ibdr2, mode=mode2)
     else:
         assert False, "Unknown shape type"
-
+        
+    dprint1("gather_dataset2", debug.format_memory_usage())
+    
     # pt is on (u, v), pto is (x, y, z)
     try:
        k1all, pt1all, pto1all = zip(*arr1)
@@ -607,6 +705,37 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
        ct1 = np.atleast_2d(ct1).reshape(-1, max(ct1dim))       
        ct2 = np.atleast_2d(ct2).reshape(-1, max(ct1dim))
        ct2 =  allgather_vector(ct2, MPI.DOUBLE)
+       
+    dprint1("gather_dataset3", debug.format_memory_usage())
+    
+    # mapping between elements
+
+    from scipy.spatial import cKDTree
+    tree = cKDTree(ct2)
+    ctr_dist, map_1_2 = tree.query(ct1)
+
+    dprint1("gather_dataset4", debug.format_memory_usage())    
+    
+    if ctr_dist.size > 0 and np.max(ctr_dist) > 1e-15:
+       print('Center Dist may be too large (check mesh): ' + 
+            str(np.max(ctr_dist)))
+
+    if use_parallel:
+       
+       pt2all, pto2all, k2all, sh2all, map_1_2 = redistribute_pt2_k2(pt2all, 
+                                                            pto2all, k2all, sh2all,
+                                                            map_1_2)
+       
+       dprint1("gather_dataset5", debug.format_memory_usage())
+       
+    # map is fill as transposed shape (row = fes1)
+
+    data = pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all,
+
+    return data, map_1_2
+ 
+def get_empty_map(fes1, fes2):
+    if use_parallel:   
        fesize1 = fes1.GetTrueVSize()
        fesize2 = fes2.GlobalTrueVSize()
        rstart = fes1.GetMyTDofOffset()
@@ -614,36 +743,10 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
        fesize1 = fes1.GetNDofs()
        fesize2 = fes2.GetNDofs()
        rstart = 0
-
-    # mapping between elements
-
-    from scipy.spatial import cKDTree
-    tree = cKDTree(ct2)
-    ctr_dist, map_1_2 = tree.query(ct1)
-    '''
-    ctr_dist = np.array([np.min(np.sum((ct2-c)**2, 1)) for c in ct1])
-    map_1_2= [np.argmin(np.sum((ct2-c)**2, 1)) for c in ct1]
-    '''
-    if ctr_dist.size > 0 and np.max(ctr_dist) > 1e-15:
-       print('Center Dist may be too large (check mesh): ' + 
-            str(np.max(ctr_dist)))
-
-
-
-    if use_parallel:
-       pt2all =  sum(comm.allgather(pt2all),())
-       pto2all = sum(comm.allgather(pto2all),())
-       k2all =  sum(comm.allgather(k2all),())
-       sh2all =  sum(comm.allgather(sh2all),[])
-       k2all = resolve_nonowned_dof(pt1all, pt2all, k1all, k2all, map_1_2)
-
-    # map is fill as transposed shape (row = fes1)
-    
-    map = lil_matrix((fesize1, fesize2), dtype=float)
-    data = pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all,
-
-    return  map, data, map_1_2, rstart    
-
+       
+    map = lil_matrix((fesize1, fesize2), dtype=float)       
+    return  map, rstart
+ 
 def map_xxx_h1(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
                    trans2=None, tdof1=None, tdof2=None, tol=1e-4):
     '''
@@ -662,10 +765,11 @@ def map_xxx_h1(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     if tdof1 is None: tdof1=[]
     if tdof2 is None: tdof2=[]    
 
-    tdof = tdof1 # ToDo support tdof2    
-    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                                              trans2, tol, shape_type = 'scalar',
-                                              mode=xxx)
+    tdof = tdof1 # ToDo support tdof2
+    map, rstart = get_empty_map(fes1, fes2)
+    data, elmap = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                                 trans2, tol, shape_type = 'scalar',
+                                 mode=xxx)
 
 
     pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
@@ -675,6 +779,7 @@ def map_xxx_h1(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
                    trans1, trans2, tol, tdof1, rstart)
 
     return map
+ 
 def map_volume_h1(*args, **kwargs):
     return map_xxx_h1('volume', *args, **kwargs)
 def map_surface_h1(*args, **kwargs):
@@ -682,51 +787,7 @@ def map_surface_h1(*args, **kwargs):
 def map_edge_h1(*args, **kwargs):
     return map_xxx_h1('edge', *args, **kwargs)
 
-''' 
-def map_surface_h1(idx1, idx2, fes1, fes2=None, trans1=None,
-                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
-    if fes2 is None: fes2 = fes1
-    if trans1 is None: trans1=notrans
-    if trans2 is None: trans2=trans1
-    if tdof1 is None: tdof1=[]
-    if tdof2 is None: tdof2=[]    
 
-    tdof = tdof1 # ToDo support tdof2    
-    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                                              trans2, tol, shape_type = 'scalar',
-                                              mode='surface')
-
-
-    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
-
-    map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
-                   k1all, k2all, sh1all, sh2all, elmap,
-                   trans1, trans2, tol, tdof1, rstart)
-
-    return map
-
-def map_edge_h1(idx1, idx2, fes1, fes2=None, trans1=None,
-                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
-    if fes2 is None: fes2 = fes1
-    if trans1 is None: trans1=notrans
-    if trans2 is None: trans2=trans1
-    if tdof1 is None: tdof1=[]
-    if tdof2 is None: tdof2=[]    
-
-    tdof = tdof1 # ToDo support tdof2
-
-    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                                              trans2, tol, shape_type = 'scalar',
-                                              mode="edge")
-
-    
-    pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
-    map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
-                   k1all, k2all, sh1all, sh2all, elmap,
-                   trans1, trans2, tol, tdof1, rstart)
-
-    return map
-''' 
 def map_xxx_nd(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
                    trans2=None, tdof1=None, tdof2=None, tol=1e-4):
  
@@ -746,10 +807,12 @@ def map_xxx_nd(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     if tdof1 is None: tdof1=[]
     if tdof2 is None: tdof2=[]    
 
-    tdof = tdof1 # ToDo support tdof2    
-    map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                                              trans2, tol, shape_type = 'vector',
-                                              mode=xxx)
+    tdof = tdof1 # ToDo support tdof2
+    map, rstart = get_empty_map(fes1, fes2)    
+    data, elmap = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                                 trans2, tol, shape_type = 'vector',
+                                 mode=xxx)
+    
     pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
     
     map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
@@ -770,8 +833,8 @@ def map_xxx_rt(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     '''
     map DoF on surface to surface
 
-      fes1: source finite element space
-      fes2: destination finite element space
+      fes1: source finite element space (row)
+      fes2: destination finite element space (col)
 
       idx1: surface attribute (Bdr for 3D/3D, Domain for 2D/3D or 2D/2D)
 
@@ -781,11 +844,12 @@ def map_xxx_rt(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     if trans1 is None: trans1=notrans
     if trans2 is None: trans2=trans1
     if tdof1 is None: tdof1=[]
-    if tdof2 is None: tdof2=[]    
-
+    if tdof2 is None: tdof2=[]
+    
+    map, rstart = get_empty_map(fes1, fes2)    
     if xxx == 'volume':
         tdof = tdof1 # ToDo support tdof2    
-        map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+        data, elmap = gather_dataset(idx1, idx2, fes1, fes2, trans1,
                                               trans2, tol, shape_type = 'vector',
                                               mode=xxx)
         pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
@@ -794,9 +858,9 @@ def map_xxx_rt(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
                    trans1, trans2, tol, tdof1, rstart)
     else:
         tdof = tdof1 # ToDo support tdof2    
-        map, data, elmap, rstart = gather_dataset(idx1, idx2, fes1, fes2, trans1,
-                                              trans2, tol, shape_type = 'scalar',
-                                              mode=xxx)
+        data, elmap = gather_dataset(idx1, idx2, fes1, fes2, trans1,
+                                     trans2, tol, shape_type = 'scalar',
+                                     mode=xxx)
 
 
         pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
@@ -811,8 +875,6 @@ def map_volume_rt(*args, **kwargs):
 def map_surface_rt(*args, **kwargs):
     return map_xxx_rt('surface', *args, **kwargs)
  
-# ToDO test these
-# map_surface_l2 = map_surface_h1
 
 def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
                       trans1=None, trans2 = None, dphase=0.0, weight = None,
@@ -835,6 +897,10 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
         mapper = map_surface_h1
     elif fec_name.startswith('H1') and mode == 'edge':
         mapper = map_edge_h1
+    elif fec_name.startswith('L2') and mode == 'volume':
+        mapper = map_volume_h1
+    elif fec_name.startswith('L2') and mode == 'surface':
+        mapper = map_surface_h1
     elif fec_name.startswith('RT') and mode == 'volume':
         mapper = map_volume_rt
     elif fec_name.startswith('RT') and mode == 'surface':
