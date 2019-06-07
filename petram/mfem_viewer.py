@@ -427,7 +427,7 @@ class MFEMViewer(BookViewer):
 
         status_txt = ''
         if not self._view_mode in self._s_v_loop:
-            self.set_status_text('', timeout = 60000)
+            self.set_status_text('', timeout = 600000)
             evt.selections = self.canvas.selection
             self.property_editor.onTD_Selection(evt)
             return 
@@ -436,12 +436,13 @@ class MFEMViewer(BookViewer):
         sf, sv, se, sp = [], [], [], []
         if self._sel_mode == 'volume':
             if _s_v_loop[1] is None: return
+
             idx, objs = self._getSelectedIndex(mode='face')
             sl = _s_v_loop[1]
             
             already_selected = self._dom_bdr_sel[0]
             already_selected = [k for k in already_selected if k in sl]
-            
+
             for k in already_selected:
                 for i in sl[k]:
                     if i in idx: idx.remove(i)
@@ -450,12 +451,15 @@ class MFEMViewer(BookViewer):
             for i in idx:
                for k in sl.keys():
                    if i in sl[k]: selected_volume.append(k)
-                   
+
             selected_volume = list(set(selected_volume))
+
             hidden = self._mhidden_volume if self._view_mode == 'mesh' else self._hidden_volume
+            hidden = list(set(hidden))
+
             for x in hidden:
                 if x in selected_volume: selected_volume.remove(x)
-                
+
             surf_idx = []
             for kk in selected_volume:
                 surf_idx.extend(sl[kk])
@@ -529,7 +533,7 @@ class MFEMViewer(BookViewer):
         else:
             pass
         
-        self.set_status_text(status_txt, timeout = 60000)
+        self.set_status_text(status_txt, timeout = 600000)
 
         self._dom_bdr_sel  = (sv, sf, se, sp)
         evt.selections = self.canvas.selection
@@ -573,20 +577,22 @@ class MFEMViewer(BookViewer):
         try:
             os.chdir(self.model.owndir())
             #self.engine.run_mesh(skip_refine = True)
-            self.engine.run_config(skip_refine = True)
-            mesh = self.engine.get_mesh()
-            self.model.variables.setvar('mesh', mesh)
-            os.chdir(cdir)
-            
+            err, exception = self.engine.run_config(skip_refine = True)
+            if err != -1:
+                mesh = self.engine.get_mesh()
+                self.model.variables.setvar('mesh', mesh)
+                os.chdir(cdir)
+            if err != 0:
+                assert False, "error in run_config"
         except:
             os.chdir(cdir)            
             dialog.showtraceback(parent = self,
                                txt='Mesh load error',
                                title='Error',
-                               traceback=traceback.format_exc())       
-            return
-        self.plot_mfem_geom()
-        self.use_toolbar_palette('petram_phys', mode = '3D')
+                               traceback=exception)
+        if err != -1:
+            self.plot_mfem_geom()
+            self.use_toolbar_palette('petram_phys', mode = '3D')
         
     def plot_mfem_geom(self):
         from petram.mesh.geo_plot import plot_geometry        
@@ -658,11 +664,16 @@ class MFEMViewer(BookViewer):
         
         _s_v_loop = self._s_v_loop[self._view_mode]
         ax = self.get_axes()
-        
         try:
           x = len(i)
         except:
           i = list(i)
+
+        hidden = self._mhidden_volume if self._view_mode == 'mesh' else self._hidden_volume
+        hidden = list(set(hidden))
+
+        i = [x for x in i if not x in hidden]
+        
         self.canvas.unselect_all()
         for name, obj in ax.get_children():
             if not name.startswith('face'):continue

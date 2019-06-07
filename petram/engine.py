@@ -357,13 +357,23 @@ class Engine(object):
         this runs model['General'] and
         fill namespace dict
         '''
-        self.model['General'].run()
-        self.run_mesh_serial(skip_refine=skip_refine)
-        self.build_ns()
-        self.assign_phys_pp_sel_index()                    
-        self.run_mesh_extension_prep()        
-        self.assign_sel_index()
-      
+        import traceback
+        try:        
+            self.model['General'].run()
+            self.run_mesh_serial(skip_refine=skip_refine)
+        except:
+            exception = traceback.format_exc()
+            return -1, exception
+        try:
+            self.build_ns()
+            self.assign_phys_pp_sel_index()                    
+            self.run_mesh_extension_prep()        
+            self.assign_sel_index()
+        except:
+            exception = traceback.format_exc()
+            return -2, exception
+        return 0, None
+     
     def run_preprocess(self, ns_folder = None, data_folder = None):
         dprint1("!!!!! run preprocess !!!!!")
         if ns_folder is not None:
