@@ -67,7 +67,7 @@ class MUMPS(LinearSolverModel):
         v['error_ana'] = 'none'
         v['use_blr'] = False
         v['blr_drop'] = 0.0
-        v['icntl14'] = 200
+        v['icntl14'] = 20
         v['icntl23'] = 0
         v['use_single_precision'] = False
         return v
