@@ -431,7 +431,6 @@ class MUMPSPreconditioner(mfem.PyOperator):
         self.SetOperator(A0)
 
     def SetOperator(self, opr):
-
         def isSparseMatrix(opr):
             return isinstance(opr, mfem.SparseMatrix)
         

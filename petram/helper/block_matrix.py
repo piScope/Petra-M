@@ -984,7 +984,6 @@ class BlockMatrix(object):
                             #if (cp == rp).all() and s[0] == s[1]:
                             if gcsr[0] is not None:
                                   csr = ToScipyCoo(gcsr[0]).tocsr()
-                                  dprint1("here", csr.shape)
                                   gcsr[0] = ToHypreParCSR(csr, col_starts =cp)
                             if gcsr[1] is not None:
                                   csr = ToScipyCoo(gcsr[1]).tocsr()
@@ -1168,7 +1167,6 @@ class BlockMatrix(object):
                             csrb = self[i, j].imag.tocsr()
                             csra.eliminate_zeros()
                             csrb.eliminate_zeros()
-                            print(csra, csrb)
                             gcsa = mfem.SparseMatrix(csra)
                             gcsb = mfem.SparseMatrix(csrb)                            
                         else:

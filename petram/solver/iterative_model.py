@@ -66,7 +66,7 @@ class Iterative(LinearSolverModel, NS_mixin):
                 [None, self.assert_no_convergence,  3, {"text":"check converegence"}],
                 [None, self.use_ls_reducer,  3, {"text":"Reduce linear system when possible"}],
                 [None, (self.merge_real_imag,(self.use_block_symmetric,)),
-                 27, ({"text":"Handle real/imag as one block"}, {"elp":mm},)],]          
+                 27, ({"text":"Use ComplexOperator"}, {"elp":mm},)],]          
      
     
     def get_panel1_value(self):
@@ -137,18 +137,30 @@ class Iterative(LinearSolverModel, NS_mixin):
     def verify_setting(self):
         if not self.parent.assemble_real:
             for phys in self.get_phys():
-                if phys.is_complex():
+                if phys.is_complex() and not self.merge_real_imag:
                     return False, "Iterative does not support complex.", "A complex problem must be converted to a real value problem"
         return True, "", ""
 
-    def linear_system_type(self, assemble_real, phys_complex):
-        #if not phys_complex: return 'block'
+    def linear_system_type(self, assemble_real, phys_real):
+       
+        if phys_real:
+            if assemble_real:
+                dprint1("Use assemble-real is only for complex value problem !!!!")
+                return 'blk_interleave'                        
+            else:
+                return 'blk_interleave'
+
+        # below phys is complex
+        
+        # merge_real_imag -> complex operator
         if self.merge_real_imag and self.use_block_symmetric:
-             return 'blk_merged_s'
+            return 'blk_merged_s'
         elif self.merge_real_imag and not self.use_block_symmetric:
-             return 'blk_merged'           
+            return 'blk_merged'
+        elif assemble_real:
+            return 'blk_interleave'           
         else:
-             return 'blk_interleave'
+            assert False, "complex problem must assembled using complex operator or expand as real value problem"
         #return None
 
     def real_to_complex(self, solall, M):
@@ -303,6 +315,8 @@ class IterativeSolver(LinearSolver):
 
     def make_preconditioner(self, A, name = None, parallel=False):
         name = self.Aname if name is None else name
+
+
         if self.gui.adv_mode:
             expr = self.gui.adv_prc
             gen = eval(expr, self.gui._global_ns)
@@ -310,7 +324,7 @@ class IterativeSolver(LinearSolver):
             M = gen()
         else:
             prcs_gui = dict(self.gui.preconditioners)
-            assert not self.gui.parent.is_complex(), "can not solve complex"
+            #assert not self.gui.parent.is_complex(), "can not solve complex"
             if self.gui.parent.is_converted_from_complex() and not self.gui.merge_real_imag:
                 name = sum([[n, n] for n in name], [])
 
@@ -318,7 +332,9 @@ class IterativeSolver(LinearSolver):
 
             g = prcs.DiagonalPrcGen(opr=A, engine=self.engine, gui=self.gui, name=name)
             M = g()
-
+            
+            pc_block = {}
+            
             for k, n in enumerate(name):
                 prctxt = prcs_gui[n][1] if parallel else prcs_gui[n][0]
                 if prctxt == "None": continue
@@ -326,20 +342,25 @@ class IterativeSolver(LinearSolver):
                 prcargs = "(".join(prctxt.split("(")[-1:])
                 
                 nn = prctxt.split("(")[0]
-                dprint1(nn)
-                try:
-                    blkgen = getattr(prcs, nn)
-                except:
-                    if nn in self.gui._global_ns:
-                        blkgen = self.gui._global_ns[nn]
-                    else:
-                        raise
 
-                blkgen.set_param(g, n)
-                blk = eval("blkgen("+prcargs)
+                if not n in pc_block:
+                    # make a new one
+                    dprint1(nn)
+                    try:
+                        blkgen = getattr(prcs, nn)
+                    except:
+                        if nn in self.gui._global_ns:
+                            blkgen = self.gui._global_ns[nn]
+                        else:
+                            raise
 
-                M.SetDiagonalBlock(k, blk)
-                
+                    blkgen.set_param(g, n)
+                    blk = eval("blkgen("+prcargs)
+
+                    M.SetDiagonalBlock(k, blk)
+                    pc_block[n] = blk
+                else:
+                    M.SetDiagonalBlock(k, pc_block[n])
         return M
 
     def write_mat(self, A, b, x, suffix=""):
