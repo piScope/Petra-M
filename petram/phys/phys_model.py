@@ -602,7 +602,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         else:
            ll = [['', True,  3, {"text": "y(t)"}],
                  ['', False, 3, {"text": "dy/dt"}],
-                 ['', False, 3, {"text": "dy2/dt2"}],
+                 ['', False, 3, {"text": "d2y/dt2"}],
                  ['', False, 3, {"text": "Time dependent"}],]
 #              ['M(t)',     "1", 0],
 #              ['M(t-dt)',  "0", 0],
