@@ -416,7 +416,8 @@ class MUMPSPreconditioner(mfem.PyOperator):
         self.gui = gui
         self.engine = engine
         self.silent = silent
-
+        self.is_complex_operator = False
+        
         if 'single' in kwargs and not 'double' in kwargs:
             self.single = kwargs.pop('single')
             self.gui.use_single_precision = self.single
@@ -431,27 +432,58 @@ class MUMPSPreconditioner(mfem.PyOperator):
         self.SetOperator(A0)
 
     def SetOperator(self, opr):
-        if isinstance(opr, mfem.SparseMatrix):
+        def isSparseMatrix(opr):
+            return isinstance(opr, mfem.SparseMatrix)
+        
+        check = opr._real_operator if isinstance(opr, mfem.ComplexOperator) else opr
+
+        if isSparseMatrix(check):
             from mfem.common.sparse_utils import sparsemat_to_scipycsr
-            coo_opr = sparsemat_to_scipycsr(opr, float).tocoo()
+
+            if isinstance(opr, mfem.ComplexOperator):
+                mat = ( sparsemat_to_scipycsr(opr._real_operator, float) + 
+                        sparsemat_to_scipycsr(opr._imag_operator, float) * 1j)
+                coo_opr = mat.tocoo()
+                self.is_complex_operator = True
+            else:
+                coo_opr = sparsemat_to_scipycsr(opr, float).tocoo()
+                
             self.solver = MUMPSSolver(self.gui, self.engine)
-            self.solver.AllocSolver(False, self.gui.use_single_precision)
+            self.solver.AllocSolver(self.is_complex_operator,
+                                    self.gui.use_single_precision)
             self.solver.SetOperator(coo_opr, False)
             self.row_part = [-1,-1]
+            
         else:
             from mfem.common.parcsr_extra import ToScipyCoo
             from scipy.sparse import coo_matrix
-            lcoo = ToScipyCoo(opr)
-            shape = (opr.GetGlobalNumRows(), opr.GetGlobalNumCols())
+
+            if isinstance(opr, mfem.ComplexOperator):
+                lcsr = (ToScipyCoo(opr._real_operator).tocsr() + 
+                        ToScipyCoo(opr._imag_operator).tocsr()*1j)
+                lcoo = lcsr.tocoo()
+                shape = (opr._real_operator.GetGlobalNumRows(),
+                         opr._real_operator.GetGlobalNumCols())                
+
+                rpart = opr._real_operator.GetRowPartArray()
+                self.is_complex_operator = True
+                self.row_part = rpart
+            else:
+                lcoo = ToScipyCoo(opr)
+                shape = (opr.GetGlobalNumRows(), opr.GetGlobalNumCols())
+                rpart = opr.GetRowPartArray()                
+                self.row_part = rpart  
+              
             gcoo = coo_matrix(shape)
             gcoo.data = lcoo.data
-            gcoo.row = lcoo.row + opr.GetRowPartArray()[0]
+            gcoo.row = lcoo.row + rpart[0]
             gcoo.col = lcoo.col
             self.solver = MUMPSSolver(self.gui, self.engine)
-            self.solver.AllocSolver(False, self.gui.use_single_precision)
+            self.solver.AllocSolver(self.is_complex_operator,
+                                    self.gui.use_single_precision)
             self.solver.SetOperator(gcoo, True)
             self.is_parallel=True            
-            self.row_part = opr.GetRowPartArray()
+
         self.solver.set_silent(self.silent)
             
     def Mult(self, x, y):
@@ -466,16 +498,23 @@ class MUMPSPreconditioner(mfem.PyOperator):
         myid     = MPI.COMM_WORLD.rank
         nproc    = MPI.COMM_WORLD.size
         
+        if self.is_complex_operator:
+            vec = x.GetDataArray()
+            ll = vec.size
+            vec = vec[:ll/2] + 1j*vec[ll/2:]
+        else:
+            vec = x.GetDataArray()
+
         if self.row_part[0] == -1:
-            xx = np.atleast_2d(x.GetDataArray()).transpose()
+            xx = np.atleast_2d(vec).transpose()
         else:
             from mpi4py import MPI
             comm = MPI.COMM_WORLD
             from petram.helper.mpi_recipes import gather_vector
-            xx = gather_vector(x.GetDataArray())
+            xx = gather_vector(vec)
             if myid == 0:
                 xx = np.atleast_2d(xx).transpose()
-        
+                
         s=self.solver.Mult(xx)
         
         if self.row_part[0] != -1:
@@ -483,6 +522,9 @@ class MUMPSPreconditioner(mfem.PyOperator):
             comm = MPI.COMM_WORLD
             s = comm.bcast(s)
             s = s[self.row_part[0]:self.row_part[1]]
-            
+
+        if self.is_complex_operator:
+            s = np.hstack((s.real.flatten(), s.imag.flatten()))
+
         y.Assign(s.flatten())
      
