@@ -274,8 +274,9 @@ class MUMPSSolver(LinearSolver):
             col = A.col
             row = row.astype(dtype_int) + 1
             col = col.astype(dtype_int) + 1
+            AA = self.make_matrix_entries(A)
+
             if len(col) > 0:
-                AA = self.make_matrix_entries(A)
                 dprint1('index data size ' , type(col[0]))
                 dprint1('matrix data type ' , type(AA[0]))
 
