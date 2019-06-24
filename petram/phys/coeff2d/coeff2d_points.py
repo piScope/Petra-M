@@ -1,3 +1,4 @@
+from __future__ import print_function
 '''
 
    Points for Coeff2D
@@ -63,12 +64,12 @@ class Coeff2D_PointSource(Coeff2D_Point):
         return True, "", ""
      
     def has_lf_contribution(self, kfes):
-        print 'point source'
+        print('point source')
         return True
 
     def add_lf_contribution(self, engine, b, real = True, kfes=0):
         x, y, s = self.vt.make_value_or_expression(self)    
-        print '!!!!!', x, y, s
+        print('!!!!!', x, y, s)
         if len(x) != len(y):
            assert False, "number of x and y must be the same"
         if len(x) != len(s):

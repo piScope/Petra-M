@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import weakref
 import numpy as np
 
@@ -656,7 +658,7 @@ class Projection(Operator):
                          '    import numpy as np',
                          '    x = xyz[0]',
                          '    return np.array(['+trans1+'])']
-            exec '\n'.join(trans1) in self._global_ns, lns
+            exec('\n'.join(trans1) , self._global_ns, lns)
             trans1 = lns['trans1']            
         else:
             trans1 = notrans

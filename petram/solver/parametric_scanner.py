@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('ParametricScanner')
@@ -31,7 +33,7 @@ class DefaultParametricScanner(object):
         '''
         set target physics model
         '''
-        print targets
+        print("targets", targets)
         if (not isinstance(targets, tuple) and
             not isinstance(targets, list)):
             self.target_phys = [targets]

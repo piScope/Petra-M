@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 '''
    matrix_file 
    
@@ -31,7 +33,7 @@ def read_matvec(file, all = False, verbose=False, complex = False, skip = 0):
 
     ret = []
     for file in files:   
-       print file         
+       print(file)
        fid = open(file, "r")
        xx = [x.strip().split() for x in fid.readlines()]
        xx = xx[skip:]

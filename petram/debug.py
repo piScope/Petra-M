@@ -1,3 +1,4 @@
+from __future__ import print_function
 #####################################
 #
 # debug.py
@@ -160,7 +161,7 @@ def use_profiler(method):
             sortby = 'cumulative'
             ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
             ps.print_stats()
-            print s.getvalue()
+            print(s.getvalue())
             
             from petram.mfem_config import use_parallel
             if use_parallel:

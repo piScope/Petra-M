@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import sys
 import wx
@@ -669,7 +671,7 @@ class DlgPlotSol(SimpleFramePlus):
                 self.local_solsubdir = ""
         if doit:
             try:
-                print "reading sol from ", npath
+                print("reading sol from ", npath)
                 solfiles = find_solfiles(path = npath)
                 if solfiles is None:
                     if model.variables.hasvar('solfiles'):
@@ -693,7 +695,6 @@ class DlgPlotSol(SimpleFramePlus):
         model = self.GetParent().model
         v  = self.elps['Config'].GetValue()
         #print str(v[0][0])
-        print v
         if str(v[0][0]) == 'Single':
             if (self.config['use_mp'] or
                 self.config['use_cs']):

@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import sys
 import time
@@ -139,7 +141,7 @@ def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
     command = ans+'/bin/evalsvr'
     if soldir != '':
         command = 'cd ' + soldir + ';' + command
-    print command
+    print(command)
     p = sp.Popen(['ssh', user + host, command], stdin = sp.PIPE,
                  stdout=sp.PIPE, stderr=sp.STDOUT,
                  close_fds = ON_POSIX,

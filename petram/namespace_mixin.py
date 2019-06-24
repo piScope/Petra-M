@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Namespace')
@@ -190,7 +192,7 @@ class NS_mixin(object):
                            g[k] = chain[-2]._global_ns[k]                   
                        ll = {}
                        if (p.ns_string != '' and p.ns_string is not None):
-                           exec p.ns_string in g, ll
+                           exec(p.ns_string, g, ll)
                            for k in ll.keys(): g[k] = ll[k]
                            
                    except Exception as e:
@@ -228,7 +230,7 @@ class NS_mixin(object):
         try:
             l = {}
             if (self.ns_string != '' and self.ns_string is not None):
-                 exec self.ns_string in g, l
+                 exec(self.ns_string, g, l)
             else:
                  pass ###return
         except Exception as e:

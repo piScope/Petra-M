@@ -1,3 +1,4 @@
+from __future__ import print_function
 '''
 Utility class to handle BlockMatrix made from scipy-sparse and
 Hypre with the same interface
@@ -445,12 +446,13 @@ class BlockMatrix(object):
         for i in range(self.shape[0]):
             for j in range(self.shape[1]):
                 if self[i, j] is not None:               
-                    print i, j, self[i,j].GetRowPartArray()
+                    print(i, j, self[i,j].GetRowPartArray())
+                    
     def print_col_part(self):
         for i in range(self.shape[0]):
             for j in range(self.shape[1]):
                 if self[i, j] is not None:               
-                    print i, j, self[i,j].GetColPartArray()
+                    print(i, j, self[i,j].GetColPartArray())
 
     def save_to_file(self, file):
         for i in range(self.shape[0]):
@@ -528,7 +530,7 @@ class BlockMatrix(object):
         for i in range(self.shape[0]):
            for j in range(self.shape[1]):
                if self[i, j] is None: continue
-               if id(self[i,j]) in ids: print i, j, "shared"
+               if id(self[i,j]) in ids: print(i, j, "shared")
         
     def eliminate_empty_rowcol(self):
         '''

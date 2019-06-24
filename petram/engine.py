@@ -1,4 +1,5 @@
-#!/bin/env python
+from __future__ import print_function
+
 import sys
 import os
 import shutil
@@ -267,7 +268,7 @@ class Engine(object):
             box = None
             for k in solk:
                 if not isinstance(model['Solver'][k], SolveStep):
-                    print "moving ", k
+                    print("moving ", k)
                     if box is None:
                         name = model['Solver'].add_item('SolveStep', SolveStep)
                         box = model['Solver'][name]
@@ -1469,9 +1470,9 @@ class Engine(object):
                     AeX[idx, 0].resetRow(gl_ess_tdof)                  
             RHS = RHS - AeX
         except:
-            print "RHS", RHS
-            print "Ae", Ae
-            print "X", X
+            print("RHS", RHS)
+            print("Ae", Ae)
+            print("X", X)
             raise
          
         for name in self.gl_ess_tdofs:

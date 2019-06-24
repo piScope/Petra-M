@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 '''
 COEFF2D : 2D coefficient form of PDE
 

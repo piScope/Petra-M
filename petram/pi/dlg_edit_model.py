@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import wx
 from collections import OrderedDict
@@ -351,7 +353,7 @@ class DlgEditModel(SimpleFramePlus):
            #base0 = ''.join([k for k in key if not k.isdigit()])
            base0, num = parent[key].split_digits()           
            if base0 != base: continue
-           print nums
+
            #nums.append(int(''.join([k for k in key if k.isdigit()])))
            nums.append(int(num))
         

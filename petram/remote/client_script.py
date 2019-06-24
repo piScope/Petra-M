@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 import datetime
 import os 
@@ -95,7 +97,7 @@ def retrieve_files(model, rhs=False, matrix = False, sol_dir = None):
                 x = x.strip()
                 host.GetFile(x, os.path.join(sol_dir,os.path.basename(x)))
         xx = host.Execute('ls -d ' + os.path.join(rwdir, 'case*')).stdout.readlines()
-        print xx
+        print(xx)
         for x in xx:
             x0 = os.path.basename(x.strip())
             if not x0.startswith('case'): continue
@@ -103,11 +105,11 @@ def retrieve_files(model, rhs=False, matrix = False, sol_dir = None):
                 long(x0[4:])
             except:
                 continue
-            print 'testing', os.path.join(sol_dir, x0)
+            print('testing', os.path.join(sol_dir, x0))
             if not os.path.exists(os.path.join(sol_dir, x0)): 
                 os.mkdir(os.path.join(sol_dir, x0))
             yy = host.Execute('ls ' + os.path.join(rwdir, x0, key+'*')).stdout.readlines()
-            print '!!!!!!!!!!', yy
+            print('!!!!!!!!!!', yy)
             for y in yy:
                 if y.find(key) != -1:
                     y = y.strip()

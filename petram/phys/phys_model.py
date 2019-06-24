@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 from os.path import dirname, basename, isfile, join
 import warnings
@@ -40,7 +42,7 @@ class PhysVectorConstant(mfem.VectorConstantCoefficient):
 class PhysMatrixConstant(mfem.MatrixConstantCoefficient):
     def __init__(self, value):
         v = mfem.Vector(value.flatten())
-	m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])       
+        m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])       
         self.value = (v,m)
         mfem.MatrixConstantCoefficient.__init__(self, m)
         

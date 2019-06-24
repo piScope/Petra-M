@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import time
 import numpy as np
 import parser
@@ -146,7 +148,7 @@ class EvaluatorSingle(EvaluatorCommon):
         
         phys = self.mfem_model()[self.phys_path]
 
-        print self.agents
+        print(self.agents)
         evaluator = self.agents[1][0]
         return evaluator.eval_probe(expr, probes, phys)
 

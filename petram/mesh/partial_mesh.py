@@ -1,3 +1,4 @@
+from __future__ import print_function
 '''
     partial_mesh
 
@@ -155,7 +156,7 @@ def _gather_shared_vertex(mesh, u, shared_info,  *iverts):
         if i == myid:
             missing = np.unique(mvv[np.in1d(mvv, u, invert=True)])
             if len(missing) != 0:
-                print "adding (vertex)", missing
+                print("adding (vertex)", missing)
                 u = np.hstack((u, missing))               
 
     u_own = np.sort(u - offset[myid])
@@ -193,8 +194,8 @@ def _gather_shared_element(mesh, mode, shared_info, ielem, kelem, attrs,
            missing, mii = np.unique(mev[check], return_index=True)
            missinga = mea[check][mii]
            if len(missing) != 0:                       
-               print "adding (face)", myid, missing
-               print len(missing), len(missinga), missinga
+               print("adding (face)", myid, missing)
+               print(len(missing), len(missinga), missinga)
                if not skip_adding:
                    nverts, base  = _add_face_data(mesh, missing, nverts, base)
                    attrs = np.hstack((attrs, missinga)).astype(attrs.dtype)
@@ -241,7 +242,7 @@ def _fill_mesh_bdr_elements(omesh, vtx, bindices, nbverts,
     cnbverts = np.hstack([0, np.cumsum(nbverts)])
     for i, ba in enumerate(battrs):
         if not kbelem[i]:
-            print "skipping"
+            print("skipping")
             continue
         iv = bindices[cnbverts[i]:cnbverts[i+1]]
         if bbase[i] == 0:

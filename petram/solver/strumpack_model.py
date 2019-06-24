@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from .solver_model import Solver
 import numpy as np
 import scipy
@@ -191,13 +193,13 @@ class StrumpackSolver(LinearSolver):
 
         global_offset = np.hstack(([0], np.cumsum(global_size)))
         global_roffset = global_offset + offset
-        print global_offset
+        print(global_offset)
 
         new_offset = np.hstack(([0], np.cumsum(x)))[:-1]
 #                                np.cumsum(x.reshape(2,-1).transpose().flatten())))
         new_size =   x.reshape(num_proc, -1)
         new_offset = new_offset.reshape(num_proc, -1)
-        print new_offset
+        print(new_offset)
         
         #index_mapping
         def blk_stm_idx_map(i):
@@ -265,7 +267,7 @@ class StrumpackSolver(LinearSolver):
                          str(0.01),
                          "--hss_abs_tol",                         
                          str(1e-4),])
-        print self.maxiter
+
         args.extend(["--sp_maxit", str(int(self.maxiter))])
         args.extend(["--sp_rel_tol", str(self.rctol)])
         args.extend(["--sp_abs_tol", str(self.actol)])        
