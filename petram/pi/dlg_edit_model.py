@@ -11,6 +11,8 @@ from ifigure.utils.edit_list import EDITLIST_SETFOCUS
 from ifigure.widgets.miniframe_with_windowlist import MiniFrameWithWindowList
 from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList
 
+import ifigure.utils.pickle_wrapper as pickle
+
 try:
     import treemixin 
 except ImportError:
@@ -282,8 +284,6 @@ class DlgEditModel(SimpleFramePlus):
         
         
     def OnCopyItemFromModelMult(self, evt):
-        import cPickle as pickle
-        
         tree = self.tree
         items = tree.GetSelections()
         indices = [tree.GetIndexOfItem(ii) for ii in items]
@@ -298,23 +298,10 @@ class DlgEditModel(SimpleFramePlus):
         
     def OnCopyItemFromModel(self, evt):
         return self.OnCopyItemFromModelMult(evt)
-        '''
-        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
-        mm = self.model.GetItem(indices)
-        name = mm.name()
-        base, num = mm.split_digits()
-
-        import cPickle as pickle
-        _copied_item = (base, pickle.loads(pickle.dumps(mm)))
-
-        fid = open(petram_model_scratch, 'wb')
-        pickle.dump(_copied_item, fid)
-        fid.close()
-        '''
+    
     def OnPasteItemToModel(self, evt):
         if self.tree.isMultipleSelection(): return
-        
-        import cPickle as pickle        
+
         try:
             fid = open(petram_model_scratch, 'r')
             _copied_item=pickle.load(fid)
@@ -344,7 +331,6 @@ class DlgEditModel(SimpleFramePlus):
         base, num = mm.split_digits()
         parent = mm.parent
 
-        import cPickle as pickle
         newmm = pickle.loads(pickle.dumps(mm))
 
         index = parent.keys().index(name)

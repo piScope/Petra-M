@@ -195,7 +195,7 @@ class Model(RestorableOrderedDict):
         return self._hook
         
     def __repr__(self):
-         return self.__class__.__name__+'('+self.name()+':'+','.join(self.keys()) + ')'
+         return self.__class__.__name__+'('+self.name()+':'+','.join(list(self.keys())) + ')'
 
     def __eq__(self, x):
         try:
@@ -264,7 +264,7 @@ class Model(RestorableOrderedDict):
             return {x: self.attribute(x) for x in self.attribute_set({}).keys()}
         
         if len(args) == 0:
-            return self.attribute_set({}).keys()
+            return list(self.attribute_set({}).keys())
         elif len(args) == 1:
             if hasattr(self, args[0]): return getattr(self, args[0])
         elif len(args) == 2:
@@ -316,25 +316,25 @@ class Model(RestorableOrderedDict):
         key = ''
         d0 = self
         for k in indices:
-            key = d0.keys()[k]
+            key = list(d0.keys())[k]
             d0 = d0[key]
         return key          
     def GetChildrenCount(self, indices):
        d0 = self
        for k in indices:
-           key = d0.keys()[k]
+           key = list(d0.keys())[k]
            d0 = d0[key]
-       return len(d0.keys())
+       return len(d0)
    
     def GetItem(self, indices):
        d0 = self
        for k in indices:
-           key = d0.keys()[k]
+           key = list(d0.keys())[k]
            d0 = d0[key]
        return d0
 
     def get_child(self, id):
-        return self[self.keys()[id]]
+        return self[list(self.keys())[id]]
     
     def get_children(self):
         return self.values()
@@ -575,7 +575,7 @@ class Model(RestorableOrderedDict):
         return name[:l], name[l:]
 
     def insert_item(self, index, name, item):
-        items = self._contents.items()
+        items = list(self._contents.items())
         items.insert(index, (name, item))
         self._contents = OrderedDict(items)
         item.set_parent(self)

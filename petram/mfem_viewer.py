@@ -1,19 +1,19 @@
-
+from __future__ import print_function
 '''
    Viewer/Editor of MFEM model
 
    * this modules is designed to avoid importing mfem directly here
 
 '''
-from ifigure.interactive import figure
-from ifigure.widgets.book_viewer import BookViewer
-from ifigure.utils.cbook import BuildMenu
-import ifigure.widgets.dialog as dialog
 import numpy as np
 import os
 import wx
 import traceback
 import weakref
+from ifigure.interactive import figure
+from ifigure.widgets.book_viewer import BookViewer
+from ifigure.utils.cbook import BuildMenu
+import ifigure.widgets.dialog as dialog
 
 try:
     import petram.geom
@@ -313,7 +313,7 @@ class MFEMViewer(BookViewer):
         #self.model.variables.setvar('engine', self.engine)
 
     def onOpenPMFEM(self, evt):
-        import cPickle as pickle        
+        import ifigure.utils.pickle_wrapper as pickle        
         from ifigure.mto.py_code import PyData
         from ifigure.mto.py_script import PyScript        
         
@@ -780,7 +780,7 @@ class MFEMViewer(BookViewer):
             
         
     def onEditModel(self, evt):
-        from pi.dlg_edit_model import DlgEditModel
+        from petram.pi.dlg_edit_model import DlgEditModel
         try:
            self.engine.assign_phys_pp_sel_index()            
            self.engine.assign_sel_index()
@@ -1314,7 +1314,7 @@ class MFEMViewer(BookViewer):
         setting = get_job_submisson_setting(self, 'using '+remote['name'],
                                             value = values,
                                             queues = q)
-        if len(setting.keys()) == 0: return
+        if len(setting) == 0: return
         
         for k in setting.keys(): remote[k] = setting[k]
         if self.model.param.eval('sol') is None:

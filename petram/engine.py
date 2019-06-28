@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import sys
 import os
+import six
 import shutil
 import numpy as np
 import scipy.sparse
@@ -45,7 +46,7 @@ def enum_fes(phys, *args):
 class Engine(object):
     def __init__(self, modelfile='', model = None):
         if modelfile != '':
-           import cPickle as pickle
+           import ifigure.utils.pickle_wrapper as pickle
            model = pickle.load(open(modelfile, 'rb'))
            
         self.set_model(model)
@@ -245,7 +246,7 @@ class Engine(object):
             
         self.alloc_flag  = {}
         # below is to support old version
-        from mesh.mesh_model import MeshGroup
+        from petram.mesh.mesh_model import MeshGroup
         g = None
         items = []
 
@@ -385,7 +386,7 @@ class Engine(object):
         if ns_folder is not None:
            self.preprocess_ns(ns_folder, data_folder)
 
-        from .model import Domain, Bdry
+        from petram.model import Domain, Bdry
 
         self.assign_phys_pp_sel_index()
         self.run_mesh_extension_prep()

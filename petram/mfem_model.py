@@ -185,7 +185,7 @@ class MFEM_InitRoot(Model):
     can_delete = False
     has_2nd_panel = False        
     def get_possible_child(self):
-        from init_model import InitSetting
+        from petram.init_model import InitSetting
         return [InitSetting]
     
     def onItemSelChanged(self, evt):
@@ -220,7 +220,7 @@ class MFEM_MeshRoot(Model):
     can_delete = False
     has_2nd_panel = False    
     def get_possible_child(self):
-        from mesh.mesh_model import MFEMMesh, MeshGroup
+        from petram.mesh.mesh_model import MFEMMesh, MeshGroup
         try:
             from petram.mesh.gmsh_mesh_model import GmshMesh
             return [MFEMMesh, GmshMesh]
@@ -248,7 +248,7 @@ class MFEM_SolverRoot(Model):
     has_2nd_panel = False
     
     def get_possible_child(self):
-        from solver.solver_model import SolveStep
+        from petram.solver.solver_model import SolveStep
         return [SolveStep]
     
     def get_active_solvers(self, mm = None):
@@ -294,6 +294,8 @@ try:
    from petram.geom.geom_model import MFEM_GeomRoot
    has_geom = True
 except:
+   import traceback
+   traceback.print_exc()
    has_geom = False
 
 class MFEM_ModelRoot(Model):
@@ -335,7 +337,8 @@ class MFEM_ModelRoot(Model):
         fid.close()
 
     def save_to_file(self, path, meshfile_relativepath=False):
-        import cPickle as pickle
+        import ifigure.utils.pickle_wrapper as pickle                
+
         if meshfile_relativepath:
             for od in self.walk():
                 if hasattr(od, 'use_relative_path'):
