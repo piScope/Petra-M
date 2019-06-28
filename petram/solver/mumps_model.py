@@ -33,12 +33,12 @@ class MUMPS(LinearSolverModel):
                 ["WS Size (ICNTL23)",  self.icntl23,   400, {}],]        
     
     def get_panel1_value(self):
-        return (long(self.log_level), self.ordering, self.out_of_core,
+        return (int(self.log_level), self.ordering, self.out_of_core,
                 self.error_ana, self.write_mat, #self.central_mat,
                 self.use_blr, self.blr_drop, self.icntl14, self.icntl23)
     
     def import_panel1_value(self, v):
-        self.log_level = long(v[0])
+        self.log_level = int(v[0])
         self.ordering = str(v[1])
         self.out_of_core = v[2]
         self.error_ana = v[3]                

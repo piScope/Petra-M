@@ -69,18 +69,18 @@ class GMRES(LinearSolverModel):
               prec.append((n, ['None', 'None']))
         self.preconditioners = prec
         
-        return (long(self.log_level), long(self.maxiter),
-                self.reltol, self.abstol, long(self.kdim),
+        return (int(self.log_level), int(self.maxiter),
+                self.reltol, self.abstol, int(self.kdim),
                 self.preconditioners, self.write_mat)
     
     def import_panel1_value(self, v):
-        self.log_level = long(v[0])
-        self.maxiter = long(v[1])
+        self.log_level = int(v[0])
+        self.maxiter = int(v[1])
         self.reltol = v[2]
         self.abstol = v[3]
-        self.kdim = long(v[4])
+        self.kdim = int(v[4])
         self.preconditioners = v[5]
-        self.write_mat = bool(v[6])
+        self.write_mat = int(v[6])
         
     def attribute_set(self, v):
         v = super(GMRES, self).attribute_set(v)

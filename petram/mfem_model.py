@@ -102,7 +102,7 @@ class MFEM_PhysRoot(Model):
         '''
         names =  sum([c.dep_vars for c in self.iter_enabled()], [])
         pnames = sum([[c.name()]*len(c.dep_vars) for c in self.iter_enabled()], [])
-        pindex = sum([range(len(c.dep_vars)) for c in self.iter_enabled()], [])
+        pindex = sum([list(range(len(c.dep_vars))) for c in self.iter_enabled()], [])
 
         return names, pnames, pindex
     

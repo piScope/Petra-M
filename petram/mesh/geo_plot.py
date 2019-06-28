@@ -188,6 +188,7 @@ def oplot_meshed(viewer,  ret):
     
     if 'line' in cells:
         vert = np.squeeze(X[cells['line']][:,0,:])
+        print("vert", vert)
         obj= viewer.plot(vert[:,0],
                     vert[:,1],
                     vert[:,2], 'ob',

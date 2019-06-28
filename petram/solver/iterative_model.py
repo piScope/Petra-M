@@ -91,8 +91,8 @@ class Iterative(LinearSolverModel, NS_mixin):
         self.preconditioners = prec
         
         return (self.solver_type,
-                long(self.log_level), long(self.maxiter),
-                self.reltol, self.abstol, long(self.kdim),
+                int(self.log_level), int(self.maxiter),
+                self.reltol, self.abstol, int(self.kdim),
                 [self.adv_mode, [self.adv_prc, ], [self.preconditioners,]],
                 self.write_mat, self.assert_no_convergence,
                 self.use_ls_reducer,
@@ -100,11 +100,11 @@ class Iterative(LinearSolverModel, NS_mixin):
     
     def import_panel1_value(self, v):
         self.solver_type = str(v[0])
-        self.log_level = long(v[1])
-        self.maxiter = long(v[2])
+        self.log_level = int(v[1])
+        self.maxiter = int(v[2])
         self.reltol = v[3]
         self.abstol = v[4]
-        self.kdim = long(v[5])
+        self.kdim = int(v[5])
         self.preconditioners = v[6][2][0]
         self.write_mat = bool(v[7])
         self.assert_no_convergence = bool(v[8])

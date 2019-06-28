@@ -93,7 +93,6 @@ class RestorableOrderedDict(MutableMapping, Restorable, object):
       
      def _restore(self, restoration_data):
          for (key, value) in restoration_data:
-#             print key
              self._contents[key] = value
              value._parent = self
 
@@ -170,10 +169,11 @@ class Model(RestorableOrderedDict):
         super(Model, self).__init__()
         self._parent = None
         self._hook = None
+
         if not hasattr(self, 'init_attr'):
+            self.init_attr = True            
             self.update_attribute_set(kw = kwargs)
-            self.init_attr = True
-            
+
     @property
     def has_4th_panel(self):
         return self.has_3rd_panel and self._has_4th_panel
@@ -240,7 +240,7 @@ class Model(RestorableOrderedDict):
         elif self.sel_index[0] == '':            
             self._sel_index = []
         else:
-            self._sel_index = [long(i) for i in self.sel_index]
+            self._sel_index = [int(i) for i in self.sel_index]
         if choice is not None:
             ret = np.array(self._sel_index);
             ret = list(ret[np.in1d(ret, choice)])
@@ -251,7 +251,9 @@ class Model(RestorableOrderedDict):
     def update_attribute_set(self, kw = None):
         if kw is None: kw = {}
         d = self.attribute_set(kw)
-
+        self.do_update_attribute_set(d)
+        
+    def do_update_attribute_set(self, d):
         for k in d.keys():
            if not hasattr(self, k):
                try:
@@ -361,7 +363,7 @@ class Model(RestorableOrderedDict):
             name = k[:ll]
             if name == txt:
                 if len(k) > len(name):
-                    m.append(long(k[len(name):]))
+                    m.append(int(k[len(name):]))
 
         if len(m) == 0:
            name = txt+str(1)
@@ -413,7 +415,7 @@ class Model(RestorableOrderedDict):
                 for x in k[len(txt):]:
                     if not x.isdigit(): break
                 else:
-                    m.append(long(k[len(txt):]))
+                    m.append(int(k[len(txt):]))
         if len(m) == 0:
            if nosuffix:
                name = txt
@@ -947,13 +949,13 @@ class Pair(Model):
         elif self.sel_index[0] == '':            
             self._sel_index = []
         else:
-            self._sel_index = [long(i) for i in self.sel_index]
+            self._sel_index = [int(i) for i in self.sel_index]
         if len(self.src_index) == 0:
             self._src_index = []            
         elif self.src_index[0] == '':            
             self._src_index = []
         else:
-            self._src_index = [long(i) for i in self.src_index]
+            self._src_index = [int(i) for i in self.src_index]
         self._sel_index = self._sel_index + self._src_index
 
         if choice is not None:

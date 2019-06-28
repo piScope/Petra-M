@@ -219,23 +219,23 @@ class WF(PhysModule):
         self.generate_dt_fespace = bool(v[6])
 
     def get_possible_domain(self):
-        from wf_constraints import WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint
+        from petram.phys.wf.wf_constraints import WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint
         return [WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint]
     
     def get_possible_bdry(self):
-        from wf_constraints import WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint
-        from wf_essential import WF_Essential
+        from petram.phys.wf.wf_constraints import WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint
+        from petram.pnys.wf.wf_essential import WF_Essential
         return [WF_Essential, WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint]
     
     def get_possible_point(self):
-        from wf_constraints import WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint
+        from petram.phys.wf.wf_constraints import WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint
         #from wf_essential import WF_Essential
         #return [WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint]
         # Bilinear form does not suppoert delta coefficent
         return [WF_WeakPointLinConstraint]
     
     def get_possible_pair(self):
-        from wf_pairs import WF_PeriodicBdr
+        from petram.phys.wf.wf_pairs import WF_PeriodicBdr
         #periodic bc
         return [WF_PeriodicBdr]
     

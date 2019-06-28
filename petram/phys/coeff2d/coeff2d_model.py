@@ -195,18 +195,18 @@ class Coeff2D(PhysModule):
         self.dep_vars_base_txt = ','.join([x.strip() for x in str(v[2]).split(',')])
 
     def get_possible_domain(self):
-        from coeff2d_domains       import Coeff2D_Diffusion, Coeff2D_Source, Coeff2D_Convection, Coeff2D_Absorption
+        from .coeff2d_domains       import Coeff2D_Diffusion, Coeff2D_Source, Coeff2D_Convection, Coeff2D_Absorption
         return [Coeff2D_Diffusion,  Coeff2D_Convection, Coeff2D_Absorption, Coeff2D_Source]
     
     def get_possible_bdry(self):
-        from coeff2d_bdries import Coeff2D_Essential, Coeff2D_Zero,Coeff2D_ZeroFlux
+        from .coeff2d_bdries import Coeff2D_Essential, Coeff2D_Zero,Coeff2D_ZeroFlux
         return [Coeff2D_ZeroFlux, Coeff2D_Zero, Coeff2D_Essential]
     
     def get_possible_edge(self):
         return []                
     
     def get_possible_point(self):
-        from coeff2d_points       import Coeff2D_PointSource, Coeff2D_PointValue
+        from .coeff2d_points       import Coeff2D_PointSource, Coeff2D_PointValue
         return [Coeff2D_PointSource, Coeff2D_PointValue]
     
     def get_possible_pair(self):
