@@ -245,6 +245,7 @@ class MFEMViewer(BookViewer):
                         d = self._figure_data['geom']
                         plot_geometry(self,  d[name[1]])
                     if name[0] in d:
+                        print("calling oplot")
                         oplot_meshed(self,  d[name[0]])
                         self._hidemesh = False                        
 

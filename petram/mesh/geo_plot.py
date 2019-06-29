@@ -130,7 +130,7 @@ def oplot_meshed(viewer,  ret):
     except ValueError:
         return
     
-    meshed_face = []    
+    meshed_face = []
     if 'triangle' in cells:
         verts, elem_idx, array_idx = expand_vertex_data(X, cells['triangle'],
                                        cell_data['triangle']['geometrical'])
@@ -188,19 +188,19 @@ def oplot_meshed(viewer,  ret):
     
     if 'line' in cells:
         vert = np.squeeze(X[cells['line']][:,0,:])
-        print("vert", vert)
-        obj= viewer.plot(vert[:,0],
+        if vert.size > 3:
+            obj= viewer.plot(vert[:,0],
                     vert[:,1],
                     vert[:,2], 'ob',
                     array_idx = cell_data['line']['geometrical'],
                     linewidth = 0)
 #                    view_offset = (0, 0, -0.005, 0))
 
-        verts, elem_idx, array_idx = expand_vertex_data(X, cells['line'],
+            verts, elem_idx, array_idx = expand_vertex_data(X, cells['line'],
                                        cell_data['line']['geometrical'])
 
-        obj.rename('edge_meshed')
-        meshed_edge = list(np.unique(cell_data['line']['geometrical']))
+            obj.rename('edge_meshed')
+            meshed_edge = list(np.unique(cell_data['line']['geometrical']))
     else:
         meshed_edge = []
         

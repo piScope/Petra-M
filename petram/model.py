@@ -8,6 +8,7 @@
 from collections import OrderedDict
 import traceback
 from collections import MutableMapping
+import six
 import os
 import numpy as np
 import weakref
@@ -89,7 +90,7 @@ class RestorableOrderedDict(MutableMapping, Restorable, object):
      def __getstate__(self):
          st = [(x, self.__dict__[x]) for x in self.__dict__ if not x.startswith('_')]
 #         st.append(('_parent', self._parent))
-         return [ (key, value) for key, value in self._contents.iteritems() ], st
+         return [ (key, value) for key, value in six.iteritems(self._contents) ], st
       
      def _restore(self, restoration_data):
          for (key, value) in restoration_data:
