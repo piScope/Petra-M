@@ -289,7 +289,7 @@ class ScipyCoo(coo_matrix):
         mlil = m.tolil()
         value= mlil[tdof, 0]
         slil = self.tolil()
-        slil[tdof, 0] = value
+        slil[tdof, :1] = value
         coo = slil.tocoo()
         self.data = coo.data
         self.row = coo.row
