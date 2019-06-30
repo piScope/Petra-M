@@ -314,7 +314,7 @@ class MFEMViewer(BookViewer):
         #self.model.variables.setvar('engine', self.engine)
 
     def onOpenPMFEM(self, evt):
-        import ifigure.utils.pickle_wrapper as pickle        
+        import petram.helper.pickle_wrapper as pickle        
         from ifigure.mto.py_code import PyData
         from ifigure.mto.py_script import PyScript        
         

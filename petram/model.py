@@ -756,7 +756,8 @@ class Model(RestorableOrderedDict):
             d2[x.__class__.__name__] = x.__class__.__module__
 
         for key in d1.keys():
-            if d1[key] == '__builtin__': continue ### skip something like pi....
+            if d1[key] == '__builtin__': continue ### skip something like pi....(PY2)
+            if d1[key] == 'builtins': continue    ### skip something like pi....(PY3)          
             script.append('from '+d1[key] + ' import '+ key)
         script.append('')            
         for key in d2.keys():

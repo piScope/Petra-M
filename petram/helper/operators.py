@@ -392,22 +392,22 @@ class Delta(Operator):
         sdim = self.fes1.GetMesh().SpaceDimension()
         if direction == 0:
             if sdim == 3:
-               d = mfem.DeltaCoefficient(x, y, z, 1)
+               d = mfem.DeltaCoefficient(x, y, z, 1.0)
             elif sdim == 2:
-               d = mfem.DeltaCoefficient(x, y, 1)
+               d = mfem.DeltaCoefficient(x, y, 1.0)
             elif sdim == 1:
-               d = mfem.DeltaCoefficient(x, 1)
+               d = mfem.DeltaCoefficient(x, 1.0)
             else:
                 assert False, "unsupported dimension"
             intg = mfem.DomainLFIntegrator(d)                
         else:
             dir = mfem.Vector(direction)
             if sdim == 3:
-               d = mfem.VectorDeltaCoefficient(dir, x, y, z, 1)
+               d = mfem.VectorDeltaCoefficient(dir, x, y, z, 1.0)
             elif sdim == 2:
-               d = mfem.VectorDeltaCoefficient(dir, x, y, 1)
+               d = mfem.VectorDeltaCoefficient(dir, x, y, 1.0)
             elif sdim == 1:
-               d = mfem.VectorDeltaCoefficient(dir,x, 1)
+               d = mfem.VectorDeltaCoefficient(dir,x, 1.0)
             else:
                 assert False, "unsupported dimension"
                 
@@ -472,13 +472,14 @@ class DeltaM(Operator):
         vecs = []
 
         for k, pt in enumerate(pts):
-            w = weight[0] if len(weight) == 1 else weight[k]
+            w = float(weight[0] if len(weight) == 1 else weight[k])
             if vdim == 1:
                 if sdim == 3:
                     x, y, z = pt
                     d = mfem.DeltaCoefficient(x, y, z, w)
                 elif sdim == 2:
-                    x, y = pt               
+                    x, y = pt
+                    print("DeltaCoefficient call", type(x), type(y), type(x))
                     d = mfem.DeltaCoefficient(x, y, w)
                 elif sdim == 1:
                     x = pt                              

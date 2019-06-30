@@ -64,7 +64,7 @@ def run_parallel(path='', nproc = 1, debug=0, thread=True):
                time.sleep(1.0)
                pass #print('no output yet')
            else: 
-               print(line.rstrip('\r\n'))
+               print(line)
     else:
         stdoutdata, stderrdata = p.communicate()
         print(stdoutdata)

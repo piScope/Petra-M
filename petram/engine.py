@@ -46,7 +46,7 @@ def enum_fes(phys, *args):
 class Engine(object):
     def __init__(self, modelfile='', model = None):
         if modelfile != '':
-           import ifigure.utils.pickle_wrapper as pickle
+           import petram.helper.pickle_wrapper as pickle
            model = pickle.load(open(modelfile, 'rb'))
            
         self.set_model(model)

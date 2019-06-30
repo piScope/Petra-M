@@ -337,7 +337,7 @@ class MFEM_ModelRoot(Model):
         fid.close()
 
     def save_to_file(self, path, meshfile_relativepath=False):
-        import ifigure.utils.pickle_wrapper as pickle                
+        import petram.helper.pickle_wrapper as pickle                
 
         if meshfile_relativepath:
             for od in self.walk():

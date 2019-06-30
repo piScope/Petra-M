@@ -70,7 +70,7 @@ class NS_mixin(object):
         fid = open(path1, 'w')
         fid.write(self.ns_string)
         fid.close()
-        import cPickle as pickle
+        import petram.helper.pickle_wrapper as pickle                        
         pickle.dump(self.dataset, open(path2, 'wb'))
         
     def read_ns_script_data(self, dir = None):
@@ -79,7 +79,7 @@ class NS_mixin(object):
         fid = open(path1, 'r')
         self.ns_string = '\n'.join(fid.readlines())
         fid.close()
-        import cPickle as pickle
+        import petram.helper.pickle_wrapper as pickle                
         self.dataset = pickle.load(open(path2, 'rb'))
         
     def delete_ns(self):

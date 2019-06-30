@@ -11,7 +11,7 @@ from ifigure.utils.edit_list import EDITLIST_SETFOCUS
 from ifigure.widgets.miniframe_with_windowlist import MiniFrameWithWindowList
 from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList
 
-import ifigure.utils.pickle_wrapper as pickle
+import petram.helper.pickle_wrapper as pickle
 
 try:
     import treemixin 

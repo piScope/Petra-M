@@ -1,6 +1,6 @@
 import os
 import shutil
-import cPickle as pickle
+import petram.helper.pickle_wrapper as pickle
 
 from os.path import expanduser
 

@@ -69,7 +69,7 @@ def run_serial(path='', debug=0, thread =  True):
                time.sleep(1.0)
                pass #print('no output yet')
            else: 
-               print(line.rstrip('\r\n'))
+               print(line)
            if line == 'process terminated':break
     else:
         stdoutdata, stderrdata = p.communicate()
