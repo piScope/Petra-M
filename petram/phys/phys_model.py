@@ -852,7 +852,7 @@ class PhysModule(Phys):
         return [DomainProjection, BdrProjection,]
      
     def soldict_to_solvars(self, soldict, variables):
-        keys = soldict.keys()
+        keys = list(soldict)
         depvars = self.dep_vars
         suffix = self.dep_vars_suffix
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
@@ -937,7 +937,7 @@ class PhysModule(Phys):
         if d is None:
            return [], [], []
 
-        dom_choice = d.keys()
+        dom_choice = list(d)
         bdr_choice = sum([list(d[x]) for x in d], [])
 
         if self.sel_index[0] != 'all':

@@ -51,11 +51,11 @@ class Engine(object):
            
         self.set_model(model)
         if not 'InitialValue' in model:
-           idx = model.keys().index('Phys')+1
+           idx = list(model).index('Phys')+1
            from petram.mfem_model import MFEM_InitRoot
            model.insert_item(idx, 'InitialValue', MFEM_InitRoot())
         if not 'PostProcess' in model:
-           idx = model.keys().index('InitialValue')+1
+           idx = list(model.keys).index('InitialValue')+1
            from petram.mfem_model import MFEM_PostProcessRoot
            model.insert_item(idx, 'PostProcess', MFEM_PostProcessRoot())
            
@@ -263,7 +263,7 @@ class Engine(object):
 
         # convert old model which does not use SolveStep...
         from petram.solver.solver_model import SolveStep
-        solk = model['Solver'].keys()
+        solk = list(model['Solver'])
         flag = any([not isinstance(model['Solver'][k], SolveStep) for k in solk])
         if flag:
             box = None
@@ -1852,9 +1852,9 @@ class Engine(object):
                assert False, "base_mesh not selected"
 
             ec = base_mesh.extended_connectivity
-            allv = ec['vol2surf'].keys()  if ec['vol2surf'] is not None else []
-            alls = ec['surf2line'].keys() if ec['surf2line'] is not None else []
-            alle = ec['line2vert'].keys() if ec['line2vert'] is not None else []
+            allv = list(ec['vol2surf'])  if ec['vol2surf'] is not None else []
+            alls = list(ec['surf2line']) if ec['surf2line'] is not None else []
+            alle = list(ec['line2vert']) if ec['line2vert'] is not None else []
             
             p.update_dom_selection( all_sel = (allv, alls, alle))
         
@@ -2404,7 +2404,7 @@ class Engine(object):
                 igf = self.i_x[rifes]
                 phys.add_variables(variables, name, rgf, igf)
 
-        keys = self.model._variables.keys()
+        keys = list(self.model._variables)
         #self.model._variables.clear()
         if verbose:
             dprint1("===  List of variables ===")

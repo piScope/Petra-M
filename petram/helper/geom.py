@@ -24,9 +24,9 @@ def do_connect_pairs(ll):
                pass
        else:
            break
-    key = d.keys()[0]
+    key = list(d)[0]
     pt = [key]
-    lmax = len(d.keys())
+    lmax = len(d)
     while d[key] != pt[0]:
         pt.append(d[key])
         key = d[key]
