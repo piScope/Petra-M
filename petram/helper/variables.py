@@ -782,11 +782,9 @@ class GFScalarVariable(GridFunctionVariable):
                self.func_i = None
         else:
             self.isVectorFE=False            
-            self.func_r = mfem.GridFunctionCoefficient(gf_real,
-                                                   comp = self.comp)
+            self.func_r = mfem.GridFunctionCoefficient(gf_real)
             if gf_imag is not None:
-                self.func_i = mfem.GridFunctionCoefficient(gf_imag,
-                                                       comp = self.comp)
+                self.func_i = mfem.GridFunctionCoefficient(gf_imag)
             else:
                 self.func_i = None
         self.isDerived = True

@@ -55,7 +55,7 @@ class Engine(object):
            from petram.mfem_model import MFEM_InitRoot
            model.insert_item(idx, 'InitialValue', MFEM_InitRoot())
         if not 'PostProcess' in model:
-           idx = list(model.keys).index('InitialValue')+1
+           idx = list(model).index('InitialValue')+1
            from petram.mfem_model import MFEM_PostProcessRoot
            model.insert_item(idx, 'PostProcess', MFEM_PostProcessRoot())
            
@@ -2204,9 +2204,9 @@ class Engine(object):
         fnamer = fnamer+suffix
         fnamei = fnamei+suffix
         
-        r_x.SaveToFile(fnamer, 8)
+        r_x.Save(fnamer, 8)
         if i_x is not None:
-            i_x.SaveToFile(fnamei, 8)
+            i_x.Save(fnamei, 8)
 
     def save_mesh(self):
         mesh_names = []

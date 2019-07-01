@@ -25,6 +25,7 @@ from __future__ import print_function
 
 
 import traceback
+import six
 
 debug_mode = 1
 debug_modes = {}
@@ -149,7 +150,8 @@ else:
 def use_profiler(method):
     def method2(self, *args, **kwargs):
         if self.use_profiler:
-            import cProfile, pstats, StringIO
+            import cProfile, pstats
+            from six import StringIO
             pr = cProfile.Profile()
             pr.enable()
 
@@ -157,7 +159,7 @@ def use_profiler(method):
 
         if self.use_profiler:
             pr.disable()
-            s = StringIO.StringIO()
+            s = StringIO()
             sortby = 'cumulative'
             ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
             ps.print_stats()

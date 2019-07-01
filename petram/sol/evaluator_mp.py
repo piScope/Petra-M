@@ -7,7 +7,7 @@ import six
 import os
 import sys
 import tempfile
-from cStringIO import StringIO
+from six import StringIO
 from weakref import WeakKeyDictionary as WKD
 from weakref import WeakValueDictionary as WVD
 

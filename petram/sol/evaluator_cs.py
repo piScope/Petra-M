@@ -8,7 +8,7 @@ import parser
 import weakref
 import traceback
 import subprocess as sp
-import cPickle
+import petram.helper.pickle_wrapper as pickle
 import binascii
 try:
    import bz2  as bzlib
@@ -27,7 +27,6 @@ import multiprocessing as mp
 from petram.sol.evaluators import Evaluator, EvaluatorCommon
 from petram.sol.evaluator_mp import EvaluatorMPChild, EvaluatorMP
 
-import thread
 from threading import Timer, Thread
 try:
     from Queue import Queue, Empty
@@ -116,6 +115,7 @@ def run_and_wait_for_prompt(p, prompt, verbose=True, withsize=False):
     return lines[:-1], alive
 
 def run_with_timeout(timeout, default, f, *args, **kwargs):
+    import thread   
     if not timeout:
         return f(*args, **kwargs)
     try:
@@ -227,7 +227,7 @@ class EvaluatorClient(Evaluator):
         force_protocol1 = kparams.pop("force_protocol1", False)
         
         command = [name, params, kparams]
-        data = binascii.b2a_hex(cPickle.dumps(command))
+        data = binascii.b2a_hex(pickle.dumps(command))
         print("Sending request", command)
         self.p.stdin.write(data + '\n')
 
@@ -243,7 +243,7 @@ class EvaluatorClient(Evaluator):
         else:
             response = binascii.a2b_hex(output[-1].strip())
         try:
-            result = cPickle.loads(response)
+            result = pickle.loads(response)
             if verbose:
                 print("result", result)
         except:
