@@ -655,7 +655,11 @@ class DlgPlotSol(SimpleFramePlus):
                 self.local_solsubdir = ""
             else:
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
-            if os.path.normpath(npath) != os.path.normpath(cpath): doit =True
+            if os.path.normpath(npath) != os.path.normpath(cpath):
+                doit =True
+            else:
+                mfem_model = model.param.getvar('mfem_model')
+                mfem_model.local_sol_path = npath
         else:
             doit = True
             if self.local_soldir is not None:
@@ -694,7 +698,7 @@ class DlgPlotSol(SimpleFramePlus):
         
         model = self.GetParent().model
         v  = self.elps['Config'].GetValue()
-        #print str(v[0][0])
+
         if str(v[0][0]) == 'Single':
             if (self.config['use_mp'] or
                 self.config['use_cs']):

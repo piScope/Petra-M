@@ -46,7 +46,7 @@ def gather_soldirinfo(path):
     for key in probes:
         if len(probes[key]) > 1:
              xxx = [(int(x.split('.')[1]), x) for x in	probes[key]]
-      	     xxx = [x[1] for x in sorted(xxx)]
+             xxx = [x[1] for x in sorted(xxx)]
              probes[key] = xxx            
 
     probes = dict(probes)

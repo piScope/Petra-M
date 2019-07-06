@@ -2204,9 +2204,9 @@ class Engine(object):
         fnamer = fnamer+suffix
         fnamei = fnamei+suffix
         
-        r_x.Save(fnamer, 8)
+        r_x.SaveToFile(fnamer, 8)
         if i_x is not None:
-            i_x.Save(fnamei, 8)
+            i_x.SaveToFile(fnamei, 8)
 
     def save_mesh(self):
         mesh_names = []

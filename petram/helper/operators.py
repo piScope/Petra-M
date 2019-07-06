@@ -184,7 +184,7 @@ class Integral(Operator):
 
         '''
 
-        coeff = kwargs.pop("coeff", "1")
+        coeff = kwargs.pop("coeff", "1.0")
         coeff_type = kwargs.pop("coeff_type", "S")
 
         engine = self._engine()        
@@ -341,7 +341,7 @@ class Zero(Operator):
         return make_diagonal_mat(engine, fes1, fes2, 0.0)
 
         '''
-        if fes1 == fes2:
+a        if fes1 == fes2:
             bf = engine.new_bf(fes1)
             bf.Assemble()
             bf.Finalize()
@@ -386,8 +386,8 @@ class Delta(Operator):
         self.process_kwargs(engine, kwargs)
 
         x = args[0]
-        y = args[1] if len(args)>1 else 0
-        z = args[2] if len(args)>2 else 0        
+        y = args[1] if len(args)>1 else 0.0
+        z = args[2] if len(args)>2 else 0.0        
         
         sdim = self.fes1.GetMesh().SpaceDimension()
         if direction == 0:
@@ -445,7 +445,7 @@ class DeltaM(Operator):
     def assemble(self, *args, **kwargs):
         engine = self._engine()
         direction = kwargs.pop("direction", None)
-        weight = kwargs.pop("weight", 1)
+        weight = kwargs.pop("weight", 1.0)
         weight = np.atleast_1d(weight)
         do_sum = kwargs.pop("sum", False)
         

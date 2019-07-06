@@ -36,7 +36,13 @@ import petram.debug as debug
 debug.debug_default_level = 1
 dprint1, dprint2, dprint3 = debug.init_dprints('dof_map')
 
+# this is for testing. need to add three lines below to suppress
+# numpy related warning (copied from numpy.__init__.py)
 warnings.filterwarnings('error', category=RuntimeWarning)
+# Filter out Cython harmless warnings
+warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
+warnings.filterwarnings("ignore", message="numpy.ndarray size changed")
 
 from petram.helper.matrix_file import write_matrix, write_vector
 
