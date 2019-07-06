@@ -766,9 +766,9 @@ class PhysModule(Phys):
         return [self.mesh_idx, self.element, self.order]
      
     def import_panel1_value(self, v):
-        self.mesh_idx = long(v[0])
+        self.mesh_idx = int(v[0])
         self.element = str(v[1])
-        self.order = long(v[2])
+        self.order = int(v[2])
         return v[3:]
      
     def panel2_param(self):
