@@ -333,7 +333,7 @@ class DlgEditModel(SimpleFramePlus):
 
         newmm = pickle.loads(pickle.dumps(mm))
 
-        index = parent.keys().index(name)
+        index = list(parent).index(name)
         nums = []
         for key in parent.keys():
            #base0 = ''.join([k for k in key if not k.isdigit()])
@@ -343,7 +343,7 @@ class DlgEditModel(SimpleFramePlus):
            #nums.append(int(''.join([k for k in key if k.isdigit()])))
            nums.append(int(num))
         
-        parent.insert_item(index+1, base+str(long(max(nums))+1), newmm)
+        parent.insert_item(index+1, base+str(int(max(nums))+1), newmm)
         self.tree.RefreshItems()
         self.OnEvalNS(evt)
 
