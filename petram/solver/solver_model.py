@@ -322,8 +322,8 @@ class SolverInstance(object):
         self.phys_real = True
         self.ls_type = ''
         
-        
-        self.set_linearsolver_model()
+        if not gui.init_only:
+             self.set_linearsolver_model()
         
     def get_phys(self):
         return self.gui.get_phys()

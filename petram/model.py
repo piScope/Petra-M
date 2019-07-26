@@ -558,7 +558,7 @@ class Model(RestorableOrderedDict):
                 new_cnt.append((key, self._parent[key]))
 
         parent = self._parent
-        for key in self._parent.keys():
+        for key in list(self._parent):
             parent[key]._parent = None
             del parent[key]
 
