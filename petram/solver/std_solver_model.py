@@ -186,7 +186,7 @@ class StandardSolver(SolverInstance):
         phys_range  = self.get_phys_range()
         
         # use get_phys to apply essential to all phys in solvestep        
-        dprint1("in assemble", phys_target)
+        dprint1("in assemble", phys_target, phys_range)
 
         engine.run_verify_setting(phys_target, self.gui)
         engine.run_assemble_mat(phys_target, phys_range)

@@ -464,7 +464,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     def set_matrix_weight(self, get_matrix_weight):
         # self._mat_weight = get_matrix_weight(self.timestep_config,
         #                                      self.timestep_weight)
-        self._mat_weight = get_matrix_weight(self.timestep_config)
+        w = get_matrix_weight(self.timestep_config)
+        if sum(w) > 0:
+           self._mat_weight = w
         
     def get_matrix_weight(self):
         return self._mat_weight

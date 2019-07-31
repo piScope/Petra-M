@@ -105,6 +105,7 @@ class Engine(object):
         #               physics moduel provides a map form variable name to index.
 
         self.case_base = 0
+        self._init_done = []
         
     @property
     def n_matrix(self):
@@ -516,6 +517,7 @@ class Engine(object):
         #  2: use init panel values
         #  3: load file
         #  4: do nothing
+        dprint1("run_apply_init0", phys_range, mode)
         for j in range(self.n_matrix):
            self.access_idx = j
            for phys in phys_range:
@@ -527,24 +529,8 @@ class Engine(object):
                       igf = self.i_x[r_ifes]
                       rgf.Assign(0.0)
                       if igf is not None: igf.Assign(0.0)
+                      if not name in self._init_done: self._init_done.append(name)
               elif mode == 1:
-                  '''
-                  v = np.atleast_1d(init_value).flatten()
-                  if np.iscomplexobj(v):
-                     rinit=v.real
-                     iinit=v.imag
-                  else:
-                     rinit=v.astype(float, copy=False)
-                     iinit=v*0.0
-                  from petram.phys.phys_model import PhysConstant, PhysVectorConstant
-                  if v.size == 1:
-                      rc = PhysConstant(rinit[0])
-                      ic = PhysConstant(iinit[0])                      
-                  else:
-                      rc = PhysVectorConstant(rinit)
-                      ic = PhysVectorConstant(iinit)
-                  dprint1("Constant Initial Value to Entire Doamin", rinit, iinit)
-                  '''
                   from petram.helper.variables import project_variable_to_gf
                   
                   global_ns = phys._global_ns.copy()
@@ -565,6 +551,7 @@ class Engine(object):
                       #rgf.Assign(rinit)
                       #if igf is not None:
                       #   igf.ProjectCoefficient(ic)
+                      if not name in self._init_done: self._init_done.append(name)                      
               elif mode == 2: # apply Einit
                   self.apply_init_from_init_panel(phys)
               elif mode == 3:
@@ -576,10 +563,33 @@ class Engine(object):
                             "unknown init mode")
 
         self.add_FESvariable_to_NS(phys_range, verbose = True)
+
+    def run_apply_init_autozero(self, phys_range):
+
+        # mode
+        #  0: zero
+        #  1: init to constant
+        #  2: use init panel values
+        #  3: load file
+        #  4: do nothing
+        dprint1("run_apply_init_autozero", phys_range)
+        for j in range(self.n_matrix):
+           self.access_idx = j
+           for phys in phys_range:
+              names = phys.dep_vars
+              for name in names:
+                  if name in self._init_done: continue
+                  self._init_done.append(name)                                                                    
+                  r_ifes = self.r_ifes(name)
+                  rgf = self.r_x[r_ifes]
+                  igf = self.i_x[r_ifes]
+                  rgf.Assign(0.0)
+                  if igf is not None: igf.Assign(0.0)
+              
         
     def run_apply_init(self, phys_range, inits=None):
         if len(inits) == 0:
-            self.run_apply_init0(phys_range, 0)
+            self.run_apply_init_autozero(phys_range)
         else:
             for init in inits:
                 tmp = init.run(self)
@@ -620,6 +630,7 @@ class Engine(object):
 
         self.extras_mm = {}
 
+        print("n_matrix", self.n_matrix, update)
         for j in range(self.n_matrix):
             self.access_idx = j
             
@@ -845,6 +856,7 @@ class Engine(object):
         is_complex = phys.is_complex()
         
         for kfes, name in enumerate(phys.dep_vars):
+            if not name in self._init_done: self._init_done.append(name)           
             r_ifes = self.r_ifes(name)
             rfg = self.r_x[r_ifes]
             for mm in phys.walk():
@@ -865,6 +877,7 @@ class Engine(object):
     def apply_init_from_previous(self, names):
        
         for name in names:
+            if not name in self._init_done: self._init_done.append(name)                      
             assert name in self._r_x_old, name + " is not available from previous (real)"
             assert name in self._i_x_old, name + " is not available from previous (imag)"
             rgf_old = self._r_x_old[name]
@@ -902,6 +915,7 @@ class Engine(object):
         suffix=self.solfile_suffix()
 
         for kfes, name in enumerate(phys.dep_vars):
+            if not name in self._init_done: self._init_done.append(name)                      
             r_ifes = self.r_ifes(name)
             rgf = self.r_x[r_ifes]
             if phys.is_complex():
@@ -968,14 +982,13 @@ class Engine(object):
                     
         else:
             mask = [True]*len(phys.dep_vars)
-            
         is_complex = phys.is_complex()
                     
         for args in renewargs:
             self.r_a.renew(args)
 
         for kfes, name in enumerate(phys.dep_vars):
-            if not mask[kfes]: continue           
+            if not mask[kfes]: continue
             ifes  = self.ifes(name)
             rifes = self.r_ifes(name)
             
@@ -983,7 +996,6 @@ class Engine(object):
                 if not mm.enabled: continue
                 if not mm.has_bf_contribution2(kfes, self.access_idx):continue
                 if len(mm._sel_index) == 0: continue
-
                 proj = mm.get_projection()
                 ra = self.r_a[ifes, rifes, proj]
                 
@@ -1692,7 +1704,7 @@ class Engine(object):
                self.X2x(X, self.i_x[r_ifes])
            else:
                dprint2("real value problem skipping i_x")
-               
+
     def process_extra(self, sol_extra):
         ret = {}
         k = 0

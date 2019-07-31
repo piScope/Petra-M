@@ -129,7 +129,7 @@ class MUMPS(LinearSolverModel):
         
         if myid == 0:        
            s = solall.shape[0]
-           solall = solall[:s/2,:] + 1j*solall[s/2:,:]
+           solall = solall[:s//2,:] + 1j*solall[s//2:,:]
            return solall
        
     def __del__(self):
@@ -501,7 +501,7 @@ class MUMPSPreconditioner(mfem.PyOperator):
         if self.is_complex_operator:
             vec = x.GetDataArray()
             ll = vec.size
-            vec = vec[:ll/2] + 1j*vec[ll/2:]
+            vec = vec[:ll//2] + 1j*vec[ll//2:]
         else:
             vec = x.GetDataArray()
 

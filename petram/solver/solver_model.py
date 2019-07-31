@@ -79,9 +79,10 @@ class SolveStep(SolverBase):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.timedomain_solver_model import TimeDomain
-        from petram.solver.parametric import Parametric
+        from petram.solver.parametric import Parametric                
+        from petram.solver.set_var import SetVar
         
-        return [StdSolver, TimeDomain, Parametric]
+        return [StdSolver, TimeDomain, Parametric, Parametric, SetVar]
     
     def get_phys(self):
         #
@@ -132,7 +133,9 @@ class SolveStep(SolverBase):
             if not mm.enabled: continue
             num.append(self.root()['Phys'].get_num_matrix(mm.get_matrix_weight,
                                            phys_target))
-        return max(num)
+        num_matrix = max(num)
+        dprint1("number of matrix", num_matrix)            
+        return num_matrix
     
     def get_matrix_weight(self, timestep_config):
         raise NotImplementedError(
@@ -294,7 +297,7 @@ class Solver(SolverBase):
         return max(num)
     '''
 
-    def get_matrix_weight(self):
+    def get_matrix_weight(self, *args, **kwargs):
         raise NotImplementedError(
              "you must specify this method in subclass")
     

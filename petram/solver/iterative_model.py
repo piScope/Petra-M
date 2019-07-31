@@ -185,10 +185,10 @@ class Iterative(LinearSolverModel, NS_mixin):
            
         rows = M.NumRowBlocks()
         s = solall.shape
-        nb = rows/2
+        nb = rows//2
         i = 0
         pt = 0
-        result = np.zeros((s[0]/2, s[1]), dtype='complex')
+        result = np.zeros((s[0]//2, s[1]), dtype='complex')
         for j in range(nb):
            l = of[i+1]-of[i]
            result[pt:pt+l,:] = (solall[of[i]:of[i+1],:]
@@ -216,10 +216,10 @@ class Iterative(LinearSolverModel, NS_mixin):
         s = solall.shape
         i = 0
         pt = 0
-        result = np.zeros((s[0]/2, s[1]), dtype='complex')
+        result = np.zeros((s[0]//2, s[1]), dtype='complex')
         for i in range(rows):
            l = of[i+1]-of[i]
-           w = int(l/2)
+           w = int(l//2)
            result[pt:pt+w,:] = (solall[of[i]:of[i]+w,:]
                             +  1j*solall[(of[i]+w):of[i+1],:])
            pt = pt + w
@@ -433,7 +433,7 @@ class IterativeSolver(LinearSolver):
            for i in range(offset.Size()-1):
                v = xx.GetBlock(i).GetDataArray()
                if self.gui.merge_real_imag:
-                   w = int(len(v)/2)
+                   w = int(len(v)//2)
                    vv1 = gather_vector(v[:w])
                    vv2 = gather_vector(v[w:])                   
                    vv = np.hstack((vv1, vv2))

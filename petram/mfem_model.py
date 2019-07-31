@@ -120,7 +120,6 @@ class MFEM_PhysRoot(Model):
                 wt = np.array(mm.get_matrix_weight())
                 tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
                 num_matrix = max(tmp, num_matrix)
-        dprint1("number of matrix", num_matrix)
         return num_matrix
             
 
@@ -249,7 +248,8 @@ class MFEM_SolverRoot(Model):
     
     def get_possible_child(self):
         from petram.solver.solver_model import SolveStep
-        return [SolveStep]
+        from petram.solver.solve_loop import Loop
+        return [SolveStep, Loop]
     
     def get_active_solvers(self, mm = None):
         return [x for x in self.iter_enabled()]

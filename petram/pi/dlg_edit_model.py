@@ -303,7 +303,7 @@ class DlgEditModel(SimpleFramePlus):
         if self.tree.isMultipleSelection(): return
 
         try:
-            fid = open(petram_model_scratch, 'r')
+            fid = open(petram_model_scratch, 'rb')
             _copied_item=pickle.load(fid)
             fid.close()
         except:
