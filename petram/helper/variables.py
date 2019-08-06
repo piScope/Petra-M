@@ -121,7 +121,9 @@ var_g = {'sin':  np.sin,
          'vdot': np.vdot,
          'array': np.array,
          'cross': np.cross, 
-         'pi': np.pi,}
+         'pi': np.pi,
+         'min': np.max,
+         'min': np.min}
 
 class Variables(dict):
     def __repr__(self):

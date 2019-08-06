@@ -630,7 +630,6 @@ class Engine(object):
 
         self.extras_mm = {}
 
-        print("n_matrix", self.n_matrix, update)
         for j in range(self.n_matrix):
             self.access_idx = j
             

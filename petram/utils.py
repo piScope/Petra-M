@@ -31,7 +31,7 @@ def set_array_attribute(v, base, suffix, values):
 
 def txt2indexlist(txt):
     try:
-        return [long(x) for x in txt.split(',')]
+        return [int(x) for x in txt.split(',')]
     except:
         raise ValueError("can not convert text to index list")
 
@@ -73,7 +73,7 @@ def eval_expr(model, engine, expr, battrs, phys = None):
     from petram.model import Bdry
 
     if phys is None: 
-        phys = model['Phys'][model['Phys'].keys()[0]]
+        phys = model['Phys'][list(model['Phys'])[0]]
     else:
         phys = model['Phys'][phys]
 

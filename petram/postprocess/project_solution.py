@@ -139,7 +139,7 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
 
         if (self.element.startswith('ND') or
             self.element.startswith('RT')):
-            vdim = self.vdim/self.geom_dim
+            vdim = self.vdim//self.geom_dim
             #coeff_dim = self.geom_dim
         else:
             vdim = self.vdim
