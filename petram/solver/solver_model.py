@@ -1,3 +1,4 @@
+import numpy as np
 from petram.model import Model
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
@@ -126,6 +127,7 @@ class SolveStep(SolverBase):
     def get_active_solvers(self):
         return [x for x in self.iter_enabled()]
     
+    '''
     def get_num_matrix(self, phys_target):
         num = []
         for k in self.keys():
@@ -134,6 +136,31 @@ class SolveStep(SolverBase):
             num.append(self.root()['Phys'].get_num_matrix(mm.get_matrix_weight,
                                            phys_target))
         num_matrix = max(num)
+        dprint1("number of matrix", num_matrix)            
+        return num_matrix
+    '''
+    def get_num_matrix(self, phys_target):
+
+        num = []
+        num_matrix = 0
+        active_solves = [self[k] for k in self if self[k].enabled]        
+        ###    
+        for phys in phys_target:
+            for mm in phys.walk():
+                if not mm.enabled: continue
+
+                ww = [False]*10
+                for s in active_solves:
+                    w = s.get_matrix_weight(mm.timestep_config)
+                    for i, v in enumerate(w):
+                        ww[i] = (ww[i] or v)
+                ww = [bool(x) for x in ww]
+                
+                mm.set_matrix_weight(ww)
+                wt = np.array(ww)
+                tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
+                num_matrix = max(tmp, num_matrix)
+            
         dprint1("number of matrix", num_matrix)            
         return num_matrix
     
@@ -193,7 +220,7 @@ class SolveStep(SolverBase):
         engine.run_fill_X_block()
 
     def run(self, engine, is_first = True):
-        dprint1("Entering SolveStep :" + self.name())
+        dprint1("!!!!! Entering SolveStep :" + self.name() + " !!!!!")
         solvers = self.get_active_solvers()
 
         # initialize and assemble here

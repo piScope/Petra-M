@@ -105,7 +105,8 @@ class MFEM_PhysRoot(Model):
         pindex = sum([list(range(len(c.dep_vars))) for c in self.iter_enabled()], [])
 
         return names, pnames, pindex
-    
+
+    '''
     def get_num_matrix(self, get_matrix_weight, phys_target = None):
         # get_matrix_weight: solver method to evaulate matrix weight
         if phys_target is None:
@@ -121,7 +122,11 @@ class MFEM_PhysRoot(Model):
                 tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
                 num_matrix = max(tmp, num_matrix)
         return num_matrix
-            
+    '''        
+    def get_num_matrix(self, get_matrix_weight, phys_target = None):
+        import traceback
+        traceback.print_stack()
+        assert False, "this should not be called"
 
     def all_dependent_vars(self, num_matrix, phys_target, phys_range):
         '''
