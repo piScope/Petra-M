@@ -204,7 +204,10 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         engine.save_solfile_fespace(''.join(names), emesh_idx, gfr, gfi)
         
     def add_variables(self, v, names, gfr, gfi):
-        ind_vars = self.root()['Phys'].values()[0].ind_vars
+        for phys_name in self.root()['Phys']:
+            if not self.root()['Phys'][phys_name].enabled: continue
+            ind_vars = self.root()['Phys'][phys_name].ind_vars
+
         ind_vars = [x.strip() for x in ind_vars.split(',') if x.strip() != '']
 
         if gfr is not None:
@@ -239,12 +242,11 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
         
     def soldict_to_solvars(self, soldict, variables):
 
-        keys = soldict.keys()
         suffix = ""
         names = [x.strip() for x in self.projection_name.split(',')]
         fname = ''.join(names)
         
-        for k in keys:
+        for k in soldict:
             n = '_'.join(k.split('_')[:-1])
             if n == fname:
                sol = soldict[k]
