@@ -167,9 +167,9 @@ def oplot_meshed(viewer,  ret):
 
     s, v = viewer._s_v_loop['mesh']
     facesa = []
-    if len(v.keys())>0:  # in 3D starts with faces from shown volumes
-        all_surfaces = np.array(s.keys(), dtype=int)        
-        for key in v.keys():
+    if len(v)>0:  # in 3D starts with faces from shown volumes
+        all_surfaces = np.array(list(s), dtype=int)        
+        for key in v:
             if not key in viewer._mhidden_volume:
                 facesa.extend(v[key])
         facesa = np.unique(facesa)
