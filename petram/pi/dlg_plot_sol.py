@@ -41,9 +41,9 @@ def setup_figure(fig, fig2):
 
 def read_solinfo_remote(user, server, path):
     #txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
-    txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print(gather_soldirinfo_s('"+path+"'))\""
+    txt = "source $PetraM/etc/load_modules.sh;python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print(gather_soldirinfo_s('"+path+"').decode('utf-8'))\""
     command = ["ssh", user+'@'+server, txt]
-    print(command)
+    #print(command)
     p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
     p.wait()
     res = [x.decode('utf-8') for x in p.stdout.readlines()]
