@@ -70,6 +70,10 @@ class MUMPS(LinearSolverModel):
         v['icntl14'] = 20
         v['icntl23'] = 0
         v['use_single_precision'] = False
+
+        # this flag needs to be set, so that destcuctor works when model tree is loaded from 
+        # pickled file
+        v['s'] = None
         return v
     
     def linear_system_type(self, assemble_real, phys_real):
