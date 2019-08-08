@@ -40,14 +40,13 @@ def setup_figure(fig, fig2):
     fig.zlim(zlim)
 
 def read_solinfo_remote(user, server, path):
-    #path = "/home/shiraiwa/myscratch/mfem_batch/pancake_10_2018v4_small_scale_0_2"    
-    txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
-
+    #txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
+    txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print(gather_soldirinfo_s('"+path+"'))\""
     command = ["ssh", user+'@'+server, txt]
     print(command)
     p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
     p.wait()
-    res = p.stdout.readlines()
+    res = [x.decode('utf-8') for x in p.stdout.readlines()]
     res = res[-1].strip()
     res = pk.loads(binascii.a2b_hex(res))
     return res
