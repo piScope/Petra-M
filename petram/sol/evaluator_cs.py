@@ -71,7 +71,8 @@ def enqueue_output2(p, queue, prompt):
                 ### Error string from C++ layer may show up here!?
                 print("Unexpected text received", line)   
     line2 = p.stdout.read(size+1)
-    line2 = binascii.a2b_hex(line2[:-1])
+    print(line2)
+    line2 = binascii.a2b_hex(line2[:-1].encode())
     if use_zlib:
         line2 = bzlib.decompress(line2)
     queue.put(line2)
@@ -239,7 +240,8 @@ class EvaluatorClient(Evaluator):
         data = binascii.b2a_hex(pickle.dumps(command))
         print("Sending request", command)
         self.p.stdin.write(data.decode('utf-8') + '\n')
-
+        self.p.stdin.flush()
+        
         protocol = 1 if force_protocol1 else self.p.evalsvr_protocol 
         output, alive = wait_for_prompt(self.p,
                                         verbose = verbose,
