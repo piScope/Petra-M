@@ -142,7 +142,6 @@ class Iterative(LinearSolverModel, NS_mixin):
         return True, "", ""
 
     def linear_system_type(self, assemble_real, phys_real):
-       
         if phys_real:
             if assemble_real:
                 dprint1("Use assemble-real is only for complex value problem !!!!")
