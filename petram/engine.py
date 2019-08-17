@@ -764,6 +764,7 @@ class Engine(object):
         A2, isAnew = compute_A(M, B, X,
                               self.mask_M,
                               self.mask_B)  # solver determins A
+
         if isAnew:
             # generate Ae and eliminated A
             A, Ae = self.fill_BCeliminate_matrix(A2,
@@ -776,11 +777,13 @@ class Engine(object):
         #    A.check_shared_id(m)
         #for x in X: 
         #    B.check_shared_id(x)
-        
         #RHS.save_to_file("RHSbefore")
         #M[0].save_to_file("M0there")                        
         #Ae.save_to_file("Ae")
+        
         RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
+        #RHS.save_to_file("RHS")
+        
         A, RHS = self.apply_interp(A, RHS)     # A and RHS is modifedy by global DoF coupling P
         #M[0].save_to_file("M0there2")                        
         #M[1].save_to_file("M1")
@@ -1453,7 +1456,15 @@ class Engine(object):
               Aee, A[idx1, idx2] = A[idx1, idx2].eliminate_RowsCols(ess_tdof,
                                                                   inplace=inplace)
               Ae[idx1, idx2] = Aee
-
+              
+              '''
+              note: minor differece between serial/parallel
+ 
+              Aee in serial ana parallel are not equal. The definition of Aee in MFEM is
+                  A_original = Aee + A, where A_diag is set to one for Esseential DoF
+              In the serial mode, Aee_diag is not properly set. But this element
+              does not impact the final RHS.
+              '''
            for j in range(nblock2):
               if j == idx2: continue
               if A[idx1, j] is None: continue
@@ -1479,8 +1490,10 @@ class Engine(object):
                idx = self.dep_var_offset(name)               
                gl_ess_tdof = self.gl_ess_tdofs[name]
                if AeX[idx, 0] is not None:
-                    AeX[idx, 0].resetRow(gl_ess_tdof)                  
+                    AeX[idx, 0].resetRow(gl_ess_tdof)
+                    
             RHS = RHS - AeX
+            
         except:
             print("RHS", RHS)
             print("Ae", Ae)
@@ -1495,7 +1508,7 @@ class Engine(object):
             gl_ess_tdof = self.gl_ess_tdofs[name]
             ess_tdof = self.ess_tdofs[name]
             RHS[idx].copy_element(gl_ess_tdof, X[ridx])
-            
+
         return RHS
               
     def apply_interp(self, A=None, RHS=None):
@@ -1772,6 +1785,21 @@ class Engine(object):
            extrafile_name = self.extrafile_name()
         extrafile_name += self.solfile_suffix()
 
+        self.sol_extra = sol_extra # keep it for future reuse
+        
+        # count extradata length
+        ll = 0
+        for name in sol_extra.keys():
+            for k in sol_extra[name].keys():
+                data = sol_extra[name][k]
+                if data.ndim == 0:
+                    ll = ll + data.size
+                else:
+                    data = data.flatten()
+                    sol_extra[name][k] = data
+                    ll = ll + data.size
+        if ll == 0: return 
+        
         fid = open(extrafile_name, 'w')
         for name in sol_extra.keys():
             for k in sol_extra[name].keys():
@@ -1793,7 +1821,6 @@ class Engine(object):
                     for kk, d in enumerate(data):
                          fid.write(str(kk) + ' ' + str(d) +'\n')
         fid.close()
-        self.sol_extra = sol_extra # keep it for future reuse
         
     def load_extra_from_file(self, init_path):
         sol_extra = {}
