@@ -326,13 +326,7 @@ class StrumpackSolver(LinearSolver):
         else:
            self.spss.set_csr_matrix(AA)
         self._matrix = AA           
-    '''       
-    def Mult(self, b, x=None, case_base=0):
-        if use_parallel:
-            return self.solve_parallel(self.A, b, x)
-        else:
-            raise AttributeError("Serial MFEM does not support Strumpack")
-    '''    
+
     def Mult(self, b, x=None, case_base=0):
         try:
             from mpi4py import MPI
