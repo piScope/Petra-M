@@ -4,6 +4,7 @@ from .solver_model import Solver
 import numpy as np
 import scipy
 import STRUMPACK as ST
+STRUMPACK_SUCCESS = ST.STRUMPACK_SUCCESS
 from scipy.sparse import coo_matrix, csr_matrix
 
 from petram.namespace_mixin import NS_mixin
@@ -48,14 +49,14 @@ class Strumpack(LinearSolverModel):
         pass
     def panel1_param(self):
         return [
-                ["log_level",   self.log_level,  400, {}],            
+                ["log_level",   self.log_level,  400, {}],
                 ["hss compression",  self.hss,   3, {"text":""}],
                 ["hss min front size",  self.hss_front_size, 400, {}],
                 ["rctol",  self.rctol, 300, {}],
                 ["actol",  self.actol, 300, {}],
                 ["mc64job",  self.mc64job, 400, {}],
                 ["gmres restrart",  self.gmres_restart, 400, {}],
-                ["max iter.",  self.maxiter, 400, {}],            
+                ["max iter.",  self.maxiter, 400, {}],       
                 ["write matrix",  self.write_mat,   3, {"text":""}],]
     
     def get_panel1_value(self):
@@ -320,13 +321,13 @@ class StrumpackSolver(LinearSolver):
 
         if self.gui.write_mat:
             write_coo_matrix('matrix', AA.tocoo())
-            
+
         if dist:
            self.spss.set_distributed_csr_matrix(AA)           
         else:
            self.spss.set_csr_matrix(AA)
-        self._matrix = AA           
-
+        self._matrix = AA
+        
     def Mult(self, b, x=None, case_base=0):
         try:
             from mpi4py import MPI
@@ -369,10 +370,25 @@ class StrumpackSolver(LinearSolver):
            if self.gui.write_mat:
                write_vector('rhs_'+str(kk), bbv)
                write_vector('x_'+str(kk), xxv)
-               
+
+           if self.gui.mc64job != 0:
+              ret = self.spss.set_matching(self.gui.mc64job)
+              if ret != STRUMPACK_SUCCESS:
+                 assert False, "error during mc64 (Strumpack)"
+
            self.spss.set_reordering_method(ST.STRUMPACK_METIS)
-           self.spss.solve(bbv, xxv, 0)
-           
+           ret = self.spss.reorder()
+           if ret != STRUMPACK_SUCCESS:
+              assert False, "error during recordering (Strumpack)"
+              
+           ret = self.spss.factor()
+           if ret != STRUMPACK_SUCCESS:
+              assert False, "error during factor (Strumpack)"              
+
+           ret = self.spss.solve(bbv, xxv, 0)
+           if ret != STRUMPACK_SUCCESS:
+              assert False, "error during solve phase (Strumpack)"
+              
            s = []
            for i in range(len(row_offsets)-1):
                r1 = row_offsets[i]
