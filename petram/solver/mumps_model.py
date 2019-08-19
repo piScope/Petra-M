@@ -1,4 +1,3 @@
-from .solver_model import LinearSolverModel, LinearSolver
 import numpy as np
 import scipy
 import weakref
@@ -7,6 +6,8 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MUMPSModel')
 
 from petram.helper.matrix_file import write_matrix, write_vector, write_coo_matrix
+
+from .solver_model import LinearSolverModel, LinearSolver
 
 class MUMPS(LinearSolverModel):
     has_2nd_panel = False

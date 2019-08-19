@@ -1,5 +1,6 @@
 import numpy as np
 
+from petram.debug import flush_stdout
 from petram.namespace_mixin import NS_mixin
 from .solver_model import LinearSolverModel, LinearSolver
 
@@ -386,7 +387,8 @@ class IterativeSolver(LinearSolver):
            for j in range(rows):
               xx = x.GetBlock(j)
               xx.Print('x_'+str(i)+'_'+str(j)+suffix)
-        
+              
+    @flush_stdout        
     def call_mult(self, solver, bb, xx):
         solver.Mult(bb, xx)
         max_iter = solver.GetNumIterations();

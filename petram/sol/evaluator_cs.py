@@ -40,7 +40,6 @@ wait_time = 0.3
 def enqueue_output(p, queue, prompt):
     while True:
         line = p.stdout.readline()
-        print("output1", line)
         if len(line) == 0:
             time.sleep(wait_time)
             continue
@@ -53,7 +52,6 @@ def enqueue_output2(p, queue, prompt):
     # this assumes recievein two data (size and data)
     while True:
         line = p.stdout.readline()
-        print("here2", line)
         #line = line.decode('utf-8')
         if len(line) == 0:
             time.sleep(wait_time)
@@ -71,14 +69,12 @@ def enqueue_output2(p, queue, prompt):
                 ### Error string from C++ layer may show up here!?
                 print("Unexpected text received", line)   
     line2 = p.stdout.read(size+1)
-    print(line2)
     line2 = binascii.a2b_hex(line2[:-1].encode())
     if use_zlib:
         line2 = bzlib.decompress(line2)
     queue.put(line2)
     while True:
         line = p.stdout.readline()
-        print("here", line)
         #line = line.decode('utf-8')        
         if len(line) == 0:
             time.sleep(wait_time)
