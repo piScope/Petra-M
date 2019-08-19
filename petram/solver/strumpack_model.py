@@ -1,17 +1,20 @@
 from __future__ import print_function
 
-from .solver_model import Solver
+
+import sys
 import numpy as np
 import scipy
-import STRUMPACK as ST
-STRUMPACK_SUCCESS = ST.STRUMPACK_SUCCESS
 from scipy.sparse import coo_matrix, csr_matrix
 
-from petram.namespace_mixin import NS_mixin
-from .solver_model import LinearSolverModel, LinearSolver
+import STRUMPACK as ST
+STRUMPACK_SUCCESS = ST.STRUMPACK_SUCCESS
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('StrumpackModel')
+
+from petram.namespace_mixin import NS_mixin
+from .solver_model import Solver
+from .solver_model import LinearSolverModel, LinearSolver
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -371,6 +374,7 @@ class StrumpackSolver(LinearSolver):
                write_vector('rhs_'+str(kk), bbv)
                write_vector('x_'+str(kk), xxv)
 
+           sys.stdout.flush();sys.stderr.flush()
            if self.gui.mc64job != 0:
               ret = self.spss.set_matching(self.gui.mc64job)
               if ret != STRUMPACK_SUCCESS:
@@ -380,7 +384,7 @@ class StrumpackSolver(LinearSolver):
            ret = self.spss.reorder()
            if ret != STRUMPACK_SUCCESS:
               assert False, "error during recordering (Strumpack)"
-              
+
            ret = self.spss.factor()
            if ret != STRUMPACK_SUCCESS:
               assert False, "error during factor (Strumpack)"              
