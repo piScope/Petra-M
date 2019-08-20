@@ -1,5 +1,6 @@
 import numpy as np
 
+from petram.debug import flush_stdout
 from petram.namespace_mixin import NS_mixin
 from .solver_model import LinearSolverModel, LinearSolver
 
@@ -142,7 +143,6 @@ class Iterative(LinearSolverModel, NS_mixin):
         return True, "", ""
 
     def linear_system_type(self, assemble_real, phys_real):
-       
         if phys_real:
             if assemble_real:
                 dprint1("Use assemble-real is only for complex value problem !!!!")
@@ -185,10 +185,10 @@ class Iterative(LinearSolverModel, NS_mixin):
            
         rows = M.NumRowBlocks()
         s = solall.shape
-        nb = rows/2
+        nb = rows//2
         i = 0
         pt = 0
-        result = np.zeros((s[0]/2, s[1]), dtype='complex')
+        result = np.zeros((s[0]//2, s[1]), dtype='complex')
         for j in range(nb):
            l = of[i+1]-of[i]
            result[pt:pt+l,:] = (solall[of[i]:of[i+1],:]
@@ -216,10 +216,10 @@ class Iterative(LinearSolverModel, NS_mixin):
         s = solall.shape
         i = 0
         pt = 0
-        result = np.zeros((s[0]/2, s[1]), dtype='complex')
+        result = np.zeros((s[0]//2, s[1]), dtype='complex')
         for i in range(rows):
            l = of[i+1]-of[i]
-           w = int(l/2)
+           w = int(l//2)
            result[pt:pt+w,:] = (solall[of[i]:of[i]+w,:]
                             +  1j*solall[(of[i]+w):of[i+1],:])
            pt = pt + w
@@ -387,7 +387,8 @@ class IterativeSolver(LinearSolver):
            for j in range(rows):
               xx = x.GetBlock(j)
               xx.Print('x_'+str(i)+'_'+str(j)+suffix)
-        
+              
+    @flush_stdout        
     def call_mult(self, solver, bb, xx):
         solver.Mult(bb, xx)
         max_iter = solver.GetNumIterations();
@@ -433,7 +434,7 @@ class IterativeSolver(LinearSolver):
            for i in range(offset.Size()-1):
                v = xx.GetBlock(i).GetDataArray()
                if self.gui.merge_real_imag:
-                   w = int(len(v)/2)
+                   w = int(len(v)//2)
                    vv1 = gather_vector(v[:w])
                    vv2 = gather_vector(v[w:])                   
                    vv = np.hstack((vv1, vv2))

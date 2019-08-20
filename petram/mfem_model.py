@@ -105,7 +105,8 @@ class MFEM_PhysRoot(Model):
         pindex = sum([list(range(len(c.dep_vars))) for c in self.iter_enabled()], [])
 
         return names, pnames, pindex
-    
+
+    '''
     def get_num_matrix(self, get_matrix_weight, phys_target = None):
         # get_matrix_weight: solver method to evaulate matrix weight
         if phys_target is None:
@@ -120,9 +121,12 @@ class MFEM_PhysRoot(Model):
                 wt = np.array(mm.get_matrix_weight())
                 tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
                 num_matrix = max(tmp, num_matrix)
-        dprint1("number of matrix", num_matrix)
         return num_matrix
-            
+    '''        
+    def get_num_matrix(self, get_matrix_weight, phys_target = None):
+        import traceback
+        traceback.print_stack()
+        assert False, "this should not be called"
 
     def all_dependent_vars(self, num_matrix, phys_target, phys_range):
         '''
@@ -249,7 +253,8 @@ class MFEM_SolverRoot(Model):
     
     def get_possible_child(self):
         from petram.solver.solver_model import SolveStep
-        return [SolveStep]
+        from petram.solver.solve_loop import Loop
+        return [SolveStep, Loop]
     
     def get_active_solvers(self, mm = None):
         return [x for x in self.iter_enabled()]

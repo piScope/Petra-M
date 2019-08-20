@@ -176,6 +176,16 @@ def use_profiler(method):
         return val
     return method2
 
+def flush_stdout(method):
+    def method2(self, *args, **kwargs):
+        import sys
+        sys.stdout.flush()
+        sys.stderr.flush()        
+        val =  method(self, *args, **kwargs)
+        return val
+    
+    return method2
+
 class ConvergenceError(Exception):
     """Base class for exceptions in this module."""
     pass

@@ -147,7 +147,7 @@ class ModelDict(WeakKeyDictionary):
         
     def __iter__(self):
         return [reduce(lambda x, y: x[y], [self.root()] + hook().names)
-                for hook in self.keys()]
+                for hook in self]
 
 class Model(RestorableOrderedDict):
     can_delete = True
@@ -196,7 +196,7 @@ class Model(RestorableOrderedDict):
         return self._hook
         
     def __repr__(self):
-         return self.__class__.__name__+'('+self.name()+':'+','.join(list(self.keys())) + ')'
+         return self.__class__.__name__+'('+self.name()+':'+','.join(list(self)) + ')'
 
     def __eq__(self, x):
         try:
@@ -255,7 +255,7 @@ class Model(RestorableOrderedDict):
         self.do_update_attribute_set(d)
         
     def do_update_attribute_set(self, d):
-        for k in d.keys():
+        for k in d:
            if not hasattr(self, k):
                try:
                    setattr(self, k, d[k])
@@ -340,7 +340,7 @@ class Model(RestorableOrderedDict):
         return self[list(self.keys())[id]]
     
     def get_children(self):
-        return self.values()
+        return list(self.values())
     
     def get_possible_child(self):
         return []
@@ -558,7 +558,7 @@ class Model(RestorableOrderedDict):
                 new_cnt.append((key, self._parent[key]))
 
         parent = self._parent
-        for key in self._parent.keys():
+        for key in list(self._parent):
             parent[key]._parent = None
             del parent[key]
 

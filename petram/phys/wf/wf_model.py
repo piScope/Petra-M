@@ -224,7 +224,7 @@ class WF(PhysModule):
     
     def get_possible_bdry(self):
         from petram.phys.wf.wf_constraints import WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint
-        from petram.pnys.wf.wf_essential import WF_Essential
+        from petram.phys.wf.wf_essential import WF_Essential
         return [WF_Essential, WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint]
     
     def get_possible_point(self):

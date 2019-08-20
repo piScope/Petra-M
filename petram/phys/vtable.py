@@ -285,7 +285,7 @@ class VtableElement(object):
                 eval_expr = obj.eval_phys_expr         
             f_name = []
             for n in suffix:
-               var, f_name0 = eval_expr(getattr(obj, self.name+n), self.name + n)
+               var, f_name0 = eval_expr(getattr(obj, self.name+n), self.name + n, **kwargs)
                if f_name0 is None:
                    f_name.append(var)
                else:

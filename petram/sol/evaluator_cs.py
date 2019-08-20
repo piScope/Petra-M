@@ -52,6 +52,7 @@ def enqueue_output2(p, queue, prompt):
     # this assumes recievein two data (size and data)
     while True:
         line = p.stdout.readline()
+        #line = line.decode('utf-8')
         if len(line) == 0:
             time.sleep(wait_time)
             continue
@@ -68,12 +69,13 @@ def enqueue_output2(p, queue, prompt):
                 ### Error string from C++ layer may show up here!?
                 print("Unexpected text received", line)   
     line2 = p.stdout.read(size+1)
-    line2 = binascii.a2b_hex(line2[:-1])
+    line2 = binascii.a2b_hex(line2[:-1].encode())
     if use_zlib:
         line2 = bzlib.decompress(line2)
     queue.put(line2)
     while True:
         line = p.stdout.readline()
+        #line = line.decode('utf-8')        
         if len(line) == 0:
             time.sleep(wait_time)
             continue
@@ -136,9 +138,10 @@ def wait_for_prompt(p, prompt = '?', verbose = True, withsize=False):
 def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
     if user != '': user = user+'@'
     p= sp.Popen("ssh " + user + host + " 'printf $PetraM'", shell=True,
-                stdout=sp.PIPE)
+                stdout=sp.PIPE,
+                universal_newlines = True)    
     ans = p.stdout.readlines()[0].strip()
-    command = ans+'/bin/evalsvr'
+    command = "source $PetraM/etc/load_modules.sh;"+ans+'/bin/evalsvr'
     if soldir != '':
         command = 'cd ' + soldir + ';' + command
     print(command)
@@ -152,7 +155,10 @@ def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
        p.evalsvr_protocol = int(data[-1].split(':')[-1])
     else:
        p.evalsvr_protocol = 1
-    p.stdin.write(str(num_proc)+'\n')
+    print("protcoal",  p.evalsvr_protocol)
+    txt = str(num_proc)+'\n'
+    p.stdin.write(txt)
+    p.stdin.flush()
     out, alive = wait_for_prompt(p)
     return p
 
@@ -229,8 +235,9 @@ class EvaluatorClient(Evaluator):
         command = [name, params, kparams]
         data = binascii.b2a_hex(pickle.dumps(command))
         print("Sending request", command)
-        self.p.stdin.write(data + '\n')
-
+        self.p.stdin.write(data.decode('utf-8') + '\n')
+        self.p.stdin.flush()
+        
         protocol = 1 if force_protocol1 else self.p.evalsvr_protocol 
         output, alive = wait_for_prompt(self.p,
                                         verbose = verbose,
