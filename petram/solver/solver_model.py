@@ -80,10 +80,15 @@ class SolveStep(SolverBase):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.timedomain_solver_model import TimeDomain
-        from petram.solver.parametric import Parametric                
+        rom petram.solver.parametric import Parametric
         from petram.solver.set_var import SetVar
-        
-        return [StdSolver, TimeDomain, Parametric, Parametric, SetVar]
+  
+        try:
+            from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
+            return [StdSolver, StdMeshAdaptSolver, TimeDomain, Parametric, SetVar]
+        except:
+            return [StdSolver, TimeDomain, Parametric, SetVar]
+
     
     def get_phys(self):
         #

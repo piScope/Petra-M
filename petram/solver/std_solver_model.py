@@ -133,39 +133,6 @@ class StandardSolver(SolverInstance):
     def blocks(self):
         return self.engine.assembled_blocks
 
-    '''
-    def init(self, init_only=False):
-        engine = self.engine
-        phys_all = self.get_phys()
-        
-        #num_matrix= self.gui.get_num_matrix(phys_target)
-        #engine.set_formblocks(phys_target, num_matrix)
-        
-        #for p in phys_target:
-        #    engine.run_mesh_extension(p)
-        
-        #engine.run_alloc_sol(phys_target)
-
-        inits = self.get_init_setting()
-        if len(inits) == 0:
-            # in this case alloate all fespace and initialize all
-            # to zero
-            engine.run_apply_init(phys_all, 0)
-        else:
-            for init in inits:
-                init.run(engine)
-                
-        # use get_phys to apply essential to all phys in solvestep
-        target_phys = self.get_phys()
-        engine.run_apply_essential(target_phys)
-        engine.run_fill_X_block()
-        
-        if init_only:
-            self.sol = self.blocks[1][0]
-            engine.sol = self.blocks[1][0]
-            return 
-        self.assemble()
-    '''
     def compute_A(self, M, B, X, mask_M, mask_B):
         '''
         M[0] x = B
