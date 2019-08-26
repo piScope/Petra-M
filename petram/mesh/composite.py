@@ -91,7 +91,7 @@ def merge_domain_3d(mesh, domain_list, reorder_dom=True):
         if not s in merge_face:
             bdrattr_map[s] = idx
             idx = idx + 1
-    for s, k in merge_face.iteritems():
+    for s, k in merge_face.items():
         if s in remove_surf: continue        
         bdrattr_map[s] = k + idx        
 
@@ -103,7 +103,7 @@ def merge_domain_3d(mesh, domain_list, reorder_dom=True):
             if not v in merge_vol:
                 domattr_map[v] = idx
                 idx = idx + 1
-        for v, k in merge_vol.iteritems():
+        for v, k in merge_vol.items():
             domattr_map[v] = k + idx
     else:
         domattr_map = {}
@@ -111,7 +111,7 @@ def merge_domain_3d(mesh, domain_list, reorder_dom=True):
             if not v in merge_vol:
                 domattr_map[v] = v
         idx = max(v2s.keys())+1
-        for v, k in merge_vol.iteritems():
+        for v, k in merge_vol.tems():
             domattr_map[v] = k + idx
         
     print("merge_vol", merge_vol)
