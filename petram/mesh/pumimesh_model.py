@@ -1,4 +1,14 @@
+import pyCore
+
+# pyCore.start_sim('simlog.txt')
+# pyCore.gmi_register_mesh()
+# pyCore.gmi_sim_start()
+# pyCore.gmi_register_sim()
+
+
+import os
 from petram.mesh.mesh_model import Mesh
+from mfem._par import pumi
 
 is_licenses_initialized = False
 
@@ -30,8 +40,8 @@ class PumiMesh(Mesh):
         return v
         
     def panel1_param(self):
-        return [["Model Path",   self.model_path,  200, {}],
-                ["Mesh Path",   self.mesh_path,  200, {}],                
+        return [["Mesh Path",   self.mesh_path,  200, {}],
+                ["Model Path",  self.model_path,  200, {}],
                 ["", "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir."  ,2, None],
                 ["Generate edges",    self.generate_edges == 1,  3, {"text":""}],
                 ["Refine",    self.refine==1 ,  3, {"text":""}],
@@ -97,21 +107,85 @@ class PumiMesh(Mesh):
         model_path = self.get_real_path(self.model_path)
         mesh_path = self.get_real_path(self.mesh_path)       
 
+        print("Model Path is " + model_path)
+        print("Mesh Path is " + mesh_path)
+
         if not os.path.exists(mesh_path):
-            print("mesh file does not exists : " + path + " in " + os.getcwd())
+            print("mesh file does not exists : " + mesh_path + " in " + os.getcwd())
             return None
         if not os.path.exists(model_path):
-            print("model file does not exists : " + path + " in " + os.getcwd())
+            print("model file does not exists : " + model_path + " in " + os.getcwd())
             return None
 
         ####
+        # import pyCore
+	pyCore.lion_set_verbosity(1)
+
+	if not pyCore.PCU_Comm_Initialized():
+	  pyCore.PCU_Comm_Init()
+
+	pyCore.PCU_Comm_Peers()
+	pyCore.PCU_Comm_Self()
+
+	pyCore.start_sim('simlog.txt')
+	pyCore.gmi_register_mesh()
+	pyCore.gmi_sim_start()
+	pyCore.gmi_register_sim()
+
+	pumi_mesh_path = mesh_path[0:-5] + ".smb"
+
+	pumi_mesh = pyCore.loadMdsMesh(model_path, pumi_mesh_path)
+	print("making sure pumi mesh is loaded properly")
+	print("num verts in the mesh is ", pumi_mesh.count(0))
+
+	pyCore.gmi_sim_stop()
+        pyCore.stop_sim()
 
         if not globals()['is_licenses_initialized']:
             print("do license etc here ...once")
-            globals()['is_licenses_initialized'] = True
-            
-        assert False, "not implemented : pumi_mesh must return mfem mesh"
 
+            globals()['is_licenses_initialized'] = True
+    
+
+	mesh = pumi.PumiMesh(pumi_mesh, 1, 1)
+	# self.parent.sdim = mesh.SpaceDimention()
+
+	dim = pumi_mesh.getDimension()
+	it = pumi_mesh.begin(dim-1)
+	bdr_cnt = 0
+	while True:
+	  e = pumi_mesh.iterate(it)
+	  if not e: break
+	  model_tag  = pumi_mesh.getModelTag(pumi_mesh.toModel(e))
+	  model_type = pumi_mesh.getModelType(pumi_mesh.toModel(e))
+	  if model_type == (dim-1):
+	    mesh.GetBdrElement(bdr_cnt).SetAttribute(model_tag)
+	  bdr_cnt += 1
+	pumi_mesh.end(it)
+
+	it = pumi_mesh.begin(dim)
+	elem_cnt = 0
+	while True:
+	  e = pumi_mesh.iterate(it)
+	  if not e: break
+	  model_tag  = pumi_mesh.getModelTag(pumi_mesh.toModel(e))
+	  model_type = pumi_mesh.getModelType(pumi_mesh.toModel(e))
+	  if model_type == (dim):
+	    mesh.SetAttribute(elem_cnt, model_tag)
+	  elem_cnt += 1
+	pumi_mesh.end(it)
+
+	mesh.SetAttributes();
+
+        # pyCore.PCU_Comm_Free()
+
+	try:
+	  mesh.GetNBE()
+	  return mesh
+	except:
+	  return None
+
+        assert False, "not implemented : pumi_mesh must return mfem mesh"
 
         '''
         args = (path,  self.generate_edges, self.refine, self.fix_orientation)
@@ -123,4 +197,4 @@ class PumiMesh(Mesh):
         except:
            return None
         '''
-        
+      
