@@ -80,7 +80,7 @@ class SolveStep(SolverBase):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.timedomain_solver_model import TimeDomain
-        rom petram.solver.parametric import Parametric
+        from petram.solver.parametric import Parametric
         from petram.solver.set_var import SetVar
   
         try:

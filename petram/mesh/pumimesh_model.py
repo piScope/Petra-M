@@ -1,3 +1,4 @@
+import os
 from petram.mesh.mesh_model import Mesh
 
 is_licenses_initialized = False
