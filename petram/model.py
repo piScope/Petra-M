@@ -90,7 +90,8 @@ class RestorableOrderedDict(MutableMapping, Restorable, object):
      def __getstate__(self):
          st = [(x, self.__dict__[x]) for x in self.__dict__ if not x.startswith('_')]
 #         st.append(('_parent', self._parent))
-         return [ (key, value) for key, value in six.iteritems(self._contents) ], st
+#         return [ (key, value) for key, value in six.items(self._contents) ], st
+         return [ (key, value) for key, value in self._contents.items() ], st
       
      def _restore(self, restoration_data):
          for (key, value) in restoration_data:
