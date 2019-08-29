@@ -138,14 +138,15 @@ class PumiMesh(Mesh):
 	print("making sure pumi mesh is loaded properly")
 	print("num verts in the mesh is ", pumi_mesh.count(0))
 
-	pyCore.gmi_sim_stop()
-        pyCore.stop_sim()
+	# pyCore.gmi_sim_stop()
+        # pyCore.stop_sim()
+
+	self.root()._pumi_mesh = pumi_mesh # hack to be able to access pumi_mesh later!
 
         if not globals()['is_licenses_initialized']:
             print("do license etc here ...once")
 
             globals()['is_licenses_initialized'] = True
-    
 
 	mesh = pumi.PumiMesh(pumi_mesh, 1, 1)
 	# self.parent.sdim = mesh.SpaceDimention()
