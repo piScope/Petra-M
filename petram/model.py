@@ -1,3 +1,4 @@
+
 '''
 
  Model tree using OrderedDict.
@@ -333,9 +334,14 @@ class Model(RestorableOrderedDict):
     def GetItem(self, indices):
        d0 = self
        for k in indices:
-           key = list(d0.keys())[k]
+           key = list(d0)[k]
            d0 = d0[key]
        return d0
+   
+    def GetIndices(self):
+        parents = self.parents+[self,]
+        indices = [list(parents[i]).index(parents[i+1].name()) for i in range(len(parents)-1)]
+        return indices
 
     def get_child(self, id):
         return self[list(self.keys())[id]]

@@ -160,7 +160,7 @@ class DlgEditModel(SimpleFramePlus):
         
     def CallClose(self, evt):
         self.Close()
-        
+
     def OnChildFocus(self, evt):
         self.GetParent()._palette_focus = 'edit'                
         evt.Skip()
@@ -212,6 +212,14 @@ class DlgEditModel(SimpleFramePlus):
                    model.GetItem(indices)[name].postprocess_after_add(engine)
                    tree.RefreshItems()
 
+                   old_item = tree.GetItemByIndex(parent.GetIndices())
+                   tree.Expand(old_item)
+                   tree.SelectItem(old_item, select=False)
+
+                   new_item = tree.GetItemByIndex(child.GetIndices())
+                   tree.SelectItem(new_item)                   
+                   evt.Skip()
+                   
                if len(submenu) != 0:
                    if submenu == "!":
                        menus=menus+[('Add '+txt, add_func, None),]                      
