@@ -47,7 +47,7 @@ def run_serial(path='', debug=0, thread =  True):
         del_path = True
 
     import petram
-    from petram.helper.driver_path import serial as driver
+    #from petram.helper.driver_path import serial as driver
 
     #This is to test driver locally
     #args = [driver, str(path), str(debug)]
