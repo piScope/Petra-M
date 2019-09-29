@@ -14,6 +14,7 @@ from ifigure.interactive import figure
 from ifigure.widgets.book_viewer import BookViewer
 from ifigure.utils.cbook import BuildMenu
 import ifigure.widgets.dialog as dialog
+import ifigure.events
 
 try:
     import petram.geom
@@ -30,7 +31,6 @@ def setup_figure(fig):
 ID_SOL_FOLDER = wx.NewId()
 
 from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
-
 #class MFEMViewerCanvas(ifigure_canvas):
 #    def unselect_all(self):    
 #        ifigure_canvas.unselect_all(self)
@@ -167,7 +167,11 @@ class MFEMViewer(BookViewer):
                                title='Error',
                                traceback=traceback.format_exc())
         self.plot_mfem_geom()        
-        self.model.scripts.helpers.rebuild_ns()                
+        self.model.scripts.helpers.rebuild_ns()
+
+        self.Bind(ifigure.events.TD_EVT_ARTIST_DRAGSELECTION,
+                  self.onTD_DragSelectionInFigure)
+       
         #self.engine.run_config()
 
         self.canvas._popup_style = 1 # popup_skip_2d
@@ -421,6 +425,10 @@ class MFEMViewer(BookViewer):
                 oo.append(obj)
         return sel, oo
     
+    def onTD_DragSelectionInFigure(self, evt):
+        #print("onTD_DragSelectionInFigure")
+        self.onTD_SelectionInFigure(evt)
+        
     def onTD_SelectionInFigure(self, evt = None):
         #if len(self.canvas.selection) == 0:
         #    self._dom_bdr_sel  = ([], [], [], [])                    
