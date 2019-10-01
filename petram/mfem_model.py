@@ -296,7 +296,7 @@ class MFEM_SolverRoot(Model):
      
 
 try:    
-   from petram.geom.geom_model import MFEM_GeomRoot
+   from petram.geom.geom_model import GeomBase
    has_geom = True
 except:
    import traceback

@@ -61,7 +61,10 @@ class Engine(object):
            
         from petram.mfem_model import has_geom
         if not 'Geom' in model and has_geom:
-           from petram.geom.geom_model import MFEM_GeomRoot
+           try:
+               from petram.geom.geom_model import MFEM_GeomRoot
+           except:
+               from petram.mfem_model import MFEM_GeomRoot              
            model.insert_item(1, 'Geometry', MFEM_GeomRoot())
            
         
