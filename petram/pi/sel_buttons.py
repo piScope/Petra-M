@@ -130,9 +130,9 @@ def hide_elem(evt, inverse=False):
                       if np.intersect1d(ss, hidden_face).size==len(ss)]
 
         for o in Eobjs:
-           idx = o.getSelectedIndex()
-           idx = list(set(o.hidden_component+hide_this_edge))                
-           o.hide_component(idx)
+            #idx = o.getSelectedIndex()
+            idx = list(set(o.hidden_component+hide_this_edge))                
+            o.hide_component(idx)
 
     viewer.canvas.unselect_all()
     viewer._dom_bdr_sel  = ([], [], [], [])    
