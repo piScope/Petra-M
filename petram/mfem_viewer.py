@@ -52,6 +52,7 @@ def MFEM_menus(parent):
              ("Rebuild", self.onRebuildNS, None),                 
              ("!", None, None),                 
              ("Edit Model...", self.onEditModel, None),
+             ("Selection Panel...", self.onSelectionPanel, None),             
              ("+Solve", None, None),
              ("Serial",    self.onSerDriver, None),        
              ("Parallel",  self.onParDriver, None),
@@ -119,6 +120,7 @@ class MFEMViewer(BookViewer):
         self._palette_focus = ''
         self.model = self.book.get_parent()
         self.editdlg = None
+        self.selection_palette = None        
         self.plotsoldlg = None
         self.plotexprdlg = None        
         self.engine = None
@@ -697,7 +699,8 @@ class MFEMViewer(BookViewer):
                         print('Volume: ' + str(key) + " not found")                         
                 faces_idx = list(set(faces))
                 obj.setSelectedIndex(faces)
-                self.canvas.add_selection(obj._artists[0])
+                if len(obj._artists) > 0:                                                
+                    self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])                
         self.canvas.refresh_hl()
@@ -719,7 +722,8 @@ class MFEMViewer(BookViewer):
             if len(i) > 0:                                          
                 obj.setSelectedIndex(i)
                 #print("add_selection", obj, obj._artists[0])
-                self.canvas.add_selection(obj._artists[0])
+                if len(obj._artists) > 0:                                
+                    self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
         wx.CallAfter(self.canvas.refresh_hl)
@@ -740,7 +744,8 @@ class MFEMViewer(BookViewer):
             if not name.startswith('edge'):continue
             if len(i) > 0:                                          
                 obj.setSelectedIndex(i)
-                self.canvas.add_selection(obj._artists[0])
+                if len(obj._artists) > 0:                
+                   self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
         self.canvas.refresh_hl()
@@ -761,7 +766,8 @@ class MFEMViewer(BookViewer):
             if not name.startswith('point'):continue
             if len(i) > 0:                                          
                 obj.setSelectedIndex(i)
-                self.canvas.add_selection(obj._artists[0])
+                if len(obj._artists) > 0:
+                    self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
         self.canvas.refresh_hl()
@@ -804,7 +810,13 @@ class MFEMViewer(BookViewer):
             self.editdlg.Show()
         self.editdlg.Raise()            
 
-
+    def onSelectionPanel(self, evt): 
+        from petram.pi.selection_palette import SelectionPalette
+        if self.selection_palette is None:
+            self.selection_palette= SelectionPalette(self, wx.ID_ANY, 'Selection')
+            self.selection_palette.Show()
+        self.selection_palette.Raise()
+        
     def onSaveModel(self, evt):
         from ifigure.widgets.dialog import write
         from petram.mesh.mesh_model import MeshFile
@@ -933,6 +945,10 @@ class MFEMViewer(BookViewer):
                     menus.append(("Remove from plot " + kind + " selection", onRmPlotSel,
                                   None))
                 menus.append(("Set to plot " + kind + " selection", onSetPlotSel, None))
+        elif self.selection_palette is not None and self._palette_focus == 'selection':
+            pass
+        else:
+            pass
         menus.extend([("!", None, None),
                       ("---", None, None),])
         return menus
