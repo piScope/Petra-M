@@ -132,7 +132,8 @@ class MeshFile(Mesh):
         return v
         
     def panel1_param(self):
-        return [["Path",   self.path,  200, {}],
+        wc = "ANY|*|MFEM|*.mesh|GMSH|*.gmsh"       
+        return [["Path",   self.path,  45, {'wildcard':wc}],
                 ["", "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir."  ,2, None],
                 ["Generate edges",    self.generate_edges == 1,  3, {"text":""}],
                 ["Refine",    self.refine==1 ,  3, {"text":""}],

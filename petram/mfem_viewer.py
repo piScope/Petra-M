@@ -232,7 +232,10 @@ class MFEMViewer(BookViewer):
                     ret = d[name]
                     plot_geometry(self,  ret)
                 else:
-                    assert False, 'Geometry figur data not found :'+ name
+                    dprint1('Geometry figur data not found :'+ name)
+                    self.cls()
+                    return
+
             elif view_mode == 'mesh':
                 if name == 'mfem':
                     if not 'mfem' in self._figure_data['mesh']:
@@ -885,7 +888,11 @@ class MFEMViewer(BookViewer):
            menus.append(("Show Mesh",  self.onShowMesh, None))
         else:
            menus.append(("Hide Mesh",  self.onHideMesh, None))
-           
+
+        selmode = self.get_sel_mode() 
+
+        menus.append(("Copy " + selmode + " selection", self.onCopySelection1, None))
+        menus.append(("Copy " + selmode + " selection with prefix", self.onCopySelection2, None))        
 
         if self.editdlg is not None and self._palette_focus == 'edit':
             check, kind, cidxs, labels = self.editdlg.isSelectionPanelOpen()
@@ -953,6 +960,44 @@ class MFEMViewer(BookViewer):
                       ("---", None, None),])
         return menus
 
+    def _on_cp_selection1(self, use_prefix=False):
+
+        kind = self.get_sel_mode()
+        if kind == 'volume':
+            idx = self._dom_bdr_sel[0]
+            prefix = 'v'
+            
+        elif kind == 'face':
+            idx = self._dom_bdr_sel[1]
+            prefix = 'f'
+            
+        elif kind == 'edge':
+            idx = self._dom_bdr_sel[2]
+            prefix = 'e'
+            
+        elif kind == 'point':
+            idx = self._dom_bdr_sel[3]
+            prefix = 'p'
+            
+        else:
+            pass
+
+        prefix = prefix if use_prefix else ''
+        
+        return ", ".join([prefix + str(x) for x in idx])
+    
+    def onCopySelection1(self, evt):
+        txt = self._on_cp_selection1(use_prefix=False)
+        if wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(wx.TextDataObject(txt))
+            wx.TheClipboard.Close()
+        
+    def onCopySelection2(self, evt):
+        txt = self._on_cp_selection1(use_prefix=True)        
+        if wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(wx.TextDataObject(txt))
+            wx.TheClipboard.Close()
+        
     def onAddSelection(self, evt, flag=0):
         check, kind, cidx, labels= self.editdlg.isSelectionPanelOpen()
         if check:

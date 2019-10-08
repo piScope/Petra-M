@@ -304,10 +304,16 @@ class SelectionPalette(SimpleFramePlus):
         
         self.tree1.set_dict(loops[1])
         self.tree2.set_dict(loops[0])
-        edges = np.unique(np.hstack(list(loops[0].values())))
+        if self.GetParent().book.page1.axes1.has_child('edge'):
+            edges = np.unique(self.GetParent().book.page1.axes1.edge.getvar('array_idx'))
+        else:
+            edges = []
         d = {x:[] for x in edges}
 
-        points = self.GetParent().book.page1.axes1.point.getvar('array_idx')
+        if self.GetParent().book.page1.axes1.has_child('point'):        
+            points = self.GetParent().book.page1.axes1.point.getvar('array_idx')
+        else:
+            points = []
         d2 = {x:[] for x in points}
         
         self.loops = (loops[0], loops[1], d, d2)

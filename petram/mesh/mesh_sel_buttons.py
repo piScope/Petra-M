@@ -37,14 +37,18 @@ def show_all(evt):
 
     ax = viewer.get_axes()
     
-    namestart = mode if mode != 'volume' else 'face'
-    namestart2 =  namestart + '_meshed'    
-    objs = [child for name, child in ax.get_children() if name.startswith(namestart)
-            and not name.startswith(namestart2)]
-    meshed_objs = [child for name, child in ax.get_children() if name.startswith(namestart2)]
-    
-    if mode == 'volume' or mode == 'face' or mode == 'edge':
-        idx = []
+    Fobjs = [child for name, child in ax.get_children() if name.startswith("face")
+            and not name.endswith("meshed")]
+    mFobjs = [child for name, child in ax.get_children() if name.startswith("face")
+            and name.endswith("meshed")]
+    Eobjs = [child for name, child in ax.get_children() if name.startswith("edge")
+            and not name.endswith("meshed")]
+    mEobjs = [child for name, child in ax.get_children() if name.startswith("edge")
+            and name.endswith("meshed")]
+
+
+    def show_all_obj(objs, meshed_objs):
+        idx = []        
         for o in meshed_objs:
             if o.hasvar('idxset'):
                 o.hide_component([])
@@ -52,6 +56,16 @@ def show_all(evt):
         for o in objs:
             if o.hasvar('idxset'):            
                 o.hide_component(idx)        
+    
+    if mode == 'volume':
+         show_all_obj(Fobjs, mFobjs)
+         show_all_obj(Eobjs, mEobjs)         
+    elif mode == 'face':
+         show_all_obj(Fobjs, mFobjs)
+         show_all_obj(Eobjs, mEobjs)         
+    elif mode == 'edge':
+         show_all_obj(Fobjs, mFobjs)
+         show_all_obj(Eobjs, mEobjs)         
     elif mode == 'point':
         if ax.point.hasvar('idxset'):            
              ax.point.hide_component([])                        
@@ -75,32 +89,35 @@ def hide_elem(evt, inverse=False):
     objs = [child for name, child in ax.get_children() if name.startswith(namestart)
             and not name.startswith(namestart2)]
     meshed_objs = [child for name, child in ax.get_children() if name.startswith(namestart2)]
+    
+    Eobjs = [child for name, child in ax.get_children() if name.startswith('edge')]
+    Fobjs = [child for name, child in ax.get_children() if name.startswith('face')]
 
     sel = viewer.canvas.selection
     if len(sel) != 1:  return
     sel_objs = [s().figobj for s in sel]
 
+    s2l, v2s = viewer._s_v_loop['mesh']    
     if mode == 'volume':
         facesa = []
         facesb = []        
-        s, v = viewer._s_v_loop['mesh']
         
         selected_volume = viewer._dom_bdr_sel[0]
         target_volumes = selected_volume
 
         if not inverse:
             target_volumes.extend(viewer._mhidden_volume)
-        for key in v.keys():
+        for key in v2s.keys():
             if key in target_volumes:
-                facesa.extend(v[key])
+                facesa.extend(v2s[key])
             else:
-                facesb.extend(v[key])
+                facesb.extend(v2s[key])
         if inverse:
             for o in objs:                         
                 o.hide_component(facesa, inverse=True)
             for o in meshed_objs:                         
                 o.hide_component(facesa, inverse=True)
-            hidden_volume = [x for x in v.keys() if not x
+            hidden_volume = [x for x in v2s.keys() if not x
                              in selected_volume]            
             viewer._mhidden_volume = hidden_volume
         else:
@@ -134,7 +151,7 @@ def hide_elem(evt, inverse=False):
             viewer._mhidden_face = hidden_face
         if mode == "edge":
             if inverse:
-                all_edges = list(np.unique(np.hstack(([s[x] for x in s.keys()]))))
+                all_edges = list(np.unique(np.hstack(([s2l[x] for x in s2l.keys()]))))
                 hidden_edge = [x for x in all_edges if not x in idx]
             else:
                 hidden_edge = idx
@@ -143,6 +160,20 @@ def hide_elem(evt, inverse=False):
         pass
     else:
         pass
+
+    if mode == 'volume' or mode == 'face':
+        from petram.mesh.mesh_utils import line2surf        
+        hidden_face = sum([o.hidden_component for o in Fobjs], [])
+        l2s = line2surf(s2l)
+        hide_this_edge = [l for l, ss in l2s.items()
+                      if np.intersect1d(ss, hidden_face).size==len(ss)]
+
+        for o in Eobjs:
+            #idx = o.getSelectedIndex()
+            idx = list(set(o.hidden_component+hide_this_edge))
+            if o.hasvar('idxset'):            
+                o.hide_component(idx)
+    
     viewer.canvas.unselect_all()    
     viewer.draw_all()
     

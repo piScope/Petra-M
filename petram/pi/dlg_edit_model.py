@@ -443,7 +443,69 @@ class DlgEditModel(SimpleFramePlus):
             mm.update_after_ELChanged(self)
         self.tree.RefreshItems()            
         evt.Skip()
-    
+
+
+    def show_panel(self, mm):
+        
+        for k in self.panels.keys():
+            p1panel, p2panel, p3panel, p4panel = self.panels[k]
+            self.p1sizer.Detach(p1panel)
+            self.p2sizer.Detach(p2panel)
+            self.p3sizer.Detach(p3panel)
+            self.p4sizer.Detach(p4panel)            
+            p1panel.Hide()
+            p2panel.Hide()
+            p3panel.Hide()
+            p4panel.Hide()            
+        self.generate_panel(mm)
+
+        self._cpanels = self.panels[mm.fullname()]
+        p1panel, p2panel, p3panel, p4panel = self.panels[mm.fullname()]               
+        
+        if mm.has_2nd_panel:
+            if self.nb.GetPageCount() == 1:
+               self.nb.AddPage(self.p2, "Selection")
+            self.p1sizer.Add(p1panel, 1, wx.EXPAND|wx.ALL, 1)
+            self.p2sizer.Add(p2panel, 1, wx.EXPAND|wx.ALL, 1)
+            p1panel.SetValue(mm.get_panel1_value())
+            p2panel.SetValue(mm.get_panel2_value())
+            p1panel.Show()
+            p2panel.Show()
+            self.p1.Layout()
+            self.p2.Layout()
+            if mm.has_3rd_panel:
+                if self.nb.GetPageCount() == 2:
+                    self.nb.AddPage(self.p3, "Init/NL.")
+
+                self.p3sizer.Add(p3panel, 1, wx.EXPAND|wx.ALL, 1)
+                p3panel.SetValue(mm.get_panel3_value())
+                p3panel.Show()
+                self.p3.Layout()
+            else:
+                if self.nb.GetPageCount() > 3:  self.nb.RemovePage(3)            
+                if self.nb.GetPageCount() > 2:  self.nb.RemovePage(2)
+                p3panel.Hide()                                
+                
+            if mm.has_4th_panel:
+                if self.nb.GetPageCount() == 3:
+                    self.nb.AddPage(self.p4, "Time Dep.")
+                self.p4sizer.Add(p4panel, 1, wx.EXPAND|wx.ALL, 1)
+                p4panel.SetValue(mm.get_panel4_value())
+                p4panel.Show()                
+                #for c in p4panel.GetChildren(): c.Show()
+                self.p4.Layout()
+            else:
+                if self.nb.GetPageCount() > 3:  self.nb.RemovePage(3)            
+                p4panel.Hide()                
+        else:
+            if self.nb.GetPageCount() > 3:  self.nb.RemovePage(3)            
+            if self.nb.GetPageCount() > 2:  self.nb.RemovePage(2)
+            if self.nb.GetPageCount() > 1:  self.nb.RemovePage(1)
+            self.p1sizer.Add(p1panel, 1, wx.EXPAND|wx.ALL, 1)
+            p1panel.SetValue(mm.get_panel1_value())
+            p1panel.Show()
+            self.p1.Layout()
+        
     def OnItemSelChanged(self, evt = None):
         if self.tree.GetSelection() is None: return
 
@@ -840,7 +902,11 @@ class DlgEditModel(SimpleFramePlus):
 
         p._contents = OrderedDict((k, p._contents[k]) for k in new_names)        
         self.tree.RefreshItems()
-                             
+
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+        self.show_panel(mm)
+        
     def OnMoveItemDown(self, evt):
         if self.tree.GetSelection() is None: return
         
@@ -856,7 +922,11 @@ class DlgEditModel(SimpleFramePlus):
 
         p._contents = OrderedDict((k, p._contents[k]) for k in new_names)
         self.tree.RefreshItems()
-
+ 
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+        self.show_panel(mm)
+       
     def OnMoveItemTo(self, evt):
         from   ifigure.utils.edit_list import DialogEditList                
         import   ifigure.widgets.dialog as dialog
@@ -872,7 +942,7 @@ class DlgEditModel(SimpleFramePlus):
 
         list6 = [
                ["New parent", p.name(), 0],
-               ["Index ", str(idx), 0],]
+               ["Index (0-base)", str(idx), 0],]
         value = DialogEditList(list6, modal = True, 
                                style = wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER,
                                tip = None, 
@@ -899,6 +969,10 @@ class DlgEditModel(SimpleFramePlus):
         new_names = self.MoveItemInList(names, idx, new_idx)
         p._contents = OrderedDict((k, p._contents[k]) for k in new_names)
         self.tree.RefreshItems()
+
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+        self.show_panel(mm)
         
     def isSelectionPanelOpen(self):
         from petram.model import Bdry, Point, Pair, Domain, Edge
