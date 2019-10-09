@@ -217,6 +217,8 @@ class MFEMViewer(BookViewer):
         
     def update_figure(self, view_mode, name, updateall = False):
         from petram.mesh.geo_plot import plot_geometry, oplot_meshed
+        from petram.mesh.geo_plot import hide_face_meshmode, hide_edge_meshmode
+        
         if self._is_mfem_geom_fig and view_mode == 'phys':
             self.onHideMesh()
         elif self._is_mfem_geom_fig and view_mode == 'mesh' and name == 'mfem':
@@ -256,7 +258,10 @@ class MFEMViewer(BookViewer):
                     if name[0] in d:
                         print("calling oplot")
                         oplot_meshed(self,  d[name[0]])
-                        self._hidemesh = False                        
+                        self._hidemesh = False
+                    else:
+                        hide_face_meshmode(self, [])
+                        hide_edge_meshmode(self, [])
 
             elif view_mode == 'phys':
                 ret = self._figure_data['phys']
@@ -429,7 +434,15 @@ class MFEMViewer(BookViewer):
                 sel.extend(obj.getSelectedIndex())
                 oo.append(obj)
         return sel, oo
-    
+
+    def _getFigObjs(self, mode='face'):
+        objs = []
+        ax = self.get_axes()         
+        for name, obj in ax.get_children():
+            if name.startswith(mode):
+                objs.append(obj)
+        return objs
+   
     def onTD_DragSelectionInFigure(self, evt):
         #print("onTD_DragSelectionInFigure")
         self.onTD_SelectionInFigure(evt)
@@ -474,15 +487,20 @@ class MFEMViewer(BookViewer):
             for x in hidden:
                 if x in selected_volume: selected_volume.remove(x)
 
+            status_txt = 'Volume :'+ ','.join([str(x) for x in selected_volume])
+                
             surf_idx = []
             for kk in selected_volume:
                 surf_idx.extend(sl[kk])
             surf_idx = list(set(surf_idx))
-
-            status_txt = 'Volume :'+ ','.join([str(x) for x in selected_volume])
+            
+            objs = self._getFigObjs(mode='face')
             for o in objs:
                 o.setSelectedIndex(surf_idx)
-                sv = selected_volume
+                if len(o._artists) > 0:
+                    self.canvas.add_selection(o._artists[0])
+            sv = selected_volume
+                
         elif self._sel_mode == 'face':
             idx, objs = self._getSelectedIndex(mode='face')
             status_txt = 'Face: '+ ','.join([str(x) for x in idx])  
@@ -894,6 +912,11 @@ class MFEMViewer(BookViewer):
         menus.append(("Copy " + selmode + " selection", self.onCopySelection1, None))
         menus.append(("Copy " + selmode + " selection with prefix", self.onCopySelection2, None))        
 
+        #if len(self.canvas.selection) > 0:
+        #    if self._view_mode == 'mesh':
+        #        menus.append(("Show meshed " + selmode, self.onShowMeshedEntity, None))                
+        #        menus.append(("Hide meshed " + selmode, self.onHideMeshedEntity, None))
+            
         if self.editdlg is not None and self._palette_focus == 'edit':
             check, kind, cidxs, labels = self.editdlg.isSelectionPanelOpen()
             if check:

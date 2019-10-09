@@ -56,7 +56,6 @@ def call_solid2(viewer, name, verts, elem_idx, array_idx=None, lw=1.5):
     return obj
 
 def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
-
     viewer.cls()
     viewer.set_hl_color((1,0,0))
     
@@ -165,6 +164,8 @@ def oplot_meshed(viewer,  ret):
         obj.set_gl_hl_use_array_idx(True)
         meshed_face.extend(list(np.unique(cell_data['quad']['geometrical'])))
 
+    hide_face_meshmode(viewer, meshed_face)
+    '''
     s, v = viewer._s_v_loop['mesh']
     facesa = []
     if len(v)>0:  # in 3D starts with faces from shown volumes
@@ -185,7 +186,7 @@ def oplot_meshed(viewer,  ret):
         if name.startswith('face') and  name.endswith('meshed'):
             h = list(np.unique(facesa))
             obj.hide_component(h)
-    
+    '''
     if 'line' in cells:
         vert = np.squeeze(X[cells['line']][:,0,:])
         if vert.size > 3:
@@ -203,7 +204,9 @@ def oplot_meshed(viewer,  ret):
             meshed_edge = list(np.unique(cell_data['line']['geometrical']))
     else:
         meshed_edge = []
-        
+
+    hide_edge_meshmode(viewer, meshed_edge)
+    '''
     s, v = viewer._s_v_loop['mesh']
     edgesa = viewer._mhidden_edge
         
@@ -211,8 +214,40 @@ def oplot_meshed(viewer,  ret):
         if name.startswith('edge') and not name.endswith('meshed'):
             h = list(np.unique(edgesa + meshed_edge))
             if obj.hasvar('idxset'): obj.hide_component(h)        
-
+    '''
     viewer.set_sel_mode(viewer.get_sel_mode())
 
-    
 
+def hide_face_meshmode(viewer, meshed_face):
+    ax =viewer.get_axes()    
+    s, v = viewer._s_v_loop['mesh']
+    facesa = []
+    if len(v)>0:  # in 3D starts with faces from shown volumes
+        all_surfaces = np.array(list(s), dtype=int)        
+        for key in v:
+            if not key in viewer._mhidden_volume:
+                facesa.extend(v[key])
+        facesa = np.unique(facesa)
+        mask  = np.logical_not(np.in1d(all_surfaces, facesa))
+        facesa = list(all_surfaces[mask])
+        
+    facesa.extend(viewer._mhidden_face)
+        
+    for name, obj in ax.get_children():
+        if name.startswith('face') and not name.endswith('meshed'):
+            h = list(np.unique(facesa + meshed_face))
+            obj.hide_component(h)
+        if name.startswith('face') and  name.endswith('meshed'):
+            h = list(np.unique(facesa))
+            obj.hide_component(h)
+
+def hide_edge_meshmode(viewer, meshed_edge):
+    ax =viewer.get_axes()    
+    s, v = viewer._s_v_loop['mesh']
+    edgesa = viewer._mhidden_edge
+        
+    for name, obj in ax.get_children():
+        if name.startswith('edge') and not name.endswith('meshed'):
+            h = list(np.unique(edgesa + meshed_edge))
+            if obj.hasvar('idxset'): obj.hide_component(h)        
+            

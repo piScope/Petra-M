@@ -94,7 +94,7 @@ def hide_elem(evt, inverse=False):
     Fobjs = [child for name, child in ax.get_children() if name.startswith('face')]
 
     sel = viewer.canvas.selection
-    if len(sel) != 1:  return
+    #if len(sel) != 1:  return
     sel_objs = [s().figobj for s in sel]
 
     s2l, v2s = viewer._s_v_loop['mesh']    
