@@ -448,8 +448,8 @@ class MFEMViewer(BookViewer):
         self.onTD_SelectionInFigure(evt)
         
     def onTD_SelectionInFigure(self, evt = None):
-        #if len(self.canvas.selection) == 0:
-        #    self._dom_bdr_sel  = ([], [], [], [])                    
+        if len(self.canvas.selection) == 0:
+            self._dom_bdr_sel  = ([], [], [], [])                    
         #    return
 
         status_txt = ''
@@ -457,8 +457,9 @@ class MFEMViewer(BookViewer):
             self.set_status_text('', timeout = 600000)
             evt.selections = self.canvas.selection
             self.property_editor.onTD_Selection(evt)
-            return 
-            
+            return
+        
+        #print("canvas sel",  self.canvas.selection)
         _s_v_loop = self._s_v_loop[self._view_mode]
         sf, sv, se, sp = [], [], [], []
         if self._sel_mode == 'volume':
@@ -495,9 +496,10 @@ class MFEMViewer(BookViewer):
             surf_idx = list(set(surf_idx))
             
             objs = self._getFigObjs(mode='face')
+
             for o in objs:
                 o.setSelectedIndex(surf_idx)
-                if len(o._artists) > 0:
+                if len(self.canvas.selection) > 0 and len(o._artists) > 0:
                     self.canvas.add_selection(o._artists[0])
             sv = selected_volume
                 
