@@ -912,7 +912,8 @@ class MFEMViewer(BookViewer):
         selmode = self.get_sel_mode() 
 
         menus.append(("Copy " + selmode + " selection", self.onCopySelection1, None))
-        menus.append(("Copy " + selmode + " selection with prefix", self.onCopySelection2, None))        
+        if view_mode == 'geom':        
+             menus.append(("Copy " + selmode + " selection with prefix", self.onCopySelection2, None))        
 
         #if len(self.canvas.selection) > 0:
         #    if self._view_mode == 'mesh':
