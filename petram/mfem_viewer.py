@@ -234,7 +234,7 @@ class MFEMViewer(BookViewer):
                     ret = d[name]
                     plot_geometry(self,  ret)
                 else:
-                    dprint1('Geometry figur data not found :'+ name)
+                    print('Geometry figur data not found :'+ name)
                     self.cls()
                     return
 
