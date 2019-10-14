@@ -110,5 +110,5 @@ def generate_emesh(emeshes, info):
         dprint1("calling edge")                        
         m = edge(base_mesh, list(info['sel']))#, filename = 'par_part.mesh')            
     else:
-        raise NotImplementedError, "emesh with " +str(info["dim"])
+        raise NotImplementedError("emesh with " +str(info["dim"]))
     return m

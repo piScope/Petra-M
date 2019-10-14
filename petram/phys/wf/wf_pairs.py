@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import traceback
 import numpy as np
 from scipy.sparse import csr_matrix, coo_matrix, lil_matrix
@@ -32,7 +34,7 @@ def make_mapper(txt, g, indvars):
              '    import numpy as np']
     trans1.extend(tt)
     trans1.append('    return np.array(['+txt+'])')
-    exec '\n'.join(trans1) in g, lns      # this defines trans1
+    exec('\n'.join(trans1), g, lns)      # this defines trans1
     mapper  = lns['trans1']
     return mapper
     

@@ -7,7 +7,7 @@ import six
 import os
 import sys
 import tempfile
-from cStringIO import StringIO
+from six import StringIO
 from weakref import WeakKeyDictionary as WKD
 from weakref import WeakValueDictionary as WVD
 
@@ -22,7 +22,7 @@ import multiprocessing as mp
 from petram.sol.evaluators import Evaluator, EvaluatorCommon
 
 def data_partition(m, num_proc, myid):
-    min_nrows  = m / num_proc
+    min_nrows  = m // num_proc
     extra_rows = m % num_proc
     start_row  = min_nrows * myid + (extra_rows if extra_rows < myid else myid)
     end_row    = start_row + min_nrows + (1 if extra_rows > myid else 0)

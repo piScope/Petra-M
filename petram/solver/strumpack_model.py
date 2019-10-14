@@ -1,12 +1,20 @@
-from .solver_model import Solver
+from __future__ import print_function
+
+
+import sys
 import numpy as np
 import scipy
+from scipy.sparse import coo_matrix, csr_matrix
 
-from petram.namespace_mixin import NS_mixin
-from .solver_model import LinearSolverModel, LinearSolver
+import STRUMPACK as ST
+STRUMPACK_SUCCESS = ST.STRUMPACK_SUCCESS
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('StrumpackModel')
+
+from petram.namespace_mixin import NS_mixin
+from .solver_model import Solver
+from .solver_model import LinearSolverModel, LinearSolver
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -24,11 +32,17 @@ if use_parallel:
 else:
    import mfem.ser as mfem
    default_kind = 'scipy'
-   
+   num_proc = 1
+   myid = 0
+   def nicePrint(*x):
+       print(x)
+       
+from petram.helper.matrix_file import write_matrix, write_vector, write_coo_matrix
+
 class Strumpack(LinearSolverModel):
     hide_ns_menu = True
     has_2nd_panel = False
-    accept_complex = False
+    accept_complex = True
     always_new_panel = False
 
     def __init__(self,  *args, **kwargs):
@@ -38,18 +52,18 @@ class Strumpack(LinearSolverModel):
         pass
     def panel1_param(self):
         return [
-                ["log_level",   self.log_level,  400, {}],            
+                ["log_level",   self.log_level,  400, {}],
                 ["hss compression",  self.hss,   3, {"text":""}],
                 ["hss min front size",  self.hss_front_size, 400, {}],
                 ["rctol",  self.rctol, 300, {}],
                 ["actol",  self.actol, 300, {}],
                 ["mc64job",  self.mc64job, 400, {}],
                 ["gmres restrart",  self.gmres_restart, 400, {}],
-                ["max iter.",  self.maxiter, 400, {}],            
+                ["max iter.",  self.maxiter, 400, {}],       
                 ["write matrix",  self.write_mat,   3, {"text":""}],]
     
     def get_panel1_value(self):
-        return (long(self.log_level),
+        return (int(self.log_level),
                 self.hss,
                 self.hss_front_size,
                 self.rctol,
@@ -60,15 +74,15 @@ class Strumpack(LinearSolverModel):
                 self.write_mat, )
     
     def import_panel1_value(self, v):
-        self.log_level = long(v[0])        
+        self.log_level = int(v[0])        
         self.hss = v[1]
         self.hss_front_size = v[2]
         self.rctol = v[3]
         self.actol = v[4]
         self.mc64job = v[5]
-        self.gmres_restart = long(v[6])
-        self.maxiter = long(v[7])
-        self.write_mat = bool(v[8])
+        self.gmres_restart = int(v[6])
+        self.maxiter = int(v[7])
+        self.write_mat = int(v[8])
 
         
     def attribute_set(self, v):
@@ -82,19 +96,18 @@ class Strumpack(LinearSolverModel):
         v['maxiter'] = 5000
         v['gmres_restart'] = 30
         v['mc64job'] = 0
+        v['use_single_precision'] = False
         return v
     
     def verify_setting(self):
-        if not self.parent.assemble_real:
-            for phys in self.get_phys():
-                if phys.is_complex():
-                    return False, "We support only real version of Strumpack.", "A complex problem must be converted to a real value problem"
-        return True, "", ""
+        return True, "", ""       
     
-    def linear_system_type(self, assemble_real, phys_complex):
-        #if not phys_complex: return 'block'
-        return 'blk_interleave'
-        #return None
+    def linear_system_type(self, assemble_real, phys_real):
+        if phys_real:
+           return 'blk_interleave'
+        else:
+           return 'blk_merged'        
+       
     def real_to_complex(self, solall, M):
         if use_parallel:
            from mpi4py import MPI
@@ -111,10 +124,10 @@ class Strumpack(LinearSolverModel):
            
         rows = M.NumRowBlocks()
         s = solall.shape
-        nb = rows/2
+        nb = rows//2
         i = 0
         pt = 0
-        result = np.zeros((s[0]/2, s[1]), dtype='complex')
+        result = np.zeros((s[0]//2, s[1]), dtype='complex')
         for j in range(nb):
            l = of[i+1]-of[i]
            result[pt:pt+l,:] = (solall[of[i]:of[i+1],:]
@@ -129,9 +142,134 @@ class Strumpack(LinearSolverModel):
                                  self.actol, self.rctol, self.mc64job,
                                  self.hss, self.hss_front_size,
                                  self.gmres_restart)
-        #solver.AllocSolver(datatype)
+        solver.AllocSolver(is_complex, self.use_single_precision)
         return solver
+     
+
+def get_block(Op, i, j):
+    try:
+        return Op._linked_op[(i,j)]
+    except KeyError:
+        return None
+
+def build_csr_local(A, dtype, is_complex):
+    '''
+    build CSR form of A as a single 
+    matrix
+    '''
+    offset = np.array(A.RowOffsets().ToList(), dtype=int)
+    if is_complex:
+       offset = offset//2
+       
+    rows = A.NumRowBlocks()
+    cols = A.NumColBlocks()
+        
+    local_size = np.diff(offset)
+    #nicePrint("local_size",local_size)
     
+    if use_parallel:
+        x = allgather_vector(local_size)
+        global_size = np.sum(x.reshape(num_proc,-1), 0)
+        global_offset = np.hstack(([0], np.cumsum(global_size)))
+        global_roffset = global_offset + offset
+        new_offset = np.hstack(([0], np.cumsum(x)))[:-1]
+        new_size =   x.reshape(num_proc, -1)
+        new_offset = new_offset.reshape(num_proc, -1)
+        
+    else:
+        global_size = local_size
+        new_size = local_size.reshape(1,-1)
+        new_offset = offset.reshape(1,-1)
+        
+   #index_mapping
+    def blk_stm_idx_map(i):
+        stm_idx = [new_offset[kk, i]+
+                   np.arange(new_size[kk, i], dtype=int)
+                   for kk in range(len(new_offset))]
+        return np.hstack(stm_idx)
+
+    def sparsemat2csr(m):
+        w, h = m.Width(), m.Height()
+        I = m.GetIArray()
+        J = m.GetJArray()
+        data = m.GetDataArray()
+        m = csr_matrix((data, J, I), shape = (h, w),
+                       dtype = data.dtype)
+        return m
+     
+    def ToScipyCoo(mat):
+        '''
+        convert HypreParCSR to Scipy Coo Matrix
+        '''
+        num_rows, ilower, iupper, jlower, jupper, irn, jcn, data = mat.GetCooDataArray()
+        m = iupper - ilower + 1
+        n = mat.N()
+        
+        return coo_matrix((data, (irn-ilower, jcn)), shape = (num_rows, n)), ilower
+     
+    map = [blk_stm_idx_map(i) for i in range(rows)]
+
+    newi = []
+    newj = []
+    newd = []
+    nrows = np.sum(local_size)
+    ncols = np.sum(global_size)
+        
+    for i in range(rows):
+        for j in range(cols):
+            m = get_block(A, i, j)
+            if m is None: continue
+            if use_parallel:
+                if isinstance(m, mfem.ComplexOperator):
+                    mr, ilower = ToScipyCoo(m._real_operator)
+                    mi, ilower = ToScipyCoo(m._imag_operator)
+                    m = (mr + 1j*mi).tocoo()
+                    irn = m.row + ilower
+                    jcn = m.col
+                    data = m.data
+                else:
+                    num_rows, ilower, iupper, jlower, jupper, irn, jcn, data = m.GetCooDataArray()
+            else:
+                # this is not efficient but for now let's do this...
+                if isinstance(m, mfem.ComplexOperator):
+                    mr = m._real_operator
+                    mi = m._imag_operator
+                    mr = sparsemat2csr(mr)
+                    mi = sparsemat2csr(mi)
+                    m = (mr + 1j*mi).tocoo()
+                else:
+                    m = sparsemat2csr(m).tocoo()
+
+                irn = m.row
+                jcn = m.col
+                data = m.data
+                
+            irn = irn         #+ global_roffset[i]
+            jcn = jcn         #+ global_offset[j]
+
+            irn2 = map[i][irn]
+            jcn2 = map[j][jcn]
+               
+            newi.append(irn2)
+            newj.append(jcn2)
+            newd.append(data)
+
+    newi = np.hstack(newi)
+    newj = np.hstack(newj)
+    newd = np.hstack(newd)
+
+    #nicePrint(new_offset)
+    #nicePrint((nrows, ncols),)
+    #nicePrint('newJ', np.min(newj), np.max(newj))
+    #nicePrint('newI', np.min(newi)-new_offset[myid, 0],
+    #                      np.max(newi)-new_offset[myid, 0])
+
+    csr_mat = coo_matrix((newd,(newi-new_offset[myid, 0], newj)),
+                      shape=(nrows, ncols),
+                      dtype=dtype).tocsr()
+
+    return csr_mat
+ 
 class StrumpackSolver(LinearSolver):
     def __init__(self, gui, engine, maxiter, actol, rctol, mc64job,
                  hss, hss_front_size, gmres_restart):
@@ -144,41 +282,146 @@ class StrumpackSolver(LinearSolver):
         self.gmres_restart = gmres_restart
         LinearSolver.__init__(self, gui, engine)
 
-    def SetOperator(self, opr, dist=False, name = None):
-        self.Aname = name
-        self.A = opr                     
+    def AllocSolver(self, is_complex, use_single_precision):
+        dprint1("AllocSolver", is_complex, use_single_precision)
+
+        if use_parallel:
+            args = (MPI.COMM_WORLD,)
+        else:
+            args = tuple()
+            
+        if is_complex:
+            if use_single_precision:
+                dtype = np.complex64
+                spss = ST.CStrumpackSolver(*args)
+            else:
+                dtype = np.complex128
+                spss = ST.ZStrumpackSolver(*args)
+        else:
+            if use_single_precision:
+                dtype = np.float32
+                spss = ST.SStrumpackSolver(*args)
+            else:
+                dtype = np.float64               
+                spss = ST.DStrumpackSolver(*args)
+
+        self.dtype = dtype
+        self.spss = spss
+        self.is_complex = is_complex
+        spss.set_verbose(1)
+        
+    def SetOperator(self, A, dist, name=None):
+        try:
+            from mpi4py import MPI
+        except:
+            from petram.helper.dummy_mpi import MPI
+        myid     = MPI.COMM_WORLD.rank
+        nproc    = MPI.COMM_WORLD.size
+
+        self.row_offsets = A.RowOffsets()        
+        
+        AA = build_csr_local(A, self.dtype, self.is_complex)
+
+        if self.gui.write_mat:
+            write_coo_matrix('matrix', AA.tocoo())
+
+        if dist:
+           self.spss.set_distributed_csr_matrix(AA)           
+        else:
+           self.spss.set_csr_matrix(AA)
+        self._matrix = AA
         
     def Mult(self, b, x=None, case_base=0):
-        if use_parallel:
-            return self.solve_parallel(self.A, b, x)
-        else:
-            raise AttributeError("Serial MFEM does not support Strumpack")
-    @staticmethod    
-    def get_block(Op, i, j):
-            try:
-               return Op._linked_op[(i,j)]
-            except KeyError:
-               return None
+        try:
+            from mpi4py import MPI
+        except:
+            from petram.helper.dummy_mpi import MPI
+        myid     = MPI.COMM_WORLD.rank
+        nproc    = MPI.COMM_WORLD.size
         
-    def write_mat(self, A, b, x, suffix=""):
-        offset = A.RowOffsets()
-        rows = A.NumRowBlocks()
-        cols = A.NumColBlocks()
+            
+        sol = []
+        row_offsets=self.row_offsets.ToList()
         
-        for j in range(cols):
-           for i in range(rows):
-              m = self.get_block(A, i, j)
-              if m is None: continue
-              m.Print('matrix_'+str(i)+'_'+str(j))
-        for i, bb  in enumerate(b):
-           for j in range(rows):
-              v = bb.GetBlock(j)
-              v.Print('rhs_'+str(i)+'_'+str(j)+suffix)
-        if x is not None:
-           for j in range(rows):
-              xx = x.GetBlock(j)
-              xx.Print('x_'+str(i)+'_'+str(j)+suffix)
+        for kk, bb in enumerate(b):
+           rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
+           rowstarts = np.hstack((0, np.cumsum(rows)))
+           #nicePrint("rowstarts/offser",rowstarts, row_offsets)
+           if x is None:           
+              xx = mfem.BlockVector(self.row_offsets)
+              xx.Assign(0.0)
+           else:
+              xx = x
               
+           if self.is_complex:
+               tmp1 = []
+               tmp2 = []
+               for i in range(len(row_offsets)-1):
+                   bbv = bb.GetBlock(i).GetDataArray()
+                   xxv = xx.GetBlock(i).GetDataArray()                   
+                   ll = bbv.size
+                   bbv = bbv[:ll//2] + 1j*bbv[ll//2:]
+                   xxv = xxv[:ll//2] + 1j*xxv[ll//2:]                   
+                   tmp1.append(bbv)
+                   tmp2.append(xxv)                   
+               bbv = np.hstack(tmp1)
+               xxv = np.hstack(tmp2)                  
+           else:
+               bbv = bb.GetDataArray()             
+               xxv = xx.GetDataArray()
+               
+           if self.gui.write_mat:
+               write_vector('rhs_'+str(kk), bbv)
+               write_vector('x_'+str(kk), xxv)
+
+           sys.stdout.flush();sys.stderr.flush()
+           if self.gui.mc64job != 0:
+              ret = self.spss.set_matching(self.gui.mc64job)
+              if ret != STRUMPACK_SUCCESS:
+                 assert False, "error during mc64 (Strumpack)"
+
+           self.spss.set_reordering_method(ST.STRUMPACK_METIS)
+           ret = self.spss.reorder()
+           if ret != STRUMPACK_SUCCESS:
+              assert False, "error during recordering (Strumpack)"
+
+           ret = self.spss.factor()
+           if ret != STRUMPACK_SUCCESS:
+              assert False, "error during factor (Strumpack)"              
+
+           ret = self.spss.solve(bbv, xxv, 0)
+           if ret != STRUMPACK_SUCCESS:
+              assert False, "error during solve phase (Strumpack)"
+              
+           s = []
+           for i in range(len(row_offsets)-1):
+               r1 = row_offsets[i]
+               r2 = row_offsets[i+1]
+
+               if self.is_complex:
+                   r1 = r1//2
+                   r2 = r2//2                   
+               xxvv = xxv[r1:r2]
+               
+               if use_parallel:
+                   vv = gather_vector(xxvv)                  
+               else:
+                   vv = xxvv.copy()
+               if myid == 0:
+                   s.append(vv)
+               else:
+                   pass
+           if myid == 0:               
+               sol.append(np.hstack(s))
+        if myid == 0:                              
+            sol = np.transpose(np.vstack(sol))
+            return sol
+        else:
+            return None
+
+
+
+'''           
     def make_solver(self, A):
         offset = np.array(A.RowOffsets().ToList(), dtype=int)
         rows = A.NumRowBlocks()
@@ -191,13 +434,13 @@ class StrumpackSolver(LinearSolver):
 
         global_offset = np.hstack(([0], np.cumsum(global_size)))
         global_roffset = global_offset + offset
-        print global_offset
+        print(global_offset)
 
         new_offset = np.hstack(([0], np.cumsum(x)))[:-1]
 #                                np.cumsum(x.reshape(2,-1).transpose().flatten())))
         new_size =   x.reshape(num_proc, -1)
         new_offset = new_offset.reshape(num_proc, -1)
-        print new_offset
+        print(new_offset)
         
         #index_mapping
         def blk_stm_idx_map(i):
@@ -265,7 +508,7 @@ class StrumpackSolver(LinearSolver):
                          str(0.01),
                          "--hss_abs_tol",                         
                          str(1e-4),])
-        print self.maxiter
+
         args.extend(["--sp_maxit", str(int(self.maxiter))])
         args.extend(["--sp_rel_tol", str(self.rctol)])
         args.extend(["--sp_abs_tol", str(self.actol)])        
@@ -335,7 +578,7 @@ class StrumpackSolver(LinearSolver):
             return sol
         else:
             return None
-    
+'''    
 '''   
 from Strumpack.SparseSolver import Sp_attrs
 

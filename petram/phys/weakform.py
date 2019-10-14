@@ -47,7 +47,7 @@ def get_integrators(filename):
     coeffs  = [x(l[3])  for l in lines]
     dims    = [[int(x.strip()[0]) for x in l[6].split(',')]  for l in lines]
 
-    return zip(names, domains, ranges, coeffs, dims)
+    return list(zip(names, domains, ranges, coeffs, dims))
  
 bilinintegs = get_integrators('BilinearOps')
 linintegs = get_integrators('LinearOps')

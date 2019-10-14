@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 import scipy
 
@@ -185,7 +187,7 @@ def find_dof_map_h1(idx1, idx2, transu, transv, transu2, transv2,
                   subvdof2[k] = fes.GetMyTDofOffset()+ x
                else:
                   if debug:
-                     print 'not own'
+                     print('not own')
                      flag = True
            if flag: dprint1(subvdof1, vdof1, subvdof2)
 
@@ -286,13 +288,13 @@ def find_dof_map_h1(idx1, idx2, transu, transv, transu2, transv2,
           if ( myid == 1): 
              dprint3("checking ptall ", myid)
              for k, x in enumerate(pt1all):
-                print x, k1all[k], sh1all[k]
+                print(x, k1all[k], sh1all[k])
       for i in range(num_proc):
           MPI.COMM_WORLD.Barrier()      
           if ( myid == i): 
              dprint3("checking ptall2 ", myid)
              for k, x in enumerate(pt2all):
-                 print x, k2all[k], sh2all[k]             
+                 print(x, k2all[k], sh2all[k])             
 
 
    fesize = fes.GetNDofs()
@@ -334,5 +336,5 @@ def find_dof_map_h1(idx1, idx2, transu, transv, transu2, transv2,
                 dprint3(map)
       else:
           pass
-          #print map
+
    return map

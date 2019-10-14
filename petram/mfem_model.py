@@ -102,10 +102,11 @@ class MFEM_PhysRoot(Model):
         '''
         names =  sum([c.dep_vars for c in self.iter_enabled()], [])
         pnames = sum([[c.name()]*len(c.dep_vars) for c in self.iter_enabled()], [])
-        pindex = sum([range(len(c.dep_vars)) for c in self.iter_enabled()], [])
+        pindex = sum([list(range(len(c.dep_vars))) for c in self.iter_enabled()], [])
 
         return names, pnames, pindex
-    
+
+    '''
     def get_num_matrix(self, get_matrix_weight, phys_target = None):
         # get_matrix_weight: solver method to evaulate matrix weight
         if phys_target is None:
@@ -120,9 +121,12 @@ class MFEM_PhysRoot(Model):
                 wt = np.array(mm.get_matrix_weight())
                 tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
                 num_matrix = max(tmp, num_matrix)
-        dprint1("number of matrix", num_matrix)
         return num_matrix
-            
+    '''        
+    def get_num_matrix(self, get_matrix_weight, phys_target = None):
+        import traceback
+        traceback.print_stack()
+        assert False, "this should not be called"
 
     def all_dependent_vars(self, num_matrix, phys_target, phys_range):
         '''
@@ -185,7 +189,7 @@ class MFEM_InitRoot(Model):
     can_delete = False
     has_2nd_panel = False        
     def get_possible_child(self):
-        from init_model import InitSetting
+        from petram.init_model import InitSetting
         return [InitSetting]
     
     def onItemSelChanged(self, evt):
@@ -209,18 +213,18 @@ class MFEM_GeomRoot(Model):
             ret.append(GmshGeom)
         except ImportError:
             pass
-        try:
-            from petram.geom.gmsh_geom_model import BrepFile
-            ret.append(BrepFile)            
-        except ImportError:
-            pass
+        #try:
+        #    from petram.geom.gmsh_geom_model import BrepFile
+        #    ret.append(BrepFile)            
+        #except ImportError:
+        #    pass
         return ret
         
 class MFEM_MeshRoot(Model):
     can_delete = False
     has_2nd_panel = False    
     def get_possible_child(self):
-        from mesh.mesh_model import MFEMMesh, MeshGroup
+        from petram.mesh.mesh_model import MFEMMesh, MeshGroup
         try:
             from petram.mesh.gmsh_mesh_model import GmshMesh
             return [MFEMMesh, GmshMesh]
@@ -248,8 +252,9 @@ class MFEM_SolverRoot(Model):
     has_2nd_panel = False
     
     def get_possible_child(self):
-        from solver.solver_model import SolveStep
-        return [SolveStep]
+        from petram.solver.solver_model import SolveStep
+        from petram.solver.solve_loop import Loop
+        return [SolveStep, Loop]
     
     def get_active_solvers(self, mm = None):
         return [x for x in self.iter_enabled()]
@@ -291,9 +296,11 @@ class MFEM_SolverRoot(Model):
      
 
 try:    
-   from petram.geom.geom_model import MFEM_GeomRoot
+   from petram.geom.geom_model import GeomBase
    has_geom = True
 except:
+   import traceback
+   traceback.print_exc()
    has_geom = False
 
 class MFEM_ModelRoot(Model):
@@ -335,7 +342,8 @@ class MFEM_ModelRoot(Model):
         fid.close()
 
     def save_to_file(self, path, meshfile_relativepath=False):
-        import cPickle as pickle
+        import petram.helper.pickle_wrapper as pickle                
+
         if meshfile_relativepath:
             for od in self.walk():
                 if hasattr(od, 'use_relative_path'):

@@ -1,3 +1,4 @@
+from __future__ import print_function
 '''
  DoF mapper
     this routine returns M.
@@ -35,7 +36,13 @@ import petram.debug as debug
 debug.debug_default_level = 1
 dprint1, dprint2, dprint3 = debug.init_dprints('dof_map')
 
+# this is for testing. need to add three lines below to suppress
+# numpy related warning (copied from numpy.__init__.py)
 warnings.filterwarnings('error', category=RuntimeWarning)
+# Filter out Cython harmless warnings
+warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
+warnings.filterwarnings("ignore", message="numpy.ndarray size changed")
 
 from petram.helper.matrix_file import write_matrix, write_vector
 
@@ -585,7 +592,7 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                 num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[2],2], m[2,2], num2)
                                   
             else:
-                print pt1, pt2
+                print(pt1, pt2)
                 '''
                  newk1 = k1all[k0] #(i local DoF, global DoF)
                  sh1 = sh1all[k0]           

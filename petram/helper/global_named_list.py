@@ -90,7 +90,7 @@ class GlobalNamedList(dict):
         return self
             
     def sharekeys(self):
-        keys = self.keys()
+        keys = list(self.keys())
         if not hasMPI:
             keys = np.unique(keys)
             self._gkey = keys

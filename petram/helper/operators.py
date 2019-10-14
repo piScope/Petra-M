@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import weakref
 import numpy as np
 
@@ -182,7 +184,7 @@ class Integral(Operator):
 
         '''
 
-        coeff = kwargs.pop("coeff", "1")
+        coeff = kwargs.pop("coeff", "1.0")
         coeff_type = kwargs.pop("coeff_type", "S")
 
         engine = self._engine()        
@@ -339,7 +341,7 @@ class Zero(Operator):
         return make_diagonal_mat(engine, fes1, fes2, 0.0)
 
         '''
-        if fes1 == fes2:
+a        if fes1 == fes2:
             bf = engine.new_bf(fes1)
             bf.Assemble()
             bf.Finalize()
@@ -384,28 +386,28 @@ class Delta(Operator):
         self.process_kwargs(engine, kwargs)
 
         x = args[0]
-        y = args[1] if len(args)>1 else 0
-        z = args[2] if len(args)>2 else 0        
+        y = args[1] if len(args)>1 else 0.0
+        z = args[2] if len(args)>2 else 0.0        
         
         sdim = self.fes1.GetMesh().SpaceDimension()
         if direction == 0:
             if sdim == 3:
-               d = mfem.DeltaCoefficient(x, y, z, 1)
+               d = mfem.DeltaCoefficient(x, y, z, 1.0)
             elif sdim == 2:
-               d = mfem.DeltaCoefficient(x, y, 1)
+               d = mfem.DeltaCoefficient(x, y, 1.0)
             elif sdim == 1:
-               d = mfem.DeltaCoefficient(x, 1)
+               d = mfem.DeltaCoefficient(x, 1.0)
             else:
                 assert False, "unsupported dimension"
             intg = mfem.DomainLFIntegrator(d)                
         else:
             dir = mfem.Vector(direction)
             if sdim == 3:
-               d = mfem.VectorDeltaCoefficient(dir, x, y, z, 1)
+               d = mfem.VectorDeltaCoefficient(dir, x, y, z, 1.0)
             elif sdim == 2:
-               d = mfem.VectorDeltaCoefficient(dir, x, y, 1)
+               d = mfem.VectorDeltaCoefficient(dir, x, y, 1.0)
             elif sdim == 1:
-               d = mfem.VectorDeltaCoefficient(dir,x, 1)
+               d = mfem.VectorDeltaCoefficient(dir,x, 1.0)
             else:
                 assert False, "unsupported dimension"
                 
@@ -443,7 +445,7 @@ class DeltaM(Operator):
     def assemble(self, *args, **kwargs):
         engine = self._engine()
         direction = kwargs.pop("direction", None)
-        weight = kwargs.pop("weight", 1)
+        weight = kwargs.pop("weight", 1.0)
         weight = np.atleast_1d(weight)
         do_sum = kwargs.pop("sum", False)
         
@@ -470,13 +472,14 @@ class DeltaM(Operator):
         vecs = []
 
         for k, pt in enumerate(pts):
-            w = weight[0] if len(weight) == 1 else weight[k]
+            w = float(weight[0] if len(weight) == 1 else weight[k])
             if vdim == 1:
                 if sdim == 3:
                     x, y, z = pt
                     d = mfem.DeltaCoefficient(x, y, z, w)
                 elif sdim == 2:
-                    x, y = pt               
+                    x, y = pt
+                    print("DeltaCoefficient call", type(x), type(y), type(x))
                     d = mfem.DeltaCoefficient(x, y, w)
                 elif sdim == 1:
                     x = pt                              
@@ -656,7 +659,7 @@ class Projection(Operator):
                          '    import numpy as np',
                          '    x = xyz[0]',
                          '    return np.array(['+trans1+'])']
-            exec '\n'.join(trans1) in self._global_ns, lns
+            exec('\n'.join(trans1) , self._global_ns, lns)
             trans1 = lns['trans1']            
         else:
             trans1 = notrans

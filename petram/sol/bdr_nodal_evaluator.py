@@ -258,7 +258,7 @@ class BdrNodalEvaluator(EvaluatorAgent):
                 idx = edge_detect(self.iverts_inv)
                 return self.locs, val, idx
         else:
-            from nodal_refinement import refine_surface_data
+            from petram.sol.nodal_refinement import refine_surface_data
             ptx, data, ridx = refine_surface_data(self.mesh()[self.emesh_idx],
                                                   self.ibeles,
                                                   val, self.iverts_inv,

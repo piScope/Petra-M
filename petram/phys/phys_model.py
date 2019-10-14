@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 from os.path import dirname, basename, isfile, join
 import warnings
@@ -40,7 +42,7 @@ class PhysVectorConstant(mfem.VectorConstantCoefficient):
 class PhysMatrixConstant(mfem.MatrixConstantCoefficient):
     def __init__(self, value):
         v = mfem.Vector(value.flatten())
-	m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])       
+        m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])       
         self.value = (v,m)
         mfem.MatrixConstantCoefficient.__init__(self, m)
         
@@ -459,10 +461,16 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if not self.check_jmatrix(jmatrix): return False        
         return self.has_aux_op(phys1, kfes1, phys2, kfes2)
 
+    '''
     def set_matrix_weight(self, get_matrix_weight):
         # self._mat_weight = get_matrix_weight(self.timestep_config,
         #                                      self.timestep_weight)
-        self._mat_weight = get_matrix_weight(self.timestep_config)
+        w = get_matrix_weight(self.timestep_config)
+        if sum(w) > 0:
+           self._mat_weight = w
+    '''           
+    def set_matrix_weight(self, w):
+        self._mat_weight = w
         
     def get_matrix_weight(self):
         return self._mat_weight
@@ -764,9 +772,9 @@ class PhysModule(Phys):
         return [self.mesh_idx, self.element, self.order]
      
     def import_panel1_value(self, v):
-        self.mesh_idx = long(v[0])
+        self.mesh_idx = int(v[0])
         self.element = str(v[1])
-        self.order = long(v[2])
+        self.order = int(v[2])
         return v[3:]
      
     def panel2_param(self):
@@ -850,7 +858,7 @@ class PhysModule(Phys):
         return [DomainProjection, BdrProjection,]
      
     def soldict_to_solvars(self, soldict, variables):
-        keys = soldict.keys()
+        keys = list(soldict)
         depvars = self.dep_vars
         suffix = self.dep_vars_suffix
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
@@ -935,7 +943,7 @@ class PhysModule(Phys):
         if d is None:
            return [], [], []
 
-        dom_choice = d.keys()
+        dom_choice = list(d)
         bdr_choice = sum([list(d[x]) for x in d], [])
 
         if self.sel_index[0] != 'all':

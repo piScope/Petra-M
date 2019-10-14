@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import wx
 import wx.grid as gr
 from ifigure.utils.edit_list import TextCtrlCopyPaste        
@@ -134,7 +136,7 @@ class Example(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.onClose)
         
     def onClose(self, evt):
-        print self.w.GetValue()   
+        print(self.w.GetValue())
         evt.Skip()
 
 if __name__=='__main__':

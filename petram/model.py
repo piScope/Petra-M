@@ -1,3 +1,4 @@
+
 '''
 
  Model tree using OrderedDict.
@@ -8,6 +9,7 @@
 from collections import OrderedDict
 import traceback
 from collections import MutableMapping
+import six
 import os
 import numpy as np
 import weakref
@@ -89,11 +91,11 @@ class RestorableOrderedDict(MutableMapping, Restorable, object):
      def __getstate__(self):
          st = [(x, self.__dict__[x]) for x in self.__dict__ if not x.startswith('_')]
 #         st.append(('_parent', self._parent))
-         return [ (key, value) for key, value in self._contents.iteritems() ], st
+#         return [ (key, value) for key, value in six.items(self._contents) ], st
+         return [ (key, value) for key, value in self._contents.items() ], st
       
      def _restore(self, restoration_data):
          for (key, value) in restoration_data:
-#             print key
              self._contents[key] = value
              value._parent = self
 
@@ -147,7 +149,7 @@ class ModelDict(WeakKeyDictionary):
         
     def __iter__(self):
         return [reduce(lambda x, y: x[y], [self.root()] + hook().names)
-                for hook in self.keys()]
+                for hook in self]
 
 class Model(RestorableOrderedDict):
     can_delete = True
@@ -170,10 +172,11 @@ class Model(RestorableOrderedDict):
         super(Model, self).__init__()
         self._parent = None
         self._hook = None
+
         if not hasattr(self, 'init_attr'):
+            self.init_attr = True            
             self.update_attribute_set(kw = kwargs)
-            self.init_attr = True
-            
+
     @property
     def has_4th_panel(self):
         return self.has_3rd_panel and self._has_4th_panel
@@ -195,7 +198,7 @@ class Model(RestorableOrderedDict):
         return self._hook
         
     def __repr__(self):
-         return self.__class__.__name__+'('+self.name()+':'+','.join(self.keys()) + ')'
+         return self.__class__.__name__+'('+self.name()+':'+','.join(list(self)) + ')'
 
     def __eq__(self, x):
         try:
@@ -240,7 +243,7 @@ class Model(RestorableOrderedDict):
         elif self.sel_index[0] == '':            
             self._sel_index = []
         else:
-            self._sel_index = [long(i) for i in self.sel_index]
+            self._sel_index = [int(i) for i in self.sel_index]
         if choice is not None:
             ret = np.array(self._sel_index);
             ret = list(ret[np.in1d(ret, choice)])
@@ -251,8 +254,10 @@ class Model(RestorableOrderedDict):
     def update_attribute_set(self, kw = None):
         if kw is None: kw = {}
         d = self.attribute_set(kw)
-
-        for k in d.keys():
+        self.do_update_attribute_set(d)
+        
+    def do_update_attribute_set(self, d):
+        for k in d:
            if not hasattr(self, k):
                try:
                    setattr(self, k, d[k])
@@ -264,7 +269,7 @@ class Model(RestorableOrderedDict):
             return {x: self.attribute(x) for x in self.attribute_set({}).keys()}
         
         if len(args) == 0:
-            return self.attribute_set({}).keys()
+            return list(self.attribute_set({}).keys())
         elif len(args) == 1:
             if hasattr(self, args[0]): return getattr(self, args[0])
         elif len(args) == 2:
@@ -316,28 +321,33 @@ class Model(RestorableOrderedDict):
         key = ''
         d0 = self
         for k in indices:
-            key = d0.keys()[k]
+            key = list(d0.keys())[k]
             d0 = d0[key]
         return key          
     def GetChildrenCount(self, indices):
        d0 = self
        for k in indices:
-           key = d0.keys()[k]
+           key = list(d0.keys())[k]
            d0 = d0[key]
-       return len(d0.keys())
+       return len(d0)
    
     def GetItem(self, indices):
        d0 = self
        for k in indices:
-           key = d0.keys()[k]
+           key = list(d0)[k]
            d0 = d0[key]
        return d0
+   
+    def GetIndices(self):
+        parents = self.parents+[self,]
+        indices = [list(parents[i]).index(parents[i+1].name()) for i in range(len(parents)-1)]
+        return indices
 
     def get_child(self, id):
-        return self[self.keys()[id]]
+        return self[list(self.keys())[id]]
     
     def get_children(self):
-        return self.values()
+        return list(self.values())
     
     def get_possible_child(self):
         return []
@@ -361,7 +371,7 @@ class Model(RestorableOrderedDict):
             name = k[:ll]
             if name == txt:
                 if len(k) > len(name):
-                    m.append(long(k[len(name):]))
+                    m.append(int(k[len(name):]))
 
         if len(m) == 0:
            name = txt+str(1)
@@ -413,7 +423,7 @@ class Model(RestorableOrderedDict):
                 for x in k[len(txt):]:
                     if not x.isdigit(): break
                 else:
-                    m.append(long(k[len(txt):]))
+                    m.append(int(k[len(txt):]))
         if len(m) == 0:
            if nosuffix:
                name = txt
@@ -555,7 +565,7 @@ class Model(RestorableOrderedDict):
                 new_cnt.append((key, self._parent[key]))
 
         parent = self._parent
-        for key in self._parent.keys():
+        for key in list(self._parent):
             parent[key]._parent = None
             del parent[key]
 
@@ -575,7 +585,7 @@ class Model(RestorableOrderedDict):
         return name[:l], name[l:]
 
     def insert_item(self, index, name, item):
-        items = self._contents.items()
+        items = list(self._contents.items())
         items.insert(index, (name, item))
         self._contents = OrderedDict(items)
         item.set_parent(self)
@@ -753,7 +763,8 @@ class Model(RestorableOrderedDict):
             d2[x.__class__.__name__] = x.__class__.__module__
 
         for key in d1.keys():
-            if d1[key] == '__builtin__': continue ### skip something like pi....
+            if d1[key] == '__builtin__': continue ### skip something like pi....(PY2)
+            if d1[key] == 'builtins': continue    ### skip something like pi....(PY3)          
             script.append('from '+d1[key] + ' import '+ key)
         script.append('')            
         for key in d2.keys():
@@ -947,13 +958,13 @@ class Pair(Model):
         elif self.sel_index[0] == '':            
             self._sel_index = []
         else:
-            self._sel_index = [long(i) for i in self.sel_index]
+            self._sel_index = [int(i) for i in self.sel_index]
         if len(self.src_index) == 0:
             self._src_index = []            
         elif self.src_index[0] == '':            
             self._src_index = []
         else:
-            self._src_index = [long(i) for i in self.src_index]
+            self._src_index = [int(i) for i in self.src_index]
         self._sel_index = self._sel_index + self._src_index
 
         if choice is not None:

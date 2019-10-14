@@ -121,7 +121,9 @@ var_g = {'sin':  np.sin,
          'vdot': np.vdot,
          'array': np.array,
          'cross': np.cross, 
-         'pi': np.pi,}
+         'pi': np.pi,
+         'min': np.max,
+         'min': np.min}
 
 class Variables(dict):
     def __repr__(self):
@@ -782,11 +784,9 @@ class GFScalarVariable(GridFunctionVariable):
                self.func_i = None
         else:
             self.isVectorFE=False            
-            self.func_r = mfem.GridFunctionCoefficient(gf_real,
-                                                   comp = self.comp)
+            self.func_r = mfem.GridFunctionCoefficient(gf_real)
             if gf_imag is not None:
-                self.func_i = mfem.GridFunctionCoefficient(gf_imag,
-                                                       comp = self.comp)
+                self.func_i = mfem.GridFunctionCoefficient(gf_imag)
             else:
                 self.func_i = None
         self.isDerived = True
@@ -1240,6 +1240,13 @@ def add_components(solvar, name, suffix, ind_vars, solr,
        solvar[name + suffix + p] = GFScalarVariable(solr, soli, comp=k+1,
                                                     deriv = deriv)
 
+def add_elements(solvar, name, suffix, ind_vars, solr,
+                   soli=None, deriv = None, elements=None):
+    elements = elements if elements is not None else []
+    for k, p in enumerate(ind_vars):
+       solvar[name + suffix + p] = GFScalarVariable(solr, soli, comp=k+1,
+                                                    deriv = deriv)
+       
 def add_expression(solvar, name, suffix, ind_vars, expr, vars,
                    domains = None, bdrs = None, complex = None,
                    gdomain = None, gbdr = None):

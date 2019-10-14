@@ -1,19 +1,20 @@
-
+from __future__ import print_function
 '''
    Viewer/Editor of MFEM model
 
    * this modules is designed to avoid importing mfem directly here
 
 '''
-from ifigure.interactive import figure
-from ifigure.widgets.book_viewer import BookViewer
-from ifigure.utils.cbook import BuildMenu
-import ifigure.widgets.dialog as dialog
 import numpy as np
 import os
 import wx
 import traceback
 import weakref
+from ifigure.interactive import figure
+from ifigure.widgets.book_viewer import BookViewer
+from ifigure.utils.cbook import BuildMenu
+import ifigure.widgets.dialog as dialog
+import ifigure.events
 
 try:
     import petram.geom
@@ -30,7 +31,6 @@ def setup_figure(fig):
 ID_SOL_FOLDER = wx.NewId()
 
 from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
-
 #class MFEMViewerCanvas(ifigure_canvas):
 #    def unselect_all(self):    
 #        ifigure_canvas.unselect_all(self)
@@ -52,6 +52,7 @@ def MFEM_menus(parent):
              ("Rebuild", self.onRebuildNS, None),                 
              ("!", None, None),                 
              ("Edit Model...", self.onEditModel, None),
+             ("Selection Panel...", self.onSelectionPanel, None),             
              ("+Solve", None, None),
              ("Serial",    self.onSerDriver, None),        
              ("Parallel",  self.onParDriver, None),
@@ -119,6 +120,7 @@ class MFEMViewer(BookViewer):
         self._palette_focus = ''
         self.model = self.book.get_parent()
         self.editdlg = None
+        self.selection_palette = None        
         self.plotsoldlg = None
         self.plotexprdlg = None        
         self.engine = None
@@ -167,7 +169,11 @@ class MFEMViewer(BookViewer):
                                title='Error',
                                traceback=traceback.format_exc())
         self.plot_mfem_geom()        
-        self.model.scripts.helpers.rebuild_ns()                
+        self.model.scripts.helpers.rebuild_ns()
+
+        self.Bind(ifigure.events.TD_EVT_ARTIST_DRAGSELECTION,
+                  self.onTD_DragSelectionInFigure)
+       
         #self.engine.run_config()
 
         self.canvas._popup_style = 1 # popup_skip_2d
@@ -211,6 +217,8 @@ class MFEMViewer(BookViewer):
         
     def update_figure(self, view_mode, name, updateall = False):
         from petram.mesh.geo_plot import plot_geometry, oplot_meshed
+        from petram.mesh.geo_plot import hide_face_meshmode, hide_edge_meshmode
+        
         if self._is_mfem_geom_fig and view_mode == 'phys':
             self.onHideMesh()
         elif self._is_mfem_geom_fig and view_mode == 'mesh' and name == 'mfem':
@@ -226,7 +234,10 @@ class MFEMViewer(BookViewer):
                     ret = d[name]
                     plot_geometry(self,  ret)
                 else:
-                    assert False, 'Geometry figur data not found :'+ name
+                    print('Geometry figur data not found :'+ name)
+                    self.cls()
+                    return
+
             elif view_mode == 'mesh':
                 if name == 'mfem':
                     if not 'mfem' in self._figure_data['mesh']:
@@ -245,8 +256,12 @@ class MFEMViewer(BookViewer):
                         d = self._figure_data['geom']
                         plot_geometry(self,  d[name[1]])
                     if name[0] in d:
+                        print("calling oplot")
                         oplot_meshed(self,  d[name[0]])
-                        self._hidemesh = False                        
+                        self._hidemesh = False
+                    else:
+                        hide_face_meshmode(self, [])
+                        hide_edge_meshmode(self, [])
 
             elif view_mode == 'phys':
                 ret = self._figure_data['phys']
@@ -313,7 +328,7 @@ class MFEMViewer(BookViewer):
         #self.model.variables.setvar('engine', self.engine)
 
     def onOpenPMFEM(self, evt):
-        import cPickle as pickle        
+        import petram.helper.pickle_wrapper as pickle        
         from ifigure.mto.py_code import PyData
         from ifigure.mto.py_script import PyScript        
         
@@ -419,10 +434,22 @@ class MFEMViewer(BookViewer):
                 sel.extend(obj.getSelectedIndex())
                 oo.append(obj)
         return sel, oo
-    
+
+    def _getFigObjs(self, mode='face'):
+        objs = []
+        ax = self.get_axes()         
+        for name, obj in ax.get_children():
+            if name.startswith(mode):
+                objs.append(obj)
+        return objs
+   
+    def onTD_DragSelectionInFigure(self, evt):
+        #print("onTD_DragSelectionInFigure")
+        self.onTD_SelectionInFigure(evt)
+        
     def onTD_SelectionInFigure(self, evt = None):
-        #if len(self.canvas.selection) == 0:
-        #    self._dom_bdr_sel  = ([], [], [], [])                    
+        if len(self.canvas.selection) == 0:
+            self._dom_bdr_sel  = ([], [], [], [])                    
         #    return
 
         status_txt = ''
@@ -430,8 +457,9 @@ class MFEMViewer(BookViewer):
             self.set_status_text('', timeout = 600000)
             evt.selections = self.canvas.selection
             self.property_editor.onTD_Selection(evt)
-            return 
-            
+            return
+        
+        #print("canvas sel",  self.canvas.selection)
         _s_v_loop = self._s_v_loop[self._view_mode]
         sf, sv, se, sp = [], [], [], []
         if self._sel_mode == 'volume':
@@ -460,15 +488,21 @@ class MFEMViewer(BookViewer):
             for x in hidden:
                 if x in selected_volume: selected_volume.remove(x)
 
+            status_txt = 'Volume :'+ ','.join([str(x) for x in selected_volume])
+                
             surf_idx = []
             for kk in selected_volume:
                 surf_idx.extend(sl[kk])
             surf_idx = list(set(surf_idx))
+            
+            objs = self._getFigObjs(mode='face')
 
-            status_txt = 'Volume :'+ ','.join([str(x) for x in selected_volume])
             for o in objs:
                 o.setSelectedIndex(surf_idx)
-                sv = selected_volume
+                if len(self.canvas.selection) > 0 and len(o._artists) > 0:
+                    self.canvas.add_selection(o._artists[0])
+            sv = selected_volume
+                
         elif self._sel_mode == 'face':
             idx, objs = self._getSelectedIndex(mode='face')
             status_txt = 'Face: '+ ','.join([str(x) for x in idx])  
@@ -688,7 +722,8 @@ class MFEMViewer(BookViewer):
                         print('Volume: ' + str(key) + " not found")                         
                 faces_idx = list(set(faces))
                 obj.setSelectedIndex(faces)
-                self.canvas.add_selection(obj._artists[0])
+                if len(obj._artists) > 0:                                                
+                    self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])                
         self.canvas.refresh_hl()
@@ -710,7 +745,8 @@ class MFEMViewer(BookViewer):
             if len(i) > 0:                                          
                 obj.setSelectedIndex(i)
                 #print("add_selection", obj, obj._artists[0])
-                self.canvas.add_selection(obj._artists[0])
+                if len(obj._artists) > 0:                                
+                    self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
         wx.CallAfter(self.canvas.refresh_hl)
@@ -731,7 +767,8 @@ class MFEMViewer(BookViewer):
             if not name.startswith('edge'):continue
             if len(i) > 0:                                          
                 obj.setSelectedIndex(i)
-                self.canvas.add_selection(obj._artists[0])
+                if len(obj._artists) > 0:                
+                   self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
         self.canvas.refresh_hl()
@@ -752,7 +789,8 @@ class MFEMViewer(BookViewer):
             if not name.startswith('point'):continue
             if len(i) > 0:                                          
                 obj.setSelectedIndex(i)
-                self.canvas.add_selection(obj._artists[0])
+                if len(obj._artists) > 0:
+                    self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
         self.canvas.refresh_hl()
@@ -780,7 +818,7 @@ class MFEMViewer(BookViewer):
             
         
     def onEditModel(self, evt):
-        from pi.dlg_edit_model import DlgEditModel
+        from petram.pi.dlg_edit_model import DlgEditModel
         try:
            self.engine.assign_phys_pp_sel_index()            
            self.engine.assign_sel_index()
@@ -795,7 +833,13 @@ class MFEMViewer(BookViewer):
             self.editdlg.Show()
         self.editdlg.Raise()            
 
-
+    def onSelectionPanel(self, evt): 
+        from petram.pi.selection_palette import SelectionPalette
+        if self.selection_palette is None:
+            self.selection_palette= SelectionPalette(self, wx.ID_ANY, 'Selection')
+            self.selection_palette.Show()
+        self.selection_palette.Raise()
+        
     def onSaveModel(self, evt):
         from ifigure.widgets.dialog import write
         from petram.mesh.mesh_model import MeshFile
@@ -864,8 +908,18 @@ class MFEMViewer(BookViewer):
            menus.append(("Show Mesh",  self.onShowMesh, None))
         else:
            menus.append(("Hide Mesh",  self.onHideMesh, None))
-           
 
+        selmode = self.get_sel_mode() 
+
+        menus.append(("Copy " + selmode + " selection", self.onCopySelection1, None))
+        if self._view_mode == 'geom':        
+             menus.append(("Copy " + selmode + " selection with prefix", self.onCopySelection2, None))        
+
+        #if len(self.canvas.selection) > 0:
+        #    if self._view_mode == 'mesh':
+        #        menus.append(("Show meshed " + selmode, self.onShowMeshedEntity, None))                
+        #        menus.append(("Hide meshed " + selmode, self.onHideMeshedEntity, None))
+            
         if self.editdlg is not None and self._palette_focus == 'edit':
             check, kind, cidxs, labels = self.editdlg.isSelectionPanelOpen()
             if check:
@@ -924,10 +978,52 @@ class MFEMViewer(BookViewer):
                     menus.append(("Remove from plot " + kind + " selection", onRmPlotSel,
                                   None))
                 menus.append(("Set to plot " + kind + " selection", onSetPlotSel, None))
+        elif self.selection_palette is not None and self._palette_focus == 'selection':
+            pass
+        else:
+            pass
         menus.extend([("!", None, None),
                       ("---", None, None),])
         return menus
 
+    def _on_cp_selection1(self, use_prefix=False):
+
+        kind = self.get_sel_mode()
+        if kind == 'volume':
+            idx = self._dom_bdr_sel[0]
+            prefix = 'v'
+            
+        elif kind == 'face':
+            idx = self._dom_bdr_sel[1]
+            prefix = 'f'
+            
+        elif kind == 'edge':
+            idx = self._dom_bdr_sel[2]
+            prefix = 'e'
+            
+        elif kind == 'point':
+            idx = self._dom_bdr_sel[3]
+            prefix = 'p'
+            
+        else:
+            pass
+
+        prefix = prefix if use_prefix else ''
+        
+        return ", ".join([prefix + str(x) for x in idx])
+    
+    def onCopySelection1(self, evt):
+        txt = self._on_cp_selection1(use_prefix=False)
+        if wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(wx.TextDataObject(txt))
+            wx.TheClipboard.Close()
+        
+    def onCopySelection2(self, evt):
+        txt = self._on_cp_selection1(use_prefix=True)        
+        if wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(wx.TextDataObject(txt))
+            wx.TheClipboard.Close()
+        
     def onAddSelection(self, evt, flag=0):
         check, kind, cidx, labels= self.editdlg.isSelectionPanelOpen()
         if check:
@@ -1314,7 +1410,7 @@ class MFEMViewer(BookViewer):
         setting = get_job_submisson_setting(self, 'using '+remote['name'],
                                             value = values,
                                             queues = q)
-        if len(setting.keys()) == 0: return
+        if len(setting) == 0: return
         
         for k in setting.keys(): remote[k] = setting[k]
         if self.model.param.eval('sol') is None:

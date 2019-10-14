@@ -1,3 +1,4 @@
+from __future__ import print_function
 '''
 Utility class to handle BlockMatrix made from scipy-sparse and
 Hypre with the same interface
@@ -286,9 +287,9 @@ class ScipyCoo(coo_matrix):
         '''
     def copy_element(self, tdof, m):
         mlil = m.tolil()
-        value= mlil[tdof, 0]
+        value= mlil[tdof, 0].toarray()
         slil = self.tolil()
-        slil[tdof, 0] = value
+        slil[tdof, :1] = value
         coo = slil.tocoo()
         self.data = coo.data
         self.row = coo.row
@@ -445,12 +446,13 @@ class BlockMatrix(object):
         for i in range(self.shape[0]):
             for j in range(self.shape[1]):
                 if self[i, j] is not None:               
-                    print i, j, self[i,j].GetRowPartArray()
+                    print(i, j, self[i,j].GetRowPartArray())
+                    
     def print_col_part(self):
         for i in range(self.shape[0]):
             for j in range(self.shape[1]):
                 if self[i, j] is not None:               
-                    print i, j, self[i,j].GetColPartArray()
+                    print(i, j, self[i,j].GetColPartArray())
 
     def save_to_file(self, file):
         for i in range(self.shape[0]):
@@ -528,7 +530,7 @@ class BlockMatrix(object):
         for i in range(self.shape[0]):
            for j in range(self.shape[1]):
                if self[i, j] is None: continue
-               if id(self[i,j]) in ids: print i, j, "shared"
+               if id(self[i,j]) in ids: print(i, j, "shared")
         
     def eliminate_empty_rowcol(self):
         '''
@@ -652,6 +654,9 @@ class BlockMatrix(object):
         of ref 
         '''
         if self.kind == 'scipy':
+            #print("here", type(self[i,j]))
+            #if isinstance(self[i,j], ScipyCoo):
+            #   print("here", self[i,j].shape, self[i,j])
             self[i, j] = v.reshape(-1,1)
         else:
             from mpi4py import MPI
@@ -1094,13 +1099,12 @@ class BlockMatrix(object):
                             gcsr =  self[i,j]
                             cp = self[i,j].GetColPartArray()
                             rp = self[i,j].GetRowPartArray()
-
+                            rsize_local =rp[1] - rp[0]
  
                             if jfirst:                            
                                 csize_local =cp[1] - cp[0]
                                 csize = allgather(csize_local)
                                 cstarts = np.hstack([0, np.cumsum(csize)])
-                                rsize_local =rp[1] - rp[0]                                
                                 jfirst = False                                
                             s = self[i,j].shape
                             #if (cp == rp).all() and s[0] == s[1]:

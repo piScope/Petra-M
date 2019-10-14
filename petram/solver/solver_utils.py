@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 import scipy
 import scipy.sparse.linalg
@@ -14,7 +16,7 @@ def null(a, rtol=1e-5):
 def nulls(a, rtol=1e-5):
     d = min(a.shape)-1
     u, s, v = scipy.sparse.linalg.svds(a, k=d)
-    print v.shape
+    print(v.shape)
     null_space = v.conj().ravel()
     rank = (s > rtol*s[0]).sum()    
     return s, rank, null_space
@@ -23,10 +25,10 @@ def nulls2(a, rtol=1e-12):
     from sparsesvd import sparsesvd
     smat = scipy.sparse.csc_matrix(a)
     ut, s, vt = sparsesvd(smat, np.min(a.shape))
-    print vt.shape
+    print(vt.shape)
     padding = max(0,max(np.shape(a))-np.shape(s)[0])
     null_mask = np.concatenate(((s <= rtol), np.ones((padding,),dtype=bool)),axis=0)
-    print null_mask.shape
+    print(null_mask.shape)
     null_space = scipy.compress(null_mask, vt, axis=0)
     rank = (s > rtol*s[0]).sum()
     return s, rank, scipy.transpose(null_space)
@@ -89,7 +91,6 @@ def gather_vector(fespace, A, data,  mpi_data_type, assemble=False ):
     MPI.COMM_WORLD.Barrier()           
     MPI.COMM_WORLD.Gatherv(senddata, recvdata,  root = 0)
     if myid == 0:
-        #print 'collected'
         MPI.COMM_WORLD.Barrier()
         return np.array(recvbuf)
     MPI.COMM_WORLD.Barrier()

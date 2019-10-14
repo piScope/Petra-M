@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 import scipy
 
@@ -257,9 +259,9 @@ def find_dof_map_nd(idx1, idx2, transu, transv, transu2, transv2,
                   subvdof2[k] = fes.GetMyTDofOffset()+ x                  
                else:
                   if debug:
-                     print 'not own'
+                     print('not own')
                      flag = True
-           if flag: print subvdof1, vdof1, subvdof2
+           if flag: print(subvdof1, vdof1, subvdof2)
 
              ## note subdof1 = -1 if it is not owned by the node
        else:
@@ -357,13 +359,13 @@ def find_dof_map_nd(idx1, idx2, transu, transv, transu2, transv2,
           if ( myid == 1): 
              dprint3("checking ptall ", myid)
              for k, x in enumerate(pt1all):
-                print x, k1all[k], sh1all[k]
+                print(x, k1all[k], sh1all[k])
       for i in range(num_proc):
           MPI.COMM_WORLD.Barrier()      
           if ( myid == i): 
              dprint3("checking ptall2 ", myid)
              for k, x in enumerate(pt2all):
-                 print x, k2all[k], sh2all[k]             
+                 print(x, k2all[k], sh2all[k])             
 
    #print 'k1all', k1all.shape
    #print 'sh1all', sh1all.shape
@@ -383,7 +385,7 @@ def find_dof_map_nd(idx1, idx2, transu, transv, transu2, transv2,
       if ( myid == 1 ):
          dprint3("checking pt2all ", myid)
          for k, x in enumerate(pt2all):
-              print x, k2all[k], sh2all[k]
+              print(x, k2all[k], sh2all[k])
       MPI.COMM_WORLD.Barrier()                   
    #print 'k2all', k2all.shape
    #print 'sh2all', sh2all.shape

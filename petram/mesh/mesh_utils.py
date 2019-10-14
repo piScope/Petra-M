@@ -24,7 +24,7 @@ def distribute_shared_entity(pmesh):
     master_entry = []
     local_data = {}
     master_data = {}
-        
+    MFEM3 = hasattr(pmesh, 'GroupFace')
     offset_v = np.hstack([0, np.cumsum(allgather(pmesh.GetNV()))])    
     offset_e = np.hstack([0, np.cumsum(allgather(pmesh.GetNEdges()))])
     offset_f = np.hstack([0, np.cumsum(allgather(pmesh.GetNFaces()))])
@@ -40,6 +40,14 @@ def distribute_shared_entity(pmesh):
         face = intp(); o = intp()
         pmesh.GroupFace(j, iv, face, o)
         return face.value()
+    def GroupTriangle(j, iv):
+        face = intp(); o = intp()
+        pmesh.GroupTriangle(j, iv, face, o)
+        return face.value()
+    def GroupQuadrilateral(j, iv):
+        face = intp(); o = intp()
+        pmesh.GroupQuadrilateral(j, iv, face, o)
+        return face.value()
      
     for j in range(ng):
         if j == 0: continue
@@ -47,21 +55,32 @@ def distribute_shared_entity(pmesh):
         sv = np.array([pmesh.GroupVertex(j, iv) for iv in range(nv)])
         ne = pmesh.GroupNEdges(j)
         se = np.array([GroupEdge(j, iv) for iv in range(ne)])
-        nf = pmesh.GroupNFaces(j)
-        sf = np.array([GroupFace(j, iv) for iv in range(nf)])
+        
+        if MFEM3:        
+            nf = pmesh.GroupNFaces(j)
+            sf = np.array([GroupFace(j, iv) for iv in range(nf)])
+        else:
+            nt = pmesh.GroupNTriangles(j)
+            nq = pmesh.GroupNQuadrilaterals(j)
+            sf = np.array([GroupTriangle(j, iv) for iv in range(nt)] +
+                          [GroupQuadrilateral(j, iv) for iv in range(nq)])
 
         data = (sv + offset_v[myid],
                 se + offset_e[myid],
                 sf + offset_f[myid])
+            
+            
         local_data[(pmesh.gtopo.GetGroupMasterRank(j),
                     pmesh.gtopo.GetGroupMasterGroup(j))] = data
 
         if pmesh.gtopo.IAmMaster(j):
             master_entry.append((myid, j,))
+            '''
             mv = sv + offset_v[myid]
             me = se + offset_e[myid]
             mf = sf + offset_f[myid]
             data = (mv, me, mf)
+            '''
         else:
             data = None
         master_data[(pmesh.gtopo.GetGroupMasterRank(j),
@@ -257,7 +276,7 @@ def find_edge_corner(mesh):
     bb_edges.default_factory = None
 
     # sort keys (= attribute set) 
-    keys = bb_edges.keys()
+    keys = list(bb_edges)
     if use_parallel:
         keys = comm.gather(keys)
         if myid == 0: keys = sum(keys, [])        
@@ -317,7 +336,7 @@ def find_edge_corner(mesh):
             seen[iiv] += 1
         corners[key] = [kk for kk in seen if seen[kk]==1]
 
-    if len(corners.keys()) == 0:
+    if len(corners) == 0:
        u = np.atleast_1d([]).astype(int)
     else:
        u = np.unique(np.hstack([corners[key]
@@ -419,7 +438,7 @@ def find_edge_corner(mesh):
             data = data[idx]
             bb_edges[attr_set] = list(data - myoffset)
 
-        attrs = edges.keys()            
+        attrs = list(edges)
         attrsa = np.unique(sum(allgather(attrs), []))
 
         for a in attrsa:
@@ -719,7 +738,7 @@ def populate_plotdata(mesh, table, cells, cell_data):
 
     kedge = []
 
-    if len(l2e.keys()) > 0:
+    if len(l2e) > 0:
         kedge = np.array(sum([[key]*len(l2e[key]) for key in l2e], [])).astype(int)
         iverts = np.vstack([mesh.GetEdgeVertices(ie)
                         for key in l2e for ie in l2e[key]])

@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import numpy as np
 
@@ -566,17 +568,17 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
         A, BB = get_A_BB(0, self.sol1)
         solall = self.linearsolver[self._time_step1].Mult(BB)
         sol1 = A.reformat_central_mat(solall, 0)
-        print "check sample1 (0)", [p.current_value(sol1) for p in self.probe]
+        print("check sample1 (0)", [p.current_value(sol1) for p in self.probe])
         
         A, BB = get_A_BB(1, self.sol2)
         solall2 = self.linearsolver[self._time_step2].Mult(BB)
         sol2 = A.reformat_central_mat(solall2, 0)
-        print "check sample2 (1)", [p.current_value(sol2) for p in self.probe]
+        print("check sample2 (1)", [p.current_value(sol2) for p in self.probe])
         
         A, BB = get_A_BB(1, sol2, recompute_rhs=True)
         solall2 = self.linearsolver[self._time_step2].Mult(BB)
         sol2 = A.reformat_central_mat(solall2, 0)
-        print "check sample2 (1)", [p.current_value(sol2) for p in self.probe]        
+        print("check sample2 (1)", [p.current_value(sol2) for p in self.probe])
 
         sample1 = np.hstack([p.current_value(sol1) for p in self.probe]).flatten()
         sample2 = np.hstack([p.current_value(sol2) for p in self.probe]).flatten()

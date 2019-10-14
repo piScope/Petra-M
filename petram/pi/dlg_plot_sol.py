@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import sys
 import wx
@@ -5,7 +7,7 @@ import traceback
 import numpy as np
 import weakref
 import subprocess as sp
-import cPickle as pk
+import petram.helper.pickle_wrapper as pk
 import binascii
 from collections import defaultdict
 from weakref import WeakKeyDictionary as WKD
@@ -38,14 +40,13 @@ def setup_figure(fig, fig2):
     fig.zlim(zlim)
 
 def read_solinfo_remote(user, server, path):
-    #path = "/home/shiraiwa/myscratch/mfem_batch/pancake_10_2018v4_small_scale_0_2"    
-    txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
-
+    #txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
+    txt = "source $PetraM/etc/load_modules.sh;python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print(gather_soldirinfo_s('"+path+"').decode('utf-8'))\""
     command = ["ssh", user+'@'+server, txt]
-    print(command)
+    #print(command)
     p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
     p.wait()
-    res = p.stdout.readlines()
+    res = [x.decode('utf-8') for x in p.stdout.readlines()]
     res = res[-1].strip()
     res = pk.loads(binascii.a2b_hex(res))
     return res
@@ -169,7 +170,7 @@ class DlgPlotSol(SimpleFramePlus):
             vbox = wx.BoxSizer(wx.VERTICAL)
             p.SetSizer(vbox)
             
-            choices = mfem_model['Phys'].keys()
+            choices = list(mfem_model['Phys'])
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices)==0: choices = ['no physcs in mode']
@@ -203,7 +204,7 @@ class DlgPlotSol(SimpleFramePlus):
             vbox = wx.BoxSizer(wx.VERTICAL)
             p.SetSizer(vbox)
             
-            choices = mfem_model['Phys'].keys()
+            choices = list(mfem_model['Phys'])
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices)==0: choices = ['no physcs in model']
@@ -231,7 +232,7 @@ class DlgPlotSol(SimpleFramePlus):
             vbox = wx.BoxSizer(wx.VERTICAL)
             p.SetSizer(vbox)
             
-            choices = mfem_model['Phys'].keys()
+            choices = list(mfem_model['Phys'])
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices)==0: choices = ['no physcs in model']
@@ -271,7 +272,7 @@ class DlgPlotSol(SimpleFramePlus):
             vbox = wx.BoxSizer(wx.VERTICAL)
             p.SetSizer(vbox)
             
-            choices = mfem_model['Phys'].keys()
+            choices = list(mfem_model['Phys'])
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices)==0: choices = ['no physcs in model']
@@ -312,7 +313,7 @@ class DlgPlotSol(SimpleFramePlus):
             vbox = wx.BoxSizer(wx.VERTICAL)
             p.SetSizer(vbox)
             
-            choices = mfem_model['Phys'].keys()
+            choices = list(mfem_model['Phys'])
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices)==0: choices = ['no physcs in model']
@@ -346,7 +347,7 @@ class DlgPlotSol(SimpleFramePlus):
             vbox = wx.BoxSizer(wx.VERTICAL)
             p.SetSizer(vbox)
             
-            choices = mfem_model['Phys'].keys()
+            choices = list(mfem_model['Phys'])
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices)==0: choices = ['no physcs in model']
@@ -377,7 +378,7 @@ class DlgPlotSol(SimpleFramePlus):
             vbox = wx.BoxSizer(wx.VERTICAL)
             p.SetSizer(vbox)
             
-            choices = mfem_model['Phys'].keys()
+            choices = list(mfem_model['Phys'])
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
             if len(choices)==0: choices = ['no physcs in model']
 
@@ -481,9 +482,9 @@ class DlgPlotSol(SimpleFramePlus):
         
         dirnames = [""]
         choices = [""]
-        solvers = info["checkpoint"].keys()
+        solvers = list(info["checkpoint"])
         for solver in solvers:
-            kk = sorted(info["checkpoint"][solver].keys())
+            kk = sorted(list(info["checkpoint"][solver]))
             for k in kk:
                 dirnames.append(info["checkpoint"][solver][k])
                 choices.append(solver+"("+str(k[1]) + ")")
@@ -561,9 +562,9 @@ class DlgPlotSol(SimpleFramePlus):
 
         dirnames = [""]
         choices = [""]
-        solvers = info["checkpoint"].keys()
+        solvers = list(info["checkpoint"])
         for solver in solvers:
-            kk = sorted(info["checkpoint"][solver].keys())
+            kk = sorted(list(info["checkpoint"][solver]))
             for k in kk:
                 dirnames.append(info["checkpoint"][solver][k])
                 choices.append(solver+"("+str(k[1]) + ")")
@@ -653,7 +654,11 @@ class DlgPlotSol(SimpleFramePlus):
                 self.local_solsubdir = ""
             else:
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
-            if os.path.normpath(npath) != os.path.normpath(cpath): doit =True
+            if os.path.normpath(npath) != os.path.normpath(cpath):
+                doit =True
+            else:
+                mfem_model = model.param.getvar('mfem_model')
+                mfem_model.local_sol_path = npath
         else:
             doit = True
             if self.local_soldir is not None:
@@ -669,7 +674,7 @@ class DlgPlotSol(SimpleFramePlus):
                 self.local_solsubdir = ""
         if doit:
             try:
-                print "reading sol from ", npath
+                print("reading sol from ", npath)
                 solfiles = find_solfiles(path = npath)
                 if solfiles is None:
                     if model.variables.hasvar('solfiles'):
@@ -692,8 +697,7 @@ class DlgPlotSol(SimpleFramePlus):
         
         model = self.GetParent().model
         v  = self.elps['Config'].GetValue()
-        #print str(v[0][0])
-        print v
+
         if str(v[0][0]) == 'Single':
             if (self.config['use_mp'] or
                 self.config['use_cs']):
@@ -1552,7 +1556,7 @@ class DlgPlotSol(SimpleFramePlus):
         
         battrs = str(battrs).strip()
         if battrs.lower() == 'all':
-            battrs = mesh.extended_connectivity['line2vert'].keys()
+            battrs = list(mesh.extended_connectivity['line2vert'])
         else:
             try:
                battrs = list(np.atleast_1d(eval(battrs, ll, phys_ns)))
@@ -1629,7 +1633,7 @@ class DlgPlotSol(SimpleFramePlus):
         ll = {'FaceOf': FaceOf, 'EdgeOf': EdgeOf, 'PointOf':PointOf}
         
         if battrs == 'all':
-            battrs = mesh.extended_connectivity['surf2line'].keys()
+            battrs = list(mesh.extended_connectivity['surf2line'])
         elif battrs == 'visible':
             m = self.GetParent()
             battrs = []
@@ -1738,7 +1742,7 @@ class DlgPlotSol(SimpleFramePlus):
                 traceback.print_exc()
                 assert False, "Failed to evaluate attrs " + attrs
         else:
-            attrs = mesh.extended_connectivity['vol2surf'].keys()            
+            attrs = list(mesh.extended_connectivity['vol2surf'])
            #attrs = [x+1 for x in range(mesh.attributes.Size())]
            
         if 'Slice' in self.evaluators:

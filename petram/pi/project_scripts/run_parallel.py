@@ -42,10 +42,10 @@ def run_parallel(path='', nproc = 1, debug=0, thread=True):
         
     print(path)
     import petram
-    from petram.helper.driver_path import parallel as driver
+    #from petram.helper.driver_path import parallel as driver
 
     #args = ['mpirun', '-n', str(nproc), driver, str(path),  str(debug)]
-    args = ['mpirun', '-n', str(nproc), sys.executable,
+    args = ['mpirun', '-n', str(nproc), sys.executable, '-u',
             'model.py', '-p', '-d',  str(debug)]
     os.chdir(folder.owndir())    
     p = sp.Popen(args, stdout=sp.PIPE, stderr=sp.STDOUT)
@@ -63,8 +63,11 @@ def run_parallel(path='', nproc = 1, debug=0, thread=True):
                if not t.is_alive(): break
                time.sleep(1.0)
                pass #print('no output yet')
-           else: 
-               print(line.rstrip('\r\n'))
+           else:
+               if isinstance(line, bytes):
+                   line = line.decode('utf-8')
+                   line = '\n'.join([x for x in line.split('\n') if len(x) > 0])
+               print(line)
     else:
         stdoutdata, stderrdata = p.communicate()
         print(stdoutdata)

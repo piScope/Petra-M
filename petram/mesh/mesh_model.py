@@ -50,7 +50,11 @@ class MeshGroup(Model):
     has_2nd_panel = False
     isMeshGroup = True    
     def get_possible_child(self):
-        return [MeshFile, Mesh1D, UniformRefinement, DomainRefinement]
+        try:
+           from petram.mesh.pumimesh_model import PumiMesh
+           return [MeshFile, PumiMesh, Mesh1D, UniformRefinement, DomainRefinement]
+        except:
+           return [MeshFile, Mesh1D, UniformRefinement, DomainRefinement]
      
     def onItemSelChanged(self, evt):
         '''
@@ -128,7 +132,8 @@ class MeshFile(Mesh):
         return v
         
     def panel1_param(self):
-        return [["Path",   self.path,  200, {}],
+        wc = "ANY|*|MFEM|*.mesh|GMSH|*.gmsh"       
+        return [["Path",   self.path,  45, {'wildcard':wc}],
                 ["", "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir."  ,2, None],
                 ["Generate edges",    self.generate_edges == 1,  3, {"text":""}],
                 ["Refine",    self.refine==1 ,  3, {"text":""}],

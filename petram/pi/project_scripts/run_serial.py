@@ -47,12 +47,12 @@ def run_serial(path='', debug=0, thread =  True):
         del_path = True
 
     import petram
-    from petram.helper.driver_path import serial as driver
+    #from petram.helper.driver_path import serial as driver
 
     #This is to test driver locally
     #args = [driver, str(path), str(debug)]
     os.chdir(folder.owndir())
-    args = [sys.executable, 'model.py', '-s', '-d', str(debug)]    
+    args = [sys.executable, '-u', 'model.py', '-s', '-d', str(debug)]    
     p = sp.Popen(args, stdout=sp.PIPE, stderr=sp.STDOUT)
 
     line = ''
@@ -69,7 +69,10 @@ def run_serial(path='', debug=0, thread =  True):
                time.sleep(1.0)
                pass #print('no output yet')
            else: 
-               print(line.rstrip('\r\n'))
+               if isinstance(line, bytes):
+                   line = line.decode('utf-8')
+                   line = '\n'.join([x for x in line.split('\n') if len(x) > 0])                   
+               print(line)
            if line == 'process terminated':break
     else:
         stdoutdata, stderrdata = p.communicate()

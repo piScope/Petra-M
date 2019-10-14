@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import sys
 import time
@@ -6,7 +8,7 @@ import parser
 import weakref
 import traceback
 import subprocess as sp
-import cPickle
+import petram.helper.pickle_wrapper as pickle
 import binascii
 try:
    import bz2  as bzlib
@@ -25,7 +27,6 @@ import multiprocessing as mp
 from petram.sol.evaluators import Evaluator, EvaluatorCommon
 from petram.sol.evaluator_mp import EvaluatorMPChild, EvaluatorMP
 
-import thread
 from threading import Timer, Thread
 try:
     from Queue import Queue, Empty
@@ -51,6 +52,7 @@ def enqueue_output2(p, queue, prompt):
     # this assumes recievein two data (size and data)
     while True:
         line = p.stdout.readline()
+        #line = line.decode('utf-8')
         if len(line) == 0:
             time.sleep(wait_time)
             continue
@@ -67,12 +69,13 @@ def enqueue_output2(p, queue, prompt):
                 ### Error string from C++ layer may show up here!?
                 print("Unexpected text received", line)   
     line2 = p.stdout.read(size+1)
-    line2 = binascii.a2b_hex(line2[:-1])
+    line2 = binascii.a2b_hex(line2[:-1].encode())
     if use_zlib:
         line2 = bzlib.decompress(line2)
     queue.put(line2)
     while True:
         line = p.stdout.readline()
+        #line = line.decode('utf-8')        
         if len(line) == 0:
             time.sleep(wait_time)
             continue
@@ -114,6 +117,7 @@ def run_and_wait_for_prompt(p, prompt, verbose=True, withsize=False):
     return lines[:-1], alive
 
 def run_with_timeout(timeout, default, f, *args, **kwargs):
+    import thread   
     if not timeout:
         return f(*args, **kwargs)
     try:
@@ -134,12 +138,13 @@ def wait_for_prompt(p, prompt = '?', verbose = True, withsize=False):
 def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
     if user != '': user = user+'@'
     p= sp.Popen("ssh " + user + host + " 'printf $PetraM'", shell=True,
-                stdout=sp.PIPE)
+                stdout=sp.PIPE,
+                universal_newlines = True)    
     ans = p.stdout.readlines()[0].strip()
-    command = ans+'/bin/evalsvr'
+    command = "source $PetraM/etc/load_modules.sh;"+ans+'/bin/evalsvr'
     if soldir != '':
         command = 'cd ' + soldir + ';' + command
-    print command
+    print(command)
     p = sp.Popen(['ssh', user + host, command], stdin = sp.PIPE,
                  stdout=sp.PIPE, stderr=sp.STDOUT,
                  close_fds = ON_POSIX,
@@ -150,7 +155,10 @@ def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
        p.evalsvr_protocol = int(data[-1].split(':')[-1])
     else:
        p.evalsvr_protocol = 1
-    p.stdin.write(str(num_proc)+'\n')
+    print("protcoal",  p.evalsvr_protocol)
+    txt = str(num_proc)+'\n'
+    p.stdin.write(txt)
+    p.stdin.flush()
     out, alive = wait_for_prompt(p)
     return p
 
@@ -225,10 +233,11 @@ class EvaluatorClient(Evaluator):
         force_protocol1 = kparams.pop("force_protocol1", False)
         
         command = [name, params, kparams]
-        data = binascii.b2a_hex(cPickle.dumps(command))
+        data = binascii.b2a_hex(pickle.dumps(command))
         print("Sending request", command)
-        self.p.stdin.write(data + '\n')
-
+        self.p.stdin.write(data.decode('utf-8') + '\n')
+        self.p.stdin.flush()
+        
         protocol = 1 if force_protocol1 else self.p.evalsvr_protocol 
         output, alive = wait_for_prompt(self.p,
                                         verbose = verbose,
@@ -241,7 +250,7 @@ class EvaluatorClient(Evaluator):
         else:
             response = binascii.a2b_hex(output[-1].strip())
         try:
-            result = cPickle.loads(response)
+            result = pickle.loads(response)
             if verbose:
                 print("result", result)
         except:

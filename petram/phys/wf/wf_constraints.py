@@ -50,9 +50,11 @@ class WF_common(object):
                                           default ="0.0", tip = "initial value",
                                           chkbox = True)) for n in names]
         self._vt3 = Vtable(data)
-        self.update_attribute_set()
+        v = {}
+        self._vt3.attribute_set(v)
+        self.do_update_attribute_set(v)
         return self._vt3
-    
+     
     def get_init_coeff(self, engine, real=True, kfes=0):
         names = self.get_root_phys().dep_vars_base
         
@@ -93,7 +95,7 @@ class WF_WeakDomainBilinConstraint(WF_common, Domain, WeakBilinIntegration):
         
     def attribute_set(self, v):
         Domain.attribute_set(self, v)
-        WeakBilinIntegration.attribute_set(self, v)         
+        WeakBilinIntegration.attribute_set(self, v)
         v['sel_readonly'] = False
         v['sel_index'] = []
         return v

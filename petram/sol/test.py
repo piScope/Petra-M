@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import numpy as np
 import parser
 import weakref
@@ -60,7 +62,7 @@ def pg(self, attrs, plane = None):
 
     # then get unique set of elements relating to the verts.
     if num_tri == 0:
-        print "not found"
+        print("not found")
         return 
     vert2el = mesh.GetVertexToElementTable()
            

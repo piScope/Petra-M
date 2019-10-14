@@ -6,6 +6,7 @@ data = [("init_value", VtableElement("init_value", type='array',
          guilabel = "expression", default = 0.0, tip = "expression",))]
 
 class InitSetting(Model, Vtable_mixin):
+    can_rename = True    
     has_2nd_panel = False
     vt_coeff = Vtable(data)
 

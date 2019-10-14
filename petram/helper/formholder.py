@@ -135,7 +135,7 @@ class FormBlock(object):
 
     def get_projections(self, r, c):
         if self.block[r][c] is None: return []
-        return self.block[r][c].keys()
+        return list(self.block[r][c])
         
     def get_matvec(self, r, c=0, p=1):
         return self.block[r][c][p][1]

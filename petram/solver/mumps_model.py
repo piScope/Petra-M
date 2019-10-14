@@ -1,4 +1,3 @@
-from .solver_model import LinearSolverModel, LinearSolver
 import numpy as np
 import scipy
 import weakref
@@ -7,6 +6,8 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MUMPSModel')
 
 from petram.helper.matrix_file import write_matrix, write_vector, write_coo_matrix
+
+from .solver_model import LinearSolverModel, LinearSolver
 
 class MUMPS(LinearSolverModel):
     has_2nd_panel = False
@@ -33,12 +34,12 @@ class MUMPS(LinearSolverModel):
                 ["WS Size (ICNTL23)",  self.icntl23,   400, {}],]        
     
     def get_panel1_value(self):
-        return (long(self.log_level), self.ordering, self.out_of_core,
+        return (int(self.log_level), self.ordering, self.out_of_core,
                 self.error_ana, self.write_mat, #self.central_mat,
                 self.use_blr, self.blr_drop, self.icntl14, self.icntl23)
     
     def import_panel1_value(self, v):
-        self.log_level = long(v[0])
+        self.log_level = int(v[0])
         self.ordering = str(v[1])
         self.out_of_core = v[2]
         self.error_ana = v[3]                
@@ -70,6 +71,10 @@ class MUMPS(LinearSolverModel):
         v['icntl14'] = 20
         v['icntl23'] = 0
         v['use_single_precision'] = False
+
+        # this flag needs to be set, so that destcuctor works when model tree is loaded from 
+        # pickled file
+        v['s'] = None
         return v
     
     def linear_system_type(self, assemble_real, phys_real):
@@ -129,7 +134,7 @@ class MUMPS(LinearSolverModel):
         
         if myid == 0:        
            s = solall.shape[0]
-           solall = solall[:s/2,:] + 1j*solall[s/2:,:]
+           solall = solall[:s//2,:] + 1j*solall[s//2:,:]
            return solall
        
     def __del__(self):
@@ -501,7 +506,7 @@ class MUMPSPreconditioner(mfem.PyOperator):
         if self.is_complex_operator:
             vec = x.GetDataArray()
             ll = vec.size
-            vec = vec[:ll/2] + 1j*vec[ll/2:]
+            vec = vec[:ll//2] + 1j*vec[ll//2:]
         else:
             vec = x.GetDataArray()
 

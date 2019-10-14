@@ -46,7 +46,7 @@ def gather_soldirinfo(path):
     for key in probes:
         if len(probes[key]) > 1:
              xxx = [(int(x.split('.')[1]), x) for x in	probes[key]]
-      	     xxx = [x[1] for x in sorted(xxx)]
+             xxx = [x[1] for x in sorted(xxx)]
              probes[key] = xxx            
 
     probes = dict(probes)
@@ -108,8 +108,10 @@ def gather_soldirinfo_s(path):
     except:
         import traceback
         result = (False, traceback.format_exc())
+        
+    import petram.helper.pickle_wrapper as pickle    
+    import binascii
     
-    import cPickle, binascii
-    data = binascii.b2a_hex(cPickle.dumps(result))
+    data = binascii.b2a_hex(pickle.dumps(result))
     
     return data
