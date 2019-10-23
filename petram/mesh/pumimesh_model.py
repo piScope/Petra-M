@@ -9,6 +9,7 @@ import pyCore
 import os
 from petram.mesh.mesh_model import Mesh
 from mfem._par import pumi
+from mfem.par import intArray
 
 is_licenses_initialized = False
 
@@ -121,6 +122,8 @@ class PumiMesh(Mesh):
         # import pyCore
 	pyCore.lion_set_verbosity(1)
 
+
+        from mpi4py import MPI
 	if not pyCore.PCU_Comm_Initialized():
 	  pyCore.PCU_Comm_Init()
 
@@ -135,11 +138,6 @@ class PumiMesh(Mesh):
 	pumi_mesh_path = mesh_path[0:-5] + ".smb"
 
 	pumi_mesh = pyCore.loadMdsMesh(model_path, pumi_mesh_path)
-	print("making sure pumi mesh is loaded properly")
-	print("num verts in the mesh is ", pumi_mesh.count(0))
-
-	# pyCore.gmi_sim_stop()
-        # pyCore.stop_sim()
 
 	self.root()._pumi_mesh = pumi_mesh # hack to be able to access pumi_mesh later!
 
@@ -148,9 +146,69 @@ class PumiMesh(Mesh):
 
             globals()['is_licenses_initialized'] = True
 
-	mesh = pumi.PumiMesh(pumi_mesh, 1, 1)
-	# self.parent.sdim = mesh.SpaceDimention()
+	# we need to have a numbering to be able to track changes
+	# in the orientations of tets caused by calling ReorientTet
+	# on MFEM meshes
+	# The numbering must be consistent with how the MFEM mesh
+	# is created from the PUMI mesh
+	# 1) make a local numbering
+	# 2) convert it to global
+	pumi_field_shape = pyCore.getConstant(0)
+	aux_numbering = pyCore.createNumbering(pumi_mesh, "aux_vertex_numbering", pumi_field_shape, 1)
 
+
+	it = pumi_mesh.begin(0)
+	all_count = 0
+	shared_count = 0
+	owned_count = 0
+	while True:
+	  ent = pumi_mesh.iterate(it)
+	  if not ent:
+	    break
+	  all_count = all_count + 1
+	  if pumi_mesh.isOwned(ent):
+	    pyCore.number(aux_numbering, ent, 0, 0, owned_count)
+	    owned_count = owned_count + 1
+	  if pumi_mesh.isShared(ent):
+	    shared_count = shared_count + 1
+	pumi_mesh.end(it)
+
+	global_numbering = pyCore.makeGlobal(aux_numbering, True)
+	pyCore.synchronize(global_numbering)
+
+	this_ids = intArray(all_count)
+        it = pumi_mesh.begin(0)
+        all_count = 0
+	while True:
+	  ent = pumi_mesh.iterate(it)
+	  if not ent:
+	    break
+	  idd = pyCore.getNumber(global_numbering, ent, 0, 0)
+	  this_ids[all_count] = idd
+	  all_count = all_count + 1
+	pumi_mesh.end(it)
+	this_ids.Sort()
+
+	pumi_coord_field = pumi_mesh.getCoordinateField()
+	pumi_field_shape = pyCore.getShape(pumi_coord_field)
+	local_numbering = pyCore.createNumbering(pumi_mesh, "local_vert_numbering", pumi_field_shape, 1)
+
+	it = pumi_mesh.begin(0)
+	while True:
+	  ent = pumi_mesh.iterate(it)
+	  if not ent:
+	    break
+	  idd = pyCore.getNumber(global_numbering, ent, 0, 0)
+	  ordered_idd = this_ids.FindSorted(idd)
+	  pyCore.number(local_numbering, ent, 0, 0, ordered_idd)
+	pumi_mesh.end(it)
+
+	pyCore.destroyGlobalNumbering(global_numbering)
+
+	# convert pumi_mesh to mfem mesh
+	mesh = pumi.ParPumiMesh(MPI.COMM_WORLD, pumi_mesh)
+
+    	# reverse classifications based on model tags
 	dim = pumi_mesh.getDimension()
 	it = pumi_mesh.begin(dim-1)
 	bdr_cnt = 0
@@ -178,7 +236,7 @@ class PumiMesh(Mesh):
 
 	mesh.SetAttributes();
 
-        # pyCore.PCU_Comm_Free()
+	self.root()._par_pumi_mesh = mesh # hack to be able to access par_pumi_mesh later!
 
 	try:
 	  mesh.GetNBE()
