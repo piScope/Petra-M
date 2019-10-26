@@ -19,6 +19,7 @@ else:
 import multiprocessing as mp
 from petram.sol.evaluators import Evaluator, EvaluatorCommon
 
+
 class EvaluatorSingle(EvaluatorCommon):
     '''
     define a thing which takes expression involving Vriables
@@ -27,7 +28,8 @@ class EvaluatorSingle(EvaluatorCommon):
     def __init__(self):
         self.mfem_model = None
         self.solfiles = None
-        self.solvars = WKD()
+        #self.solvars = WKD()
+        self.solvars = {}
         self.agents = {}
         self.physpath = ''
         self.init_done = False
@@ -35,6 +37,9 @@ class EvaluatorSingle(EvaluatorCommon):
         
     def set_solfiles(self, solfiles):
         self.solfiles = weakref.ref(solfiles)
+        # make sure solvars is empty and weakref does not go away.
+        self._soliles = solfiles
+        self.solvars = {}
         
     def set_phys_path(self, phys_path):
         self.phys_path = phys_path
@@ -55,11 +60,11 @@ class EvaluatorSingle(EvaluatorCommon):
         solvars = self.load_solfiles()
         self.make_agents(self._agent_params[0],
                          attr, **kwargs)
-        for key in six.iterkeys(self.agents):
+        
+        for key in list(self.agents):
             evaluators = self.agents[key]
             for o in evaluators:
                 o.preprocess_geometry([key], **kwargs)
-
         self.init_done = True
                 
     def eval(self, expr, merge_flag1, merge_flag2, **kwargs):
