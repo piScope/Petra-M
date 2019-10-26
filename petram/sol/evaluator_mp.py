@@ -70,7 +70,6 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         self.text_queue = text_queue        
         self.myid = myid
         self.rank = rank
-        self.solvars = WKD()        
         self.agents = {}
         self.logfile = logfile
         self.use_stringio = False
@@ -79,6 +78,9 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         self.use_profiler = False
 
     def run(self, *args, **kargs):
+        # this can not be in init, sicne it is not pickable
+        self.solvars = WKD()
+        
         if self.logfile == 'suppress':
             sys.stdout = open(os.devnull, 'w')
         elif self.logfile == 'queue':
