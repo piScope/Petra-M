@@ -51,6 +51,7 @@ class PostProcessBase(Model):
                self.sel_index = alle
     
 class PostProcess(PostProcessBase):
+    has_2nd_panel = False    
     def get_possible_child(self):
         from petram.postprocess.project_solution import DerivedValue
         from petram.postprocess.discrt_v_integration import LinearformIntegrator, BilinearformIntegrator 
