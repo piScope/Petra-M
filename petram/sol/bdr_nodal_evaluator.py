@@ -221,7 +221,7 @@ class BdrNodalEvaluator(EvaluatorAgent):
         if len(self.iverts) == 0: return
 
         data = process_iverts2nodals(mesh, iverts)
-        for k in six.iterkeys(data):
+        for k in list(data):
             setattr(self, k, data[k])
         self.emesh_idx = emesh_idx
         
