@@ -794,7 +794,7 @@ class MFEMViewer(BookViewer):
             else:
                 obj.setSelectedIndex([])
         self.canvas.refresh_hl()
-
+                
     def highlight_none(self):
         self.canvas.unselect_all()
         
@@ -803,7 +803,17 @@ class MFEMViewer(BookViewer):
             if hasattr(obj, 'setSelectedIndex'):
                  obj.setSelectedIndex([])
         self.canvas.refresh_hl()
-        
+
+    def change_panel_button(self, kind):
+        # kind = ('domain', 'face', 'edge', 'dot')
+        if self._view_mode == 'geom':
+            prefix='g'
+        elif self._view_mode == 'mesh':
+            prefix='m'
+        else:
+            prefix=''
+        self.canvas.toolbar.ClickP1Button(prefix+kind)                            
+    
     def onResetModel(self, evt):
         ans = dialog.message(self,
                              "Do you want to delete all model setting?",

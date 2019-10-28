@@ -593,15 +593,15 @@ class DlgEditModel(SimpleFramePlus):
                     engine.assign_sel_index(phys)
 
                 if mm.dim == 3:
-                    viewer.canvas.toolbar.ClickP1Button('face')                    
+                    viewer.change_panel_button('face')                    
                     viewer.highlight_face(mm._sel_index)
                     viewer._dom_bdr_sel = ([], mm._sel_index, [], [])
-                elif mm.dim == 2:                    
-                    viewer.canvas.toolbar.ClickP1Button('edge')                    
+                elif mm.dim == 2:
+                    viewer.change_panel_button('edge')                                        
                     viewer.highlight_edge(mm._sel_index)
                     viewer._dom_bdr_sel = ([], [], mm._sel_index, [],)
-                elif mm.dim == 1:                                        
-                    viewer.canvas.toolbar.ClickP1Button('dot')                    
+                elif mm.dim == 1:
+                    viewer.change_panel_button('dot')                                                            
                     viewer.highlight_point(mm._sel_index)
                     viewer._dom_bdr_sel = ([], [], [], mm._sel_index, )
                 else:
@@ -614,15 +614,15 @@ class DlgEditModel(SimpleFramePlus):
                     engine.assign_sel_index(phys)
 
                 if mm.dim == 3:
-                    viewer.canvas.toolbar.ClickP1Button('domain')                    
+                    viewer.change_panel_button('domain')                    
                     viewer.highlight_domain(mm._sel_index)
                     viewer._dom_bdr_sel = (mm._sel_index, [], [], [])                    
                 elif mm.dim == 2:
-                    viewer.canvas.toolbar.ClickP1Button('face')                    
+                    viewer.change_panel_button('face')
                     viewer.highlight_face(mm._sel_index)
                     viewer._dom_bdr_sel = ([], mm._sel_index, [], [])
                 elif mm.dim == 1:
-                    viewer.canvas.toolbar.ClickP1Button('edge')                    
+                    viewer.change_panel_button('edge')
                     viewer.highlight_edge(mm._sel_index)
                     viewer._dom_bdr_sel = ([], [], mm._sel_index, [],)
                 else:
@@ -637,15 +637,15 @@ class DlgEditModel(SimpleFramePlus):
                 if hasattr(mm, '_phys_sel_index'):
                     # need this if in case mesh is not loaded....
                     if mm.dim == 3:
-                        viewer.canvas.toolbar.ClickP1Button('domain')                    
+                        viewer.change_panel_button('domain')
                         viewer.highlight_domain(mm._phys_sel_index)
                         viewer._dom_bdr_sel = (mm._phys_sel_index, [], [], [])                    
                     elif mm.dim == 2:
-                        viewer.canvas.toolbar.ClickP1Button('face')                    
+                        viewer.change_panel_button('face')
                         viewer.highlight_face(mm._phys_sel_index)
                         viewer._dom_bdr_sel = ([], mm._phys_sel_index, [], [])
                     elif mm.dim == 1:
-                        viewer.canvas.toolbar.ClickP1Button('edge')                    
+                        viewer.change_panel_button('edge')
                         viewer.highlight_edge(mm._phys_sel_index)
                         viewer._dom_bdr_sel = ([], [], mm._phys_sel_index, [],)
                     else:
@@ -661,15 +661,15 @@ class DlgEditModel(SimpleFramePlus):
                 if hasattr(mm2, '_phys_sel_index'):
                     # need this if in case mesh is not loaded....
                     if mm2.dim == 3:
-                        viewer.canvas.toolbar.ClickP1Button('domain')                    
+                        viewer.change_panel_button('domain')
                         viewer.highlight_domain(mm2._phys_sel_index)
                         viewer._dom_bdr_sel = (mm2._phys_sel_index, [], [], [])                    
                     elif mm2.dim == 2:
-                        viewer.canvas.toolbar.ClickP1Button('face')                    
+                        viewer.change_panel_button('face')
                         viewer.highlight_face(mm2._phys_sel_index)
                         viewer._dom_bdr_sel = ([], mm2._phys_sel_index, [], [])
                     elif mm2.dim == 1:
-                        viewer.canvas.toolbar.ClickP1Button('edge')                    
+                        viewer.change_panel_button('edge')
                         viewer.highlight_edge(mm2._phys_sel_index)
                         viewer._dom_bdr_sel = ([], [], mm2._phys_sel_index, [],)
                     else:

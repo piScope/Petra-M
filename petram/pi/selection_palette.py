@@ -452,16 +452,29 @@ class SelectionPalette(SimpleFramePlus):
 
             vv = self.GetParent()
             if len(v) > 0:
+                vv.change_panel_button('domain')
                 vv.highlight_domain(v)
+                vv._dom_bdr_sel = (v, [], [], [])
+                
             elif len(s) > 0:
+                vv.change_panel_button('face')                
                 vv.highlight_face(s)
+                vv._dom_bdr_sel = ([], s, [], [])
+                
             elif len(l) > 0:
+                vv.change_panel_button('edge')
                 vv.highlight_edge(l)
+                vv._dom_bdr_sel = ([], [], l, [])
+                
             elif len(p) > 0:
+                vv.change_panel_button('dot')                
                 vv.highlight_point(p)
+                vv._dom_bdr_sel = ([], [], [], p)
+                
             else:
                 vv.highlight_none()
-                             
+                vv._dom_bdr_sel = ([], [], [], [])
+                
         if evt is not None:
             evt.Skip()
     

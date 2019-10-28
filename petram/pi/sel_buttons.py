@@ -115,7 +115,10 @@ def hide_elem(evt, inverse=False):
     elif mode == 'face' or mode == 'edge':
         for o in objs:
             idx = o.getSelectedIndex()
-            idx = list(set(o.hidden_component+idx))
+            if inverse:
+                idx = list(set(idx))
+            else:
+                idx = list(set(o.hidden_component+idx))
             o.hide_component(idx, inverse=inverse)
     elif mode == 'point':
         pass
