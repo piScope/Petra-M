@@ -1733,7 +1733,7 @@ class DlgPlotSol(SimpleFramePlus):
              wx.CallAfter(self.set_title_no_status)
              return None, None
         mesh = model.variables.getvar('mesh')
-        if mesh is None: return
+        if mesh is None: return None, None
 
         if attrs != 'all':
             try:
@@ -1767,7 +1767,9 @@ class DlgPlotSol(SimpleFramePlus):
 
         try:
             self.evaluators['Slice'].set_phys_path(phys_path)
-            return self.evaluators['Slice'].eval(expr, do_merge1, do_merge2)
+            # we do this in order to catch a communication error, which return None
+            ret1, ret2 =  self.evaluators['Slice'].eval(expr, do_merge1, do_merge2)
+            return ret1, ret2
         except:
             wx.CallAfter(dialog.showtraceback,
                          parent = self,

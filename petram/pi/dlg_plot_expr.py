@@ -25,7 +25,7 @@ class DlgPlotExpr(SimpleFramePlus):
         super(DlgPlotExpr, self).__init__(parent, id, title, style=style, **kwargs)
         
         self.parent = parent
-        choices = parent.model.param.getvar('mfem_model')['Phys'].keys()
+        choices = list(parent.model.param.getvar('mfem_model')['Phys'])
         if len(choices) == 0:
             choices = ['No Physics is defined!']
 
