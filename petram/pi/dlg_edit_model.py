@@ -148,6 +148,8 @@ class DlgEditModel(SimpleFramePlus):
         self._focus_idx = None
         self._focus_obj = None
         self._copied_item = None
+        self._opened_dlg=None
+        self._enable = True
         self.SetSize((600,400))
         
         #hbox = wx.BoxSizer(wx.HORIZONTAL)
@@ -378,12 +380,14 @@ class DlgEditModel(SimpleFramePlus):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
 
-        from ifigure.widgets.dialog import textentry
-        ret, name = textentry(parent=self, message='Enter new name', title='Rename',
-                         def_string=mm.name()+'_renamed',)
-        if not ret: return
-        mm.rename(name)
-        self.tree.RefreshItems()        
+        def callback(value):
+            mm.rename(value[1])
+            self.tree.RefreshItems()        
+            self.Enable(True)
+            
+        self.open_textentry(parent=self, message='Enter new name', title='Rename',
+                         def_string=mm.name()+'_renamed',
+                         ok_callback=callback)
 
     def OnRefreshTree(self, evt=None):
         self.tree.RefreshItems()
@@ -505,7 +509,10 @@ class DlgEditModel(SimpleFramePlus):
             p1panel.SetValue(mm.get_panel1_value())
             p1panel.Show()
             self.p1.Layout()
-        
+            
+        if not self._enable:
+            self.Enable(False)
+            
     def OnItemSelChanged(self, evt = None):
         if self.tree.GetSelection() is None: return
 
@@ -574,7 +581,7 @@ class DlgEditModel(SimpleFramePlus):
             p1panel.SetValue(mm.get_panel1_value())
             p1panel.Show()
             self.p1.Layout()
-            
+
         self._focus_idx = None
         from petram.model import Bdry, Domain, Pair
         from petram.phys.phys_model import PhysModule
@@ -679,6 +686,9 @@ class DlgEditModel(SimpleFramePlus):
         if evt is not None:
             mm.onItemSelChanged(evt)      
             evt.Skip()
+            
+        if not self._enable:
+            self.Enable(False)
         
     def OnClose(self, evt):
         wx.GetApp().rm_palette(self)
@@ -789,12 +799,18 @@ class DlgEditModel(SimpleFramePlus):
         import   ifigure.widgets.dialog as dialog
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
-        txt = self.model.GetItemText(indices)        
-        ret, txt = dialog.textentry(self, 
-                                     "Enter namespace name", "New NS...", txt.lower())
-        if not ret: return
-        mm.new_ns(txt)
-        self.tree.RefreshItems()
+        txt = self.model.GetItemText(indices)
+
+        def callback(value):
+            mm.new_ns(value[1])
+            self.tree.RefreshItems()
+            self.Enable(True)
+            
+        self.open_textentry(self, 
+                            "Enter namespace name",
+                            "New NS...",
+                            txt.lower(),
+                            ok_callback=callback)        
         evt.Skip()
          
     def OnDelNS(self, evt):
@@ -1065,6 +1081,51 @@ class DlgEditModel(SimpleFramePlus):
                traceback.print_exc()
         self.OnItemSelChanged(None)               
         #evt.Skip()
+
+    def Hide(self):
+        super(DlgEditModel, self).Hide()
+        if self._opened_dlg is not None:
+            self._opened_dlg.Hide()
+
+    def Show(self):
+        super(DlgEditModel, self).Show()
+        if self._opened_dlg is not None:
+            self._opened_dlg.Show()
+    
+    def Raise(self):
+        super(DlgEditModel, self).Raise()
+        if self._opened_dlg is not None:
+            self._opened_dlg.Raise()
+            
+    def Enable(self, value):
+        super(DlgEditModel, self).Enable(value)
+        self._enable = value
+        self.enable_panels(value)
+
+    def enable_panels(self, value):
+        self.p1.Enable(value)
+        self.p2.Enable(value)
+        self.p3.Enable(value)
+        self.p4.Enable(value)
         
+    def textentry_close(self, value):
+        self._opened_dlg = None
+        self.Enable(True)
         
+    def open_textentry(self, parent=None, message='', title='', def_string='', center=False,
+                       ok_callback=None):
+        l = max(len(def_string), 50)
+        list = [[None, message+" "*l, 2],
+                ["", def_string, 0],]
+
+        from ifigure.utils.edit_list import EditListMiniFrame
+        dlg = EditListMiniFrame(parent, wx.ID_ANY, title, list=list, nobutton=False,
+                                ok_callback=ok_callback,
+                                close_callback=self.textentry_close)
+        w, h = dlg.GetSize()
+        dlg.Show()
+        dlg.Raise()
+        self._opened_dlg = dlg
+        parent.Enable(False)
+
 

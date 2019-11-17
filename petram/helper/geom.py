@@ -74,7 +74,6 @@ def find_circle_center_radius(vv, norm):
     '''
     k = len(vv)-2
     ii = np.linspace(0, len(vv)-1, 4).astype(int)
-    print(vv.shape, ii)
    
     pts = [do_find_circle_center(vv[i+ii[0]], vv[i+ii[1]], vv[i+ii[2]], norm) 
            for i in range(ii[1]-ii[0])]
