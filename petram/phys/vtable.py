@@ -382,6 +382,8 @@ class Vtable_mixin(object):
                        chk_int = False, chk_complex = False, 
                        chk_float = False, chk_array = False,
                        chk_any = False):
+
+        from petram.helper.variables import NativeCoefficientGenBase
         def dummy():
             pass
         if value.startswith('='):
@@ -389,7 +391,10 @@ class Vtable_mixin(object):
         else:
             if value.strip()=='': return None, None
             x = eval(value, self._global_ns, self._local_ns)
-            if chk_any:
+
+            if isinstance(x, NativeCoefficientGenBase):
+                pass            
+            elif chk_any:
                 pass
             elif chk_int:
                 x = int(x)
@@ -406,6 +411,7 @@ class Vtable_mixin(object):
          
     def eval_phys_array_expr(self, value, param, chk_complex = False,
                              chk_float = False, chk_int = False):
+        from petram.helper.variables import NativeCoefficientGenBase        
         def dummy():
             pass
         if value.startswith('='):
@@ -414,7 +420,10 @@ class Vtable_mixin(object):
             if not 'array' in self._global_ns:
                self._global_ns['array'] = np.array
             x = eval('array('+value+')', self._global_ns, self._local_ns)
-            if chk_int:
+            
+            if isinstance(x, NativeCoefficientGenBase):
+                pass            
+            elif chk_int:
                 x = x.astype(int)
             elif chk_complex:
                 x = x.astype(complex)

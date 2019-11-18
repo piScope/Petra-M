@@ -1340,6 +1340,12 @@ def project_variable_to_gf(c, ind_vars, gfr, gfi, global_ns=None, local_ns = Non
    Full implementation needs to wait update of PyMFEM. Eventually, this
    class may move to PyMFEM (under mfem.common)
 
+   from petram.helper.variables import variable, coefficient
+   @coefficient.complex()
+   def ksqrt():
+       coeff1 = mfem.ConstantCoefficient(900)
+       coeff2 = mfem.ConstantCoefficient(200)
+       return coeff1, coeff2
 '''
 
 class _coeff_decorator(object):
@@ -1357,14 +1363,14 @@ class _coeff_decorator(object):
         def dec(func):
             if len(shape) == 1:
                 if complex:
-                     obj = VectorComplexNativeCoefficientGen(func, dependency=dependency)
+                     obj = VectorComplexNativeCoefficientGen(func, dependency=dependency, shape=shape)
                 else:
-                     obj = VectorNativeCoefficientGen(func, dependency=dependency)
+                     obj = VectorNativeCoefficientGen(func, dependency=dependency, shape=shape)
             elif len(shape) == 2:
                 if complex:                
-                     obj = MatrixComplexNativeCoefficientGen(func, dependency=dependency)
+                     obj = MatrixComplexNativeCoefficientGen(func, dependency=dependency, shape=shape)
                 else:
-                     obj = NativeCoefficientGen(func, dependency=dependency)
+                     obj = NativeCoefficientGen(func, dependency=dependency, shape=shape)
             return obj
         return dec
         
@@ -1374,12 +1380,14 @@ class NativeCoefficientGenBase(object):
     '''
     define everything which we define algebra
     '''
-    def __init__(self, fgen, complex=False, dependency=None):
+    def __init__(self, fgen, igen=None, complex=False, dependency=None, shape=None):
         self.complex = complex
         # dependency stores a list of Finite Element space discrite variable
         # names whose set_point has to be called
         self.dependency=[] if dependency is None else dependency
         self.fgen = fgen
+        self.shape = shape
+        self.complex = complex
 
     def __call__(self, l, g):
         '''
@@ -1389,140 +1397,69 @@ class NativeCoefficientGenBase(object):
         
         m = getattr(self, 'fgen')
         args = []
-        for n in self.dependency:      
-             args.append(l[n].get_gf_real())
+        for n in self.dependency:
              if self.complex:
-                 args.append(l[n].get_gf_imag())                 
-        return m(*args)
+                 args.append((l[n].get_gf_real(), l[n].get_gf_imag()))
+             else:
+                 args.append(l[n].get_gf_real())
 
-        
-    '''
-    def __add__(self, other):
-        if isinstance(other, Variable):
-            return self() + other()
+        rc =  m(*args)        
+        if self.complex:
+            if len(rc) != 2:
+                assert False, "generator must return real/imag parts"
+            return rc
         else:
-            return self() + other
-        
-    def __sub__(self, other):
-        if isinstance(other, Variable):
-            return self() - other()
-        else:
-            return self() - other
-    def __mul__(self, other):
-        if isinstance(other, Variable):
-            return self() * other()
-        else:
-            return self() * other
-    def __div__(self, other):
-        if isinstance(other, Variable):
-            return self() / other()
-        else:
-            return self() / other
+            return rc, None
 
-    def __radd__(self, other):
-        if isinstance(other, Variable):
-            return self() + other()
+    def scale_coeff(self, coeff, scale):
+        if self.shape is None:
+             c2  = mfem.ConstantCoefficient(scale)
+             ret = mfem.ProductCoefficient(coeff, c2)
+             ret._c2 = c2
+             ret._coeff = coeff             
+             return ret
+        elif len(self.shape) == 1: # Vector
+             c2  = mfem.ConstantCoefficient(scale)            
+             ret = mfem.ScalarVectorProductCoefficient(c2, coeff)
+             ret._c2 = c2
+             ret._coeff = coeff
+             return ret
+        elif len(self.shape) == 2: # Vector
+             c2  = mfem.ConstantCoefficient(scale)            
+             ret = mfem.ScalarMatrixProductCoefficient(c2, coeff)
+             ret._c2 = c2
+             ret._coeff = coeff
+             return ret
         else:
-            return self() + other
-
-    def __rsub__(self, other):
-        if isinstance(other, Variable):
-            return other() - self()
-        else:
-            return other - self()
-        
-    def __rmul__(self, other):
-        if isinstance(other, Variable):
-            return self() * other()
-        else:
-            return self() * other
-        
-    def __rdiv__(self, other):
-        if isinstance(other, Variable):
-            return other()/self()
-        else:
-            return other/self()
-
-    def __divmod__(self, other):
-        if isinstance(other, Variable):
-            return self().__divmod__(other())
-        else:
-            return self().__divmod__(other)
-
-    def __floordiv__(self, other):
-        if isinstance(other, Variable):
-            return self().__floordiv__(other())
-        else:
-            return self().__floordiv__(other)
-        
-    def __mod__(self, other):
-        if isinstance(other, Variable):
-            return self().__mod__(other())
-        else:
-            return self().__mod__(other)
-        
-    def __pow__(self, other):
-        if isinstance(other, Variable):
-            return self().__pow__(other())
-        else:
-            return self().__pow__(other)
-        
-    def __neg__(self):
-        return self().__neg__()
-        
-    def __pos__(self):
-        return self().__pos__()
-    
-    def __abs__(self):
-        return self().__abs__()
-
-    def __getitem__(self, idx):
-        #print idx
-        #print self().shape
-        return self()[idx]
-
-    def get_emesh_idx(self, idx = None, g=None):
-        if idx is None: idx = []
-        return idx
-
-    def make_callable(self):
-        raise NotImplementedError("Subclass need to implement")
-    
-    def make_nodal(self):
-        raise NotImplementedError("Subclass need to implement")
-    
-    def ncface_values(self, ifaces = None, irs = None,
-                      gtypes = None, **kwargs):
-        raise NotImplementedError("Subclass need to implement")
-    
-    def ncedge_values(self, *args,  **kwargs):
-        return self.ncface_values(*args, **kwargs)
-    '''
-    
+            assert False, "dim >= 3 is not supported"
+             
 
 class NativeCoefficientGen(NativeCoefficientGenBase):
     def __init__(self, func, dependency=None):
         NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency)
-        
+
 class ComplexNativeCoefficientGen(NativeCoefficientGenBase):
-    def __init__(self, func, dependency=None):
-        NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency)        
-
-class VectorNativeCoefficientGen(NativeCoefficientGenBase):
-    def __init__(self, func, dependency=None):
-        NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency)                
-
-class VectorComplexNativeCoefficientGen(NativeCoefficientGenBase):
     def __init__(self, func, dependency=None):
         NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency)
         
+class VectorNativeCoefficientGen(NativeCoefficientGenBase):
+    def __init__(self, func, dependency=None):
+        NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency)
+        
+class VectorComplexNativeCoefficientGen(NativeCoefficientGenBase):
+    def __init__(self, func, dependency=None):
+        NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency) 
+
+        
 class MatrixNativeCoefficientGen(NativeCoefficientGenBase):
     def __init__(self, func, dependency=None):
-        NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency)                
-
+        NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency)
+        
 class MatrixComplexNativeCoefficientGen(NativeCoefficientGenBase):
     def __init__(self, func, dependency=None):
-        NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency)                
+        NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency)
+
+
     
    
    

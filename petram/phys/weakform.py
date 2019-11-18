@@ -54,6 +54,25 @@ linintegs = get_integrators('LinearOps')
 
 from petram.helper.variables import NativeCoefficientGenBase
 
+
+def call_nativegen(v, l, g, real, conj, scale):
+    vv = v(l, g)
+    if real:
+        coeff = vv[0]
+        if scale != 1.0 and coeff is not None:
+              coeff = v.scale_coeff(coeff, scale)
+        print("returning this", coeff, scale)
+        return coeff
+    else:
+         if conj:
+             assert False, "conj is not supported for NativeCoefficient"
+         else:
+             coeff = vv[1]
+             if scale != 1.0 and coeff is not None:
+                  coeff = v.scale_coeff(coeff, scale)
+             print("returning this", coeff)                  
+             return coeff
+
 def MCoeff(*args, **kwargs):
     class MCoeff(MatrixPhysCoefficient):
        def __init__(self, *args, **kwargs):
@@ -79,6 +98,10 @@ def MCoeff(*args, **kwargs):
     else:
         conj = kwargs.get('conj', False)
         real = kwargs.get('real', True)
+        
+        if isinstance(v, NativeCoefficientGenBase):
+            return call_nativegen(v, l, g, real, conj, scale)
+        
         if np.iscomplexobj(e):
             if conj:  e = np.conj(e)
             if real:  e = e.real
@@ -119,6 +142,10 @@ def DCoeff(*args, **kwargs):
         e = np.diag(e)       
         conj = kwargs.get('conj', False)
         real = kwargs.get('real', True)
+        
+        if isinstance(v, NativeCoefficientGenBase):
+            return call_nativegen(v, l, g, real, conj, scale)           
+        
         if np.iscomplexobj(e):
             if conj:  e = np.conj(e)
             if real:  e = e.real
@@ -155,6 +182,10 @@ def VCoeff(*args, **kwargs):
     else:
         conj = kwargs.get('conj', False)
         real = kwargs.get('real', True)
+        
+        if isinstance(v, NativeCoefficientGenBase):
+            return call_nativegen(v, l, g, real, conj, scale)                      
+        
         if np.iscomplexobj(e):
             if conj:  e = np.conj(e)
             if real:  e = e.real
@@ -170,7 +201,8 @@ def SCoeff(exprs, ind_vars, l, g, **kwargs):
        def __init__(self, exprs, ind_vars, l, g, **kwargs):
            #print("SCoeff, args", args[:1])       
            self.component = kwargs.pop('component', None)
-           self.conj = kwargs.pop('conj', False)       
+           self.conj = kwargs.pop('conj', False)
+           self.scale = kwargs.pop('scale', 1.0)
            super(SCoeff, self).__init__(exprs, ind_vars, l, g, **kwargs)
 
        def EvalValue(self, x):
@@ -182,6 +214,7 @@ def SCoeff(exprs, ind_vars, l, g, **kwargs):
                if len(val.shape) == 0: val = [val]
                if self.conj: val=np.conj(val)[self.component]
                v =  val[self.component]
+           v *= scale
            if np.iscomplexobj(v):
                if self.real:
                   return v.real
@@ -195,6 +228,8 @@ def SCoeff(exprs, ind_vars, l, g, **kwargs):
     component = kwargs.get('component', None)
     conj = kwargs.get('conj', False)
     real = kwargs.get('real', True)
+    scale = kwargs.get('scale', 1.0)
+    
     if any([isinstance(ee, str) for ee in exprs]):
         return SCoeff(exprs, ind_vars, l, g, **kwargs)
      
@@ -207,9 +242,9 @@ def SCoeff(exprs, ind_vars, l, g, **kwargs):
             v = exprs[component] ## weakform10 didn't work with-> exprs[0][component]
           
         if isinstance(v, NativeCoefficientGenBase):
-            # generate NativeCoefficient by calling it
-            return v(l, g)
-         
+            return call_nativegen(v, l, g, real, conj, scale)                                 
+                 
+        v *= scale 
         if np.iscomplexobj(v):
             if conj:  v = np.conj(v)
             if real:  v = v.real
@@ -218,7 +253,11 @@ def SCoeff(exprs, ind_vars, l, g, **kwargs):
             v = 0.0
         else:
             pass
-        return PhysConstant(float(v))
+        v =  float(v)
+        if v != 0.0:
+            return PhysConstant(v)
+        else:
+            return None
     
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
          guilabel = "lambda", default = 0.0, tip = "coefficient",))]

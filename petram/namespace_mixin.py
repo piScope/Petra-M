@@ -128,8 +128,8 @@ class NS_mixin(object):
         result = {}
         for name, tname,  validator in exprs:
             if targets is not None and not tname in targets: continue
-            void = {}
             try:
+                void = {}
                 x = eval(str(getattr(self, tname)), self._global_ns, void)
             except:
                 import traceback
@@ -149,6 +149,8 @@ class NS_mixin(object):
         return result, invalid_expr
     
     def eval_ns(self):
+
+        
         chain = self.get_ns_chain()
         l = self.get_default_ns()
 
@@ -190,7 +192,6 @@ class NS_mixin(object):
                            for k in p.dataset: g[k] = p.dataset[k]
                        for k in p.attribute_mirror_ns():
                            g[k] = chain[-2]._global_ns[k]                   
-                       ll = {}
                        if (p.ns_string != '' and p.ns_string is not None):
                            exec(p.ns_string, g, ll)
                            for k in ll: g[k] = ll[k]
@@ -227,6 +228,9 @@ class NS_mixin(object):
         else:
             assert False, "PyMFEM is not loaded"
 
+        import numpy            
+        g['np'] = numpy
+        
         try:
             l = {}
             if (self.ns_string != '' and self.ns_string is not None):
