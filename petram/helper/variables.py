@@ -1370,7 +1370,7 @@ class _coeff_decorator(object):
                 if complex:                
                      obj = MatrixComplexNativeCoefficientGen(func, dependency=dependency, shape=shape)
                 else:
-                     obj = NativeCoefficientGen(func, dependency=dependency, shape=shape)
+                     obj = MatrixNativeCoefficientGen(func, dependency=dependency, shape=shape)
             return obj
         return dec
         
@@ -1413,23 +1413,23 @@ class NativeCoefficientGenBase(object):
 
     def scale_coeff(self, coeff, scale):
         if self.shape is None:
-             c2  = mfem.ConstantCoefficient(scale)
-             ret = mfem.ProductCoefficient(coeff, c2)
-             ret._c2 = c2
-             ret._coeff = coeff             
-             return ret
+            c2  = mfem.ConstantCoefficient(scale)
+            ret = mfem.ProductCoefficient(coeff, c2)
+            ret._c2 = c2
+            ret._coeff = coeff             
+            return ret
         elif len(self.shape) == 1: # Vector
-             c2  = mfem.ConstantCoefficient(scale)            
-             ret = mfem.ScalarVectorProductCoefficient(c2, coeff)
-             ret._c2 = c2
-             ret._coeff = coeff
-             return ret
-        elif len(self.shape) == 2: # Vector
-             c2  = mfem.ConstantCoefficient(scale)            
-             ret = mfem.ScalarMatrixProductCoefficient(c2, coeff)
-             ret._c2 = c2
-             ret._coeff = coeff
-             return ret
+            c2  = mfem.ConstantCoefficient(scale)            
+            ret = mfem.ScalarVectorProductCoefficient(c2, coeff)
+            ret._c2 = c2
+            ret._coeff = coeff
+            return ret
+        elif len(self.shape) == 2: # Matrix
+            c2  = mfem.ConstantCoefficient(scale)            
+            ret = mfem.ScalarMatrixProductCoefficient(c2, coeff)
+            ret._c2 = c2
+            ret._coeff = coeff
+            return ret
         else:
             assert False, "dim >= 3 is not supported"
              
@@ -1443,21 +1443,21 @@ class ComplexNativeCoefficientGen(NativeCoefficientGenBase):
         NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency)
         
 class VectorNativeCoefficientGen(NativeCoefficientGenBase):
-    def __init__(self, func, dependency=None):
-        NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency)
+    def __init__(self, func, dependency=None, shape=None):
+        NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency, shape=shape)
         
 class VectorComplexNativeCoefficientGen(NativeCoefficientGenBase):
-    def __init__(self, func, dependency=None):
-        NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency) 
+    def __init__(self, func, dependency=None, shape=None):
+        NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency, shape=shape) 
 
         
 class MatrixNativeCoefficientGen(NativeCoefficientGenBase):
-    def __init__(self, func, dependency=None):
-        NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency)
+    def __init__(self, func, dependency=None, shape=None):
+        NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency, shape=shape)
         
 class MatrixComplexNativeCoefficientGen(NativeCoefficientGenBase):
-    def __init__(self, func, dependency=None):
-        NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency)
+    def __init__(self, func, dependency=None, shape=None):
+        NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency, shape=shape)
 
 
     

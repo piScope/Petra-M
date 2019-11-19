@@ -268,6 +268,7 @@ class EvaluatorMP(Evaluator):
         self.workers = [None]*nproc
         self.solfiles = None
         self.failed = False
+        self.closed = False
         
         if logfile == 'queue':
             self.text_queue = mp.Queue()
@@ -285,7 +286,8 @@ class EvaluatorMP(Evaluator):
             w.start()
         
     def __del__(self):
-        self.terminate_all()
+        if not self.closed:
+            self.terminate_all()
 
     def set_model(self, model):
         #print("looking for model file in " + os.getcwd())
@@ -449,10 +451,12 @@ class EvaluatorMP(Evaluator):
         #for w in self.workers:
         #    if w.is_alive(): num_alive = num_alive + 1
         #for x in range(num_alive):
+        if self.closed: return
         self.tasks.put([-1])
         self.tasks.join()
         self.tasks.close()
         self.results.close()
+        self.closed = True
         print('joined')
 
     

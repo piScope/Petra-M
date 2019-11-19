@@ -466,6 +466,15 @@ class DlgPlotSol(SimpleFramePlus):
         self.solfiles = {}
         self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
 
+    def onClose(self, evt):
+        super(DlgPlotSol, self).onClose(evt)
+        self.clean_evaluators()
+        
+    def clean_evaluators(self):
+        for k in self.evaluators:
+            self.evaluators[k].terminate_all()
+        self.evaluators = {}
+        
     def get_remote_subdir_cb(self):
         return self.elps['Config'].widgets[0][0].elps[2].widgets[3][0]
     def get_local_single_subdir_cb(self):
@@ -701,7 +710,8 @@ class DlgPlotSol(SimpleFramePlus):
         if str(v[0][0]) == 'Single':
             if (self.config['use_mp'] or
                 self.config['use_cs']):
-                self.evaluators = {}                
+                self.clean_evaluators()
+
             self.config['use_mp'] = False
             self.config['use_cs'] = False
             model.variables.setvar('remote_soldir', None)
@@ -719,9 +729,11 @@ class DlgPlotSol(SimpleFramePlus):
             
         elif str(v[0][0]) == 'MP':
             if not self.config['use_mp']:
-                self.evaluators = {}
+                self.clean_evaluators()                
+
             if self.config['mp_worker'] != v[0][2][0]:
-                self.evaluators = {}
+                self.clean_evaluators()                                
+
             self.config['mp_worker'] = v[0][2][0]
             self.config['use_mp'] = True
             self.config['use_cs'] = False
@@ -739,9 +751,11 @@ class DlgPlotSol(SimpleFramePlus):
             
         elif str(v[0][0]) == 'C/S':
             if not self.config['use_cs']:
-                self.evaluators = {}
+                self.clean_evaluators()
+
             if self.config['cs_worker'] != v[0][3][1]:
-                self.evaluators = {}
+                self.clean_evaluators()                
+
             self.config['cs_worker'] = str(v[0][3][1])
 
 
@@ -1584,6 +1598,7 @@ class DlgPlotSol(SimpleFramePlus):
         
         if (not key in self.evaluators or
             self.evaluators[key].failed):
+            if key in self.evaluators: self.evaluators[key].terminate_all()            
             self.evaluators[key] =  build_evaluator(battrs,
                                                mfem_model,
                                                solfiles,
@@ -1677,6 +1692,7 @@ class DlgPlotSol(SimpleFramePlus):
                 
         if (not key in self.evaluators or
             self.evaluators[key].failed):
+            if key in self.evaluators: self.evaluators[key].terminate_all()                        
             self.evaluators[key] =  build_evaluator(battrs,
                                                     mfem_model,
                                                     solfiles,
@@ -1755,6 +1771,8 @@ class DlgPlotSol(SimpleFramePlus):
         from petram.sol.evaluators import build_evaluator
         if (not 'Slice' in self.evaluators or
             self.evaluators['Slice'].failed):
+            
+            if 'Slice' in self.evaluators: self.evaluators['Slice'].terminate_all()
             self.evaluators['Slice'] =  build_evaluator(attrs, 
                                                         mfem_model,
                                                         solfiles,
@@ -1797,6 +1815,7 @@ class DlgPlotSol(SimpleFramePlus):
         if (not 'Probe' in self.evaluators or
             self.evaluators['Probe'].failed):
             
+            if 'Probe' in self.evaluators: self.evaluators['Probe'].terminate_all()            
             self.evaluators['Probe'] =  build_evaluator(attrs, 
                                                         mfem_model,
                                                         solfiles,

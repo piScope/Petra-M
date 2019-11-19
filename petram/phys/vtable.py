@@ -411,6 +411,7 @@ class Vtable_mixin(object):
          
     def eval_phys_array_expr(self, value, param, chk_complex = False,
                              chk_float = False, chk_int = False):
+        
         from petram.helper.variables import NativeCoefficientGenBase        
         def dummy():
             pass
@@ -419,6 +420,16 @@ class Vtable_mixin(object):
         else:
             if not 'array' in self._global_ns:
                self._global_ns['array'] = np.array
+
+            if value in self._global_ns:
+                x = self._global_ns[value]
+                if isinstance(x, NativeCoefficientGenBase):
+                    return x, None
+            if value in self._local_ns:
+                x = self._local_ns[value]
+                if isinstance(x, NativeCoefficientGenBase):
+                    return x, None
+                
             x = eval('array('+value+')', self._global_ns, self._local_ns)
             
             if isinstance(x, NativeCoefficientGenBase):

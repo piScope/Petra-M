@@ -172,6 +172,9 @@ class EvaluatorCommon(Evaluator):
         solvars = self.load_solfiles()
         
         if solvars is None: return None, None
+        
+    def terminate_all(self):        
+        pass
 
 '''                
 from petram.sol.bdr_nodal_evaluator import BdrNodalEvaluator    
