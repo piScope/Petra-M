@@ -144,7 +144,7 @@ def hide_elem(evt, inverse=False):
             o.hide_component(idx, inverse=inverse)
         if mode == "face":
             if inverse:
-                hidden_face = [x for x in s.keys() if not x
+                hidden_face = [x for x in s2l.keys() if not x
                                  in idx]
             else:
                 hidden_face = idx

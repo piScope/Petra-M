@@ -104,7 +104,56 @@ class MeshGroup(Model):
         
 MFEMMesh = MeshGroup
 
-   
+def format_mesh_characteristic(mesh):
+   h_min = mfem.doublep()
+   h_max = mfem.doublep()
+   kappa_min= mfem.doublep()
+   kappa_max= mfem.doublep()
+   Vh=mfem.Vector()
+   Vk=mfem.Vector()
+   mesh.GetCharacteristics(h_min, h_max, kappa_min, kappa_max, Vh, Vk)
+   h_min=h_min.value()
+   h_max=h_max.value()
+   kappa_min=kappa_min.value()
+   kappa_max=kappa_max.value()
+
+   out = ["", "=== Mesh Statistics ==="]
+   out.append("Dimension          : " + str(mesh.Dimension()))
+   out.append("Space dimension    : " + str(mesh.SpaceDimension()))
+
+   if mesh.Dimension() == 0:
+      out.append("Number of vertices : " + str(mesh.GetNV()))
+      out.append("Number of elements : " + str(mesh.GetNE()))
+      out.append("Number of bdr elem : " + str(mesh.GetNBE()))
+   elif mesh.Dimension() == 1:
+      out.append("Number of vertices : " + str(mesh.GetNV()))
+      out.append("Number of elements : " + str(mesh.GetNE()))
+      out.append("Number of bdr elem : " + str(mesh.GetNBE()))
+      out.append("h_min              : " + str(h_min))
+      out.append("h_max              : " + str(h_max))
+   elif mesh.Dimension() == 2:
+      out.append("Number of vertices : " + str(mesh.GetNV()))
+      out.append("Number of edges    : " + str(mesh.GetNEdges()))
+      out.append("Number of elements : " + str(mesh.GetNE()))
+      out.append("Number of bdr elem : " + str(mesh.GetNBE())) 
+      out.append("Euler Number       : " + str(mesh.EulerNumber2D()))
+      out.append("h_min              : " + str(h_min))
+      out.append("h_max              : " + str(h_max))
+      out.append("kappa_min              : " + str(kappa_min))
+      out.append("kappa_max              : " + str(kappa_max))
+   elif mesh.Dimension() == 3:
+      out.append("Number of vertices : " + str(mesh.GetNV()))
+      out.append("Number of edges    : " + str(mesh.GetNEdges()))
+      out.append("Number of faces    : " + str(mesh.GetNFaces()))
+      out.append("Number of elements : " + str(mesh.GetNE()))
+      out.append("Number of bdr elem : " + str(mesh.GetNBE())) 
+      out.append("Euler Number       : " + str(mesh.EulerNumber()))
+      out.append("h_min              : " + str(h_min))
+      out.append("h_max              : " + str(h_max))
+      out.append("kappa_min              : " + str(kappa_min))
+      out.append("kappa_max              : " + str(kappa_max))
+   return '\n'.join(out)
+
 class MeshFile(Mesh):
     isMeshGenerator = True   
     isRefinement = False   
@@ -132,14 +181,19 @@ class MeshFile(Mesh):
         return v
         
     def panel1_param(self):
+        if not hasattr(self, "_mesh_char"):
+           self._mesh_char = ''
         wc = "ANY|*|MFEM|*.mesh|GMSH|*.gmsh"       
-        return [["Path",   self.path,  45, {'wildcard':wc}],
+        ret =  [["Path",   self.path,  45, {'wildcard':wc}],
                 ["", "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir."  ,2, None],
                 ["Generate edges",    self.generate_edges == 1,  3, {"text":""}],
                 ["Refine",    self.refine==1 ,  3, {"text":""}],
-                ["FixOrientation",    self.fix_orientation ,  3, {"text":""}]]
+                ["FixOrientation",    self.fix_orientation ,  3, {"text":""}],
+                [None, self._mesh_char ,2, None],]
+        return ret
+     
     def get_panel1_value(self):
-        return (self.path, None, self.generate_edges, self.refine, self.fix_orientation)
+        return (self.path, None, self.generate_edges, self.refine, self.fix_orientation, None)
     
     def import_panel1_value(self, v):
         self.path = str(v[0])
@@ -203,6 +257,7 @@ class MeshFile(Mesh):
         args = (path,  self.generate_edges, self.refine, self.fix_orientation)
         mesh =  mfem.Mesh(*args)
         self.parent.sdim = mesh.SpaceDimension()
+        self._mesh_char = format_mesh_characteristic(mesh)
         try:
            mesh.GetNBE()
            return mesh

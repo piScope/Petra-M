@@ -156,6 +156,20 @@ class NS_mixin(object):
 
         from petram.helper.variables import var_g
         g = var_g.copy()
+
+        import mfem
+        if mfem.mfem_mode == 'serial':
+            g['mfem'] = mfem.ser
+        elif mfem.mfem_mode == 'parallel':
+            g['mfem'] = mfem.par
+        else:
+            assert False, "PyMFEM is not loaded"
+
+        import numpy            
+        g['np'] = numpy
+        from petram.helper.variables import variable, coefficient
+        g['variable'] = variable
+        g['coefficient'] = coefficient
         
         if self.root() is self:
             self._variables = {}
@@ -220,17 +234,6 @@ class NS_mixin(object):
         for k in l:
             g[k] = l[k]  # copying default ns
 
-        import mfem
-        if mfem.mfem_mode == 'serial':
-            g['mfem'] = mfem.ser
-        elif mfem.mfem_mode == 'parallel':
-            g['mfem'] = mfem.par
-        else:
-            assert False, "PyMFEM is not loaded"
-
-        import numpy            
-        g['np'] = numpy
-        
         try:
             l = {}
             if (self.ns_string != '' and self.ns_string is not None):
