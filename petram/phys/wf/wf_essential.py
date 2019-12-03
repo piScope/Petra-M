@@ -1,7 +1,7 @@
 import numpy as np
 
 from petram.model import Domain, Bdry, Edge, Point, Pair
-from petram.phys.weakform import SCoeff, VCoeff
+from petram.phys.coefficient import SCoeff, VCoeff
 from petram.phys.phys_model import Phys, PhysModule
 
 import petram.debug as debug

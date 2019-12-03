@@ -76,10 +76,7 @@ def MCoeff(dim, exprs, ind_vars, l, g, **kwargs):
         else:
             e = np.array(e, dtype=float, copy=False)
 
-        if np.all(e == 0.0):
-            return None
-        else:
-            return PhysMatrixConstant(e)
+        return PhysMatrixConstant(e)
      
 def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
     class DCoeff(MatrixPhysCoefficient):
@@ -235,7 +232,4 @@ def SCoeff(exprs, ind_vars, l, g, **kwargs):
         else:
             pass
         v =  float(v)
-        if v != 0.0:
-            return PhysConstant(v)
-        else:
-            return None
+        return PhysConstant(v)
