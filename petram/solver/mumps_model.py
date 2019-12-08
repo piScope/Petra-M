@@ -231,7 +231,10 @@ class MUMPSSolver(LinearSolver):
             else:
                 AA = A.data.astype(np.float32, copy=False)
         else:
-            AA = A.data
+            if self.is_complex:
+                AA = A.data.astype(np.complex128, copy=False)
+            else:
+                AA = A.data.astype(np.float64, copy=False)
         return AA
             
     def make_vector_entries(self, B):
@@ -241,7 +244,10 @@ class MUMPSSolver(LinearSolver):
             else:
                 return B.astype(np.float32, copy=False)
         else:
-            return B
+            if self.is_complex:
+                return B.astype(np.complex128, copy=False)
+            else:
+                return B.astype(np.float64, copy=False)
         
     def SetOperator(self, A, dist, name=None):
         try:
