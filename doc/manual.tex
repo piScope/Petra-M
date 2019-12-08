@@ -31,9 +31,24 @@ Need to discusss,,,,Mesh space, FESpace variable, Auxiliary variable
 
 \section{Namespace and Functional Coefficients}
 Using it for material property and selection index.
-\subsection{Namespace}
+\subsection{Namespac/Dataeet}
+Namespace is the concept to define the variable/functions which is local to the physics model. 
+A user can use the variable defined the namespace as a parameter in physics setting. 
 
-\subsection{Function}
+Dataset is a special model tree object, which holds the set of data. 
+Each namespace is linked with one Dataset, and whena namespace is compiled the data stored in the Dataset is loaded at the beginning. 
+
+Since the Dataset is a tree object, the data recorded in Dagaset  is saved to file whe the project is saved, and automatically loaded when the project file is opened.
+Note that because of this behavior, Dataset can store only the pickable data. 
+
+All Petra-M model treat has a default namespace, called global\_ns, and Dataset, called global\_data.
+
+\subsection{Variable}
+Petra-M has two different mechanism for specifying the coefficient which appears in a weakform formulation. One is Variable, discussed in the section.
+Variable is a user defined function in Namespace, which is flagged using Variable decorator.
+You can use the decorated Python fuction as s a functional coefficient.
+When executing the simulation model, this decorate tells Petra-M to convert the function to a MFEM coefficient. 
+
 \begin{minipage}[c]{0.95\textwidth}
 \begin{lstlisting}[caption={A user defined generic preconditioner},captionpos=b, frame=single, label={function1}]
 
@@ -50,7 +65,36 @@ def func(x, y, z, vhts1=None, s=None):
 
 \end{lstlisting}
  \end{minipage}
+ 
+\subsection{Coefficient}
+Another mechanism is called Coefficient. 
+In this approach, a user write a fucntion which returns MFEM coefficient. 
 
+MFEM has a mechanism to define a complicate coefficient defined by atithmetic operation between more primitive coefficient. 
+A user can writegenerate a MFEM coeffeicient using such compuond coefficients
+
+Although it is more cumbersome to define the functinal coefficient this way, the resultant model can run faster because MFEM can avoid the overhead of calling Python function when assembling the forms.
+
+The real advantage of this approach comes when a user write his/her own coefficeint in C++ and provide it as a Petra-M extension.  
+
+
+\begin{minipage}[c]{0.95\textwidth}
+\begin{lstlisting}[caption={A user defined generic preconditioner},captionpos=b, frame=single, label={function1}]
+
+from petram.helper.variables import coefficient
+@coefficient.array(shape=(3,3))
+def three_one_one():
+    value = np.diag((-3.,1.,1.))
+    v = mfem.Vector(value.flatten())
+    m = mfem.DenseMatrix(v.GetData(), 
+                       value.shape[0], 
+                       value.shape[1])       
+    coeff1 = mfem.MatrixConstantCoefficient(m)
+    return coeff1
+
+\end{lstlisting}
+ \end{minipage}
+ 
 \section{Auxiliary Variable and Operator}
 \subsection{Operator}
 \subsubsection{identity}            
