@@ -30,13 +30,21 @@ class MUMPS(LinearSolverModel):
 #                ["centralize matrix",  self.central_mat,   3, {"text":""}],
                 ["use BLR",  self.use_blr,   3, {"text":""}],
                 ["BLR drop parameter",  self.blr_drop,   300, {}],
-                ["WS Inc. (ICNTL14)",  self.icntl14,   400, {}],
-                ["WS Size (ICNTL23)",  self.icntl23,   400, {}],]        
+                ["WS Inc. (ICNTL14)",  self.icntl14,   0, {}],
+                ["WS Size (ICNTL23)",  self.icntl23,   0, {}],
+                ["numerical pivot thr. (CNTL1)",  self.cntl1,   0, {}],
+                ["static pivot thr. (CNTL4)",  self.cntl4,   0, {}],    
+                ["Itr. refinement (ICNTL10)",  self.icntl10,   0, {}],
+                ["refinement stop Cond. (CNTL2)",  self.cntl2,   0, {}],                
+                ["permutation/scaling Opt.(ICNTL6)",  self.icntl6,   0, {}],
+                ["scaling strategy (ICNTL8)",  self.icntl8,   0, {}],]                                
     
     def get_panel1_value(self):
         return (int(self.log_level), self.ordering, self.out_of_core,
                 self.error_ana, self.write_mat, #self.central_mat,
-                self.use_blr, self.blr_drop, self.icntl14, self.icntl23)
+                self.use_blr, self.blr_drop, str(self.icntl14), str(self.icntl23),
+                self.cntl1, self.cntl4, self.icntl10, self.cntl2,
+                self.icntl6, self.icntl8)
     
     def import_panel1_value(self, v):
         self.log_level = int(v[0])
@@ -48,7 +56,13 @@ class MUMPS(LinearSolverModel):
         self.use_blr = v[5]
         self.blr_drop = v[6]
         self.icntl14 = v[7]
-        self.icntl23 = v[8]        
+        self.icntl23 = v[8]
+        self.cntl1 = v[9]
+        self.cntl4 = v[10]
+        self.icntl10 = v[11]
+        self.cntl2 = v[12]                        
+        self.icntl6 = v[13]
+        self.icntl8 = v[14]                
         
     def attribute_set(self, v):
         v = super(MUMPS, self).attribute_set(v)
@@ -68,9 +82,21 @@ class MUMPS(LinearSolverModel):
         v['error_ana'] = 'none'
         v['use_blr'] = False
         v['blr_drop'] = 0.0
-        v['icntl14'] = 20
-        v['icntl23'] = 0
+        v['icntl14'] = '20'
+        v['icntl23'] = '0'
+        v['cntl1'] = 'default'
+        v['cntl4'] = 'default'
+        v['icntl10'] = 'default'
+        v['cntl2'] = 'default'
+        v['icntl6'] = 'default'
+        v['icntl8'] = 'default'
         v['use_single_precision'] = False
+
+        # make sure that old data type (data was stored as int) is converted to string
+        if hasattr(self, "icntl14"):
+            self.icntl14 = str(self.icntl14)
+        if hasattr(self, "icntl23"):
+            self.icntl23 = str(self.icntl23)
 
         # this flag needs to be set, so that destcuctor works when model tree is loaded from 
         # pickled file
@@ -272,6 +298,7 @@ class MUMPSSolver(LinearSolver):
             #dprint1('index data size ' , type(A.col[0]))
             #dprint1('matrix data type ' , type(A.data[0]))
 
+            # set matrix format
             s.set_icntl(5,0)
             s.set_icntl(18,3)
 
@@ -296,8 +323,7 @@ class MUMPSSolver(LinearSolver):
             s.set_jcn_loc(i_array(col))
             s.set_a_loc(self.data_array(AA))
 
-            s.set_icntl(14, gui.icntl14)
-            s.set_icntl(23, gui.icntl23)            
+
             s.set_icntl(2, 1)
 
             self.dataset = (A.data, row, col)
@@ -330,20 +356,54 @@ class MUMPSSolver(LinearSolver):
                 s.set_jcn(i_array(col))
                 s.set_a(self.data_array(AA))
                 self.dataset = (A.data, row, col)                
-            s.set_icntl(14,  gui.icntl14)
-            s.set_icntl(23, gui.icntl23)                        
-            s.set_icntl(6,  5)    # column permutation
 
         # blr
         if gui.use_blr:   
             s.set_icntl(35,1)
             s.set_cntl(7, float(gui.blr_drop))
             
-        self.set_ordering_flag(s)
-
         # out-of-core
         if gui.out_of_core:
-           s.set_icntl(22,  1)            
+           s.set_icntl(22,  1)
+
+        def convert2float(txt):
+            try:
+                return float(txt)
+            except:
+                assert False, "can not convert to float. Input text is "+txt
+        def convert2int(txt):
+            try:
+                return int(txt)
+            except:
+                assert False, "can not convert to float. Input text is "+txt
+                
+        if  gui.icntl14.lower() != 'default':       # percentage increase in the estimated workingspace
+            s.set_icntl(14, convert2int(gui.icntl14))
+            
+        if  gui.icntl23.lower() != 'default':       # maximum size of the working memory   
+            s.set_icntl(23, convert2int(gui.icntl23))
+                        
+        if  gui.icntl8.lower() != 'default':        # the scaling strategy
+            s.set_icntl(8, convert2int(gui.icntl8))
+                        
+        if  gui.icntl6.lower() != 'default':        # permutes the matrix to  azero-freediagonal and/or
+            s.set_icntl(6, convert2int(gui.icntl6))  # scale the matrix    
+                        
+        if  gui.icntl10.lower() != 'default':       # iterative refinement
+            s.set_icntl(10, convert2int(gui.icntl10))
+                        
+        if  gui.cntl1.lower() != 'default':         # relative threshold for numerical pivoting  
+            s.set_cntl(1, convert2float(gui.cntl1))
+                       
+        if  gui.cntl4.lower() != 'default':         # threshold for static pivoting   
+            s.set_cntl(4, convert2float(gui.cntl4))
+                       
+        if  gui.cntl2.lower() != 'default':
+            s.set_cntl(2, convert2float(gui.cntl2))  #  stopping criterion for iterative refinement
+            
+        self.set_ordering_flag(s)
+
+
         MPI.COMM_WORLD.Barrier()
         dprint1("job1")
         s.set_job(1)
