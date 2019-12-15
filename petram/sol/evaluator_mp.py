@@ -73,6 +73,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         self.agents = {}
         self.logfile = logfile
         self.use_stringio = False
+        self.solfiles = None
         
         ## enable it when checking performance        
         self.use_profiler = False
@@ -146,11 +147,14 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     else:
                         value =  self.eval(task[1], **task[2])
                         
-                elif task[0] == 8: # (7, expr)  = eval
-                    if self.solfiles is None:
-                        value = (None, None)
-                    else:
-                        value =  self.eval_probe(task[1], task[2])
+                elif task[0] == 8: # (8, expr)  = eval_probe
+                    value =  self.eval_probe(task[1], task[2], task[3])
+                    
+                elif task[0] == 9: # (8, expr)  = make_probe_agents
+                    cls = task[1]
+                    params = task[2]
+                    kwargs = task[3]
+                    self.make_probe_agents(cls, params, **kwargs)
                         
             except:
                 traceback.print_exc()
@@ -249,18 +253,18 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
 
         return self.myid, data, attrs
     
-    def eval_probe(self, expr, probes):
+    def eval_probe(self, expr, xexpr, probes):
         if self.phys_path == '': return None, None
         
         phys = self.mfem_model()[self.phys_path]
         evaluator = self.agents[1][0]
         
-        return evaluator.eval_probe(expr, probes, phys)
-    
+        return evaluator.eval_probe(expr, xexpr, probes, phys)
         
 
 class EvaluatorMP(Evaluator):
     def __init__(self, nproc = 2, logfile = False):
+        super(EvaluatorMP, self).__init__()
         print("new evaluator MP", nproc)
         self.init_done = False        
         self.tasks = BroadCastQueue(nproc)
@@ -324,13 +328,12 @@ class EvaluatorMP(Evaluator):
     def load_solfiles(self, mfem_mode = None):
         self.tasks.put((4, ), join = True)
         
-    def set_phys_path(self, phys_path):        
+    def set_phys_path(self, phys_path):
         self.tasks.put((5, phys_path))
         
     def validate_evaluator(self, name, attr, solfiles, **kwargs):
         redo_geom = False
-        if (self.solfiles is None or
-            self.solfiles() is not solfiles):
+        if  self.solfiles is None or self.solfiles() is not solfiles:
             print("new solfiles")
             self.set_solfiles(solfiles)
             self.load_solfiles()
@@ -439,11 +442,15 @@ class EvaluatorMP(Evaluator):
             data = data0
         return data, attrs
     
-    def eval_probe(self, expr, probes):
-        self.tasks.put_single((8, expr, probes), join = True)
+    def eval_probe(self, expr, xexpr, probes):
+        self.tasks.put_single((8, expr, xexpr, probes), join = True)
         res = self.results.get()# for x in range(len(self.workers))]
         self.results.task_done()
         return res
+
+    def make_probe_agents(self, name, params, **kwargs):
+        super(EvaluatorMP, self).make_agents(name, params, **kwargs)
+        self.tasks.put((9, name, params, kwargs))
     
     def terminate_all(self):
         #print('terminating all')      
@@ -456,6 +463,10 @@ class EvaluatorMP(Evaluator):
         self.tasks.join()
         self.tasks.close()
         self.results.close()
+        if self.text_queue is not None:
+            self.text_queue.close()
+            self.text_queue.cancel_join_thread()
+
         self.closed = True
         print('joined')
 

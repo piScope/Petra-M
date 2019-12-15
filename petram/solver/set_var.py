@@ -5,7 +5,7 @@ from petram.model import Model
 from petram.solver.solver_model import Solver
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('SetVar')
-rprint = debug.regular_print('StdSolver')
+rprint = debug.regular_print('StdVar')
 
 class SetVar(Solver):
     has_2nd_panel = False        

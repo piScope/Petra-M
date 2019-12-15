@@ -253,8 +253,9 @@ class MFEM_SolverRoot(Model):
     
     def get_possible_child(self):
         from petram.solver.solver_model import SolveStep
+        from petram.solver.parametric import Parametric        
         from petram.solver.solve_loop import Loop
-        return [SolveStep, Loop]
+        return [SolveStep, Parametric, Loop]
     
     def get_active_solvers(self, mm = None):
         return [x for x in self.iter_enabled()]

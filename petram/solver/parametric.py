@@ -30,9 +30,9 @@ class Parametric(SolveStep, NS_mixin):
     def panel1_param(self):
         v = self.get_panel1_value()
         return [["Initial value setting",   self.init_setting,  0, {},],
-                ["physics model(blank=auto)",   self.phys_model,  0, {},],
+                ["trial phys. (blank: trial = test)",   self.phys_model, 0, {},],                
                 ["assembly method",  'Full assemble',  4, {"readonly": True,
-                      "choices": assembly_methods.keys()}],
+                      "choices": list(assembly_methods)}],
                 self.make_param_panel('scanner',  v[2]),
                 [ "save separate mesh",  True,  3, {"text":""}],
                 ["inner solver", ''  ,2, None],
@@ -40,7 +40,7 @@ class Parametric(SolveStep, NS_mixin):
                 ]
     
     def get_panel1_value(self):
-        txt = assembly_methods.keys()[0]
+        txt = list(assembly_methods)[0]
         for k, n in assembly_methods.items():
             if n == self.assembly_method: txt = k
 
@@ -78,8 +78,6 @@ class Parametric(SolveStep, NS_mixin):
     
     def get_possible_child(self):
         from petram.solver.std_solver_model import StdSolver        
-        from petram.solver.mumps_model import MUMPS
-        from petram.solver.gmres_model import GMRES
         return [StdSolver,]
     
     def get_scanner(self):
@@ -104,9 +102,9 @@ class Parametric(SolveStep, NS_mixin):
             engine.cleancwd() 
         else:
             os.chdir(path)
-        engine.symlink('../model.pmfm', 'model.pmfm')                    
+        engine.symlink('../model.pmfm', 'model.pmfm')
+        self.case_dirs.append(path)
         return od
-
 
     def _run_full_assembly(self, engine, solvers, scanner, is_first=True):
         for kcase, case in enumerate(scanner):
@@ -131,7 +129,6 @@ class Parametric(SolveStep, NS_mixin):
         
         l_scan = len(scanner)
 
-        
         all_phys = self.get_phys()        
         phys_target = self.get_target_phys()
         
@@ -208,18 +205,39 @@ class Parametric(SolveStep, NS_mixin):
                                                save_parmesh=s.save_parmesh)
                         os.chdir(od)
                    
-    
+    def collect_probe_signals(self, dirs, scanner):
+        from petram.sol.probe import list_probes, load_probe,  Probe
+        params = scanner.list_data()
+        
+        od = os.getcwd()
+
+        filenames, probenames = list_probes(dirs[0])
+
+        names = scanner.names
+        probes = [Probe(n, xnames=names) for n in probenames]
+        
+        for param, dirname in zip(params, dirs):
+            os.chdir(dirname)
+            for f, p in zip(filenames, probes):
+                xdata, ydata =  load_probe(f)
+                p.append_value(ydata, param)
+
+        os.chdir(od)
+        for p in probes:
+            p.write_file()
+            
     def run(self, engine, is_first=True):
         #
         # is_first is not used
         #
-        dprint1("Parametric Scan, ", self.assembly_method)
+        dprint1("Parametric Scan (assemly_methd=", self.assembly_method, ")")
         if self.clear_wdir:
             engine.remove_solfiles()
 
         scanner = self.get_scanner()
         if scanner is None: return
-        
+
+
         solvers = self.get_active_solvers()
         
         phys_models = []
@@ -228,11 +246,12 @@ class Parametric(SolveStep, NS_mixin):
                 if not p in phys_models: phys_models.append(p)
         scanner.set_phys_models(phys_models)
         
-
-        
+        self.case_dirs = []
         if self.assembly_method == 0: 
             self._run_full_assembly(engine, solvers, scanner, is_first=is_first)
         else:
             self._run_rhs_assembly(engine, solvers, scanner, is_first=is_first)
+
+        self.collect_probe_signals(self.case_dirs, scanner)
             
         

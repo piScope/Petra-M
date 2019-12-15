@@ -94,7 +94,7 @@ class StdSolver(Solver):
     
     @debug.use_profiler
     def run(self, engine, is_first = True, return_instance=False):
-        dprint1("Entering run", is_first, self.fullpath())
+        dprint1("Entering run (is_first=", is_first, ")", self.fullpath())
         if self.clear_wdir:
             engine.remove_solfiles()
 
@@ -103,7 +103,8 @@ class StdSolver(Solver):
         if return_instance: return instance                    
         # We dont use probe..(no need...)
         #instance.configure_probes(self.probe)
-
+        instance.configure_probes(self.probe)
+         
         if self.init_only:
             engine.sol = engine.assembled_blocks[1][0]
             instance.sol = engine.sol
@@ -117,7 +118,10 @@ class StdSolver(Solver):
                                skip_mesh = False, 
                                mesh_only = False,
                                save_parmesh=self.save_parmesh)
-        engine.sol = instance.sol        
+        engine.sol = instance.sol
+        
+        instance.save_probe()
+        
         dprint1(debug.format_memory_usage())
         return is_first
 
@@ -219,6 +223,10 @@ class StandardSolver(SolverInstance):
 
         A.reformat_central_mat(solall, 0, X[0], mask)
         self.sol = X[0]
+
+        # store probe signal (use t=0.0 in std_solver)
+        for p in self.probe:
+            p.append_sol(X[0])
 
         return True
 

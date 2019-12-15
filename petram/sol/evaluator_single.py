@@ -34,12 +34,13 @@ class EvaluatorSingle(EvaluatorCommon):
         self.physpath = ''
         self.init_done = False
         self.failed = False
+        super(EvaluatorSingle, self).__init__()        
         
     def set_solfiles(self, solfiles):
         self.solfiles = weakref.ref(solfiles)
         # make sure solvars is empty and weakref does not go away.
         self._soliles = solfiles
-        self.solvars = {}
+        self.solvars = {}        
         
     def set_phys_path(self, phys_path):
         self.phys_path = phys_path
@@ -47,8 +48,7 @@ class EvaluatorSingle(EvaluatorCommon):
     def validate_evaluator(self, name, attr, solfiles, **kwargs):
         #print("validate evaulator", self.solfiles(), solfiles)
         redo_geom = False
-        if (self.solfiles is None or
-            self.solfiles() is not solfiles):
+        if self.solfiles is None or self.solfiles() is not solfiles:
             self.set_solfiles(solfiles)
             print("new_solfiles")
             redo_geom = True
@@ -148,13 +148,12 @@ class EvaluatorSingle(EvaluatorCommon):
             data = data0
         return data, attrs
     
-    def eval_probe(self, expr, probes):
+    def eval_probe(self, expr, xexpr, probes):
         if self.phys_path == '': return None, None
         
         phys = self.mfem_model()[self.phys_path]
 
-        print(self.agents)
         evaluator = self.agents[1][0]
-        return evaluator.eval_probe(expr, probes, phys)
+        return evaluator.eval_probe(expr, xexpr, probes, phys)
 
 

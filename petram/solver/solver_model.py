@@ -80,14 +80,13 @@ class SolveStep(SolverBase):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.timedomain_solver_model import TimeDomain
-        from petram.solver.parametric import Parametric
         from petram.solver.set_var import SetVar
   
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [StdSolver, StdMeshAdaptSolver, TimeDomain, Parametric, SetVar]
+            return [StdSolver, StdMeshAdaptSolver, TimeDomain, SetVar]
         except:
-            return [StdSolver, TimeDomain, Parametric, SetVar]
+            return [StdSolver, TimeDomain, SetVar]
 
     
     def get_phys(self):
@@ -435,6 +434,11 @@ class SolverInstance(object):
 
     def configure_probes(self, probe_txt):
         from petram.sol.probe import Probe
+
+        if probe_txt == '':
+            all_phys = self.get_phys()
+            probe_txt = ','.join([phys.collect_probes() for phys in all_phys])
+                                 
         dprint1("configure probes: "+probe_txt)
         if probe_txt.strip() != '':
             probe_names = [x.strip() for x in probe_txt.split(',')]

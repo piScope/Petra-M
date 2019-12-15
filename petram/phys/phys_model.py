@@ -293,6 +293,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     def get_possible_point(self):
         return []
 
+    def get_probe(self):
+        '''
+        return probe name
+        '''
+        return ''
     def get_independent_variables(self):
         p = self.get_root_phys()
         ind_vars = p.ind_vars
@@ -921,7 +926,13 @@ class PhysModule(Phys):
             if self.dim == 1:               
                self.sel_index = alle
                
-       
+
+    def collect_probes(self):
+        probes = [mm.get_probe() for mm in self.walk()]
+        probes = [x for x in probes if len(x) != 0]
+        txt = ','.join(probes)
+        return txt
+        
     def get_dom_bdr_choice(self, mesh):
 
         from collections import defaultdict

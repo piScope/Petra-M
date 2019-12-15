@@ -383,6 +383,7 @@ class DlgPlotSol(SimpleFramePlus):
             if len(choices)==0: choices = ['no physcs in model']
 
             ll = [['Expression', '', 0, {}],
+                  ['Expression(x)', '', 0, {}],                  
                   ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}], ]
 
@@ -1512,34 +1513,36 @@ class DlgPlotSol(SimpleFramePlus):
     def onApplyProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
         expr = str(value[0]).strip()
+        xexpr = str(value[1]).strip()        
         
         xdata, data = self.eval_probe(mode = 'plot')
         if data is None:
             wx.CallAfter(self.set_title_no_status)        
             return
-        self.post_threadend(self.make_plot_probe, (xdata, data), expr = expr)
+        self.post_threadend(self.make_plot_probe, (xdata, data), expr = expr, xexpr = xexpr)
+        
     def onExportProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
-        expr = str(value[0]).strip()
-        
         xdata, data = self.eval_probe(mode = 'plot')
 
         data = {'xdata': xdata, 'data': data}
         self.export_to_piScope_shell(data,  'probe_data')
         
-    def make_plot_probe(self, data, expr='', cls=None):
+    def make_plot_probe(self, data, expr='', xexpr='', cls=None):
         from ifigure.interactive import figure
         v = figure(viewer = cls)
         v.update(False)        
         v.suptitle(expr)
+        if len(xexpr) != 0: v.xlabel(xexpr)
         v.plot(data[0], data[1])
         v.update(True)        
         
     def eval_probe(self, mode = 'plot'):
         value = self.elps['Probe'] .GetValue()
         expr = str(value[0]).strip()
-        phys_path = value[1]        
-        xdata, data = self.evaluate_sol_probe(expr, phys_path)
+        xexpr = str(value[1]).strip()        
+        phys_path = value[2]        
+        xdata, data = self.evaluate_sol_probe(expr, xexpr, phys_path)
         return xdata, data
         
     #
@@ -1798,29 +1801,21 @@ class DlgPlotSol(SimpleFramePlus):
             wx.CallAfter(self.set_title_no_status)        
         return None, None
     
-    def evaluate_sol_probe(self, expr, phys_path):
+    def evaluate_sol_probe(self, expr, xexpr, phys_path):
         model = self.GetParent().model
-        solfiles = self.get_model_soldfiles()
+        solfiles = None   # probe does not load solfile (GridFunction)
         mfem_model = model.param.getvar('mfem_model')
 
         attrs = [1]
-        if 'Probe' in self.evaluators:
-            try:
-                self.evaluators['Probe'].validate_evaluator('Probe', attrs, solfiles)
-            except IOError:
-                dprint1("IOError detected setting failed=True")
-                self.evaluators['Probe'].failed = True
                 
         from petram.sol.evaluators import build_evaluator                
-        if (not 'Probe' in self.evaluators or
-            self.evaluators['Probe'].failed):
-            
-            if 'Probe' in self.evaluators: self.evaluators['Probe'].terminate_all()            
-            self.evaluators['Probe'] =  build_evaluator(attrs, 
-                                                        mfem_model,
-                                                        solfiles,
-                                                        name = 'Probe',
-                                                        config = self.config)
+          
+        if 'Probe' in self.evaluators: self.evaluators['Probe'].terminate_all()            
+        self.evaluators['Probe'] =  build_evaluator(attrs, 
+                                                    mfem_model,
+                                                    solfiles,
+                                                    name = 'Probe',
+                                                    config = self.config)
 
             
         try:
@@ -1830,7 +1825,7 @@ class DlgPlotSol(SimpleFramePlus):
                 probes = self.remote_sols[0:2]
 
             self.evaluators['Probe'].set_phys_path(phys_path)
-            return self.evaluators['Probe'].eval_probe(expr, probes)
+            return self.evaluators['Probe'].eval_probe(expr, xexpr, probes)
         except:
             wx.CallAfter(dialog.showtraceback,
                          parent = self,
