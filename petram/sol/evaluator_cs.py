@@ -288,7 +288,10 @@ class EvaluatorClient(Evaluator):
         
     def make_agents(self,  *params, **kparams):
         return self.__call_server('make_agents', *params, **kparams)        
-        
+
+    def make_probe_agents(self,  *params, **kparams):
+        return self.__call_server('make_probe_agents', *params, **kparams)        
+
     def load_solfiles(self,  *params, **kparams):
         return self.__call_server('load_solfiles', *params, **kparams)        
 
