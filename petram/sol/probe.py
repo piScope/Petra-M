@@ -14,6 +14,10 @@ def list_probes(dir):
     od = os.getcwd()
     os.chdir(dir)
     filenames = [name for name in os.listdir() if name.startswith('probe_')]
+
+    if use_parallel:
+        filenames = [f for f in filenames if '.'+f.split('.')[-1] == smyid]
+
     probenames = [n[6:] for n in filenames]
     os.chdir(od)    
 

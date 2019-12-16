@@ -69,8 +69,8 @@ class SimpleScanner(DefaultParametricScanner):
     '''
     Scan("freq", [3e9, 4e9, 5e9])
     Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90, 180])
-    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), step = 3)  # 1D scan 
-    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), step = (3,4)) # 2D scan 
+    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = 3)  # 1D scan 
+    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = (3,4)) # 2D scan 
 
     '''
     def __init__(self, *args, **kwargs):
@@ -79,7 +79,7 @@ class SimpleScanner(DefaultParametricScanner):
             self._names = args
             starts = np.atleast_1d(kwargs['start'])
             stops = np.atleast_1d(kwargs['stop'])
-            steps = np.atleast_1d(kwargs['step'])
+            steps = np.atleast_1d(kwargs['nstep'])
             data = []
             for k in range(len(self._names)):
                 s = starts[k]
