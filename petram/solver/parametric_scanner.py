@@ -77,11 +77,11 @@ class SimpleScanner(DefaultParametricScanner):
         
         if len(kwargs) != 0:
             self._names = args
-            starts = kwargs['start']
-            stops = kwargs['stop']
+            starts = np.atleast_1d(kwargs['start'])
+            stops = np.atleast_1d(kwargs['stop'])
             steps = np.atleast_1d(kwargs['step'])
             data = []
-            for k in len(self._names):
+            for k in range(len(self._names)):
                 s = starts[k]
                 e = stops[k]
                 n = steps[0] if len(steps) == 1 else steps[k]
