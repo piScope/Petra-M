@@ -30,13 +30,13 @@ class Parametric(SolveStep, NS_mixin):
     def panel1_param(self):
         v = self.get_panel1_value()
         return [["Initial value setting",   self.init_setting,  0, {},],
-                ["trial phys. (blank: trial = test)",   self.phys_model, 0, {},],                
+                ["trial phys. ",   self.phys_model, 0, {},],                
                 ["assembly method",  'Full assemble',  4, {"readonly": True,
                       "choices": list(assembly_methods)}],
                 self.make_param_panel('scanner',  v[2]),
                 [ "save separate mesh",  True,  3, {"text":""}],
                 ["inner solver", ''  ,2, None],
-                ["clear working directory", False, 3, {"text":""}],
+                ["clear working dir.", False, 3, {"text":""}],
                 ]
     
     def get_panel1_value(self):
