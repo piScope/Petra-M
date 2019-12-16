@@ -1,4 +1,4 @@
-\documentclass[11pt,a4paper,draft]{report}
+\documentclass[11pt,a4paper,final]{report}
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath}
 \usepackage{amsfonts}
@@ -106,8 +106,11 @@ deltam operator is an extention of delta operator. Deltam operator has a followi
 
 
 Using it for material property and selection index.
+\chapter{Geometry}
 
-\chapter{PDE modules}
+\chapter{Mesh}
+
+\chapter{Physics}
 \section{WeakForm(WF)}
 \section{CoefficientForm(Coeff)}
 \subsection{2D static (Coeff2D)}
@@ -341,21 +344,89 @@ rE_{\rm \phi}\\
 \section{Mesh extension} 
 \section{Name space}
 \section{Matrix assembly}
+\
+\chapter{IntialValue}
+\label{InitialValue}    
+
+\chapter{Postprocess}
+\label{Postprocess}       
+\section{Derived Value}     
+Create a new grid function and project expression.
+Extended Mesh must be generated in the solve stage.
+
+\section{DWC (direct wrapper call)}
 
 \chapter{Solver}
-\section{Setting up solver section}
-This section discuss SolveStep and reduced linear system generation.
+\section{Organization of Solver Section}
+In Petra-M project, Solver section defines how it solves the PDE systems defined in Physics section. 
+We view solving multi-physics PDE system as a process of assembling and solving multiple linear systems in a given sequence. 
+The structure of Solver section is designed to define such a sequence. 
+Top level of Solver section consists from a set of SolveSteps (or its subclasses). 
+Under SolveStep, Solver objects, such as StdSolver, TimeDependentSolvers are listed. 
+Each Solver defines a linear solver used to solve a linear system. 
+In this seciotn, we discuss the role of each layer. 
 
-\section{Direct Solver}
+\section{SolveStep}
+In Petra-M, one SolveStep corresponds to one linear block matrix structure. 
+The regular SolveStep panel on the model editor looks like Fig. \ref{solve_step}.
+The block structure is determined by giving the discrete space variables in the test (dual) and trial  (primal) vectors. 
+If this box is left black, Petra-M chooses the trail space based on the physics model to be solved and use the same block structure for the test space, too.
+Another important role of SolveStep is to define how to initialize the trial vector, and how to postprocess the solution.
+Initialization is defined by choosing the prescription prepared in InitialValue section of model (discussed in Chapter \ref{InitialValue})
+Similariy, Postprocess can be defined by choosing the prescription defined in Postprocess section of model tree (
+Additionally, Petra-M provides are an approach to post-process the solution vector without using the panels in model tree. This is called DWC (direct wrapper call).
+DWC is meant for more low-level access to the solution (mfem GridFunction). 
+Both approach are discussed in Chapter \ref{Postprocess}). 
+
+\begin{figure}
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/solve_step.png} 
+\caption{  }\label{solve_step}
+\end{figure}
+
+
+\subsection{Parametric Solver}
+Parametric Solver (Fig. \ref{parametric_scan}) is a special kind of SolveStep, which allows to repeat the StdSolver run for a different value sets in   in NameSpace variables. 
+Parametric Solver can run in two modes. In the first mode, the entire linear system is filled for every parameter set.
+In the second mode, the only right hand side of equation is refilled. When using a direct solver supporting the multiple
+right hand side, the second mode reuses the LU factorization. 
+Scanner defines the parameter values used in the scan.  In the example shown in figure, Scan is the predefined parametric scanner (petram.solver.parametric\_scanner.py). 
+This scanner defines the linear scan of parameters in multiple dimensions. 
+In this case, it is setup to scan freq and ph for thee values and two values respectively. 
+Scan takes the product of these two parameters and performs total 6 linear system solves.
+List. \ref{parametric_scanner} shows details of how to give arguments to Scan.
+
+\begin{minipage}[c]{0.95\textwidth}
+\begin{lstlisting}[caption={Parametric Scanner},captionpos=b, frame=single, label={parametric_scanner}]
+Scan("freq", [3e9, 4e9, 5e9])
+Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90, 180])
+Scan("freq", "phase", start = (3e9, 0), 
+      stop = (5e9, 180), step = 3)  # 1D scan 
+ Scan("freq", "phase", start = (3e9, 0), 
+      stop = (5e9, 180),  step = (3,4)) # 2D scan 
+\end{lstlisting}
+\end{minipage}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/parametric_scan.png} 
+\caption{  }\label{parametric_scan}
+\end{figure}
+
+\section{Solver}
+
+\section{LinearSolver}
 \subsection{MUMPS}
 MUMPS is a sparse direct solver (\url{http://mumps.enseeiht.fr}). Petra-M support MUMPS via the Petra\_MUMPS module. 
+
 \subsection{Strumpack}
 Supporting STRUMPACK is in progress.
-\section{Iterative Solver}
-\subsection{preconditioner}
+
+\subsection{Iterative Solver}
+\subsubsection{preconditioner}
 
 
-\subsection{user defined preconditioner}
+\subsubsection{user defined preconditioner}
 A user can also define his/her own preconditioner using python script.  This can be done in several levels, but all
 uses the prc decorator to tell PetraM that a function in a script is to be used as a preconditioner object.
 
@@ -433,11 +504,7 @@ def SetOperator(p, opr):
  \end{minipage}
 
 
-\chapter{Postprocess}
-        
-\section{Derived Value}     
-Create a new grid function and project expression.
-Extended Mesh must be generated in the solve stage.
+
 
 \chapter{Visualization}
 \section{Solution file structure}

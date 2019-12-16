@@ -8,6 +8,7 @@
 *~
 doc/*
 !doc/manual.tex
+!doc/figures
 build
 dist
 *.egg-info
