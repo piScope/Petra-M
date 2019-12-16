@@ -401,9 +401,9 @@ List. \ref{parametric_scanner} shows details of how to give arguments to Scan.
 Scan("freq", [3e9, 4e9, 5e9])
 Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90, 180])
 Scan("freq", "phase", start = (3e9, 0), 
-      stop = (5e9, 180), step = 3)  # 1D scan 
+      stop = (5e9, 180), nstep = 3)  # 1D scan 
  Scan("freq", "phase", start = (3e9, 0), 
-      stop = (5e9, 180),  step = (3,4)) # 2D scan 
+      stop = (5e9, 180),  nstep = (3,4)) # 2D scan 
 \end{lstlisting}
 \end{minipage}
 
@@ -509,5 +509,12 @@ def SetOperator(p, opr):
 \chapter{Visualization}
 \section{Solution file structure}
 \section{Plotting solution in $\pi$Scope}
+
+\section{Appendix}
+\subsection{Release Histoery}
+
+2018 08 24  The first public release version
+
+
 
 \end{document}
