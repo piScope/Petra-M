@@ -258,7 +258,8 @@ class MeshFile(Mesh):
 class Mesh1D(Mesh):
     isMeshGenerator = True      
     isRefinement = False   
-    has_2nd_panel = False        
+    has_2nd_panel = False
+    unique_child = True    
 
     def attribute_set(self, v):
         v = super(Mesh1D, self).attribute_set(v)
@@ -297,7 +298,7 @@ class Mesh1D(Mesh):
         return [["Length",   self.length_txt,  0, {"validator":check_float_array}],
                 ["N segments",   self.nsegs_txt,  0, {"validator":check_int_array}],
                 ["x0",   self.mesh_x0_txt,  0, {"validator":check_float}],
-                [None, "Note: use comma separated integer to generate a multisegments mesh",   2, {}],]
+                [None, "Note: use comma separated float/integer for a multisegments mesh",   2, {}],]
 
     def get_panel1_value(self):
         return (self.length_txt, self.nsegs_txt, self.mesh_x0_txt, None)
@@ -346,16 +347,17 @@ class Mesh1D(Mesh):
 class Mesh2D(Mesh):
     isMeshGenerator = True      
     isRefinement = False   
-    has_2nd_panel = False        
+    has_2nd_panel = False
+    unique_child = True    
 
     def attribute_set(self, v):
-        v = super(Mesh1D, self).attribute_set(v)
+        v = super(Mesh2D, self).attribute_set(v)
         v['length'] = [1,]
         v['nsegs'] = [100,]
         v['xlength_txt'] = "1"
         v['ylength_txt'] = "1"
-        v['xnsegs_txt'] = "100"
-        v['ynsegs_txt'] = "100"
+        v['xnsegs_txt'] = "30"
+        v['ynsegs_txt'] = "20"
         v['refine'] = 1
         v['fix_orientation'] = True
         v['mesh_x0_txt'] = "0.0, 0.0"
@@ -385,15 +387,15 @@ class Mesh2D(Mesh):
                return False
             
         return [["Length(x)",   self.xlength_txt,  0, {"validator":check_float_array}],
-                ["N segments(x)",   self.nsegs_txt,  0, {"validator":check_int_array}],                
+                ["N segments(x)",   self.xnsegs_txt,  0, {"validator":check_int_array}],                
                 ["Length(y)",   self.ylength_txt,  0, {"validator":check_float_array}],
-                ["N segments(y)",   self.nsegs_txt,  0, {"validator":check_int_array}],                
+                ["N segments(y)",   self.ynsegs_txt,  0, {"validator":check_int_array}],                
                 ["x0",   self.mesh_x0_txt,  0, {"validator":check_float_array}],
-                [None, "Note: use comma separated integer to generate a multisegments mesh",   2, {}],]
+                [None, "Note: use comma separated float/integer for a multisegments mesh",   2, {}],]
 
     def get_panel1_value(self):
         return (self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
-                self.zlength_txt, self.znsegs_txt, self.mesh_x0_txt, None)
+                self.mesh_x0_txt, None)
     
     def import_panel1_value(self, v):
         self.xlength_txt = str(v[0])
@@ -431,7 +433,7 @@ class Mesh2D(Mesh):
         mesh = quad_rectangle_mesh(self.xlength, self.xnsegs, self.ylength, self.ynsegs,
                                filename='', refine = self.refine == 1,
                                fix_orientation = self.fix_orientation,
-                               sdim = 1, x0=self.mesh_x0)
+                               sdim=2, x0=self.mesh_x0)
         
         self.parent.sdim = mesh.SpaceDimension()
         try:
@@ -444,17 +446,18 @@ class Mesh3D(Mesh):
     isMeshGenerator = True      
     isRefinement = False   
     has_2nd_panel = False        
-
+    unique_child = True
+    
     def attribute_set(self, v):
-        v = super(Mesh1D, self).attribute_set(v)
+        v = super(Mesh3D, self).attribute_set(v)
         v['length'] = [1,]
         v['nsegs'] = [100,]
         v['xlength_txt'] = "1"
         v['ylength_txt'] = "1"
         v['zlength_txt'] = "1"                
-        v['xnsegs_txt'] = "100"
-        v['ynsegs_txt'] = "100"
-        v['znsegs_txt'] = "100"        
+        v['xnsegs_txt'] = "10"
+        v['ynsegs_txt'] = "10"
+        v['znsegs_txt'] = "10"        
         v['refine'] = 1
         v['fix_orientation'] = True
         v['mesh_x0_txt'] = "0.0, 0.0, 0.0"
@@ -484,13 +487,13 @@ class Mesh3D(Mesh):
                return False
             
         return [["Length(x)",   self.xlength_txt,  0, {"validator":check_float_array}],
-                ["N segments(x)",   self.nsegs_txt,  0, {"validator":check_int_array}],                
+                ["N segments(x)",   self.xnsegs_txt,  0, {"validator":check_int_array}],                
                 ["Length(y)",   self.ylength_txt,  0, {"validator":check_float_array}],
-                ["N segments(y)",   self.nsegs_txt,  0, {"validator":check_int_array}],                
+                ["N segments(y)",   self.ynsegs_txt,  0, {"validator":check_int_array}],                
                 ["Length(z)",   self.zlength_txt,  0, {"validator":check_float_array}],                
-                ["N segments(z)",   self.nsegs_txt,  0, {"validator":check_int_array}],                
+                ["N segments(z)",   self.znsegs_txt,  0, {"validator":check_int_array}],                
                 ["x0",   self.mesh_x0_txt,  0, {"validator":check_float_array}],
-                [None, "Note: use comma separated integer to generate a multisegments mesh",   2, {}],]
+                [None, "Note: use comma separated float/integer for a multisegments mesh",   2, {}],]
 
     def get_panel1_value(self):
         return (self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
@@ -534,7 +537,7 @@ class Mesh3D(Mesh):
         
         mesh = hex_box_mesh(self.xlength, self.xnsegs,self.ylength, self.ynsegs, self.zlength, self.znsegs,
                             filename='', refine = self.refine == 1, fix_orientation=self.fix_orientation,
-                            sdim=1, x0=self.mesh_x0)
+                            sdim=3, x0=self.mesh_x0)
         self.parent.sdim = mesh.SpaceDimension()
         
         try:

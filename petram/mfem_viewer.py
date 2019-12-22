@@ -576,15 +576,15 @@ class MFEMViewer(BookViewer):
         
     def onNewMesh(self, evt):
         from ifigure.widgets.dialog import read
-        from petram.mesh.mesh_model import MeshFile, MeshGroup
+        from petram.mesh.mesh_model import MeshFile, MFEMMesh
         path = read(message='Select mesh file to read', wildcard='MFEM|*.mesh|Gmsh|*.msh')
         if path == '': return
         od = self.model.param.getvar('mfem_model')
         
-        mg = MeshGroup()
+        mg = MFEMMesh()
         data = MeshFile(path=path)
         
-        nameg = od['Mesh'].add_itemobj('MeshGroup', mg)
+        nameg = od['Mesh'].add_itemobj('MFEMMesh', mg)
         name = od['Mesh'][nameg].add_itemobj('MeshFile', data)        
         for key in od['Mesh']:
             if key != nameg: od['Mesh'][key].enabled = False
