@@ -437,7 +437,8 @@ class SolverInstance(object):
 
         if probe_txt == '':
             all_phys = self.get_phys()
-            probe_txt = ','.join([phys.collect_probes() for phys in all_phys])
+            txt = [phys.collect_probes() for phys in all_phys]
+            probe_txt = ','.join([t for t in txt if len(t) > 0])
                                  
         dprint1("configure probes: "+probe_txt)
         if probe_txt.strip() != '':
