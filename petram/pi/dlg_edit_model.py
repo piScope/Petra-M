@@ -10,6 +10,7 @@ from ifigure.utils.edit_list import EDITLIST_CHANGED,  EDITLIST_CHANGING
 from ifigure.utils.edit_list import EDITLIST_SETFOCUS
 from ifigure.widgets.miniframe_with_windowlist import MiniFrameWithWindowList
 from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList
+import ifigure.widgets.dialog as dialog
 
 import petram.helper.pickle_wrapper as pickle
 
@@ -205,8 +206,16 @@ class DlgEditModel(SimpleFramePlus):
                    else:
                        before, after = None, None  
 
-                   name = parent.add_item(namebase, cls,
+                   try:
+                       name = parent.add_item(namebase, cls,
                                           before=before, after=after)
+                   except:
+                       dialog.showtraceback(parent = self,
+                           txt="Failed to add child",
+                           title='Error',
+                           traceback=traceback.format_exc())
+                       return
+                       
                    child = parent[name]
                    viewer = self.GetParent()               
                    viewer.model.scripts.helpers.rebuild_ns()
@@ -285,7 +294,6 @@ class DlgEditModel(SimpleFramePlus):
         mm = self.model.GetItem(indices)
  
         import wx
-        import ifigure.widgets.dialog as dialog
         
         app = wx.GetApp().TopWindow
         app.shell.lvar[mm.name()] = mm

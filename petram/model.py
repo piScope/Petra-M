@@ -159,6 +159,7 @@ class Model(RestorableOrderedDict):
     mustbe_firstchild =False
     always_new_panel = True
     can_rename = False
+    unique_child = False
     
     @classmethod    
     def fancy_menu_name(cls):
@@ -360,7 +361,15 @@ class Model(RestorableOrderedDict):
 
     def add_item(self, txt, cls,  **kwargs):
         after = kwargs.pop("after", None)
-        before = kwargs.pop("before", None)        
+        before = kwargs.pop("before", None)
+
+        if cls.unique_child:
+            if txt in self:
+                assert False, "this class (unique_child) already exists"
+            obj = cls(**kwargs)
+            self[txt] = obj
+            return txt
+            
         m = []
         for k in self.keys():
             ll = 0
