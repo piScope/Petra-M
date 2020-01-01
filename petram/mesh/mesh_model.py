@@ -177,9 +177,9 @@ class MeshFile(Mesh):
         wc = "ANY|*|MFEM|*.mesh|GMSH|*.gmsh"       
         ret =  [["Path",   self.path,  45, {'wildcard':wc}],
                 ["", "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir."  ,2, None],
-                ["Generate edges",    self.generate_edges == 1,  3, {"text":""}],
-                ["Refine",    self.refine==1 ,  3, {"text":""}],
-                ["FixOrientation",    self.fix_orientation ,  3, {"text":""}],
+                [None,  self.generate_edges == 1,  3, {"text":"Generate edges"}],
+                [None,   self.refine==1 ,  3, {"text":"Refine"}],
+                [None,   self.fix_orientation ,  3, {"text":"FixOrientation"}],
                 [None, self._mesh_char ,2, None],]
         return ret
      

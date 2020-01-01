@@ -344,6 +344,8 @@ class DlgEditModel(SimpleFramePlus):
 
     def OnDuplicateItemFromModel(self, evt):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        self.tree.SelectItem(self.tree.GetSelection(), select=False)
+        
         mm = self.model.GetItem(indices)
         name = mm.name()
         base, num = mm.split_digits()
@@ -363,6 +365,9 @@ class DlgEditModel(SimpleFramePlus):
         
         parent.insert_item(index+1, base+str(int(max(nums))+1), newmm)
         self.tree.RefreshItems()
+        
+        new_item = self.tree.GetItemByIndex(newmm.GetIndices())
+        self.tree.SelectItem(new_item)                   
         self.OnEvalNS(evt)
 
     def OnDeleteItemFromModelMult(self, evt):
@@ -724,6 +729,7 @@ class DlgEditModel(SimpleFramePlus):
         self.panels[mm.fullname()][3].update_label(mm.panel4_param())                
                              
     def import_selected_panel_value(self):
+        if self.tree.GetSelection() is None: return
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
   
