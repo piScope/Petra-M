@@ -18,15 +18,15 @@ class StdSolver(Solver):
     def panel1_param(self):
         return [#["Initial value setting",   self.init_setting,  0, {},],
                 ["physics model",   self.phys_model,  0, {},],
-                ["initialize solution only", self.init_only,  3, {"text":""}], 
-                ["clear working directory",
-                 self.clear_wdir,  3, {"text":""}],
-                ["convert to real matrix (complex prob.)",
-                 self.assemble_real,  3, {"text":""}],
-                ["save parallel mesh",
-                 self.save_parmesh,  3, {"text":""}],
-                ["use cProfiler",
-                 self.use_profiler,  3, {"text":""}],]
+                [None, self.init_only,  3, {"text":"initialize solution only"}], 
+                [None,
+                 self.clear_wdir,  3, {"text":"clear working directory"}],
+                [None,
+                 self.assemble_real,  3, {"text":"convert to real matrix (complex prob.)"}],
+                [None,
+                 self.save_parmesh,  3, {"text":"save parallel mesh"}],
+                [None,
+                 self.use_profiler,  3, {"text":"use_profiler"}],]
 
     def get_panel1_value(self):
         return (#self.init_setting,

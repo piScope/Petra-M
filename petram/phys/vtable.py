@@ -142,7 +142,7 @@ class VtableElement(object):
         
         if self.type == 'bool':
             value = getattr(obj, self.name + '_txt')            
-            ret = [self.guilabel, value, 3, {"text":""}]
+            ret = [None, value, 3, {"text":self.guilabel}]
             return ret
         
         elif len(self.shape) == 0:

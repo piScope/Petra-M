@@ -72,8 +72,9 @@ class Parametric(SolveStep, NS_mixin):
         v = super(Parametric, self).attribute_set(v)
         v['assembly_method'] = 0
         v['scanner'] = 'Scan("a", [1,2,3])'
-        v['save_separate_mesh'] = True
-        v['clear_wdir'] = True
+        v['save_separate_mesh'] = False
+        v['clear_wdir'] = True                      
+
         return v
     
     def get_possible_child(self):

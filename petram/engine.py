@@ -257,13 +257,13 @@ class Engine(object):
         for k in model['Mesh'].keys():
             if not hasattr(model['Mesh'][k], 'isMeshGroup'):
                 if g is None:
-                    name = model['Mesh'].add_item('MeshGroup', MeshGroup)
+                    name = model['Mesh'].add_item('MFEMMesh', MeshGroup)
                     g = model['Mesh'][name]
                 items.append((k, model['Mesh'][k]))
 
         for name, obj in items:
             del model['Mesh'][name]
-            model['Mesh']['MeshGroup1'][name] = obj
+            model['Mesh']['MFEMMesh1'][name] = obj
 
         # convert old model which does not use SolveStep...
         from petram.solver.solver_model import SolveStep
