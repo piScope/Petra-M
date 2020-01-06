@@ -74,6 +74,7 @@ class Parametric(SolveStep, NS_mixin):
         v['scanner'] = 'Scan("a", [1,2,3])'
         v['save_separate_mesh'] = False
         v['clear_wdir'] = True                      
+
         return v
     
     def get_possible_child(self):
