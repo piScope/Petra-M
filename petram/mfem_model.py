@@ -23,7 +23,9 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         
     def attribute_set(self, v):
         v['debug_level'] = 1
-        v['dwc_object_name'] = ''        
+        v['dwc_object_name'] = ''
+        v['mesh_gen'] = ''
+        v['geom_gen'] = ''        
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
         
@@ -36,26 +38,32 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         txt2 = "DWC (direct wrapper call) is for low level API access"
         return [["debug level",   self.debug_level,  400, {}],
                 ["", "\n".join(txt) ,2, None],
+                ["geom generator",   self.geom_gen,  0, {}],
+                ["mesh generator",   self.mesh_gen,  0, {}],
                 ["DWC object", ""   ,0, {}],
                 ["", txt2 ,2, None],]
 
     def get_panel1_value(self):
-        return (self.debug_level, None, self.dwc_object_name, None)
+        return (self.debug_level, None,        
+                self.geom_gen, self.mesh_gen, self.dwc_object_name, None)
 
     def import_panel1_value(self, v):
         self.debug_level = v[0]
-        self.dwc_object_name = str(v[2])
+        self.geom_gen = v[2]
+        self.mesh_gen = v[3]
+        self.dwc_object_name = str(v[4])
         import petram.debug        
         petram.debug.debug_default_level = int(self.debug_level)        
         
     def run(self):
+        from petram.helper.variables import Variables
+        
         import petram.debug
         if petram.debug.debug_default_level == 0:
             petram.debug.debug_default_level = int(self.debug_level)
-
-        from petram.helper.variables import Variables            
         self.root()._variables = Variables()
         self.root()._parameters = {}
+        self.root()._init_done= True                     
             
     def get_defualt_local_ns(self):
         '''
@@ -250,7 +258,7 @@ class MFEM_MeshRoot(Model):
 class MFEM_SolverRoot(Model):
     can_delete = False
     has_2nd_panel = False
-    
+
     def get_possible_child(self):
         from petram.solver.solver_model import SolveStep
         from petram.solver.parametric import Parametric        

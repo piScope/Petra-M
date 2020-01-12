@@ -173,6 +173,9 @@ class TimeDomain(Solver):
         if self.clear_wdir:
             engine.remove_solfiles()
 
+        if is_first:
+            engine.preprocess_modeldata()
+
         fid = engine.open_file('checkpoint.'+self.parent.name()+'_'+self.name()+'.txt', 'w')
         st, et, nt = self.st_et_nt
         

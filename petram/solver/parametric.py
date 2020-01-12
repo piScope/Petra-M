@@ -37,6 +37,8 @@ class Parametric(SolveStep, NS_mixin):
                 [ "save separate mesh",  True,  3, {"text":""}],
                 ["inner solver", ''  ,2, None],
                 ["clear working dir.", False, 3, {"text":""}],
+                [None,  self.use_geom_gen,  3, {"text":"run geometry generator"}],
+                [None,  self.use_mesh_gen,  3, {"text":"run mesh generator"}],
                 ]
     
     def get_panel1_value(self):
@@ -50,15 +52,23 @@ class Parametric(SolveStep, NS_mixin):
                 str(self.scanner),    
                 self.save_separate_mesh,
                 self.get_inner_solver_names(),
-                self.clear_wdir)
+                self.clear_wdir, 
+                self.use_geom_gen,
+                self.use_mesh_gen,)
+
 
     def import_panel1_value(self, v):
         self.init_setting = str(v[0])                        
         self.phys_model = str(v[1])
-        self.assembly_method = assembly_methods[v[-5]]
-        self.scanner = v[-4]
-        self.save_separate_mesh = v[-3]
-        self.clear_wdir = v[-1]
+        self.assembly_method = assembly_methods[v[-7]]
+        self.scanner = v[-6]
+        self.save_separate_mesh = v[-5]
+        self.clear_wdir = v[-3]
+        self.use_geom_gen = v[-2]        
+        self.use_mesh_gen = v[-1]
+        if self.use_geom_gen:
+            self.use_mesh_gen = True
+        if self.use_mesh_gen: self.assembly_method = 0
         
     def get_inner_solver_names(self):
         names = [s.name() for s in self.get_active_solvers()]
@@ -95,7 +105,14 @@ class Parametric(SolveStep, NS_mixin):
         return {'Scan': Scan}
 
     def go_case_dir(self, engine, ksol, mkdir):
-        od = os.getcwd()                    
+        '''
+        make case directory and create symlinks
+        '''
+        
+        od = os.getcwd()
+        
+        nsfiles = [n for n in os.listdir() if n.endswith('_ns.py') or n.endswith('_ns.dat')]
+        
         path = os.path.join(od, 'case' + str(ksol))
         if mkdir:
             engine.mkdir(path) 
@@ -103,17 +120,26 @@ class Parametric(SolveStep, NS_mixin):
             engine.cleancwd() 
         else:
             os.chdir(path)
-        engine.symlink('../model.pmfm', 'model.pmfm')
+        files = ['model.pmfm'] + nsfiles
+        for n in files:
+             engine.symlink(os.path.join('../',n), n)
         self.case_dirs.append(path)
         return od
 
     def _run_full_assembly(self, engine, solvers, scanner, is_first=True):
+        
         for kcase, case in enumerate(scanner):
-            self.prepare_form_sol_variables(engine)
-            
             is_first = True
-            self.init(engine)
+            
             od = self.go_case_dir(engine, kcase, True)
+            
+            is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
+            engine.preprocess_modeldata()
+            
+            self.prepare_form_sol_variables(engine)
+
+            self.init(engine)
+
             for ksolver, s in enumerate(solvers):
                 is_first = s.run(engine, is_first=is_first)
                 engine.add_FESvariable_to_NS(self.get_phys()) 
@@ -234,10 +260,11 @@ class Parametric(SolveStep, NS_mixin):
         dprint1("Parametric Scan (assemly_methd=", self.assembly_method, ")")
         if self.clear_wdir:
             engine.remove_solfiles()
-
+            
+        engine.remove_case_dirs()
+        
         scanner = self.get_scanner()
         if scanner is None: return
-
 
         solvers = self.get_active_solvers()
         
@@ -251,6 +278,9 @@ class Parametric(SolveStep, NS_mixin):
         if self.assembly_method == 0: 
             self._run_full_assembly(engine, solvers, scanner, is_first=is_first)
         else:
+            is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
+            if is_first or is_new_mesh:        
+                engine.preprocess_modeldata()
             self._run_rhs_assembly(engine, solvers, scanner, is_first=is_first)
 
         self.collect_probe_signals(self.case_dirs, scanner)

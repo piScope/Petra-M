@@ -26,7 +26,7 @@ class StdSolver(Solver):
                 [None,
                  self.save_parmesh,  3, {"text":"save parallel mesh"}],
                 [None,
-                 self.use_profiler,  3, {"text":"use_profiler"}],]
+                 self.use_profiler,  3, {"text":"use profiler"}],]
 
     def get_panel1_value(self):
         return (#self.init_setting,
@@ -35,17 +35,16 @@ class StdSolver(Solver):
                 self.clear_wdir,
                 self.assemble_real,
                 self.save_parmesh,
-                self.use_profiler)        
+                self.use_profiler,)
     
     def import_panel1_value(self, v):
         #self.init_setting = str(v[0])        
         self.phys_model = str(v[0])
         self.init_only = v[1]                
         self.clear_wdir = v[2]
-
         self.assemble_real = v[3]
         self.save_parmesh = v[4]
-        self.use_profiler = v[5]                
+        self.use_profiler = v[5]
 
     def get_editor_menus(self):
         return []
