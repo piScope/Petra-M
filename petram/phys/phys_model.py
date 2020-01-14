@@ -41,7 +41,7 @@ class PhysVectorConstant(mfem.VectorConstantCoefficient):
      
 class PhysMatrixConstant(mfem.MatrixConstantCoefficient):
     def __init__(self, value):
-        v = mfem.Vector(value.flatten())
+        v = mfem.Vector(np.transpose(value).flatten())
         m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])       
         self.value = (v,m)
         mfem.MatrixConstantCoefficient.__init__(self, m)
@@ -208,7 +208,7 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
         
     def Eval(self, K, T, ip):
         for n, v in self.variables:
-           v.set_point(T, ip, self.g, self.l)           
+           v.set_point(T, ip, self.g, self.l)
         return super(MatrixPhysCoefficient, self).Eval(K, T, ip)
 
     def EvalValue(self, x):
