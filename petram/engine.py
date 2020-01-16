@@ -362,7 +362,6 @@ class Engine(object):
         used from text script execution
         '''
         import os
-        from __main__ import __file__ as mainfile
         
         model = self.model
         self.initialize_datastorage()
@@ -376,15 +375,6 @@ class Engine(object):
         else:
             self.run_mesh_serial()
 
-        '''
-        if dir is None:
-            dir = os.path.dirname(os.path.realpath(mainfile))           
-        for node in model.walk():
-            if node.has_ns() and node.ns_name is not None:
-                node.read_ns_script_data(dir = dir)
-        self.build_ns()
-        '''
-        
         self.assign_sel_index()
         self.run_preprocess()  # this must run when mesh is serial
 
@@ -397,7 +387,9 @@ class Engine(object):
                 if not phys.enabled: continue                            
                 self.run_mesh_extension(phys)
                 self.allocate_fespace(phys)
-                
+
+        self.save_processed_model()
+
         solver = model["Solver"].get_active_solvers()
         return solver
 
@@ -415,10 +407,14 @@ class Engine(object):
         solver = model["Solver"].get_active_solvers()
         return solver
 
-    def run_config(self, skip_refine = False):
-        '''
-        this runs model['General'] and
-        fill namespace dict
+    def run_config(self):
+        self.model['General'].run()
+        try:
+            self.build_ns()
+        except:
+            exception = traceback.format_exc()
+            return -2, exception
+        return 0, None
         '''
         import traceback
         try:        
@@ -436,6 +432,7 @@ class Engine(object):
             exception = traceback.format_exc()
             return -2, exception
         return 0, None
+        '''
      
     def run_preprocess(self, ns_folder = None, data_folder = None):
         dprint1("!!!!! run preprocess !!!!!")
@@ -2772,6 +2769,9 @@ class SerialEngine(Engine):
         
     def run_mesh_gen(self, gen):
         gen.generate_mesh_file()
+
+    def save_processed_model(self):
+        self.model.save_to_file('model_proc.pmfm', meshfile_relativepath = False)
             
 class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
@@ -3144,7 +3144,14 @@ class ParallelEngine(Engine):
             pass
         MPI.COMM_WORLD.Barrier()
        
-
+    def save_processed_model(self):
+        myid     = MPI.COMM_WORLD.rank                
+        if myid == 0:
+            self.model.save_to_file('model_proc.pmfm', meshfile_relativepath = False)
+        else:
+            pass
+        MPI.COMM_WORLD.Barrier()
+       
         
         
   

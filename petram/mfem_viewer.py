@@ -174,8 +174,6 @@ class MFEMViewer(BookViewer):
         self.Bind(ifigure.events.TD_EVT_ARTIST_DRAGSELECTION,
                   self.onTD_DragSelectionInFigure)
        
-        #self.engine.run_config()
-
         self.canvas._popup_style = 1 # popup_skip_2d
         #self.canvas.__class__ = MFEMViewerCanvas
         #self.Bind(wx.EVT_ACTIVATE, self.onActivate)
@@ -636,12 +634,16 @@ class MFEMViewer(BookViewer):
         
         try:
             os.chdir(self.model.owndir())
-            #self.engine.run_mesh(skip_refine = True)
-            err, exception = self.engine.run_config(skip_refine = True)
-            if err != -1:
-                mesh = self.engine.get_mesh()
-                self.model.variables.setvar('mesh', mesh)
-                os.chdir(cdir)
+            try:        
+                self.engine.run_mesh(skip_refine = True)
+            except:
+                exception = traceback.format_exc()            
+                assert False, "error in run_mesh"
+            mesh = self.engine.get_mesh()
+            self.model.variables.setvar('mesh', mesh)
+            os.chdir(cdir)
+
+            err, exception = self.engine.run_config()
             if err != 0:
                 assert False, "error in run_config"
         except:
