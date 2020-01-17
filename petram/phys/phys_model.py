@@ -928,7 +928,7 @@ class PhysModule(Phys):
                
 
     def collect_probes(self):
-        probes = [mm.get_probe() for mm in self.walk()]
+        probes = [mm.get_probe() for mm in self.walk() if mm.is_enabled()]
         probes = [x for x in probes if len(x) != 0]
         txt = ','.join(probes)
         return txt
