@@ -311,9 +311,23 @@ For the waveguide (TE) case, the following mode profiles are used.
 
 Note that we define Poyx, Poyy, and Poyz (x, y and z components of the Poynting vector) as $E \times \overline{B}$, which is twice bigger than the time averaged power flux.
 
+ \subsubsection{Surface Impedance}
+ 
+This BC is to model a surface to which the RF wave penetrates only a short depth (a.k.a. skin depth, $\delta$), where $\delta$ is given by 
+\begin{equation} 
+\delta = \sqrt{\frac{2}{\omega \sigma \mu}}.
+\end{equation}
+
+On such a surface, the impedance (the ratio between E and H) is given as
+\begin{equation}
+\frac{E_{\rm x}}{H_{\rm y}} = \sqrt{\frac{i \omega \mu}{\sigma + i \omega \epsilon}} \sim \frac{1+i}{2} \omega \mu \delta
+\end{equation}
+
+Eq.\,\ref{em3d_weakBC} is viewed to define  the ratio between the tangential components of E and H, and the above relationship can be directly implemented.
 
  
  \subsubsection{Periodic (Floquet-Bloch) BC}
+ 
  
 \subsection{Axisymmetric frequency domain(EM2Da)}
 \subsubsection{Weakform of the Maxwell's equation}
@@ -441,6 +455,7 @@ List. \ref{parametric_scanner} shows details of how to give arguments to Scan.
 \begin{lstlisting}[caption={Parametric Scanner},captionpos=b, frame=single, label={parametric_scanner}]
 Scan("freq", [3e9, 4e9, 5e9])
 Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90, 180])
+Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90, 180], product = False) #1D scan
 Scan("freq", "phase", start = (3e9, 0), 
       stop = (5e9, 180), nstep = 3)  # 1D scan 
  Scan("freq", "phase", start = (3e9, 0), 
@@ -544,12 +559,16 @@ def SetOperator(p, opr):
 \end{lstlisting}
  \end{minipage}
 
-
-
-
 \chapter{Visualization}
 \section{Solution file structure}
 \section{Plotting solution in $\pi$Scope}
+
+\begin{figure}
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/slice_plot.png} 
+\caption{ Plane can be defined "1, 0, 0. 0" , "xy", "xy(0.001)" }\label{parametric_scan}
+\end{figure}
+
 
 \chapter{Development}
 \section{Source code organization}
