@@ -2,7 +2,9 @@ import os
 from os.path import expanduser, abspath
 import shutil
 import wx
+import time
 
+from ifigure.utils.mp_tarzip import MPTarzip
 '''
   usage
 
@@ -13,7 +15,10 @@ import wx
   generate(path_src, path_dst, 'em3d_TEwg.pfz')
 '''
 
-def generate(path_src, path_dst, f, create_new = True):
+def generate(path_src, path_dst, f, create_new = True, reload_scripts=False):
+    #  script generater 
+    #    create_new : start a new project and load the project file
+    #
     path_src = abspath(expanduser(path_src))
     path_dst = abspath(expanduser(path_dst))
     
@@ -22,6 +27,18 @@ def generate(path_src, path_dst, f, create_new = True):
     app.onOpen(path=os.path.join(path_src, f))
     proj = app.proj
     model = proj.setting.parameters.eval("PetraM")
+
+    from petram.pi.shell_commands import import_project_scripts
+    if reload_scripts:
+        scripts = model.scripts
+        for name, child in scripts.get_children():
+            child.destroy()
+        scripts.clean_owndir()
+        import_project_scripts(scripts)
+        app.onSave(None)
+        while not MPTarzip().isReady():
+            time.sleep(3)
+            
     
     m = proj.model1.mfem.param.eval("mfem_model")
     m.set_root_path(model.owndir())

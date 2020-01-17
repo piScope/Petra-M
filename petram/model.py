@@ -738,7 +738,7 @@ class Model(RestorableOrderedDict):
 
         script.append('solvers = eng.run_build_ns()')
         # script.append('solvers = eng.preprocess_modeldata()')
-        script.append('if myid == 0: model.save_to_file("model_proc.pmfm", meshfile_relativepath = False)')
+        # script.append('if myid == 0: model.save_to_file("model_proc.pmfm", meshfile_relativepath = False)')
         script.append('')
         script.append('is_first = True')        
         script.append('for s in solvers:')
