@@ -174,8 +174,6 @@ class MFEMViewer(BookViewer):
         self.Bind(ifigure.events.TD_EVT_ARTIST_DRAGSELECTION,
                   self.onTD_DragSelectionInFigure)
        
-        #self.engine.run_config()
-
         self.canvas._popup_style = 1 # popup_skip_2d
         #self.canvas.__class__ = MFEMViewerCanvas
         #self.Bind(wx.EVT_ACTIVATE, self.onActivate)
@@ -425,6 +423,22 @@ class MFEMViewer(BookViewer):
 
         evt.Skip()
     '''   
+    def _getSelectedIndexVolume(self, already_selected_surface):
+        objs = [o().figobj for o in self.canvas.selection
+                if o().figobj.name.startswith('face')]
+
+        unselected = []
+        selected = []
+        for o in objs:
+            idx = set(o.getSelectedIndex())
+            unselected.extend(list(already_selected_surface.difference(idx)))
+            selected.extend(list(idx.difference(already_selected_surface)))
+
+        unselected = list(set(unselected))
+        selected = list(set(selected))        
+
+        return selected, unselected, objs
+    
     def _getSelectedIndex(self, mode='face'):
         objs = [o().figobj for o in self.canvas.selection]
 
@@ -466,20 +480,26 @@ class MFEMViewer(BookViewer):
         if self._sel_mode == 'volume':
             if _s_v_loop[1] is None: return
 
-            idx, objs = self._getSelectedIndex(mode='face')
             sl = _s_v_loop[1]
-            
+            already_selected_surface = set(sum([sl[k] for k in self._dom_bdr_sel[0]],[]))
+
             already_selected = self._dom_bdr_sel[0]
             already_selected = [k for k in already_selected if k in sl]
+            
+            selected, unselected, objs = self._getSelectedIndexVolume(already_selected_surface)
 
-            for k in already_selected:
-                for i in sl[k]:
-                    if i in idx: idx.remove(i)
-                    
-            selected_volume = already_selected[:]
-            for i in idx:
-               for k in sl.keys():
-                   if i in sl[k]: selected_volume.append(k)
+            selected_volume = already_selected[:]            
+
+            if len(unselected) > 0:
+               for i in unselected:
+                   for k in sl.keys():
+                      if i in sl[k] and k in selected_volume:
+                          selected_volume.remove(k)                       
+            else:
+               for i in selected:
+                   for k in sl.keys():
+                      if i in sl[k]: selected_volume.append(k)
+                
 
             selected_volume = list(set(selected_volume))
 
@@ -500,8 +520,11 @@ class MFEMViewer(BookViewer):
 
             for o in objs:
                 o.setSelectedIndex(surf_idx)
-                if len(self.canvas.selection) > 0 and len(o._artists) > 0:
-                    self.canvas.add_selection(o._artists[0])
+                if len(surf_idx) > 0: 
+                    if len(self.canvas.selection) > 0 and len(o._artists) > 0:
+                        self.canvas.add_selection(o._artists[0])
+                else:
+                    self.canvas.unselect_all()
             sv = selected_volume
                 
         elif self._sel_mode == 'face':
@@ -611,12 +634,16 @@ class MFEMViewer(BookViewer):
         
         try:
             os.chdir(self.model.owndir())
-            #self.engine.run_mesh(skip_refine = True)
-            err, exception = self.engine.run_config(skip_refine = True)
-            if err != -1:
-                mesh = self.engine.get_mesh()
-                self.model.variables.setvar('mesh', mesh)
-                os.chdir(cdir)
+            try:        
+                self.engine.run_mesh(skip_refine = True)
+            except:
+                exception = traceback.format_exc()            
+                assert False, "error in run_mesh"
+            mesh = self.engine.get_mesh()
+            self.model.variables.setvar('mesh', mesh)
+            os.chdir(cdir)
+
+            err, exception = self.engine.run_config()
             if err != 0:
                 assert False, "error in run_config"
         except:
@@ -671,22 +698,22 @@ class MFEMViewer(BookViewer):
         else:
             vfaces = []
         
-        obj = None; robj = None
+        obj = None; robj = []
         for name, obj in ax.get_children():
             if name.startswith('point'):
                 obj.setSelectedIndex(sel['point'])
-                if len(sel['point']) != 0: robj = obj
+                if len(sel['point']) != 0: robj.append(obj)
                 
             if name.startswith('edge'):
                 obj.setSelectedIndex(sel['edge'])
-                if len(sel['edge']) != 0: robj = obj
+                if len(sel['edge']) != 0: robj.append(obj)
                 
             if name.startswith('face'):
                 obj.setSelectedIndex(sel['face'])
-                if len(sel['face']) != 0: robj = obj                
+                if len(sel['face']) != 0: robj.append(obj)
                 if len(vfaces) > 0:
                     obj.setSelectedIndex(vfaces)
-                    robj = obj                
+                    robj.append(obj)
             
         return robj
 

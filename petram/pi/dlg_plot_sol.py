@@ -1737,6 +1737,13 @@ class DlgPlotSol(SimpleFramePlus):
               "yz": _YZ((1, 0, 0., 0)),
               "xy": _XY((0., 0, 1., 0)),
               "zx": _ZX((0., 1, 0., 0)),}
+        # add all combinations
+        ll["ZY"] = ll["YZ"]
+        ll["zy"] = ll["YZ"]        
+        ll["YX"] = ll["XY"]
+        ll["yx"] = ll["XY"]        
+        ll["XZ"] = ll["ZX"]
+        ll["xz"] = ll["ZX"]        
 
         try:
             plane = list(eval(plane, ll, phys_ns))

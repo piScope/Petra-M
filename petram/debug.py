@@ -192,4 +192,22 @@ class ConvergenceError(Exception):
     def __init__(self, message = "Failed to converge"):
         self.message = message
 
-    
+'''
+a decorator to time a method
+'''
+import time
+def timeit(method):
+    def timed(*args, **kw):
+        ts = time.time()
+        print("entering:", method.__name__.upper())
+        log = kw.pop('log_time', None)
+        result = method(*args, **kw)
+        te = time.time()
+        if log is not None:
+            name = log.get('log_name', method.__name__.upper())
+            log[name] = int((te - ts) * 1000)
+        else:
+            print('%r  %2.2f ms' % (method.__name__, (te - ts) * 1000))
+        print("done:", method.__name__.upper())            
+        return result
+    return timed

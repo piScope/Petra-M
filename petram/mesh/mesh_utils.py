@@ -128,7 +128,7 @@ def bdr_loop(mesh):
             i = mesh.GetAttribute(elem2)
             loop[i].append(attrs[ibdr])
     for k in loop:
-        loop[k] = np.unique(loop[k])
+        loop[k] = list(set(loop[k]))
 
     return loop
     
