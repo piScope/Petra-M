@@ -30,7 +30,10 @@ def call_nativegen(v, l, g, real, conj, scale):
 
              return coeff
 
-def MCoeff(dim, exprs, ind_vars, l, g, **kwargs):    
+def MCoeff(dim, exprs, ind_vars, l, g, **kwargs):
+    if isinstance(exprs, str): exprs = [exprs]
+    if isinstance(exprs, NativeCoefficientGenBase): exprs = [exprs]
+    
     class MCoeff(MatrixPhysCoefficient):
        def __init__(self, *args, **kwargs):
            self.conj = kwargs.pop('conj', False)
@@ -57,6 +60,8 @@ def MCoeff(dim, exprs, ind_vars, l, g, **kwargs):
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
 
+    print("matrix exprs", exprs)    
+
     if any([isinstance(ee, str) for ee in exprs]):
         return MCoeff(dim, exprs, ind_vars, l, g, **kwargs)
     else:
@@ -79,6 +84,9 @@ def MCoeff(dim, exprs, ind_vars, l, g, **kwargs):
         return PhysMatrixConstant(e)
      
 def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
+    if isinstance(exprs, str): exprs = [exprs]
+    if isinstance(exprs, NativeCoefficientGenBase): exprs = [exprs]
+    
     class DCoeff(MatrixPhysCoefficient):
        def __init__(self, *args, **kwargs):
            self.conj = kwargs.pop('conj', False)
@@ -107,6 +115,8 @@ def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
 
+    #print("matrix exprs", exprs)
+    
     if any([isinstance(ee, str) for ee in exprs]):
         return DCoeff(dim, exprs, ind_vars, l, g, **kwargs)
     else:
@@ -127,7 +137,10 @@ def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
             e = np.array(e, dtype=float, copy=False)
         return PhysMatrixConstant(e)
      
-def VCoeff(dim, exprs, ind_vars, l, g, **kwargs):    
+def VCoeff(dim, exprs, ind_vars, l, g, **kwargs):
+    if isinstance(exprs, str): exprs = [exprs]
+    if isinstance(exprs, NativeCoefficientGenBase): exprs = [exprs]
+    
     class VCoeff(VectorPhysCoefficient):
        def __init__(self, *args, **kwargs):
            #print("VCoeff, args", args[:2])
@@ -153,7 +166,9 @@ def VCoeff(dim, exprs, ind_vars, l, g, **kwargs):
     conj = kwargs.get('conj', False)
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
-           
+
+    #print("vector exprs", exprs)
+    
     if any([isinstance(ee, str) for ee in exprs]):
         return VCoeff(dim, exprs, ind_vars, l, g, **kwargs)
     else:
@@ -175,6 +190,9 @@ def VCoeff(dim, exprs, ind_vars, l, g, **kwargs):
         return PhysVectorConstant(e)
      
 def SCoeff(exprs, ind_vars, l, g, **kwargs):
+    if isinstance(exprs, str): exprs = [exprs]
+    if isinstance(exprs, NativeCoefficientGenBase): exprs = [exprs]
+        
     class SCoeff(PhysCoefficient):
        def __init__(self, exprs, ind_vars, l, g, **kwargs):
            #print("SCoeff, args", args[:1])       
@@ -207,10 +225,11 @@ def SCoeff(exprs, ind_vars, l, g, **kwargs):
     conj = kwargs.get('conj', False)
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
-    
+
+    #print("scalar exprs", exprs)    
+
     if any([isinstance(ee, str) for ee in exprs]):
         return SCoeff(exprs, ind_vars, l, g, **kwargs)
-     
     else:
         # conj is ignored..(this doesn't no meaning...)
         #print("exprs",exprs)

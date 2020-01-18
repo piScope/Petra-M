@@ -386,6 +386,7 @@ class Vtable_mixin(object):
         from petram.helper.variables import NativeCoefficientGenBase
         def dummy():
             pass
+        
         if value.startswith('='):
             return dummy,  '='.join(value.split('=')[1:])
         else:

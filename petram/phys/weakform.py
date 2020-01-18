@@ -8,12 +8,6 @@ import numpy as np
 
 
 from petram.phys.phys_model import Phys
-'''
-from petram.phys.phys_model  import PhysCoefficient
-from petram.phys.phys_model  import VectorPhysCoefficient
-from petram.phys.phys_model  import MatrixPhysCoefficient
-from petram.phys.phys_model  import PhysConstant, PhysVectorConstant, PhysMatrixConstant
-'''
 from petram.model import Domain, Bdry, Edge, Point, Pair
 
 import petram.debug as debug
@@ -118,8 +112,8 @@ class WeakIntegration(Phys):
         super(WeakIntegration, self).preprocess_params(engine)
         
     def add_contribution(self, engine, a, real = True, is_trans=False, is_conj=False):
-        c = self.vt_coeff.make_value_or_expression(self)
-        if isinstance(c, str): c = [c]
+        c = self.vt_coeff.make_value_or_expression(self)[0]
+        
         if real:       
             dprint1("Add "+self.integrator+ " contribution(real)" + str(self._sel_index), "c", c)
         else:
@@ -144,26 +138,26 @@ class WeakIntegration(Phys):
              for b in self.itg_choice():
                 if b[0] == self.integrator: break
              if not "S*2" in b[3]:
-                 c_coeff = SCoeff(c[0],  self.get_root_phys().ind_vars,
+                 c_coeff = SCoeff(c,  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
              else: # so far this is only for an elastic integrator 
-                 c_coeff = (SCoeff(c[0],  self.get_root_phys().ind_vars,
+                 c_coeff = (SCoeff(c,  self.get_root_phys().ind_vars,
                                    self._local_ns, self._global_ns,
                                    real = real, conj=is_conj, component=0),
-                            SCoeff(c[0],  self.get_root_phys().ind_vars,
+                            SCoeff(c,  self.get_root_phys().ind_vars,
                                    self._local_ns, self._global_ns,
                                    real = real, conj=is_conj, component=1))
         elif cotype == 'V':
-             c_coeff = VCoeff(dim, c[0],  self.get_root_phys().ind_vars,
+             c_coeff = VCoeff(dim, c,  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
         elif cotype == 'M':
-             c_coeff = MCoeff(dim, c[0],  self.get_root_phys().ind_vars,
+             c_coeff = MCoeff(dim, c,  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
         elif cotype == 'D':
-             c_coeff = DCoeff(dim, c[0],  self.get_root_phys().ind_vars,
+             c_coeff = DCoeff(dim, c,  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
 
@@ -303,13 +297,13 @@ class WeakBilinIntegration(WeakIntegration):
            
 def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=False):
     self = obj
-    c = self.vt_coeff.make_value_or_expression(self)
+    c = self.vt_coeff.make_value_or_expression(self)[0]
     if isinstance(c, str): c = [c]
         
     if real:       
        dprint1("Add "+self.integrator+ " delta (real)" + str(self._sel_index), "c", c)
     else:
-       dprint1("Add "+self.integrator+ " delta(imag)" + str(self._sel_index), "c", c)
+       dprint1("Add "+self.integrator+ " delta (imag)" + str(self._sel_index), "c", c)
 
     cotype = self.coeff_type[0]
 
@@ -341,9 +335,9 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
                  else:
                      c_coeff = None
                      if real:
-                         args.append(float(np.array(c[0])[0].real))
+                         args.append(float(np.array(c)[0].real))
                      else:
-                         args.append(float(np.array(c[0])[0].imag))
+                         args.append(float(np.array(c)[0].imag))
                  if args[-1] != 0:
                      d = mfem.DeltaCoefficient(*args)
                      if c_coeff is not None:
@@ -356,22 +350,22 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
                      
              else: # so far this is only for an elastic integrator
                  if real:
-                     args.append(float(np.array(c[0])[0].real))
+                     args.append(float(np.array(c)[0].real))
                  else:
-                     args.append(float(np.array(c[0])[0].imag))
+                     args.append(float(np.array(c)[0].imag))
                  d1 = mfem.DeltaCoefficient(*args)
                  if real:
-                     args.append(float(np.array(c[0])[1].real))
+                     args.append(float(np.array(c)[1].real))
                  else:
-                     args.append(float(np.array(c[0])[1].imag))
+                     args.append(float(np.array(c)[1].imag))
                  d2 = mfem.DeltaCoefficient(*args)
                  adder(integrator(d1, d2))                 
 
         elif cotype == 'V':
             if real:
-                direction = np.array(c[0]).real
+                direction = np.array(c).real
             else:
-                direction = np.array(c[0]).imag              
+                direction = np.array(c).imag              
             args.append(1.0)
             dir = mfem.Vector(direction)
             d = mfem.VectorDeltaCoefficient(dir, *args)
