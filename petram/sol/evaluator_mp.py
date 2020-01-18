@@ -72,6 +72,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         self.rank = rank
         self.agents = {}
         self.logfile = logfile
+        #self.logfile = 'log'
         self.use_stringio = False
         self.solfiles = None
         
@@ -87,8 +88,8 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         elif self.logfile == 'queue':
             self.use_stringio = True
         elif self.logfile == 'log':
-            path = os.path.expanduser('~/MPChild.out')
-            sys.stdout = open(path, "w", 0)
+            path = os.path.expanduser('~/MPChild'+ str(os.getpid()) + '.out')
+            sys.stdout = open(path, "w")
         else:
             pass
         while True:
@@ -99,6 +100,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                 self.result_queue.put((-1, None))                
                 self.task_queue.task_done()
                 continue
+
             if task[0] == -1:
                 self.task_queue.task_done()
                 break
@@ -461,13 +463,19 @@ class EvaluatorMP(Evaluator):
         if self.closed: return
         self.tasks.put([-1])
         self.tasks.join()
+        
         self.tasks.close()
         self.results.close()
+        self.results.cancel_join_thread()
+        
         if self.text_queue is not None:
             self.text_queue.close()
             self.text_queue.cancel_join_thread()
 
         self.closed = True
+        for w in self.workers:
+            w.join()
+        
         print('joined')
 
     
