@@ -172,7 +172,9 @@ class NS_mixin(object):
         g['coefficient'] = coefficient
         
         if self.root() is self:
-            self._variables = {}
+             if not hasattr(self.root(), "_variables"):
+                 from petram.helper.variables import Variables            
+                 self.root()._variables = Variables()
         else:
             self._local_ns = self.root()._variables
         if len(chain) == 0:

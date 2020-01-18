@@ -56,12 +56,16 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         petram.debug.debug_default_level = int(self.debug_level)        
         
     def run(self):
-        from petram.helper.variables import Variables
+
         
         import petram.debug
         if petram.debug.debug_default_level == 0:
             petram.debug.debug_default_level = int(self.debug_level)
-        self.root()._variables = Variables()
+            
+        if not hasattr(self.root(), "_variables"):
+             from petram.helper.variables import Variables            
+             self.root()._variables = Variables()
+             
         self.root()._parameters = {}
         self.root()._init_done= True                     
             
