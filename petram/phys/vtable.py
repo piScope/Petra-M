@@ -246,7 +246,6 @@ class VtableElement(object):
             setattr(obj, self.name + '_txt', bool(v))
 
         elif self.type == 'selectable':
-            print("import panel value", v)
             setattr(obj, self.name + '_select', v[0])
             for k, vt in enumerate(self.vtables):
                 vt.import_panel_value(obj, v[k+1])
