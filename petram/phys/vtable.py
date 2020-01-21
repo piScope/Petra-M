@@ -34,7 +34,13 @@
                               guilabel = 'Default Domain (Vac)',  
                               default =  'eps_r=1, mu_r=1, sigma=0')
 
-                         
+  Selectable: define a panel with pull down menu
+               (('Z_param', VtableElement('Z_param',
+                                   type = 'selectable'
+                                   choices= ('Impedance', 'e/m/s'),
+                                   vtables = (vt1, vt2)
+                                   default = 'Impedance')),)
+                       
 '''
 
 import six
@@ -48,17 +54,21 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Vtable')
 
 class VtableElement(object):
     def __init__(self, name, type = '', 
-                size  = (1,), suffix = None,
-                cb = None, no_func = False,
-                default = 0., guilabel = None, tip = '',
-                default_txt = None, chkbox = False, 
-                readonly = False):
+                 size  = (1,), suffix = None,
+                 cb = None, no_func = False,
+                 default = 0., guilabel = None, tip = '',
+                 default_txt = None, chkbox = False,
+                 choices = None, vtables = None, 
+                 readonly = False):
         self.name = name
         self.readonly = readonly
         if not isinstance(type, str):
             assert False, "data type should be given as str"
         self.type = type
         self.chkbox = chkbox
+        self.choices = choices
+        self.vtables = vtables
+        
         if suffix is None:
             self.shape = ()
             self.suffix = []
@@ -74,10 +84,13 @@ class VtableElement(object):
             self.suffix = [''.join(tmp) for tmp in itertools.product(*suffix)]
         self.cb = cb
         self.no_func = no_func
+        
         if name is not None:
             if type=='string':
                 self.default = default
             elif type=='array':
+                self.default = default
+            elif type=='selectable':
                 self.default = default
             else:
                 self.default = np.array(default, copy = False)
@@ -101,7 +114,8 @@ class VtableElement(object):
         elif self.type == 'string': return str(txt)
         elif self.type == 'bool': return bool(txt)        
         elif self.type == 'any': return txt
-        elif self.type == '': return txt        
+        elif self.type == '': return txt
+        elif self.type == 'selectable': return txt
         return float(txt)
     
     def add_attribute(self, v):
@@ -110,6 +124,11 @@ class VtableElement(object):
         if self.type == 'bool':
             v[self.name + '_txt'] = self.default
             
+        elif self.type == 'selectable':
+            v[self.name + '_select'] = self.default
+            for vt in self.vtables:
+                v = vt.attribute_set(v)
+                
         elif len(self.shape) == 0:
             v[self.name] = self.default_txt
             v[self.name + '_txt'] = self.default_txt
@@ -145,6 +164,14 @@ class VtableElement(object):
             ret = [None, value, 3, {"text":self.guilabel}]
             return ret
         
+        elif self.type == 'selectable':
+            l = [{'text': self.guilabel, 'choices': self.choices, 'call_fit': False},]
+            for v in self.vtables:
+                elp = v.panel_param(obj)
+                l.append({'elp': elp})
+                
+            return [None, None, 34, l,]
+             
         elif len(self.shape) == 0:
             value = getattr(obj, self.name + '_txt')
             ret = obj.make_phys_param_panel(self.guilabel,
@@ -185,7 +212,13 @@ class VtableElement(object):
         if self.type == 'bool':
             value = getattr(obj, self.name + '_txt')            
             return value
-                                            
+        
+        elif self.type == 'selectable':
+            value = [getattr(obj, self.name + '_select')]
+            for vt in self.vtables:
+                value.append(vt.get_panel_value(obj))
+            return value
+            
         elif len(self.shape) == 0:
             if self.chkbox:
                 f = getattr(obj, 'use_' + self.name)
@@ -211,6 +244,13 @@ class VtableElement(object):
 
         if self.type == 'bool':
             setattr(obj, self.name + '_txt', bool(v))
+
+        elif self.type == 'selectable':
+            print("import panel value", v)
+            setattr(obj, self.name + '_select', v[0])
+            for k, vt in enumerate(self.vtables):
+                vt.import_panel_value(obj, v[k+1])
+            
         elif len(self.shape) == 0:
             if self.chkbox:
                 setattr(obj, 'use_' + self.name, v[0])
@@ -236,8 +276,12 @@ class VtableElement(object):
         if self.name is None: return
                                             
         if self.type == 'bool':
-            pass                                            
-                                            
+            pass
+        
+        elif self.type == 'selectable':
+            for v in self.vtables:
+                v.preprocess_params(obj)
+                
         elif len(self.shape) == 0:
             if self.no_func:
                 value = obj.eval_phys_expr(str(getattr(obj,
@@ -260,7 +304,12 @@ class VtableElement(object):
                                             
         if self.type == 'bool':
             return getattr(obj, self.name+'_txt')
-                                            
+
+        elif self.type == 'selectable':
+            choice = getattr(obj, self.name + '_select')
+            idx = self.choices.index(choice)
+            return choice, self.vtables[idx].make_value_or_expression(obj)
+        
         elif len(self.shape) == 0:
             if self.no_func:
                 return getattr(obj, self.name)
