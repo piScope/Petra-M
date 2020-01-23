@@ -134,7 +134,8 @@ class Parametric(SolveStep, NS_mixin):
             od = self.go_case_dir(engine, kcase, True)
             
             is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
-            engine.preprocess_modeldata()
+            if is_new_mesh:
+               engine.preprocess_modeldata()
             
             self.prepare_form_sol_variables(engine)
 
