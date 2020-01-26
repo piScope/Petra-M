@@ -682,7 +682,81 @@ class PyFunctionVariable(Variable):
     def ncedge_values(self, *args, **kwargs):
         return self._ncx_values(*args, **kwargs)
 
+class CoefficientVariable(Variable):
+    def __init__(self, coeff_gen, l, g=None):
+        self.coeff = coeff_gen(l, g)        
+        self.kind =  coeff_gen.kind
+        
+    def nodal_values(self, iele = None, ibele = None, elattr = None, el2v = None,
+                     locs  = None, elvertloc = None,  wverts = None, mesh = None,
+                     iverts_f = None, g  = None, knowns = None):
 
+        g = mfem.Geometry()
+        size = len(iverts_f)
+        #wverts = np.zeros(size)
+        ret = None
+        if ibele is None: return
+
+        if mesh.Dimension() == 3:
+            getelement = mesh.GetBdrElement
+            gettransformation = mesh.GetBdrElementTransformation            
+        elif mesh.Dimension() == 2:
+            getelement = mesh.GetElement
+            gettransformation = mesh.GetElementTransformation
+        else:
+            assert False, "BdrNodal Evaluator is not supported for this dimension"
+        
+        if self.kind == "scalar":
+            def call_eval(c, T, ip):
+                return c.Eval(T, ip)
+        elif self.kind == "vector":
+            def call_eval(c, T, ip):
+                v = mfem.Vector()
+                c.Eval(v, T, ip)
+                return v.GetDataArray().copy()
+        elif self.kind == "matrix":            
+            def call_eval(c, T, ip):
+                m = mfem.DenseMatrix()
+                c.Eval(m, T, ip)
+                return m.GetDataArray().copy()
+        else:
+            assert False, "unknown kind of Coefficient. Must be scalar/vector/matrix"
+
+        for ibe in ibele:
+           el = getelement(ibe)
+           rule = g.GetVertices(el.GetGeometryType())
+           nv = rule.GetNPoints()
+        
+           T = gettransformation(ibe)
+           bverts = el.GetVerticesArray()
+
+           for i in range(nv):
+               ip = rule.IntPoint(i)
+               T.SetIntPoint(ip)
+
+               if (self.coeff[0] is not None and
+                   self.coeff[1] is not None):
+                   value = (np.array(call_eval(self.coeff[0], T, ip)) + 
+                             1j*np.array(self.coeff[1], T, ip))
+               elif self.coeff[0] is not None:
+                   value = np.array(call_eval(self.coeff[0], T, ip))
+               elif self.coeff[1] is not None:
+                   value = 1j*np.array(call_eval(self.coeff[1], T, ip))
+               else:
+                   assert False, "coeff is (None, None)"
+
+               if ret is None:
+                   if len(value.shape) == 0:
+                       shape = np.hstack((size, ))
+                   else:
+                       shape = np.hstack((size, np.atleast_1d(value).shape))
+                   ret = np.zeros(shape, dtype=value.dtype)
+                   
+               idx = np.searchsorted(iverts_f, bverts[i])
+               ret[idx, ...] = value
+
+        return ret
+            
 class GridFunctionVariable(Variable):
     def __init__(self, gf_real, gf_imag = None, comp = 1,
                  deriv = None, complex = False):
@@ -773,7 +847,9 @@ class GFScalarVariable(GridFunctionVariable):
         # with vector gf and/or boundary element. probably not...
         if not self.isGFSet:
             gf_real, gf_imag = self.set_gfr_gfi()
-
+        else:
+            gf_real, gf_imag = self.gfr, self.gfi
+            
         name = gf_real.FESpace().FEColl().Name()
         if name.startswith("ND") or name.startswith("RT"):
             self.isVectorFE=True
@@ -960,6 +1036,8 @@ class GFVectorVariable(GridFunctionVariable):
     def set_funcs(self):
         if not self.isGFSet: 
             gf_real, gf_imag = self.set_gfr_gfi()        
+        else:
+            gf_real, gf_imag = self.gfr, self.gfi
         
         self.dim = gf_real.VectorDim()
         name = gf_real.FESpace().FEColl().Name()
@@ -1112,13 +1190,11 @@ class SurfNormal(SurfVariable):
         ret = np.zeros((size, self.sdim))
         if ibele is None: return               
                        
-        ibe  = ibele[0]
-        el = mesh.GetBdrElement(ibe)
-        rule = g.GetVertices(el.GetGeometryType())
-        nv = rule.GetNPoints()
-        
-
         for ibe in ibele:
+           el = mesh.GetBdrElement(ibe)
+           rule = g.GetVertices(el.GetGeometryType())
+           nv = rule.GetNPoints()
+            
            T = mesh.GetBdrElementTransformation(ibe)
            bverts = mesh.GetBdrElement(ibe).GetVerticesArray()
 
@@ -1389,12 +1465,11 @@ class NativeCoefficientGenBase(object):
         self.shape = shape
         self.complex = complex
 
-    def __call__(self, l, g):
+    def __call__(self, l, g=None):
         '''
         call fgen to generate coefficient
 
         '''
-        
         m = getattr(self, 'fgen')
         args = []
         for n in self.dependency:
@@ -1432,30 +1507,40 @@ class NativeCoefficientGenBase(object):
             return ret
         else:
             assert False, "dim >= 3 is not supported"
+            
+    def get_emesh_idx(self, idx = None, g=None):
+        if idx is None: idx = []
+        return idx
              
 
 class NativeCoefficientGen(NativeCoefficientGenBase):
+    kind = "scalar"
     def __init__(self, func, dependency=None):
         NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency)
 
 class ComplexNativeCoefficientGen(NativeCoefficientGenBase):
+    kind = "scalar"    
     def __init__(self, func, dependency=None):
         NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency)
         
 class VectorNativeCoefficientGen(NativeCoefficientGenBase):
+    kind = "vector"        
     def __init__(self, func, dependency=None, shape=None):
         NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency, shape=shape)
         
 class VectorComplexNativeCoefficientGen(NativeCoefficientGenBase):
+    kind = "vector"            
     def __init__(self, func, dependency=None, shape=None):
         NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency, shape=shape) 
 
         
 class MatrixNativeCoefficientGen(NativeCoefficientGenBase):
+    kind = "matrix"                
     def __init__(self, func, dependency=None, shape=None):
         NativeCoefficientGenBase.__init__(self, func, complex = False, dependency=dependency, shape=shape)
         
 class MatrixComplexNativeCoefficientGen(NativeCoefficientGenBase):
+    kind = "matrix"                    
     def __init__(self, func, dependency=None, shape=None):
         NativeCoefficientGenBase.__init__(self, func, complex = True, dependency=dependency, shape=shape)
 
