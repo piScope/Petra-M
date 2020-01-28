@@ -28,7 +28,7 @@ def setup_figure(fig):
     fig.property(fig.get_axes(0), 'axis', False)
     fig.get_page(0).set_nomargin(True)
     fig.property(fig.get_page(0), 'bgcolor', 'white')
-ID_SOL_FOLDER = wx.NewId()
+ID_SOL_FOLDER = wx.NewIdRef(count=1)
 
 from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
 #class MFEMViewerCanvas(ifigure_canvas):

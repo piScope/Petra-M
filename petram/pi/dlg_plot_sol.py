@@ -1026,7 +1026,6 @@ class DlgPlotSol(SimpleFramePlus):
                             use_pointfill=use_pointfill)
         
     def make_plot_bdr(self, data, battrs, cls = None, expr='', use_pointfill=False):
-        
         from ifigure.interactive import figure
         viewer = figure(viewer = cls)
         viewer.update(False)        
