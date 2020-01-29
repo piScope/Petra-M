@@ -664,6 +664,11 @@ class DlgPlotSol(SimpleFramePlus):
                 self.local_solsubdir = ""
             else:
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
+                if not os.path.exists(npath): # fall back
+                    npath = sol.owndir()
+                    self.local_soldir = npath
+                    self.local_solsubdir = ""
+                
             if os.path.normpath(npath) != os.path.normpath(cpath):
                 doit =True
             else:
@@ -673,6 +678,10 @@ class DlgPlotSol(SimpleFramePlus):
             doit = True
             if self.local_soldir is not None:
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
+                if not os.path.exists(npath): # fall back
+                    npath = sol.owndir()
+                    self.local_soldir = npath
+                    self.local_solsubdir = ""
             else:
                 sol = model.param.eval('sol')
                 if sol is None:

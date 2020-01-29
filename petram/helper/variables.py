@@ -687,6 +687,45 @@ class CoefficientVariable(Variable):
         self.coeff = coeff_gen(l, g)        
         self.kind =  coeff_gen.kind
         
+        complex = not (self.coeff[1] is None)
+        super(CoefficientVariable, self).__init__(complex = complex)
+
+    @property
+    def local_value(self):
+        return self._local_value
+
+    @local_value.setter
+    def local_value(self, value):
+        self._local_value = value
+        
+    def __call__(self, **kwargs):
+        return self._local_value
+        
+    def set_point(self,T, ip, g, l, t = None):
+        self.T = T
+        self.ip = ip
+        self.t = t
+        self.set_local_from_T_ip()
+
+    def set_local_from_T_ip(self):
+        self.local_value = self.eval_local_from_T_ip()
+        
+    def eval_local_from_T_ip(self):
+        call_eval = self.get_call_eval()
+
+        T, ip = self.T, self.ip
+        if (self.coeff[0] is not None and
+            self.coeff[1] is not None):
+            value = (np.array(call_eval(self.coeff[0], T, ip)) + 
+                               1j*np.array(self.coeff[1], T, ip))
+        elif self.coeff[0] is not None:
+            value = np.array(call_eval(self.coeff[0], T, ip))
+        elif self.coeff[1] is not None:
+            value = 1j*np.array(call_eval(self.coeff[1], T, ip))
+        else:
+            assert False, "coeff is (None, None)"
+        return value
+        
     def nodal_values(self, iele = None, ibele = None, elattr = None, el2v = None,
                      locs  = None, elvertloc = None,  wverts = None, mesh = None,
                      iverts_f = None, g  = None, knowns = None):
@@ -705,22 +744,8 @@ class CoefficientVariable(Variable):
             gettransformation = mesh.GetElementTransformation
         else:
             assert False, "BdrNodal Evaluator is not supported for this dimension"
-        
-        if self.kind == "scalar":
-            def call_eval(c, T, ip):
-                return c.Eval(T, ip)
-        elif self.kind == "vector":
-            def call_eval(c, T, ip):
-                v = mfem.Vector()
-                c.Eval(v, T, ip)
-                return v.GetDataArray().copy()
-        elif self.kind == "matrix":            
-            def call_eval(c, T, ip):
-                m = mfem.DenseMatrix()
-                c.Eval(m, T, ip)
-                return m.GetDataArray().copy()
-        else:
-            assert False, "unknown kind of Coefficient. Must be scalar/vector/matrix"
+
+        call_eval = self.get_call_eval()
 
         for ibe in ibele:
            el = getelement(ibe)
@@ -756,6 +781,25 @@ class CoefficientVariable(Variable):
                ret[idx, ...] = value
 
         return ret
+    
+    def get_call_eval(self):
+        if self.kind == "scalar":
+            def call_eval(c, T, ip):
+                return c.Eval(T, ip)
+        elif self.kind == "vector":
+            def call_eval(c, T, ip):
+                v = mfem.Vector()
+                c.Eval(v, T, ip)
+                return v.GetDataArray().copy()
+        elif self.kind == "matrix":            
+            def call_eval(c, T, ip):
+                m = mfem.DenseMatrix()
+                c.Eval(m, T, ip)
+                return m.GetDataArray().copy()
+        else:
+            assert False, "unknown kind of Coefficient. Must be scalar/vector/matrix"
+        return call_eval
+        
             
 class GridFunctionVariable(Variable):
     def __init__(self, gf_real, gf_imag = None, comp = 1,
@@ -808,7 +852,6 @@ class GridFunctionVariable(Variable):
     
     def set_local_from_T_ip(self):
         self.local_value = self.eval_local_from_T_ip()
-        
         
     def get_emesh_idx(self, idx = None, g=None):
         if idx is None: idx = []

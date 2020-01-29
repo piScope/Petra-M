@@ -469,10 +469,10 @@ class SolverInstance(object):
     def configure_probes(self, probe_txt):
         from petram.sol.probe import Probe
 
-        if probe_txt == '':
-            all_phys = self.get_phys()
-            txt = [phys.collect_probes() for phys in all_phys]
-            probe_txt = ','.join([t for t in txt if len(t) > 0])
+        all_phys = self.get_phys()
+        txt = [phys.collect_probes() for phys in all_phys]
+        txt = [probe_txt]+txt
+        probe_txt = ','.join([t for t in txt if len(t) > 0])
                                  
         dprint1("configure probes: "+probe_txt)
         if probe_txt.strip() != '':

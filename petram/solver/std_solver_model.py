@@ -100,8 +100,7 @@ class StdSolver(Solver):
         instance = StandardSolver(self, engine)
         instance.set_blk_mask()
         if return_instance: return instance                    
-        # We dont use probe..(no need...)
-        #instance.configure_probes(self.probe)
+
         instance.configure_probes(self.probe)
          
         if self.init_only:

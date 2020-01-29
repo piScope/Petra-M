@@ -134,7 +134,8 @@ class Parametric(SolveStep, NS_mixin):
             od = self.go_case_dir(engine, kcase, True)
             
             is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
-            if is_new_mesh:
+
+            if is_new_mesh or kcase == 0:
                engine.preprocess_modeldata()
             
             self.prepare_form_sol_variables(engine)
@@ -167,7 +168,7 @@ class Parametric(SolveStep, NS_mixin):
 
             phys_target = self.get_phys()
             phys_range = self.get_phys_range()
-            
+          
             for kcase, case in enumerate(scanner):
 
                 if kcase == 0:
@@ -184,7 +185,6 @@ class Parametric(SolveStep, NS_mixin):
                                                 instance.compute_rhs, 
                                                 inplace = False,
                                                 update=True)
-
                      
                 A, X, RHS, Ae, B, M, depvars = instance.blocks
                 mask = instance.blk_mask
@@ -219,11 +219,15 @@ class Parametric(SolveStep, NS_mixin):
                                                                          oprt)
 
                     for ksol in range(l_scan):
+                        instance.configure_probes('')                        
                         if ksol == 0:
                             instance.save_solution(mesh_only = True,
                                                    save_parmesh = s.save_parmesh )
                         A.reformat_central_mat(solall, ksol, X[0], mask)
                         instance.sol = X[0]
+                        for p in instance.probe:
+                             p.append_sol(X[0])
+                        
                         od = self.go_case_dir(engine,
                                               ksol,
                                               ksolver == 0)
@@ -231,6 +235,9 @@ class Parametric(SolveStep, NS_mixin):
                                                skip_mesh = False, 
                                                mesh_only = False,
                                                save_parmesh=s.save_parmesh)
+                        engine.sol = instance.sol
+                        instance.save_probe()
+                        
                         os.chdir(od)
                    
     def collect_probe_signals(self, dirs, scanner):

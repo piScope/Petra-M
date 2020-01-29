@@ -21,6 +21,7 @@ else:
    import mfem.ser as mfem
 
 from petram.helper.variables import Variable, eval_code 
+from petram.helper.variables import NativeCoefficientGenBase, CoefficientVariable
 
 # not that PyCoefficient return only real number array
 class PhysConstant(mfem.ConstantCoefficient):
@@ -113,10 +114,15 @@ class Coefficient_Evaluator(object):
                code= st.compile('<string>')
                names = code.co_names
                for n in names:
-                  if n in g and isinstance(g[n], Variable):
-                       self.variables.append((n, g[n]))
-                       for nn in g[n].dependency:
-                           self.variables.append((nn, g[nn]))                          
+                  if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
+                      coeff_var = CoefficientVariable(g[n], l, g)
+                      self.variables.append((n, coeff_var))
+                  elif n in g and isinstance(g[n], Variable):
+                      self.variables.append((n, g[n]))
+                      for nn in g[n].dependency:
+                          self.variables.append((nn, g[nn]))
+                  else:
+                      pass
                self.co.append(code)
            else:
                self.co.append(expr)
