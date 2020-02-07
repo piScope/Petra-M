@@ -4,6 +4,8 @@
 \usepackage{amsfonts}
 \usepackage{amssymb}
 \usepackage{graphicx}
+\usepackage{color}
+\definecolor{red}{rgb}{1, 0, 0}
 \usepackage[final]{listings}
 \usepackage{url}
 \author{S. Shiraiwa}
@@ -18,12 +20,18 @@
 Petra-M (Physics Equation Translator for MFEM) is a tool to build a finite element simulation model using MFEM. 
 MFEM is a scalable finite element library built at LLNL. In MFEM,  a user has to fill the linear system matrix and the right hand side by adding  mfem::BilinearFormIntegrator and mfem::LinearFormIntegrator to mfem::BilinearForm and mfem::LinearForm.
 While a variety of integrators are already defined in MFEM, translating a physics equation to a weakform and choosing a proper integrator for each case is an error-prone process. 
-Another practical issue is to assign domain and boundary conditions for a particular element. A real world 3D geometry could contain several handreds or even more surfaces and domains. Without an interactive interface, it is difficult to perform this step in a reliable manner.
+Another practical issue is to assign domain and boundary conditions for a particular element. A real world 3D geometry could contain several hundreds or even more surfaces and domains. Without an interactive interface, it is difficult to perform this step in a reliable manner.
 
-Using Petra-M and $\pi$Scope, a user can build physics simulation model quickly and reliably. Petra-M currently support only frequency domain Maxwell problems and simple thermal diffusion model. However, its low level engine is design to be flexible to expand in future.
+Using Petra-M and $\pi$Scope, a user can build physics simulation model quickly and reliably.
+Petra-M allows for creating a parametric geometry and mesh using GMSH Python API (and underling OpenCASCADE). 
+Petra-M currently support the generic weakform interface where a user construct the physics equation directly specifying the mfem integrators, and the frequency domain Maxwell problems. low level engine is design to be flexible to expand in future.
+In addition to the iterative solver interface in MFEM, Petra-M comes with interface to MUMPS direct solver
 
-Goal of this report is to describe how Petra-M construct a linear system. An emphasis is on showing the weakform equation systems used for each physics module. Note that these equations are mostly well established and found in various literature, and therefore, giving detailed derivation is not the point of this report. 
+Goal of this report is to describe how Petra-M construct a linear system. An emphasis is on showing the weakform equation systems used for each physics module. Note that these equations are mostly well established and found in various literature, and therefore, providing the detailed derivation is not the point of this report. 
 
+\textcolor{red}{We need to discuss several other things here, including 
+client Server model, introduction of  NameSpace concept, time dependent solvers
+}
 
 \chapter{Preparing simulation model}
 In this chapter, we discuss the interfaceo launch Petra-M in $\pi$Scope, 
@@ -35,10 +43,10 @@ The simulation model in Petra-M is defined using Model Tree. MFEM viewer
 \section{Linear System Structure}
 Need to discusss,,,,Mesh space, FESpace variable, Auxiliary variable
 
-\section{Namespace and Functional Coefficients}
+\section{Namespace and Coefficients}
 Using it for material property and selection index.
-\subsection{Namespac/Dataeet}
-Namespace is the concept to define the variable/functions which is local to the physics model. 
+\subsection{Namespac (NS) and Dataset associated to NS}
+Namespace (GUI uses NS in brief) is the concept to define the variable/functions which is local to the physics model. 
 A user can use the variable defined the namespace as a parameter in physics setting. 
 
 Dataset is a special model tree object, which holds the set of data. 
@@ -90,12 +98,8 @@ The real advantage of this approach comes when a user write his/her own coeffice
 from petram.helper.variables import coefficient
 @coefficient.array(shape=(3,3))
 def three_one_one():
-    value = np.diag((-3.,1.,1.))
-    v = mfem.Vector(value.flatten())
-    m = mfem.DenseMatrix(v.GetData(), 
-                       value.shape[0], 
-                       value.shape[1])       
-    coeff1 = mfem.MatrixConstantCoefficient(m)
+    value = np.diag((-3.,1.,1.))   
+    coeff1 = mfem.MatrixConstantCoefficient(value)
     return coeff1
 
 \end{lstlisting}
@@ -323,8 +327,11 @@ On such a surface, the impedance (the ratio between E and H) is given as
 \frac{E_{\rm x}}{H_{\rm y}} = \sqrt{\frac{i \omega \mu}{\sigma + i \omega \epsilon}} \sim \frac{1+i}{2} \omega \mu \delta
 \end{equation}
 
-Eq.\,\ref{em3d_weakBC} is viewed to define  the ratio between the tangential components of E and H, and the above relationship can be directly implemented.
-
+Eq.\,\ref{em3d_weakBC} is viewed to define  the ratio between the tangential components of E and H, and the above relationship can be directly implemented. In general, we use the impedance $Z(\omega)$ 
+\begin{equation}
+\mathbf{n} \times \mathbf{n} \times \mathbf{E} + Z(\omega) \mathbf{n} \times \mathbf{H} = 0
+\end{equation}
+ and express $\gamma$ in Eq.\,\ref{em3d_weakBC} using $Z(\omega)$, while $\mathbf{Q}$ is zero. 
  
  \subsubsection{Periodic (Floquet-Bloch) BC}
  
@@ -344,7 +351,7 @@ $\phi$ direction ($\sim e^{m \phi}$), where $m$ is the out-of-plane mode number.
  where $\mathbf{E}_{\rm t} = (E_{\rm r}, E_{\rm z})$ and  $\nabla_{t} = (\frac{\partial }{\partial r}, \frac{\partial }{\partial z}$) are 2D vectors on $r$, $z$ plane.
  
 Then, we exapned the weakform for Maxwell equations (Eq.\,\ref{em3d_weak}) using $\mathbf{E}_{\rm t}$, $E_{\phi}$, and $\nabla_{t}$ so that a direct one-by-one connection to mfem::LinearFormIntegrator and mfem::BilinearFormIntegrator becomes clear.
-For a scolar $\mu$, $\epsilon$, and $\sigma$, it can be written as 
+For a scolar $\mu$, $\epsilon$, and $\sigma$, it can be written as \textcolor{red}{correct this expression. Jacobian should be inside the blacket}
  \begin{align}
 r(\nabla_{\rm t} \times \mathbf{F}_{\rm t},  \frac{1}{\mu}\nabla_{\rm t}  \times & \mathbf{E}_{\rm t}) 
 +\frac{1}{r} m^2(\mathbf{F}_{\rm t}, \frac{1}{\mu}\mathbf{E}_{\rm t})
@@ -359,10 +366,11 @@ r(\nabla_{\rm t} \times \mathbf{F}_{\rm t},  \frac{1}{\mu}\nabla_{\rm t}  \times
  \notag \\
  =& i \omega r ( \mathbf{F}_{\rm t}, \mathbf{J}_{\rm t} ) + i \omega ( rF_{\rm \phi}, J_{\rm \phi} ), \label{em2da_weak}
  \end{align}
- where $(A , B)$ is the domain integral ($\int_{\Omega} AB drdz$) and $\langle A, B \rangle $ is the boundary integral ($\int_{\partial \Omega} ABdrdz$). The module uses the H(curl) element for $\mathbf{E}_{\rm t}$ and the H1 element for $rE_{\phi}$. Note that the integration does not consider $2 \pi r$ and $r$ is included in the coefficient of the linear/bilinear forms. 
+ where $(A , B)$ is the domain integral ($\int_{\Omega} AB drdz$) and $\langle A, B \rangle $ is the boundary integral ($\int_{\partial \Omega} ABds$). The module uses the H(curl) element for $\mathbf{E}_{\rm t}$ and the H1 element for $rE_{\phi}$. Note that the integration does not consider $2 \pi r$ and $r$ is included in the coefficient of the linear/bilinear forms. 
  
  \subsubsection{Anisotropic media}
  
+In the mass integrator, we expand $\epsilon$ and $\sigma$ into the following block. Currently anisotropc $\mu$ is not supported.
 
  \begin{equation}
  \left[ {\begin{array}{*{20}c}
@@ -376,7 +384,7 @@ r(\nabla_{\rm t} \times \mathbf{F}_{\rm t},  \frac{1}{\mu}\nabla_{\rm t}  \times
 \mathbf{E}_{\rm t}  \\
 rE_{\rm \phi}\\
 \end{array}}\right]
-\label{response_matrix_eq}
+\label{em2da_anisotropic}
 \end{equation}
 
  \subsubsection{External current source}
@@ -387,6 +395,53 @@ rE_{\rm \phi}\\
  \subsubsection{PEC (perfect electric conductor/electric field BC}
   
 \subsection{2D frequency domain(EM2D)}
+\subsubsection{Weakform}
+in this mode, we solve the Maxwell equation in 2D (xy) space, assuming that the RF electric field has the form of $\mathbf{E}(x, y) \exp{(ikz)}$. 
+In this geometry, the curl operator is expanded as follows,
+
+ \begin{align}
+ \nabla \times E = &(\frac{\partial E_{z}}{\partial y}- ik E_{\rm y} )\mathbf{e}_{\rm x} +
+( -\frac{\partial E_{\rm z}}{\partial x} + ik E_{\rm x})\mathbf{e}_{\rm \phi}+
+( \frac{\partial E_{\rm x}}{\partial y} - \frac{\partial E_{\rm y}}{\partial x})\mathbf{e}_{\rm z} 
+ \notag \\ 
+ = &\nabla_{t} \times \mathbf{E}_{\rm t} + \mathbf{e}_{\rm z} \times (ik \mathbf{E}_{\rm t} - \nabla_{\rm t} E_{\rm z}) ),
+ \end{align}
+
+Correspondingly, the weakform can be written as follows for a scalar $\mu$, $\epsilon$,  and $\sigma$
+\begin{align}
+(\nabla_{\rm t} \times \mathbf{F}_{\rm t},  \frac{1}{\mu}\nabla_{\rm t}  \times & \mathbf{E}_{\rm t}) 
++  k^2(\mathbf{F}_{\rm t}, \frac{1}{\mu}\mathbf{E}_{\rm t})
++ (\nabla_{\rm t} (F_{\rm z}), \frac{1}{\mu}\nabla_{\rm t} (E_{\rm z}))
+ \notag \\
++& (ik \mathbf{F}_{\rm t}, \frac{1}{\mu}\nabla_{\rm t} E_{\rm z})
+- (\nabla_{\rm t} F_{\rm \phi}, \frac{ik}{\mu} \mathbf{E}_{\rm z})
+ \notag \\
+ -& (\omega^2 \epsilon+ i \omega \sigma) (  \mathbf{F}_{\rm t}, \mathbf{E}_{\rm t} + (F_{\rm z}, E_{\rm z})) 
+ \notag \\
+ +& \langle \mathbf{F}_{\rm t},  \mathbf{Q}_{\rm t} \rangle + \langle F_{\rm z}, Q_{\rm z} \rangle 
+ -r \gamma \langle \mathbf{F}_{\rm t}, \mathbf{E}_{\rm t} \rangle
+ -r \gamma \langle F_{\rm z}, E_{\rm z} \rangle
+ \notag \\
+ =& i \omega ( \mathbf{F}_{\rm t}, \mathbf{J}_{\rm t} ) + i \omega ( F_{\rm z}, J_{\rm z} ), \label{em2d_weak}
+ \end{align}
+
+Mass integrator for an anistropic $\epsilon$ and $\sigma$ can be written in a similar way as Eq.\,\ref{em2da_anisotropic}. 
+
+ \begin{equation}
+ \left[ {\begin{array}{*{20}c}
+\mathbf{F}_{\rm t}  & F_{\rm z}\\
+\end{array}}\right]
+\left[ {\begin{array}{*{20}c}
+\mathbf{\epsilon}_{\perp \perp}  & \mathbf{\epsilon}_{\perp \parallel}\\
+\mathbf{\epsilon}_{\parallel \perp} & \mathbf{\epsilon}_{\parallel \parallel}\\
+\end{array}}\right]
+ \left[ {\begin{array}{*{20}c}
+\mathbf{E}_{\rm t}  \\
+E_{\rm z}\\
+\end{array}}\right]
+\label{em2d_anisotropic}
+\end{equation}
+
 
 \subsection{1D frequency domain(EM1D)}
 
@@ -455,7 +510,8 @@ List. \ref{parametric_scanner} shows details of how to give arguments to Scan.
 \begin{lstlisting}[caption={Parametric Scanner},captionpos=b, frame=single, label={parametric_scanner}]
 Scan("freq", [3e9, 4e9, 5e9])
 Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90, 180])
-Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90, 180], product = False) #1D scan
+Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90, 180], 
+      product = False) #1D scan
 Scan("freq", "phase", start = (3e9, 0), 
       stop = (5e9, 180), nstep = 3)  # 1D scan 
  Scan("freq", "phase", start = (3e9, 0), 
@@ -580,6 +636,7 @@ PetraM\_Base\_ext
 
 2018 08 24  The first public release version
 
+\subsection{Revision Histoery?}
 
 
 \end{document}
