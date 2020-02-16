@@ -593,6 +593,7 @@ class DlgEditModel(SimpleFramePlus):
             self.p1sizer.Add(p1panel, 1, wx.EXPAND|wx.ALL, 1)
             p1panel.SetValue(mm.get_panel1_value())
             p1panel.Show()
+            p2panel.Hide()                                            
             self.p1.Layout()
 
         self._focus_idx = None

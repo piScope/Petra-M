@@ -337,6 +337,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if not isinstance(coeff, tuple):
            flag = True
            coeff = [coeff]
+
         for c in coeff:
             if vec:
                 ret.append(mfem.VectorRestrictedCoefficient(c, arr))
