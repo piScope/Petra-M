@@ -1,5 +1,6 @@
 import wx
 import numpy as np
+from collections import defaultdict
 
 import petram
 from petram.utils import get_pkg_datafile
@@ -129,8 +130,16 @@ def hide_elem(evt, inverse=False):
         from petram.mesh.mesh_utils import line2surf        
         hidden_face = sum([o.hidden_component for o in Fobjs], [])
         l2s = line2surf(s2l)
-        hide_this_edge = [l for l, ss in l2s.items()
-                      if np.intersect1d(ss, hidden_face).size==len(ss)]
+
+        dd = defaultdict(int)
+        for f in hidden_face:
+            for x in s2l[f]:
+                dd[x] = dd[x]+1
+        dd = dict(dd)
+        hide_this_edge = [x for x in dd if dd[x] == len(l2s[x])]
+            
+        #hide_this_edge = [l for l, ss in l2s.items()
+        #              if np.intersect1d(ss, hidden_face).size==len(ss)]
 
         for o in Eobjs:
             #idx = o.getSelectedIndex()

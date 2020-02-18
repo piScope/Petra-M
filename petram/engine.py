@@ -48,49 +48,32 @@ class Engine(object):
         if modelfile != '':
            import petram.helper.pickle_wrapper as pickle
            model = pickle.load(open(modelfile, 'rb'))
-           
-        self.set_model(model)
-        if not 'InitialValue' in model:
-           idx = list(model).index('Phys')+1
-           from petram.mfem_model import MFEM_InitRoot
-           model.insert_item(idx, 'InitialValue', MFEM_InitRoot())
-        if not 'PostProcess' in model:
-           idx = list(model).index('InitialValue')+1
-           from petram.mfem_model import MFEM_PostProcessRoot
-           model.insert_item(idx, 'PostProcess', MFEM_PostProcessRoot())
-           
-        from petram.mfem_model import has_geom
-        if not 'Geom' in model and has_geom:
-           try:
-               from petram.geom.geom_model import MFEM_GeomRoot
-           except:
-               from petram.mfem_model import MFEM_GeomRoot              
-           model.insert_item(1, 'Geometry', MFEM_GeomRoot())
-           
+
+
+        from collections import deque
         
+        self.data_stack = deque()
+        self.set_model(model)
+        
+        # (this is called inside set_model) self.initialize_datastorage()
+        '''
         self.is_assembled = False
         self.is_initialized = False
-        #
-        # I am not sure if there is any meaing to make mesh array at
-        # this point...
         self.meshes = []
         self.emeshes = []
         self.emesh_data = None
-
-        ## number of matrices to be filled
-        ##  
-        ##  M0 * x_n = M1 * x_n-1 + M2 * x_n-2 + M3 * x_n-3... Mn x_0 + rhs_vector
         self.fec = {}        
         self.fespaces = {}
         self.fecfes_storage = {}
         self.pp_extra = {}
-        
+        self.alloc_flag = {}
+        '''
         self._num_matrix= 1
         self._access_idx= -1
         self._dep_vars = []
         self._isFESvar = []
 
-        self.alloc_flag = {}
+
         self.max_bdrattr = -1
         self.max_attr = -1        
         self.sol_extra = None
@@ -110,6 +93,48 @@ class Engine(object):
         self.case_base = 0
         self._init_done = []
         
+    def initialize_datastorage(self):
+        self.is_assembled = False
+        self.is_initialized = False        
+        self.meshes = []    
+        self.emeshes = []   
+        self.emesh_data = None   
+        self.fec = {}            
+        self.fespaces = {}      
+        self.fecfes_storage = {}  
+        self.pp_extra = {}   
+        self.alloc_flag = {}
+
+    stored_data_names = ("is_assembled",
+                         "self.is_initialized",
+                         "meshes",
+                         "emeshes",
+                         "emesh_data",
+                         "fec",
+                         "fespaces",
+                         "fecfes_storage",
+                         "pp_extra",
+                         "alloc_flag")        
+        
+    def push_datastorage(self):
+        v = self.model.root()._variables
+        p = self.model.root()._parameters
+        data = [getattr(self, n) for n in stored_data_names]
+        dataset = (v, p, data)
+        
+        self.data_stack.append(dataset)
+        
+    def access_datastorage(self, idx):
+        data = self.data_stack.index(idx)
+        return data
+     
+    def pop_datastorage(self):
+        data = self.data_stack.pop()
+        self.model.root()._variables = data[0]
+        self.model.root()._parameters = data[1]
+        for k, n in enumerate(stored_data_names):
+           setattr(self, n, data[2][k])
+           
     @property
     def n_matrix(self):
         return self._num_matrix
@@ -234,18 +259,9 @@ class Engine(object):
     def matvecs(self, v):
         self._matrix_block[self._access_idx] = v
         
-     
     def set_model(self, model):
         self.model = model
-        self.is_assembled = False
-        self.is_initialized = False        
-        self.meshes = []
-        self.emeshes = []
-        self.emesh_data = None
-        self.fec = {}        
-        self.fespaces = {}
-        self.fecfes_storage = {}
-        self.pp_extra = {}
+        self.initialize_datastorage()
         if model is None: return
             
         self.alloc_flag  = {}
@@ -257,13 +273,13 @@ class Engine(object):
         for k in model['Mesh'].keys():
             if not hasattr(model['Mesh'][k], 'isMeshGroup'):
                 if g is None:
-                    name = model['Mesh'].add_item('MeshGroup', MeshGroup)
+                    name = model['Mesh'].add_item('MFEMMesh', MeshGroup)
                     g = model['Mesh'][name]
                 items.append((k, model['Mesh'][k]))
 
         for name, obj in items:
             del model['Mesh'][name]
-            model['Mesh']['MeshGroup1'][name] = obj
+            model['Mesh']['MFEMMesh1'][name] = obj
 
         # convert old model which does not use SolveStep...
         from petram.solver.solver_model import SolveStep
@@ -283,6 +299,22 @@ class Engine(object):
                 else:
                     box = None
             
+        if not 'InitialValue' in model:
+           idx = list(model).index('Phys')+1
+           from petram.mfem_model import MFEM_InitRoot
+           model.insert_item(idx, 'InitialValue', MFEM_InitRoot())
+        if not 'PostProcess' in model:
+           idx = list(model).index('InitialValue')+1
+           from petram.mfem_model import MFEM_PostProcessRoot
+           model.insert_item(idx, 'PostProcess', MFEM_PostProcessRoot())
+           
+        from petram.mfem_model import has_geom
+        if not 'Geom' in model and has_geom:
+           try:
+               from petram.geom.geom_model import MFEM_GeomRoot
+           except:
+               from petram.mfem_model import MFEM_GeomRoot              
+           model.insert_item(1, 'Geometry', MFEM_GeomRoot())
 
     def get_mesh(self, idx = 0, mm = None):
         if len(self.meshes) == 0: return None
@@ -325,12 +357,15 @@ class Engine(object):
     def preprocess_modeldata(self, dir = None):
         '''
         do everything it takes to run a newly built
+        name space is already build
         model data strucutre.
         used from text script execution
         '''
         import os
-        from __main__ import __file__ as mainfile        
+        
         model = self.model
+        self.initialize_datastorage()
+        
         model['General'].run()
 
         from petram.mfem_config import use_parallel
@@ -339,13 +374,6 @@ class Engine(object):
             self.run_mesh_serial(skip_refine = True)
         else:
             self.run_mesh_serial()
-            
-        if dir is None:
-            dir = os.path.dirname(os.path.realpath(mainfile))           
-        for node in model.walk():
-            if node.has_ns() and node.ns_name is not None:
-                node.read_ns_script_data(dir = dir)
-        self.build_ns()
 
         self.assign_sel_index()
         self.run_preprocess()  # this must run when mesh is serial
@@ -359,14 +387,34 @@ class Engine(object):
                 if not phys.enabled: continue                            
                 self.run_mesh_extension(phys)
                 self.allocate_fespace(phys)
-                
+
+        self.save_processed_model()
+
         solver = model["Solver"].get_active_solvers()
         return solver
-     
-    def run_config(self, skip_refine = False):
-        '''
-        this runs model['General'] and
-        fill namespace dict
+
+    def run_build_ns(self, dir = None):
+        from __main__ import __file__ as mainfile
+        model = self.model
+        model['General'].run()
+        
+        if dir is None:
+            dir = os.path.dirname(os.path.realpath(mainfile))           
+        for node in model.walk():
+            if node.has_ns() and node.ns_name is not None:
+                node.read_ns_script_data(dir = dir)
+        self.build_ns()
+        solver = model["Solver"].get_active_solvers()
+        return solver
+
+    def run_config(self):
+        self.model['General'].run()
+        try:
+            self.build_ns()
+        except:
+            exception = traceback.format_exc()
+            return -2, exception
+        return 0, None
         '''
         import traceback
         try:        
@@ -384,6 +432,7 @@ class Engine(object):
             exception = traceback.format_exc()
             return -2, exception
         return 0, None
+        '''
      
     def run_preprocess(self, ns_folder = None, data_folder = None):
         dprint1("!!!!! run preprocess !!!!!")
@@ -2217,10 +2266,19 @@ class Engine(object):
             if file.startswith('rhs'): os.remove(os.path.join(d, file))
             if file.startswith('SolveStep'): os.remove(os.path.join(d, file))
             if file.startswith('cProfile_'): os.remove(os.path.join(d, file))                        
-            if file.startswith('checkpoint_'):
+            if file.startswith('checkpoint_') and os.path.isdir(file):
                print("removing checkpoint_", file)
-               shutil.rmtree(os.path.join(d, file))   
-
+               shutil.rmtree(os.path.join(d, file))
+               
+    def remove_case_dirs(self):
+        dprint1("clear case directories: ", os.getcwd())                  
+        d = os.getcwd()
+        files = os.listdir(d)
+        for file in files:
+            if file.startswith('case') and os.path.isdir(file):
+               print("removing case directory", file)
+               shutil.rmtree(os.path.join(d, file))
+       
     def clear_solmesh_files(self, header):
         try:
             from mpi4py import MPI
@@ -2547,7 +2605,14 @@ class Engine(object):
         else:
             ilf = None
         return MfemVec2PyVec(rlf, ilf, horizontal=horizontal)
-            
+     
+    def run_geom_gen(self, gen):
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+    def run_mesh_gen(self, gen):
+        raise NotImplementedError(
+             "you must specify this method in subclass")
+       
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(SerialEngine, self).__init__(modelfile = modelfile, model=model)
@@ -2699,6 +2764,14 @@ class SerialEngine(Engine):
             x.SetSize(P.Height())
             P.Mult(X, x)
 
+    def run_geom_gen(self, gen):
+        gen.generate_final_geometry()
+        
+    def run_mesh_gen(self, gen):
+        gen.generate_mesh_file()
+
+    def save_processed_model(self):
+        self.model.save_to_file('model_proc.pmfm', meshfile_relativepath = False)
             
 class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
@@ -3003,14 +3076,20 @@ class ParallelEngine(Engine):
         MPI.COMM_WORLD.Barrier()                
 
     def remove_solfiles(self):       
-        dprint1("clear sol: ", os.getcwd())                  
         myid     = MPI.COMM_WORLD.rank                
         if myid == 0:
             super(ParallelEngine, self).remove_solfiles()
         else:
             pass
         MPI.COMM_WORLD.Barrier()
-
+        
+    def remove_case_dirs(self):
+        myid     = MPI.COMM_WORLD.rank                
+        if myid == 0:
+            super(ParallelEngine, self).remove_case_dirs()
+        else:
+            pass
+        MPI.COMM_WORLD.Barrier()
 
     def a2A(self, a):   # BilinearSystem to matrix
         # we dont eliminate essentiaal at this level...                 
@@ -3049,6 +3128,30 @@ class ParallelEngine(Engine):
         x.SetSize(P.Height())
         P.Mult(X, x)
      
+    def run_geom_gen(self, gen):
+        myid     = MPI.COMM_WORLD.rank                
+        if myid == 0:
+            gen.generate_final_geometry()           
+        else:
+            pass
+        MPI.COMM_WORLD.Barrier()
+       
+    def run_mesh_gen(self, gen):
+        myid     = MPI.COMM_WORLD.rank                
+        if myid == 0:
+            gen.generate_mesh_file()           
+        else:
+            pass
+        MPI.COMM_WORLD.Barrier()
+       
+    def save_processed_model(self):
+        myid     = MPI.COMM_WORLD.rank                
+        if myid == 0:
+            self.model.save_to_file('model_proc.pmfm', meshfile_relativepath = False)
+        else:
+            pass
+        MPI.COMM_WORLD.Barrier()
+       
         
         
   

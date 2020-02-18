@@ -47,7 +47,10 @@ class SolveStep(SolverBase):
         v['init_setting']   = ''
         v['postprocess_sol']   = ''        
         v['use_dwc_pp']   = False
-        v['dwc_pp_arg']   = ''                        
+        v['dwc_pp_arg']   = ''
+        v['use_geom_gen'] = False
+        v['use_mesh_gen'] = False       
+        
         super(SolveStep, self).attribute_set(v)
         return v
     
@@ -56,7 +59,9 @@ class SolveStep(SolverBase):
         value = self.dwc_pp_arg
         return [["Initial value setting",   self.init_setting,   0, {},],
                 ["Postporcess solution",    self.postprocess_sol,   0, {},],
-                ["trial phys. (blank: trial = test)",   self.phys_model, 0, {},],
+                ["trial phys.",self.phys_model, 0, {},],
+                [None,  self.use_geom_gen,  3, {"text":"run geometry generator"}],
+                [None,  self.use_mesh_gen,  3, {"text":"run mesh generator"}],
                 [None, [False, [value]], 27, [{'text':'Use DWC (postprocess)'},
                                               {'elp': [ret]}]],]
 
@@ -66,28 +71,34 @@ class SolveStep(SolverBase):
 
     def get_panel1_value(self):
         return (self.init_setting, self.postprocess_sol, self.phys_model,
+                self.use_geom_gen,
+                self.use_mesh_gen,
                 [self.use_dwc_pp, [self.dwc_pp_arg,]])
 
     def import_panel1_value(self, v):
         self.init_setting    = v[0]
         self.postprocess_sol = v[1]        
         self.phys_model   = v[2]
-        self.use_dwc_pp   = v[3][0]
-        self.dwc_pp_arg   = v[3][1][0]         
+        self.use_geom_gen = v[3]
+        self.use_mesh_gen = v[4]
+        if self.use_geom_gen:
+            self.use_mesh_gen = True
+        self.use_dwc_pp   = v[5][0]
+        self.dwc_pp_arg   = v[5][1][0]
+        
 #        self.init_only    = v[2]
         
     def get_possible_child(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.timedomain_solver_model import TimeDomain
-        from petram.solver.parametric import Parametric
         from petram.solver.set_var import SetVar
   
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [StdSolver, StdMeshAdaptSolver, TimeDomain, Parametric, SetVar]
+            return [StdSolver, StdMeshAdaptSolver, TimeDomain, SetVar]
         except:
-            return [StdSolver, TimeDomain, Parametric, SetVar]
+            return [StdSolver, TimeDomain, SetVar]
 
     
     def get_phys(self):
@@ -224,12 +235,34 @@ class SolveStep(SolverBase):
         engine.run_apply_essential(phys_target, phys_range)
         engine.run_fill_X_block()
 
+    def call_run_geom_gen(self, engine):
+        name = self.root()['General'].geom_gen
+        gen = self.root()['Geometry'][name] 
+        engine.run_geom_gen(gen)
+        
+    def call_run_mesh_gen(self, engine):
+        name = self.root()['General'].mesh_gen
+        gen = self.root()['Mesh'][name] 
+        engine.run_mesh_gen(gen)
+
+    def check_and_run_geom_mesh_gens(self, engine):
+        flag = False
+        if self.use_mesh_gen:
+            if self.use_geom_gen:
+                self.call_run_geom_gen(engine)
+            self.call_run_mesh_gen(engine)
+            flag = True
+        return flag
+        
     def run(self, engine, is_first = True):
         dprint1("!!!!! Entering SolveStep :" + self.name() + " !!!!!")
         solvers = self.get_active_solvers()
 
-        # initialize and assemble here
-
+        is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
+        if is_first or is_new_mesh:        
+            engine.preprocess_modeldata()
+        
+        # initialize and assemble her        
         # in run method..
         #   std solver : make sub block matrix and solve
         #   time-domain solver : do step
@@ -435,6 +468,12 @@ class SolverInstance(object):
 
     def configure_probes(self, probe_txt):
         from petram.sol.probe import Probe
+
+        all_phys = self.get_phys()
+        txt = [phys.collect_probes() for phys in all_phys]
+        txt = [probe_txt]+txt
+        probe_txt = ','.join([t for t in txt if len(t) > 0])
+                                 
         dprint1("configure probes: "+probe_txt)
         if probe_txt.strip() != '':
             probe_names = [x.strip() for x in probe_txt.split(',')]

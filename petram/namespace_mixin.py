@@ -70,8 +70,10 @@ class NS_mixin(object):
         fid = open(path1, 'w')
         fid.write(self.ns_string)
         fid.close()
-        import petram.helper.pickle_wrapper as pickle                        
-        pickle.dump(self.dataset, open(path2, 'wb'))
+        import petram.helper.pickle_wrapper as pickle
+        fid = open(path2, 'wb')
+        pickle.dump(self.dataset, fid)
+        fid.close()
         
     def read_ns_script_data(self, dir = None):
         path1 = os.path.join(dir, self.ns_name+'_ns.py')
@@ -79,8 +81,10 @@ class NS_mixin(object):
         fid = open(path1, 'r')
         self.ns_string = '\n'.join(fid.readlines())
         fid.close()
-        import petram.helper.pickle_wrapper as pickle                
-        self.dataset = pickle.load(open(path2, 'rb'))
+        import petram.helper.pickle_wrapper as pickle
+        fid = open(path2, 'rb')
+        self.dataset = pickle.load(fid)
+        fid.close()
         
     def delete_ns(self):
         self._global_ns = None
@@ -128,8 +132,8 @@ class NS_mixin(object):
         result = {}
         for name, tname,  validator in exprs:
             if targets is not None and not tname in targets: continue
-            void = {}
             try:
+                void = {}
                 x = eval(str(getattr(self, tname)), self._global_ns, void)
             except:
                 import traceback
@@ -149,14 +153,32 @@ class NS_mixin(object):
         return result, invalid_expr
     
     def eval_ns(self):
+
+        
         chain = self.get_ns_chain()
         l = self.get_default_ns()
 
         from petram.helper.variables import var_g
         g = var_g.copy()
+
+        import mfem
+        if mfem.mfem_mode == 'serial':
+            g['mfem'] = mfem.ser
+        elif mfem.mfem_mode == 'parallel':
+            g['mfem'] = mfem.par
+        else:
+            assert False, "PyMFEM is not loaded"
+
+        import numpy            
+        g['np'] = numpy
+        from petram.helper.variables import variable, coefficient
+        g['variable'] = variable
+        g['coefficient'] = coefficient
         
         if self.root() is self:
-            self._variables = {}
+             if not hasattr(self.root(), "_variables"):
+                 from petram.helper.variables import Variables            
+                 self.root()._variables = Variables()
         else:
             self._local_ns = self.root()._variables
         if len(chain) == 0:
@@ -190,7 +212,6 @@ class NS_mixin(object):
                            for k in p.dataset: g[k] = p.dataset[k]
                        for k in p.attribute_mirror_ns():
                            g[k] = chain[-2]._global_ns[k]                   
-                       ll = {}
                        if (p.ns_string != '' and p.ns_string is not None):
                            exec(p.ns_string, g, ll)
                            for k in ll: g[k] = ll[k]
@@ -218,14 +239,6 @@ class NS_mixin(object):
         # step 4 run namespace scripts otherise exit
         for k in l:
             g[k] = l[k]  # copying default ns
-
-        import mfem
-        if mfem.mfem_mode == 'serial':
-            g['mfem'] = mfem.ser
-        elif mfem.mfem_mode == 'parallel':
-            g['mfem'] = mfem.par
-        else:
-            assert False, "PyMFEM is not loaded"
 
         try:
             l = {}

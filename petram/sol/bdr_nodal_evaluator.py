@@ -87,7 +87,7 @@ def edge_detect(index):
     return  ret
 
 def get_emesh_idx(obj, expr, solvars, phys):
-    from petram.helper.variables import Variable, var_g
+    from petram.helper.variables import Variable, var_g, NativeCoefficientGenBase
     
     st = parser.expr(expr)
     code= st.compile('<string>')
@@ -101,9 +101,11 @@ def get_emesh_idx(obj, expr, solvars, phys):
     for key in solvars.keys():
        g[key] = solvars[key]
 
-    idx = []   
+    idx = []
+
     for n in names:
-       if (n in g and isinstance(g[n], Variable)):
+       if ((n in g and isinstance(g[n], NativeCoefficientGenBase)) or 
+           (n in g and isinstance(g[n], Variable))):
            for nn in g[n].dependency:
               idx = g[nn].get_emesh_idx(idx, g=g)
            idx = g[n].get_emesh_idx(idx, g=g)
@@ -122,7 +124,7 @@ def eval_at_nodals(obj, expr, solvars, phys):
     to be done : obj should be replaced by a dictionary
     '''
 
-    from petram.helper.variables import Variable, var_g
+    from petram.helper.variables import Variable, var_g, NativeCoefficientGenBase, CoefficientVariable
     
     if len(obj.iverts) == 0: return None
     variables = []
@@ -143,13 +145,21 @@ def eval_at_nodals(obj, expr, solvars, phys):
     var_g2 = var_g.copy()
 
     new_names = []
+    name_translation = {}
     for n in names:
+       if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
+           g[n+"_coeff"] = CoefficientVariable(g[n], g)
+           new_names.append(n+"_coeff")
+           name_translation[n+"_coeff"] = n
+           
        if (n in g and isinstance(g[n], Variable)):
            new_names.extend(g[n].dependency)
            new_names.append(n)
+           name_translation[n] = n
        elif n in g:
            new_names.append(n)
-
+           name_translation[n] = n
+           
     for n in new_names:
        if (n in g and isinstance(g[n], Variable)):
            if not g[n] in obj.knowns:
@@ -166,7 +176,7 @@ def eval_at_nodals(obj, expr, solvars, phys):
                                     g  = g,
                                     knowns = obj.knowns))
            #ll[n] = self.knowns[g[n]]
-           ll_name.append(n)
+           ll_name.append(name_translation[n])
            ll_value.append(obj.knowns[g[n]])
        elif (n in g):
            var_g2[n] = g[n]
@@ -242,6 +252,7 @@ class BdrNodalEvaluator(EvaluatorAgent):
                                           decimate=decimate)
 
         val = eval_at_nodals(self, expr, solvars, phys)
+
         if val is None: return None, None, None
 
         edge_only = kwargs.pop('edge_only', False)

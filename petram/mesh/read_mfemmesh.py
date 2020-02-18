@@ -82,10 +82,10 @@ def extract_mesh_data(mesh, refine = 1):
 
     if hasNodal and refine != 1:
        if ndim == 3:
-           from read_mfemmesh3 import extract_refined_mesh_data3           
+           from petram.mesh.read_mfemmesh3 import extract_refined_mesh_data3           
            return extract_refined_mesh_data3(mesh, refine)
        elif ndim == 2:
-           from read_mfemmesh2 import extract_refined_mesh_data2
+           from petram.mesh.read_mfemmesh2 import extract_refined_mesh_data2
            return extract_refined_mesh_data2(mesh, refine)
        else:
            assert False, "1D mesh not supported"           

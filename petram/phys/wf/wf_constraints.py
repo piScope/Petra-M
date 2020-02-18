@@ -70,7 +70,7 @@ class WF_common(object):
 
         kwargs = {}
 
-        from petram.phys.weakform import SCoeff, VCoeff
+        from petram.phys.coefficient import SCoeff, VCoeff
         if ll == 1:
             coeff = SCoeff(f_name[0],
                        self.get_root_phys().ind_vars,

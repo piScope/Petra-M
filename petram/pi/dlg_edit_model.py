@@ -10,6 +10,7 @@ from ifigure.utils.edit_list import EDITLIST_CHANGED,  EDITLIST_CHANGING
 from ifigure.utils.edit_list import EDITLIST_SETFOCUS
 from ifigure.widgets.miniframe_with_windowlist import MiniFrameWithWindowList
 from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList
+import ifigure.widgets.dialog as dialog
 
 import petram.helper.pickle_wrapper as pickle
 
@@ -205,8 +206,16 @@ class DlgEditModel(SimpleFramePlus):
                    else:
                        before, after = None, None  
 
-                   name = parent.add_item(namebase, cls,
+                   try:
+                       name = parent.add_item(namebase, cls,
                                           before=before, after=after)
+                   except:
+                       dialog.showtraceback(parent = self,
+                           txt="Failed to add child",
+                           title='Error',
+                           traceback=traceback.format_exc())
+                       return
+                       
                    child = parent[name]
                    viewer = self.GetParent()               
                    viewer.model.scripts.helpers.rebuild_ns()
@@ -285,7 +294,6 @@ class DlgEditModel(SimpleFramePlus):
         mm = self.model.GetItem(indices)
  
         import wx
-        import ifigure.widgets.dialog as dialog
         
         app = wx.GetApp().TopWindow
         app.shell.lvar[mm.name()] = mm
@@ -336,6 +344,8 @@ class DlgEditModel(SimpleFramePlus):
 
     def OnDuplicateItemFromModel(self, evt):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        self.tree.SelectItem(self.tree.GetSelection(), select=False)
+        
         mm = self.model.GetItem(indices)
         name = mm.name()
         base, num = mm.split_digits()
@@ -355,6 +365,9 @@ class DlgEditModel(SimpleFramePlus):
         
         parent.insert_item(index+1, base+str(int(max(nums))+1), newmm)
         self.tree.RefreshItems()
+        
+        new_item = self.tree.GetItemByIndex(newmm.GetIndices())
+        self.tree.SelectItem(new_item)                   
         self.OnEvalNS(evt)
 
     def OnDeleteItemFromModelMult(self, evt):
@@ -450,7 +463,6 @@ class DlgEditModel(SimpleFramePlus):
 
 
     def show_panel(self, mm):
-        
         for k in self.panels.keys():
             p1panel, p2panel, p3panel, p4panel = self.panels[k]
             self.p1sizer.Detach(p1panel)
@@ -508,6 +520,9 @@ class DlgEditModel(SimpleFramePlus):
             self.p1sizer.Add(p1panel, 1, wx.EXPAND|wx.ALL, 1)
             p1panel.SetValue(mm.get_panel1_value())
             p1panel.Show()
+            p2panel.Hide()
+            p3panel.Hide()
+            p4panel.Hide()
             self.p1.Layout()
             
         if not self._enable:
@@ -580,6 +595,9 @@ class DlgEditModel(SimpleFramePlus):
             self.p1sizer.Add(p1panel, 1, wx.EXPAND|wx.ALL, 1)
             p1panel.SetValue(mm.get_panel1_value())
             p1panel.Show()
+            p2panel.Hide()
+            p3panel.Hide()
+            p4panel.Hide()
             self.p1.Layout()
 
         self._focus_idx = None
@@ -716,6 +734,7 @@ class DlgEditModel(SimpleFramePlus):
         self.panels[mm.fullname()][3].update_label(mm.panel4_param())                
                              
     def import_selected_panel_value(self):
+        if self.tree.GetSelection() is None: return
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
   

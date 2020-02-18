@@ -6,8 +6,11 @@ import numpy as np
 import scipy
 from scipy.sparse import coo_matrix, csr_matrix
 
-import STRUMPACK as ST
-STRUMPACK_SUCCESS = ST.STRUMPACK_SUCCESS
+try:
+   import STRUMPACK as ST
+   STRUMPACK_SUCCESS = ST.STRUMPACK_SUCCESS
+except:
+   STRUMPACK_SUCCESS = False   
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('StrumpackModel')

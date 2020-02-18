@@ -383,6 +383,7 @@ class DlgPlotSol(SimpleFramePlus):
             if len(choices)==0: choices = ['no physcs in model']
 
             ll = [['Expression', '', 0, {}],
+                  ['Expression(x)', '', 0, {}],                  
                   ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}], ]
 
@@ -466,6 +467,15 @@ class DlgPlotSol(SimpleFramePlus):
         self.solfiles = {}
         self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
 
+    def onClose(self, evt):
+        super(DlgPlotSol, self).onClose(evt)
+        self.clean_evaluators()
+        
+    def clean_evaluators(self):
+        for k in self.evaluators:
+            self.evaluators[k].terminate_all()
+        self.evaluators = {}
+        
     def get_remote_subdir_cb(self):
         return self.elps['Config'].widgets[0][0].elps[2].widgets[3][0]
     def get_local_single_subdir_cb(self):
@@ -654,6 +664,11 @@ class DlgPlotSol(SimpleFramePlus):
                 self.local_solsubdir = ""
             else:
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
+                if not os.path.exists(npath): # fall back
+                    npath = sol.owndir()
+                    self.local_soldir = npath
+                    self.local_solsubdir = ""
+                
             if os.path.normpath(npath) != os.path.normpath(cpath):
                 doit =True
             else:
@@ -663,6 +678,10 @@ class DlgPlotSol(SimpleFramePlus):
             doit = True
             if self.local_soldir is not None:
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
+                if not os.path.exists(npath): # fall back
+                    npath = sol.owndir()
+                    self.local_soldir = npath
+                    self.local_solsubdir = ""
             else:
                 sol = model.param.eval('sol')
                 if sol is None:
@@ -701,7 +720,8 @@ class DlgPlotSol(SimpleFramePlus):
         if str(v[0][0]) == 'Single':
             if (self.config['use_mp'] or
                 self.config['use_cs']):
-                self.evaluators = {}                
+                self.clean_evaluators()
+
             self.config['use_mp'] = False
             self.config['use_cs'] = False
             model.variables.setvar('remote_soldir', None)
@@ -719,9 +739,11 @@ class DlgPlotSol(SimpleFramePlus):
             
         elif str(v[0][0]) == 'MP':
             if not self.config['use_mp']:
-                self.evaluators = {}
+                self.clean_evaluators()                
+
             if self.config['mp_worker'] != v[0][2][0]:
-                self.evaluators = {}
+                self.clean_evaluators()                                
+
             self.config['mp_worker'] = v[0][2][0]
             self.config['use_mp'] = True
             self.config['use_cs'] = False
@@ -739,9 +761,11 @@ class DlgPlotSol(SimpleFramePlus):
             
         elif str(v[0][0]) == 'C/S':
             if not self.config['use_cs']:
-                self.evaluators = {}
+                self.clean_evaluators()
+
             if self.config['cs_worker'] != v[0][3][1]:
-                self.evaluators = {}
+                self.clean_evaluators()                
+
             self.config['cs_worker'] = str(v[0][3][1])
 
 
@@ -1011,7 +1035,6 @@ class DlgPlotSol(SimpleFramePlus):
                             use_pointfill=use_pointfill)
         
     def make_plot_bdr(self, data, battrs, cls = None, expr='', use_pointfill=False):
-        
         from ifigure.interactive import figure
         viewer = figure(viewer = cls)
         viewer.update(False)        
@@ -1498,34 +1521,36 @@ class DlgPlotSol(SimpleFramePlus):
     def onApplyProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
         expr = str(value[0]).strip()
+        xexpr = str(value[1]).strip()        
         
         xdata, data = self.eval_probe(mode = 'plot')
         if data is None:
             wx.CallAfter(self.set_title_no_status)        
             return
-        self.post_threadend(self.make_plot_probe, (xdata, data), expr = expr)
+        self.post_threadend(self.make_plot_probe, (xdata, data), expr = expr, xexpr = xexpr)
+        
     def onExportProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
-        expr = str(value[0]).strip()
-        
         xdata, data = self.eval_probe(mode = 'plot')
 
         data = {'xdata': xdata, 'data': data}
         self.export_to_piScope_shell(data,  'probe_data')
         
-    def make_plot_probe(self, data, expr='', cls=None):
+    def make_plot_probe(self, data, expr='', xexpr='', cls=None):
         from ifigure.interactive import figure
         v = figure(viewer = cls)
         v.update(False)        
         v.suptitle(expr)
+        if len(xexpr) != 0: v.xlabel(xexpr)
         v.plot(data[0], data[1])
         v.update(True)        
         
     def eval_probe(self, mode = 'plot'):
         value = self.elps['Probe'] .GetValue()
         expr = str(value[0]).strip()
-        phys_path = value[1]        
-        xdata, data = self.evaluate_sol_probe(expr, phys_path)
+        xexpr = str(value[1]).strip()        
+        phys_path = value[2]        
+        xdata, data = self.evaluate_sol_probe(expr, xexpr, phys_path)
         return xdata, data
         
     #
@@ -1584,6 +1609,7 @@ class DlgPlotSol(SimpleFramePlus):
         
         if (not key in self.evaluators or
             self.evaluators[key].failed):
+            if key in self.evaluators: self.evaluators[key].terminate_all()            
             self.evaluators[key] =  build_evaluator(battrs,
                                                mfem_model,
                                                solfiles,
@@ -1677,6 +1703,7 @@ class DlgPlotSol(SimpleFramePlus):
                 
         if (not key in self.evaluators or
             self.evaluators[key].failed):
+            if key in self.evaluators: self.evaluators[key].terminate_all()                        
             self.evaluators[key] =  build_evaluator(battrs,
                                                     mfem_model,
                                                     solfiles,
@@ -1718,6 +1745,13 @@ class DlgPlotSol(SimpleFramePlus):
               "yz": _YZ((1, 0, 0., 0)),
               "xy": _XY((0., 0, 1., 0)),
               "zx": _ZX((0., 1, 0., 0)),}
+        # add all combinations
+        ll["ZY"] = ll["YZ"]
+        ll["zy"] = ll["YZ"]        
+        ll["YX"] = ll["XY"]
+        ll["yx"] = ll["XY"]        
+        ll["XZ"] = ll["ZX"]
+        ll["xz"] = ll["ZX"]        
 
         try:
             plane = list(eval(plane, ll, phys_ns))
@@ -1755,6 +1789,8 @@ class DlgPlotSol(SimpleFramePlus):
         from petram.sol.evaluators import build_evaluator
         if (not 'Slice' in self.evaluators or
             self.evaluators['Slice'].failed):
+            
+            if 'Slice' in self.evaluators: self.evaluators['Slice'].terminate_all()
             self.evaluators['Slice'] =  build_evaluator(attrs, 
                                                         mfem_model,
                                                         solfiles,
@@ -1780,28 +1816,21 @@ class DlgPlotSol(SimpleFramePlus):
             wx.CallAfter(self.set_title_no_status)        
         return None, None
     
-    def evaluate_sol_probe(self, expr, phys_path):
+    def evaluate_sol_probe(self, expr, xexpr, phys_path):
         model = self.GetParent().model
-        solfiles = self.get_model_soldfiles()
+        solfiles = None   # probe does not load solfile (GridFunction)
         mfem_model = model.param.getvar('mfem_model')
 
         attrs = [1]
-        if 'Probe' in self.evaluators:
-            try:
-                self.evaluators['Probe'].validate_evaluator('Probe', attrs, solfiles)
-            except IOError:
-                dprint1("IOError detected setting failed=True")
-                self.evaluators['Probe'].failed = True
                 
         from petram.sol.evaluators import build_evaluator                
-        if (not 'Probe' in self.evaluators or
-            self.evaluators['Probe'].failed):
-            
-            self.evaluators['Probe'] =  build_evaluator(attrs, 
-                                                        mfem_model,
-                                                        solfiles,
-                                                        name = 'Probe',
-                                                        config = self.config)
+          
+        if 'Probe' in self.evaluators: self.evaluators['Probe'].terminate_all()            
+        self.evaluators['Probe'] =  build_evaluator(attrs, 
+                                                    mfem_model,
+                                                    solfiles,
+                                                    name = 'Probe',
+                                                    config = self.config)
 
             
         try:
@@ -1811,7 +1840,7 @@ class DlgPlotSol(SimpleFramePlus):
                 probes = self.remote_sols[0:2]
 
             self.evaluators['Probe'].set_phys_path(phys_path)
-            return self.evaluators['Probe'].eval_probe(expr, probes)
+            return self.evaluators['Probe'].eval_probe(expr, xexpr, probes)
         except:
             wx.CallAfter(dialog.showtraceback,
                          parent = self,

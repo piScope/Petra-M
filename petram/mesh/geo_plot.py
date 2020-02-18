@@ -15,9 +15,24 @@ def expand_vertex_data(X, vertex_idx, element_id):
     iarr = []
 
     nel = vertex_idx.shape[-1]
-    for kk in np.unique(element_id):
-        idx = np.where(element_id == kk)[0]
 
+    def iter_unique_idx(x):
+        '''
+        return unique element and all indices for each eleement
+
+        note: this is to avoid using where in the loop like this
+           # for kk in np.unique(element_id):
+           #    idx = np.where(element_id == kk)[0]
+           # (using where inside the loop makes it very slow as 
+           # number of unique elements increases
+        '''
+        uv, uc = np.unique(x, return_counts=True)
+        idx = np.argsort(x)
+        uc = np.hstack((0, np.cumsum(uc)))
+        for i, v in enumerate(uv):
+            yield (v, idx[uc[i]:uc[i+1]])
+
+    for kk, idx in iter_unique_idx(element_id):
         iverts = vertex_idx[idx].flatten()
         iv, idx = np.unique(iverts, return_inverse = True)
         verts.append(X[iv])

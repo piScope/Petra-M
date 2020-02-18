@@ -21,6 +21,7 @@ else:
    import mfem.ser as mfem
 
 from petram.helper.variables import Variable, eval_code 
+from petram.helper.variables import NativeCoefficientGenBase, CoefficientVariable
 
 # not that PyCoefficient return only real number array
 class PhysConstant(mfem.ConstantCoefficient):
@@ -41,7 +42,7 @@ class PhysVectorConstant(mfem.VectorConstantCoefficient):
      
 class PhysMatrixConstant(mfem.MatrixConstantCoefficient):
     def __init__(self, value):
-        v = mfem.Vector(value.flatten())
+        v = mfem.Vector(np.transpose(value).flatten())
         m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])       
         self.value = (v,m)
         mfem.MatrixConstantCoefficient.__init__(self, m)
@@ -113,10 +114,15 @@ class Coefficient_Evaluator(object):
                code= st.compile('<string>')
                names = code.co_names
                for n in names:
-                  if n in g and isinstance(g[n], Variable):
-                       self.variables.append((n, g[n]))
-                       for nn in g[n].dependency:
-                           self.variables.append((nn, g[nn]))                          
+                  if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
+                      coeff_var = CoefficientVariable(g[n], l, g)
+                      self.variables.append((n, coeff_var))
+                  elif n in g and isinstance(g[n], Variable):
+                      self.variables.append((n, g[n]))
+                      for nn in g[n].dependency:
+                          self.variables.append((nn, g[nn]))
+                  else:
+                      pass
                self.co.append(code)
            else:
                self.co.append(expr)
@@ -208,7 +214,7 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
         
     def Eval(self, K, T, ip):
         for n, v in self.variables:
-           v.set_point(T, ip, self.g, self.l)           
+           v.set_point(T, ip, self.g, self.l)
         return super(MatrixPhysCoefficient, self).Eval(K, T, ip)
 
     def EvalValue(self, x):
@@ -293,6 +299,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     def get_possible_point(self):
         return []
 
+    def get_probe(self):
+        '''
+        return probe name
+        '''
+        return ''
     def get_independent_variables(self):
         p = self.get_root_phys()
         ind_vars = p.ind_vars
@@ -326,6 +337,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if not isinstance(coeff, tuple):
            flag = True
            coeff = [coeff]
+
         for c in coeff:
             if vec:
                 ret.append(mfem.VectorRestrictedCoefficient(c, arr))
@@ -921,7 +933,13 @@ class PhysModule(Phys):
             if self.dim == 1:               
                self.sel_index = alle
                
-       
+
+    def collect_probes(self):
+        probes = [mm.get_probe() for mm in self.walk() if mm.is_enabled()]
+        probes = [x for x in probes if len(x) != 0]
+        txt = ','.join(probes)
+        return txt
+        
     def get_dom_bdr_choice(self, mesh):
 
         from collections import defaultdict

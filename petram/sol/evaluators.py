@@ -56,9 +56,7 @@ class Evaluator(object):
     def __init__(self):
         object.__init__(self)
         self.failed = False
-    '''
-    make_agent
-    '''
+
     def make_agents(self, name, params, **kwargs):
         self._agent_params = (name, params)
         self._agent_kwargs = kwargs.copy()
@@ -119,6 +117,9 @@ class Evaluator(object):
     def eval(self, expr):
         raise NotImplementedError('subclass needs to implement this')
 
+    def make_probe_agents(self, *args, **kwargs):
+        raise NotImplementedError('subclass needs to implement this')
+    
 class EvaluatorCommon(Evaluator):
     '''
     EvaluatorCommon provide pertial implementation of methods
@@ -166,12 +167,26 @@ class EvaluatorCommon(Evaluator):
                 a.set_mesh(m)
                 self.agents[param].append(a)
                 
+    def make_probe_agents(self, name, params, **kwargs):
+        print("making new probe_agents", name, params, kwargs)
+        super(EvaluatorCommon, self).make_agents(name, params, **kwargs)
+        self.agents = {}
+        cls = evaluator_cls()[name]
+        for param in params:
+            self.agents[param] = [cls([param], **kwargs)]
+                
     def eval_probe(self, expr, **kwargs):
+        raise NotImplementedError('subclass needs to implement this')
+        '''
         phys_path = self.phys_path
         phys = self.mfem_model()[phys_path]
         solvars = self.load_solfiles()
         
         if solvars is None: return None, None
+        '''
+        
+    def terminate_all(self):        
+        pass
 
 '''                
 from petram.sol.bdr_nodal_evaluator import BdrNodalEvaluator    
@@ -216,10 +231,14 @@ def build_evaluator(params,
     else:
         raise ValueError("Unknown evaluator mode")
     evaluator.set_model(mfem_model)
-    evaluator.set_solfiles(solfiles)
-    evaluator.load_solfiles()
-    evaluator.make_agents(name, params, **kwargs)
-    
+
+    if name == 'Probe':
+        evaluator.make_probe_agents(name, params, **kwargs)
+    else:
+        evaluator.set_solfiles(solfiles)
+        evaluator.load_solfiles()
+        evaluator.make_agents(name, params, **kwargs)
+
     return evaluator
 
 

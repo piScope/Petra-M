@@ -1,7 +1,7 @@
 import numpy as np
 
 from petram.model import Domain, Bdry, Edge, Point, Pair
-from petram.phys.weakform import SCoeff, VCoeff
+from petram.phys.coefficient import SCoeff, VCoeff
 from petram.phys.phys_model import Phys, PhysModule
 
 import petram.debug as debug
@@ -72,7 +72,7 @@ class WF_Essential(Bdry, Phys):
 
     def apply_essential_1(self, method, real, c0, vdim, vvdim, bdr_attr):
         if vdim == 1:
-           coeff1 = SCoeff(c0[0], self.get_root_phys().ind_vars,
+           coeff1 = SCoeff(c0, self.get_root_phys().ind_vars,
                            self._local_ns, self._global_ns,
                            real = real)
         else:
@@ -92,7 +92,6 @@ class WF_Essential(Bdry, Phys):
     def apply_essential(self, engine, gf, real = False, kfes = 0):
         if kfes > 0: return
         c0, vdim0 = self.vt.make_value_or_expression(self)
-        if isinstance(c0, str): c0 = [c0]        
         
         if real:       
             dprint1("Apply Ess.(real)" + str(self._sel_index), 'c0, v0', c0, vdim0)

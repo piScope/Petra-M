@@ -175,7 +175,8 @@ def plot_bdr(meshname = '', mesh = None, idx = 'all', viewer = None,
         #ange(nbe)
 #                          if mesh.GetBdrElement(i).GetAttribute()==ii]).flatten()
         d = {}
-        for x in edges:d[x] = d.has_key(x)
+        for x in edges:
+            d[x] = x in d
         edges = [x for x in d.keys() if not d[x]]
         ivert = [mesh.GetEdgeVertices(x) for x in edges]
         ivert = connect_pairs(ivert)
