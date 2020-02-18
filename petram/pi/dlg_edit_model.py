@@ -463,7 +463,6 @@ class DlgEditModel(SimpleFramePlus):
 
 
     def show_panel(self, mm):
-        
         for k in self.panels.keys():
             p1panel, p2panel, p3panel, p4panel = self.panels[k]
             self.p1sizer.Detach(p1panel)
@@ -521,6 +520,9 @@ class DlgEditModel(SimpleFramePlus):
             self.p1sizer.Add(p1panel, 1, wx.EXPAND|wx.ALL, 1)
             p1panel.SetValue(mm.get_panel1_value())
             p1panel.Show()
+            p2panel.Hide()
+            p3panel.Hide()
+            p4panel.Hide()
             self.p1.Layout()
             
         if not self._enable:
@@ -593,7 +595,9 @@ class DlgEditModel(SimpleFramePlus):
             self.p1sizer.Add(p1panel, 1, wx.EXPAND|wx.ALL, 1)
             p1panel.SetValue(mm.get_panel1_value())
             p1panel.Show()
-            p2panel.Hide()                                            
+            p2panel.Hide()
+            p3panel.Hide()
+            p4panel.Hide()
             self.p1.Layout()
 
         self._focus_idx = None
