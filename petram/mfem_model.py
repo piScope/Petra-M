@@ -295,7 +295,7 @@ class MFEM_SolverRoot(Model):
         return [["+Run...", None, None,],
                 ["Serial",   self.run_serial, None,],
                 ["Parallel", self.run_parallel, None,],
-                ["Cluster",  self.run_cluster, None,],
+                ["Cluster...",  self.run_cluster, None,],
                 ["!", None, None,],]
     
     def run_serial(self, evt):

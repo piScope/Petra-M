@@ -60,7 +60,7 @@ def MCoeff(dim, exprs, ind_vars, l, g, **kwargs):
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
 
-    print("matrix exprs", exprs)    
+    #print("matrix exprs", exprs)    
 
     if any([isinstance(ee, str) for ee in exprs]):
         return MCoeff(dim, exprs, ind_vars, l, g, **kwargs)

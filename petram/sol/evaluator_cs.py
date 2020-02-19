@@ -45,7 +45,8 @@ def enqueue_output(p, queue, prompt):
             continue
         if line ==  (prompt + '\n'): break
         queue.put(line)
-        if p.poll() is not None: return
+        if p.poll() is not None:
+           break #return
     queue.put("??????")
     
 def enqueue_output2(p, queue, prompt):

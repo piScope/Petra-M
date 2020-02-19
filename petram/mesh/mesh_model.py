@@ -274,6 +274,9 @@ class Mesh1D(Mesh):
         return v
         
     def panel1_param(self):
+        if not hasattr(self, "_mesh_char"):
+           self._mesh_char = ''
+       
         def check_int_array(txt, param, w):
             try:
                val  = [int(x) for x in txt.split(',')]
@@ -298,10 +301,11 @@ class Mesh1D(Mesh):
         return [["Length",   self.length_txt,  0, {"validator":check_float_array}],
                 ["N segments",   self.nsegs_txt,  0, {"validator":check_int_array}],
                 ["x0",   self.mesh_x0_txt,  0, {"validator":check_float}],
-                [None, "Note: use comma separated float/integer for a multisegments mesh",   2, {}],]
+                [None, "Note: use comma separated float/integer for a multisegments mesh",   2, {}],
+                [None, self._mesh_char ,2, None],]     
 
     def get_panel1_value(self):
-        return (self.length_txt, self.nsegs_txt, self.mesh_x0_txt, None)
+        return (self.length_txt, self.nsegs_txt, self.mesh_x0_txt, None, None)
     
     def import_panel1_value(self, v):
         self.length_txt = str(v[0])
@@ -338,6 +342,7 @@ class Mesh1D(Mesh):
                                fix_orientation = self.fix_orientation,
                                sdim = 1, x0=self.mesh_x0)
         self.parent.sdim = mesh.SpaceDimension()
+        self._mesh_char = format_mesh_characteristic(mesh)        
         try:
            mesh.GetNBE()
            return mesh
@@ -365,6 +370,9 @@ class Mesh2D(Mesh):
         return v
         
     def panel1_param(self):
+        if not hasattr(self, "_mesh_char"):
+           self._mesh_char = ''
+       
         def check_int_array(txt, param, w):
             try:
                val  = [int(x) for x in txt.split(',')]
@@ -391,11 +399,12 @@ class Mesh2D(Mesh):
                 ["Length(y)",   self.ylength_txt,  0, {"validator":check_float_array}],
                 ["N segments(y)",   self.ynsegs_txt,  0, {"validator":check_int_array}],                
                 ["x0",   self.mesh_x0_txt,  0, {"validator":check_float_array}],
-                [None, "Note: use comma separated float/integer for a multisegments mesh",   2, {}],]
+                [None, "Note: use comma separated float/integer for a multisegments mesh",   2, {}],
+                [None, self._mesh_char ,2, None],]          
 
     def get_panel1_value(self):
         return (self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
-                self.mesh_x0_txt, None)
+                self.mesh_x0_txt, None, None)
     
     def import_panel1_value(self, v):
         self.xlength_txt = str(v[0])
@@ -436,6 +445,8 @@ class Mesh2D(Mesh):
                                sdim=2, x0=self.mesh_x0)
         
         self.parent.sdim = mesh.SpaceDimension()
+        self._mesh_char = format_mesh_characteristic(mesh)
+        
         try:
            mesh.GetNBE()
            return mesh
@@ -465,6 +476,9 @@ class Mesh3D(Mesh):
         return v
         
     def panel1_param(self):
+        if not hasattr(self, "_mesh_char"):
+           self._mesh_char = ''
+       
         def check_int_array(txt, param, w):
             try:
                val  = [int(x) for x in txt.split(',')]
@@ -493,11 +507,12 @@ class Mesh3D(Mesh):
                 ["Length(z)",   self.zlength_txt,  0, {"validator":check_float_array}],                
                 ["N segments(z)",   self.znsegs_txt,  0, {"validator":check_int_array}],                
                 ["x0",   self.mesh_x0_txt,  0, {"validator":check_float_array}],
-                [None, "Note: use comma separated float/integer for a multisegments mesh",   2, {}],]
-
+                [None, "Note: use comma separated float/integer for a multisegments mesh",   2, {}],
+                [None, self._mesh_char ,2, None],]
+     
     def get_panel1_value(self):
         return (self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
-                self.zlength_txt, self.znsegs_txt, self.mesh_x0_txt, None)
+                self.zlength_txt, self.znsegs_txt, self.mesh_x0_txt, None, None)
     
     def import_panel1_value(self, v):
         self.xlength_txt = str(v[0])
@@ -539,6 +554,7 @@ class Mesh3D(Mesh):
                             filename='', refine = self.refine == 1, fix_orientation=self.fix_orientation,
                             sdim=3, x0=self.mesh_x0)
         self.parent.sdim = mesh.SpaceDimension()
+        self._mesh_char = format_mesh_characteristic(mesh)        
         
         try:
            mesh.GetNBE()
