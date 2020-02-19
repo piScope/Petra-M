@@ -190,7 +190,7 @@ def hex_box_mesh(xlengths, xnsegs, ylengths, ynsegs, zlengths, znsegs,
         for i in range(len(y[:-1])):
             for k in range(len(z[:-1])):
                 elem = [IDX[i, j, k], IDX[i+1, j, k], IDX[i+1, j, k+1], IDX[i, j, k+1]] 
-                mesh.AddBdrQuad(elem, kbdr+kky[i]*len(ynsegs) + kkz[k])
+                mesh.AddBdrQuad(elem, kbdr+kky[i]*len(znsegs) + kkz[k])
                 b_count = b_count + 1                
         kbdr = kbdr + len(ynsegs)*len(znsegs)
 
