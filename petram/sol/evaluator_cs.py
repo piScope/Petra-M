@@ -311,7 +311,9 @@ class EvaluatorClient(Evaluator):
         return self.__call_server('eval_probe', *params, **kparams)
 
     def terminate_all(self):
-        return self.__call_server('terminate_all', force_protocol1=True)
+        ret =  self.__call_server('terminate_all', force_protocol1=True)
+        #p.terminate()
+        return ret
         
     
 

@@ -433,9 +433,10 @@ class DlgPlotSol(SimpleFramePlus):
                                        "func": self.OnLoadRemoteSol,
                                        "noexpand": True,
                                        "label": "Reload choices"}],]
-            
+
+            choices = ['Single', 'MP', 'C/S']
             ll = [[None, None, 34, ({'text': "Worker Mode",
-                                     'choices': ['Single', 'MP', 'C/S'],
+                                     'choices': choices,
                                      'call_fit': False},
                                     {'elp': elp1},
                                     {'elp': elp2},
@@ -444,12 +445,17 @@ class DlgPlotSol(SimpleFramePlus):
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
             self.elps['Config'] = elp
-            elp.SetValue([['Single', ['', 'sol', "", None],
-                                     [2, 'sol', "", None],
-                                     [self.config['cs_server'],
-                                      self.config['cs_worker'],
-                                      self.config['cs_soldir'],
-                                      '', None]],])
+
+            if self.config['use_cs']:
+                c = choices[2]                    
+            elif self.config['use_mp']:
+                c = choices[1]                                    
+            else:
+                c = choices[0]
+                
+            elp.SetValue([[c, ['', 'sol', "", None], [2, 'sol', "", None],
+                              [self.config['cs_server'], self.config['cs_worker'], self.config['cs_soldir'],
+                               '', None]],])
             
         self.nb.SetSelection(self.nb.GetPageCount()-1)
         self.Show()

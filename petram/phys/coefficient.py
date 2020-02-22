@@ -252,3 +252,41 @@ def SCoeff(exprs, ind_vars, l, g, **kwargs):
             pass
         v =  float(v)
         return PhysConstant(v)
+
+class ComplexScalarInv(mfem.PyCoefficient):
+   def __init__(self, coeff1, coeff2, real):
+       self.coeff1 = coeff1
+       self.coeff2 = coeff2
+       self.real = real
+       super(ComplexScalarInv, self).__init__()
+       
+   def Eval(self, T, ip):
+       v = complex(self.coeff1.Eval(T, ip))
+       if self.coeff2 is not None:
+           v += 1j*self.coeff2.Eval(T, ip)
+       v = 1./v
+       if self.real:
+           return v.real
+       else:
+           return v.imag
+
+class ComplexMatrixInv(mfem.MatrixPyCoefficient):
+   def __init__(self, coeff1, coeff2, real):
+       self.coeff1 = coeff1
+       self.coeff2 = coeff2
+       self.real = real
+       super(ComplexMatrixInv, self).__init__(3)
+   
+   def Eval(self, K, T, ip):
+       self.coeff1.Eval(K, T, ip)
+       M = K.GetDataArray().astype(complex)
+       if self.coeff2 is not None:
+           self.coeff2.Eval(K, T, ip)
+           M += 1j*K.GetDataArray()           
+
+       M = np.linalg.inv(M)
+       if self.real:
+           return K.Assign(M.real)
+       else:
+           return K.Assign(M.imag)          
+       
