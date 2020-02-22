@@ -40,9 +40,12 @@ wait_time = 0.3
 def enqueue_output(p, queue, prompt):
     while True:
         line = p.stdout.readline()
+        #print("line", line)
+        
         if len(line) == 0:
             time.sleep(wait_time)
             continue
+
         if line ==  (prompt + '\n'): break
         queue.put(line)
         if p.poll() is not None:
@@ -232,7 +235,7 @@ class EvaluatorClient(Evaluator):
         if self.p is None: return
         verbose = kparams.pop("verbose", False)
         force_protocol1 = kparams.pop("force_protocol1", False)
-        
+        prompt = kparams.pop("prompt", "?")
         command = [name, params, kparams]
         data = binascii.b2a_hex(pickle.dumps(command))
         print("Sending request", command)
@@ -240,7 +243,7 @@ class EvaluatorClient(Evaluator):
         self.p.stdin.flush()
         
         protocol = 1 if force_protocol1 else self.p.evalsvr_protocol 
-        output, alive = wait_for_prompt(self.p,
+        output, alive = wait_for_prompt(self.p, prompt=prompt, 
                                         verbose = verbose,
                                         withsize = protocol > 1)
         if not alive:
@@ -311,7 +314,7 @@ class EvaluatorClient(Evaluator):
         return self.__call_server('eval_probe', *params, **kparams)
 
     def terminate_all(self):
-        ret =  self.__call_server('terminate_all', force_protocol1=True)
+        ret =  self.__call_server('terminate_all', prompt='byebye', force_protocol1=True)
         #p.terminate()
         return ret
         
