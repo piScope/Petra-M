@@ -253,6 +253,12 @@ def SCoeff(exprs, ind_vars, l, g, **kwargs):
         v =  float(v)
         return PhysConstant(v)
 
+from petram.mfem_config import use_parallel
+if use_parallel:
+   import mfem.par as mfem
+else:
+   import mfem.ser as mfem
+    
 class ComplexScalarInv(mfem.PyCoefficient):
    def __init__(self, coeff1, coeff2, real):
        self.coeff1 = coeff1
