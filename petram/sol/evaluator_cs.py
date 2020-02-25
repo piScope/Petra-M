@@ -303,7 +303,8 @@ class EvaluatorClient(Evaluator):
         return self.__call_server('set_phys_path', *params, **kparams)        
         
     def validate_evaluator(self,  *params, **kparams):
-        if self.p is None: return False
+        if self.p is None:
+           return False
         #kparams["verbose"] = True
         return self.__call_server('validate_evaluator', *params, **kparams)
 
@@ -314,8 +315,18 @@ class EvaluatorClient(Evaluator):
         return self.__call_server('eval_probe', *params, **kparams)
 
     def terminate_all(self):
-        ret =  self.__call_server('terminate_all', prompt='byebye', force_protocol1=True)
-        #p.terminate()
+        try:
+            ret =  self.__call_server('terminate_all', prompt='byebye', force_protocol1=True)
+            
+        except BrokenPipeError:
+            ### when server-side client is dead, terminate connection
+            print("Broken Pipe Error, teminating the connection")
+            self.p.terminate()
+            self.p = None
+            return 
+         
+        #if self.p is not None:
+        #   self.p.terminate()
         return ret
         
     
