@@ -660,12 +660,35 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         root_phys = self.get_root_phys()
         return root_phys.dim        
 
+    @property
+    def integrator_realimag_mode(self):
+        if hasattr(self, "_realimag_mode"):
+            return self._realimag_mode
+        else:
+            return ""
+         
+    def set_integrator_realimag_mode(self, value):
+        if value:
+           self._realimag_mode = "real"
+        else:
+           self._realimag_mode = "imag"
+           
+    def process_complex_coefficient(self, coeff):
+        if self.integrator_realimag_mode == "real":
+            return (coeff[0].get_real_coefficient(),)
+        elif self.integrator_realimag_mode == "imag":
+            return (coeff[0].get_imag_coefficient(),)
+        else:
+            return coeff
+           
     def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None,
                        transpose=False):
         if coeff is None: return
         if vt is None: vt = self.vt
         #if vt[name].ndim == 0:
         if not isinstance(coeff, tuple): coeff = (coeff, )
+        coeff = self.process_complex_coefficient(coeff)
+
         if isinstance(coeff[0], mfem.Coefficient):
             coeff = self.restrict_coeff(coeff, engine, idx=idx)
         elif isinstance(coeff[0], mfem.VectorCoefficient):          

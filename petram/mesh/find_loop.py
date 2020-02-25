@@ -59,7 +59,7 @@ def find_loop_ser(mesh, *face):
 
     from petram.helper.geom import connect_pairs
 
-    loop = connect_pairs(ll.keys())
+    loop = connect_pairs(list(ll))
 
     dirs = {}
     for i in range(len(loop)-1):
