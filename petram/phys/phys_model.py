@@ -696,7 +696,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         elif isinstance(coeff[0], mfem.MatrixCoefficient):                     
             coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)
         else:
-            assert  False, "Unknown coefficient type: " + str(type(coeff))
+            assert  False, "Unknown coefficient type: " + str(type(coeff)) + coeff
         itg = integrator(*coeff)
         itg._linked_coeff = coeff #make sure that coeff is not GCed.
         
