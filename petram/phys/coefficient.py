@@ -38,7 +38,7 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     if isinstance(exprs, str): exprs = [exprs]
     if isinstance(exprs, NativeCoefficientGenBase): exprs = [exprs]
 
-    class Mcoeff_Base(object):
+    class MCoeff_Base(object):
         def __init__(self,  conj=False, scale=1.0):
             self.conj = conj
             self.scale = scale
@@ -48,9 +48,9 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
             if self.conj: val=np.conj(val)
             return val
             
-    class Mcoeff(MatrixPhysCoefficient, Mcoeff_Base):
+    class MCoeff(MatrixPhysCoefficient, MCoeff_Base):
        def __init__(self, sdim, exprs, ind_vars, l, g, scale=1.0, conj=False, **kwargs):
-           Mcoeff_Base.__init__(self, conj=conj, scale=scale)     
+           MCoeff_Base.__init__(self, conj=conj, scale=scale)     
            MatrixPhysCoefficient.__init__(self, sdim, exprs,  ind_vars, l, g, **kwargs)
 
        def EvalValue(self, x):
@@ -67,9 +67,9 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
            else:
                return val
            
-    class McoeffCC(Coefficient_Evaluator, Mcoeff_Base, PyComplexMatrixCoefficient):
+    class MCoeffCC(Coefficient_Evaluator, MCoeff_Base, PyComplexMatrixCoefficient):
         def __init__(self, c1, c2, sdim, exprs, ind_vars, l, g, conj=False, scale=1.0, **kwargs):
-            Mcoeff_Base.__init__(self, conj=conj, scale=scale)            
+            MCoeff_Base.__init__(self, conj=conj, scale=scale)            
             ## real is not used...
             Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=True)
             PyComplexMatrixCoefficient.__init__(self, c1, c2)
@@ -89,19 +89,19 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     if any([isinstance(ee, str) for ee in exprs]):
         if return_complex:
             kwargs['real'] = True
-            c1 = Mcoeff(dim, exprs, ind_vars, l, g, **kwargs)
+            c1 = MCoeff(dim, exprs, ind_vars, l, g, **kwargs)
             kwargs['real'] = False
-            c2 = Mcoeff(dim, exprs, ind_vars, l, g, **kwargs)
-            return McoeffCC(c1, c2, dim, exprs, ind_vars, l, g, **kwargs)
+            c2 = MCoeff(dim, exprs, ind_vars, l, g, **kwargs)
+            return MCoeffCC(c1, c2, dim, exprs, ind_vars, l, g, **kwargs)
         else:
-            return Mcoeff(dim, exprs, ind_vars, l, g, **kwargs)
+            return MCoeff(dim, exprs, ind_vars, l, g, **kwargs)
     else:
         e = exprs
 
         if isinstance(e[0], NativeCoefficientGenBase):        
             if return_complex:
                 c1 = call_nativegen(e[0], l, g, True,  conj, scale)
-                c2 = call_nativegen(v, l, g, False, conj, scale)                
+                c2 = call_nativegen(e[0], l, g, False, conj, scale)                
                 return complex_coefficient_from_real_and_imag(c1, c2)
             else:
                 return call_nativegen(e[0], l, g, real, conj, scale)                                 
@@ -353,7 +353,7 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
         if isinstance(v, NativeCoefficientGenBase):
             if return_complex:
                 c1 = call_nativegen(v, l, g, True,  conj, scale)
-                c2 = call_nativegen(v, l, g, False, conj, scale)                
+                c2 = call_nativegen(v, l, g, False, conj, scale)
                 return complex_coefficient_from_real_and_imag(c1, c2)
             else:
                 return call_nativegen(v, l, g, real, conj, scale)                                 
@@ -545,11 +545,16 @@ class PyComplexMatrixCoefficient(PyComplexCoefficientBase):
        return M
 
 def complex_coefficient_from_real_and_imag(coeffr, coeffi):
-    if isinstance(mfem.MatrixPyCoefficient):
+    if (isinstance(coeffr, mfem.MatrixCoefficient) or
+        isinstance(coeffi, mfem.MatrixCoefficient)):
         return PyComplexMatrixCoefficient(coeffr, coeffi)
-    elif isinstance(mfem.VectorPyCoefficient):
+    
+    elif (isinstance(coeffr, mfem.VectorCoefficient) or
+          isinstance(coeffi, mfem.VectorCoefficient)):
         return PyComplexVectorCoefficient(coeffr, coeffi)
-    elif isinstance(mfem.PyCoefficient):        
+    
+    elif (isinstance(coeffr, mfem.Coefficient) or
+          isinstance(coeffi, mfem.Coefficient)):        
         return PyComplexCoefficient(coeffr, coeffi)
     
 class PyRealCoefficient(mfem.PyCoefficient):

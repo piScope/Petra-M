@@ -687,16 +687,19 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if vt is None: vt = self.vt
         #if vt[name].ndim == 0:
         if not isinstance(coeff, tuple): coeff = (coeff, )
+        
         coeff = self.process_complex_coefficient(coeff)
-
-        if isinstance(coeff[0], mfem.Coefficient):
+        
+        if coeff[0] is None:
+            return 
+        elif isinstance(coeff[0], mfem.Coefficient):
             coeff = self.restrict_coeff(coeff, engine, idx=idx)
         elif isinstance(coeff[0], mfem.VectorCoefficient):          
             coeff = self.restrict_coeff(coeff, engine, vec = True, idx=idx)
         elif isinstance(coeff[0], mfem.MatrixCoefficient):                     
             coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)
         else:
-            assert  False, "Unknown coefficient type: " + str(type(coeff)) + coeff
+            assert  False, "Unknown coefficient type: " + str(type(coeff[0]))
         itg = integrator(*coeff)
         itg._linked_coeff = coeff #make sure that coeff is not GCed.
         
