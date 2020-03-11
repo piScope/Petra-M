@@ -410,6 +410,16 @@ class RealImagCoefficientGen(ABC):
    def get_realimag_coefficient(self, real):
        pass              
 
+   @abc.abstractproperty
+   def kind(self):
+       pass
+   
+   def is_matrix(self):
+       return self.kind == 'matrix'
+   
+   def is_vector(self):
+       return self.kind == 'vector'
+   
 class PyComplexConstantBase(RealImagCoefficientGen):
    def get_realimag_coefficient(self, real):
        if real:
@@ -430,6 +440,10 @@ class PyComplexConstant(PyComplexConstantBase):
    def get_imag_coefficient(self):
        return PhysConstant(self.value.imag)
    
+   @property
+   def kind(self):
+       return 'scalar'
+   
 class PyComplexVectorConstant(PyComplexConstantBase):
    def __init__(self, value):
        self.value = value
@@ -443,6 +457,9 @@ class PyComplexVectorConstant(PyComplexConstantBase):
       
    def get_imag_coefficient(self):
        return PhysVectorConstant(self.value.imag)
+   @property
+   def kind(self):
+       return 'vector'
 
    
 class PyComplexMatrixConstant(RealImagCoefficientGen):
@@ -465,6 +482,9 @@ class PyComplexMatrixConstant(RealImagCoefficientGen):
            return self.get_real_coefficient()
        else:
            return self.get_imag_coefficient()
+   @property
+   def kind(self):
+       return 'matrix'
        
     
 class PyComplexCoefficientBase(RealImagCoefficientGen):
@@ -497,6 +517,9 @@ class PyComplexCoefficient(PyComplexCoefficientBase):
        if self.coeff2 is not None:
            v += 1j*self.coeff2.Eval(T, ip)
        return v
+   @property
+   def kind(self):
+       return 'scalar'
    
 class PyComplexVectorCoefficient(PyComplexCoefficientBase):
    def __init__(self, coeff1, coeff2):
@@ -519,6 +542,9 @@ class PyComplexVectorCoefficient(PyComplexCoefficientBase):
            self.coeff2.Eval(V, T, ip)
            M += 1j*V.GetDataArray()           
        return M
+   @property
+   def kind(self):
+       return 'vector'
    
 class PyComplexMatrixCoefficient(PyComplexCoefficientBase):
    def __init__(self, coeff1, coeff2):
@@ -543,6 +569,9 @@ class PyComplexMatrixCoefficient(PyComplexCoefficientBase):
            self.coeff2.Eval(K, T, ip)
            M += 1j*K.GetDataArray()           
        return M
+   @property
+   def kind(self):
+       return 'matrix'
 
 def complex_coefficient_from_real_and_imag(coeffr, coeffi):
     if (isinstance(coeffr, mfem.MatrixCoefficient) or
@@ -615,15 +644,13 @@ class PyImagMatrixCoefficient(mfem.MatrixPyCoefficient):
        M = self.coeff.Eval(K, T, ip)
        return K.Assign(M.imag)
    
-## CC (ComplexCoefficient)   
+## CC (ComplexCoefficient)
+## This class does not inherit MFEM Coefficient class
 class CCBase(RealImagCoefficientGen):
    def __init__(self, coeff):
        self.coeff = coeff
+       print("here", coeff)
 
-   @abc.abstractproperty
-   def kind(self):
-       pass
-   
    @abstractmethod      
    def Eval(self, *args, **kwargs):
        pass
