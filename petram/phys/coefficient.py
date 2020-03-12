@@ -68,7 +68,7 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
                return val
            
     class MCoeffCC(Coefficient_Evaluator, MCoeff_Base, PyComplexMatrixCoefficient):
-        def __init__(self, c1, c2, sdim, exprs, ind_vars, l, g, conj=False, scale=1.0, **kwargs):
+        def __init__(self, c1, c2, exprs, ind_vars, l, g, conj=False, scale=1.0, **kwargs):
             MCoeff_Base.__init__(self, conj=conj, scale=scale)            
             ## real is not used...
             Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=True)
@@ -92,7 +92,7 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
             c1 = MCoeff(dim, exprs, ind_vars, l, g, **kwargs)
             kwargs['real'] = False
             c2 = MCoeff(dim, exprs, ind_vars, l, g, **kwargs)
-            return MCoeffCC(c1, c2, dim, exprs, ind_vars, l, g, **kwargs)
+            return MCoeffCC(c1, c2, exprs, ind_vars, l, g, **kwargs)
         else:
             return MCoeff(dim, exprs, ind_vars, l, g, **kwargs)
     else:
@@ -192,9 +192,9 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=True, **kwargs):
             return val
             
     class VCoeff(VectorPhysCoefficient, Vcoeff_Base):
-       def __init___(self, dim, exprs, ind_vars, l, g, conj=False, scale=1.0, **kwargs):
+       def __init__(self, dim, exprs, ind_vars, l, g, conj=False, scale=1.0, **kwargs):
            Vcoeff_Base.__init__(self, conj=conj, scale=scale)           
-           VectorhysCoefficient.__init__(self, dim, exprs,  ind_vars, l, g, **kwargs)
+           VectorPhysCoefficient.__init__(self, dim, exprs,  ind_vars, l, g, **kwargs)
 
        def EvalValue(self, x):
            val = super(VCoeff, self).EvalValue(x)
@@ -236,7 +236,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=True, **kwargs):
             c1 = VCoeff(dim, exprs, ind_vars, l, g, **kwargs)
             kwargs['real'] = False
             c2 = VCoeff(dim, exprs, ind_vars, l, g, **kwargs)
-            return VCoeffCC(c1, c2, dim, exprs, ind_vars, l, g, **kwargs)
+            return VCoeffCC(c1, c2, exprs, ind_vars, l, g, **kwargs)
         else:
             return VCoeff(dim, exprs, ind_vars, l, g, **kwargs)
         
@@ -649,7 +649,6 @@ class PyImagMatrixCoefficient(mfem.MatrixPyCoefficient):
 class CCBase(RealImagCoefficientGen):
    def __init__(self, coeff):
        self.coeff = coeff
-       print("here", coeff)
 
    @abstractmethod      
    def Eval(self, *args, **kwargs):
@@ -702,10 +701,14 @@ class CC_Vector(CCBase):
        return 'vector'
     
     
-class PyComplexScalarInvCoefficient(CC_Scalar):
+class PyComplexPowCoefficient(CC_Scalar):
+   def __init__(self, coeff, pow):
+       self.pow = pow
+       CC_Scalar.__init__(self, coeff)
+    
    def Eval(self, T, ip):
        v = self.coeff.Eval(T, ip)
-       v = 1./v
+       v = (v)**(self.pow)
        return v
 
 class PyComplexProductCoefficient(CC_Scalar):
@@ -717,6 +720,16 @@ class PyComplexProductCoefficient(CC_Scalar):
        v = self.coeff.Eval(T, ip)
        v *= self.scale
        return v
+   
+class PyComplexSumCoefficient(CC_Scalar):
+    def __init__(self, coeff1,  coeff2):
+        CC_Matrix.__init__(self, coeff1)
+        self.coeff2 = coeff2
+    
+    def Eval(self, T, ip):
+        v1 = self.coeff.Eval(T, ip)
+        v2 = self.coeff2.Eval(T, ip)        
+        return v1 + v2
 
 class PyComplexMatrixProductCoefficient(CC_Matrix):
    def __init__(self, coeff, scale = 1.0):
@@ -733,6 +746,13 @@ class PyComplexMatrixInvCoefficient(CC_Matrix):
        M = self.coeff.Eval(K, T, ip)
        M = np.linalg.inv(M)       
        return M
+   
+class PyComplexMatrixAdjCoefficient(CC_Matrix):
+   def Eval(self, K, T, ip):
+       M = self.coeff.Eval(K, T, ip)
+       d = np.linalg.det(M)              
+       M = np.linalg.inv(M)
+       return M*d
    
 class PyComplexMatrixSumCoefficient(CC_Matrix):
     def __init__(self, coeff1,  coeff2):
