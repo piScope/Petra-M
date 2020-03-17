@@ -178,7 +178,7 @@ def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
             e = np.array(e, dtype=float, copy=False)
         return PhysMatrixConstant(e)
      
-def VCoeff(dim, exprs, ind_vars, l, g, return_complex=True, **kwargs):
+def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     if isinstance(exprs, str): exprs = [exprs]
     if isinstance(exprs, NativeCoefficientGenBase): exprs = [exprs]
     class Vcoeff_Base(object):
