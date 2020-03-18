@@ -14,6 +14,7 @@ from petram.mesh.nastran2mfem import NASReader, write_nas2mfem
 from os.path import expanduser
 import numpy as np
 def str2number(s):
+    s=s.replace('B', '')    
     s=s.replace('G', '*1e9')
     s=s.replace('M', '*1e6')
     s=s.replace('K', '*1e3')
