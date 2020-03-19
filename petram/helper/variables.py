@@ -607,6 +607,7 @@ class PyFunctionVariable(Variable):
            args = tuple(np.hstack((self.x, t)))
         else:
            args = tuple(self.x)
+
         #kwargs = {n: locals()[n]() for n in self.dependency}
         #return np.array(self.func(*args, **kwargs), copy=False)
         return np.array(self.func(*args, **kwargs), copy=False)
