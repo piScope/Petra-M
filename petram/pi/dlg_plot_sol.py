@@ -41,7 +41,7 @@ def setup_figure(fig, fig2):
 
 def read_solinfo_remote(user, server, path):
     #txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
-    txt = "$TwoPiRoot/bin/get_soldir_info.py "+path
+    txt = "$PetraM/bin/get_soldir_info.py "+path
 #python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print(gather_soldirinfo_s('"+path+"').decode('utf-8'))\""
     command = ["ssh", user+'@'+server, txt]
 
