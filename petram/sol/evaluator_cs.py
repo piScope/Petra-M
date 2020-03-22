@@ -141,11 +141,11 @@ def wait_for_prompt(p, prompt = '?', verbose = True, withsize=False):
         
 def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
     if user != '': user = user+'@'
-    p= sp.Popen("ssh " + user + host + " 'printf $PetraM'", shell=True,
-                stdout=sp.PIPE,
-                universal_newlines = True)    
-    ans = p.stdout.readlines()[0].strip()
-    command = "source $PetraM/etc/load_modules.sh;"+ans+'/bin/evalsvr'
+    #p= sp.Popen("ssh " + user + host + " 'printf $PetraM'", shell=True,
+    #            stdout=sp.PIPE,
+    #            universal_newlines = True)    
+    #ans = p.stdout.readlines()[0].strip()
+    command = "$PetraM/bin/launch_evalsvr.sh"
     if soldir != '':
         command = 'cd ' + soldir + ';' + command
     print(command)

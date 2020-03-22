@@ -41,12 +41,14 @@ def setup_figure(fig, fig2):
 
 def read_solinfo_remote(user, server, path):
     #txt = "python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print gather_soldirinfo_s('"+path+"')\""
-    txt = "source $PetraM/etc/load_modules.sh;python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print(gather_soldirinfo_s('"+path+"').decode('utf-8'))\""
+    txt = "$PetraM/bin/get_soldir_info.py "+path
+#python -c \"from petram.sol.listsoldir import gather_soldirinfo_s;print(gather_soldirinfo_s('"+path+"').decode('utf-8'))\""
     command = ["ssh", user+'@'+server, txt]
-    #print(command)
+
     p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
     p.wait()
     res = [x.decode('utf-8') for x in p.stdout.readlines()]
+
     res = res[-1].strip()
     res = pk.loads(binascii.a2b_hex(res))
     return res

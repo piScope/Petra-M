@@ -137,16 +137,19 @@ def get_job_queue(model=None, host = None, user = None):
         hosto = param.eval('host')
         host = hosto.getvar('server')
         user = hosto.getvar('user')
-    p= sp.Popen("ssh " + user+'@' + host + " 'printf $PetraM'", shell=True,
-    stdout=sp.PIPE)
-    PetraM = p.stdout.readlines()[0].decode('utf-8').strip()
-    p= sp.Popen("ssh " + user+'@' + host + " 'cat $PetraM/etc/queue_config'", shell=True,
-    stdout=sp.PIPE)
+    #command = "ssh " + user+'@' + host + " 'printf $PetraM'"
+    #p = sp.Popen(command, shell=True,  stdout=sp.PIPE)
+    #lines = p.stdout.readlines()
+    #PetraM = lines[-1].decode('utf-8').strip()
+
+    command = "ssh " + user+'@' + host + " 'cat $PetraM/etc/queue_config'", 
+    p= sp.Popen(command, shell=True, stdout=sp.PIPE)
     lines = [x.decode('utf-8') for x in p.stdout.readlines()]
     return interpret_job_queue_file(lines)
 
 def interpret_job_queue_file(lines):
-    lines = [x.strip() for x in lines if not x.startswith("#")]
+    lines = [x.strip() for x in lines if not x.startswith("#")
+             if len(x.strip()) != 0]
     q = {'type': lines[0], 'queues':[]}
     for l in lines[1:]:
         if l.startswith('QUEUE'):
@@ -165,9 +168,9 @@ def submit_job(model):
 
     hostname = host.getvar('server')
     user = host.getvar('user')
-    p= sp.Popen("ssh " + user+'@' + hostname + " 'printf $PetraM'", shell=True,
-    stdout=sp.PIPE)
-    PetraM = p.stdout.readlines()[0].decode('utf-8').strip()
+    #p= sp.Popen("ssh " + user+'@' + hostname + " 'printf $PetraM'",
+    #              shell=True, stdout=sp.PIPE)
+    #PetraM = p.stdout.readlines()[0].decode('utf-8').strip()
 
     w = remote["walltime"]
     n = str(remote["num_cores"])
@@ -181,38 +184,16 @@ def submit_job(model):
     if q2 != "":
         q2 = "_".join(q2.split("/"))
     
-    exe = PetraM + '/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q1
+    exe = '$PetraM/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q1
     if q2 != "":
        exe = exe +  ' -V ' + q2        
 
-    p = host.Execute('cd '+rwdir+';'+exe)
+    # we use force_ssh so that submission script is not influcence
+    # by the current enviroment. (it matters when client and server
+    # is runningn on the same machine)
+    p = host.Execute('cd '+rwdir+';'+exe, force_ssh=True)
+    print(''.join(p.stdout.readlines()))
 
-    '''
-    lines = p.stdout.readlines()
-    try:
-        for x in lines:
-           x.find("pid = "
-        pid = long(lines[0].split(' ')[-1])
-        check = long(pid)
-    except:
-        print('cannot convert pid to number: see the message from server')
-        print(lines)
-        
-    param.setvar('pid', str(pid))
-
-    import time
-   
-    while True:
-        time.sleep(30)
-        print 'checking qid', pid
-        p = host.Execute('squeue  -j '+ str(pid))
-        lines = p.stdout.readlines()
-        if lines[0].find('Invalid') != -1: break
-        if len(lines) == 1: break
-        p = host.Execute('cd '+rwdir+';tail PetraM.o'+str(pid))
-    for txt in p.stdout.readlines():
-        if txt.find('MFEM Parallel Driver Normal End') !=-1: exit()
-    '''
 
 
  
