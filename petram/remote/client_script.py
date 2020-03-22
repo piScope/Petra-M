@@ -192,6 +192,7 @@ def submit_job(model):
     # by the current enviroment. (it matters when client and server
     # is runningn on the same machine)
     p = host.Execute('cd '+rwdir+';'+exe, force_ssh=True)
+    print(''.join(p.stdout.readlines()))
 
 
 
