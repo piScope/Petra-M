@@ -192,9 +192,11 @@ class EvaluatorCommon(Evaluator):
 from petram.sol.bdr_nodal_evaluator import BdrNodalEvaluator    
 from petram.sol.slice_evaluator import SliceEvaluator
 from petram.sol.edge_nodal_evaluator import EdgeNodalEvaluator
+from petram.sol.pointcloud_evaluator import PointcloudEvaluator
 evaluator_cls = {'BdrNodal': BdrNodalEvaluator,
                  'EdgeNodal': EdgeNodalEvaluator,
-                 'Slice': SliceEvaluator,}
+                 'Slice': SliceEvaluator,
+                 'Points': PointcloudEvaluator,}
 '''
 def_config = {'use_mp': False,
               'use_cs': False,

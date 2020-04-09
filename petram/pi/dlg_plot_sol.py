@@ -146,7 +146,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.SetSizer(box)
         box.Add(self.nb, 1, wx.EXPAND|wx.ALL, 1)
         
-        tabs = ['GeomBdr', 'Edge', 'Bdr', 'Bdr(arrow)', 'Slice',
+        tabs = ['GeomBdr', 'Points', 'Edge', 'Bdr', 'Bdr(arrow)', 'Slice',
                 'Probe', 'Config']
         self.pages = {}
         self.elps = {}
@@ -201,8 +201,8 @@ class DlgPlotSol(SimpleFramePlus):
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL,1)
 
-        if 'Point' in tabs:
-            p = self.pages['Point']
+        if 'Points' in tabs:
+            p = self.pages['Points']
             vbox = wx.BoxSizer(wx.VERTICAL)
             p.SetSizer(vbox)
             
@@ -210,17 +210,35 @@ class DlgPlotSol(SimpleFramePlus):
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices)==0: choices = ['no physcs in model']
+
+            elp1 = [['x:', '0 ', 0, {}],
+                    ['y:', '0 ', 0, {}],
+                    ['z:', '0', 0, {}],]
+            elp2 = [['start point:', '0., 0., 0.', 0, {}],
+                    ['end point:', '1., 0., 0.', 0, {}],
+                    ['resolution:', '30', 0, {}],]
+            elp3 = [['plane (a,b,c,d):', '1, 0, 0, 0', 0, {}],
+                    ['origin:', '0., 0., 0.', 0, {}],
+                    ['first axis:', '0., 0., 1.', 0, {}],
+                    ['resolution', 0.0, 400, {}],]
+
+            ss = [None, None, 34, ({'text': '',
+                                    'choices': ['XYZ', 'Line', 'CutPlane'],
+                                    'call_fit': False},
+                                   {'elp': elp1},
+                                   {'elp': elp2},
+                                   {'elp': elp3}),]            
             ll = [['Expression', '', 0, {}],
-                  ['x:', '', 0, {}],
-                  ['y:', '', 0, {}],
-                  ['z:', '', 0, {}],
+                  ss,
+                  ['Domain Index', 'all', 4, {'style':wx.CB_DROPDOWN,
+                                              'choices': ['all', 'visible', 'hidden']}],      
                   ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
                   [None, False, 3, {"text":'dynamic extension'}],]
 
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
-            self.elps['Point'] = elp
+            self.elps['Points'] = elp
             button=wx.Button(p, wx.ID_ANY, "Apply")
             button.Bind(wx.EVT_BUTTON, self.onApply)
             
@@ -941,26 +959,6 @@ class DlgPlotSol(SimpleFramePlus):
                 xidx = np.argsort(x)
                 v.plot(x[xidx], y[xidx])
 
-    '''
-    This should be changed to perform line integration?
-    def onIntegEdge(self, evt):
-        value = self.elps['Edge'] .GetValue()
-        expr = str(value[0]).strip()
-
-        from petram.sol.evaluators import area_tri
-        data, battrs = self.eval_edge(mode = 'integ')
-        if data is None: return
-        
-        integ = 0.0
-        for verts, cdata in data:
-            area = area_tri(verts)
-            integ += np.sum(area * np.mean(cdata, 1))
-
-        print("Area Ingegration")
-        print("Expression : " + expr)
-        print("Boundary Index :" + str(list(battrs)))
-        print("Value : "  + str(integ))
-    '''
     def onExportEdge(self, evt):
         from petram.sol.evaluators import area_tri
         
@@ -1218,9 +1216,68 @@ class DlgPlotSol(SimpleFramePlus):
                         datasets[0][:,kk] += u[k][1]
                 
         return data, battrs
+    
+    #
+    #   PointCloud ('Points' tab)
+    #
+    @run_in_piScope_thread            
+    def onApplyPoints(self, evt):        
+        value = self.elps['Points'] .GetValue()
+        if value[4]:
+            from ifigure.widgets.wave_viewer import WaveViewer
+            cls = WaveViewer
+        else:
+            cls = None
+            
+        data, attrs = self.eval_pointcloud(mode = 'plot', refine=refine)
+        if data is None: return
+        self.post_threadend(self.make_plot_bdr, data, battrs,
+                            cls = cls, expr = expr,
+                            use_pointfill=use_pointfill)
         
+        print(value)
 
-    #    
+    
+    def onExportPoints(self, evt):
+
+        pass
+    
+    def eval_pointcloud(self, mode = 'plot'):
+        value = self.elps['Points'] .GetValue()
+
+        expr = str(value[0]).strip()
+        
+        attrs = str(value[2])
+        phys_path = value[3]
+        
+        model = self.GetParent().model
+        solfiles = self.get_model_soldfiles()        
+        mfem_model = model.param.getvar('mfem_model')
+        phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
+        
+        ll = {}
+        if value[1][0] == 'XYZ':
+             x = list(np.atleast_1d(eval(value[1][1][0], ll, phys_ns)))
+             y = list(np.atleast_1d(eval(value[1][1][1], ll, phys_ns)))
+             z = list(np.atleast_1d(eval(value[1][1][2], ll, phys_ns)))
+             cp_param = {'type':'xy', 'param':np.vstack([x, y, z]).tranpose()}
+             
+        elif value[1][0] == 'Line':
+             sp =  np.atleast_1d(eval(value[1][2][0], ll, phys_ns))
+             ep =  np.atleast_1d(eval(value[1][2][1], ll, phys_ns))
+             num = int(val(value[1][2][2], ll, phys_ns))
+             cp_param = {'type':'xy', 'param':(sp, ep, num)}
+             
+        elif value[1][0] == 'CutPlane':
+            abcd = list(np.atleast_1d(eval(value[1][3][0], ll, phys_ns)))
+            mesh = model.variables.getvar('mesh')            
+
+        else:
+            return
+        
+        
+    
+    #
     #   Geometry Boundary ('GeomBdr' tab)
     #
     def onApplyGeomBdr(self, evt):
@@ -1316,6 +1373,7 @@ class DlgPlotSol(SimpleFramePlus):
     #    
     #   Arrow on Boundary ('Bdr(arrow)' tab)
     #
+    @run_in_piScope_thread        
     def onApplyBdrarrow(self, evt):
         u, v, w, battrs= self.eval_bdrarrow(mode = 'plot')
         
@@ -1736,6 +1794,108 @@ class DlgPlotSol(SimpleFramePlus):
             wx.CallAfter(self.set_title_no_status)        
         return None, None
 
+    def evaluate_pointcloud(self, expr, attrs, phys_path, **kwargs):
+        '''
+        evaluate sol using boundary evaluator
+        '''
+        model = self.GetParent().model
+        solfiles = self.get_model_soldfiles()
+        mfem_model = model.param.getvar('mfem_model')
+        phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
+
+        if solfiles is None:
+             wx.CallAfter(dialog.showtraceback,parent = self,
+                                  txt='Solution does not exist',
+                                  title='Error',
+                                  traceback='')
+             wx.CallAfter(self.set_title_no_status)
+             return None, None
+        mesh = model.variables.getvar('mesh')
+        if mesh is None: return
+        
+        ec = mesh.extended_connectivity
+        v2s = ec['vol2surf']        
+        FaceOf, EdgeOf, PointOf = get_mapper(mesh)
+        ll = {'FaceOf': FaceOf, 'EdgeOf': EdgeOf, 'PointOf':PointOf}
+        
+        if attrs == 'all':
+            attrs = list(np.unique(mesh.GetAttributeArray())))
+            
+        elif attrs == 'visible':
+            m = self.GetParent()
+            battrs = []
+            for name, child in m.get_axes(0).get_children():
+                if name.startswith('face'):
+                     battrs.extend(child.shown_component)
+            battrs = list(set(battrs))
+            if mesh.Dimenstion() == 3:
+                attrs = [k for k in v2s if set(v2s[k]).intersection(battrs) == set(v2s[k])]
+            else:
+                attrs = battrs
+                
+        elif attrs == 'hidden':
+            m = self.GetParent()
+            battrs = []
+            sbattrs = []            
+            for name, child in m.get_axes(0).get_children():
+                if name.startswith('face'):
+                     battrs.extend(child.hidden_component)
+                     sbattrs.extend(child.shown_component)                     
+            battrs = list(set(battrs))
+            if mesh.Dimenstion() == 3:
+                attrs = [k for k in v2s if set(v2s[k]).intersection(sbattrs) != set(v2s[k])]
+            else:
+                attrs = battrs
+
+        else:
+            try:
+               battrs = list(np.atleast_1d(eval(attrs, ll, phys_ns)))
+            except:
+               import traceback
+               traceback.print_exc()
+               assert False, "invalid selection: " + attrs
+
+           #battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
+
+        
+        from petram.sol.evaluators import build_evaluator
+        key, name = 'Points', 'Pointcloud'
+            
+        if key in self.evaluators:
+            try:
+                self.evaluators[key].validate_evaluator(name, attrs, solfiles)
+
+            except IOError:
+                dprint1("IOError detected setting failed=True")
+                self.evaluators[key].failed = True
+                
+        if (not key in self.evaluators or
+            self.evaluators[key].failed):
+            if key in self.evaluators: self.evaluators[key].terminate_all()                        
+            self.evaluators[key] =  build_evaluator(attrs,
+                                                    mfem_model,
+                                                    solfiles,
+                                                    name = name,
+                                                    config = self.config)
+
+            self.evaluators[key].validate_evaluator(name,
+                                                    attrs,
+                                                    solfiles,
+                                                    decimate=decimate)
+        
+        try:
+            self.evaluators[key].set_phys_path(phys_path)
+            return self.evaluators[key].eval(expr, do_merge1, do_merge2,
+                                               **kwargs)
+        except:
+            import traceback            
+            wx.CallAfter(dialog.showtraceback, parent = self,
+                                txt='Failed to evauate expression',
+                                title='Error',
+                                traceback = traceback.format_exc())                         
+            wx.CallAfter(self.set_title_no_status)        
+        return None, None
+    
     
     def evaluate_sol_slice(self, expr, attrs, plane, phys_path, do_merge1,
                            do_merge2):
