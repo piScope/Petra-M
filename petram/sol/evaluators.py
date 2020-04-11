@@ -41,12 +41,15 @@ def evaluator_cls():
     from petram.sol.edge_nodal_evaluator import EdgeNodalEvaluator
     from petram.sol.ncface_evaluator import NCFaceEvaluator
     from petram.sol.ncedge_evaluator import NCEdgeEvaluator    
-    from petram.sol.probe_evaluator import ProbeEvaluator        
+    from petram.sol.probe_evaluator import ProbeEvaluator
+    from petram.sol.pointcloud_evaluator import PointcloudEvaluator
+    
     return {'BdrNodal': BdrNodalEvaluator,
             'EdgeNodal': EdgeNodalEvaluator,
             'NCFace':   NCFaceEvaluator,
             'NCEdge':   NCEdgeEvaluator,                        
             'Slice': SliceEvaluator,
+            'Pointcloud': PointcloudEvaluator, 
             'Probe': ProbeEvaluator,}    
 
 class Evaluator(object):
@@ -77,11 +80,16 @@ class Evaluator(object):
         
         for key in six.iterkeys(kwargs):
             if not key in self._agent_kwargs: return False
+
+            #print("comparing")
+            #print(kwargs[key],self._agent_kwargs[key])
+            #print(kwargs[key] != self._agent_kwargs[key])
+            
             chk =  (kwargs[key] != self._agent_kwargs[key])
             if isinstance(chk, bool):
                 if chk: return False
             else:
-                if any(chk): return False
+                if chk.any(): return False
         return True
 
     def set_model(self, model):
@@ -153,8 +161,17 @@ class EvaluatorCommon(Evaluator):
                 a.forget_knowns()
         self.solsets = solsets
         return solvars
-    
+
     def make_agents(self, name, params, **kwargs):
+        if name == 'Probe':
+            self.make_probe_agents(name, params, **kwargs)
+        else:
+            if name == 'Pointcloud':
+                self.make_pointcloud_agents(name, params, **kwargs)
+            else:
+                self.make_nodalslice_agents(name, params, **kwargs)
+        
+    def make_nodalslice_agents(self, name, params, **kwargs):
         print("making new agents", name, params, kwargs)
         super(EvaluatorCommon, self).make_agents(name, params, **kwargs)
         self.agents = {}
@@ -167,8 +184,23 @@ class EvaluatorCommon(Evaluator):
                 a.set_mesh(m)
                 self.agents[param].append(a)
                 
+    def make_pointcloud_agents(self, name, params, **kwargs):
+        print("making new pc agents", name, params, kwargs)
+        super(EvaluatorCommon, self).make_agents(name, params, **kwargs)
+        self.agents = {}
+        cls = evaluator_cls()[name]
+        solsets = self.solsets
+
+        params = tuple(params)
+        self.agents[params] = []
+
+        for m, void in solsets:
+            a = cls(params, **kwargs)
+            a.set_mesh(m)
+            self.agents[params].append(a)
+        
     def make_probe_agents(self, name, params, **kwargs):
-        print("making new probe_agents", name, params, kwargs)
+        print("making new probe agents", name, params, kwargs)
         super(EvaluatorCommon, self).make_agents(name, params, **kwargs)
         self.agents = {}
         cls = evaluator_cls()[name]
@@ -234,13 +266,12 @@ def build_evaluator(params,
         raise ValueError("Unknown evaluator mode")
     evaluator.set_model(mfem_model)
 
-    if name == 'Probe':
-        evaluator.make_probe_agents(name, params, **kwargs)
-    else:
+    if name != 'Probe':  #probe evaluator does not load solfiles.
         evaluator.set_solfiles(solfiles)
         evaluator.load_solfiles()
-        evaluator.make_agents(name, params, **kwargs)
-
+        
+    evaluator.make_agents(name, params, **kwargs)
+    
     return evaluator
 
 

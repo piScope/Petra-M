@@ -220,7 +220,7 @@ class DlgPlotSol(SimpleFramePlus):
             elp3 = [['plane (a,b,c,d):', '1, 0, 0, 0', 0, {}],
                     ['origin:', '0., 0., 0.', 0, {}],
                     ['first axis:', '0., 0., 1.', 0, {}],
-                    ['resolution', 0.0, 400, {}],]
+                    ['resolution', '0.01', 0, {}],]
 
             ss = [None, None, 34, ({'text': '',
                                     'choices': ['XYZ', 'Line', 'CutPlane'],
@@ -239,12 +239,15 @@ class DlgPlotSol(SimpleFramePlus):
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND|wx.ALL,1)
             self.elps['Points'] = elp
-            button=wx.Button(p, wx.ID_ANY, "Apply")
-            button.Bind(wx.EVT_BUTTON, self.onApply)
-            
+
             hbox = wx.BoxSizer(wx.HORIZONTAL)
-            vbox.Add(hbox, 0, wx.EXPAND|wx.ALL,5)     
-            hbox.AddStretchSpacer()
+            vbox.Add(hbox, 0, wx.EXPAND|wx.ALL,5)
+            ebutton=wx.Button(p, wx.ID_ANY, "Export")                                             
+            button=wx.Button(p, wx.ID_ANY, "Apply")
+            ebutton.Bind(wx.EVT_BUTTON, self.onExport)                        
+            button.Bind(wx.EVT_BUTTON, self.onApply)
+            hbox.Add(ebutton, 0, wx.ALL,1)                                              
+            hbox.AddStretchSpacer()            
             hbox.Add(button, 0, wx.ALL,1)
 
         if 'Edge' in tabs:
@@ -1223,25 +1226,77 @@ class DlgPlotSol(SimpleFramePlus):
     @run_in_piScope_thread            
     def onApplyPoints(self, evt):        
         value = self.elps['Points'] .GetValue()
+        
+        expr = str(value[0]).strip()        
         if value[4]:
             from ifigure.widgets.wave_viewer import WaveViewer
             cls = WaveViewer
         else:
             cls = None
             
-        data, attrs = self.eval_pointcloud(mode = 'plot', refine=refine)
+        ptx, data, attrs, pc_param = self.eval_pointcloud(mode = 'plot')
         if data is None: return
-        self.post_threadend(self.make_plot_bdr, data, battrs,
-                            cls = cls, expr = expr,
-                            use_pointfill=use_pointfill)
+
+        self.post_threadend(self.make_plot_point, data, pc_param,
+                            cls = cls, expr = expr)
+
+
+    def onExportPoints(self, evt):        
+        value = self.elps['Points'] .GetValue()
         
-        print(value)
+        expr = str(value[0]).strip()        
+        ptx, data, attrs, pc_param = self.eval_pointcloud(mode = 'plot')
+        if data is None: return
+        
+        #print("final data for ", expr, ptx, data, attrs)        
 
-    
-    def onExportPoints(self, evt):
+        data = {'vertices': ptx, 'data': data, 'attrs':attrs}
+        self.export_to_piScope_shell(data, 'point_data')
 
-        pass
-    
+    def make_plot_point(self, data, param,  cls = None, expr = False):
+        value = self.elps['Points'] .GetValue()
+        attrs = str(value[2])
+        
+        from ifigure.interactive import figure
+        viewer = figure(viewer = cls)
+        viewer.update(False)        
+        setup_figure(viewer, self.GetParent())                
+        viewer.suptitle(expr + ':' + str(attrs))
+        
+        if param['pc_type'] == 'cutplane':
+            pc_param = param['pc_param']
+            im_axes = (pc_param[1], pc_param[2])
+            midx = (pc_param[3][0] + pc_param[3][1])/2.0
+            midy = (pc_param[4][0] + pc_param[4][1])/2.0            
+            im_center = (np.array(pc_param[0]) +
+                         np.array(pc_param[1])*midx + np.array(pc_param[2])*midy)
+
+            xmin, xmax, xsize = pc_param[3]
+            ymin, ymax, ysize = pc_param[4]    
+            x = np.linspace(xmin, xmax, int((xmax-xmin)/xsize))
+            y = np.linspace(ymin, ymax, int((ymax-ymin)/ysize))
+            
+            viewer.threed('on')
+            viewer.image(x, y, data.real, im_axes=im_axes, im_center=im_center)
+        elif param['pc_type'] == 'line':
+            pc_param = param['pc_param']            
+            sp = np.array(pc_param[0])
+            ep = np.array(pc_param[1])
+            num = pc_param[2]
+            ii = np.linspace(0, 1., num)
+            ptx = np.vstack([ sp * (1-i) + ep * i  for i in ii])
+            viewer.plot(ptx[:,0], ptx[:,1], ptx[:,2],
+                        c = data.real, cz=True)            
+
+        viewer.view('noclip')
+        viewer.view('equal')
+        ax = self.GetParent().get_axes()
+        param = ax.get_axes3d_viewparam(ax._artists[0])
+        ax2 = viewer.get_axes()
+        ax2.set_axes3d_viewparam(param, ax2._artists[0])
+        viewer.lighting(light = 0.5)
+        viewer.update(True)
+        
     def eval_pointcloud(self, mode = 'plot'):
         value = self.elps['Points'] .GetValue()
 
@@ -1251,31 +1306,46 @@ class DlgPlotSol(SimpleFramePlus):
         phys_path = value[3]
         
         model = self.GetParent().model
-        solfiles = self.get_model_soldfiles()        
+        solfiles = self.get_model_soldfiles()
+        
+        mesh = model.variables.getvar('mesh')                            
         mfem_model = model.param.getvar('mfem_model')
         phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
-        
+
         ll = {}
         if value[1][0] == 'XYZ':
              x = list(np.atleast_1d(eval(value[1][1][0], ll, phys_ns)))
              y = list(np.atleast_1d(eval(value[1][1][1], ll, phys_ns)))
              z = list(np.atleast_1d(eval(value[1][1][2], ll, phys_ns)))
-             cp_param = {'type':'xy', 'param':np.vstack([x, y, z]).tranpose()}
+             pc_param = {'pc_type':'xyz', 'pc_param':np.vstack([x, y, z]).transpose()}
              
         elif value[1][0] == 'Line':
-             sp =  np.atleast_1d(eval(value[1][2][0], ll, phys_ns))
-             ep =  np.atleast_1d(eval(value[1][2][1], ll, phys_ns))
-             num = int(val(value[1][2][2], ll, phys_ns))
-             cp_param = {'type':'xy', 'param':(sp, ep, num)}
+             sp =  tuple(np.atleast_1d(eval(value[1][2][0], ll, phys_ns)))
+             ep =  tuple(np.atleast_1d(eval(value[1][2][1], ll, phys_ns)))
+             num = int(eval(value[1][2][2], ll, phys_ns))
+             pc_param = {'pc_type':'line', 'pc_param':(sp, ep, num)}
              
         elif value[1][0] == 'CutPlane':
-            abcd = list(np.atleast_1d(eval(value[1][3][0], ll, phys_ns)))
-            mesh = model.variables.getvar('mesh')            
-
+            print(value[1][3])
+            abcd   = list(np.atleast_1d(eval(value[1][3][0], ll, phys_ns)))
+            origin = list(np.atleast_1d(eval(value[1][3][1], ll, phys_ns)))
+            e1     = list(np.atleast_1d(eval(value[1][3][2], ll, phys_ns)))
+            res    = float(eval(value[1][3][3], ll, phys_ns))
+            
+            from petram.helper.geom import find_cp_pc_parameter
+            param = find_cp_pc_parameter(mesh, abcd, e1, gsize=res, origin=origin)
+            param = (tuple(param["origin"]),
+                     tuple(param["e1"]),
+                     tuple(param["e2"]),
+                     tuple(param["x"]),
+                     tuple(param["y"]),)                     
+            pc_param = {'pc_type':'cutplane', 'pc_param':param}
         else:
-            return
+            return None, None, None, None
+
+        ptx, data, attr = self.evaluate_pointcloud(expr, attrs, phys_path, **pc_param)
         
-        
+        return ptx, data, attr, pc_param
     
     #
     #   Geometry Boundary ('GeomBdr' tab)
@@ -1666,9 +1736,9 @@ class DlgPlotSol(SimpleFramePlus):
         
         if key in self.evaluators:
             try:
-                self.evaluators[key].validate_evaluator(name,
-                                                        battrs,
-                                                        solfiles)
+               self.evaluators[key].validate_evaluator(name,
+                                                       battrs,
+                                                       solfiles)
             except IOError:
                 dprint1("IOError detected setting failed=True")
                 self.evaluators[key].failed = True
@@ -1683,8 +1753,8 @@ class DlgPlotSol(SimpleFramePlus):
                                                config = self.config)
             
             self.evaluators[key].validate_evaluator(name,
-                                                       battrs, 
-                                                       solfiles)
+                                                    battrs, 
+                                                    solfiles, isFirst=True)
 
         try:
             self.evaluators[key].set_phys_path(phys_path)
@@ -1778,7 +1848,7 @@ class DlgPlotSol(SimpleFramePlus):
                                                     decimate = decimate)
             self.evaluators[key].validate_evaluator(name,
                                                     battrs,
-                                                    solfiles,
+                                                    solfiles, isFirst=True, 
                                                     decimate=decimate)
         
         try:
@@ -1795,6 +1865,8 @@ class DlgPlotSol(SimpleFramePlus):
         return None, None
 
     def evaluate_pointcloud(self, expr, attrs, phys_path, **kwargs):
+
+        
         '''
         evaluate sol using boundary evaluator
         '''
@@ -1809,9 +1881,9 @@ class DlgPlotSol(SimpleFramePlus):
                                   title='Error',
                                   traceback='')
              wx.CallAfter(self.set_title_no_status)
-             return None, None
+             return None, None, None
         mesh = model.variables.getvar('mesh')
-        if mesh is None: return
+        if mesh is None: return None, None, None
         
         ec = mesh.extended_connectivity
         v2s = ec['vol2surf']        
@@ -1819,7 +1891,7 @@ class DlgPlotSol(SimpleFramePlus):
         ll = {'FaceOf': FaceOf, 'EdgeOf': EdgeOf, 'PointOf':PointOf}
         
         if attrs == 'all':
-            attrs = list(np.unique(mesh.GetAttributeArray())))
+            attrs = list(np.unique(mesh.GetAttributeArray()))
             
         elif attrs == 'visible':
             m = self.GetParent()
@@ -1860,10 +1932,10 @@ class DlgPlotSol(SimpleFramePlus):
         
         from petram.sol.evaluators import build_evaluator
         key, name = 'Points', 'Pointcloud'
-            
+
         if key in self.evaluators:
             try:
-                self.evaluators[key].validate_evaluator(name, attrs, solfiles)
+                self.evaluators[key].validate_evaluator(name, attrs, solfiles, **kwargs)
 
             except IOError:
                 dprint1("IOError detected setting failed=True")
@@ -1876,17 +1948,18 @@ class DlgPlotSol(SimpleFramePlus):
                                                     mfem_model,
                                                     solfiles,
                                                     name = name,
-                                                    config = self.config)
+                                                    config = self.config,
+                                                    **kwargs)                                                    
 
             self.evaluators[key].validate_evaluator(name,
                                                     attrs,
-                                                    solfiles,
-                                                    decimate=decimate)
+                                                    solfiles, isFirst=True,
+                                                    **kwargs)
+
         
         try:
             self.evaluators[key].set_phys_path(phys_path)
-            return self.evaluators[key].eval(expr, do_merge1, do_merge2,
-                                               **kwargs)
+            return self.evaluators[key].eval_pointcloud(expr)
         except:
             import traceback            
             wx.CallAfter(dialog.showtraceback, parent = self,
@@ -1894,7 +1967,7 @@ class DlgPlotSol(SimpleFramePlus):
                                 title='Error',
                                 traceback = traceback.format_exc())                         
             wx.CallAfter(self.set_title_no_status)        
-        return None, None
+        return None, None, None
     
     
     def evaluate_sol_slice(self, expr, attrs, plane, phys_path, do_merge1,
@@ -1967,7 +2040,8 @@ class DlgPlotSol(SimpleFramePlus):
                                                         plane = plane)
             
             self.evaluators['Slice'].validate_evaluator('Slice', attrs, 
-                                                    solfiles, plane = plane)
+                                                        solfiles, isFirst=True,
+                                                        plane = plane)
 
         try:
             self.evaluators['Slice'].set_phys_path(phys_path)
