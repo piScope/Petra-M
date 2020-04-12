@@ -6,12 +6,13 @@ ll = [["Num. of Nodes", 1, 400, {}],
       ["Num. of OpenMP threads", 4, 400, {}],
       ["Wall clock", "00:15:00", 0, {}],             
       ["Queue", "Debug", 0, {}],
+      ["Remote Dir.", "", 0, {}],      
       [None,   False,  3, {"text":"Skip sending mesh file"}],]
 #      [None,   False,  3, {"text":"Retrieve Data"}],]
 
-values = ['1', '1', '1', '00:10:00', 'debug', False,  False]
+values = ['1', '1', '1', '00:10:00', 'debug', False,  False, '']
 keys = ['num_nodes', 'num_cores', 'num_openmp', 'walltime',
-        'queue', 'skip_mesh', 'retrieve_files']
+        'queue', 'skip_mesh', 'retrieve_files', 'rwdir']
 
 def_queues = {'type':'SLURM',
              'queus':[{'name': 'debug',
@@ -80,6 +81,7 @@ class dlg_jobsubmission(wx.Dialog):
  
 def get_job_submisson_setting(parent, servername = '', value = None,
                               queues = None):
+    
     dlg = dlg_jobsubmission(parent, title='Submit to '+servername, value=value,
                             queues = queues)
     value = {}
@@ -91,7 +93,8 @@ def get_job_submisson_setting(parent, servername = '', value = None,
             value["walltime"] = str(dlg.value[3])
             value["queue"] = str(dlg.value[4])
             value["retrieve_files"] = False
-            value["skip_mesh"] = dlg.value[5]
+            value["rwdir"] = dlg.value[5]                        
+            value["skip_mesh"] = dlg.value[6]
         else:
             pass
     finally:

@@ -863,6 +863,7 @@ class DlgPlotSol(SimpleFramePlus):
                      'BdrArrorw': 'bdry',
                      'Edge': 'edge',
                      'Slice': 'domain',
+                     'Points': 'domain', 
                      'Domain': 'domain'}
             i = getattr(self, 'get_attrs_field_'+t)
             value = self.elps[t].GetValue()
@@ -1346,6 +1347,9 @@ class DlgPlotSol(SimpleFramePlus):
         ptx, data, attr = self.evaluate_pointcloud(expr, attrs, phys_path, **pc_param)
         
         return ptx, data, attr, pc_param
+    
+    def get_attrs_field_Points(self):
+        return 2
     
     #
     #   Geometry Boundary ('GeomBdr' tab)
