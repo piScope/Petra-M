@@ -527,15 +527,19 @@ class EvaluatorMP(Evaluator):
         for x in range(len(self.workers)):
             self.results.task_done()
 
-        ptx, data, attrs = res[0]
-        if ptx is None: return None, None, None
-        
+     	res = [x for x in res if x[-1] is not None]
+      	if len(res) == 0:
+            return None, None, None
+
+	ptx, data, attrs = res[0]
+
         for v, c, a in res[1:]:
-            idx = (a != -1)
+	    idx = (a != -1)
             if np.sum(idx) == 0: continue
             attrs[idx] = a[idx]
-            #print(data.shape, c.shape)
+	    #print(data.shape, c.shape)                                                                                                                         
             data[idx] = c[idx]
+
         return ptx, data, attrs
             
     def eval_probe(self, expr, xexpr, probes):
