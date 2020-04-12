@@ -261,11 +261,11 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         return self.myid, data, attrs
 
     def eval_pointcloud(self, expr, **kwargs):
-        if self.phys_path == '': return None, None
+        if self.phys_path == '': return None, None, None
         
         phys = self.mfem_model()[self.phys_path]
         solvars = self.load_solfiles()
-        if solvars is None: return None, None
+        if solvars is None: return None, None, None
 
         export_type = kwargs.get('export_type', 1)
         
@@ -302,7 +302,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
 
         data  = np.zeros(shape_d, dtype=cdata[0].dtype)
 
-        print("data shape", data.shape)
+        #print("data shape", data.shape)
                 
         for v, c, a in zip(vdata, cdata, adata):
             idx = (a != -1)
