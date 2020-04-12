@@ -37,7 +37,7 @@ class EvaluatorSingle(EvaluatorCommon):
         super(EvaluatorSingle, self).__init__()        
         
     def set_solfiles(self, solfiles):
-        self.solfiles = weakref.ref(solfiles)
+        self.solfiles = solfiles
         # make sure solvars is empty and weakref does not go away.
         self._soliles = solfiles
         self.solvars = {}        
@@ -46,10 +46,9 @@ class EvaluatorSingle(EvaluatorCommon):
         self.phys_path = phys_path
 
     def validate_evaluator(self, name, attr, solfiles, isFirst=False, **kwargs):
-        #print("validate evaulator", self.solfiles(), solfiles)
         redo_geom = False
         if (self.solfiles is None or 
-            self.solfiles().is_different_timestamps(solfiles)):
+            self.solfiles.is_different_timestamps(solfiles)):
             self.set_solfiles(solfiles)
             print("new solfiles")
             redo_geom = True

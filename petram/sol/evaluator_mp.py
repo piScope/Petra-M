@@ -198,7 +198,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         s = solfiles[st:et]
         if len(s) > 0:
             self.solfiles_real = s
-            self.solfiles = weakref.ref(s)
+            self.solfiles = s
         else:
             self.solfiles = None
             
@@ -382,7 +382,7 @@ class EvaluatorMP(Evaluator):
         #shutil.rmtree(tmpdir)
         
     def set_solfiles(self, solfiles):
-        self.solfiles = weakref.ref(solfiles)        
+        self.solfiles = solfiles
         self.tasks.put((2, solfiles))
 
     def make_agents(self, name, params, **kwargs):
@@ -399,15 +399,13 @@ class EvaluatorMP(Evaluator):
         redo_geom = False
         #if  self.solfiles is None or self.solfiles() is not solfiles:
         if (self.solfiles is None or
-            self.solfiles() is None or
-            self.solfiles().is_different_timestamps(solfiles)):
+            self.solfiles.is_different_timestamps(solfiles)):
 
             if self.solfiles is None:
                 print("self.solfiles is None")
-            elif self.solfiles() is None:
-                print("weakref dead")
             else:
                 print("new file time stamp")
+                
             print("new solfiles")
             self.set_solfiles(solfiles)
             self.load_solfiles()

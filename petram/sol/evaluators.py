@@ -138,12 +138,12 @@ class EvaluatorCommon(Evaluator):
     def load_solfiles(self, mfem_mode = None):
         if self.solfiles is None: return
 
-        if self.solfiles() in self.solvars:
-            return self.solvars[self.solfiles()]
+        if self.solfiles in self.solvars:
+            return self.solvars[self.solfiles]
 
         from petram.sol.solsets import Solsets
 
-        solsets = Solsets(self.solfiles())
+        solsets = Solsets(self.solfiles)
         print("reading sol variables")
         phys_root = self.mfem_model()["Phys"]
         solvars = phys_root.make_solvars(solsets.set)
@@ -154,7 +154,7 @@ class EvaluatorCommon(Evaluator):
         #for k in solvars:
         #    print(k + ':' + solvars[k])
         
-        self.solvars[self.solfiles()] = solvars
+        self.solvars[self.solfiles] = solvars
         
         for key in six.iterkeys(self.agents):
             for a, vv in zip(self.agents[key], solsets):
