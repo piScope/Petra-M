@@ -21,6 +21,27 @@ class Solfiles(object):
     def path(self):
         return os.path.dirname(self.set[0][0][0])
     
+    def store_timestamps(self):
+        self.timestamps = {}
+        for meshes, solf, in self.set:
+            for x in meshes:
+                self.timestamps[x] = os.path.getmtime(x)
+                
+            for key in solf:
+                fr, fi = solf[key]
+                if fr is not None:
+                    self.timestamps[fr] = os.path.getmtime(fr)
+                if fi is not None:
+                    self.timestamps[fi] = os.path.getmtime(fi)                    
+        print(self.timestamps) 
+    def is_different_timestamps(self, solfiles):
+        for x in self.timestamps:
+            if not x in solfiles.timestamps:
+                return True
+            if solfiles.timestamps[x] != self.timestamps[x]:
+                return True
+        return False
+        
 class MeshDict(dict):
     pass
         
@@ -129,7 +150,11 @@ def find_solfiles(path, idx = None):
             if solr is None: continue
             sol[n] = (solr, soli)
         solfiles.append([meshes, sol])                  
-    return Solfiles(solfiles)
+
+    ret = Solfiles(solfiles)
+    ret.store_timestamps()
+
+    return ret
 
 def read_solsets(path, idx = None, refine=0):
     solfiles = find_solfiles(path, idx)

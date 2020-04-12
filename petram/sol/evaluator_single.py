@@ -48,10 +48,14 @@ class EvaluatorSingle(EvaluatorCommon):
     def validate_evaluator(self, name, attr, solfiles, isFirst=False, **kwargs):
         #print("validate evaulator", self.solfiles(), solfiles)
         redo_geom = False
-        if self.solfiles is None or self.solfiles() is not solfiles:
+        if (self.solfiles is None or 
+            self.solfiles().is_different_timestamps(solfiles)):
             self.set_solfiles(solfiles)
-            print("new_solfiles")
+            print("new solfiles")
             redo_geom = True
+        else:
+            print("same solfiles")            
+            
         if not super(EvaluatorCommon, self).validate_evaluator(name, attr, **kwargs):
             print("different_setting")
             redo_geom = True

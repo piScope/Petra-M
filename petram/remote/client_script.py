@@ -7,6 +7,8 @@ import shlex
 import socket
 import subprocess as sp
 
+base_remote_path = '~/myscratch/mfem_batch'
+
 def make_remote_connection(model, host):
     '''
     host = 'eofe7.mit.edu'
@@ -48,7 +50,7 @@ def clean_remote_dir(model):
     return True
 
 
-def prepare_remote_dir(model, txt = '', dirbase = '~/myscratch/mfem_batch'):
+def prepare_remote_dir(model, txt = '', dirbase = base_remote_path):
     model_dir = model.owndir()
     param = model.param
     if txt  == '':

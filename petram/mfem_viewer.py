@@ -1406,7 +1406,7 @@ class MFEMViewer(BookViewer):
         
         for i, key in enumerate(keys):
             if remote.get(key, None) is not None:
-                values[i] = remote.get(key, None)
+                values[i] = remote.get(key, None)                
                 
         from petram.pi.dlg_submit_job import get_job_submisson_setting
         from petram.remote.client_script import get_job_queue
@@ -1422,6 +1422,10 @@ class MFEMViewer(BookViewer):
                                             value = values,
                                             queues = q)
         if len(setting) == 0: return
+
+        from petram.remote.client_script import prepare_remote_dir        
+        if remote['rwdir'] != setting['rwdir']:
+             prepare_remote_dir(self.model, setting['rwdir'])
         
         for k in setting.keys(): remote[k] = setting[k]
         if self.model.param.eval('sol') is None:
@@ -1429,9 +1433,6 @@ class MFEMViewer(BookViewer):
         else:
             sol = self.model.param.eval('sol')
 
-        from petram.remote.client_script import prepare_remote_dir
-        if remote['rwdir'] == '':
-             prepare_remote_dir(self.model)
             
         #remote.scripts.clean_remote_dir()
         sol.clean_owndir()  

@@ -265,7 +265,8 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         
         phys = self.mfem_model()[self.phys_path]
         solvars = self.load_solfiles()
-        if solvars is None: return None, None, None
+
+        if solvars is None: return self.myid, None, None        
 
         export_type = kwargs.get('export_type', 1)
         
@@ -282,7 +283,12 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         evaluators = self.agents[key]
         
         for o, solvar in zip(evaluators, solvars): # scan over sol files
-           v, c, a = o.eval(expr, solvar, phys, **kwargs)
+           try:
+               v, c, a = o.eval(expr, solvar, phys, **kwargs)
+           except:
+               import traceback
+               return self.myid, None, traceback.format_exc()
+               
            if v is None:
                v = None; c = None; a = None
            else:
@@ -391,11 +397,16 @@ class EvaluatorMP(Evaluator):
         
     def validate_evaluator(self, name, attr, solfiles, isFirst=False, **kwargs):
         redo_geom = False
-        if  self.solfiles is None or self.solfiles() is not solfiles:
+        #if  self.solfiles is None or self.solfiles() is not solfiles:
+        if (self.solfiles is None or
+            self.solfiles() is None or
+            self.solfiles().is_different_timestamps(solfiles)):
             print("new solfiles")
             self.set_solfiles(solfiles)
             self.load_solfiles()
             redo_geom = True
+        else:
+            print("same solfiles")            
         if not super(EvaluatorMP, self).validate_evaluator(name, attr, **kwargs):
             redo_geom = True
         if not self.init_done: redo_geom = True
