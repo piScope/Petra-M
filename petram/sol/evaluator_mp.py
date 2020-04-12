@@ -401,6 +401,13 @@ class EvaluatorMP(Evaluator):
         if (self.solfiles is None or
             self.solfiles() is None or
             self.solfiles().is_different_timestamps(solfiles)):
+
+            if self.solfiles is None:
+                print("self.solfiles is None")
+            elif self.solfiles() is None:
+                print("weakref dead")
+            else:
+                print("new file time stamp")
             print("new solfiles")
             self.set_solfiles(solfiles)
             self.load_solfiles()
