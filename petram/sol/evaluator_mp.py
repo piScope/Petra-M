@@ -512,12 +512,13 @@ class EvaluatorMP(Evaluator):
             self.results.task_done()
 
         ptx, data, attrs = res[0]
+        if ptx is None: return None, None, None
         
         for v, c, a in res[1:]:
             idx = (a != -1)
             if np.sum(idx) == 0: continue
             attrs[idx] = a[idx]
-            print(data.shape, c.shape)
+            #print(data.shape, c.shape)
             data[idx] = c[idx]
         return ptx, data, attrs
             
