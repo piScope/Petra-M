@@ -217,17 +217,12 @@ class DlgPlotSol(SimpleFramePlus):
             elp2 = [['start point:', '0., 0., 0.', 0, {}],
                     ['end point:', '1., 0., 0.', 0, {}],
                     ['resolution:', '30', 0, {}],]
-            elp3 = [['plane (a,b,c,d):', '1, 0, 0, 0', 0, {}],
-                    ['origin:', '0., 0., 0.', 0, {}],
-                    ['first axis:', '0., 0., 1.', 0, {}],
-                    ['resolution', '0.01', 0, {}],]
 
             ss = [None, None, 34, ({'text': '',
-                                    'choices': ['XYZ', 'Line', 'CutPlane'],
+                                    'choices': ['XYZ', 'Line'],
                                     'call_fit': False},
                                    {'elp': elp1},
-                                   {'elp': elp2},
-                                   {'elp': elp3}),]            
+                                   {'elp': elp2},)]
             ll = [['Expression', '', 0, {}],
                   ss,
                   ['Domain Index', 'all', 4, {'style':wx.CB_DROPDOWN,
@@ -373,9 +368,21 @@ class DlgPlotSol(SimpleFramePlus):
             choices = list(mfem_model['Phys'])
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
+            elp1 = [['plane (a,b,c,d):', '1, 0, 0, 0', 0, {}],]
+
+            elp2 = [['plane (a,b,c,d):', '1, 0, 0, 0', 0, {}],
+                    ['first axis:', '0., 0., 1.', 0, {}],
+                    ['resolution', '0.01', 0, {}],]
+            
+            ss = [None, None, 34, ({'text': 'Rendering',
+                                    'choices': ['Triangles', 'Grid'],
+                                    'call_fit': False},
+                                   {'elp': elp1},
+                                   {'elp': elp2},),]            
+            
             if len(choices)==0: choices = ['no physcs in model']
             ll = [['Expression', '', 0, {}],
-                  ['Plane', '1.0, 0, 0, 0', 0, {}],
+                  ss,
                   ['Domain Index', text, 0, {}],
                   ['NameSpace', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],      
@@ -1235,10 +1242,27 @@ class DlgPlotSol(SimpleFramePlus):
         else:
             cls = None
             
-        ptx, data, attrs, pc_param = self.eval_pointcloud(mode = 'plot')
+        #def eval_pointcloud(self
+        expr = str(value[0]).strip()
+        attrs = str(value[2])
+        phys_path = value[3]
+        pc_mode = value[1][0]
+        if pc_mode == 'XYZ':
+            pc_value = value[1][1]
+        elif pc_mode == 'Line':
+            pc_value = value[1][2]            
+        else:
+            return
+        ptx, data, attrs_out, attrs, pc_param = self.eval_pointcloud(expr, attrs,
+                                                                     phys_path, pc_mode,
+                                                                     pc_value, mode = 'plot')
         if data is None: return
 
-        self.post_threadend(self.make_plot_point, data, pc_param,
+        if pc_mode == 'XYZ': 
+            data = {'vertices': ptx, 'data': data, 'attrs':attrs_out}
+            wx.CallAfter(self.export_to_piScope_shell, data, 'point_data')
+        else:
+            self.post_threadend(self.make_plot_point, data, attrs_out, attrs, pc_param,
                             cls = cls, expr = expr)
 
 
@@ -1246,17 +1270,16 @@ class DlgPlotSol(SimpleFramePlus):
         value = self.elps['Points'] .GetValue()
         
         expr = str(value[0]).strip()        
-        ptx, data, attrs, pc_param = self.eval_pointcloud(mode = 'plot')
+        ptx, data, attrs_out, attrs, pc_param = self.eval_pointcloud(mode = 'plot')
         if data is None: return
         
         #print("final data for ", expr, ptx, data, attrs)        
 
-        data = {'vertices': ptx, 'data': data, 'attrs':attrs}
+        data = {'vertices': ptx, 'data': data, 'attrs':attrs_out}
         self.export_to_piScope_shell(data, 'point_data')
 
-    def make_plot_point(self, data, param,  cls = None, expr = False):
+    def make_plot_point(self, data, attrs_out, attrs, param,  cls = None, expr = False):
         value = self.elps['Points'] .GetValue()
-        attrs = str(value[2])
         
         from ifigure.interactive import figure
         viewer = figure(viewer = cls)
@@ -1264,22 +1287,7 @@ class DlgPlotSol(SimpleFramePlus):
         setup_figure(viewer, self.GetParent())                
         viewer.suptitle(expr + ':' + str(attrs))
         
-        if param['pc_type'] == 'cutplane':
-            pc_param = param['pc_param']
-            im_axes = (pc_param[1], pc_param[2])
-            midx = (pc_param[3][0] + pc_param[3][1])/2.0
-            midy = (pc_param[4][0] + pc_param[4][1])/2.0            
-            im_center = (np.array(pc_param[0]) +
-                         np.array(pc_param[1])*midx + np.array(pc_param[2])*midy)
-
-            xmin, xmax, xsize = pc_param[3]
-            ymin, ymax, ysize = pc_param[4]    
-            x = np.linspace(xmin, xmax, int((xmax-xmin)/xsize))
-            y = np.linspace(ymin, ymax, int((ymax-ymin)/ysize))
-            
-            viewer.threed('on')
-            viewer.image(x, y, data.real, im_axes=im_axes, im_center=im_center)
-        elif param['pc_type'] == 'line':
+        if param['pc_type'] == 'line':
             pc_param = param['pc_param']            
             sp = np.array(pc_param[0])
             ep = np.array(pc_param[1])
@@ -1298,14 +1306,7 @@ class DlgPlotSol(SimpleFramePlus):
         viewer.lighting(light = 0.5)
         viewer.update(True)
         
-    def eval_pointcloud(self, mode = 'plot'):
-        value = self.elps['Points'] .GetValue()
-
-        expr = str(value[0]).strip()
-        
-        attrs = str(value[2])
-        phys_path = value[3]
-        
+    def eval_pointcloud(self, expr, attrs, phys_path, pc_mode, pc_value, mode = 'plot'):
         model = self.GetParent().model
         solfiles = self.get_model_soldfiles()
         
@@ -1313,28 +1314,76 @@ class DlgPlotSol(SimpleFramePlus):
         mfem_model = model.param.getvar('mfem_model')
         phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
 
+        ec = mesh.extended_connectivity
+        v2s = ec['vol2surf']        
+        FaceOf, EdgeOf, PointOf = get_mapper(mesh)
+        ll = {'FaceOf': FaceOf, 'EdgeOf': EdgeOf, 'PointOf':PointOf}
+        
+        if attrs == 'all':
+            attrs = list(np.unique(mesh.GetAttributeArray()))
+            
+        elif attrs == 'visible':
+            m = self.GetParent()
+            battrs = []
+            for name, child in m.get_axes(0).get_children():
+                if name.startswith('face'):
+                     battrs.extend(child.shown_component)
+            battrs = list(set(battrs))
+            if mesh.Dimenstion() == 3:
+                attrs = [k for k in v2s if set(v2s[k]).intersection(battrs) == set(v2s[k])]
+            else:
+                attrs = battrs
+                
+        elif attrs == 'hidden':
+            m = self.GetParent()
+            battrs = []
+            sbattrs = []            
+            for name, child in m.get_axes(0).get_children():
+                if name.startswith('face'):
+                     battrs.extend(child.hidden_component)
+                     sbattrs.extend(child.shown_component)                     
+            battrs = list(set(battrs))
+            if mesh.Dimenstion() == 3:
+                attrs = [k for k in v2s if set(v2s[k]).intersection(sbattrs) != set(v2s[k])]
+            else:
+                attrs = battrs
+
+        else:
+            try:
+               attrs = list(np.atleast_1d(eval(attrs, ll, phys_ns)))
+            except:
+               import traceback
+               traceback.print_exc()
+               assert False, "invalid selection: " + attrs
+
         ll = {}
-        if value[1][0] == 'XYZ':
-             x = list(np.atleast_1d(eval(value[1][1][0], ll, phys_ns)))
-             y = list(np.atleast_1d(eval(value[1][1][1], ll, phys_ns)))
-             z = list(np.atleast_1d(eval(value[1][1][2], ll, phys_ns)))
+        if pc_mode == 'XYZ':
+             x = list(np.atleast_1d(eval(pc_value[0], ll, phys_ns)))
+             y = list(np.atleast_1d(eval(pc_value[1], ll, phys_ns)))
+             z = list(np.atleast_1d(eval(pc_value[2], ll, phys_ns)))
              pc_param = {'pc_type':'xyz', 'pc_param':np.vstack([x, y, z]).transpose()}
              
-        elif value[1][0] == 'Line':
-             sp =  tuple(np.atleast_1d(eval(value[1][2][0], ll, phys_ns)))
-             ep =  tuple(np.atleast_1d(eval(value[1][2][1], ll, phys_ns)))
-             num = int(eval(value[1][2][2], ll, phys_ns))
+        elif pc_mode == 'Line':
+             sp =  tuple(np.atleast_1d(eval(pc_value[0], ll, phys_ns)))
+             ep =  tuple(np.atleast_1d(eval(pc_value[1], ll, phys_ns)))
+             num = int(eval(pc_value[2], ll, phys_ns))
              pc_param = {'pc_type':'line', 'pc_param':(sp, ep, num)}
              
-        elif value[1][0] == 'CutPlane':
-            print(value[1][3])
-            abcd   = list(np.atleast_1d(eval(value[1][3][0], ll, phys_ns)))
-            origin = list(np.atleast_1d(eval(value[1][3][1], ll, phys_ns)))
-            e1     = list(np.atleast_1d(eval(value[1][3][2], ll, phys_ns)))
-            res    = float(eval(value[1][3][3], ll, phys_ns))
+        elif pc_mode == 'CutPlane':
+            print(pc_value)
+            abcd   = list(np.atleast_1d(eval(pc_value[0], ll, phys_ns)))
+            #origin = list(np.atleast_1d(eval(pc_value[1][3][1], ll, phys_ns)))
+            e1     = list(np.atleast_1d(eval(pc_value[1], ll, phys_ns)))
+            res    = float(eval(pc_value[2], ll, phys_ns))
             
             from petram.helper.geom import find_cp_pc_parameter
-            param = find_cp_pc_parameter(mesh, abcd, e1, gsize=res, origin=origin)
+            param = find_cp_pc_parameter(mesh, abcd, e1, gsize=res, attrs=attrs)
+            if param is None:
+                wx.CallAfter(dialog.showtraceback, parent = self,
+                             txt='No point is found',
+                             title='Error',
+                             traceback='Cut plane does not intersect with geometry')
+                return None, None, None, None, None             
             param = (tuple(param["origin"]),
                      tuple(param["e1"]),
                      tuple(param["e2"]),
@@ -1342,11 +1391,11 @@ class DlgPlotSol(SimpleFramePlus):
                      tuple(param["y"]),)                     
             pc_param = {'pc_type':'cutplane', 'pc_param':param}
         else:
-            return None, None, None, None
+            return None, None, None, None, None
 
-        ptx, data, attr = self.evaluate_pointcloud(expr, attrs, phys_path, **pc_param)
+        ptx, data, attrs_out = self.evaluate_pointcloud(expr, attrs, phys_path, **pc_param)
         
-        return ptx, data, attr, pc_param
+        return ptx, data, attrs_out, attrs, pc_param
     
     def get_attrs_field_Points(self):
         return 2
@@ -1423,7 +1472,7 @@ class DlgPlotSol(SimpleFramePlus):
                               do_merge1 = do_merge1, do_merge2 = do_merge2,
                               edge_only = edge_only):
             if str(expr).strip() != '':
-                v, battrs = self.evaluate_sol_bdr(expr, battrs, phys_path,
+                v, battrs = selfe.valuate_sol_bdr(expr, battrs, phys_path,
                                                   do_merge1, do_merge2,
                                                   edge_only = edge_only)
             else:
@@ -1595,6 +1644,7 @@ class DlgPlotSol(SimpleFramePlus):
     @run_in_piScope_thread    
     def onApplySlice(self, evt):
         value = self.elps['Slice'] .GetValue()
+
         expr = str(value[0]).strip()
         
         if value[4]:
@@ -1602,13 +1652,30 @@ class DlgPlotSol(SimpleFramePlus):
             cls = WaveViewer
         else:
             cls = None
+
+        if value[1][0] == 'Triangles':
+            data, battrs = self.eval_slice(mode = 'plot')
+            if data is None:
+                wx.CallAfter(self.set_title_no_status)        
+                return
+            self.post_threadend(self.make_plot_slice, data, battrs,
+                                cls = cls, expr = expr)
+        elif value[1][0] == 'Grid':
+            attrs = str(value[2])
+            phys_path = value[3]
+            pc_mode = 'CutPlane'
+            pc_value = value[1][2]
             
-        data, battrs = self.eval_slice(mode = 'plot')
-        if data is None:
-            wx.CallAfter(self.set_title_no_status)        
-            return
-        self.post_threadend(self.make_plot_slice, data, battrs,
+            ptx, data, attrs_out, attrs, pc_param = self.eval_pointcloud(expr, attrs,
+                                                                     phys_path, pc_mode,
+                                                                     pc_value, mode = 'plot')
+            
+            if data is None: return
+
+            self.post_threadend(self.make_plot_pc_slice, data, attrs_out, attrs, pc_param,
                             cls = cls, expr = expr)
+            
+            pass
         
     def make_plot_slice(self, data, battrs, cls = None, expr=''):
         from ifigure.interactive import figure
@@ -1632,7 +1699,39 @@ class DlgPlotSol(SimpleFramePlus):
         ax2.set_axes3d_viewparam(param, ax2._artists[0])
         v.lighting(light = 0.5)
         v.update(True)
-                       
+
+    def make_plot_pc_slice(self, data, attrs_out, attrs, param,  cls = None, expr = False):
+        from ifigure.interactive import figure
+        viewer = figure(viewer = cls)
+        viewer.update(False)        
+        setup_figure(viewer, self.GetParent())                
+        viewer.suptitle(expr + ':' + str(attrs))
+        
+        pc_param = param['pc_param']
+        im_axes = (pc_param[1], pc_param[2])
+        midx = (pc_param[3][0] + pc_param[3][1])/2.0
+        midy = (pc_param[4][0] + pc_param[4][1])/2.0            
+        xmin, xmax, xsize = pc_param[3]
+        ymin, ymax, ysize = pc_param[4]    
+        x = np.linspace(xmin, xmax, int((xmax-xmin)/xsize))
+        y = np.linspace(ymin, ymax, int((ymax-ymin)/ysize))
+            
+        viewer.threed('on')
+        if cls is None:
+            data = np.ma.masked_array(data.real, mask = np.in1d(attrs_out, attrs, invert=True))
+        else:
+            data = np.ma.masked_array(data, mask = np.in1d(attrs_out, attrs, invert=True))            
+        viewer.image(x, y, data, im_axes=im_axes, im_center=np.array(pc_param[0]))
+            
+        viewer.view('noclip')
+        viewer.view('equal')
+        ax = self.GetParent().get_axes()
+        param = ax.get_axes3d_viewparam(ax._artists[0])
+        ax2 = viewer.get_axes()
+        ax2.set_axes3d_viewparam(param, ax2._artists[0])
+        viewer.lighting(light = 0.5)
+        viewer.update(True)
+        
     def get_attrs_field_Slice(self):
         return 2
         
@@ -1642,7 +1741,7 @@ class DlgPlotSol(SimpleFramePlus):
         
         expr = str(value[0]).strip()
         #plane = [float(x) for x in str(value[1]).split(',')]
-        plane = str(value[1])
+        plane = str(value[1][1][0])
         attrs = str(value[2])
         phys_path = value[3]
         if mode == 'plot':
@@ -1888,51 +1987,6 @@ class DlgPlotSol(SimpleFramePlus):
              return None, None, None
         mesh = model.variables.getvar('mesh')
         if mesh is None: return None, None, None
-        
-        ec = mesh.extended_connectivity
-        v2s = ec['vol2surf']        
-        FaceOf, EdgeOf, PointOf = get_mapper(mesh)
-        ll = {'FaceOf': FaceOf, 'EdgeOf': EdgeOf, 'PointOf':PointOf}
-        
-        if attrs == 'all':
-            attrs = list(np.unique(mesh.GetAttributeArray()))
-            
-        elif attrs == 'visible':
-            m = self.GetParent()
-            battrs = []
-            for name, child in m.get_axes(0).get_children():
-                if name.startswith('face'):
-                     battrs.extend(child.shown_component)
-            battrs = list(set(battrs))
-            if mesh.Dimenstion() == 3:
-                attrs = [k for k in v2s if set(v2s[k]).intersection(battrs) == set(v2s[k])]
-            else:
-                attrs = battrs
-                
-        elif attrs == 'hidden':
-            m = self.GetParent()
-            battrs = []
-            sbattrs = []            
-            for name, child in m.get_axes(0).get_children():
-                if name.startswith('face'):
-                     battrs.extend(child.hidden_component)
-                     sbattrs.extend(child.shown_component)                     
-            battrs = list(set(battrs))
-            if mesh.Dimenstion() == 3:
-                attrs = [k for k in v2s if set(v2s[k]).intersection(sbattrs) != set(v2s[k])]
-            else:
-                attrs = battrs
-
-        else:
-            try:
-               battrs = list(np.atleast_1d(eval(attrs, ll, phys_ns)))
-            except:
-               import traceback
-               traceback.print_exc()
-               assert False, "invalid selection: " + attrs
-
-           #battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
-
         
         from petram.sol.evaluators import build_evaluator
         key, name = 'Points', 'Pointcloud'

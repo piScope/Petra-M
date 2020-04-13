@@ -196,10 +196,10 @@ class EvaluatorSingle(EvaluatorCommon):
                       
         attrs = np.zeros(shape, dtype=int)-1
 
-        print(shape_d)
+        #print(shape_d)
         data  = np.zeros(shape_d, dtype=cdata[0].dtype)
 
-        print("data shape", data.shape)
+        #print("data shape", data.shape)
                 
         for v, c, a in zip(vdata, cdata, adata):
             idx = (a != -1)

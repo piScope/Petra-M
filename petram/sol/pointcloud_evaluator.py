@@ -44,7 +44,7 @@ class PointcloudEvaluator(EvaluatorAgent):
         if pc_type == 'cutplane': # cutplane
             param = {"origin": pc_param[0], "e1":pc_param[1], "e2":pc_param[2],
                      "x":pc_param[3], "y":pc_param[4]}
-            points = generate_pc_from_cpparam(param)
+            points = generate_pc_from_cpparam(**param)
             
         elif pc_type == 'line': 
             sp = np.array(pc_param[0])
@@ -56,6 +56,7 @@ class PointcloudEvaluator(EvaluatorAgent):
 
         elif pc_type == 'xyz':
             points = pc_param
+
 
         self.ans_shape = points.shape
         self.ans_points = points
@@ -151,7 +152,6 @@ class PointcloudEvaluator(EvaluatorAgent):
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
 
-        print(self.emesh_idx, emesh_idx[0])
         if len(emesh_idx) == 1:
             if self.emesh_idx != emesh_idx[0]:
                 self.preprocess_geometry(self.attrs, emesh_idx=emesh_idx[0],

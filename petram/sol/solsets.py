@@ -33,7 +33,7 @@ class Solfiles(object):
                     self.timestamps[fr] = os.path.getmtime(fr)
                 if fi is not None:
                     self.timestamps[fi] = os.path.getmtime(fi)                    
-        print(self.timestamps) 
+
     def is_different_timestamps(self, solfiles):
         for x in self.timestamps:
             if not x in solfiles.timestamps:

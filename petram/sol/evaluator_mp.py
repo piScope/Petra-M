@@ -527,14 +527,14 @@ class EvaluatorMP(Evaluator):
         for x in range(len(self.workers)):
             self.results.task_done()
 
-     	res = [x for x in res if x[-1] is not None]
-      	if len(res) == 0:
+        res = [x for x in res if x[-1] is not None]
+        if len(res) == 0:
             return None, None, None
 
-	ptx, data, attrs = res[0]
+        ptx, data, attrs = res[0]
 
         for v, c, a in res[1:]:
-	    idx = (a != -1)
+            idx = (a != -1)
             if np.sum(idx) == 0: continue
             attrs[idx] = a[idx]
 	    #print(data.shape, c.shape)                                                                                                                         
