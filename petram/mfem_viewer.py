@@ -1425,7 +1425,7 @@ class MFEMViewer(BookViewer):
 
         from petram.remote.client_script import prepare_remote_dir        
         if remote['rwdir'] != setting['rwdir']:
-             prepare_remote_dir(self.model, setting['rwdir'])
+             prepare_remote_dir(self.model, setting['rwdir'], dirbase='')
         
         for k in setting.keys(): remote[k] = setting[k]
         if self.model.param.eval('sol') is None:
