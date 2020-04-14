@@ -9,6 +9,13 @@ import subprocess as sp
 
 base_remote_path = '~/myscratch/mfem_batch'
 
+def wdir_from_datetime():
+    import datetime, socket
+    txt = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
+    hostname = socket.gethostname()
+    txt = txt + '_' + hostname
+    return txt
+
 def make_remote_connection(model, host):
     '''
     host = 'eofe7.mit.edu'
@@ -18,13 +25,16 @@ def make_remote_connection(model, host):
 
     proj = model.get_root_parent()
     p = proj.setting.parameters
-    if not p.hasvar('connection'): 
+    
+    if p.hasvar('connection'):
+        c = p.eval('connection')
+    else:
+        c = None
+    if c is None:
         base = os.path.dirname(ifigure.__file__)
         f = os.path.join(base, 'add_on', 'setting', 'module', 'connection.py')
         c = proj.setting.add_absmodule(f)
         p.setvar('connection', '='+c.get_full_path())
-    else:
-        c = p.eval('connection')
 
     objname = host.split('.')[0]
     if not c.has_child(objname):
@@ -35,6 +45,7 @@ def make_remote_connection(model, host):
         obj.onSetting()
     else:
         obj = c.get_child(name = objname)
+        obj.onSetting()
     return obj
 
 def clean_remote_dir(model):
