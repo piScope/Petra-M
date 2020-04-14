@@ -90,8 +90,12 @@ def get_job_submisson_setting(parent, servername = '', value = None,
                               queues = None):
     
     from petram.remote.client_script import base_remote_path
-    
-    value[5] = os.path.basename(value[5])
+
+    if value[5] == '':
+        from petram.remote.client_script import wdir_from_datetime
+        value[5] = wdir_from_datetime()
+    else:
+        value[5] = os.path.basename(value[5])
     
     dlg = dlg_jobsubmission(parent, title='Submit to '+servername, value=value,
                             queues = queues)

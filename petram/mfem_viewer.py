@@ -67,7 +67,7 @@ def MFEM_menus(parent):
              ("!", None, None),
              ("+Cluster", None, None),
              ("Setting...", self.onServerSetting, None),
-             ("New WorkDir...", self.onServerNewDir, None),
+             #("New WorkDir...", self.onServerNewDir, None),
              ("Solve...", self.onServerSolve, None),
              ("Retrieve File", self.onServerRetrieve, None),                 
              ("!", None, None),
@@ -1346,15 +1346,58 @@ class MFEMViewer(BookViewer):
         if remote is not None:
             hostname = remote['name']
         else:
+            hostname = ''
+
+        proj = self.model.get_root_parent()
+        p = proj.setting.parameters
+        no_existing_c = True
+        
+        if p.hasvar('connection'):
+            c = p.eval('connection')
+            if c is not None:
+               names = c.get_childnames()
+               no_existing_c = (len(names) == 0)
+               
+               
+        if no_existing_c:
             remote = {'name': '',
                       'rwdir': '',
                       'sol': ''}
-            hostname = ''
-        ret, new_name=dialog.textentry(self,
-                                       "Enter the name of new connection",
-                                       "Add Connection",
-                                       hostname)
-
+            ret, new_name=dialog.textentry(self,
+                                           "Enter the name of new connection",
+                                           "Add Connection",
+                                           hostname, center=False,
+                                           center_on_screen=True)
+        else:
+            c = p.eval('connection')            
+            names = c.get_childnames()
+            names.append("New...")
+            ret, new_name=dialog.textselect(self,
+                                            "Select the name of connection or New...",
+                                            "Add Connection",
+                                            def_string = hostname,
+                                            center = False,
+                                            center_on_screen=True,
+                                            choices = names)
+            print(ret, new_name)
+            if not ret: return 
+            if ret and new_name=="New...":
+                remote = {'name': '',
+                          'rwdir': '',
+                          'sol': ''}
+                
+                ret, new_name=dialog.textentry(self,
+                                               "Enter the name of new connection",
+                                               "Add Connection",
+                                               hostname,
+                                               center=False,
+                                               center_on_screen=True)
+            else:
+                child = c.get_child(name=new_name)
+                child.onSetting()
+                self.model.param.setvar('host', '='+child.get_full_path())            
+                return
+            
         if ret:
             self.model.param.setvar('remote', remote)
             remote['name'] = new_name
@@ -1363,16 +1406,14 @@ class MFEMViewer(BookViewer):
             self.model.param.setvar('host', '='+obj.get_full_path())
 
     def onServerNewDir(self, evt):
-        import datetime, socket
-
+        from petram.remote.client_script import wdir_from_datetime
+        
         remote = self.model.param.eval('remote')
         # this assumes file_sep is "/" on server..
         if remote is not None and remote['rwdir'].split('/')[-1] != '':
             txt = remote['rwdir'].split('/')[-1]+'_new'
         else:
-            txt = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
-            hostname = socket.gethostname()
-            txt = txt + '_' + hostname
+            txt = wdir_from_datetime()
             
         from ifigure.widgets.dialog import textentry            
         f,txt = textentry(self, message = 'Enter remote directory name',
@@ -1418,14 +1459,14 @@ class MFEMViewer(BookViewer):
             q = {'type': '',
                  'queues':[{'name':'failed to read queue config'},]}
 
-        setting = get_job_submisson_setting(self, 'using '+remote['name'],
+        setting = get_job_submisson_setting(self, 'Job submission : '+remote['name'].upper(),
                                             value = values,
                                             queues = q)
         if len(setting) == 0: return
 
         from petram.remote.client_script import prepare_remote_dir        
-        if remote['rwdir'] != setting['rwdir']:
-             prepare_remote_dir(self.model, setting['rwdir'], dirbase='')
+        #if remote['rwdir'] != setting['rwdir']:
+        prepare_remote_dir(self.model, setting['rwdir'], dirbase='')
         
         for k in setting.keys(): remote[k] = setting[k]
         if self.model.param.eval('sol') is None:
