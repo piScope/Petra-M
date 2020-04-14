@@ -303,7 +303,7 @@ def find_crosssetional_shape(mesh, a, b, c, d):
     coords = np.vstack(shape_ptx)                                    
     return shapes, shapes_attr, edge2point, coords
 
-def find_cp_pc_parameter(mesh, abcd, e1, gsize=None, gcount=100):
+def find_cp_pc_parameter(mesh, abcd, e1, gsize=None, gcount=100, origin=None, attrs=None):
     '''
     make cut-plane point_clund
 
@@ -330,7 +330,7 @@ def find_cp_pc_parameter(mesh, abcd, e1, gsize=None, gcount=100):
     norm = np.array(abcd[:3])
     norm = norm/np.sqrt(np.sum(norm**2))
     flag = np.zeros(mesh.GetNV(), dtype=bool)
-    
+
     for iele in range(mesh.GetNE()):
         inodes = mesh.GetElementVertices(iele)
         f = val[inodes]
@@ -338,6 +338,9 @@ def find_cp_pc_parameter(mesh, abcd, e1, gsize=None, gcount=100):
         if np.all(f > 0) or np.all(f < 0):
             continue
 
+        if attrs is not None and not (mesh.GetAttribute(iele) in attrs):
+            continue
+        
         flag[mesh.GetElementVertices(iele)] = True
 
     points =  np.transpose(vv[:, flag])
@@ -352,8 +355,13 @@ def find_cp_pc_parameter(mesh, abcd, e1, gsize=None, gcount=100):
     e1 = e1 / np.sqrt(np.sum(e1**2))
     e2 = e2 / np.sqrt(np.sum(e2**2))
 
-    x = np.sum((points-points[0])*e1, -1)
-    y = np.sum((points-points[0])*e2, -1)
+    if len(points) == 0:
+        return None
+
+    origin = points[0] if origin is None else np.array(origin)
+    
+    x = np.sum((points-origin)*e1, -1)
+    y = np.sum((points-origin)*e2, -1)
 
     xmax = np.max(x);xmin = np.min(x)
     ymax = np.max(y);ymin = np.min(y)
@@ -376,21 +384,22 @@ def find_cp_pc_parameter(mesh, abcd, e1, gsize=None, gcount=100):
             gsize1 = gsize
             gsize2 = gsize
 
-    return {"base": points[0], "e1":e1, "e2":e2,
+    return {"origin": origin, "e1":e1, "e2":e2,
             "x":(xmin, xmax, gsize1), "y":(ymin, ymax, gsize2)}
 
 
-def generate_pc_from_cpparam(param):
-    xmin, xmax, xsize = param["x"]
-    ymin, ymax, ysize = param["y"]    
+def generate_pc_from_cpparam(origin=None, e1=None, e2=None, x=None, y=None):
+    xmin, xmax, xsize = x
+    ymin, ymax, ysize = y
     xx = np.linspace(xmin, xmax, int((xmax-xmin)/xsize))
     yy = np.linspace(ymin, ymax, int((ymax-ymin)/ysize))
 
     XX, YY = np.meshgrid(xx, yy)
 
-    e1 = np.atleast_2d(param["e1"])
-    e2 = np.atleast_2d(param["e2"])    
-    pc = param["base"] + e1*XX.reshape(-1,1) + e2*YY.reshape(-1,1)
+    e1 = np.atleast_2d(e1)
+    e2 = np.atleast_2d(e2)
+    pc = origin + e1*XX.reshape(-1,1) + e2*YY.reshape(-1,1)
+    pc = pc.reshape(len(yy), len(xx), 3)
     return pc
     
 def make_cp_pc(mesh, abcd, e1, gsize=None, gcount=100):

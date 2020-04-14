@@ -243,6 +243,9 @@ class Variable(object):
     
     def ncedge_values(self, *args,  **kwargs):
         return self.ncface_values(*args, **kwargs)
+
+    def point_values(self, *args,  **kwargs):
+        raise NotImplementedError("Subclass need to implement")        
         
 class TestVariable(Variable):
     def __init__(self, comp = -1, complex=False):
@@ -298,6 +301,11 @@ class Constant(Variable):
         size = len(locs)        
         shape = [size]+list(np.array(self.value).shape)
         return np.tile(self.value, shape)
+
+    def point_values(self, locs = None, **kwargs):
+        size = len(locs)        
+        shape = [size]+list(np.array(self.value).shape)
+        return np.tile(self.value, shape)
     
 class CoordVariable(Variable):
     def __init__(self, comp = -1, complex=False):
@@ -329,7 +337,12 @@ class CoordVariable(Variable):
             return locs
         else:
             return locs[:, self.comp-1]
-        
+
+    def point_values(self, counts = None, locs = None,  **kwargs):
+        if self.comp == -1:
+            return locs
+        else:
+            return locs[:, self.comp-1]
     
 class ExpressionVariable(Variable):
     def __init__(self, expr, ind_vars, complex=False):
@@ -456,6 +469,49 @@ class ExpressionVariable(Variable):
     def ncedge_values(self, *args, **kwargs):
         return self._ncx_values('ncedge_values', *args, **kwargs)
 
+    def point_values(self, counts = None, locs = None, points=None,
+                           attrs = None, elem_ids = None,
+                           mesh = None, int_points = None, g = None,
+                           knowns = None):
+
+        dtype = np.complex if self.complex else np.float
+
+        
+        for kk, m, loc in zip(iele, el2v, elvertloc):
+            if kk < 0: continue
+            for pair, xyz in zip(m, loc):
+                idx = pair[1]
+                ret[idx] = 1
+
+        l = {}
+        ll_name = []
+        ll_value = []
+        var_g2 = var_g.copy()
+        for n in self.names:
+            if (n in g and isinstance(g[n], Variable)):
+                l[n] = g[n].point_values(counts = counts, locs = locs, points = points,
+                                         attrs = attrs, elem_ids = elem_ids,
+                                         mesh = mesh, int_points = int_points,  g = g,
+                                         knowns = knows)
+                ll_name.append(n)
+                ll_value.append(l[n])
+            elif (n in g):
+                var_g2[n] = g[n]
+        if len(ll_name) > 0:
+            value = np.array([eval(self.co, var_g2, dict(zip(ll_name, v)))
+                        for v in zip(*ll_value)])
+        else:
+            for k, name in enumerate(self.ind_vars):
+                l[name] = locs[...,k]
+            value = np.array(eval_code(self.co, var_g2, l), copy=False)
+            if value.ndim > 1:
+                value = np.stack([value]*size)
+        #value = np.array(eval_code(self.co, var_g, l), copy=False)
+
+        from petram.helper.right_broadcast import multi
+
+        ret = multi(ret, value)
+        return ret
     
     
 class DomainVariable(Variable):
@@ -683,6 +739,34 @@ class PyFunctionVariable(Variable):
     def ncedge_values(self, *args, **kwargs):
         return self._ncx_values(*args, **kwargs)
 
+    def point_values(self, counts = None, locs = None, points=None,
+                           attrs = None, elem_ids = None,
+                           mesh = None, int_points = None, g = None,
+                           knowns = None):
+        
+        if locs is None: return
+        if g is None: g = {}
+        if knowns is None: knowns = WKD()       
+
+        shape = [counts] + list(self.shape)
+
+        dtype = np.complex if self.complex else np.float
+        ret = np.zeros(shape, dtype = dtype)
+
+        jj = 0
+        for i in range(len(attrs)):
+            if attrs[i] == -1: continue
+
+            xyz = tuple(points[i])
+            kwargs = {n: knowns[g[n]][i] for n in self.dependency}
+            value = self.func(*xyz, **kwargs)
+            
+            ret[jj,:] = value
+            jj = jj+1
+            
+        return ret
+
+        
 class CoefficientVariable(Variable):
     def __init__(self, coeff_gen, l, g=None):
         self.coeff = coeff_gen(l, g)        
@@ -1072,6 +1156,62 @@ class GFScalarVariable(GridFunctionVariable):
             data.append(v)
         data = np.hstack(data)                
         return data
+        
+    def point_values(self, counts = None, locs = None, points=None,
+                           attrs = None, elem_ids = None,
+                           mesh = None, int_points = None, g = None,
+                           knowns = None):
+        
+        if not self.isDerived: self.set_funcs()        
+        gf =  self.gfr if self.gfr is not None else self.gfi
+        
+        name = gf.FESpace().FEColl().Name()
+        ndim = gf.FESpace().GetMesh().Dimension()
+        
+        if (name.startswith('RT') or 
+            name.startswith('ND')):
+            isVector = True
+        else:
+            isVector = False
+            
+        d = mfem.Vector()
+
+        if self.complex:
+            dtype = complex
+            val = complex(0.0)
+        else:
+            dtype = float
+            val = float(0.0)
+            
+        data = np.zeros(counts, dtype=dtype)
+
+        jj = 0
+        for i in range(len(attrs)):
+            if attrs[i] == -1: continue
+
+            ip = int_points[i]
+            iele = elem_ids[i]
+
+            val = val * 0.
+            
+            if self.gfr is not None:
+                if isVector:
+                    self.gfr.GetVectorValue(iele, ip, d)
+                    val = d[self.comp-1]
+                else:
+                    val = self.gfr.GetValue(iele, ip, self.comp-1)
+
+            if self.gfi is not None:            
+                if isVector:
+                    self.gfi.GetVectorValue(iele, ip, d)
+                    val += 1j*d[self.comp-1]
+                else:
+                    val += 1j*self.gfi.GetValue(iele, ip, self.comp-1)
+                    
+            data[jj] = val
+            jj = jj + 1
+
+        return data
             
 class GFVectorVariable(GridFunctionVariable):
     def __repr__(self):
@@ -1193,6 +1333,57 @@ class GFVectorVariable(GridFunctionVariable):
         ret = np.hstack(data).transpose()                        
         return ret 
     
+    def point_values(self, counts = None, locs = None, points=None,
+                           attrs = None, elem_ids = None,
+                           mesh = None, int_points = None, g = None,
+                           knowns = None):
+
+        if not self.isDerived: self.set_funcs()        
+        gf =  self.gfr if self.gfr is not None else self.gfi
+        
+        name = gf.FESpace().FEColl().Name()
+        ndim = gf.FESpace().GetMesh().Dimension()
+        
+        if (name.startswith('RT') or 
+            name.startswith('ND')):
+            isVector = True
+            vdim = gf.FESpace().GetMesh().SpaceDimension()
+        else:
+            isVector = False
+            vdim = gf.VectorDim()            
+
+        d = mfem.Vector()
+
+        if self.complex:
+            dtype = complex
+            
+        else:
+            dtype = float
+            
+        data = np.zeros((counts,vdim), dtype=dtype)
+
+        jj = 0
+        for i in range(len(attrs)):
+            if attrs[i] == -1: continue
+
+            ip = int_points[i]
+            iele = elem_ids[i]
+
+            val = 0.0
+            
+            if self.gfr is not None:
+                self.gfr.GetVectorValue(iele, ip, d)                
+                val = d.GetDataArray().copy()
+                
+            if self.gfi is not None:
+                self.gfi.GetVectorValue(iele, ip, d)
+                dd = 1j*d.GetDataArray().copy()
+                val = val + dd
+                    
+            data[jj,:] = val
+            jj = jj + 1
+
+        return data
 '''
 
 Surf Variable:

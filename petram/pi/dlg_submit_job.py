@@ -1,3 +1,4 @@
+import os
 import wx
 from ifigure.utils.edit_list import EditListPanel
 
@@ -6,12 +7,13 @@ ll = [["Num. of Nodes", 1, 400, {}],
       ["Num. of OpenMP threads", 4, 400, {}],
       ["Wall clock", "00:15:00", 0, {}],             
       ["Queue", "Debug", 0, {}],
+      ["Remote Dir.", "", 0, {}],      
       [None,   False,  3, {"text":"Skip sending mesh file"}],]
 #      [None,   False,  3, {"text":"Retrieve Data"}],]
 
-values = ['1', '1', '1', '00:10:00', 'debug', False,  False]
+values = ['1', '1', '1', '00:10:00', 'debug', '', False,  False]
 keys = ['num_nodes', 'num_cores', 'num_openmp', 'walltime',
-        'queue', 'skip_mesh', 'retrieve_files']
+        'queue', 'rwdir', 'skip_mesh', 'retrieve_files']
 
 def_queues = {'type':'SLURM',
              'queus':[{'name': 'debug',
@@ -29,7 +31,7 @@ class dlg_jobsubmission(wx.Dialog):
             queues = def_queues
 
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title,
-                    style=wx.STAY_ON_TOP|wx.DEFAULT_DIALOG_STYLE)
+                           style=wx.STAY_ON_TOP|wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
 
         vbox = wx.BoxSizer(wx.VERTICAL)
         hbox2 = wx.BoxSizer(wx.HORIZONTAL)
@@ -61,11 +63,17 @@ class dlg_jobsubmission(wx.Dialog):
             if not value[4] in q_names:
                 value[4] = q_names[0]
             self.elp.SetValue(value)
-        size= self.GetSize()
-        self.SetSizeHints(minH=-1, minW=size.GetWidth())
+
+
+        #self.SetSizeHints(minH=-1, minW=size.GetWidth())
+        self.SetSizeHints(minH=-1, minW=300)
         self.Show()
         self.Layout()
         self.Fit()
+        size= self.GetSize()
+        width = max(len(value[5])*12, 550)
+        width = min(width, 1200)
+        self.SetSize((width, size.GetHeight()))
         self.CenterOnScreen()
         #wx.CallAfter(self.Fit)
         self.value = self.elp.GetValue()
@@ -80,6 +88,11 @@ class dlg_jobsubmission(wx.Dialog):
  
 def get_job_submisson_setting(parent, servername = '', value = None,
                               queues = None):
+    
+    from petram.remote.client_script import base_remote_path
+    
+    value[5] = os.path.basename(value[5])
+    
     dlg = dlg_jobsubmission(parent, title='Submit to '+servername, value=value,
                             queues = queues)
     value = {}
@@ -91,7 +104,8 @@ def get_job_submisson_setting(parent, servername = '', value = None,
             value["walltime"] = str(dlg.value[3])
             value["queue"] = str(dlg.value[4])
             value["retrieve_files"] = False
-            value["skip_mesh"] = dlg.value[5]
+            value["rwdir"] = os.path.join(base_remote_path, dlg.value[5])
+            value["skip_mesh"] = dlg.value[6]
         else:
             pass
     finally:
