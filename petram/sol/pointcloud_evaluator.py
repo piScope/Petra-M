@@ -63,7 +63,7 @@ class PointcloudEvaluator(EvaluatorAgent):
         self.points = points.reshape(-1, points.shape[-1])
 
         mesh = self.mesh()[emesh_idx]        
-        counts, elem_ids, int_points = mesh.FindPoints(self.points)
+        counts, elem_ids, int_points = mesh.FindPoints(self.points, warn=False)
 
         attrs = [ mesh.GetAttribute(id) if id != -1 else -1 for id in elem_ids]
         attrs = np.array([ i if i in self.attrs else -1 for i in attrs])
