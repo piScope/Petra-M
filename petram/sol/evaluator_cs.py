@@ -328,8 +328,9 @@ class EvaluatorClient(Evaluator):
             self.p = None
             return 
          
-        #if self.p is not None:
-        #   self.p.terminate()
+        if self.p is not None:
+           if self.p.poll() is None:
+               self.p.terminate()
         return ret
         
     
