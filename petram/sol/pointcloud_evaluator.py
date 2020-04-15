@@ -143,7 +143,6 @@ class PointcloudEvaluator(EvaluatorAgent):
                if not g[n] in self.knowns:
                   self.knowns[g[n]] = g[n].point_values(counts = self.counts,
                                         locs = self.locs,
-
                                         attrs = self.masked_attrs,
                                         elem_ids = self.elem_ids,
                                         mesh = self.mesh()[self.emesh_idx],
@@ -180,9 +179,14 @@ class PointcloudEvaluator(EvaluatorAgent):
                 self.preprocess_geometry(self.attrs, emesh_idx=emesh_idx[0],
                                          pc_type = self.pc_type, 
                                          pc_param = self.pc_param)
+
+        if self.counts == 0:
+            return None, None, None
         
         val = self.eval_at_points(expr, solvars, phys)
-        if val is None: return None, None, None
+        
+        if val is None:
+            return None, None, None
 
         shape = self.ans_shape[:-1]
         attrs = self.masked_attrs.reshape(shape)

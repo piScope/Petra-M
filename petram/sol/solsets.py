@@ -141,7 +141,7 @@ def find_solfiles(path, idx = None):
 
         sol = {}
         for n in names:
-            print('solr_'+ n + s)
+            #print('solr_'+ n + s)
             solr = (os.path.join(path, 'solr_'+ n + s)
                   if ('solr_'+ n + s) in solrfile else None)
             soli = (os.path.join(path, 'soli_'+ n + s)
