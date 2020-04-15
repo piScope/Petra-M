@@ -1379,7 +1379,6 @@ class MFEMViewer(BookViewer):
                                             center = False,
                                             center_on_screen=True,
                                             choices = names)
-            print(ret, new_name)
             if not ret: return 
             if ret and new_name=="New...":
                 remote = {'name': '',
