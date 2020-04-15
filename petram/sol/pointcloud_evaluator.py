@@ -62,9 +62,32 @@ class PointcloudEvaluator(EvaluatorAgent):
         self.ans_points = points
         self.points = points.reshape(-1, points.shape[-1])
 
-        mesh = self.mesh()[emesh_idx]        
-        counts, elem_ids, int_points = mesh.FindPoints(self.points, warn=False)
+        mesh = self.mesh()[emesh_idx]
 
+        v = mfem.Vector()
+        mesh.GetVertices(v)
+        vv = v.GetDataArray()
+        vv = vv.reshape(3, -1)
+        max_mesh_ptx = np.max(vv, 1)
+        min_mesh_ptx = np.min(vv, 1)
+
+        max_ptx = np.max(self.points, 0)
+        min_ptx = np.min(self.points, 0)
+
+        out_of_range = False
+
+        for i in range(len(max_mesh_ptx)):
+           if max_mesh_ptx[i] < min_ptx[i]: out_of_range = True
+           if min_mesh_ptx[i] > max_ptx[i]: out_of_range = True
+
+        if out_of_range:
+            counts = 0
+            elem_ids = np.zeros(len(self.points), dtype=int)-1
+            int_points = [None]*len(self.points)
+            print("skipping mesh")
+        else:
+            counts, elem_ids, int_points = mesh.FindPoints(self.points, warn=False)
+            print("FindPoints found " + str(counts) + " points")
         attrs = [ mesh.GetAttribute(id) if id != -1 else -1 for id in elem_ids]
         attrs = np.array([ i if i in self.attrs else -1 for i in attrs])
 
