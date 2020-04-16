@@ -375,7 +375,6 @@ class Engine(object):
         else:
             self.run_mesh_serial()
 
-        self.assign_sel_index()
         self.run_preprocess()  # this must run when mesh is serial
 
         if use_parallel:
@@ -440,7 +439,8 @@ class Engine(object):
            self.preprocess_ns(ns_folder, data_folder)
 
         from petram.model import Domain, Bdry
-
+        
+        self.assign_sel_index()
         self.assign_phys_pp_sel_index()
         self.run_mesh_extension_prep()
         
@@ -449,7 +449,9 @@ class Engine(object):
             if not phys.enabled: continue            
             self.run_mesh_extension(phys)
             self.allocate_fespace(phys)
-            self.assign_sel_index(phys)
+
+            # this is called already from preprocess_modeldata
+            # 
             for node in phys.walk():
                 if not node.enabled: continue
                 node.preprocess_params(self)
@@ -867,12 +869,14 @@ class Engine(object):
             mm.update_param()
 
     def initialize_phys(self, phys):
-        is_complex = phys.is_complex()        
-        self.assign_sel_index(phys)
+        is_complex = phys.is_complex()
+        
+        # this is called from preprocess_modeldata
+        # self.assign_sel_index(phys)
         
         self.allocate_fespace(phys)
         true_v_sizes = self.get_true_v_sizes(phys)
-        
+
         flags = self.get_essential_bdr_flag(phys)
         self.get_essential_bdr_tofs(phys, flags)
 
@@ -1957,6 +1961,7 @@ class Engine(object):
                         k in self.model['Phys'].keys()]
         else:
             all_phys = [phys]
+
         for p in all_phys:
             if p.mesh_idx < 0: continue
             mesh = self.meshes[p.mesh_idx]
@@ -2040,6 +2045,7 @@ class Engine(object):
                 if node.has_essential:
                     index = index + node.get_essential_idx(k)
             ess_bdr = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
+            print("essential idx", index)
             for kk in index: ess_bdr[kk-1] = 1
             flag.append((name, ess_bdr))
         dprint1("esse flag", flag)
@@ -2052,6 +2058,7 @@ class Engine(object):
             fespace = self.fespaces[name]
             fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list)
             self.ess_tdofs[name] = ess_tdof_list.ToList()
+            #print(name, len(self.ess_tdofs[name]))
         return
 
     def allocate_fespace(self, phys):
