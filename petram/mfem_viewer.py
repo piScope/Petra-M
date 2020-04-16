@@ -1039,7 +1039,7 @@ class MFEMViewer(BookViewer):
             
         elif kind == 'edge':
             idx = self._dom_bdr_sel[2]
-            prefix = 'e'
+            prefix = 'l'
             
         elif kind == 'point':
             idx = self._dom_bdr_sel[3]
