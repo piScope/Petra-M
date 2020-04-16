@@ -2035,8 +2035,6 @@ class Engine(object):
 
                  
     def get_essential_bdr_flag(self, phys):
-        import traceback
-        traceback.print_stack()
         flag = []
         for k,  name in enumerate(phys.dep_vars):
             fes = self.fespaces[name]
