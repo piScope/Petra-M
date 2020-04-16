@@ -876,7 +876,7 @@ class Engine(object):
         
         self.allocate_fespace(phys)
         true_v_sizes = self.get_true_v_sizes(phys)
-        
+
         flags = self.get_essential_bdr_flag(phys)
         self.get_essential_bdr_tofs(phys, flags)
 
@@ -1961,8 +1961,7 @@ class Engine(object):
                         k in self.model['Phys'].keys()]
         else:
             all_phys = [phys]
-        import traceback
-        traceback.print_stack()
+
         for p in all_phys:
             if p.mesh_idx < 0: continue
             mesh = self.meshes[p.mesh_idx]
@@ -2061,7 +2060,7 @@ class Engine(object):
             fespace = self.fespaces[name]
             fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list)
             self.ess_tdofs[name] = ess_tdof_list.ToList()
-            print(name, len(self.ess_tdofs[name]))
+            #print(name, len(self.ess_tdofs[name]))
         return
 
     def allocate_fespace(self, phys):
