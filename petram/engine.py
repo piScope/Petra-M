@@ -2045,7 +2045,6 @@ class Engine(object):
                 if node.has_essential:
                     index = index + node.get_essential_idx(k)
             ess_bdr = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
-            print("essential idx", index)
             for kk in index: ess_bdr[kk-1] = 1
             flag.append((name, ess_bdr))
         dprint1("esse flag", flag)

@@ -102,13 +102,17 @@ def send_file(model, skip_mesh = False):
             host.PutFile(path, dpath)
 
 def retrieve_files(model, rhs=False, matrix = False, sol_dir = None):
+    model_dir = model.owndir()
+    param = model.param
+    if sol_dir is None:
+        sol_dir = model.owndir()
 
     def get_files(host, key):
         xx = host.Execute('ls ' + os.path.join(rwdir, key+'*')).stdout.readlines()
-        for x in xx:
-            if x.find(key) != -1:
-                x = x.strip()
-                host.GetFile(x, os.path.join(sol_dir,os.path.basename(x)))
+
+        files = [x.strip() for x in xx if x.find(key) != -1]
+        host.GetFiles(files, sol_dir)
+        
         xx = host.Execute('ls -d ' + os.path.join(rwdir, 'case*')).stdout.readlines()
         print(xx)
         for x in xx:
@@ -123,17 +127,11 @@ def retrieve_files(model, rhs=False, matrix = False, sol_dir = None):
                 os.mkdir(os.path.join(sol_dir, x0))
             yy = host.Execute('ls ' + os.path.join(rwdir, x0, key+'*')).stdout.readlines()
             print('!!!!!!!!!!', yy)
-            for y in yy:
-                if y.find(key) != -1:
-                    y = y.strip()
-                    host.GetFile(os.path.join(x.strip(), os.path.basename(y)), 
-                                os.path.join(sol_dir, x0, os.path.basename(y)))
+            files = [os.path.join(x.strip(), os.path.basename(y.strip())) for y in yy if y.find(key) != -1]
+            host.GetFiles(files, os.path.join(sol_dir, x0))
+            
     import os
 
-    model_dir = model.owndir()
-    param = model.param
-    if sol_dir is None:
-        sol_dir = model.owndir()
     host = param.eval('host')
     remote = param.eval('remote')
     rwdir = remote['rwdir']

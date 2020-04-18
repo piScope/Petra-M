@@ -150,7 +150,7 @@ class EvaluatorCommon(Evaluator):
         
         pp_root = self.mfem_model()["PostProcess"]        
         solvars = pp_root.add_solvars(solsets.set, solvars)
-        print("solvars", solvars)
+        print("solvars", solvars[0])
         #for k in solvars:
         #    print(k + ':' + solvars[k])
         
