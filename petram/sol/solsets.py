@@ -155,7 +155,7 @@ def find_solfiles(path, idx = None):
 
     ret = Solfiles(solfiles)
     ret.store_timestamps()
-    print(solfiles)
+
     return ret
 
 def read_solsets(path, idx = None, refine=0):
