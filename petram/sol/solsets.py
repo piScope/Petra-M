@@ -59,14 +59,16 @@ class Solsets(object):
         object.__init__(self)
         self.set = []
         import mfem.ser as mfem
+
+        fix_orientation=False
         
         for meshes, solf, in solfiles:
             idx = [fname2idx(x) for x in meshes]
-            meshes = {i:  mfem.Mesh(str(x), 1, refine) for i, x in zip(idx, meshes)}
+            meshes = {i:  mfem.Mesh(str(x), 1, refine, fix_orientation) for i, x in zip(idx, meshes)}
             meshes=MeshDict(meshes) # to make dict weakref-able
             ### what is this refine = 0 !?
             for i in idx:
-                meshes[i].ReorientTetMesh()
+                #meshes[i].ReorientTetMesh()
                 meshes[i]._emesh_idx = i
             s = {}
             for key in six.iterkeys(solf):

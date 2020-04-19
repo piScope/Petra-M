@@ -149,7 +149,7 @@ def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
     if soldir != '':
         command = 'cd ' + soldir + ';' + command
     print(command)
-    p = sp.Popen(['ssh', user + host, command], stdin = sp.PIPE,
+    p = sp.Popen(['ssh', '-t', user + host, command], stdin = sp.PIPE,
                  stdout=sp.PIPE, stderr=sp.STDOUT,
                  close_fds = ON_POSIX,
                  universal_newlines = True)
@@ -242,7 +242,10 @@ class EvaluatorClient(Evaluator):
         self.p.stdin.write(data.decode('utf-8') + '\n')
         self.p.stdin.flush()
         
-        protocol = 1 if force_protocol1 else self.p.evalsvr_protocol 
+        protocol = 1 if force_protocol1 else self.p.evalsvr_protocol
+
+        import threading
+        print("calling wait for prompt", threading.current_thread())
         output, alive = wait_for_prompt(self.p, prompt=prompt, 
                                         verbose = verbose,
                                         withsize = protocol > 1)

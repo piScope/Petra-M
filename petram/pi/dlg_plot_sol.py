@@ -1712,16 +1712,19 @@ class DlgPlotSol(SimpleFramePlus):
         midx = (pc_param[3][0] + pc_param[3][1])/2.0
         midy = (pc_param[4][0] + pc_param[4][1])/2.0            
         xmin, xmax, xsize = pc_param[3]
-        ymin, ymax, ysize = pc_param[4]    
-        x = np.linspace(xmin, xmax, int((xmax-xmin)/xsize))
-        y = np.linspace(ymin, ymax, int((ymax-ymin)/ysize))
+        ymin, ymax, ysize = pc_param[4]
+        dx = np.sum(np.array(pc_param[0])*np.array(pc_param[1]))
+        dy = np.sum(np.array(pc_param[0])*np.array(pc_param[2]))
+
+        x = np.linspace(xmin, xmax, int((xmax-xmin)/xsize)) + dx
+        y = np.linspace(ymin, ymax, int((ymax-ymin)/ysize)) + dy
             
         viewer.threed('on')
         if cls is None:
             data = np.ma.masked_array(data.real, mask = np.in1d(attrs_out, attrs, invert=True))
         else:
             data = np.ma.masked_array(data, mask = np.in1d(attrs_out, attrs, invert=True))            
-        viewer.image(x, y, data, im_axes=im_axes, im_center=np.array(pc_param[0]))
+        viewer.image(x, y, data, im_axes=im_axes, im_center=np.array([0,0,0]))
             
         viewer.view('noclip')
         viewer.view('equal')
