@@ -225,6 +225,8 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             self.model_real = s.model
         except:
             print(traceback.format_exc())
+            return self.myid, None, traceback.format_exc()
+            
         super(EvaluatorMPChild, self).set_model(s.model)
 
     def call_preprocesss_geometry(self, attr, **kwargs):
