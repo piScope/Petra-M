@@ -234,6 +234,9 @@ class PumiMesh(Mesh):
 	  elem_cnt += 1
 	pumi_mesh.end(it)
 
+	print(type(mesh))
+	print(id(mesh))
+
 	mesh.SetAttributes();
 
 	self.root()._par_pumi_mesh = mesh # hack to be able to access par_pumi_mesh later!

@@ -276,7 +276,7 @@ class StdMeshAdaptSolver(StdSolver):
 
 	## transferring the curl of E and using it in spr
 	ip_field = get_curl_ip_field(pumi_mesh, "curl_ip_field", pyCore.VECTOR, 1, x)
-        size_field = pyCore.getSPRSizeField(ip_field, 0.000005)
+        size_field = pyCore.getSPRSizeField(ip_field, 0.05)
 
         limit_refine_level(pumi_mesh, size_field, 5)
 
@@ -290,7 +290,7 @@ class StdMeshAdaptSolver(StdSolver):
 	adapt_input = pyCore.configure(pumi_mesh, size_field)
         adapt_input.shouldFixShape = True
         adapt_input.shouldCoarsen = False
-        adapt_input.maximumIterations = 5
+        adapt_input.maximumIterations = 2
         adapt_input.goodQuality = 0.008
 
         pyCore.adapt(adapt_input)
@@ -304,7 +304,11 @@ class StdMeshAdaptSolver(StdSolver):
 	## we can not get a correct ParPumiMesh from a ParMesh object
 	## the same way we do in C++
 	adapted_mesh = ParPumiMesh(pyCore.PCU_Get_Comm(), pumi_mesh)
+	print(type(adapted_mesh))
+	print(type(par_pumi_mesh))
+	print(id(par_pumi_mesh))
         par_pumi_mesh.UpdateMesh(adapted_mesh)
+        par_pumi_mesh.PrintVTK("after_update")
 
 
         return is_first
