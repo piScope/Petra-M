@@ -13,6 +13,9 @@ from mfem.par import intArray
 
 is_licenses_initialized = False
 
+import petram.debug
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('PumiMeshModel')
+
 class PumiMesh(Mesh):
     isMeshGenerator = True   
     isRefinement = False   
