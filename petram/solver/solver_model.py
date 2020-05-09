@@ -1,3 +1,4 @@
+import numpy as np
 from petram.model import Model
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
@@ -80,12 +81,14 @@ class SolveStep(SolverBase):
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.parametric import Parametric
-
+        from petram.solver.set_var import SetVar
+  
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [StdSolver, StdMeshAdaptSolver, TimeDomain, Parametric]
+            return [StdSolver, StdMeshAdaptSolver, TimeDomain, Parametric, SetVar]
         except:
-            return [StdSolver, TimeDomain, Parametric]
+            return [StdSolver, TimeDomain, Parametric, SetVar]
+
     
     def get_phys(self):
         #
@@ -129,6 +132,7 @@ class SolveStep(SolverBase):
     def get_active_solvers(self):
         return [x for x in self.iter_enabled()]
     
+    '''
     def get_num_matrix(self, phys_target):
         num = []
         for k in self.keys():
@@ -136,7 +140,34 @@ class SolveStep(SolverBase):
             if not mm.enabled: continue
             num.append(self.root()['Phys'].get_num_matrix(mm.get_matrix_weight,
                                            phys_target))
-        return max(num)
+        num_matrix = max(num)
+        dprint1("number of matrix", num_matrix)            
+        return num_matrix
+    '''
+    def get_num_matrix(self, phys_target):
+
+        num = []
+        num_matrix = 0
+        active_solves = [self[k] for k in self if self[k].enabled]        
+        ###    
+        for phys in phys_target:
+            for mm in phys.walk():
+                if not mm.enabled: continue
+
+                ww = [False]*10
+                for s in active_solves:
+                    w = s.get_matrix_weight(mm.timestep_config)
+                    for i, v in enumerate(w):
+                        ww[i] = (ww[i] or v)
+                ww = [bool(x) for x in ww]
+                
+                mm.set_matrix_weight(ww)
+                wt = np.array(ww)
+                tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
+                num_matrix = max(tmp, num_matrix)
+            
+        dprint1("number of matrix", num_matrix)            
+        return num_matrix
     
     def get_matrix_weight(self, timestep_config):
         raise NotImplementedError(
@@ -194,7 +225,7 @@ class SolveStep(SolverBase):
         engine.run_fill_X_block()
 
     def run(self, engine, is_first = True):
-        dprint1("Entering SolveStep :" + self.name())
+        dprint1("!!!!! Entering SolveStep :" + self.name() + " !!!!!")
         solvers = self.get_active_solvers()
 
         # initialize and assemble here
@@ -298,7 +329,7 @@ class Solver(SolverBase):
         return max(num)
     '''
 
-    def get_matrix_weight(self):
+    def get_matrix_weight(self, *args, **kwargs):
         raise NotImplementedError(
              "you must specify this method in subclass")
     
@@ -326,8 +357,8 @@ class SolverInstance(object):
         self.phys_real = True
         self.ls_type = ''
         
-        
-        self.set_linearsolver_model()
+        if not gui.init_only:
+             self.set_linearsolver_model()
         
     def get_phys(self):
         return self.gui.get_phys()

@@ -42,7 +42,7 @@ def run_parallel(path='', nproc = 1, debug=0, thread=True):
         
     print(path)
     import petram
-    from petram.helper.driver_path import parallel as driver
+    #from petram.helper.driver_path import parallel as driver
 
     #args = ['mpirun', '-n', str(nproc), driver, str(path),  str(debug)]
     args = ['mpirun', '-n', str(nproc), sys.executable, '-u',

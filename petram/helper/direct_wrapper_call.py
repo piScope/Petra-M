@@ -79,7 +79,7 @@ class Eval_E_para(DWC):
         idx = safe_flatstack([l2e[e] for e in edges])
         if len(idx) > 0:
             dofs = safe_flatstack([fes.GetEdgeDofs(i) for i in idx])
-            size = dofs.size/idx.size
+            size = dofs.size//idx.size
 
             w = []
             for i in idx:

@@ -108,8 +108,10 @@ def gather_soldirinfo_s(path):
     except:
         import traceback
         result = (False, traceback.format_exc())
+        
+    import petram.helper.pickle_wrapper as pickle    
+    import binascii
     
-    import cPickle, binascii
-    data = binascii.b2a_hex(cPickle.dumps(result))
+    data = binascii.b2a_hex(pickle.dumps(result))
     
     return data

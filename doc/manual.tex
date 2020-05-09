@@ -31,6 +31,25 @@ Need to discusss,,,,Mesh space, FESpace variable, Auxiliary variable
 
 \section{Namespace and Functional Coefficients}
 Using it for material property and selection index.
+\subsection{Namespace}
+
+\subsection{Function}
+\begin{minipage}[c]{0.95\textwidth}
+\begin{lstlisting}[caption={A user defined generic preconditioner},captionpos=b, frame=single, label={function1}]
+
+from petram.helper.variables import variable
+
+@variable.float()
+
+@variable.array(complex = False, shape=(3,3), \
+               dependency=['vhts1', 's'])
+def func(x, y, z, vhts1=None, s=None):
+
+     # compute your material
+     return np.array([1,0,0], [0,1,0], [0,0,1]])
+
+\end{lstlisting}
+ \end{minipage}
 
 \section{Auxiliary Variable and Operator}
 \subsection{Operator}

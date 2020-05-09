@@ -72,6 +72,7 @@ class NASReader(object):
                  'TRIA3':[],
                  'TETRA':[],
                  'HEXA':[],
+                 'QUAD4':[],
                  'QUAD8':[]} ### reading elements
         print("reading elements")
         ll = 0
@@ -88,6 +89,8 @@ class NASReader(object):
                 elems['HEXA'].append(self.parse_hexa_fixed(l))
             elif l.startswith('CQUAD8'):
                 elems['QUAD8'].append(self.parse_quad8_fixed(l))
+            elif l.startswith('CQUAD4'):
+                elems['QUAD4'].append(self.parse_quad4_fixed(l))
             else: 
                 print("Element not supported: " + l)
                 continue
@@ -151,6 +154,13 @@ class NASReader(object):
             QUAD8_ATTR = np.array([int(g[2]) for g in elems['QUAD8']])  #PSHELL ID
             new_elems['QUAD8'] = QUAD8-1
             new_elems['QUAD8_ATTR'] = QUAD8_ATTR
+            
+        if len(elems['QUAD4']) > 0:
+            QUAD4 = np.vstack([np.array((int(g[3]), int(g[4]), int(g[5]), int(g[6])))
+                           for g in elems['QUAD4']])
+            QUAD4_ATTR = np.array([int(g[2]) for g in elems['QUAD4']])  #PSHELL ID
+            new_elems['QUAD4'] = QUAD4-1
+            new_elems['QUAD4_ATTR'] = QUAD4_ATTR
 
         elems =  new_elems
 
@@ -239,6 +249,11 @@ class NASReader(object):
         d=8
 #        cards= [l[d*i:d*(i+1)].strip() for i in range(11)]
         cards = re.findall('.'*d, l)
+        return cards
+    def parse_quad4_fixed(self, l):
+        d=8
+#        cards= [l[d*i:d*(i+1)].strip() for i in range(11)]
+        cards = re.findall('.'*d, l)
         return cards        
     def parse_pshell_fixed(self, l):
         d=8
@@ -257,7 +272,8 @@ def write_nas2mfem(filename,  reader, exclude_bdr = None, offset=None):
                      'TRIA6': 2,
                      'TRIA3': 2,
                      'HEXA':  5,
-                     'QUAD8': 3,}                     
+                     'QUAD8': 3,
+                     'QUAD4': 3,}                             
         '''                     
         SEGMENT = 1
         TRIANGLE = 2
@@ -281,7 +297,7 @@ def write_nas2mfem(filename,  reader, exclude_bdr = None, offset=None):
         if 'TETRA' in elems:
             el_2d = ['TRIA6','TRIA3']
         else:
-            el_2d = ['QUAD8',]
+            el_2d = ['QUAD8','QUAD4']
 
         unique_grids = list(np.unique(np.hstack([elems[name].flatten() for name in el_3d+el_2d if name in elems])))
         print('unique_grid (done)')

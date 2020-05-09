@@ -139,10 +139,10 @@ def get_job_queue(model=None, host = None, user = None):
         user = hosto.getvar('user')
     p= sp.Popen("ssh " + user+'@' + host + " 'printf $PetraM'", shell=True,
     stdout=sp.PIPE)
-    PetraM = p.stdout.readlines()[0].strip()
+    PetraM = p.stdout.readlines()[0].decode('utf-8').strip()
     p= sp.Popen("ssh " + user+'@' + host + " 'cat $PetraM/etc/queue_config'", shell=True,
     stdout=sp.PIPE)
-    lines = p.stdout.readlines()
+    lines = [x.decode('utf-8') for x in p.stdout.readlines()]
     return interpret_job_queue_file(lines)
 
 def interpret_job_queue_file(lines):
@@ -167,7 +167,7 @@ def submit_job(model):
     user = host.getvar('user')
     p= sp.Popen("ssh " + user+'@' + hostname + " 'printf $PetraM'", shell=True,
     stdout=sp.PIPE)
-    PetraM = p.stdout.readlines()[0].strip()
+    PetraM = p.stdout.readlines()[0].decode('utf-8').strip()
 
     w = remote["walltime"]
     n = str(remote["num_cores"])

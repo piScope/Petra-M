@@ -50,7 +50,7 @@ class NS_mixin(object):
             if isinstance(p, NS_mixin):
                 if p.ns_name is not None: 
                     chain.append(p)
-                elif len(p.get_default_ns().keys()) != 0:
+                elif len(p.get_default_ns()) != 0:
                     chain.append(p)
             p = p.parent
             
@@ -109,7 +109,7 @@ class NS_mixin(object):
         if data is None:
             raise ValueError("dataset is not found")      
         d = data.getvar()
-        self.dataset = {k:d[k] for k in d.keys()} # copy dict
+        self.dataset = {k:d[k] for k in d} # copy dict
 
     def get_default_ns(self):
         '''
@@ -163,14 +163,14 @@ class NS_mixin(object):
             raise ValueError("namespace chain is not found")
         # step1 (fill ns using upstream + constant (no expression)        
         if chain[-1] is not self:
-            if len(l.keys()) == 0:
+            if len(l) == 0:
                 self._global_ns = chain[-1]._global_ns
                 #self._local_ns = chain[-1]._local_ns
             else:
                 self._global_ns = g
-                for k in l.keys():
+                for k in l:
                     g[k] = l[k]
-                for k in chain[-1].keys():
+                for k in chain[-1]._global_ns:
                     g[k] = chain[-1]._global_ns[k]
                 #self._local_ns = {}
         elif len(chain) > 1:
@@ -181,33 +181,33 @@ class NS_mixin(object):
                if not isinstance(p, NS_mixin): continue
                ll = p.get_default_ns()               
                if (p.ns_string == '' or p.ns_string is None and
-                   len(ll.keys()) == 0): continue
-               for k in ll.keys():
+                   len(ll) == 0): continue
+               for k in ll:
                    g[k] = ll[k]
                if p.ns_name is not None:
                    try:
                        if p.dataset is not None:
-                           for k in p.dataset.keys(): g[k] = p.dataset[k]
+                           for k in p.dataset: g[k] = p.dataset[k]
                        for k in p.attribute_mirror_ns():
                            g[k] = chain[-2]._global_ns[k]                   
                        ll = {}
                        if (p.ns_string != '' and p.ns_string is not None):
                            exec(p.ns_string, g, ll)
-                           for k in ll.keys(): g[k] = ll[k]
+                           for k in ll: g[k] = ll[k]
                            
                    except Exception as e:
                        import traceback
                        assert False, traceback.format_exc()
            if self.dataset is not None:
-               for k in self.dataset.keys(): g[k] = self.dataset[k]
+               for k in self.dataset: g[k] = self.dataset[k]
         else:
            self._global_ns = g
-           for k in l.keys():  g[k] = l[k]
+           for k in l:  g[k] = l[k]
            if self.dataset is not None:
-               for k in self.dataset.keys(): g[k] = self.dataset[k]
+               for k in self.dataset: g[k] = self.dataset[k]
         # step2 eval attribute using upstream + non-expression
         result, invalid =  self.eval_attribute_expr()
-        for k in result.keys():
+        for k in result:
             setattr(self, k, result[k])
 
         # step 3 copy attributes to ns 
@@ -216,7 +216,7 @@ class NS_mixin(object):
             if not a in invalid: g[a] = getattr(self, a)
 
         # step 4 run namespace scripts otherise exit
-        for k in l.keys():
+        for k in l:
             g[k] = l[k]  # copying default ns
 
         import mfem
@@ -237,14 +237,14 @@ class NS_mixin(object):
             import traceback
             assert False, traceback.format_exc()
 
-        for k in l.keys():
+        for k in l:
             g[k] = l[k]
         
         # step 5  re-eval attribute with self-namespace
         #         passing previous invalid as a list of variables
         #         to evaluate
         result, invalid =  self.eval_attribute_expr(invalid)
-        for k in result.keys():
+        for k in result:
             setattr(self, k, result[k])
 
         # if something is still not known,,, raise
