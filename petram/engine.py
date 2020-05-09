@@ -2061,8 +2061,8 @@ class Engine(object):
         sdim= mesh.SpaceDimension()
 
         if self.__class__.__name__ == "ParallelEngine":
-	  if self.pcounter == 0:
-	    isParMesh = False
+            if self.pcounter == 0:
+                isParMesh = False
 
         is_new = False
         key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
@@ -2757,7 +2757,7 @@ class ParallelEngine(Engine):
                                                    max(smesh.GetBdrAttributeArray())])
                              self.max_attr = np.max([self.max_attr,
                                                 max(smesh.GetAttributeArray())])
-			aux_mesh = mfem.ParMesh(MPI.COMM_WORLD, smesh)
+                        aux_mesh = mfem.ParMesh(MPI.COMM_WORLD, smesh)
                         self.meshes[idx] = aux_mesh
                         target = self.meshes[idx]
                     else:
@@ -2805,9 +2805,9 @@ class ParallelEngine(Engine):
         if mesh.__class__.__name__ == 'ParMesh' and self.pcounter > 0:
             self.pcounter += 1
             return  mfem.ParFiniteElementSpace(mesh, fec, vdim)
-	elif mesh.__class__.__name__ == 'ParPumiMesh' and self.pcounter > 0:
+        elif mesh.__class__.__name__ == 'ParPumiMesh' and self.pcounter > 0:
             self.pcounter += 1
-	    aux_mesh = mfem.ParMesh(MPI.COMM_WORLD, mesh)
+            aux_mesh = mfem.ParMesh(MPI.COMM_WORLD, mesh)
             return  mfem.ParFiniteElementSpace(aux_mesh, fec, vdim)
         else:
             self.pcounter += 1

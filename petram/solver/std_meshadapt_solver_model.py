@@ -259,58 +259,58 @@ class StdMeshAdaptSolver(StdSolver):
         dprint1(debug.format_memory_usage())
 
 
-	# pmesh2 = ParMesh2ParPumiMesh(engine.meshes[0])
-	# # pmesh2 = engine.meshes[0]
-	# print(pmesh2)
-	x = engine.r_x[0]
-
-	par_pumi_mesh = self.root()._par_pumi_mesh
-
-	pumi_mesh = self.root()._pumi_mesh
-	pyCore.writeASCIIVtkFiles('before_size_computation', pumi_mesh);
-
-	## projecting the field back to the pumi mesh and then using standard
-	## spr which used gradients of the field
-	# field_z = get_field_z_averaged(pumi_mesh, "field_z_averaged", pyCore.SCALAR, x)
-	# ip_field = pyCore.getGradIPField(field_z, "mfem_grad_ip", 2)
-
-	## transferring the curl of E and using it in spr
-	ip_field = get_curl_ip_field(pumi_mesh, "curl_ip_field", pyCore.VECTOR, 1, x)
+        # pmesh2 = ParMesh2ParPumiMesh(engine.meshes[0])
+        # # pmesh2 = engine.meshes[0]
+        # print(pmesh2)
+        x = engine.r_x[0]
+        
+        par_pumi_mesh = self.root()._par_pumi_mesh
+        
+        pumi_mesh = self.root()._pumi_mesh
+        pyCore.writeASCIIVtkFiles('before_size_computation', pumi_mesh);
+        
+        ## projecting the field back to the pumi mesh and then using standard
+        ## spr which used gradients of the field
+        # field_z = get_field_z_averaged(pumi_mesh, "field_z_averaged", pyCore.SCALAR, x)
+        # ip_field = pyCore.getGradIPField(field_z, "mfem_grad_ip", 2)
+        
+        ## transferring the curl of E and using it in spr
+        ip_field = get_curl_ip_field(pumi_mesh, "curl_ip_field", pyCore.VECTOR, 1, x)
         size_field = pyCore.getSPRSizeField(ip_field, 0.05)
-
+        
         limit_refine_level(pumi_mesh, size_field, 5)
-
-	pyCore.writeASCIIVtkFiles('before_adapt', pumi_mesh);
-
-
-	pumi_mesh.removeField(ip_field)
+        
+        pyCore.writeASCIIVtkFiles('before_adapt', pumi_mesh);
+        
+        
+        pumi_mesh.removeField(ip_field)
         pyCore.destroyField(ip_field)
-	pyCore.destroyNumbering(pumi_mesh.findNumbering("local_vert_numbering"))
-
-	adapt_input = pyCore.configure(pumi_mesh, size_field)
+        pyCore.destroyNumbering(pumi_mesh.findNumbering("local_vert_numbering"))
+        
+        adapt_input = pyCore.configure(pumi_mesh, size_field)
         adapt_input.shouldFixShape = True
         adapt_input.shouldCoarsen = False
         adapt_input.maximumIterations = 2
         adapt_input.goodQuality = 0.008
-
+        
         pyCore.adapt(adapt_input)
-
-
-	pyCore.writeASCIIVtkFiles('after_adapt', pumi_mesh);
-	pumi_mesh.writeNative("adapted_mesh.smb")
-
-	## TODO: Loop needs to be closed here
-	## some of the functions seem to not working mainly because
-	## we can not get a correct ParPumiMesh from a ParMesh object
-	## the same way we do in C++
-	adapted_mesh = ParPumiMesh(pyCore.PCU_Get_Comm(), pumi_mesh)
-	print(type(adapted_mesh))
-	print(type(par_pumi_mesh))
-	print(id(par_pumi_mesh))
+        
+        
+        pyCore.writeASCIIVtkFiles('after_adapt', pumi_mesh);
+        pumi_mesh.writeNative("adapted_mesh.smb")
+        
+        ## TODO: Loop needs to be closed here
+        ## some of the functions seem to not working mainly because
+        ## we can not get a correct ParPumiMesh from a ParMesh object
+        ## the same way we do in C++
+        adapted_mesh = ParPumiMesh(pyCore.PCU_Get_Comm(), pumi_mesh)
+        print(type(adapted_mesh))
+        print(type(par_pumi_mesh))
+        print(id(par_pumi_mesh))
         par_pumi_mesh.UpdateMesh(adapted_mesh)
         par_pumi_mesh.PrintVTK("after_update")
-
-
+        
+        
         return is_first
 
 class StandardMeshAdaptSolver(StandardSolver):
