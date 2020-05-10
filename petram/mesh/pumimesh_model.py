@@ -108,7 +108,10 @@ class PumiMesh(Mesh):
         return path
 
     def run(self, mesh = None):
-        model_path = self.get_real_path(self.model_path)
+        if self.model_path == ".null":
+            model_path = self.model_path
+        else:
+            model_path = self.get_real_path(self.model_path)
         mesh_path = self.get_real_path(self.mesh_path)       
 
         print("Model Path is " + model_path)
@@ -117,9 +120,10 @@ class PumiMesh(Mesh):
         if not os.path.exists(mesh_path):
             print("mesh file does not exists : " + mesh_path + " in " + os.getcwd())
             return None
-        if not os.path.exists(model_path):
-            print("model file does not exists : " + model_path + " in " + os.getcwd())
-            return None
+        if not model_path == ".null":
+            if not os.path.exists(model_path):
+                print("model file does not exists : " + model_path + " in " + os.getcwd())
+                return None
 
         ####
         # import pyCore
@@ -133,10 +137,15 @@ class PumiMesh(Mesh):
         pyCore.PCU_Comm_Peers()
         pyCore.PCU_Comm_Self()
 
-        pyCore.start_sim('simlog.txt')
+        # register simmetrix only if it is available in pyCore
+        if hasattr(pyCore, 'start_sim'):
+            pyCore.start_sim('simlog.txt')
+            pyCore.gmi_sim_start()
+            pyCore.gmi_register_sim()
+
+        # register other modelers
         pyCore.gmi_register_mesh()
-        pyCore.gmi_sim_start()
-        pyCore.gmi_register_sim()
+        pyCore.gmi_register_null()
         pumi_mesh_path = mesh_path[0:-5] + ".smb"
         pumi_mesh = pyCore.loadMdsMesh(model_path, pumi_mesh_path)
         
