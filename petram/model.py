@@ -856,6 +856,9 @@ class Model(RestorableOrderedDict):
         return None, None, None
     def is_viewmode_grouphead(self):
         return False
+
+    def update_figure_data(self):
+        pass
     
     def figure_data_name(self):
         return self.name()
