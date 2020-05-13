@@ -92,6 +92,8 @@ class VtableElement(object):
                 self.default = default
             elif type=='selectable':
                 self.default = default
+            elif type=='bool':
+                self.default = bool(default)
             else:
                 self.default = np.array(default, copy = False)
         else:

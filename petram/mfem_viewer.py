@@ -200,6 +200,8 @@ class MFEMViewer(BookViewer):
                 self.use_toolbar_palette('petram_'+mode, mode = '3D')
         if do_plot:
             if p is not None:
+                # update figure data
+                p.update_figure_data(self)
                 #print("calling do_plot", self._view_mode, p.figure_data_name())   
                 self.update_figure(self._view_mode, p.figure_data_name(),
                                    updateall=True)
