@@ -1,11 +1,4 @@
 import pyCore
-
-# pyCore.start_sim('simlog.txt')
-# pyCore.gmi_register_mesh()
-# pyCore.gmi_sim_start()
-# pyCore.gmi_register_sim()
-
-
 import os
 from petram.mesh.mesh_model import Mesh
 from mfem._par import pumi
@@ -22,6 +15,7 @@ class PumiMesh(Mesh):
     has_2nd_panel = False        
     def __init__(self, parent = None, **kwargs):
         self.path = kwargs.pop("path", "")
+        self.pumi_verbosity = kwargs.pop("pumi_verbosity", 1)
         self.generate_edges = kwargs.pop("generate_edges", 1)
         self.refine = kwargs.pop("refien", 1)
         self.fix_orientation = kwargs.pop("fix_orientation", True)        
@@ -37,6 +31,7 @@ class PumiMesh(Mesh):
         v = super(PumiMesh, self).attribute_set(v)
         v['mesh_path'] = ''
         v['model_path'] = ''        
+        v['pumi_verbosity'] = 1
         v['generate_edges'] = 1
         v['refine'] = True
         v['fix_orientation'] = True
@@ -47,18 +42,20 @@ class PumiMesh(Mesh):
         return [["Mesh Path",   self.mesh_path,  200, {}],
                 ["Model Path",  self.model_path,  200, {}],
                 ["", "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir."  ,2, None],
+                ["PUMI Message Verbosity Level",  self.pumi_verbosity == 1, 3, {"text":""}],
                 ["Generate edges",    self.generate_edges == 1,  3, {"text":""}],
                 ["Refine",    self.refine==1 ,  3, {"text":""}],
                 ["FixOrientation",    self.fix_orientation ,  3, {"text":""}]]
     def get_panel1_value(self):
-        return (self.mesh_path, self.model_path, None, self.generate_edges, self.refine, self.fix_orientation)
+        return (self.mesh_path, self.model_path, None, self.pumi_verbosity, self.generate_edges, self.refine, self.fix_orientation)
     
     def import_panel1_value(self, v):
         self.mesh_path = str(v[0])
-        self.model_path = str(v[1])        
-        self.generate_edges = 1 if v[3] else 0
-        self.refine = 1 if v[4] else 0
-        self.fix_orientation = v[5]
+        self.model_path = str(v[1])
+        self.pumi_verbosity = 1 if v[3] else 0
+        self.generate_edges = 1 if v[4] else 0
+        self.refine = 1 if v[5] else 0
+        self.fix_orientation = v[6]
         
     def use_relative_path(self):
         self._path_bk  = self.path
@@ -114,28 +111,24 @@ class PumiMesh(Mesh):
             model_path = self.get_real_path(self.model_path)
         mesh_path = self.get_real_path(self.mesh_path)       
 
-        print("Model Path is " + model_path)
-        print("Mesh Path is " + mesh_path)
-
         if not os.path.exists(mesh_path):
-            print("mesh file does not exists : " + mesh_path + " in " + os.getcwd())
+            dprint2("mesh file does not exists : " + mesh_path + " in " + os.getcwd())
             return None
         if not model_path == ".null":
             if not os.path.exists(model_path):
-                print("model file does not exists : " + model_path + " in " + os.getcwd())
+                dprint2("model file does not exists : " + model_path + " in " + os.getcwd())
                 return None
 
-        ####
-        # import pyCore
-        pyCore.lion_set_verbosity(1)
-
+        # set verbosity level for mesh adapt output messages
+        pyCore.lion_set_verbosity(self.pumi_verbosity)
 
         from mpi4py import MPI
+
+        # if PCU is not initialized, initialize it here. Note that this
+        # is needed since PetraM loads things more than once
         if not pyCore.PCU_Comm_Initialized():
             pyCore.PCU_Comm_Init()
 
-        pyCore.PCU_Comm_Peers()
-        pyCore.PCU_Comm_Self()
 
         # register simmetrix only if it is available in pyCore
         if hasattr(pyCore, 'start_sim'):
@@ -146,6 +139,10 @@ class PumiMesh(Mesh):
         # register other modelers
         pyCore.gmi_register_mesh()
         pyCore.gmi_register_null()
+        # meshes in pumi are numbered by the part id. E.g., a 4 part mesh will be like
+        # name0.smb, name1.smb, name2.smb, name3.smb. Only the 0 one needs to be provided
+        # in the GUI. But when we call loadMdsMesh the number has to be dropped. That is, the
+        # mesh name provided to loadMdsMesh should be name.smb
         pumi_mesh_path = mesh_path[0:-5] + ".smb"
         pumi_mesh = pyCore.loadMdsMesh(model_path, pumi_mesh_path)
         
@@ -155,66 +152,7 @@ class PumiMesh(Mesh):
             print("do license etc here ...once")
         
             globals()['is_licenses_initialized'] = True
-        
-        # we need to have a numbering to be able to track changes
-        # in the orientations of tets caused by calling ReorientTet
-        # on MFEM meshes
-        # The numbering must be consistent with how the MFEM mesh
-        # is created from the PUMI mesh
-        # 1) make a local numbering
-        # 2) convert it to global
-        pumi_field_shape = pyCore.getConstant(0)
-        aux_numbering = pyCore.createNumbering(pumi_mesh, "aux_vertex_numbering", pumi_field_shape, 1)
-
-        
-        it = pumi_mesh.begin(0)
-        all_count = 0
-        shared_count = 0
-        owned_count = 0
-        while True:
-          ent = pumi_mesh.iterate(it)
-          if not ent:
-            break
-          all_count = all_count + 1
-          if pumi_mesh.isOwned(ent):
-            pyCore.number(aux_numbering, ent, 0, 0, owned_count)
-            owned_count = owned_count + 1
-          if pumi_mesh.isShared(ent):
-            shared_count = shared_count + 1
-        pumi_mesh.end(it)
-        
-        global_numbering = pyCore.makeGlobal(aux_numbering, True)
-        pyCore.synchronize(global_numbering)
-        
-        this_ids = intArray(all_count)
-        it = pumi_mesh.begin(0)
-        all_count = 0
-        while True:
-          ent = pumi_mesh.iterate(it)
-          if not ent:
-            break
-          idd = pyCore.getNumber(global_numbering, ent, 0, 0)
-          this_ids[all_count] = idd
-          all_count = all_count + 1
-        pumi_mesh.end(it)
-        this_ids.Sort()
-        
-        pumi_coord_field = pumi_mesh.getCoordinateField()
-        pumi_field_shape = pyCore.getShape(pumi_coord_field)
-        local_numbering = pyCore.createNumbering(pumi_mesh, "local_vert_numbering", pumi_field_shape, 1)
-        
-        it = pumi_mesh.begin(0)
-        while True:
-          ent = pumi_mesh.iterate(it)
-          if not ent:
-            break
-          idd = pyCore.getNumber(global_numbering, ent, 0, 0)
-          ordered_idd = this_ids.FindSorted(idd)
-          pyCore.number(local_numbering, ent, 0, 0, ordered_idd)
-        pumi_mesh.end(it)
-        
-        pyCore.destroyGlobalNumbering(global_numbering)
-        
+       
         # convert pumi_mesh to mfem mesh
         mesh = pumi.ParPumiMesh(MPI.COMM_WORLD, pumi_mesh)
         
@@ -248,6 +186,9 @@ class PumiMesh(Mesh):
         print(id(mesh))
         
         mesh.SetAttributes();
+
+        # reorient mesh
+        mesh.ReorientTetMesh();
         
         self.root()._par_pumi_mesh = mesh # hack to be able to access par_pumi_mesh later!
         
