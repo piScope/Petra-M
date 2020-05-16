@@ -3,6 +3,7 @@ import os
 from petram.mesh.mesh_model import Mesh
 from mfem._par import pumi
 from mfem.par import intArray
+import mfem.par as mfem
 
 is_licenses_initialized = False
 
@@ -154,7 +155,7 @@ class PumiMesh(Mesh):
             globals()['is_licenses_initialized'] = True
        
         # convert pumi_mesh to mfem mesh
-        mesh = pumi.ParPumiMesh(MPI.COMM_WORLD, pumi_mesh)
+        mesh = mfem.ParMesh(MPI.COMM_WORLD, pumi_mesh)
         
         # reverse classifications based on model tags
         dim = pumi_mesh.getDimension()
@@ -186,9 +187,6 @@ class PumiMesh(Mesh):
         print(id(mesh))
         
         mesh.SetAttributes();
-
-        # reorient mesh
-        mesh.ReorientTetMesh();
         
         self.root()._par_pumi_mesh = mesh # hack to be able to access par_pumi_mesh later!
         
