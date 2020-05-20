@@ -857,8 +857,9 @@ class Model(RestorableOrderedDict):
     def is_viewmode_grouphead(self):
         return False
 
-    def update_figure_data(self):
-        pass
+    def update_figure_data(self, *args, **kwargs):
+        del args
+        del kwargs
     
     def figure_data_name(self):
         return self.name()

@@ -35,6 +35,7 @@ def expand_vertex_data(X, vertex_idx, element_id):
     for kk, idx in iter_unique_idx(element_id):
         iverts = vertex_idx[idx].flatten()
         iv, idx = np.unique(iverts, return_inverse = True)
+        
         verts.append(X[iv])
         iele.append(idx.reshape(-1, nel)+k)
         k = k + len(iv)
