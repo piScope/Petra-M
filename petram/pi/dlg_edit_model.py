@@ -40,7 +40,10 @@ class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
             if info != "":
                 txt = txt + "(" + info + ")"
         if hasattr(item, 'isGeom') and hasattr(item, '_newobjs'):
-            txt = txt + '('+','.join(item._newobjs) + ')'
+            if len(item._newobjs) < 10:
+               txt = txt + '('+','.join(item._newobjs) + ')'
+            else:
+               txt = txt + '(more than 10 items)'
         return txt
 
     def OnGetItemTextColour(self, indices):

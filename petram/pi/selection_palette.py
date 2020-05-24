@@ -295,6 +295,8 @@ class SelectionPalette(SimpleFramePlus):
     def OnRefreshTree(self, evt=None):
         v = self.GetParent()
 
+        if not v._view_mode in v._s_v_loop:
+            return 
         loops = v._s_v_loop[v._view_mode]
         #loops = v._figure_data[v._view_mode]        
         if (self.loops[0] is loops[0] and
