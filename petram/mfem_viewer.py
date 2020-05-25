@@ -232,6 +232,7 @@ class MFEMViewer(BookViewer):
                 return
             if view_mode == 'geom':
                 d = self._figure_data['geom']
+                self._hidden_volume = []
                 if name in d:
                     ret = d[name]
                     plot_geometry(self,  ret)
