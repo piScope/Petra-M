@@ -225,6 +225,12 @@ class MFEM_GeomRoot(Model):
             ret.append(GmshGeom)
         except ImportError:
             pass
+        try:
+            from petram.geom.occ_geom_model import OCCGeom
+            ret.append(OCCGeom)
+        except ImportError:
+            pass
+        
         #try:
         #    from petram.geom.gmsh_geom_model import BrepFile
         #    ret.append(BrepFile)            
