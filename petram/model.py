@@ -602,6 +602,10 @@ class Model(RestorableOrderedDict):
     def set_parent(self, parent):
         self._parent = parent
 
+    def on_created_in_tree(self):
+        # called when item is newly created in Tree from GUI
+        None
+
     def fullname(self):
         '''
         returns 'root.Phys.Boundary...'

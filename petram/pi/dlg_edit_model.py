@@ -43,7 +43,7 @@ class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
             if len(item._newobjs) < 10:
                txt = txt + '('+','.join(item._newobjs) + ')'
             else:
-               txt = txt + '(more than 10 items)'
+               txt = txt + '(total '+str(len(item._newobjs)) + ' items)'
         return txt
 
     def OnGetItemTextColour(self, indices):
@@ -225,6 +225,7 @@ class DlgEditModel(SimpleFramePlus):
                         return
 
                     child = parent[name]
+                    child.on_created_in_tree()
                     viewer = self.GetParent()
                     viewer.model.scripts.helpers.rebuild_ns()
                     engine = viewer.engine

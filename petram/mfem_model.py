@@ -220,22 +220,19 @@ class MFEM_GeomRoot(Model):
     has_2nd_panel = False
     def get_possible_child(self):
         ret = []
-        try:
-            from petram.geom.gmsh_geom_model import GmshGeom
-            ret.append(GmshGeom)
-        except ImportError:
-            pass
+        
         try:
             from petram.geom.occ_geom_model import OCCGeom
             ret.append(OCCGeom)
         except ImportError:
             pass
         
-        #try:
-        #    from petram.geom.gmsh_geom_model import BrepFile
-        #    ret.append(BrepFile)            
-        #except ImportError:
-        #    pass
+        try:
+            from petram.geom.gmsh_geom_model import GmshGeom
+            ret.append(GmshGeom)
+        except ImportError:
+            pass
+        
         return ret
         
 class MFEM_MeshRoot(Model):
