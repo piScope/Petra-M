@@ -160,6 +160,8 @@ class MFEMViewer(BookViewer):
             if data is not None:
                 self.set_figure_data(view_mode, name, data)
 
+        self.model.scripts.helpers.rebuild_ns()
+        
         if self.model.variables.getvar('mesh') is None:
             try:
                 self.load_mesh()
@@ -169,7 +171,7 @@ class MFEMViewer(BookViewer):
                                title='Error',
                                traceback=traceback.format_exc())
         self.plot_mfem_geom()        
-        self.model.scripts.helpers.rebuild_ns()
+
 
         self.Bind(ifigure.events.TD_EVT_ARTIST_DRAGSELECTION,
                   self.onTD_DragSelectionInFigure)

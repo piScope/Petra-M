@@ -394,11 +394,11 @@ class Engine(object):
         return solver
 
     def run_build_ns(self, dir = None):
-        from __main__ import __file__ as mainfile
         model = self.model
         model['General'].run()
         
         if dir is None:
+            from __main__ import __file__ as mainfile
             dir = os.path.dirname(os.path.realpath(mainfile))           
         for node in model.walk():
             if node.has_ns() and node.ns_name is not None:
