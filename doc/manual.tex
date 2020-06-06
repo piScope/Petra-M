@@ -402,7 +402,7 @@ In this geometry, the curl operator is expanded as follows,
  \begin{align}
  \nabla \times E = &(\frac{\partial E_{z}}{\partial y}- ik E_{\rm y} )\mathbf{e}_{\rm x} +
 ( -\frac{\partial E_{\rm z}}{\partial x} + ik E_{\rm x})\mathbf{e}_{\rm \phi}+
-( \frac{\partial E_{\rm x}}{\partial y} - \frac{\partial E_{\rm y}}{\partial x})\mathbf{e}_{\rm z} 
+( \frac{\partial E_{\rm y}}{\partial x} - \frac{\partial E_{\rm x}}{\partial y})\mathbf{e}_{\rm z} 
  \notag \\ 
  = &\nabla_{t} \times \mathbf{E}_{\rm t} + \mathbf{e}_{\rm z} \times (ik \mathbf{E}_{\rm t} - \nabla_{\rm t} E_{\rm z}) ),
  \end{align}
@@ -419,13 +419,15 @@ Correspondingly, the weakform can be written as follows for a scalar $\mu$, $\ep
  -& (\omega^2 \epsilon+ i \omega \sigma) (  \mathbf{F}_{\rm t}, \mathbf{E}_{\rm t} + (F_{\rm z}, E_{\rm z})) 
  \notag \\
  +& \langle \mathbf{F}_{\rm t},  \mathbf{Q}_{\rm t} \rangle + \langle F_{\rm z}, Q_{\rm z} \rangle 
- -r \gamma \langle \mathbf{F}_{\rm t}, \mathbf{E}_{\rm t} \rangle
- -r \gamma \langle F_{\rm z}, E_{\rm z} \rangle
+ - \gamma \langle \mathbf{F}_{\rm t}, \mathbf{E}_{\rm t} \rangle
+ - \gamma \langle F_{\rm z}, E_{\rm z} \rangle
  \notag \\
  =& i \omega ( \mathbf{F}_{\rm t}, \mathbf{J}_{\rm t} ) + i \omega ( F_{\rm z}, J_{\rm z} ), \label{em2d_weak}
  \end{align}
 
 Mass integrator for an anistropic $\epsilon$ and $\sigma$ can be written in a similar way as Eq.\,\ref{em2da_anisotropic}. 
+Curl-Curl integrator is also treated in the same way. But xy-xy component of $1/\mu$ is replaced by the adjoint matrix, also note
+that the off-diagonal block of magnetic permeability is not implemented, yet. 
 
  \begin{equation}
  \left[ {\begin{array}{*{20}c}
@@ -636,7 +638,12 @@ PetraM\_Base\_ext
 
 2018 08 24  The first public release version
 
-\subsection{Revision Histoery?}
+\subsection{Revision Histoery}
+
+2020. 06. 05: (In OCC) MergeFaces are introduced. This is because ShapeUpgrade does not allwasy connect surfaces. It appears when the normal is opposite, it does not consider two surfaces as a same domain. MergeFaces uses two boolean cut operation, and works only for the planner surfaces.
+2020. 06. 05: (In OCC) Changed remove not to put back wire/shell when recursive is off. Instead. it put back edge and faces.
+
+2017.
 
 
 \end{document}
