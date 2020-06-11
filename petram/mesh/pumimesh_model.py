@@ -180,7 +180,7 @@ class PumiMesh(Mesh):
           model_type = pumi_mesh.getModelType(pumi_mesh.toModel(e))
           if model_type == (dim):
             mesh.SetAttribute(elem_cnt, model_tag)
-          elem_cnt += 1
+            elem_cnt += 1
         pumi_mesh.end(it)
         
         print(type(mesh))
