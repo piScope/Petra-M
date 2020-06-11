@@ -13,14 +13,12 @@ from warnings import warn
 from petram.mfem_config import use_parallel
 if use_parallel:
    from petram.helper.mpi_recipes import *
-   import mfem.par as mfem   
+   import mfem.par as mfem
    from mfem._par import pumi
 else:
    import mfem.ser as mfem
 import mfem.common.chypre as chypre
 
-# from mfem._par.pumi import ParMesh2ParPumiMesh
-# from mfem._par.pumi import ParMesh2ParPumiMesh
 
 #these are only for debuging
 from mfem.common.parcsr_extra import ToScipyCoo
@@ -36,45 +34,6 @@ from petram.helper.matrix_file import write_coo_matrix, write_vector
 #import scipy.sparse
 #import warnings
 #warnings.filterwarnings('error', category=scipy.sparse.SparseEfficiencyWarning)
-
-def lineno():
-      """Returns the current line number in our program."""
-      return inspect.currentframe().f_back.f_lineno
-
-def func_name():
-      """Returns the current line number in our program."""
-      return inspect.currentframe().f_back.f_code.co_name
-
-def inspect_fes(fes, lno):
-  print(">>> BEGIN --- PYCORE DEBUG CALLED AT LINE ", lno)
-  if fes.__class__.__name__ == "ParFiniteElementSpace":
-    print(">   fes object is ", fes)
-    print(">   fes par mesh object is ", fes.GetParMesh())
-    print(">   fes par mesh hex id  ", hex(id(fes.GetParMesh())))
-    print(">   fes     mesh object is ", fes.GetMesh())
-    print(">   fes     mesh hex id  ", hex(id(fes.GetMesh())))
-  print(">>> END   --- PYCORE DEBUG")
-  print("")
-
-def inspect_fes_conform(fes, lno):
-  print(">>> BEGIN --- PYCORE DEBUG CALLED AT LINE ", lno)
-  if fes.__class__.__name__ == "ParFiniteElementSpace":
-    print(">   fes object is ", fes)
-    print(">   fes par mesh object is ", fes.GetParMesh())
-    print(">   fes     mesh object is ", fes.GetMesh())
-    print(">   fes par mesh conform ", fes.GetParMesh().Conforming())
-    print(">   fes     mesh object conform ", fes.GetMesh().Conforming())
-  print(">>> END   --- PYCORE DEBUG")
-  print("")
-
-
-def inspect_function_call(slf, fname, lno):
-  print(">>> BEGIN --- PYCORE DEBUG CALLED AT LINE ", lno)
-  print(">   in function ", fname, " of class ", slf.__class__.__name__)
-  print(">>> END   --- PYCORE DEBUG")
-  print("")
-
-
 
 def iter_phys(phys_targets, *args):
     for phys in phys_targets:
@@ -93,7 +52,7 @@ class Engine(object):
         if modelfile != '':
            import petram.helper.pickle_wrapper as pickle
            model = pickle.load(open(modelfile, 'rb'))
-           
+
         self.set_model(model)
         if not 'InitialValue' in model:
            idx = list(model).index('Phys')+1
@@ -103,16 +62,16 @@ class Engine(object):
            idx = list(model).index('InitialValue')+1
            from petram.mfem_model import MFEM_PostProcessRoot
            model.insert_item(idx, 'PostProcess', MFEM_PostProcessRoot())
-           
+
         from petram.mfem_model import has_geom
         if not 'Geom' in model and has_geom:
            try:
                from petram.geom.geom_model import MFEM_GeomRoot
            except:
-               from petram.mfem_model import MFEM_GeomRoot              
+               from petram.mfem_model import MFEM_GeomRoot
            model.insert_item(1, 'Geometry', MFEM_GeomRoot())
-           
-        
+
+
         self.is_assembled = False
         self.is_initialized = False
         #
@@ -123,13 +82,13 @@ class Engine(object):
         self.emesh_data = None
 
         ## number of matrices to be filled
-        ##  
+        ##
         ##  M0 * x_n = M1 * x_n-1 + M2 * x_n-2 + M3 * x_n-3... Mn x_0 + rhs_vector
-        self.fec = {}        
+        self.fec = {}
         self.fespaces = {}
         self.fecfes_storage = {}
         self.pp_extra = {}
-        
+
         self._num_matrix= 1
         self._access_idx= -1
         self._dep_vars = []
@@ -137,14 +96,14 @@ class Engine(object):
 
         self.alloc_flag = {}
         self.max_bdrattr = -1
-        self.max_attr = -1        
+        self.max_attr = -1
         self.sol_extra = None
         self.sol = None
 
         self._r_x_old = {}
         self._i_x_old = {}
-        
-        # assembled block [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]        
+
+        # assembled block [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
         self.assembled_blocks = [None]*7
 
         # place holder : key is base physics modules, such as EM3D1...
@@ -155,7 +114,7 @@ class Engine(object):
         self.case_base = 0
         self.counter = 0
         self._init_done = []
-        
+
     @property
     def n_matrix(self):
         return self._num_matrix
@@ -674,12 +633,11 @@ class Engine(object):
     def run_assemble_mat(self, phys_target, phys_range, update=False):
         #for phys in phys_target:
         #    self.gather_essential_tdof(phys)
-       
+      
         R = len(self.dep_vars)
         C = len(self.r_dep_vars)        
         self.mask_M = np.array([not update]*R*C*self.n_matrix,
                                 dtype=bool).reshape(-1, R, C)
-
         for phys in phys_target:       
             self.assemble_interp(phys)     ## global interpolation (periodic BC)
             self.assemble_projection(phys) ## global interpolation (mesh coupling)
@@ -729,7 +687,7 @@ class Engine(object):
                 r = self.dep_var_offset(testname)
                 c = self.r_dep_var_offset(trialname)
                 self.mask_M[j, r, c]=True
-            
+
         return np.any(self.mask_M) or len(updated_extra) > 0
 
     def run_assemble_b(self, phys_target = None, update=False):
@@ -809,7 +767,6 @@ class Engine(object):
            M, B = self.prepare_M_B_blocks()
            X = self.assembled_blocks[1]
            Ae = None
-        
         M, B, M_changed = self.fill_M_B_blocks(M, B, update=update)
 
         #B.save_to_file("B")
@@ -871,15 +828,21 @@ class Engine(object):
             if not mm.enabled: continue
             mm.update_param()
 
-    def initialize_phys(self, phys):
+    def initialize_phys(self, phys, update=False):
         is_complex = phys.is_complex()        
         # inspect_function_call(self, func_name(), lineno())
         self.assign_sel_index(phys)
         # inspect_function_call(self, func_name(), lineno())
-        self.allocate_fespace(phys)
+        if not update:
+            self.allocate_fespace(phys)
+        else:
+            old_true_v_sizes = self.get_true_v_sizes(phys)
+            for key in self.fecfes_storage:
+                fec, fes = self.fecfes_storage[key]
+                fes.Update()
         # inspect_function_call(self, func_name(), lineno())
         true_v_sizes = self.get_true_v_sizes(phys)
-        
+
         flags = self.get_essential_bdr_flag(phys)
         self.get_essential_bdr_tofs(phys, flags)
 
@@ -892,7 +855,7 @@ class Engine(object):
                 void = self.r_x[r_ifes]
                 if is_complex:
                    void = self.i_x[r_ifes]
-                   
+
     #
     #  Step 1  set essential and initial values to the solution vector.
     #
@@ -1515,7 +1478,6 @@ class Engine(object):
               Aee, A[idx1, idx2] = A[idx1, idx2].eliminate_RowsCols(ess_tdof,
                                                                   inplace=inplace)
               Ae[idx1, idx2] = Aee
-              
               '''
               note: minor differece between serial/parallel
  
@@ -1554,9 +1516,6 @@ class Engine(object):
             RHS = RHS - AeX
             
         except:
-            print("RHS", RHS)
-            print("Ae", Ae)
-            print("X", X)
             raise
          
         for name in self.gl_ess_tdofs:
@@ -2924,7 +2883,7 @@ class ParallelEngine(Engine):
         M[offset, offset] = A1
         all_extras = [(key, self.extras[phys][key])  for phys in self.extras
                        for key in self.extras[phys]]
-                      
+
         for key, v in all_extras:
             dep_var, extra_name = key
             idx0 = self.dep_var_offset(dep_var)
@@ -2943,16 +2902,16 @@ class ParallelEngine(Engine):
                 if P is not  None:
                     if t1 is not None: t1 = P.conj().dot(t1); P.conj()
                     if t2 is not None: t2 = P.dot(t2)
-                # this should be taken care in finalization                      
+                # this should be taken care in finalization
                 #for x in ess_tdof_list:
                 #    t1.set_element(x, 0.0)
                 #from petram.helper.chypre_to_pymatrix import Vec2MatH, Vec2MatV
                 #t1 = Vec2MatV(t1, is_complex)
-                #t2 = Vec2MatH(t2, is_complex)                
+                #t2 = Vec2MatH(t2, is_complex)
             else:
                 pass
             #nicePrint('t2', t2[0].GetRowPartArray(), t2[0].GetColPartArray())
-            
+
             if t1 is not None: M[idx0,   idx1] = t1
             if t2 is not None: M[idx1,   idx0] = t2.transpose()
             if t3 is not None: M[idx1,   idx1] = t3
@@ -3016,7 +2975,7 @@ class ParallelEngine(Engine):
     def split_sol_array_fespace(self, sol, P):
         sol0 = sol[0, 0]
         if P is not None:
-           sol0 = (P.transpose()).dot(sol0)
+            sol0 = (P.transpose()).dot(sol0)
         return sol0
 
     def collect_all_ess_tdof(self, M = None):
@@ -3025,28 +2984,28 @@ class ParallelEngine(Engine):
         #gl_ess_tdofs = []
         #for name in phys.dep_vars:
         #    fes = self.fespaces[name]
-            
+
         for name in self.ess_tdofs:
             tdof = self.ess_tdofs[name]
             fes =  self.fespaces[name]
             data = (np.array(tdof) +
                     fes.GetMyTDofOffset()).astype(np.int32)
-   
+
             gl_ess_tdof = allgather_vector(data, MPI.INT)
             MPI.COMM_WORLD.Barrier()
             #gl_ess_tdofs.append((name, gl_ess_tdof))
             ## TO-DO intArray must accept np.int32
             tmp = [int(x) for x in gl_ess_tdof]
             self.gl_ess_tdofs[name] = tmp
-     
+
     def mkdir(self, path):
-        myid     = MPI.COMM_WORLD.rank                
+        myid     = MPI.COMM_WORLD.rank
         if myid == 0:
-           if not os.path.exists(path): os.mkdir(path)           
+            if not os.path.exists(path): os.mkdir(path)           
         else:
-           pass
+            pass
         MPI.COMM_WORLD.Barrier()
-        
+
     def symlink(self, target, link):
         myid     = MPI.COMM_WORLD.rank
         if myid == 0:
@@ -3055,11 +3014,11 @@ class ParallelEngine(Engine):
         else:
             pass
         #MPI.COMM_WORLD.Barrier()
-        
+
     def open_file(self, *args, **kwargs):
         myid     = MPI.COMM_WORLD.rank                
         if myid == 0:
-           return open(*args, **kwargs)
+            return open(*args, **kwargs)
         return
 
     def cleancwd(self):
@@ -3081,7 +3040,7 @@ class ParallelEngine(Engine):
 
 
     def a2A(self, a):   # BilinearSystem to matrix
-        # we dont eliminate essentiaal at this level...                 
+        # we dont eliminate essentiaal at this level...
         inta = mfem.intArray()
         m = self.new_matrix()
         a.FormSystemMatrix(inta, m)
@@ -3093,7 +3052,7 @@ class ParallelEngine(Engine):
             a._finalized = True               
 
         return a.ParallelAssemble()
-    
+
     def b2B(self, b):
         fes = b.ParFESpace()
         B = mfem.HypreParVector(fes)
@@ -3102,7 +3061,7 @@ class ParallelEngine(Engine):
         P.MultTranspose(b, B)
 
         return B
-     
+
     def x2X(self, x):
         fes = x.ParFESpace()
         X = mfem.HypreParVector(fes)        
@@ -3110,14 +3069,9 @@ class ParallelEngine(Engine):
         X.SetSize(fes.TrueVSize())
         R.Mult(x, X)            
         return X
-     
+
     def X2x(self, X, x): # RecoverFEMSolution
         fes = x.ParFESpace()
         P = fes.GetProlongationMatrix()
         x.SetSize(P.Height())
         P.Mult(X, x)
-
-     
-        
-        
-  
