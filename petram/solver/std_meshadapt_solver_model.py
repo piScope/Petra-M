@@ -126,7 +126,6 @@ def get_field_z_averaged(pumi_mesh, field_name, field_type, grid):
   # pyCore.destroyField(sol_field)
   return field_z
 
-
 def get_curl_ip_field(pumi_mesh, field_name, field_type, field_order, grid):
   # get the mfem mesh and fespace
   fes = grid.ParFESpace()
@@ -242,6 +241,14 @@ class StdMeshAdaptSolver(StdSolver):
         # We dont use probe..(no need...)
         #instance.configure_probes(self.probe)
 
+        # get the fespaces order
+        # TODO: there must be a better way to do this
+        assert len(engine.model['Phys'].keys())==1, "only can handle 1 physics model"
+        order = 0
+        for k in engine.model['Phys'].keys():
+            order = engine.model['Phys'][k].order
+
+        # first solve outside of the loop
         if self.init_only:
             engine.sol = engine.assembled_blocks[1][0]
             instance.sol = engine.sol
@@ -251,68 +258,154 @@ class StdMeshAdaptSolver(StdSolver):
                 is_first=False
             instance.solve()
 
-        instance.save_solution(ksol = 0,
-                               skip_mesh = False, 
-                               mesh_only = False,
-                               save_parmesh=self.save_parmesh)
-        engine.sol = instance.sol        
-        dprint1(debug.format_memory_usage())
+        adapt_loop_no = 0;
+        while adapt_loop_no < 3:
+            instance.save_solution(ksol = 0,
+                                skip_mesh = False, 
+                                mesh_only = False,
+                                save_parmesh=self.save_parmesh)
+            engine.sol = instance.sol        
+            dprint1(debug.format_memory_usage())
 
 
-        # pmesh2 = ParMesh2ParPumiMesh(engine.meshes[0])
-        # # pmesh2 = engine.meshes[0]
-        # print(pmesh2)
-        x = engine.r_x[0]
-        
-        par_pumi_mesh = self.root()._par_pumi_mesh
-        
-        pumi_mesh = self.root()._pumi_mesh
-        pyCore.writeASCIIVtkFiles('before_size_computation', pumi_mesh);
-        
-        ## projecting the field back to the pumi mesh and then using standard
-        ## spr which used gradients of the field
-        # field_z = get_field_z_averaged(pumi_mesh, "field_z_averaged", pyCore.SCALAR, x)
-        # ip_field = pyCore.getGradIPField(field_z, "mfem_grad_ip", 2)
-        
-        ## transferring the curl of E and using it in spr
-        ip_field = get_curl_ip_field(pumi_mesh, "curl_ip_field", pyCore.VECTOR, 1, x)
-        size_field = pyCore.getSPRSizeField(ip_field, 0.05)
-        
-        limit_refine_level(pumi_mesh, size_field, 5)
-        
-        pyCore.writeASCIIVtkFiles('before_adapt', pumi_mesh);
-        
-        
-        pumi_mesh.removeField(ip_field)
-        pyCore.destroyField(ip_field)
-        pyCore.destroyNumbering(pumi_mesh.findNumbering("local_vert_numbering"))
-        
-        adapt_input = pyCore.configure(pumi_mesh, size_field)
-        adapt_input.shouldFixShape = True
-        adapt_input.shouldCoarsen = False
-        adapt_input.maximumIterations = 2
-        adapt_input.goodQuality = 0.008
-        
-        pyCore.adapt(adapt_input)
-        
-        
-        pyCore.writeASCIIVtkFiles('after_adapt', pumi_mesh);
-        pumi_mesh.writeNative("adapted_mesh.smb")
-        
-        ## TODO: Loop needs to be closed here
-        ## some of the functions seem to not working mainly because
-        ## we can not get a correct ParPumiMesh from a ParMesh object
-        ## the same way we do in C++
-        adapted_mesh = ParPumiMesh(pyCore.PCU_Get_Comm(), pumi_mesh)
-        print(type(adapted_mesh))
-        print(type(par_pumi_mesh))
-        print(id(par_pumi_mesh))
-        par_pumi_mesh.UpdateMesh(adapted_mesh)
-        par_pumi_mesh.PrintVTK("after_update")
-        
-        
+            x = engine.r_x[0]
+            # par_pumi_mesh = self.root()._par_pumi_mesh
+
+            par_pumi_mesh = ParMesh2ParPumiMesh(engine.meshes[0])
+            # par_pumi_emesh = ParMesh2ParPumiMesh(engine.emeshes[0])
+            pumi_mesh = self.root()._pumi_mesh
+
+            # transfer the e field to a nedelec field in pumi
+            pumi_nedelec_field = pyCore.createField(pumi_mesh,
+                                                    "e_field",
+                                                    pyCore.SCALAR,
+                                                    pyCore.getNedelec(order))
+
+            pumi_projected_nedelec_field = pyCore.createField(pumi_mesh,
+                                                            "projected_e_field",
+                                                            pyCore.VECTOR,
+                                                            pyCore.getLagrange(1))
+
+            par_pumi_mesh.NedelecFieldMFEMtoPUMI(pumi_mesh, x, pumi_nedelec_field)
+            # pyCore.writeNedelecVtkFiles("disc_e_field_vis", pumi_mesh)
+            pyCore.projectNedelecField(pumi_projected_nedelec_field, pumi_nedelec_field)
+            pyCore.writeASCIIVtkFiles('e_and_projected_e', pumi_mesh)
+            pumi_mesh.writeNative("e_and_projected_e.smb")
+            pumi_mesh.removeField(pumi_nedelec_field)
+            pyCore.destroyField(pumi_nedelec_field)
+            pyCore.writeASCIIVtkFiles('cont_e_field_vis', pumi_mesh)
+
+
+            ip_field = pyCore.getGradIPField(pumi_projected_nedelec_field, "mfem_grad_ip", 2)
+
+            ## transferring the curl of E and using it in spr
+            # ip_field = get_curl_ip_field(pumi_mesh, "curl_ip_field", pyCore.VECTOR, 1, x)
+            size_field = pyCore.getTargetSPRSizeField(ip_field, 50000, 0.1, 1.)
+
+            limit_refine_level(pumi_mesh, size_field, 5)
+            before_prefix = "before_adapt_"+str(adapt_loop_no);
+            pyCore.writeASCIIVtkFiles(before_prefix, pumi_mesh);
+
+
+            pumi_mesh.removeField(ip_field)
+            pyCore.destroyField(ip_field)
+            # pyCore.destroyNumbering(pumi_mesh.findNumbering("local_vert_numbering"))
+
+            adapt_input = pyCore.configure(pumi_mesh, size_field)
+            adapt_input.shouldFixShape = True
+            adapt_input.shouldCoarsen = True
+            adapt_input.maximumIterations = 6
+            adapt_input.goodQuality = 0.027
+
+            pyCore.adaptVerbose(adapt_input)
+
+
+            after_prefix = "after_adapt_"+str(adapt_loop_no);
+            pyCore.writeASCIIVtkFiles(after_prefix, pumi_mesh);
+            # pumi_mesh.writeNative("adapted_mesh.smb")
+            # clean up rest of the fields
+            pumi_mesh.removeField(pumi_projected_nedelec_field)
+            pyCore.destroyField(pumi_projected_nedelec_field)
+            pumi_mesh.removeField(size_field)
+            pyCore.destroyField(size_field)
+
+            adapted_mesh = mfem.ParMesh(pyCore.PCU_Get_Comm(), pumi_mesh)
+            # add the boundary attributes 
+            dim = pumi_mesh.getDimension()
+            it = pumi_mesh.begin(dim-1)
+            bdr_cnt = 0
+            while True:
+                e = pumi_mesh.iterate(it)
+                if not e: break
+                model_tag  = pumi_mesh.getModelTag(pumi_mesh.toModel(e))
+                model_type = pumi_mesh.getModelType(pumi_mesh.toModel(e))
+                if model_type == (dim-1):
+                    adapted_mesh.GetBdrElement(bdr_cnt).SetAttribute(model_tag)
+                    bdr_cnt += 1
+            pumi_mesh.end(it)
+            it = pumi_mesh.begin(dim)
+            elem_cnt = 0
+            while True:
+                e = pumi_mesh.iterate(it)
+                if not e: break
+                model_tag  = pumi_mesh.getModelTag(pumi_mesh.toModel(e))
+                model_type = pumi_mesh.getModelType(pumi_mesh.toModel(e))
+                if model_type == dim:
+                    adapted_mesh.SetAttribute(elem_cnt, model_tag)
+                elem_cnt += 1
+            pumi_mesh.end(it)
+            adapted_mesh.SetAttributes()
+
+            par_pumi_mesh.UpdateMesh(adapted_mesh)
+
+            engine.emeshes[0] = engine.meshes[0]
+            mfem_prefix_1 = "after_update_using_par_pmesh_"+str(adapt_loop_no)+".vtk"
+            mfem_prefix_2 = "after_update_using_meshes0_"+str(adapt_loop_no)+".vtk"
+            par_pumi_mesh.PrintVTK(mfem_prefix_1)
+            engine.meshes[0].PrintVTK(mfem_prefix_2)
+            engine.meshes[0].Print("test_mesh_after_update.mesh")
+            engine.emeshes[0].PrintVTK("emesh.vtk")
+            engine.emeshes[0].Print("emesh.mesh")
+
+            # reorient the new mesh
+            engine.meshes[0].ReorientTetMesh()
+
+            # the rest of the updates happen here
+            instance.ma_update_form_sol_variables(engine)
+            instance.ma_init(engine)
+            instance.set_blk_mask()
+            instance.ma_update_assemble()
+            instance.solve()
+            adapt_loop_no = adapt_loop_no + 1
         return is_first
 
 class StandardMeshAdaptSolver(StandardSolver):
-    pass
+    def ma_update_assemble(self, inplace=True):
+        engine = self.engine
+        phys_target = self.get_phys()
+        phys_range = self.get_phys_range()
 
+        engine.run_verify_setting(phys_target, self.gui)
+        engine.run_assemble_mat(phys_target, phys_range, update=False)
+        engine.run_assemble_b(phys_target, update=False)
+        self.engine.run_assemble_blocks(self.compute_A,self.compute_rhs,inplace=True,update=False)
+        self.assembled = True
+    def ma_update_form_sol_variables(self, engine):
+        phys_target = self.get_phys()
+        phys_range = self.get_phys_range()
+        num_matrix = engine.n_matrix
+        engine.set_formblocks(phys_target, phys_range, num_matrix)
+        # mesh should be already updated
+        # not all of run_alloc_sol needs to be called here
+        # so call the ones that are necessary
+        for phys in phys_range:
+            engine.initialize_phys(phys, update=True)
+        for j in range(engine.n_matrix):
+            engine.accept_idx = j
+            engine.r_x.set_no_allocator()
+            engine.i_x.set_no_allocator()
+    def ma_init(self, engine):
+        phys_target = self.get_phys()
+        phys_range = self.get_phys_range()
+        engine.run_apply_essential(phys_target, phys_range, update=False)
+        engine.run_fill_X_block(update=False)
