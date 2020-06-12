@@ -28,10 +28,20 @@ class NASReader(object):
     def load(self):
         # check format length
         num_lines = sum(1 for line in open(self.filename))
-        num_lines_base = num_lines/100
+        num_lines_base = num_lines/20
+        print("number of lines in file: ", num_lines)
         fid = open(self.filename, 'r')
+
+        print("checking format...")
+        counter = 0
+        counter2 = 0        
         while True:
             l = fid.readline()
+            if l == '':
+                print("cannot determine file format whether it is small or large format")
+                print("processing the file assuming it is a small format file")
+                globals()['fwidth'] = 8
+                break
             if l.startswith('+CONT'):
                 globals()['fwidth'] = 8
                 print('short format ' + str(num_lines) + ' lines')
@@ -39,8 +49,14 @@ class NASReader(object):
             elif l.startswith('*CONT'):
                 globals()['fwidth'] = 16
                 print('long format ' + str(num_lines) + ' lines')
-                break                
+                break
+            counter = counter + 1
+            if int(counter % (num_lines/5)) == 0:
+                print("read ", (counter2*20) ,"% done")
+                counter2 = counter2 + 1
         fid.close()
+        
+        print("...done")
         
         fid = open(self.filename, 'r')
         while True:
@@ -95,8 +111,8 @@ class NASReader(object):
                 print("Element not supported: " + l)
                 continue
             ll += 1
-            if ll % num_lines_base == 0:
-               print(str(ll/num_lines_base) + "% done.(" + str(ll) + ")")
+            if int(ll % num_lines_base) == 0:
+               print(str(int(ll/num_lines_base)*5) + "% done.(" + str(ll) + ")")
         print("reading elements   (done)")
         new_elems = {}
         if len(elems['TETRA']) > 0:

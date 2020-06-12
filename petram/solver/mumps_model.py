@@ -411,7 +411,7 @@ class MUMPSSolver(LinearSolver):
         info1 = s.get_info(1)
 
         if info1 != 0:
-            assert False, "MUMPS call (job1) faield. Check error log"
+            assert False, "MUMPS call (job1) failed. Check error log"
 
         MPI.COMM_WORLD.Barrier()
         dprint1("job2")
@@ -420,7 +420,7 @@ class MUMPSSolver(LinearSolver):
         s.run()
         info1 = s.get_info(1)
         if info1 != 0:
-            assert False, "MUMPS call (job2) faield. Check error log"
+            assert False, "MUMPS call (job2) failed. Check error log"
     
 
     def Mult(self, b, x=None, case_base=0):
@@ -457,7 +457,7 @@ class MUMPSSolver(LinearSolver):
 
         info1 = s.get_info(1)
         if info1 != 0:
-            assert False, "MUMPS call (job3) faield. Check error log"
+            assert False, "MUMPS call (job3) failed. Check error log"
             
         self.set_error_analysis(s)        
         s.set_job(3)
