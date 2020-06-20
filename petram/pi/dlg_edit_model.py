@@ -249,7 +249,7 @@ class DlgEditModel(SimpleFramePlus):
                         menus = menus+[('Add '+txt, add_func, None), ]
                 else:
                     menus = menus+[('Add '+txt, add_func, None), ]
-            for t, m, m2 in mm.get_special_menu():
+            for t, m, m2 in mm.get_special_menu(e):
                 menus = menus+[(t, m, m2), ]
             menus = menus + [('---', None, None)]
             if mm.has_ns() and not mm.hide_ns_menu:

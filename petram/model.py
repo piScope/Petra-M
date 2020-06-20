@@ -356,7 +356,7 @@ class Model(RestorableOrderedDict):
     def get_possible_child_menu(self):
         return [('', cls) for cls in self.get_possible_child()]
     
-    def get_special_menu(self):
+    def get_special_menu(self, evt):
         return []
 
     def add_item(self, txt, cls,  **kwargs):

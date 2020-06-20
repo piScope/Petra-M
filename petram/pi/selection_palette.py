@@ -256,7 +256,6 @@ class SelectionPalette(SimpleFramePlus):
         evt.Skip()
 
     def OnItemRightClick0(self, e):
-        print("I am here")
         menus = [('Refresh', self.OnRefreshTree, None)]           
         m  = wx.Menu()
         BuildPopUpMenu(m, menus, eventobj=self)

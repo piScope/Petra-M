@@ -77,7 +77,7 @@ class MFEMMesh(Model):
     def figure_data_name(self):
         return 'mfem'
 
-    def get_special_menu(self):
+    def get_special_menu(self, evt):
         return [["Reload Mesh", self.reload_mfem_mesh, None,],]
      
     def reload_mfem_mesh(self, evt):

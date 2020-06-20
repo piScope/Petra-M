@@ -56,7 +56,6 @@ def MFEM_menus(parent):
              ("Rebuild", self.onRebuildNS, None),
              ("!", None, None),
              ("Edit Model...", self.onEditModel, None),
-             ("Selection Panel...", self.onSelectionPanel, None),
              ("+Solve", None, None),
              ("Serial",    self.onSerDriver, None),
              ("Parallel",  self.onParDriver, None),
@@ -126,6 +125,7 @@ class MFEMViewer(BookViewer):
         self.model = self.book.get_parent()
         self.editdlg = None
         self.selection_palette = None
+        self.geom_info_palette = None
         self.plotsoldlg = None
         self.plotexprdlg = None
         self.engine = None
@@ -184,6 +184,14 @@ class MFEMViewer(BookViewer):
         #self.canvas.__class__ = MFEMViewerCanvas
         #self.Bind(wx.EVT_ACTIVATE, self.onActivate)
 
+    @property
+    def view_mode_group(self):
+        return self._view_mode_group
+    
+    @property
+    def dom_bdr_sel(self):
+        return self._dom_bdr_sel
+    
     def set_view_mode(self, mode, mm=None):
         p = mm
         while p is not None:
@@ -915,11 +923,27 @@ class MFEMViewer(BookViewer):
 
     def onSelectionPanel(self, evt):
         from petram.pi.selection_palette import SelectionPalette
+        
         if self.selection_palette is None:
             self.selection_palette = SelectionPalette(
                 self, wx.ID_ANY, 'Selection')
             self.selection_palette.Show()
         self.selection_palette.Raise()
+        evt.Skip()
+
+    def onGeomInfo(self, evt):
+        try:
+            from petram.geom.geom_info_palette import GeomInfoPalette
+
+            if self.geom_info_palette is None:
+                self.geom_info_palette = GeomInfoPalette(self,
+                                                         wx.ID_ANY,
+                                                         'Geometry')
+                self.geom_info_palette.Show()
+            self.geom_info_palette.Raise()
+        except ImportError:
+            pass
+        evt.Skip()
 
     def onSaveModel(self, evt):
         from ifigure.widgets.dialog import write
@@ -999,7 +1023,7 @@ class MFEMViewer(BookViewer):
         if self._view_mode == 'geom':
             menus.append(
                 ("Copy " + selmode + " selection with prefix", self.onCopySelection2, None))
-
+                
         # if len(self.canvas.selection) > 0:
         #    if self._view_mode == 'mesh':
         #        menus.append(("Show meshed " + selmode, self.onShowMeshedEntity, None))
@@ -1082,6 +1106,18 @@ class MFEMViewer(BookViewer):
             pass
         else:
             pass
+
+        palette_menu = []
+        if self.selection_palette is None:
+            palette_menu.append(("Selection palette...", self.onSelectionPanel, None),)
+
+        if (self._view_mode == 'geom' and self.geom_info_palette is None):
+            palette_menu.append(("Geomtry info ...", self.onGeomInfo,  None),)
+
+        if len(palette_menu) > 0:
+             menus.append(('---', None, None),)
+             menus.extend(palette_menu)
+
         menus.extend([("!", None, None),
                       ("---", None, None), ])
         return menus
