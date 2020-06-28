@@ -868,6 +868,12 @@ class Model(RestorableOrderedDict):
     def figure_data_name(self):
         return self.name()
 
+    def update_after_ELChanged2(self, evt):
+        pass
+    
+    def update_after_ELChanged(self, dlg):
+        pass
+
 class Bdry(Model):
     can_delete = True
     is_essential = False

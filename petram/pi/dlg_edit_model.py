@@ -759,7 +759,7 @@ class DlgEditModel(SimpleFramePlus):
         self.panels[mm.fullname()][2].update_label(mm.panel3_param())
         self.panels[mm.fullname()][3].update_label(mm.panel4_param())
 
-    def import_selected_panel_value(self):
+    def import_selected_panel_value(self, evt=None):
         if self.tree.GetSelection() is None:
             return
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
@@ -811,10 +811,13 @@ class DlgEditModel(SimpleFramePlus):
 
         if viewer_update:
             mm.update_after_ELChanged(self)
+            if evt is not None:
+                mm.update_after_ELChanged2(evt)            
         self.tree.RefreshItems()
+        return viewer_update
 
     def OnEL_Changed(self, evt):
-        self.import_selected_panel_value()
+        viewer_update=self.import_selected_panel_value(evt)
         evt.Skip()
 
     def OnEL_Changing(self, evt):

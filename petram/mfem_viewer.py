@@ -250,7 +250,7 @@ class MFEMViewer(BookViewer):
                     ret = d[name]
                     plot_geometry(self,  ret)
                 else:
-                    print('Geometry figur data not found :' + name)
+                    #print('Geometry figure data not found :' + name)
                     self.cls()
                     return
 
@@ -272,7 +272,7 @@ class MFEMViewer(BookViewer):
                         d = self._figure_data['geom']
                         plot_geometry(self,  d[name[1]])
                     if name[0] in d:
-                        print("calling oplot")
+                        #print("calling oplot")
                         oplot_meshed(self,  d[name[0]])
                         self._hidemesh = False
                     else:
@@ -674,6 +674,7 @@ class MFEMViewer(BookViewer):
             cdir = expanduser("~")
 
         try:
+            err = -1
             os.chdir(self.model.owndir())
             try:
                 self.engine.run_mesh(skip_refine=True)
@@ -828,7 +829,7 @@ class MFEMViewer(BookViewer):
                 obj.setSelectedIndex([])
         wx.CallAfter(self.canvas.refresh_hl)
 
-    def highlight_edge(self, i):
+    def highlight_edge(self, i, unselect=True):
         '''
         i is 1-based index
         '''
@@ -838,7 +839,8 @@ class MFEMViewer(BookViewer):
             i = list(i)
         ax = self.get_axes()
 
-        self.canvas.unselect_all()
+        if unselect:
+            self.canvas.unselect_all()
 
         for name, obj in ax.get_children():
             if not name.startswith('edge'):
@@ -851,7 +853,7 @@ class MFEMViewer(BookViewer):
                 obj.setSelectedIndex([])
         self.canvas.refresh_hl()
 
-    def highlight_point(self, i):
+    def highlight_point(self, i, unselect=True):
         '''
         i is 1-based index
         '''
@@ -861,7 +863,8 @@ class MFEMViewer(BookViewer):
             i = list(i)
         ax = self.get_axes()
 
-        self.canvas.unselect_all()
+        if unselect:
+            self.canvas.unselect_all()
 
         for name, obj in ax.get_children():
             if not name.startswith('point'):

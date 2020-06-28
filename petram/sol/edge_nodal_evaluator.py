@@ -134,7 +134,7 @@ class EdgeNodalEvaluator(EvaluatorAgent):
         if refine == 1:
             return self.locs, val, self.iverts_inv
         else:
-            from nodal_refinement import refine_edge_data
+            from petram.sol.nodal_refinement import refine_edge_data
             try:
                 mesh = self.mesh()[self.emesh_idx]
                 if mesh.Dimension() == 3:

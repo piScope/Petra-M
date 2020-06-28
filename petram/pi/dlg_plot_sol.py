@@ -1052,6 +1052,9 @@ class DlgPlotSol(SimpleFramePlus):
                             use_pointfill=use_pointfill)
         
     def make_plot_bdr(self, data, battrs, cls = None, expr='', use_pointfill=False):
+        print("entring make_plot_bdr", threading.enumerate())
+        print("entring make_plot_bdr", threading.current_thread())
+        
         from ifigure.interactive import figure
         viewer = figure(viewer = cls)
         viewer.update(False)        
@@ -1065,11 +1068,9 @@ class DlgPlotSol(SimpleFramePlus):
             idx = i.shape[-1]
             dd[idx].append((k+1, v, c, i))
 
+
         for key in dd.keys():
             kk, verts, cdata, idata = zip(*(dd[key]))
-            #print([v.shape for v in verts])
-            #print([v.shape for v in cdata])
-            #print([v.shape for v in idata])                
             offsets = np.hstack((0, np.cumsum([len(c) for c in cdata], dtype=int)))[:-1]
             offsets_idx = np.hstack([np.zeros(len(a), dtype=int)+o
                                  for o, a in zip(offsets, idata)])
@@ -1081,6 +1082,8 @@ class DlgPlotSol(SimpleFramePlus):
             cdata = np.hstack(cdata)                
             idata = np.vstack(idata)
             idata = idata + np.atleast_2d(offsets_idx).transpose()
+
+            print(verts.shape, idata.shape, array_idx.shape)
 
 
             if cls is None:
@@ -1094,7 +1097,7 @@ class DlgPlotSol(SimpleFramePlus):
                                   cz=True, cdata= cdata, shade='linear',
                                   use_pointfill=use_pointfill)               
                obj.set_gl_hl_use_array_idx(True)
-               
+
         viewer.update(True)
         viewer.view('noclip')
         viewer.view('equal')
