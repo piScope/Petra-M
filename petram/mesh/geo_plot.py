@@ -162,7 +162,6 @@ def plot_geometry(viewer,  ret,  geo_phys = 'geometrical', lw = 0):
     viewer.cls()
     viewer.set_hl_color((1, 0, 0))
 
-    print('plot_geometry')
     X, cells, pt_data, cell_data, field_data = ret
 
     if 'triangle_x' in cells:

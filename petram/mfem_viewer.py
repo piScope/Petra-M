@@ -90,6 +90,12 @@ def MFEM_menus(parent):
              ("Reset Model", self.onResetModel, None), ]
     return menus
 
+from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
+
+class MFEMViewerCanvas(ifigure_canvas):
+    def unselect_all(self):
+        ifigure_canvas.unselect_all(self)
+        self.TopLevelParent._dom_bdr_sel = ([], [], [], [])
 
 class MFEMViewer(BookViewer):
     def __init__(self, *args, **kargs):
@@ -181,7 +187,7 @@ class MFEMViewer(BookViewer):
                   self.onTD_DragSelectionInFigure)
 
         self.canvas._popup_style = 1  # popup_skip_2d
-        #self.canvas.__class__ = MFEMViewerCanvas
+        self.canvas.__class__ = MFEMViewerCanvas
         #self.Bind(wx.EVT_ACTIVATE, self.onActivate)
 
     @property
@@ -827,6 +833,11 @@ class MFEMViewer(BookViewer):
                     self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
+
+        self._dom_bdr_sel = (self._dom_bdr_sel[0],
+                             tuple(i),
+                             self._dom_bdr_sel[2],
+                             self._dom_bdr_sel[3],)
         wx.CallAfter(self.canvas.refresh_hl)
 
     def highlight_edge(self, i, unselect=True):
@@ -851,7 +862,13 @@ class MFEMViewer(BookViewer):
                     self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
-        self.canvas.refresh_hl()
+                
+        self._dom_bdr_sel = (self._dom_bdr_sel[0],
+                             self._dom_bdr_sel[1],
+                             tuple(i),
+                             self._dom_bdr_sel[3],)
+        
+        wx.CallAfter(self.canvas.refresh_hl)             
 
     def highlight_point(self, i, unselect=True):
         '''
@@ -875,7 +892,13 @@ class MFEMViewer(BookViewer):
                     self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
-        self.canvas.refresh_hl()
+
+        self._dom_bdr_sel = (self._dom_bdr_sel[0],
+                             self._dom_bdr_sel[1],
+                             self._dom_bdr_sel[2],
+                             tuple(i),)
+
+        wx.CallAfter(self.canvas.refresh_hl)                             
 
     def highlight_none(self):
         self.canvas.unselect_all()

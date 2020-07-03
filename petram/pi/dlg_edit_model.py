@@ -225,7 +225,16 @@ class DlgEditModel(SimpleFramePlus):
                         return
 
                     child = parent[name]
-                    child.on_created_in_tree()
+                    try:
+                        child.on_created_in_tree()
+                    except:
+                        del parent[name]
+                        dialog.showtraceback(parent=self,
+                                             txt="Failed to add child",
+                                             title='Error',
+                                             traceback=traceback.format_exc())
+                        return
+                        
                     viewer = self.GetParent()
                     viewer.model.scripts.helpers.rebuild_ns()
                     engine = viewer.engine
