@@ -459,7 +459,7 @@ class MFEMViewer(BookViewer):
 
     def _getSelectedIndexVolume(self, already_selected_surface):
         objs = [o().figobj for o in self.canvas.selection
-                if o().figobj.name.startswith('face')]
+                if o() is not None and o().figobj.name.startswith('face')]
 
         unselected = []
         selected = []
@@ -474,7 +474,8 @@ class MFEMViewer(BookViewer):
         return selected, unselected, objs
 
     def _getSelectedIndex(self, mode='face'):
-        objs = [o().figobj for o in self.canvas.selection]
+        objs = [o().figobj for o in self.canvas.selection
+                        if o() is not None]
 
         sel = []
         oo = []
@@ -711,6 +712,12 @@ class MFEMViewer(BookViewer):
         mesh = self.model.variables.getvar('mesh')
         if mesh is not None:
             from petram.mesh.refined_mfem_geom import default_refine as refine
+
+            if mesh.GetNodalFESpace() is not None:
+                refine = mesh.GetNodalFESpace().GetOrder(0)
+            else:
+                refine = 1
+
             X, cells, cell_data, sl, iedge2bb = extract_mesh_data(mesh, refine)
             self._s_v_loop['phys'] = sl
             self._s_v_loop['mesh'] = sl
