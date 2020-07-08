@@ -15,11 +15,27 @@ def expand_vertex_data(X, vertex_idx, element_id):
     iarr = []
 
     nel = vertex_idx.shape[-1]
-    for kk in np.unique(element_id):
-        idx = np.where(element_id == kk)[0]
 
+    def iter_unique_idx(x):
+        '''
+        return unique element and all indices for each eleement
+
+        note: this is to avoid using where in the loop like this
+           # for kk in np.unique(element_id):
+           #    idx = np.where(element_id == kk)[0]
+           # (using where inside the loop makes it very slow as 
+           # number of unique elements increases
+        '''
+        uv, uc = np.unique(x, return_counts=True)
+        idx = np.argsort(x)
+        uc = np.hstack((0, np.cumsum(uc)))
+        for i, v in enumerate(uv):
+            yield (v, idx[uc[i]:uc[i+1]])
+
+    for kk, idx in iter_unique_idx(element_id):
         iverts = vertex_idx[idx].flatten()
         iv, idx = np.unique(iverts, return_inverse = True)
+        
         verts.append(X[iv])
         iele.append(idx.reshape(-1, nel)+k)
         k = k + len(iv)
@@ -222,7 +238,7 @@ def hide_face_meshmode(viewer, meshed_face):
     ax =viewer.get_axes()    
     s, v = viewer._s_v_loop['mesh']
     facesa = []
-    if len(v)>0:  # in 3D starts with faces from shown volumes
+    if v is not None and len(v)>0:  # in 3D starts with faces from shown volumes
         all_surfaces = np.array(list(s), dtype=int)        
         for key in v:
             if not key in viewer._mhidden_volume:

@@ -10,14 +10,16 @@ from collections import defaultdict
 def find_loop_ser(mesh, *face):
     '''
     find_loop_ser(mesh, 1)                 # loop around boundary index = 1
+    find_loop_ser(mesh, [1, 2, 3])           # loop around boundary made by union of index = 1,2,3
     find_loop_ser(mesh, [1,2,3], [4, 5]) # loop made by two set of boundaries 
                                               # (1,2,3) and (4, 5)
 
     '''
     if len(face) == 1:
         face = face[0]
+        faces = np.atleast_1d(face)
         battrs = mesh.GetBdrAttributeArray()
-        bidx = np.where(battrs == face)[0]
+        bidx = np.where(np.in1d(battrs, faces))[0]
         edges = [mesh.GetBdrElementEdges(i) for i in bidx]
         iedges = sum([e1[0] for e1 in edges], [])
         dirs =  sum([e1[1] for e1 in edges], [])
@@ -59,7 +61,7 @@ def find_loop_ser(mesh, *face):
 
     from petram.helper.geom import connect_pairs
 
-    loop = connect_pairs(ll.keys())
+    loop = connect_pairs(list(ll))
 
     dirs = {}
     for i in range(len(loop)-1):
@@ -72,7 +74,12 @@ def find_loop_ser(mesh, *face):
     print("here",idx, signs)
     return idx, signs
     
-def find_loop_par(pmesh, face):
+def find_loop_par(pmesh, *face):
+    '''
+    find_loop_ser(mesh, 1)          # loop around boundary index = 1
+    find_loop_ser(mesh, [1, 2, 3])    # loop around boundary made by union of index = 1,2,3
+    '''
+    
     import mfem.par as mfem
     from mpi4py import MPI
 
@@ -87,7 +94,11 @@ def find_loop_par(pmesh, face):
     from petram.helper.mpi_recipes import allgather, allgather_vector, gather_vector    
 
     battrs = pmesh.GetBdrAttributeArray()
-    bidx = np.where(battrs == face)[0]
+
+    face = face[0]
+    faces = np.atleast_1d(face)
+    bidx = np.where(np.in1d(battrs,faces))[0]
+    
     offset_e = np.hstack([0, np.cumsum(allgather(pmesh.GetNEdges()))])
     
     edges = [pmesh.GetBdrElementEdges(i) for i in bidx]

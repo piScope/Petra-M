@@ -45,17 +45,24 @@ class Mesh(Model, NS_mixin):
             if isinstance(p, MFEM_MeshRoot): return p           
             p = p.parent
             
-class MeshGroup(Model):  
+class MFEMMesh(Model):  
     can_delete = True
     has_2nd_panel = False
     isMeshGroup = True    
     def get_possible_child(self):
         try:
            from petram.mesh.pumimesh_model import PumiMesh
-           return [MeshFile, PumiMesh, Mesh1D, UniformRefinement, DomainRefinement]
+           return [MeshFile, PumiMesh, Mesh1D, Mesh2D, Mesh3D, UniformRefinement, DomainRefinement]
         except:
-           return [MeshFile, Mesh1D, UniformRefinement, DomainRefinement]
-     
+           return [MeshFile, Mesh1D, Mesh2D, Mesh3D, UniformRefinement, DomainRefinement]
+
+    def get_possible_child_menu(self):
+        try:
+           from petram.mesh.pumimesh_model import PumiMesh
+           return [("", MeshFile), ("Other Meshes", Mesh1D), ("", Mesh2D), ("", Mesh3D), ("!", PumiMesh), ("Refinement...", UniformRefinement), ("!", DomainRefinement)]
+        except:
+           return [("", MeshFile), ("Other Meshes", Mesh1D), ("", Mesh2D), ("!", Mesh3D), ("Refinement...", UniformRefinement), ("!", DomainRefinement)]           
+                
     def onItemSelChanged(self, evt):
         '''
         GUI response when model object is selected in
@@ -85,26 +92,59 @@ class MeshGroup(Model):
     def sdim(self, value):
         self._sdim = value
 
-    #def attribute_set(self, v):
-    #    v = super(BrepFile, self).attribute_set(v)
-    #    v['brep_file_path'] = ''
-    #    v['geom_timestamp'] = 0
-    #    v['geom_prev_algorithm'] = 2
-    #    v['geom_prev_res'] = 30
-    #    return v
-    #    evt.GetEventObject().GetParent().onLoadMesh(evt)
-    #    
-    #def panel1_param(self):
-    #    import wx
-    #    return [
-    #            [None, None, 341, {"label": "Load",
-    #                               "func": 'onLoadMesh',
-    #                               "noexpand": True}],]
         
-        
-MFEMMesh = MeshGroup
+MeshGroup = MFEMMesh
 
-   
+def format_mesh_characteristic(mesh):
+   h_min = mfem.doublep()
+   h_max = mfem.doublep()
+   kappa_min= mfem.doublep()
+   kappa_max= mfem.doublep()
+   Vh=mfem.Vector()
+   Vk=mfem.Vector()
+   mesh.GetCharacteristics(h_min, h_max, kappa_min, kappa_max, Vh, Vk)
+   h_min=h_min.value()
+   h_max=h_max.value()
+   kappa_min=kappa_min.value()
+   kappa_max=kappa_max.value()
+
+   out = ["", "=== Mesh Statistics ==="]
+   out.append("Dimension          : " + str(mesh.Dimension()))
+   out.append("Space dimension    : " + str(mesh.SpaceDimension()))
+
+   if mesh.Dimension() == 0:
+      out.append("Number of vertices : " + str(mesh.GetNV()))
+      out.append("Number of elements : " + str(mesh.GetNE()))
+      out.append("Number of bdr elem : " + str(mesh.GetNBE()))
+   elif mesh.Dimension() == 1:
+      out.append("Number of vertices : " + str(mesh.GetNV()))
+      out.append("Number of elements : " + str(mesh.GetNE()))
+      out.append("Number of bdr elem : " + str(mesh.GetNBE()))
+      out.append("h_min              : " + str(h_min))
+      out.append("h_max              : " + str(h_max))
+   elif mesh.Dimension() == 2:
+      out.append("Number of vertices : " + str(mesh.GetNV()))
+      out.append("Number of edges    : " + str(mesh.GetNEdges()))
+      out.append("Number of elements : " + str(mesh.GetNE()))
+      out.append("Number of bdr elem : " + str(mesh.GetNBE())) 
+      out.append("Euler Number       : " + str(mesh.EulerNumber2D()))
+      out.append("h_min              : " + str(h_min))
+      out.append("h_max              : " + str(h_max))
+      out.append("kappa_min              : " + str(kappa_min))
+      out.append("kappa_max              : " + str(kappa_max))
+   elif mesh.Dimension() == 3:
+      out.append("Number of vertices : " + str(mesh.GetNV()))
+      out.append("Number of edges    : " + str(mesh.GetNEdges()))
+      out.append("Number of faces    : " + str(mesh.GetNFaces()))
+      out.append("Number of elements : " + str(mesh.GetNE()))
+      out.append("Number of bdr elem : " + str(mesh.GetNBE())) 
+      out.append("Euler Number       : " + str(mesh.EulerNumber()))
+      out.append("h_min              : " + str(h_min))
+      out.append("h_max              : " + str(h_max))
+      out.append("kappa_min              : " + str(kappa_min))
+      out.append("kappa_max              : " + str(kappa_max))
+   return '\n'.join(out)
+
 class MeshFile(Mesh):
     isMeshGenerator = True   
     isRefinement = False   
@@ -132,14 +172,19 @@ class MeshFile(Mesh):
         return v
         
     def panel1_param(self):
+        if not hasattr(self, "_mesh_char"):
+           self._mesh_char = ''
         wc = "ANY|*|MFEM|*.mesh|GMSH|*.gmsh"       
-        return [["Path",   self.path,  45, {'wildcard':wc}],
+        ret =  [["Path",   self.path,  45, {'wildcard':wc}],
                 ["", "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir."  ,2, None],
-                ["Generate edges",    self.generate_edges == 1,  3, {"text":""}],
-                ["Refine",    self.refine==1 ,  3, {"text":""}],
-                ["FixOrientation",    self.fix_orientation ,  3, {"text":""}]]
+                [None,  self.generate_edges == 1,  3, {"text":"Generate edges"}],
+                [None,   self.refine==1 ,  3, {"text":"Refine"}],
+                [None,   self.fix_orientation ,  3, {"text":"FixOrientation"}],
+                [None, self._mesh_char ,2, None],]
+        return ret
+     
     def get_panel1_value(self):
-        return (self.path, None, self.generate_edges, self.refine, self.fix_orientation)
+        return (self.path, None, self.generate_edges, self.refine, self.fix_orientation, None)
     
     def import_panel1_value(self, v):
         self.path = str(v[0])
@@ -203,6 +248,7 @@ class MeshFile(Mesh):
         args = (path,  self.generate_edges, self.refine, self.fix_orientation)
         mesh =  mfem.Mesh(*args)
         self.parent.sdim = mesh.SpaceDimension()
+        self._mesh_char = format_mesh_characteristic(mesh)
         try:
            mesh.GetNBE()
            return mesh
@@ -212,7 +258,8 @@ class MeshFile(Mesh):
 class Mesh1D(Mesh):
     isMeshGenerator = True      
     isRefinement = False   
-    has_2nd_panel = False        
+    has_2nd_panel = False
+    unique_child = True    
 
     def attribute_set(self, v):
         v = super(Mesh1D, self).attribute_set(v)
@@ -227,6 +274,9 @@ class Mesh1D(Mesh):
         return v
         
     def panel1_param(self):
+        if not hasattr(self, "_mesh_char"):
+           self._mesh_char = ''
+       
         def check_int_array(txt, param, w):
             try:
                val  = [int(x) for x in txt.split(',')]
@@ -251,38 +301,267 @@ class Mesh1D(Mesh):
         return [["Length",   self.length_txt,  0, {"validator":check_float_array}],
                 ["N segments",   self.nsegs_txt,  0, {"validator":check_int_array}],
                 ["x0",   self.mesh_x0_txt,  0, {"validator":check_float}],
-                [None, "Note: use comma separated integer to generate a multisegments mesh",   2, {}],]
+                [None, "Note: use comma separated float/integer for a multisegments mesh",   2, {}],
+                [None, self._mesh_char ,2, None],]     
 
     def get_panel1_value(self):
-        return (self.length_txt, self.nsegs_txt, self.mesh_x0_txt, None)
+        return (self.length_txt, self.nsegs_txt, self.mesh_x0_txt, None, None)
     
     def import_panel1_value(self, v):
         self.length_txt = str(v[0])
         self.nsegs_txt = str(v[1])
         self.mesh_x0_txt = str(v[2])        
-        
-        try:
-            self.length = [float(x) for x in self.length_txt.split(',')]
-            self.nsegs= [int(x) for x in self.nsegs_txt.split(',')]
-            self.mesh_x0 = float(self.mesh_x0_txt)
-        except:
-            pass
 
+        success = self.eval_strings()
+
+    def eval_strings(self):
+        g = self._global_ns.copy()
+        l = {}
+       
+        try:
+            self.length = [float(eval(x, g, l)) for x in self.length_txt.split(',')]
+            self.nsegs= [int(eval(x, g, l)) for x in self.nsegs_txt.split(',')]
+            self.mesh_x0 = float(eval(self.mesh_x0_txt, g, l))
+            return True
+        except:
+            import traceback
+            traceback.print_exc()
+            
+        return False
+     
     def run(self, mesh = None):
 
-        from petram.mesh.make_mesh1d import straight_line_mesh
+        from petram.mesh.make_simplemesh import straight_line_mesh
 
+        success = self.eval_strings()
+        assert success, "Conversion error of input parameter"
+        
         mesh = straight_line_mesh(self.length, self.nsegs,
                                filename='',
                                refine = self.refine == 1,
                                fix_orientation = self.fix_orientation,
                                sdim = 1, x0=self.mesh_x0)
         self.parent.sdim = mesh.SpaceDimension()
+        self._mesh_char = format_mesh_characteristic(mesh)        
         try:
            mesh.GetNBE()
            return mesh
         except:
            return None
+        
+class Mesh2D(Mesh):
+    isMeshGenerator = True      
+    isRefinement = False   
+    has_2nd_panel = False
+    unique_child = True    
+
+    def attribute_set(self, v):
+        v = super(Mesh2D, self).attribute_set(v)
+        v['length'] = [1,]
+        v['nsegs'] = [100,]
+        v['xlength_txt'] = "1"
+        v['ylength_txt'] = "1"
+        v['xnsegs_txt'] = "30"
+        v['ynsegs_txt'] = "20"
+        v['refine'] = 1
+        v['fix_orientation'] = True
+        v['mesh_x0_txt'] = "0.0, 0.0"
+        v['mesh_x0'] = (0.0, 0.0, )
+        return v
+        
+    def panel1_param(self):
+        if not hasattr(self, "_mesh_char"):
+           self._mesh_char = ''
+       
+        def check_int_array(txt, param, w):
+            try:
+               val  = [int(x) for x in txt.split(',')]
+               return True
+            except:
+               return False
+            
+        def check_float_array(txt, param, w):
+            try:
+               val  = [float(x) for x in txt.split(',')]
+               return True
+            except:
+               return False
+            
+        def check_float(txt, param, w):
+            try:
+               val  = float(txt)
+               return True
+            except:
+               return False
+            
+        return [["Length(x)",   self.xlength_txt,  0, {"validator":check_float_array}],
+                ["N segments(x)",   self.xnsegs_txt,  0, {"validator":check_int_array}],                
+                ["Length(y)",   self.ylength_txt,  0, {"validator":check_float_array}],
+                ["N segments(y)",   self.ynsegs_txt,  0, {"validator":check_int_array}],                
+                ["x0",   self.mesh_x0_txt,  0, {"validator":check_float_array}],
+                [None, "Note: use comma separated float/integer for a multisegments mesh",   2, {}],
+                [None, self._mesh_char ,2, None],]          
+
+    def get_panel1_value(self):
+        return (self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
+                self.mesh_x0_txt, None, None)
+    
+    def import_panel1_value(self, v):
+        self.xlength_txt = str(v[0])
+        self.xnsegs_txt = str(v[1])
+        self.ylength_txt = str(v[2])
+        self.ynsegs_txt = str(v[3])
+        self.mesh_x0_txt = str(v[4])        
+
+        success = self.eval_strings()
+
+    def eval_strings(self):
+        g = self._global_ns.copy()
+        l = {}
+       
+        try:
+            self.xlength = [float(eval(x, g, l)) for x in self.xlength_txt.split(',')]
+            self.xnsegs= [int(eval(x, g, l)) for x in self.xnsegs_txt.split(',')]
+            self.ylength = [float(eval(x, g, l)) for x in self.ylength_txt.split(',')]
+            self.ynsegs= [int(eval(x, g, l)) for x in self.ynsegs_txt.split(',')]
+            self.mesh_x0 = [float(eval(x, g, l)) for x in self.mesh_x0_txt.split(',')]
+            return True
+        except:
+            import traceback
+            traceback.print_exc()
+            
+        return False
+       
+    def run(self, mesh = None):
+
+        from petram.mesh.make_simplemesh import quad_rectangle_mesh
+
+        success = self.eval_strings()
+        assert success, "Conversion error of input parameter"
+        
+        mesh = quad_rectangle_mesh(self.xlength, self.xnsegs, self.ylength, self.ynsegs,
+                               filename='', refine = self.refine == 1,
+                               fix_orientation = self.fix_orientation,
+                               sdim=2, x0=self.mesh_x0)
+        
+        self.parent.sdim = mesh.SpaceDimension()
+        self._mesh_char = format_mesh_characteristic(mesh)
+        
+        try:
+           mesh.GetNBE()
+           return mesh
+        except:
+           return None
+
+class Mesh3D(Mesh):
+    isMeshGenerator = True      
+    isRefinement = False   
+    has_2nd_panel = False        
+    unique_child = True
+    
+    def attribute_set(self, v):
+        v = super(Mesh3D, self).attribute_set(v)
+        v['length'] = [1,]
+        v['nsegs'] = [100,]
+        v['xlength_txt'] = "1"
+        v['ylength_txt'] = "1"
+        v['zlength_txt'] = "1"                
+        v['xnsegs_txt'] = "10"
+        v['ynsegs_txt'] = "10"
+        v['znsegs_txt'] = "10"        
+        v['refine'] = 1
+        v['fix_orientation'] = True
+        v['mesh_x0_txt'] = "0.0, 0.0, 0.0"
+        v['mesh_x0'] = (0.0, 0.0, 0.0)
+        return v
+        
+    def panel1_param(self):
+        if not hasattr(self, "_mesh_char"):
+           self._mesh_char = ''
+       
+        def check_int_array(txt, param, w):
+            try:
+               val  = [int(x) for x in txt.split(',')]
+               return True
+            except:
+               return False
+            
+        def check_float_array(txt, param, w):
+            try:
+               val  = [float(x) for x in txt.split(',')]
+               return True
+            except:
+               return False
+            
+        def check_float(txt, param, w):
+            try:
+               val  = float(txt)
+               return True
+            except:
+               return False
+            
+        return [["Length(x)",   self.xlength_txt,  0, {"validator":check_float_array}],
+                ["N segments(x)",   self.xnsegs_txt,  0, {"validator":check_int_array}],                
+                ["Length(y)",   self.ylength_txt,  0, {"validator":check_float_array}],
+                ["N segments(y)",   self.ynsegs_txt,  0, {"validator":check_int_array}],                
+                ["Length(z)",   self.zlength_txt,  0, {"validator":check_float_array}],                
+                ["N segments(z)",   self.znsegs_txt,  0, {"validator":check_int_array}],                
+                ["x0",   self.mesh_x0_txt,  0, {"validator":check_float_array}],
+                [None, "Note: use comma separated float/integer for a multisegments mesh",   2, {}],
+                [None, self._mesh_char ,2, None],]
+     
+    def get_panel1_value(self):
+        return (self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
+                self.zlength_txt, self.znsegs_txt, self.mesh_x0_txt, None, None)
+    
+    def import_panel1_value(self, v):
+        self.xlength_txt = str(v[0])
+        self.xnsegs_txt = str(v[1])
+        self.ylength_txt = str(v[2])
+        self.ynsegs_txt = str(v[3])
+        self.zlength_txt = str(v[4])
+        self.znsegs_txt = str(v[5])
+        self.mesh_x0_txt = str(v[6])        
+
+        success = self.eval_strings()
+
+    def eval_strings(self):
+        g = self._global_ns.copy()
+        l = {}
+       
+        try:
+            self.xlength = [float(eval(x, g, l)) for x in self.xlength_txt.split(',')]
+            self.xnsegs= [int(eval(x, g, l)) for x in self.xnsegs_txt.split(',')]
+            self.ylength = [float(eval(x, g, l)) for x in self.ylength_txt.split(',')]
+            self.ynsegs= [int(eval(x, g, l)) for x in self.ynsegs_txt.split(',')]
+            self.zlength = [float(eval(x, g, l)) for x in self.zlength_txt.split(',')]
+            self.znsegs= [int(eval(x, g, l)) for x in self.znsegs_txt.split(',')]
+            self.mesh_x0 = [float(eval(x, g, l)) for x in self.mesh_x0_txt.split(',')]
+            return True
+        except:
+            import traceback
+            traceback.print_exc()
+            
+        return False
+       
+    def run(self, mesh = None):
+        from petram.mesh.make_simplemesh import hex_box_mesh
+
+        success = self.eval_strings()
+        assert success, "Conversion error of input parameter"
+        
+        mesh = hex_box_mesh(self.xlength, self.xnsegs,self.ylength, self.ynsegs, self.zlength, self.znsegs,
+                            filename='', refine = self.refine == 1, fix_orientation=self.fix_orientation,
+                            sdim=3, x0=self.mesh_x0)
+        self.parent.sdim = mesh.SpaceDimension()
+        self._mesh_char = format_mesh_characteristic(mesh)        
+        
+        try:
+           mesh.GetNBE()
+           return mesh
+        except:
+           return None
+        
         
 class UniformRefinement(Mesh):
     isRefinement = True

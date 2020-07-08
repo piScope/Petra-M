@@ -41,12 +41,15 @@ def evaluator_cls():
     from petram.sol.edge_nodal_evaluator import EdgeNodalEvaluator
     from petram.sol.ncface_evaluator import NCFaceEvaluator
     from petram.sol.ncedge_evaluator import NCEdgeEvaluator    
-    from petram.sol.probe_evaluator import ProbeEvaluator        
+    from petram.sol.probe_evaluator import ProbeEvaluator
+    from petram.sol.pointcloud_evaluator import PointcloudEvaluator
+    
     return {'BdrNodal': BdrNodalEvaluator,
             'EdgeNodal': EdgeNodalEvaluator,
             'NCFace':   NCFaceEvaluator,
             'NCEdge':   NCEdgeEvaluator,                        
             'Slice': SliceEvaluator,
+            'Pointcloud': PointcloudEvaluator, 
             'Probe': ProbeEvaluator,}    
 
 class Evaluator(object):
@@ -56,9 +59,7 @@ class Evaluator(object):
     def __init__(self):
         object.__init__(self)
         self.failed = False
-    '''
-    make_agent
-    '''
+
     def make_agents(self, name, params, **kwargs):
         self._agent_params = (name, params)
         self._agent_kwargs = kwargs.copy()
@@ -79,11 +80,16 @@ class Evaluator(object):
         
         for key in six.iterkeys(kwargs):
             if not key in self._agent_kwargs: return False
+
+            #print("comparing")
+            #print(kwargs[key],self._agent_kwargs[key])
+            #print(kwargs[key] != self._agent_kwargs[key])
+            
             chk =  (kwargs[key] != self._agent_kwargs[key])
             if isinstance(chk, bool):
                 if chk: return False
             else:
-                if any(chk): return False
+                if chk.any(): return False
         return True
 
     def set_model(self, model):
@@ -119,6 +125,9 @@ class Evaluator(object):
     def eval(self, expr):
         raise NotImplementedError('subclass needs to implement this')
 
+    def make_probe_agents(self, *args, **kwargs):
+        raise NotImplementedError('subclass needs to implement this')
+    
 class EvaluatorCommon(Evaluator):
     '''
     EvaluatorCommon provide pertial implementation of methods
@@ -129,31 +138,40 @@ class EvaluatorCommon(Evaluator):
     def load_solfiles(self, mfem_mode = None):
         if self.solfiles is None: return
 
-        if self.solfiles() in self.solvars:
-            return self.solvars[self.solfiles()]
+        if self.solfiles in self.solvars:
+            return self.solvars[self.solfiles]
 
         from petram.sol.solsets import Solsets
 
-        solsets = Solsets(self.solfiles())
+        solsets = Solsets(self.solfiles)
         print("reading sol variables")
         phys_root = self.mfem_model()["Phys"]
         solvars = phys_root.make_solvars(solsets.set)
         
         pp_root = self.mfem_model()["PostProcess"]        
         solvars = pp_root.add_solvars(solsets.set, solvars)
-        print("solvars", solvars)
+        print("solvars", solvars[0])
         #for k in solvars:
         #    print(k + ':' + solvars[k])
         
-        self.solvars[self.solfiles()] = solvars
+        self.solvars[self.solfiles] = solvars
         
         for key in six.iterkeys(self.agents):
             for a, vv in zip(self.agents[key], solsets):
                 a.forget_knowns()
         self.solsets = solsets
         return solvars
-    
+
     def make_agents(self, name, params, **kwargs):
+        if name == 'Probe':
+            self.make_probe_agents(name, params, **kwargs)
+        else:
+            if name == 'Pointcloud':
+                self.make_pointcloud_agents(name, params, **kwargs)
+            else:
+                self.make_nodalslice_agents(name, params, **kwargs)
+        
+    def make_nodalslice_agents(self, name, params, **kwargs):
         print("making new agents", name, params, kwargs)
         super(EvaluatorCommon, self).make_agents(name, params, **kwargs)
         self.agents = {}
@@ -166,20 +184,51 @@ class EvaluatorCommon(Evaluator):
                 a.set_mesh(m)
                 self.agents[param].append(a)
                 
+    def make_pointcloud_agents(self, name, params, **kwargs):
+        print("making new pc agents", name, params, kwargs)
+        super(EvaluatorCommon, self).make_agents(name, params, **kwargs)
+        self.agents = {}
+        cls = evaluator_cls()[name]
+        solsets = self.solsets
+
+        params = tuple(params)
+        self.agents[params] = []
+
+        for m, void in solsets:
+            a = cls(params, **kwargs)
+            a.set_mesh(m)
+            self.agents[params].append(a)
+        
+    def make_probe_agents(self, name, params, **kwargs):
+        print("making new probe agents", name, params, kwargs)
+        super(EvaluatorCommon, self).make_agents(name, params, **kwargs)
+        self.agents = {}
+        cls = evaluator_cls()[name]
+        for param in params:
+            self.agents[param] = [cls([param], **kwargs)]
+                
     def eval_probe(self, expr, **kwargs):
+        raise NotImplementedError('subclass needs to implement this')
+        '''
         phys_path = self.phys_path
         phys = self.mfem_model()[phys_path]
         solvars = self.load_solfiles()
         
         if solvars is None: return None, None
+        '''
+        
+    def terminate_all(self):        
+        pass
 
 '''                
 from petram.sol.bdr_nodal_evaluator import BdrNodalEvaluator    
 from petram.sol.slice_evaluator import SliceEvaluator
 from petram.sol.edge_nodal_evaluator import EdgeNodalEvaluator
+from petram.sol.pointcloud_evaluator import PointcloudEvaluator
 evaluator_cls = {'BdrNodal': BdrNodalEvaluator,
                  'EdgeNodal': EdgeNodalEvaluator,
-                 'Slice': SliceEvaluator,}
+                 'Slice': SliceEvaluator,
+                 'Points': PointcloudEvaluator,}
 '''
 def_config = {'use_mp': False,
               'use_cs': False,
@@ -216,8 +265,11 @@ def build_evaluator(params,
     else:
         raise ValueError("Unknown evaluator mode")
     evaluator.set_model(mfem_model)
-    evaluator.set_solfiles(solfiles)
-    evaluator.load_solfiles()
+
+    if name != 'Probe':  #probe evaluator does not load solfiles.
+        evaluator.set_solfiles(solfiles)
+        evaluator.load_solfiles()
+        
     evaluator.make_agents(name, params, **kwargs)
     
     return evaluator

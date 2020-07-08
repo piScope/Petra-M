@@ -74,16 +74,16 @@ class TimeDomain(Solver):
                                               {'elp': [ret_cp]}]],
                 [None, [False, [value_ts]], 27, [{'text':'Use DWC (time stepping)'},
                                               {'elp': [ret_ts]}]],
-                ["clear working directory",
-                 self.clear_wdir,  3, {"text":""}],
-                ["initialize solution only",
-                 self.init_only,  3, {"text":""}], 
-                ["convert to real matrix (complex prob.)",
-                 self.assemble_real,  3, {"text":""}],
-                ["save parallel mesh",
-                 self.save_parmesh,  3, {"text":""}],
-                ["use cProfiler",
-                 self.use_profiler,  3, {"text":""}],]
+                [None,
+                 self.clear_wdir,  3, {"text":"clear working directory"}],
+                [None,
+                 self.init_only,  3, {"text":"initialize solution only"}], 
+                [None,
+                 self.assemble_real,  3, {"text":"convert to real matrix (complex prob.)"}],
+                [None,
+                 self.save_parmesh,  3, {"text":"save parallel mesh"}],
+                [None,
+                 self.use_profiler,  3, {"text":"use profiler"}],]
 
     def get_panel1_value(self):
         st_et_nt = ", ".join([str(x) for x in self.st_et_nt])

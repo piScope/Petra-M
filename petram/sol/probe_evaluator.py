@@ -21,7 +21,7 @@ class ProbeEvaluator(EvaluatorAgent):
     def preprocess_geometry(self,  *args, **kargs):
         pass
 
-    def eval_probe(self, expr, probe_files, phys):
+    def eval_probe(self, expr, xexpr, probe_files, phys):
         from petram.helper.variables import Variable, var_g
         from petram.sol.probe import load_probes
         
@@ -31,17 +31,34 @@ class ProbeEvaluator(EvaluatorAgent):
 
         st = parser.expr(expr)
         code= st.compile('<string>')
-        names = code.co_names
+        names = list(code.co_names)
+
+        if len(xexpr.strip()) != 0:
+            xst = parser.expr(xexpr)
+            xcode= xst.compile('<string>')
+            names.extend(code.co_names)
+        else:
+            xcode = None
 
         g = phys._global_ns.copy()
         for key in var_g.keys():
             g[key] = var_g[key]
 
+        default_xname = ''
         for n in names:
             if n in probes:
                 xdata, ydata = load_probes(path, probes[n])
                 g[n] = ydata
+                for nn in xdata:
+                    g[nn] = xdata[nn]
+                    default_xname = nn
+                    
 
         val = np.array(eval(code, g, {}), copy=False)
-        return xdata, val
+        if xcode is None:
+            xval = g[default_xname]
+        else:
+            xval = np.array(eval(xcode, g, {}), copy=False)
+
+        return xval, val
 

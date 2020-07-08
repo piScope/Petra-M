@@ -128,7 +128,7 @@ def bdr_loop(mesh):
             i = mesh.GetAttribute(elem2)
             loop[i].append(attrs[ibdr])
     for k in loop:
-        loop[k] = np.unique(loop[k])
+        loop[k] = list(set(loop[k]))
 
     return loop
     
@@ -708,20 +708,16 @@ def vol2line(v2s, s2l):
     return v2l
 
 def line2vol(v2l):
-    
     l2v = defaultdict(list)
     for v in v2l:
         for l in v2l[v]: l2v[l].append(v)
     return dict(l2v)
 
 def line2surf(s2l):
-    
     l2s = defaultdict(list)
     for s in s2l:
         for l in s2l[s]: l2s[l].append(s)
     return dict(l2s)
-        
-    
     
 def populate_plotdata(mesh, table, cells, cell_data):
     from petram.mesh.mesh_utils import  get_extended_connectivity

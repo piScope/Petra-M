@@ -1,3 +1,4 @@
+
 import numpy as np
 def do_connect_pairs(ll):
     d = {}
@@ -74,7 +75,6 @@ def find_circle_center_radius(vv, norm):
     '''
     k = len(vv)-2
     ii = np.linspace(0, len(vv)-1, 4).astype(int)
-    print(vv.shape, ii)
    
     pts = [do_find_circle_center(vv[i+ii[0]], vv[i+ii[1]], vv[i+ii[2]], norm) 
            for i in range(ii[1]-ii[0])]
@@ -156,4 +156,280 @@ def connect_pairs2(ll):
         taken[loop] = 1
 
     return loops
+
+
+def find_crosssetional_shape(mesh, a, b, c, d):
+    '''
+
+    inspect mesh and find geometry represents crosssection of mesh
+    slice by a plane 
+       ax + by + cz + d = 0
+    returns
+       return shapes, shapes_attr, edge2point, coords
+   
+       shape : [(array of edges),,,]
+       shape_attr : domain attribute
+       edge2point : edges of shape
+       coords : node point of edges.
+
+       note: shape is mixture of triangle, quad, -- hex.
+
+    '''
+    from petram.mfem_config import use_parallel
+    if use_parallel:
+       import mfem.par as mfem   
+    else:
+       import mfem.ser as mfem    
+    v = mfem.Vector()
+    mesh.GetVertices(v)
+    vv = v.GetDataArray().copy()
+    vv = vv.reshape(3, -1)
+    val =  vv[0, :]*a + vv[1,:]*b + vv[2,:]*c + d
+
+
+    attrs = mesh.GetAttributeArray()
+    
+    class number_generator(object):
+        def __init__(self):
+            self._d = {}
+            self.num = -1
+        def get_number(self, p):
+            try:
+               if p[0] < p[1]:
+                   pp = (p[0], p[1])
+               else:
+                   pp = (p[1], p[0])
+            except:
+                pp = p
+                
+            if pp in self._d:
+                return self._d[pp], False
+            else:
+                self.num = self.num+1
+                self._d[pp] = self.num
+                return self.num, True
+        def get_reverse_map(self):
+            return {self._d[p]:p for p in self._d}
+
+
+    shapes = []
+    shapes_attr= []
+    shape_ptx = []
+    
+    Nv = number_generator() # vertex numbers
+    Ne = number_generator() # edge numbers
+
+    face_done = np.zeros(mesh.GetNFaces(), dtype=bool)
+    face_cache = {}
+
+
+    for iele in range(mesh.GetNE()):
+        inodes = mesh.GetElementVertices(iele)
+        ifaces, void = mesh.GetElementFaces(iele)
+
+        f = val[inodes]
+
+        if np.all(f >= 0) or np.all(f <= 0):
+            if np.sum(f==0) < 3: continue  # element is one side of plane.
+                                           # only edge/node may be on the plane.
+            ## face is on the plane
+            ifaces = [x for x in ifaces if not face_done[x]]
+            
+            for iface in ifaces:
+               face_done[iface] = True
+               f = val[mesh.GetFaceVertices(iface)]
+
+               if np.all(f==0):
+                   iedges, orts= mesh.GetFaceEdges(iface)
+                   shape = []
+                   for iedge, ort in zip(iedges, orts):
+                       iv = mesh.GetEdgeVertices(iedge)
+                       n1, isNew = Nv.get_number(iv[0])
+                       if isNew:
+                           shape_ptx.append(vv[:,iv[0]])
+                       n2, isNew = Nv.get_number(iv[1])
+                       if isNew:
+                           shape_ptx.append(vv[:,iv[1]])
+                           
+                       e1, isNew = Ne.get_number((n1, n2))
+                       
+                       shape.append(e1)
+                   shapes.append(shape)
+                   shapes_attr.append(attrs[iele])
+                   break
+               else:
+                   pass
+
+        else:
+            ## face intersect with the plane
+            shape = []            
+            for iface in ifaces:
+                if iface in face_cache:
+                    e1 = face_cache[iface]
+                    shape.append(e1)
+                else:
+                    iedges = mesh.GetFaceEdges(iface)[0]
+                    edge0 = []
+                    for iedge in iedges:
+                        iv = mesh.GetEdgeVertices(iedge)
+                        iv1, iv2 = iv            
+                        f = val[iv]
+                        if np.max(f) * np.min(f) < 0:
+                            ptx = (vv[:,iv1]*val[iv2] - vv[:,iv2]*val[iv1])/(- val[iv1] + val[iv2])
+                            idx = (iv1, iv2)
+                        elif f[0] == 0:
+                            ptx = vv[:,iv1]
+                            idx = iv1
+                        elif f[1] == 0:
+                            ptx = vv[:,iv2]
+                            idx = iv2
+                        else:
+                            continue
+                        n, isNew = Nv.get_number(idx)
+                        if n in edge0: continue
+                        if isNew:
+                           shape_ptx.append(ptx)
+                        edge0.append(n)
+                        c = c+1
+                        if c == 1: break
+                    if len(edge0) < 2: continue
+                    e1, isNew = Ne.get_number(edge0)
+                    shape.append(e1)
+                    face_cache[iface] = e1
+            shapes.append(shape)
+            shapes_attr.append(attrs[iele])
+
+    edge2point = Ne.get_reverse_map()
+    coords = np.vstack(shape_ptx)                                    
+    return shapes, shapes_attr, edge2point, coords
+
+def find_cp_pc_parameter(mesh, abcd, e1, gsize=None, gcount=100, origin=None, attrs=None):
+    '''
+    make cut-plane point_clund
+
+    cp is defined by norm (a, b, c) and d as ax+by+cz+d = 0
+    e1 is one axes on cp
+    e2 is computed automatically
+
+    gsize : grid size
+
+    '''
+    from petram.mfem_config import use_parallel
+    if use_parallel:
+       import mfem.par as mfem   
+    else:
+       import mfem.ser as mfem
+
+    v = mfem.Vector()
+    mesh.GetVertices(v)
+    vv = v.GetDataArray().copy()
+    vv = vv.reshape(3, -1)
+    
+    val =  vv[0, :]*abcd[0] + vv[1,:]*abcd[1] + vv[2,:]*abcd[2] + abcd[3]
+    
+    norm = np.array(abcd[:3])
+    norm = norm/np.sqrt(np.sum(norm**2))
+    flag = np.zeros(mesh.GetNV(), dtype=bool)
+
+    for iele in range(mesh.GetNE()):
+        inodes = mesh.GetElementVertices(iele)
+        f = val[inodes]
+        
+        if np.all(f > 0) or np.all(f < 0):
+            continue
+
+        if attrs is not None and not (mesh.GetAttribute(iele) in attrs):
+            continue
+        
+        flag[mesh.GetElementVertices(iele)] = True
+
+    points =  np.transpose(vv[:, flag])
+
+    p1 = np.sum(points*abcd[:3], 1)+abcd[3]
+    dd = np.sqrt(np.sum(np.array(abcd[:3])**2))
+    p1 = p1/dd
+    points = points - norm.reshape(3)*p1.reshape(-1,1)
+
+    e2 = np.cross(norm, e1)
+    e1=  np.cross(e2, norm)
+    e1 = e1 / np.sqrt(np.sum(e1**2))
+    e2 = e2 / np.sqrt(np.sum(e2**2))
+
+    if len(points) == 0:
+        return None
+
+    origin = points[0] if origin is None else np.array(origin)
+    
+    x = np.sum((points-origin)*e1, -1)
+    y = np.sum((points-origin)*e2, -1)
+
+    xmax = np.max(x);xmin = np.min(x)
+    ymax = np.max(y);ymin = np.min(y)
+
+    dx = xmax-xmin
+    dy = ymax-ymin
+
+    if gsize is None:
+        try:
+            gsize1 = dx/(gcount[0]-1)
+            gsize2 = dx/(gcount[1]-1)
+        except:
+            gsize1 = max(dx/(gcount-1), dy/(gcount-1))        
+            gsize2 = gsize1
+    else:
+        try:
+            gsize1 = gsize[0]
+            gsize2 = gsize[1]
+        except:
+            gsize1 = gsize
+            gsize2 = gsize
+
+    return {"origin": origin, "e1":e1, "e2":e2,
+            "x":(xmin, xmax, gsize1), "y":(ymin, ymax, gsize2)}
+
+
+def generate_pc_from_cpparam(origin=None, e1=None, e2=None, x=None, y=None):
+    xmin, xmax, xsize = x
+    ymin, ymax, ysize = y
+    xx = np.linspace(xmin, xmax, int((xmax-xmin)/xsize))
+    yy = np.linspace(ymin, ymax, int((ymax-ymin)/ysize))
+
+    XX, YY = np.meshgrid(xx, yy)
+
+    e1 = np.atleast_2d(e1)
+    e2 = np.atleast_2d(e2)
+    pc = origin + e1*XX.reshape(-1,1) + e2*YY.reshape(-1,1)
+    pc = pc.reshape(len(yy), len(xx), 3)
+    return pc
+    
+def make_cp_pc(mesh, abcd, e1, gsize=None, gcount=100):
+    param = find_cp_pc_parameter(mesh, abcd, e1, gsize=gsize, gcount=gcount)
+    pc = generate_pc_from_cpparam(param)
+    return pc
+    
+'''
+def poly_trainagulation(shape, edge2point, coords, normal):
+
+    def make_loop(shape, edge2point):
+        edges = shape[1:]
+        p1, p2 = edge2point[shape[0]]
+        loop = [p1, p2]
+        while len(edges) != 0:
+           for e in edges:
+               p1, p2 = edge2point[e]
+               if p1 == loop[-1]:
+                   loop.append(p2)
+                   edge.remore(e)
+                   break
+               if p2 == loop[-1]:               
+                   loop.append(p1)
+                   edge.remore(e)                   
+                   break
+            edges.remove(e)
+        return loop
+    
+    p = coords[loop]
+    loop2 = [loop[-1]] + loop[:] + [loop[0]]
+    dp =coords[loop2[:-1]] - coords[loop2[1:]]
+'''
 

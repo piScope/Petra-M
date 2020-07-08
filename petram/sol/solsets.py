@@ -21,6 +21,27 @@ class Solfiles(object):
     def path(self):
         return os.path.dirname(self.set[0][0][0])
     
+    def store_timestamps(self):
+        self.timestamps = {}
+        for meshes, solf, in self.set:
+            for x in meshes:
+                self.timestamps[x] = os.path.getmtime(x)
+                
+            for key in solf:
+                fr, fi = solf[key]
+                if fr is not None:
+                    self.timestamps[fr] = os.path.getmtime(fr)
+                if fi is not None:
+                    self.timestamps[fi] = os.path.getmtime(fi)                    
+
+    def is_different_timestamps(self, solfiles):
+        for x in self.timestamps:
+            if not x in solfiles.timestamps:
+                return True
+            if solfiles.timestamps[x] != self.timestamps[x]:
+                return True
+        return False
+        
 class MeshDict(dict):
     pass
         
@@ -38,14 +59,16 @@ class Solsets(object):
         object.__init__(self)
         self.set = []
         import mfem.ser as mfem
+
+        fix_orientation=False
         
         for meshes, solf, in solfiles:
             idx = [fname2idx(x) for x in meshes]
-            meshes = {i:  mfem.Mesh(str(x), 1, refine) for i, x in zip(idx, meshes)}
+            meshes = {i:  mfem.Mesh(str(x), 1, refine, fix_orientation) for i, x in zip(idx, meshes)}
             meshes=MeshDict(meshes) # to make dict weakref-able
             ### what is this refine = 0 !?
             for i in idx:
-                meshes[i].ReorientTetMesh()
+                #meshes[i].ReorientTetMesh()
                 meshes[i]._emesh_idx = i
             s = {}
             for key in six.iterkeys(solf):
@@ -120,7 +143,7 @@ def find_solfiles(path, idx = None):
 
         sol = {}
         for n in names:
-            print('solr_'+ n + s)
+            #print('solr_'+ n + s)
             solr = (os.path.join(path, 'solr_'+ n + s)
                   if ('solr_'+ n + s) in solrfile else None)
             soli = (os.path.join(path, 'soli_'+ n + s)
@@ -129,7 +152,11 @@ def find_solfiles(path, idx = None):
             if solr is None: continue
             sol[n] = (solr, soli)
         solfiles.append([meshes, sol])                  
-    return Solfiles(solfiles)
+
+    ret = Solfiles(solfiles)
+    ret.store_timestamps()
+
+    return ret
 
 def read_solsets(path, idx = None, refine=0):
     solfiles = find_solfiles(path, idx)

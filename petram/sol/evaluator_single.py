@@ -19,6 +19,7 @@ else:
 import multiprocessing as mp
 from petram.sol.evaluators import Evaluator, EvaluatorCommon
 
+
 class EvaluatorSingle(EvaluatorCommon):
     '''
     define a thing which takes expression involving Vriables
@@ -27,39 +28,51 @@ class EvaluatorSingle(EvaluatorCommon):
     def __init__(self):
         self.mfem_model = None
         self.solfiles = None
-        self.solvars = WKD()
+        #self.solvars = WKD()
+        self.solvars = {}
         self.agents = {}
         self.physpath = ''
         self.init_done = False
         self.failed = False
+        super(EvaluatorSingle, self).__init__()        
         
     def set_solfiles(self, solfiles):
-        self.solfiles = weakref.ref(solfiles)
+        self.solfiles = solfiles
+        # make sure solvars is empty and weakref does not go away.
+        self._soliles = solfiles
+        self.solvars = {}        
         
     def set_phys_path(self, phys_path):
         self.phys_path = phys_path
 
-    def validate_evaluator(self, name, attr, solfiles, **kwargs):
-        #print("validate evaulator", self.solfiles(), solfiles)
+    def validate_evaluator(self, name, attr, solfiles, isFirst=False, **kwargs):
         redo_geom = False
-        if (self.solfiles is None or
-            self.solfiles() is not solfiles):
+        if (self.solfiles is None or 
+            self.solfiles.is_different_timestamps(solfiles)):
             self.set_solfiles(solfiles)
-            print("new_solfiles")
+            print("new solfiles")
             redo_geom = True
+        else:
+            print("same solfiles")            
+            
         if not super(EvaluatorCommon, self).validate_evaluator(name, attr, **kwargs):
+            print("different_setting")
             redo_geom = True
         if not self.init_done: redo_geom = True
         if not redo_geom: return
- 
+        
+        if isFirst:
+            self.init_done = True            
+            return
+
         solvars = self.load_solfiles()
         self.make_agents(self._agent_params[0],
                          attr, **kwargs)
-        for key in six.iterkeys(self.agents):
-            evaluators = self.agents[key]
-            for o in evaluators:
-                o.preprocess_geometry([key], **kwargs)
 
+        #for key in list(self.agents):
+        #    evaluators = self.agents[key]
+        #    for o in evaluators:
+        #        o.preprocess_geometry([key], **kwargs)
         self.init_done = True
                 
     def eval(self, expr, merge_flag1, merge_flag2, **kwargs):
@@ -142,14 +155,66 @@ class EvaluatorSingle(EvaluatorCommon):
                 data0.extend([xx for xx in x if xx[0] is not None])
             data = data0
         return data, attrs
+
+    def eval_pointcloud(self, expr, **kwargs):
+        if self.phys_path == '': return None, None
+        
+        phys = self.mfem_model()[self.phys_path]
+        solvars = self.load_solfiles()
+        if solvars is None: return None, None
+
+        export_type = kwargs.get('export_type', 1)
+        
+        data = []
+        attrs = []
+        offset = 0
+
+        key = list(self.agents)[0]
+        
+        vdata = [] # vertex
+        cdata = [] # data
+        adata = [] # array idx     
+        attrs.append(key)                                  
+        evaluators = self.agents[key]
+        
+        for o, solvar in zip(evaluators, solvars): # scan over sol files
+           v, c, a = o.eval(expr, solvar, phys, **kwargs)
+           if v is None:
+               v = None; c = None; a = None
+           else:
+               vdata.append(v)
+               cdata.append(c)
+               adata.append(a)
+
+        if len(adata)==0: return None, None
+
+        ptx  = vdata[0]
+        ddim = cdata[0].shape[1:]  # data dim
+
+        shape = adata[0].shape
+        shape_d = sum((shape, ddim), ())
+                      
+        attrs = np.zeros(shape, dtype=int)-1
+
+        #print(shape_d)
+        data  = np.zeros(shape_d, dtype=cdata[0].dtype)
+
+        #print("data shape", data.shape)
+                
+        for v, c, a in zip(vdata, cdata, adata):
+            idx = (a != -1)
+            if np.sum(idx) == 0: continue
+            attrs[idx] = a[idx]
+            data[idx] = c
+        return ptx, data, attrs
+
     
-    def eval_probe(self, expr, probes):
+    def eval_probe(self, expr, xexpr, probes):
         if self.phys_path == '': return None, None
         
         phys = self.mfem_model()[self.phys_path]
 
-        print(self.agents)
         evaluator = self.agents[1][0]
-        return evaluator.eval_probe(expr, probes, phys)
+        return evaluator.eval_probe(expr, xexpr, probes, phys)
 
 

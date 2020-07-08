@@ -295,6 +295,8 @@ class SelectionPalette(SimpleFramePlus):
     def OnRefreshTree(self, evt=None):
         v = self.GetParent()
 
+        if not v._view_mode in v._s_v_loop:
+            return 
         loops = v._s_v_loop[v._view_mode]
         #loops = v._figure_data[v._view_mode]        
         if (self.loops[0] is loops[0] and
@@ -452,16 +454,29 @@ class SelectionPalette(SimpleFramePlus):
 
             vv = self.GetParent()
             if len(v) > 0:
+                vv.change_panel_button('domain')
                 vv.highlight_domain(v)
+                vv._dom_bdr_sel = (v, [], [], [])
+                
             elif len(s) > 0:
+                vv.change_panel_button('face')                
                 vv.highlight_face(s)
+                vv._dom_bdr_sel = ([], s, [], [])
+                
             elif len(l) > 0:
+                vv.change_panel_button('edge')
                 vv.highlight_edge(l)
+                vv._dom_bdr_sel = ([], [], l, [])
+                
             elif len(p) > 0:
+                vv.change_panel_button('dot')                
                 vv.highlight_point(p)
+                vv._dom_bdr_sel = ([], [], [], p)
+                
             else:
                 vv.highlight_none()
-                             
+                vv._dom_bdr_sel = ([], [], [], [])
+                
         if evt is not None:
             evt.Skip()
     

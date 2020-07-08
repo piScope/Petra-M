@@ -21,6 +21,7 @@ else:
    import mfem.ser as mfem
 
 from petram.helper.variables import Variable, eval_code 
+from petram.helper.variables import NativeCoefficientGenBase, CoefficientVariable
 
 # not that PyCoefficient return only real number array
 class PhysConstant(mfem.ConstantCoefficient):
@@ -41,7 +42,7 @@ class PhysVectorConstant(mfem.VectorConstantCoefficient):
      
 class PhysMatrixConstant(mfem.MatrixConstantCoefficient):
     def __init__(self, value):
-        v = mfem.Vector(value.flatten())
+        v = mfem.Vector(np.transpose(value).flatten())
         m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])       
         self.value = (v,m)
         mfem.MatrixConstantCoefficient.__init__(self, m)
@@ -113,10 +114,15 @@ class Coefficient_Evaluator(object):
                code= st.compile('<string>')
                names = code.co_names
                for n in names:
-                  if n in g and isinstance(g[n], Variable):
-                       self.variables.append((n, g[n]))
-                       for nn in g[n].dependency:
-                           self.variables.append((nn, g[nn]))                          
+                  if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
+                      coeff_var = CoefficientVariable(g[n], l, g)
+                      self.variables.append((n, coeff_var))
+                  elif n in g and isinstance(g[n], Variable):
+                      self.variables.append((n, g[n]))
+                      for nn in g[n].dependency:
+                          self.variables.append((nn, g[nn]))
+                  else:
+                      pass
                self.co.append(code)
            else:
                self.co.append(expr)
@@ -208,7 +214,7 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
         
     def Eval(self, K, T, ip):
         for n, v in self.variables:
-           v.set_point(T, ip, self.g, self.l)           
+           v.set_point(T, ip, self.g, self.l)
         return super(MatrixPhysCoefficient, self).Eval(K, T, ip)
 
     def EvalValue(self, x):
@@ -293,6 +299,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     def get_possible_point(self):
         return []
 
+    def get_probe(self):
+        '''
+        return probe name
+        '''
+        return ''
     def get_independent_variables(self):
         p = self.get_root_phys()
         ind_vars = p.ind_vars
@@ -326,6 +337,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if not isinstance(coeff, tuple):
            flag = True
            coeff = [coeff]
+
         for c in coeff:
             if vec:
                 ret.append(mfem.VectorRestrictedCoefficient(c, arr))
@@ -648,20 +660,46 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         root_phys = self.get_root_phys()
         return root_phys.dim        
 
+    @property
+    def integrator_realimag_mode(self):
+        if hasattr(self, "_realimag_mode"):
+            return self._realimag_mode
+        else:
+            return ""
+         
+    def set_integrator_realimag_mode(self, value):
+        if value:
+           self._realimag_mode = "real"
+        else:
+           self._realimag_mode = "imag"
+           
+    def process_complex_coefficient(self, coeff):
+        if self.integrator_realimag_mode == "real":
+            return (coeff[0].get_real_coefficient(),)
+        elif self.integrator_realimag_mode == "imag":
+            return (coeff[0].get_imag_coefficient(),)
+        else:
+            return coeff
+           
     def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None,
                        transpose=False):
         if coeff is None: return
         if vt is None: vt = self.vt
         #if vt[name].ndim == 0:
         if not isinstance(coeff, tuple): coeff = (coeff, )
-        if isinstance(coeff[0], mfem.Coefficient):
+        
+        coeff = self.process_complex_coefficient(coeff)
+        
+        if coeff[0] is None:
+            return 
+        elif isinstance(coeff[0], mfem.Coefficient):
             coeff = self.restrict_coeff(coeff, engine, idx=idx)
         elif isinstance(coeff[0], mfem.VectorCoefficient):          
             coeff = self.restrict_coeff(coeff, engine, vec = True, idx=idx)
         elif isinstance(coeff[0], mfem.MatrixCoefficient):                     
             coeff = self.restrict_coeff(coeff, engine, matrix = True, idx=idx)
         else:
-            assert  False, "Unknown coefficient type: " + str(type(coeff))
+            assert  False, "Unknown coefficient type: " + str(type(coeff[0]))
         itg = integrator(*coeff)
         itg._linked_coeff = coeff #make sure that coeff is not GCed.
         
@@ -921,7 +959,13 @@ class PhysModule(Phys):
             if self.dim == 1:               
                self.sel_index = alle
                
-       
+
+    def collect_probes(self):
+        probes = [mm.get_probe() for mm in self.walk() if mm.is_enabled()]
+        probes = [x for x in probes if len(x) != 0]
+        txt = ','.join(probes)
+        return txt
+        
     def get_dom_bdr_choice(self, mesh):
 
         from collections import defaultdict
@@ -948,9 +992,8 @@ class PhysModule(Phys):
 
         if self.sel_index[0] != 'all':
             dom_choice = [int(x) for x in self.sel_index]
-            bdrs = [d[int(x)] for x in self.sel_index]
+            bdrs = [d[int(x)] if int(x) in d else [] for x in self.sel_index ]
             bdr_choice = list(np.unique(np.hstack(bdrs)).astype(int))
-
         internal_bdr = get_internal_bdr(d, dom_choice)
 
         from petram.mfem_config import use_parallel

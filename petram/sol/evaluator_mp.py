@@ -70,22 +70,26 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         self.text_queue = text_queue        
         self.myid = myid
         self.rank = rank
-        self.solvars = WKD()        
         self.agents = {}
         self.logfile = logfile
+        #self.logfile = 'log'
         self.use_stringio = False
+        self.solfiles = None
         
         ## enable it when checking performance        
         self.use_profiler = False
 
     def run(self, *args, **kargs):
+        # this can not be in init, sicne it is not pickable
+        self.solvars = WKD()
+        
         if self.logfile == 'suppress':
             sys.stdout = open(os.devnull, 'w')
         elif self.logfile == 'queue':
             self.use_stringio = True
         elif self.logfile == 'log':
-            path = os.path.expanduser('~/MPChild.out')
-            sys.stdout = open(path, "w", 0)
+            path = os.path.expanduser('~/MPChild'+ str(os.getpid()) + '.out')
+            sys.stdout = open(path, "w")
         else:
             pass
         while True:
@@ -96,6 +100,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                 self.result_queue.put((-1, None))                
                 self.task_queue.task_done()
                 continue
+
             if task[0] == -1:
                 self.task_queue.task_done()
                 break
@@ -144,11 +149,17 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     else:
                         value =  self.eval(task[1], **task[2])
                         
-                elif task[0] == 8: # (7, expr)  = eval
-                    if self.solfiles is None:
-                        value = (None, None)
-                    else:
-                        value =  self.eval_probe(task[1], task[2])
+                elif task[0] == 8: # (8, expr)  = eval_probe
+                    value =  self.eval_probe(task[1], task[2], task[3])
+                    
+                elif task[0] == 9: # (8, expr)  = make_probe_agents
+                    cls = task[1]
+                    params = task[2]
+                    kwargs = task[3]
+                    self.make_probe_agents(cls, params, **kwargs)
+                    
+                elif task[0] == 10: # (8, expr)  = eval_pointcloud
+                    value =  self.eval_pointcloud(task[1], **task[2])
                         
             except:
                 traceback.print_exc()
@@ -166,6 +177,8 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                 if task[0] == 7:
                     self.result_queue.put(value)
                 if task[0] == 8:
+                    self.result_queue.put(value)
+                if task[0] == 10:
                     self.result_queue.put(value)
                     
                 if self.use_stringio:
@@ -185,7 +198,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         s = solfiles[st:et]
         if len(s) > 0:
             self.solfiles_real = s
-            self.solfiles = weakref.ref(s)
+            self.solfiles = s
         else:
             self.solfiles = None
             
@@ -212,6 +225,8 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             self.model_real = s.model
         except:
             print(traceback.format_exc())
+            return self.myid, None, traceback.format_exc()
+            
         super(EvaluatorMPChild, self).set_model(s.model)
 
     def call_preprocesss_geometry(self, attr, **kwargs):
@@ -246,19 +261,76 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                 data[-1].append((v, c, a))
 
         return self.myid, data, attrs
-    
-    def eval_probe(self, expr, probes):
+
+    def eval_pointcloud(self, expr, **kwargs):
+        if self.phys_path == '': return None, None, None
+        
+        phys = self.mfem_model()[self.phys_path]
+        solvars = self.load_solfiles()
+
+        if solvars is None: return self.myid, None, None        
+
+        export_type = kwargs.get('export_type', 1)
+        
+        data = []
+        attrs = []
+        offset = 0
+
+        key = list(self.agents)[0]
+        
+        vdata = [] # vertex
+        cdata = [] # data
+        adata = [] # array idx     
+        attrs.append(key)                                  
+        evaluators = self.agents[key]
+        
+        for o, solvar in zip(evaluators, solvars): # scan over sol files
+           try:
+               v, c, a = o.eval(expr, solvar, phys, **kwargs)
+           except:
+               import traceback
+               return self.myid, None, traceback.format_exc()
+               
+           if v is None:
+               v = None; c = None; a = None
+           else:
+               vdata.append(v)
+               cdata.append(c)
+               adata.append(a)
+
+        if len(adata)==0: return None, None, None
+
+        ptx  = vdata[0]
+        ddim = cdata[0].shape[1:]  # data dim
+
+        shape = adata[0].shape
+        shape_d = sum((shape, ddim), ())
+                      
+        attrs = np.zeros(shape, dtype=int)-1
+
+        data  = np.zeros(shape_d, dtype=cdata[0].dtype)
+
+        #print("data shape", data.shape)
+                
+        for v, c, a in zip(vdata, cdata, adata):
+            idx = (a != -1)
+            if np.sum(idx) == 0: continue
+            attrs[idx] = a[idx]
+            data[idx] = c
+        return ptx, data, attrs
+
+    def eval_probe(self, expr, xexpr, probes):
         if self.phys_path == '': return None, None
         
         phys = self.mfem_model()[self.phys_path]
         evaluator = self.agents[1][0]
         
-        return evaluator.eval_probe(expr, probes, phys)
-    
+        return evaluator.eval_probe(expr, xexpr, probes, phys)
         
 
 class EvaluatorMP(Evaluator):
     def __init__(self, nproc = 2, logfile = False):
+        super(EvaluatorMP, self).__init__()
         print("new evaluator MP", nproc)
         self.init_done = False        
         self.tasks = BroadCastQueue(nproc)
@@ -266,6 +338,7 @@ class EvaluatorMP(Evaluator):
         self.workers = [None]*nproc
         self.solfiles = None
         self.failed = False
+        self.closed = False
         
         if logfile == 'queue':
             self.text_queue = mp.Queue()
@@ -283,7 +356,8 @@ class EvaluatorMP(Evaluator):
             w.start()
         
     def __del__(self):
-        self.terminate_all()
+        if not self.closed:
+            self.terminate_all()
 
     def set_model(self, model):
         #print("looking for model file in " + os.getcwd())
@@ -310,7 +384,7 @@ class EvaluatorMP(Evaluator):
         #shutil.rmtree(tmpdir)
         
     def set_solfiles(self, solfiles):
-        self.solfiles = weakref.ref(solfiles)        
+        self.solfiles = solfiles
         self.tasks.put((2, solfiles))
 
     def make_agents(self, name, params, **kwargs):
@@ -320,21 +394,34 @@ class EvaluatorMP(Evaluator):
     def load_solfiles(self, mfem_mode = None):
         self.tasks.put((4, ), join = True)
         
-    def set_phys_path(self, phys_path):        
+    def set_phys_path(self, phys_path):
         self.tasks.put((5, phys_path))
         
-    def validate_evaluator(self, name, attr, solfiles, **kwargs):
+    def validate_evaluator(self, name, attr, solfiles, isFirst=False, **kwargs):
         redo_geom = False
+        #if  self.solfiles is None or self.solfiles() is not solfiles:
         if (self.solfiles is None or
-            self.solfiles() is not solfiles):
+            self.solfiles.is_different_timestamps(solfiles)):
+
+            if self.solfiles is None:
+                print("self.solfiles is None")
+            else:
+                print("new file time stamp")
+                
             print("new solfiles")
             self.set_solfiles(solfiles)
             self.load_solfiles()
             redo_geom = True
+        else:
+            print("same solfiles")            
         if not super(EvaluatorMP, self).validate_evaluator(name, attr, **kwargs):
             redo_geom = True
         if not self.init_done: redo_geom = True
         if not redo_geom: return
+        
+        if isFirst:
+            self.init_done = True            
+            return
 
         self.make_agents(self._agent_params[0],
                          attr, **kwargs)
@@ -434,12 +521,38 @@ class EvaluatorMP(Evaluator):
                 data0.extend([xx for xx in x if xx[0] is not None])
             data = data0
         return data, attrs
-    
-    def eval_probe(self, expr, probes):
-        self.tasks.put_single((8, expr, probes), join = True)
+
+    def eval_pointcloud(self, expr, **kwargs):
+        self.tasks.put((10, expr, kwargs), join = True)
+
+        res = [self.results.get() for x in range(len(self.workers))]
+        for x in range(len(self.workers)):
+            self.results.task_done()
+
+        res = [x for x in res if x[-1] is not None]
+        if len(res) == 0:
+            return None, None, None
+
+        ptx, data, attrs = res[0]
+
+        for v, c, a in res[1:]:
+            idx = (a != -1)
+            if np.sum(idx) == 0: continue
+            attrs[idx] = a[idx]
+	    #print(data.shape, c.shape)                                                                                                                         
+            data[idx] = c[idx]
+
+        return ptx, data, attrs
+            
+    def eval_probe(self, expr, xexpr, probes):
+        self.tasks.put_single((8, expr, xexpr, probes), join = True)
         res = self.results.get()# for x in range(len(self.workers))]
         self.results.task_done()
         return res
+
+    def make_probe_agents(self, name, params, **kwargs):
+        super(EvaluatorMP, self).make_agents(name, params, **kwargs)
+        self.tasks.put((9, name, params, kwargs))
     
     def terminate_all(self):
         #print('terminating all')      
@@ -447,10 +560,22 @@ class EvaluatorMP(Evaluator):
         #for w in self.workers:
         #    if w.is_alive(): num_alive = num_alive + 1
         #for x in range(num_alive):
+        if self.closed: return
         self.tasks.put([-1])
         self.tasks.join()
+        
         self.tasks.close()
         self.results.close()
+        self.results.cancel_join_thread()
+        
+        if self.text_queue is not None:
+            self.text_queue.close()
+            self.text_queue.cancel_join_thread()
+
+        self.closed = True
+        for w in self.workers:
+            w.join()
+        
         print('joined')
 
     

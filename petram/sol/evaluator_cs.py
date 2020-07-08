@@ -40,12 +40,16 @@ wait_time = 0.3
 def enqueue_output(p, queue, prompt):
     while True:
         line = p.stdout.readline()
+        #print("line", line)
+        
         if len(line) == 0:
             time.sleep(wait_time)
             continue
+
         if line ==  (prompt + '\n'): break
         queue.put(line)
-        if p.poll() is not None: return
+        if p.poll() is not None:
+           break #return
     queue.put("??????")
     
 def enqueue_output2(p, queue, prompt):
@@ -137,15 +141,15 @@ def wait_for_prompt(p, prompt = '?', verbose = True, withsize=False):
         
 def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
     if user != '': user = user+'@'
-    p= sp.Popen("ssh " + user + host + " 'printf $PetraM'", shell=True,
-                stdout=sp.PIPE,
-                universal_newlines = True)    
-    ans = p.stdout.readlines()[0].strip()
-    command = "source $PetraM/etc/load_modules.sh;"+ans+'/bin/evalsvr'
+    #p= sp.Popen("ssh " + user + host + " 'printf $PetraM'", shell=True,
+    #            stdout=sp.PIPE,
+    #            universal_newlines = True)    
+    #ans = p.stdout.readlines()[0].strip()
+    command = "$PetraM/bin/launch_evalsvr.sh"
     if soldir != '':
         command = 'cd ' + soldir + ';' + command
     print(command)
-    p = sp.Popen(['ssh', user + host, command], stdin = sp.PIPE,
+    p = sp.Popen(['ssh', '-t', user + host, command], stdin = sp.PIPE,
                  stdout=sp.PIPE, stderr=sp.STDOUT,
                  close_fds = ON_POSIX,
                  universal_newlines = True)
@@ -231,15 +235,18 @@ class EvaluatorClient(Evaluator):
         if self.p is None: return
         verbose = kparams.pop("verbose", False)
         force_protocol1 = kparams.pop("force_protocol1", False)
-        
+        prompt = kparams.pop("prompt", "?")
         command = [name, params, kparams]
         data = binascii.b2a_hex(pickle.dumps(command))
         print("Sending request", command)
         self.p.stdin.write(data.decode('utf-8') + '\n')
         self.p.stdin.flush()
         
-        protocol = 1 if force_protocol1 else self.p.evalsvr_protocol 
-        output, alive = wait_for_prompt(self.p,
+        protocol = 1 if force_protocol1 else self.p.evalsvr_protocol
+
+        import threading
+        print("calling wait for prompt", threading.current_thread())
+        output, alive = wait_for_prompt(self.p, prompt=prompt, 
                                         verbose = verbose,
                                         withsize = protocol > 1)
         if not alive:
@@ -288,7 +295,10 @@ class EvaluatorClient(Evaluator):
         
     def make_agents(self,  *params, **kparams):
         return self.__call_server('make_agents', *params, **kparams)        
-        
+
+    def make_probe_agents(self,  *params, **kparams):
+        return self.__call_server('make_probe_agents', *params, **kparams)        
+
     def load_solfiles(self,  *params, **kparams):
         return self.__call_server('load_solfiles', *params, **kparams)        
 
@@ -296,18 +306,35 @@ class EvaluatorClient(Evaluator):
         return self.__call_server('set_phys_path', *params, **kparams)        
         
     def validate_evaluator(self,  *params, **kparams):
-        if self.p is None: return False
+        if self.p is None:
+           return False
         #kparams["verbose"] = True
         return self.__call_server('validate_evaluator', *params, **kparams)
 
     def eval(self,  *params, **kparams):
         return self.__call_server('eval', *params, **kparams)
+     
+    def eval_pointcloud(self,  *params, **kparams):
+        return self.__call_server('eval_pointcloud', *params, **kparams)
     
     def eval_probe(self,  *params, **kparams):
         return self.__call_server('eval_probe', *params, **kparams)
 
     def terminate_all(self):
-        return self.__call_server('terminate_all', force_protocol1=True)
+        try:
+            ret =  self.__call_server('terminate_all', prompt='byebye', force_protocol1=True)
+            
+        except BrokenPipeError:
+            ### when server-side client is dead, terminate connection
+            print("Broken Pipe Error, teminating the connection")
+            self.p.terminate()
+            self.p = None
+            return 
+         
+        if self.p is not None:
+           if self.p.poll() is None:
+               self.p.terminate()
+        return ret
         
     
 

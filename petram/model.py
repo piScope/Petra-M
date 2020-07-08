@@ -159,6 +159,7 @@ class Model(RestorableOrderedDict):
     mustbe_firstchild =False
     always_new_panel = True
     can_rename = False
+    unique_child = False
     
     @classmethod    
     def fancy_menu_name(cls):
@@ -360,7 +361,15 @@ class Model(RestorableOrderedDict):
 
     def add_item(self, txt, cls,  **kwargs):
         after = kwargs.pop("after", None)
-        before = kwargs.pop("before", None)        
+        before = kwargs.pop("before", None)
+
+        if cls.unique_child:
+            if txt in self:
+                assert False, "this class (unique_child) already exists"
+            obj = cls(**kwargs)
+            self[txt] = obj
+            return txt
+            
         m = []
         for k in self.keys():
             ll = 0
@@ -593,6 +602,10 @@ class Model(RestorableOrderedDict):
     def set_parent(self, parent):
         self._parent = parent
 
+    def on_created_in_tree(self):
+        # called when item is newly created in Tree from GUI
+        None
+
     def fullname(self):
         '''
         returns 'root.Phys.Boundary...'
@@ -725,9 +738,11 @@ class Model(RestorableOrderedDict):
         script.append('model = make_model()')
         script.append('')        
         script.append('eng = Eng(model = model)')
-        script.append('')        
-        script.append('solvers = eng.preprocess_modeldata()')
-        script.append('if myid == 0: model.save_to_file("model_proc.pmfm", meshfile_relativepath = False)')
+        script.append('')
+
+        script.append('solvers = eng.run_build_ns()')
+        # script.append('solvers = eng.preprocess_modeldata()')
+        # script.append('if myid == 0: model.save_to_file("model_proc.pmfm", meshfile_relativepath = False)')
         script.append('')
         script.append('is_first = True')        
         script.append('for s in solvers:')
@@ -845,6 +860,10 @@ class Model(RestorableOrderedDict):
         return None, None, None
     def is_viewmode_grouphead(self):
         return False
+
+    def update_figure_data(self, *args, **kwargs):
+        del args
+        del kwargs
     
     def figure_data_name(self):
         return self.name()

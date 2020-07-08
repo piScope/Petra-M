@@ -30,17 +30,19 @@ class Parametric(SolveStep, NS_mixin):
     def panel1_param(self):
         v = self.get_panel1_value()
         return [["Initial value setting",   self.init_setting,  0, {},],
-                ["physics model(blank=auto)",   self.phys_model,  0, {},],
+                ["trial phys. ",   self.phys_model, 0, {},],                
                 ["assembly method",  'Full assemble',  4, {"readonly": True,
-                      "choices": assembly_methods.keys()}],
+                      "choices": list(assembly_methods)}],
                 self.make_param_panel('scanner',  v[2]),
                 [ "save separate mesh",  True,  3, {"text":""}],
                 ["inner solver", ''  ,2, None],
-                ["clear working directory", False, 3, {"text":""}],
+                ["clear working dir.", False, 3, {"text":""}],
+                [None,  self.use_geom_gen,  3, {"text":"run geometry generator"}],
+                [None,  self.use_mesh_gen,  3, {"text":"run mesh generator"}],
                 ]
     
     def get_panel1_value(self):
-        txt = assembly_methods.keys()[0]
+        txt = list(assembly_methods)[0]
         for k, n in assembly_methods.items():
             if n == self.assembly_method: txt = k
 
@@ -50,15 +52,23 @@ class Parametric(SolveStep, NS_mixin):
                 str(self.scanner),    
                 self.save_separate_mesh,
                 self.get_inner_solver_names(),
-                self.clear_wdir)
+                self.clear_wdir, 
+                self.use_geom_gen,
+                self.use_mesh_gen,)
+
 
     def import_panel1_value(self, v):
         self.init_setting = str(v[0])                        
         self.phys_model = str(v[1])
-        self.assembly_method = assembly_methods[v[-5]]
-        self.scanner = v[-4]
-        self.save_separate_mesh = v[-3]
-        self.clear_wdir = v[-1]
+        self.assembly_method = assembly_methods[v[-7]]
+        self.scanner = v[-6]
+        self.save_separate_mesh = v[-5]
+        self.clear_wdir = v[-3]
+        self.use_geom_gen = v[-2]        
+        self.use_mesh_gen = v[-1]
+        if self.use_geom_gen:
+            self.use_mesh_gen = True
+        if self.use_mesh_gen: self.assembly_method = 0
         
     def get_inner_solver_names(self):
         names = [s.name() for s in self.get_active_solvers()]
@@ -72,14 +82,13 @@ class Parametric(SolveStep, NS_mixin):
         v = super(Parametric, self).attribute_set(v)
         v['assembly_method'] = 0
         v['scanner'] = 'Scan("a", [1,2,3])'
-        v['save_separate_mesh'] = True
-        v['clear_wdir'] = False                        
+        v['save_separate_mesh'] = False
+        v['clear_wdir'] = True                      
+
         return v
     
     def get_possible_child(self):
         from petram.solver.std_solver_model import StdSolver        
-        from petram.solver.mumps_model import MUMPS
-        from petram.solver.gmres_model import GMRES
         return [StdSolver,]
     
     def get_scanner(self):
@@ -96,7 +105,14 @@ class Parametric(SolveStep, NS_mixin):
         return {'Scan': Scan}
 
     def go_case_dir(self, engine, ksol, mkdir):
-        od = os.getcwd()                    
+        '''
+        make case directory and create symlinks
+        '''
+        
+        od = os.getcwd()
+        
+        nsfiles = [n for n in os.listdir() if n.endswith('_ns.py') or n.endswith('_ns.dat')]
+        
         path = os.path.join(od, 'case' + str(ksol))
         if mkdir:
             engine.mkdir(path) 
@@ -104,17 +120,28 @@ class Parametric(SolveStep, NS_mixin):
             engine.cleancwd() 
         else:
             os.chdir(path)
-        engine.symlink('../model.pmfm', 'model.pmfm')                    
+        files = ['model.pmfm'] + nsfiles
+        for n in files:
+             engine.symlink(os.path.join('../',n), n)
+        self.case_dirs.append(path)
         return od
 
-
     def _run_full_assembly(self, engine, solvers, scanner, is_first=True):
+        
         for kcase, case in enumerate(scanner):
-            self.prepare_form_sol_variables(engine)
-            
             is_first = True
-            self.init(engine)
+            
             od = self.go_case_dir(engine, kcase, True)
+            
+            is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
+
+            if is_new_mesh or kcase == 0:
+               engine.preprocess_modeldata()
+            
+            self.prepare_form_sol_variables(engine)
+
+            self.init(engine)
+
             for ksolver, s in enumerate(solvers):
                 is_first = s.run(engine, is_first=is_first)
                 engine.add_FESvariable_to_NS(self.get_phys()) 
@@ -131,7 +158,6 @@ class Parametric(SolveStep, NS_mixin):
         
         l_scan = len(scanner)
 
-        
         all_phys = self.get_phys()        
         phys_target = self.get_target_phys()
         
@@ -142,7 +168,7 @@ class Parametric(SolveStep, NS_mixin):
 
             phys_target = self.get_phys()
             phys_range = self.get_phys_range()
-            
+          
             for kcase, case in enumerate(scanner):
 
                 if kcase == 0:
@@ -159,7 +185,6 @@ class Parametric(SolveStep, NS_mixin):
                                                 instance.compute_rhs, 
                                                 inplace = False,
                                                 update=True)
-
                      
                 A, X, RHS, Ae, B, M, depvars = instance.blocks
                 mask = instance.blk_mask
@@ -194,11 +219,15 @@ class Parametric(SolveStep, NS_mixin):
                                                                          oprt)
 
                     for ksol in range(l_scan):
+                        instance.configure_probes('')                        
                         if ksol == 0:
                             instance.save_solution(mesh_only = True,
                                                    save_parmesh = s.save_parmesh )
                         A.reformat_central_mat(solall, ksol, X[0], mask)
                         instance.sol = X[0]
+                        for p in instance.probe:
+                             p.append_sol(X[0])
+                        
                         od = self.go_case_dir(engine,
                                               ksol,
                                               ksolver == 0)
@@ -206,20 +235,45 @@ class Parametric(SolveStep, NS_mixin):
                                                skip_mesh = False, 
                                                mesh_only = False,
                                                save_parmesh=s.save_parmesh)
+                        engine.sol = instance.sol
+                        instance.save_probe()
+                        
                         os.chdir(od)
                    
-    
+    def collect_probe_signals(self, dirs, scanner):
+        from petram.sol.probe import list_probes, load_probe,  Probe
+        params = scanner.list_data()
+        
+        od = os.getcwd()
+
+        filenames, probenames = list_probes(dirs[0])
+
+        names = scanner.names
+        probes = [Probe(n, xnames=names) for n in probenames]
+        
+        for param, dirname in zip(params, dirs):
+            os.chdir(dirname)
+            for f, p in zip(filenames, probes):
+                xdata, ydata =  load_probe(f)
+                p.append_value(ydata, param)
+
+        os.chdir(od)
+        for p in probes:
+            p.write_file()
+            
     def run(self, engine, is_first=True):
         #
         # is_first is not used
         #
-        dprint1("Parametric Scan, ", self.assembly_method)
+        dprint1("Parametric Scan (assemly_methd=", self.assembly_method, ")")
         if self.clear_wdir:
             engine.remove_solfiles()
-
+            
+        engine.remove_case_dirs()
+        
         scanner = self.get_scanner()
         if scanner is None: return
-        
+
         solvers = self.get_active_solvers()
         
         phys_models = []
@@ -228,11 +282,15 @@ class Parametric(SolveStep, NS_mixin):
                 if not p in phys_models: phys_models.append(p)
         scanner.set_phys_models(phys_models)
         
-
-        
+        self.case_dirs = []
         if self.assembly_method == 0: 
             self._run_full_assembly(engine, solvers, scanner, is_first=is_first)
         else:
+            is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
+            if is_first or is_new_mesh:        
+                engine.preprocess_modeldata()
             self._run_rhs_assembly(engine, solvers, scanner, is_first=is_first)
+
+        self.collect_probe_signals(self.case_dirs, scanner)
             
         

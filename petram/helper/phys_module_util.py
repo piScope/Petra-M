@@ -190,4 +190,5 @@ def default_bf_integrator(info1, info2, isDomain):
             integrator = 'MixedScalarMassIntegrator'                    
         else:
             assert False, "No proper integrator is found"
-    return integrator    
+    return integrator
+

@@ -8,11 +8,6 @@ import numpy as np
 
 
 from petram.phys.phys_model import Phys
-from petram.phys.phys_model  import PhysCoefficient
-from petram.phys.phys_model  import VectorPhysCoefficient
-from petram.phys.phys_model  import MatrixPhysCoefficient
-from petram.phys.phys_model  import PhysConstant, PhysVectorConstant, PhysMatrixConstant
-
 from petram.model import Domain, Bdry, Edge, Point, Pair
 
 import petram.debug as debug
@@ -24,7 +19,8 @@ if use_parallel:
 else:
    import mfem.ser as mfem
    
-from petram.phys.vtable import VtableElement, Vtable  
+from petram.phys.vtable import VtableElement, Vtable
+from petram.phys.coefficient import SCoeff, VCoeff, DCoeff, MCoeff
 
 def get_integrators(filename):
     import petram.engine
@@ -51,174 +47,6 @@ def get_integrators(filename):
  
 bilinintegs = get_integrators('BilinearOps')
 linintegs = get_integrators('LinearOps')
-
-from petram.helper.variables import NativeCoefficientGenBase
-
-def MCoeff(*args, **kwargs):
-    class MCoeff(MatrixPhysCoefficient):
-       def __init__(self, *args, **kwargs):
-           self.conj = kwargs.pop('conj', False)
-           super(MCoeff, self).__init__(*args, **kwargs)
-       def EvalValue(self, x):
-           val = super(MCoeff, self).EvalValue(x)
-           if self.conj: val=np.conj(val)
-
-           if np.iscomplexobj(val):
-               if self.real:
-                  return val.real
-               else:
-                  return val.imag
-           elif not self.real:
-               return val*0.0
-           else:
-               return val
-
-    e = args[1]
-    if any([isinstance(ee, str) for ee in e]):
-        return MCoeff(*args, **kwargs)
-    else:
-        conj = kwargs.get('conj', False)
-        real = kwargs.get('real', True)
-        if np.iscomplexobj(e):
-            if conj:  e = np.conj(e)
-            if real:  e = e.real
-            else: e = e.imag
-        elif not real:
-            e = np.array(e*0.0, dtype=float, copy=False)           
-        else:
-            e = np.array(e, dtype=float, copy=False)
-        return PhysMatrixConstant(e)
-     
-def DCoeff(*args, **kwargs):
-    class DCoeff(MatrixPhysCoefficient):
-       def __init__(self, *args, **kwargs):
-           self.conj = kwargs.pop('conj', False)       
-           self.space_dim = args[0]
-           super(DCoeff, self).__init__(*args, **kwargs)
-
-       def EvalValue(self, x):
-           from petram.phys.phys_model import Coefficient_Evaluator
-           val = Coefficient_Evaluator.EvalValue(self, x)
-           val = np.diag(val)
-           if self.conj: val=np.conj(val)
-
-           if np.iscomplexobj(val):
-               if self.real:
-                  return val.real
-               else:
-                  return val.imag
-           elif not self.real:
-               return val*0.0
-           else:
-               return val
-
-    e = args[1]
-    if any([isinstance(ee, str) for ee in e]):
-        return DCoeff(*args, **kwargs)
-    else:
-        e = np.diag(e)       
-        conj = kwargs.get('conj', False)
-        real = kwargs.get('real', True)
-        if np.iscomplexobj(e):
-            if conj:  e = np.conj(e)
-            if real:  e = e.real
-            else: e = e.imag
-        elif not real:
-            e = np.array(e*0.0, dtype=float, copy=False)           
-        else:
-            e = np.array(e, dtype=float, copy=False)
-        return PhysMatrixConstant(e)
-     
-def VCoeff(*args, **kwargs):    
-    class VCoeff(VectorPhysCoefficient):
-       def __init__(self, *args, **kwargs):
-           #print("VCoeff, args", args[:2])
-           self.conj = kwargs.pop('conj', False)
-           super(VCoeff, self).__init__(*args, **kwargs)
-       def EvalValue(self, x):
-           val = super(VCoeff, self).EvalValue(x)
-           if self.conj: val=np.conj(val)
-           
-           if np.iscomplexobj(val):
-               if self.real:
-                  return val.real
-               else:
-                  return val.imag
-           elif not self.real:
-               return val*0.0
-           else:
-               return val
-           
-    e = args[1]
-    if any([isinstance(ee, str) for ee in e]):
-        return VCoeff(*args, **kwargs)
-    else:
-        conj = kwargs.get('conj', False)
-        real = kwargs.get('real', True)
-        if np.iscomplexobj(e):
-            if conj:  e = np.conj(e)
-            if real:  e = e.real
-            else: e = e.imag
-        elif not real:
-            e = np.array(e*0.0, dtype=float, copy=False)           
-        else:
-            e = np.array(e, dtype=float, copy=False)
-        return PhysVectorConstant(e)
-     
-def SCoeff(exprs, ind_vars, l, g, **kwargs):
-    class SCoeff(PhysCoefficient):
-       def __init__(self, exprs, ind_vars, l, g, **kwargs):
-           #print("SCoeff, args", args[:1])       
-           self.component = kwargs.pop('component', None)
-           self.conj = kwargs.pop('conj', False)       
-           super(SCoeff, self).__init__(exprs, ind_vars, l, g, **kwargs)
-
-       def EvalValue(self, x):
-           val = super(SCoeff, self).EvalValue(x)
-           if self.component is None:
-               if self.conj: val=np.conj(val)
-               v =  val
-           else:
-               if len(val.shape) == 0: val = [val]
-               if self.conj: val=np.conj(val)[self.component]
-               v =  val[self.component]
-           if np.iscomplexobj(v):
-               if self.real:
-                  return v.real
-               else:
-                  return v.imag
-           elif not self.real:
-               return 0.0
-           else:
-               return v
-               
-    component = kwargs.get('component', None)
-    conj = kwargs.get('conj', False)
-    real = kwargs.get('real', True)
-    if any([isinstance(ee, str) for ee in exprs]):
-        return SCoeff(exprs, ind_vars, l, g, **kwargs)
-     
-    else:
-        # conj is ignored..(this doesn't no meaning...)
-        #print("exprs",exprs)
-        if component is None:
-            v = exprs[0]         ## exprs[0]
-        else:
-            v = exprs[component] ## weakform10 didn't work with-> exprs[0][component]
-          
-        if isinstance(v, NativeCoefficientGenBase):
-            # generate NativeCoefficient by calling it
-            return v(l, g)
-         
-        if np.iscomplexobj(v):
-            if conj:  v = np.conj(v)
-            if real:  v = v.real
-            else: v = v.imag
-        elif not real:
-            v = 0.0
-        else:
-            pass
-        return PhysConstant(float(v))
     
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
          guilabel = "lambda", default = 0.0, tip = "coefficient",))]
@@ -284,8 +112,8 @@ class WeakIntegration(Phys):
         super(WeakIntegration, self).preprocess_params(engine)
         
     def add_contribution(self, engine, a, real = True, is_trans=False, is_conj=False):
-        c = self.vt_coeff.make_value_or_expression(self)
-        if isinstance(c, str): c = [c]
+        c = self.vt_coeff.make_value_or_expression(self)[0]
+        
         if real:       
             dprint1("Add "+self.integrator+ " contribution(real)" + str(self._sel_index), "c", c)
         else:
@@ -310,26 +138,26 @@ class WeakIntegration(Phys):
              for b in self.itg_choice():
                 if b[0] == self.integrator: break
              if not "S*2" in b[3]:
-                 c_coeff = SCoeff(c[0],  self.get_root_phys().ind_vars,
+                 c_coeff = SCoeff(c,  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
              else: # so far this is only for an elastic integrator 
-                 c_coeff = (SCoeff(c[0],  self.get_root_phys().ind_vars,
+                 c_coeff = (SCoeff(c,  self.get_root_phys().ind_vars,
                                    self._local_ns, self._global_ns,
                                    real = real, conj=is_conj, component=0),
-                            SCoeff(c[0],  self.get_root_phys().ind_vars,
+                            SCoeff(c,  self.get_root_phys().ind_vars,
                                    self._local_ns, self._global_ns,
                                    real = real, conj=is_conj, component=1))
         elif cotype == 'V':
-             c_coeff = VCoeff(dim, c[0],  self.get_root_phys().ind_vars,
+             c_coeff = VCoeff(dim, c,  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
         elif cotype == 'M':
-             c_coeff = MCoeff(dim, c[0],  self.get_root_phys().ind_vars,
+             c_coeff = MCoeff(dim, c,  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
         elif cotype == 'D':
-             c_coeff = DCoeff(dim, c[0],  self.get_root_phys().ind_vars,
+             c_coeff = DCoeff(dim, c,  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
 
@@ -469,13 +297,13 @@ class WeakBilinIntegration(WeakIntegration):
            
 def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=False):
     self = obj
-    c = self.vt_coeff.make_value_or_expression(self)
+    c = self.vt_coeff.make_value_or_expression(self)[0]
     if isinstance(c, str): c = [c]
         
     if real:       
        dprint1("Add "+self.integrator+ " delta (real)" + str(self._sel_index), "c", c)
     else:
-       dprint1("Add "+self.integrator+ " delta(imag)" + str(self._sel_index), "c", c)
+       dprint1("Add "+self.integrator+ " delta (imag)" + str(self._sel_index), "c", c)
 
     cotype = self.coeff_type[0]
 
@@ -507,9 +335,9 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
                  else:
                      c_coeff = None
                      if real:
-                         args.append(float(np.array(c[0])[0].real))
+                         args.append(float(np.array(c)[0].real))
                      else:
-                         args.append(float(np.array(c[0])[0].imag))
+                         args.append(float(np.array(c)[0].imag))
                  if args[-1] != 0:
                      d = mfem.DeltaCoefficient(*args)
                      if c_coeff is not None:
@@ -522,22 +350,22 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
                      
              else: # so far this is only for an elastic integrator
                  if real:
-                     args.append(float(np.array(c[0])[0].real))
+                     args.append(float(np.array(c)[0].real))
                  else:
-                     args.append(float(np.array(c[0])[0].imag))
+                     args.append(float(np.array(c)[0].imag))
                  d1 = mfem.DeltaCoefficient(*args)
                  if real:
-                     args.append(float(np.array(c[0])[1].real))
+                     args.append(float(np.array(c)[1].real))
                  else:
-                     args.append(float(np.array(c[0])[1].imag))
+                     args.append(float(np.array(c)[1].imag))
                  d2 = mfem.DeltaCoefficient(*args)
                  adder(integrator(d1, d2))                 
 
         elif cotype == 'V':
             if real:
-                direction = np.array(c[0]).real
+                direction = np.array(c).real
             else:
-                direction = np.array(c[0]).imag              
+                direction = np.array(c).imag              
             args.append(1.0)
             dir = mfem.Vector(direction)
             d = mfem.VectorDeltaCoefficient(dir, *args)

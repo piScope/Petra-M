@@ -25,7 +25,7 @@ def extract_refined_mesh_data3(mesh, refine = None):
     iv3 = []; iv4 = []
     iv3p = np.array([], dtype=int); iv4p = np.array([], dtype=int)
     
-    from refined_mfem_geom import get_geom
+    from petram.mesh.refined_mfem_geom import get_geom
 
     ptx = []; ivx3 = None; ptx3 = []
     if len(idx3) != 0:
@@ -34,8 +34,8 @@ def extract_refined_mesh_data3(mesh, refine = None):
         attr3, ptx3, ivx3, ivxe3, attrx3 =  get_geom(idx3, 3, base, gt, attrs,
                                                      sdim,refine)
         ptx.append(ptx3)
-        npt = len(ptx3)/len(idx3)        
-        lref = len(ivx3)/len(idx3)
+        npt = len(ptx3)//len(idx3)        
+        lref = len(ivx3)//len(idx3)
         iv3  = [ivert0[k] for k in idx3]
         seen = defaultdict(int)
         for iiv in ivx3[:lref].flatten():
@@ -49,8 +49,8 @@ def extract_refined_mesh_data3(mesh, refine = None):
         attr4, ptx4, ivx4, ivxe4, attrx4 =  get_geom(idx4, 4, base, gt, attrs,
                                                      sdim,refine)
         ptx.append(ptx4)
-        npt = len(ptx4)/len(idx4)
-        lref = len(ivx4)/len(idx4)
+        npt = len(ptx4)//len(idx4)
+        lref = len(ivx4)//len(idx4)
         iv4 = [ivert0[k] for k in idx4]        
         seen = defaultdict(int)
         for iiv in ivx4[:lref].flatten():
