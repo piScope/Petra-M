@@ -95,7 +95,6 @@ class Engine(object):
         #               physics moduel provides a map form variable name to index.
 
         self.case_base = 0
-        self.counter = 0
         self._init_done = []
         
     def initialize_datastorage(self):
@@ -2135,7 +2134,6 @@ class Engine(object):
             self.fecfes_storage[key] = (fec, fes)
             
         self.add_fec_fes(name, fec, fes)            
-        self.counter += 1
         return is_new, fec, fes
                             
     def add_fec_fes(self, name, fec, fes):
