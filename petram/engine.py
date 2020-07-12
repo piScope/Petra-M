@@ -14,7 +14,7 @@ from petram.mfem_config import use_parallel
 if use_parallel:
    from petram.helper.mpi_recipes import *
    import mfem.par as mfem
-   from mfem._par import pumi
+   # from mfem._par import pumi
 else:
    import mfem.ser as mfem
 import mfem.common.chypre as chypre
@@ -879,7 +879,7 @@ class Engine(object):
 
         # this is called from preprocess_modeldata
         # self.assign_sel_index(phys)
-        self.assign_sel_index(phys)
+        # self.assign_sel_index(phys)
         # inspect_function_call(self, func_name(), lineno())
         if not update:
             self.allocate_fespace(phys)
@@ -888,7 +888,7 @@ class Engine(object):
             for key in self.fecfes_storage:
                 fec, fes = self.fecfes_storage[key]
                 fes.Update()
-        self.allocate_fespace(phys)
+        # self.allocate_fespace(phys)
         true_v_sizes = self.get_true_v_sizes(phys)
 
         flags = self.get_essential_bdr_flag(phys)
@@ -2110,9 +2110,9 @@ class Engine(object):
         isParMesh = hasattr(mesh, 'ParPrint')
         sdim= mesh.SpaceDimension()
 
-        if self.__class__.__name__ == "ParallelEngine":
-            if self.pcounter == 0:
-                isParMesh = False
+        # if self.__class__.__name__ == "ParallelEngine":
+        #     if self.pcounter == 0:
+        #         isParMesh = False
 
         is_new = False
         key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
@@ -2796,10 +2796,8 @@ class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(ParallelEngine, self).__init__(modelfile = modelfile, model=model)
         self.isParallel = True
-        self.pcounter = 0
 
     def run_mesh(self, meshmodel = None):
-        import pyCore
         from mpi4py import MPI
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
         from petram.mesh.mesh_extension import MeshExt
@@ -2830,7 +2828,9 @@ class ParallelEngine(Engine):
                                                    max(smesh.GetBdrAttributeArray())])
                              self.max_attr = np.max([self.max_attr,
                                                 max(smesh.GetAttributeArray())])
-                        self.meshes[idx] = smesh
+                        # on a pumi run this will be already executed once!
+                        # TODO: check if that will cause any problems in the rest of the code
+                        self.meshes[idx] = mfem.ParMesh(MPI.COMM_WORLD, smesh)
                         target = self.meshes[idx]
                     else:
                         if hasattr(o, 'run') and target is not None:
@@ -2872,19 +2872,16 @@ class ParallelEngine(Engine):
         else:
             assert False, "new gf is called with unknonw fes"
         return gf
-               
+
     def new_fespace(self,mesh, fec, vdim):
-        if mesh.__class__.__name__ == 'ParMesh' and self.pcounter > 0:
-            self.pcounter += 1
+        # Note at this point ParPumiMesh object would have already been cast
+        # into a ParMesh object so the following should work for the pumi adaptive
+        # workflow as well!
+        if mesh.__class__.__name__ == 'ParMesh':
             return  mfem.ParFiniteElementSpace(mesh, fec, vdim)
-        elif mesh.__class__.__name__ == 'ParPumiMesh' and self.pcounter > 0:
-            self.pcounter += 1
-            aux_mesh = mfem.ParMesh(MPI.COMM_WORLD, mesh)
-            return  mfem.ParFiniteElementSpace(aux_mesh, fec, vdim)
         else:
-            self.pcounter += 1
             return  mfem.FiniteElementSpace(mesh, fec, vdim)
-         
+
     def new_matrix(self, init = True):
         return  mfem.HypreParMatrix()
 
