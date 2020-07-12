@@ -151,12 +151,12 @@ class PumiMesh(Mesh):
         
         if not globals()['is_licenses_initialized']:
             print("do license etc here ...once")
-        
+
             globals()['is_licenses_initialized'] = True
-       
+
         # convert pumi_mesh to mfem mesh
         mesh = mfem.ParMesh(MPI.COMM_WORLD, pumi_mesh)
-        
+
         # reverse classifications based on model tags
         dim = pumi_mesh.getDimension()
         it = pumi_mesh.begin(dim-1)
@@ -170,7 +170,7 @@ class PumiMesh(Mesh):
             mesh.GetBdrElement(bdr_cnt).SetAttribute(model_tag)
           bdr_cnt += 1
         pumi_mesh.end(it)
-        
+
         it = pumi_mesh.begin(dim)
         elem_cnt = 0
         while True:
@@ -182,22 +182,22 @@ class PumiMesh(Mesh):
             mesh.SetAttribute(elem_cnt, model_tag)
             elem_cnt += 1
         pumi_mesh.end(it)
-        
+
         print(type(mesh))
         print(id(mesh))
-        
+
         mesh.SetAttributes();
-        
+
         self.root()._par_pumi_mesh = mesh # hack to be able to access par_pumi_mesh later!
-        
+
         try:
           mesh.GetNBE()
           return mesh
         except:
           return None
-        
+
         assert False, "not implemented : pumi_mesh must return mfem mesh"
-        
+
         '''
         args = (path,  self.generate_edges, self.refine, self.fix_orientation)
         mesh =  mfem.Mesh(*args)
@@ -208,4 +208,4 @@ class PumiMesh(Mesh):
         except:
            return None
         '''
-              
+
