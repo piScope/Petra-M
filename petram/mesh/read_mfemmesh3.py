@@ -66,15 +66,18 @@ def extract_refined_mesh_data3(mesh, refine = None):
     # unique edges for node                       
     tmp = np.hstack(iv3 + iv4)
     tmp2 = np.hstack((iv3p, iv4p))    
-    u, indices = np.unique(tmp, return_inverse=True)
+    u, findex, indices = np.unique(tmp, return_index=True,
+                                   return_inverse=True)
     
     ll3 = 3*len(idx3)
     indices3 = indices[:ll3]
     indices4 = indices[ll3:]
                        
     table = np.zeros(np.max(u)+1, dtype=int)-1
-    for k, u0 in enumerate(u):
-        table[u0] = tmp2[np.where(tmp == u0)[0][0]]
+    for u0, fff in zip(u, findex):
+        table[u0] = tmp2[fff]
+    #for k, u0 in enumerate(u):
+    #    table[u0] = tmp2[np.where(tmp == u0)[0][0]]
 
     X = ptx_face
     #X = np.vstack([mesh.GetVertexArray(k) for k in u])    
