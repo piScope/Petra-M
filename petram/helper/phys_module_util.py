@@ -151,7 +151,10 @@ def default_lf_integrator(info1, isDomain):
         if isDomain:
             integrator = 'VectorFEDomainLFIntegrator'
         else:
-            integrator = 'VectorFEBoundaryLFIntegrator'
+            if info1['element'].startswith('ND'):
+                 integrator = 'VectorFEBoundaryTangentLFIntegrator'
+            else:
+                 integrator = 'VectorFEBoundaryFluxLFIntegrator'
     elif info1['element'].startswith('DG'):
         assert False, "auto selection is not supported for GD"
     elif info1['vdim'] > 1:
