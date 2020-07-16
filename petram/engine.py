@@ -2829,10 +2829,12 @@ class ParallelEngine(Engine):
                                                    max(smesh.GetBdrAttributeArray())])
                              self.max_attr = np.max([self.max_attr,
                                                 max(smesh.GetAttributeArray())])
-                        # on a pumi run this will be already executed once!
-                        # TODO: check if that will cause any problems in the rest of the code
-                        # self.meshes[idx] = mfem.ParMesh(MPI.COMM_WORLD, smesh)
-                        self.meshes[idx] = smesh
+                        # In a pumi run the constructor ParMesh is called already!
+                        key_str = k[0:-1]
+                        if key_str == "PumiMesh":
+                            self.meshes[idx] = smesh
+                        else:
+                            self.meshes[idx] = mfem.ParMesh(MPI.COMM_WORLD, smesh)
                         target = self.meshes[idx]
                     else:
                         if hasattr(o, 'run') and target is not None:
