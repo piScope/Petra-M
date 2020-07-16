@@ -884,7 +884,7 @@ class Engine(object):
         if not update:
             self.allocate_fespace(phys)
         else:
-            old_true_v_sizes = self.get_true_v_sizes(phys)
+            # old_true_v_sizes = self.get_true_v_sizes(phys)
             for key in self.fecfes_storage:
                 fec, fes = self.fecfes_storage[key]
                 fes.Update()
@@ -2106,13 +2106,13 @@ class Engine(object):
             self.add_fec_fes(name, fec, fes)
             '''                
     def get_or_allocate_fecfes(self, name, emesh_idx, elem, order, vdim, make_new=True):
-        mesh = self.emeshes[emesh_idx]       
+        mesh = self.emeshes[emesh_idx]
         isParMesh = hasattr(mesh, 'ParPrint')
         sdim= mesh.SpaceDimension()
 
-        # if self.__class__.__name__ == "ParallelEngine":
-        #     if self.pcounter == 0:
-        #         isParMesh = False
+        if self.__class__.__name__ == "ParallelEngine":
+            if self.pcounter == 0:
+                isParMesh = False
 
         is_new = False
         key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
@@ -2132,7 +2132,7 @@ class Engine(object):
             fes = self.new_fespace(mesh, fec, vdim)
             mesh.GetEdgeVertexTable()
             self.fecfes_storage[key] = (fec, fes)
-            
+
         self.add_fec_fes(name, fec, fes)            
         return is_new, fec, fes
                             
@@ -2288,7 +2288,7 @@ class Engine(object):
             if file.startswith('checkpoint_') and os.path.isdir(file):
                print("removing checkpoint_", file)
                shutil.rmtree(os.path.join(d, file))
-               
+
     def remove_case_dirs(self):
         dprint1("clear case directories: ", os.getcwd())                  
         d = os.getcwd()
@@ -2796,6 +2796,7 @@ class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(ParallelEngine, self).__init__(modelfile = modelfile, model=model)
         self.isParallel = True
+        self.pcounter = 0
 
     def run_mesh(self, meshmodel = None):
         from mpi4py import MPI
@@ -2809,7 +2810,7 @@ class ParallelEngine(Engine):
         self.emeshes = []
         if self.emesh_data is None:
             assert False, "emesh data must be generated before parallel mesh generation"
-        
+
         if meshmodel is None:
             parent = self.model['Mesh']
             children =  [parent[g] for g in parent.keys()
@@ -2821,28 +2822,29 @@ class ParallelEngine(Engine):
                 for k in child.keys():
                     o = child[k]
                     if not o.enabled: continue
-                    if o.isMeshGenerator:                    
+                    if o.isMeshGenerator:
                         smesh = o.run()
-                        if len(smesh.GetBdrAttributeArray()) > 0:                        
+                        if len(smesh.GetBdrAttributeArray()) > 0:
                              self.max_bdrattr = np.max([self.max_bdrattr,
                                                    max(smesh.GetBdrAttributeArray())])
                              self.max_attr = np.max([self.max_attr,
                                                 max(smesh.GetAttributeArray())])
                         # on a pumi run this will be already executed once!
                         # TODO: check if that will cause any problems in the rest of the code
-                        self.meshes[idx] = mfem.ParMesh(MPI.COMM_WORLD, smesh)
+                        # self.meshes[idx] = mfem.ParMesh(MPI.COMM_WORLD, smesh)
+                        self.meshes[idx] = smesh
                         target = self.meshes[idx]
                     else:
                         if hasattr(o, 'run') and target is not None:
                             self.meshes[idx] = o.run(target)
-                            
+
         for m in self.meshes:
             m.ReorientTetMesh()
-            m.GetEdgeVertexTable()                                   
-            get_extended_connectivity(m)           
+            m.GetEdgeVertexTable()
+            get_extended_connectivity(m)
 
     def run_assemble_mat(self, phys_target, phys_range, update=False):
-        self.is_matrix_distributed = True       
+        self.is_matrix_distributed = True
         return super(ParallelEngine, self).run_assemble_mat(phys_target,
                                                             phys_range,
                                                             update=update)
@@ -2877,9 +2879,11 @@ class ParallelEngine(Engine):
         # Note at this point ParPumiMesh object would have already been cast
         # into a ParMesh object so the following should work for the pumi adaptive
         # workflow as well!
-        if mesh.__class__.__name__ == 'ParMesh':
+        if mesh.__class__.__name__ == 'ParMesh' and self.pcounter > 0:
+            self.pcounter += 1
             return  mfem.ParFiniteElementSpace(mesh, fec, vdim)
         else:
+            self.pcounter += 1
             return  mfem.FiniteElementSpace(mesh, fec, vdim)
 
     def new_matrix(self, init = True):

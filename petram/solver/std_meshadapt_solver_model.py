@@ -254,17 +254,17 @@ class StdMeshAdaptSolver(StdSolver):
             instance.sol = engine.sol
         else:
             if is_first:
-                instance.assemble()            
+                instance.assemble()
                 is_first=False
             instance.solve()
 
         adapt_loop_no = 0;
         while adapt_loop_no < 3:
             instance.save_solution(ksol = 0,
-                                skip_mesh = False, 
+                                skip_mesh = False,
                                 mesh_only = False,
                                 save_parmesh=self.save_parmesh)
-            engine.sol = instance.sol        
+            engine.sol = instance.sol
             dprint1(debug.format_memory_usage())
 
 
@@ -300,7 +300,7 @@ class StdMeshAdaptSolver(StdSolver):
 
             ## transferring the curl of E and using it in spr
             # ip_field = get_curl_ip_field(pumi_mesh, "curl_ip_field", pyCore.VECTOR, 1, x)
-            size_field = pyCore.getTargetSPRSizeField(ip_field, 50000, 0.1, 1.)
+            size_field = pyCore.getTargetSPRSizeField(ip_field, 5000, 0.1, 1.)
 
             limit_refine_level(pumi_mesh, size_field, 5)
             before_prefix = "before_adapt_"+str(adapt_loop_no);
@@ -352,12 +352,17 @@ class StdMeshAdaptSolver(StdSolver):
                 model_type = pumi_mesh.getModelType(pumi_mesh.toModel(e))
                 if model_type == dim:
                     adapted_mesh.SetAttribute(elem_cnt, model_tag)
-                elem_cnt += 1
+                    elem_cnt += 1
             pumi_mesh.end(it)
             adapted_mesh.SetAttributes()
 
             par_pumi_mesh.UpdateMesh(adapted_mesh)
+            # update the _par_pumi_mesh and _pumi_mesh as well
 
+            # self.root()._par_pumi_mesh = par_pumi_mesh
+            # self.root()._pumi_mesh = pumi_mesh
+
+            # engine.meshes[0] = mfem.ParMesh(pyCore.PCU_Get_Comm(), par_pumi_mesh)
             engine.emeshes[0] = engine.meshes[0]
             mfem_prefix_1 = "after_update_using_par_pmesh_"+str(adapt_loop_no)+".vtk"
             mfem_prefix_2 = "after_update_using_meshes0_"+str(adapt_loop_no)+".vtk"

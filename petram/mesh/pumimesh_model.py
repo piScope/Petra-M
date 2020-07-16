@@ -131,11 +131,17 @@ class PumiMesh(Mesh):
             pyCore.PCU_Comm_Init()
 
 
-        # register simmetrix only if it is available in pyCore
-        if hasattr(pyCore, 'start_sim'):
+        # register simmetrix only if it is available in pyCore and not already registered
+        if hasattr(pyCore, 'start_sim') and not pyCore.is_sim_started():
             pyCore.start_sim('simlog.txt')
             pyCore.gmi_sim_start()
             pyCore.gmi_register_sim()
+
+
+        gmodel = 0
+        if hasattr(pyCore, 'start_sim'):
+            native_model_path = model_path[0:-4] + "_nat.x_t"
+            gmodel = pyCore.gmi_sim_load(native_model_path, model_path)
 
         # register other modelers
         pyCore.gmi_register_mesh()
@@ -145,10 +151,15 @@ class PumiMesh(Mesh):
         # in the GUI. But when we call loadMdsMesh the number has to be dropped. That is, the
         # mesh name provided to loadMdsMesh should be name.smb
         pumi_mesh_path = mesh_path[0:-5] + ".smb"
-        pumi_mesh = pyCore.loadMdsMesh(model_path, pumi_mesh_path)
-        
+
+        pumi_mesh = 0;
+        if gmodel == 0:
+            pumi_mesh = pyCore.loadMdsMesh(".null", pumi_mesh_path)
+        else:
+            pumi_mesh = pyCore.loadMdsMesh(gmodel, pumi_mesh_path)
+
         self.root()._pumi_mesh = pumi_mesh # hack to be able to access pumi_mesh later!
-        
+
         if not globals()['is_licenses_initialized']:
             print("do license etc here ...once")
 
@@ -156,6 +167,7 @@ class PumiMesh(Mesh):
 
         # convert pumi_mesh to mfem mesh
         mesh = mfem.ParMesh(MPI.COMM_WORLD, pumi_mesh)
+        # mesh = pumi.ParPumiMesh(MPI.COMM_WORLD, pumi_mesh)
 
         # reverse classifications based on model tags
         dim = pumi_mesh.getDimension()
@@ -168,7 +180,7 @@ class PumiMesh(Mesh):
           model_type = pumi_mesh.getModelType(pumi_mesh.toModel(e))
           if model_type == (dim-1):
             mesh.GetBdrElement(bdr_cnt).SetAttribute(model_tag)
-          bdr_cnt += 1
+            bdr_cnt += 1
         pumi_mesh.end(it)
 
         it = pumi_mesh.begin(dim)
@@ -183,12 +195,9 @@ class PumiMesh(Mesh):
             elem_cnt += 1
         pumi_mesh.end(it)
 
-        print(type(mesh))
-        print(id(mesh))
-
         mesh.SetAttributes();
 
-        self.root()._par_pumi_mesh = mesh # hack to be able to access par_pumi_mesh later!
+        # self.root()._par_pumi_mesh = mesh # hack to be able to access par_pumi_mesh later!
 
         try:
           mesh.GetNBE()
