@@ -2098,11 +2098,12 @@ class Engine(object):
     def get_or_allocate_fecfes(self, name, emesh_idx, elem, order, vdim, make_new=True):
         mesh = self.emeshes[emesh_idx]       
         isParMesh = hasattr(mesh, 'ParPrint')
-        sdim= mesh.SpaceDimension()
-
+        sdim = mesh.SpaceDimension()
+        dim = mesh.Dimension()
+        
         is_new = False
-        key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
-        dprint1( "(emesh_idx, elem, order, sdim, vdim, isParMesh) = " + str(key))
+        key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
+        dprint1( "(emesh_idx, elem, order, dim, sdim, vdim, isParMesh) = " + str(key))
 
         if key in self.fecfes_storage:
             fec, fes = self.fecfes_storage[key]
@@ -2114,8 +2115,13 @@ class Engine(object):
             fec = getattr(mfem, elem)
             #if fec is mfem.ND_FECollection:
             #   mesh.ReorientTetMesh()
-            fec = fec(order, sdim)
+            fecdim = dim
+            if elem.startswith('RT'): fecdim = sdim
+            if elem.startswith('ND'): fecdim = sdim
+            
+            fec = fec(order, fecdim)
             fes = self.new_fespace(mesh, fec, vdim)
+
             mesh.GetEdgeVertexTable()
             self.fecfes_storage[key] = (fec, fes)
             

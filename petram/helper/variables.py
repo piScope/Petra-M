@@ -1722,6 +1722,7 @@ def project_variable_to_gf(c, ind_vars, gfr, gfi,
             #print("coeff", c)
             coeff = SCoeff(c, ind_vars,
                            local_ns, global_ns, real=real)
+            
         gf.ProjectCoefficient(coeff)
 
     project_coeff(gfr, coeff_dim, c, ind_vars, True)

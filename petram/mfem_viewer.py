@@ -1015,23 +1015,29 @@ class MFEMViewer(BookViewer):
         m = self.model.param.getvar('mfem_model')
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
+        odir = os.getcwd()
         try:
             self.run_preprocess()
         except:
+            os.chdir(odir)
             dialog.showtraceback(parent=self,
                                  txt='Failed to during pre-processing model data',
                                  title='Error',
                                  traceback=traceback.format_exc())
             return
         self.model.scripts.run_serial.RunT(debug=debug_level)
-
+        
+        os.chdir(odir)
+        
     def onParDriver(self, evt):
         m = self.model.param.getvar('mfem_model')
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
+        odir = os.getcwd()        
         try:
             self.run_preprocess()
         except:
+            os.chdir(odir)            
             dialog.showtraceback(parent=self,
                                  txt='Failed to during pre-processing model data',
                                  title='Error',
@@ -1041,9 +1047,11 @@ class MFEMViewer(BookViewer):
         if nproc is None:
             nproc = 2
         self.model.scripts.run_parallel.RunT(nproc=nproc, debug=debug_level)
-
+        
+        os.chdir(odir)
+                                             
     def viewer_canvasmenu(self):
-        menus = [("+MFEM", None, None), ]
+        menus = [("+MFEM", None, None),]
         if self._hidemesh:
             menus.append(("Show Mesh",  self.onShowMesh, None))
         else:
