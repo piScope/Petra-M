@@ -1152,7 +1152,9 @@ class MFEMViewer(BookViewer):
         if self.selection_palette is None:
             palette_menu.append(("Selection palette...", self.onSelectionPanel, None),)
 
-        if (self._view_mode == 'geom' and self.geom_info_palette is None):
+        if (self._view_mode == 'geom' and 
+            self._view_mode_group.startswith('OCC') and
+            self.geom_info_palette is None):
             palette_menu.append(("Geomtry info ...", self.onGeomInfo,  None),)
 
         if len(palette_menu) > 0:
