@@ -240,7 +240,6 @@ def oplot_meshed(viewer,  ret):
                                        cell_data['triangle']['geometrical'])
 
 
-        print(verts.shape, elem_idx.shape, array_idx.shape)
         obj = viewer.solid(verts, elem_idx,
                            array_idx = array_idx,
                            facecolor = (0.7, 0.7, 0.7, 1.0),
