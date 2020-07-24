@@ -1080,9 +1080,6 @@ class DlgPlotSol(SimpleFramePlus):
             idata = np.vstack(idata)
             idata = idata + np.atleast_2d(offsets_idx).transpose()
 
-            print(verts.shape, idata.shape, array_idx.shape)
-
-
             if cls is None:
                obj = viewer.solid(verts, idata, array_idx=array_idx,
                                   cz=True, cdata= cdata.astype(float),
