@@ -199,63 +199,67 @@ class DlgEditModel(SimpleFramePlus):
             for xxxx in mm.get_possible_child_menu():
 
                 submenu, cls = xxxx
-                txt = cls.fancy_menu_name()
-                txt2 = cls.fancy_tree_name()
+                if cls is not None:
+                    txt = cls.fancy_menu_name()
+                    txt2 = cls.fancy_tree_name()
 
-                def add_func(evt, cls=cls, indices=indices, tree=tree,
-                             namebase=txt2, model=self.model):
-                    parent = model.GetItem(indices)
+                    def add_func(evt, cls=cls, indices=indices, tree=tree,
+                                 namebase=txt2, model=self.model):
+                        parent = model.GetItem(indices)
 
-                    # build stop is a flag for precedual construction of geom/mesh
-                    if hasattr(parent, '_build_stop'):
-                        before, after = parent.build_stop
-                    elif hasattr(parent.parent, 'build_stop'):
-                        before, after = parent.parent.build_stop
-                    else:
-                        before, after = None, None
+                        # build stop is a flag for precedual construction of geom/mesh
+                        if hasattr(parent, '_build_stop'):
+                            before, after = parent.build_stop
+                        elif hasattr(parent.parent, 'build_stop'):
+                            before, after = parent.parent.build_stop
+                        else:
+                            before, after = None, None
 
-                    try:
-                        name = parent.add_item(namebase, cls,
-                                               before=before, after=after)
-                    except:
-                        dialog.showtraceback(parent=self,
-                                             txt="Failed to add child",
-                                             title='Error',
-                                             traceback=traceback.format_exc())
-                        return
+                        try:
+                            name = parent.add_item(namebase, cls,
+                                                   before=before, after=after)
+                        except:
+                            dialog.showtraceback(parent=self,
+                                                 txt="Failed to add child",
+                                                 title='Error',
+                                                 traceback=traceback.format_exc())
+                            return
 
-                    child = parent[name]
-                    try:
-                        child.on_created_in_tree()
-                    except:
-                        del parent[name]
-                        dialog.showtraceback(parent=self,
-                                             txt="Failed to add child",
-                                             title='Error',
-                                             traceback=traceback.format_exc())
-                        return
-                        
-                    viewer = self.GetParent()
-                    viewer.model.scripts.helpers.rebuild_ns()
-                    engine = viewer.engine
-                    model.GetItem(indices)[name].postprocess_after_add(engine)
-                    tree.RefreshItems()
+                        child = parent[name]
+                        try:
+                            child.on_created_in_tree()
+                        except:
+                            del parent[name]
+                            dialog.showtraceback(parent=self,
+                                                 txt="Failed to add child",
+                                                 title='Error',
+                                                 traceback=traceback.format_exc())
+                            return
 
-                    old_item = tree.GetItemByIndex(parent.GetIndices())
-                    tree.Expand(old_item)
-                    tree.SelectItem(old_item, select=False)
+                        viewer = self.GetParent()
+                        viewer.model.scripts.helpers.rebuild_ns()
+                        engine = viewer.engine
+                        model.GetItem(indices)[name].postprocess_after_add(engine)
+                        tree.RefreshItems()
 
-                    new_item = tree.GetItemByIndex(child.GetIndices())
-                    tree.SelectItem(new_item)
-                    evt.Skip()
+                        old_item = tree.GetItemByIndex(parent.GetIndices())
+                        tree.Expand(old_item)
+                        tree.SelectItem(old_item, select=False)
 
+                        new_item = tree.GetItemByIndex(child.GetIndices())
+                        tree.SelectItem(new_item)
+                        evt.Skip()
+                else:
+                    add_func = None
                 if len(submenu) != 0:
                     if submenu == "!":
-                        menus = menus+[('Add '+txt, add_func, None), ]
+                        if add_func is not None:
+                            menus = menus+[('Add '+txt, add_func, None), ]
                         menus = menus+[('!', None, None), ]
                     else:
                         menus = menus+[('+'+submenu, None, None), ]
-                        menus = menus+[('Add '+txt, add_func, None), ]
+                        if add_func is not None:                        
+                            menus = menus+[('Add '+txt, add_func, None), ]
                 else:
                     menus = menus+[('Add '+txt, add_func, None), ]
             for t, m, m2 in mm.get_special_menu(e):

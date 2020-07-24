@@ -1052,9 +1052,6 @@ class DlgPlotSol(SimpleFramePlus):
                             use_pointfill=use_pointfill)
         
     def make_plot_bdr(self, data, battrs, cls = None, expr='', use_pointfill=False):
-        print("entring make_plot_bdr", threading.enumerate())
-        print("entring make_plot_bdr", threading.current_thread())
-        
         from ifigure.interactive import figure
         viewer = figure(viewer = cls)
         viewer.update(False)        
@@ -1082,9 +1079,6 @@ class DlgPlotSol(SimpleFramePlus):
             cdata = np.hstack(cdata)                
             idata = np.vstack(idata)
             idata = idata + np.atleast_2d(offsets_idx).transpose()
-
-            print(verts.shape, idata.shape, array_idx.shape)
-
 
             if cls is None:
                obj = viewer.solid(verts, idata, array_idx=array_idx,
