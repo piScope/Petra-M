@@ -2603,8 +2603,8 @@ class Engine(object):
                  return {'emesh_idx': k[0],
                          'element': k[1],
                          'order': k[2],
-                         'sdim': k[3],
-                         'vdim': k[4],}
+                         'sdim': k[4],
+                         'vdim': k[5],}
         return None
     def variable2vector(self, v, horizontal=False):
         '''
