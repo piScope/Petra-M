@@ -204,6 +204,7 @@ class MeshFile(Mesh):
 
     def get_real_path(self):
         path = str(self.path)
+
         if path == '':
            # if path is empty, file is given by internal mesh generator.
            parent = self.get_mesh_root()
@@ -246,6 +247,7 @@ class MeshFile(Mesh):
             print("mesh file does not exists : " + path + " in " + os.getcwd())
             return None
         args = (path,  self.generate_edges, self.refine, self.fix_orientation)
+
         mesh =  mfem.Mesh(*args)
         self.parent.sdim = mesh.SpaceDimension()
         self._mesh_char = format_mesh_characteristic(mesh)

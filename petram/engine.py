@@ -2279,7 +2279,7 @@ class Engine(object):
             if file.startswith('SolveStep'): os.remove(os.path.join(d, file))
             if file.startswith('cProfile_'): os.remove(os.path.join(d, file))                        
             if file.startswith('checkpoint_') and os.path.isdir(file):
-               print("removing checkpoint_", file)
+               dprint1("removing checkpoint_", file)
                shutil.rmtree(os.path.join(d, file))
                
     def remove_case_dirs(self):
@@ -2288,7 +2288,7 @@ class Engine(object):
         files = os.listdir(d)
         for file in files:
             if file.startswith('case') and os.path.isdir(file):
-               print("removing case directory", file)
+               dprint1("removing case directory", file)
                shutil.rmtree(os.path.join(d, file))
        
     def clear_solmesh_files(self, header):
@@ -3149,12 +3149,10 @@ class ParallelEngine(Engine):
         MPI.COMM_WORLD.Barrier()
        
     def run_mesh_gen(self, gen):
-        myid     = MPI.COMM_WORLD.rank                
-        if myid == 0:
-            gen.generate_mesh_file()           
-        else:
-            pass
-        MPI.COMM_WORLD.Barrier()
+        '''
+        run mesh generator 
+        '''
+        gen.generate_mesh_file()           
        
     def save_processed_model(self):
         myid     = MPI.COMM_WORLD.rank                

@@ -138,6 +138,7 @@ class MFEMViewer(BookViewer):
         self.dombdr = None
 
         from petram.pi.sel_buttons import btask, refresh
+
         self.install_toolbar_palette('petram_phys',
                                      btask,
                                      mode='3D',
@@ -155,7 +156,7 @@ class MFEMViewer(BookViewer):
                                          btask,
                                          mode='3D',
                                          refresh=refresh)
-
+            
         od = self.model.param.getvar('mfem_model')
         od.set_root_path(self.model.owndir())
 
