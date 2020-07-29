@@ -42,7 +42,7 @@ def MFEM_menus(parent):
     self = parent
     menus = [("+Open Model...", None, None),
              ("Binary...", self.onOpenPMFEM, None, None),
-             #("Script/Data Files...", self.onOpenModelS, None),
+             ("Script/Data Files...", self.onOpenModelS, None),
              ("!", None, None),
              ("+Mesh", None, None),
              ("New Mesh File...",  self.onNewMesh, None),
@@ -411,14 +411,15 @@ class MFEMViewer(BookViewer):
             self.editdlg.set_model(od)
         self.model.variables.setvar('modelfile_path', path)
         evt.Skip()
-    '''    
+
     def onOpenModelS(self, evt):
         import imp, shutil
-        import cPickle as pickle
+        import ifigure.utils.pickle_wrapper as pickle
         from ifigure.mto.py_code import PyData
         from ifigure.mto.py_script import PyScript        
         path = dialog.read(message='Select model file to read', wildcard='*.py')
         try:
+            print("loading", path)
             m = imp.load_source('petram.user_model', path)        
             model = m.make_model()
         except:
@@ -441,7 +442,7 @@ class MFEMViewer(BookViewer):
                 sc = self.model.namespaces.add_childobject(PyScript, file[:-3])
                 sc.load_script(os.path.join(self.model.namespaces.owndir(), file))
             if file.endswith('.dat'):
-                fid = open(os.path.join(dir, file), 'r')
+                fid = open(os.path.join(dir, file), 'rb')
                 data = pickle.load(fid)
                 fid.close()
                 obj = self.model.datasets.add_childobject(PyData, file[:-6]+'data')
@@ -456,7 +457,7 @@ class MFEMViewer(BookViewer):
             self.editdlg.set_model(od)        
 
         evt.Skip()
-    '''
+
 
     def _getSelectedIndexVolume(self, already_selected_surface):
         objs = [o().figobj for o in self.canvas.selection

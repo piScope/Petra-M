@@ -1266,8 +1266,19 @@ class DlgPlotSol(SimpleFramePlus):
     def onExportPoints(self, evt):        
         value = self.elps['Points'] .GetValue()
         
-        expr = str(value[0]).strip()        
-        ptx, data, attrs_out, attrs, pc_param = self.eval_pointcloud(mode = 'plot')
+        expr = str(value[0]).strip()
+        attrs = str(value[2])
+        phys_path = value[3]
+        pc_mode = value[1][0]
+        if pc_mode == 'XYZ':
+            pc_value = value[1][1]
+        elif pc_mode == 'Line':
+            pc_value = value[1][2]            
+        else:
+            return
+        ptx, data, attrs_out, attrs, pc_param = self.eval_pointcloud(expr, attrs,
+                                                                     phys_path, pc_mode,
+                                                                     pc_value)
         if data is None: return
         
         #print("final data for ", expr, ptx, data, attrs)        
@@ -1281,7 +1292,6 @@ class DlgPlotSol(SimpleFramePlus):
         from ifigure.interactive import figure
         viewer = figure(viewer = cls)
         viewer.update(False)        
-        setup_figure(viewer, self.GetParent())                
         viewer.suptitle(expr + ':' + str(attrs))
         
         if param['pc_type'] == 'line':
@@ -1291,8 +1301,12 @@ class DlgPlotSol(SimpleFramePlus):
             num = pc_param[2]
             ii = np.linspace(0, 1., num)
             ptx = np.vstack([ sp * (1-i) + ep * i  for i in ii])
-            viewer.plot(ptx[:,0], ptx[:,1], ptx[:,2],
-                        c = data.real, cz=True)            
+            if ptx.shape(-1) == 3:
+                setup_figure(viewer, self.GetParent())                                
+                viewer.plot(ptx[:,0], ptx[:,1], ptx[:,2],
+                            c = data.real, cz=True)
+            else:
+                viewer.plot(data.real)
 
         viewer.view('noclip')
         viewer.view('equal')
