@@ -93,10 +93,28 @@ def MFEM_menus(parent):
 from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
 
 class MFEMViewerCanvas(ifigure_canvas):
+    def __init__(self, *args, **kwags):
+        self._mfemviewer_spacehit = False
+        return ifigure_canvas.__init__(self, *args, **kwags)
+    
     def unselect_all(self):
         ifigure_canvas.unselect_all(self)
         self.TopLevelParent._dom_bdr_sel = ([], [], [], [])
 
+    def onKey(self, evt):
+        keycode = evt.guiEvent.GetKeyCode()
+        if keycode == wx.WXK_SPACE:
+            self._mfemviewer_spacehit = True
+
+        return ifigure_canvas.onKey(self, evt)
+    def onKey2(self, evt):
+        keycode = evt.guiEvent.GetKeyCode()        
+        if keycode == wx.WXK_SPACE:
+            if self._mfemviewer_spacehit:
+                self.TopLevelParent.handle_shifthit()
+        self._mfemviewer_spacehit = False
+        return ifigure_canvas.onKey2(self, evt)
+        
 class MFEMViewer(BookViewer):
     def __init__(self, *args, **kargs):
         kargs['isattachable'] = False
@@ -1678,3 +1696,37 @@ class MFEMViewer(BookViewer):
         for k in dd:
             seen[k] += 1
         return [k for k in seen if seen[k] > 1]
+
+    def handle_shifthit(self):
+        '''
+        when space is hit in canvas
+        '''
+        if self._sel_mode == 'volume':
+            mode = 'point'
+            bmode = 'dot'
+        if self._sel_mode == 'face':
+            mode = 'volume'
+            bmode = 'domain'
+        if self._sel_mode == 'edge':
+            mode = 'face'
+            bmode = 'face'
+        if self._sel_mode == 'point':
+            mode = 'edge'
+            bmode = 'edge'
+        self._sel_mode = mode
+        
+        toolbarname = self.canvas.toolbar.p1_choice[1]
+
+        
+        buttonname = bmode + '_' + toolbarname
+
+        if toolbarname == 'petram_mesh':
+            buttonname = "m"+buttonname
+        if toolbarname == 'petram_geom':
+            buttonname = "g"+buttonname
+
+        self.canvas.toolbar.ClickP1Button(buttonname)
+            
+
+            
+        
