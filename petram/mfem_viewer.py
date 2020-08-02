@@ -1726,7 +1726,6 @@ class MFEMViewer(BookViewer):
             buttonname = "g"+buttonname
 
         self.canvas.toolbar.ClickP1Button(buttonname)
-            
-
+        self.canvas.toolbar.ClickP1Button('select')
             
         
