@@ -801,7 +801,31 @@ class Model(RestorableOrderedDict):
                        '    use_parallel=num_proc > 1',
                        'except:',
                        '    myid = 0', 
-                       '    use_parallel=False',])
+                       '    use_parallel=False',
+                       '',
+                       'if __name__=="__main__":',
+                       '    from mfem.common.arg_parser import ArgParser',
+                       '    parser = ArgParser(description="PetraM sciprt")',
+                       '    parser.add_argument("-s", "--force-serial", ',
+                       '                     action = "store_true", ',
+                       '                     default = False,', 
+                       '                     help="Use serial model even if nproc > 1.")',
+                       '    parser.add_argument("-p", "--force-parallel", ',
+                       '                     action = "store_true", ',
+                       '                     default = False,',  
+                       '                     help="Use parallel model even if nproc = 1.")',
+                       '    parser.add_argument("-d", "--debug-param", ',
+                       '                     action = "store", ',
+                       '                     default = 1, type=int) ',
+                       '    args = parser.parse_args()',
+                       '',
+                       '    if args.force_serial: use_parallel=False',
+                       '    if args.force_parallel: use_parallel=True',
+                       '',
+                       '    import  petram.mfem_config as mfem_config',
+                       '    mfem_config.use_parallel = use_parallel',
+                       '    debug_level=args.debug_param'])        
+        
 
         script.append('')
         self.generate_import_section(script)
@@ -817,28 +841,9 @@ class Model(RestorableOrderedDict):
 
         script.append('')                      
         script.extend(['if __name__ == "__main__":',
-                       '    from mfem.common.arg_parser import ArgParser',
-                       '    parser = ArgParser(description="PetraM sciprt")',
-                       '    parser.add_argument("-s", "--force-serial", ',
-                       '                     action = "store_true", ',
-                       '                     default = False,', 
-                       '                     help="Use serial model even if nproc > 1.")',
-                       '    parser.add_argument("-p", "--force-parallel", ',
-                       '                     action = "store_true", ',
-                       '                     default = False,',  
-                       '                     help="Use parallel model even if nproc = 1.")',
-                       '    parser.add_argument("-d", "--debug-param", ',
-                       '                     action = "store", ',
-                       '                     default = 1, type=int) ',
-                       '    args = parser.parse_args()', 
-                       '    if args.force_serial: use_parallel=False',
-                       '    if args.force_parallel: use_parallel=True',
-                       '',
-                       '    import  petram.mfem_config as mfem_config',
-                       '    mfem_config.use_parallel = use_parallel',
                        '    if (myid == 0): parser.print_options(args)'
-                       '',
-                       '    debug_level=args.debug_param'])
+                       '',])
+
         
         script.append('')                                             
         main_script = self.generate_main_script()
