@@ -237,6 +237,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     hide_nl_panel = False
     dep_vars_base = []
     der_vars_base = []
+    der_vars_vec = []    
 
     has_essential = False
     is_secondary_condition = False   # if true, there should be other
@@ -308,7 +309,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         p = self.get_root_phys()
         ind_vars = p.ind_vars
         return [x.strip() for x in ind_vars.split(',')]
-     
+
     def is_complex(self):
         return False
 
@@ -784,6 +785,15 @@ class PhysModule(Phys):
         v['generate_dt_fespace'] = False
         return v
      
+    def get_dependent_variables(self):     
+        from petram.helper.variables import append_suffix_to_expression
+        cls = self.__class__
+        suffix = self.dep_vars_suffix
+        vecs = cls.der_vars_vec
+        names = [append_suffix_to_expression(x, vecs, suffix)
+                 for x in cls.der_vars_base]
+        return names
+     
     def onVarNameChanged(self, evt):
         evt.GetEventObject().TopLevelParent.OnRefreshTree()
         
@@ -917,7 +927,7 @@ class PhysModule(Phys):
                                     solr, soli)
                   mm.add_bdr_variables(variables, n, suffix, ind_vars,
                                     solr, soli)
-
+        
     def onItemSelChanged(self, evt):
         '''
         GUI response when model object is selected in

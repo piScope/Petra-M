@@ -558,6 +558,7 @@ class DomainVariable(Variable):
 
     def add_const(self, value, domains, gdomain):
         domains = sorted(domains)
+
         self.domains[tuple(domains)] = Constant(value)
         self.gdomains[tuple(domains)] = gdomain
         if np.iscomplexobj(value):
@@ -594,6 +595,7 @@ class DomainVariable(Variable):
 
         ret = None
         w = None
+
         for domains in self.domains.keys():
             iele0 = np.zeros(iele.shape) - 1
             for domain in domains:
@@ -601,12 +603,14 @@ class DomainVariable(Variable):
                 iele0[idx] = iele[idx]
 
             expr = self.domains[domains]
+
             gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
             v = expr.nodal_values(iele=iele0, elattr=elattr,
                                   g=gdomain, **kwargs)
             #iele = iele, elattr = elattr,
             #el2v = el2v, wvert = wvert,
             #locs = locs, g = g
+
             if w is None:
                 a = np.sum(np.abs(v.reshape(len(v), -1)), -1)
                 w = (a != 0).astype(float)
@@ -656,6 +660,7 @@ class DomainVariable(Variable):
                   gtypes=gtypes, locs=locs, attr1=attr1,
                   attr2=attr2, g=gdomain,
                   weight=w2, **kwargs)
+            
             v = multi(v, w2)
             ret = v if ret is None else add(ret, v)
         return ret
@@ -1645,6 +1650,31 @@ def add_elements(solvar, name, suffix, ind_vars, solr,
                                                      deriv=deriv)
 
 
+def add_component_expression(solvar, name, suffix, ind_vars, expr, vars,
+                             componentname, 
+                             domains=None, bdrs=None, complex=None,
+                             gdomain=None, gbdr=None):
+    expr = append_suffix_to_expression(expr, vars, suffix)
+
+    if isinstance(componentname, int):
+        componentname = ind_vars[componentname]
+    cname = name + suffix + componentname
+    if domains is not None:
+        if (cname) in solvar:
+            solvar[cname].add_expression(expr, ind_vars, domains,
+                                                 gdomain,
+                                                 complex=complex)
+        else:
+            solvar[cname] = DomainVariable(expr, ind_vars,
+                                                   domains=domains,
+                                                   complex=complex,
+                                                   gdomain=gdomain)
+    elif bdrs is not None:
+        pass
+    else:
+        solvar[cname] = ExpressionVariable(expr, ind_vars,
+                                                   complex=complex)
+
 def add_expression(solvar, name, suffix, ind_vars, expr, vars,
                    domains=None, bdrs=None, complex=None,
                    gdomain=None, gbdr=None):
@@ -1668,6 +1698,7 @@ def add_expression(solvar, name, suffix, ind_vars, expr, vars,
 
 def add_constant(solvar, name, suffix, value, domains=None,
                  gdomain=None, bdrs=None, gbdr=None):
+
     if domains is not None:
         if (name + suffix) in solvar:
             solvar[name + suffix].add_const(value, domains, gdomain)

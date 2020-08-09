@@ -90,8 +90,15 @@ class RestorableOrderedDict(MutableMapping, Restorable, object):
          
      def __getstate__(self):
          st = [(x, self.__dict__[x]) for x in self.__dict__ if not x.startswith('_')]
-#         st.append(('_parent', self._parent))
-#         return [ (key, value) for key, value in six.items(self._contents) ], st
+
+         # note
+         #   we save _sel_index so that model_proc.pmfm has this
+         #   informaiton, this way, evaluator does not need to re-run
+         #   assign_sel_index, which requires loading base mesh (which is slow)
+         
+         if hasattr(self, '_sel_index'):
+             st.append(('_sel_index', self._sel_index))
+
          return [ (key, value) for key, value in self._contents.items() ], st
       
      def _restore(self, restoration_data):
@@ -1006,10 +1013,8 @@ class Pair(Model):
             ret = np.array(self._src_index);
             ret = list(ret[np.in1d(ret, choice)])
             self._src_index = ret
-        
             
         return self._sel_index
-
    
 class Domain(Model):
     can_delete = True
