@@ -2182,16 +2182,22 @@ class Engine(object):
         raise NotImplementedError(
              "you must specify this method in subclass")
 
+    def prep_emesh_data_ifneeded(self):
+        from petram.mesh.mesh_extension import MeshExt
+        if self.emesh_data is None:
+            self.emesh_data = MeshExt()
+        
     def run_mesh_serial(self, meshmodel = None,
                         skip_refine = False):
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
-        from petram.mesh.mesh_extension import MeshExt
+        #from petram.mesh.mesh_extension import MeshExt
         from petram.mesh.mesh_utils import  get_extended_connectivity
         
         self.meshes = []
+        self.prep_emesh_data_ifneeded()
+        #if self.emesh_data is None:
+        #    self.emesh_data = MeshExt()
         self.emeshes = []
-        if self.emesh_data is None:
-            self.emesh_data = MeshExt()
 
         if meshmodel is None:
             parent = self.model['Mesh']

@@ -215,7 +215,9 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                 if (self.myid == 0):
                     s.model.save_to_file(model_path,
                                 meshfile_relativepath = False)
-            
+
+            s.prep_emesh_data_ifneeded()
+            s.run_mesh_extension_prep()
             ### can we skip this (run_config read mesh...)
             #s.run_config()
             ### (we don't need this for sure???)
