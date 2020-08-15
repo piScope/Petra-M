@@ -1768,6 +1768,13 @@ class DlgPlotSol(SimpleFramePlus):
 
     @run_in_piScope_thread
     def onApplySlice(self, evt):
+        self.onSliceCommon(evt)
+
+    def onExplortSlice(self, evt):
+        self.onSliceCommon(evt, export=True)
+
+    def onSliceCommon(self, evt, export=False):
+        
         value = self.elps['Slice'] .GetValue()
 
         expr = str(value[0]).strip()
@@ -1783,7 +1790,11 @@ class DlgPlotSol(SimpleFramePlus):
             if data is None:
                 wx.CallAfter(self.set_title_no_status)
                 return
-            self.post_threadend(self.make_plot_slice, data, battrs,
+            if export:
+                data = {'data': data}
+                self.export_to_piScope_shell(data, 'slice_data')                
+            else:
+                self.post_threadend(self.make_plot_slice, data, battrs,
                                 cls=cls, expr=expr)
         elif value[1][0] == 'Grid':
             attrs = str(value[2])
@@ -1797,17 +1808,30 @@ class DlgPlotSol(SimpleFramePlus):
             if data is None:
                 return
 
-            self.post_threadend(
-                self.make_plot_pc_slice,
-                data,
-                attrs_out,
-                attrs,
-                pc_param,
-                cls=cls,
-                expr=expr)
+            im_axes = (pc_param[1], pc_param[2])
+            midx = (pc_param[3][0] + pc_param[3][1]) / 2.0
+            midy = (pc_param[4][0] + pc_param[4][1]) / 2.0
+            xmin, xmax, xsize = pc_param[3]
+            ymin, ymax, ysize = pc_param[4]
+            dx = np.sum(np.array(pc_param[0]) * np.array(pc_param[1]))
+            dy = np.sum(np.array(pc_param[0]) * np.array(pc_param[2]))
 
-            pass
+            x = np.linspace(xmin, xmax, int((xmax - xmin) / xsize)) + dx
+            y = np.linspace(ymin, ymax, int((ymax - ymin) / ysize)) + dy
 
+            if export:
+                data = {'data': data, 'x': x, 'y': y, 'im_axes':im_axes}
+                self.export_to_piScope_shell(data, 'slice_data')                                
+            else:            
+                self.post_threadend(
+                    self.make_plot_pc_slice,
+                    data,
+                    attrs_out,
+                    attrs,
+                    x, y, im_axes,
+                    cls=cls,
+                    expr=expr)
+        
     def make_plot_slice(self, data, battrs, cls=None, expr=''):
         from ifigure.interactive import figure
         v = figure(viewer=cls)
@@ -1836,7 +1860,7 @@ class DlgPlotSol(SimpleFramePlus):
             data,
             attrs_out,
             attrs,
-            param,
+            x, y, im_axes, 
             cls=None,
             expr=False):
         from ifigure.interactive import figure
@@ -1845,17 +1869,6 @@ class DlgPlotSol(SimpleFramePlus):
         setup_figure(viewer, self.GetParent())
         viewer.suptitle(expr + ':' + str(attrs))
 
-        pc_param = param['pc_param']
-        im_axes = (pc_param[1], pc_param[2])
-        midx = (pc_param[3][0] + pc_param[3][1]) / 2.0
-        midy = (pc_param[4][0] + pc_param[4][1]) / 2.0
-        xmin, xmax, xsize = pc_param[3]
-        ymin, ymax, ysize = pc_param[4]
-        dx = np.sum(np.array(pc_param[0]) * np.array(pc_param[1]))
-        dy = np.sum(np.array(pc_param[0]) * np.array(pc_param[2]))
-
-        x = np.linspace(xmin, xmax, int((xmax - xmin) / xsize)) + dx
-        y = np.linspace(ymin, ymax, int((ymax - ymin) / ysize)) + dy
 
         viewer.threed('on')
         if cls is None:
