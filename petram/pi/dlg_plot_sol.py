@@ -396,10 +396,10 @@ class DlgPlotSol(SimpleFramePlus):
             choices = list(mfem_model['Phys'])
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
-            elp1 = [['plane (a,b,c,d):', '1, 0, 0, 0', 0, {}], ]
+            elp1 = [['plane (a,b,c,d):', '0, 0, 1, 0', 0, {}], ]
 
-            elp2 = [['plane (a,b,c,d):', '1, 0, 0, 0', 0, {}],
-                    ['first axis:', '0., 0., 1.', 0, {}],
+            elp2 = [['plane (a,b,c,d):', '0, 0, 1, 0', 0, {}],
+                    ['first axis:', '1., 0., 0.', 0, {}],
                     ['resolution', '0.01', 0, {}], ]
 
             ss = [None, None, 34, ({'text': 'Rendering',
@@ -427,6 +427,7 @@ class DlgPlotSol(SimpleFramePlus):
             ebutton = wx.Button(p, wx.ID_ANY, "Export")
             button = wx.Button(p, wx.ID_ANY, "Apply")
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)
+            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)            
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
             hbox.AddStretchSpacer()
@@ -1203,6 +1204,7 @@ class DlgPlotSol(SimpleFramePlus):
 
         cdata = []
         for s in subs:
+            if s.strip() == '': continue
             if remote:
                 self.config['cs_soldir'] = base
                 self.config['cs_solsubdir'] = s
@@ -1475,7 +1477,6 @@ class DlgPlotSol(SimpleFramePlus):
             pc_param = {'pc_type': 'line', 'pc_param': (sp, ep, num)}
 
         elif pc_mode == 'CutPlane':
-            print(pc_value)
             abcd = list(np.atleast_1d(eval(pc_value[0], ll, phys_ns)))
             #origin = list(np.atleast_1d(eval(pc_value[1][3][1], ll, phys_ns)))
             e1 = list(np.atleast_1d(eval(pc_value[1], ll, phys_ns)))
@@ -1770,10 +1771,43 @@ class DlgPlotSol(SimpleFramePlus):
     def onApplySlice(self, evt):
         self.onSliceCommon(evt)
 
-    def onExplortSlice(self, evt):
-        self.onSliceCommon(evt, export=True)
+    def onExportSlice(self, evt):
+        self.onSliceCommon(evt, mode='export')
+        
+    @run_in_piScope_thread
+    def onExportR1Slice(self, evt):
+        remote, base, subs = self.get_current_choices()
 
-    def onSliceCommon(self, evt, export=False):
+        dataset = []
+        for s in subs:
+            if s.strip() == '': continue            
+            if remote:
+                self.config['cs_soldir'] = base
+                self.config['cs_solsubdir'] = s
+            else:
+                self.local_soldir = base
+                self.local_solsubdir = s
+                self.load_sol_if_needed()
+
+            data = self.onSliceCommon(evt, mode='export_return')
+            if data is None:
+                assert False, "returned value is None ???"
+            
+            dataset.append(data)
+
+        self.post_threadend(self.export_to_piScope_shell,
+                            dataset, 'slice_data')
+
+    def onExportR2Slice(self, evt):
+        wx.CallAfter(
+            dialog.showtraceback,
+            parent=self,
+            txt='Not Yet Implemented',
+            title='Error',
+            traceback='Exporing all time slice for frequency \ndomain analysis is not available')
+        wx.CallAfter(self.set_title_no_status)
+
+    def onSliceCommon(self, evt, mode='plot'):
         
         value = self.elps['Slice'] .GetValue()
 
@@ -1790,9 +1824,12 @@ class DlgPlotSol(SimpleFramePlus):
             if data is None:
                 wx.CallAfter(self.set_title_no_status)
                 return
-            if export:
+            if mode == 'export':
                 data = {'data': data}
-                self.export_to_piScope_shell(data, 'slice_data')                
+                self.export_to_piScope_shell(data, 'slice_data')
+            elif mode == 'export_return':
+                data = {'data': data}
+                return data
             else:
                 self.post_threadend(self.make_plot_slice, data, battrs,
                                 cls=cls, expr=expr)
@@ -1808,6 +1845,7 @@ class DlgPlotSol(SimpleFramePlus):
             if data is None:
                 return
 
+            pc_param = pc_param['pc_param']
             im_axes = (pc_param[1], pc_param[2])
             midx = (pc_param[3][0] + pc_param[3][1]) / 2.0
             midy = (pc_param[4][0] + pc_param[4][1]) / 2.0
@@ -1819,10 +1857,13 @@ class DlgPlotSol(SimpleFramePlus):
             x = np.linspace(xmin, xmax, int((xmax - xmin) / xsize)) + dx
             y = np.linspace(ymin, ymax, int((ymax - ymin) / ysize)) + dy
 
-            if export:
+            if mode == 'export':
                 data = {'data': data, 'x': x, 'y': y, 'im_axes':im_axes}
-                self.export_to_piScope_shell(data, 'slice_data')                                
-            else:            
+                self.export_to_piScope_shell(data, 'slice_data')
+            elif mode == 'export_return':
+                data = {'data': data, 'x': x, 'y': y, 'im_axes':im_axes}
+                return data
+            else:                                
                 self.post_threadend(
                     self.make_plot_pc_slice,
                     data,
@@ -2233,6 +2274,13 @@ class DlgPlotSol(SimpleFramePlus):
         if mesh is None:
             return None, None
 
+        if mesh.SpaceDimension() != 3:
+            wx.CallAfter(dialog.showtraceback, parent=self,
+                         txt='Triangle Slice plot works only for 3D Tet mesh',
+                         title='Error',
+                         traceback='')
+            wx.CallAfter(self.set_title_no_status)
+            return None, None
         if attrs != 'all':
             try:
                 attrs = list(np.atleast_1d(eval(attrs, ll, phys_ns)))

@@ -113,7 +113,7 @@ class Parametric(SolveStep, NS_mixin):
         
         nsfiles = [n for n in os.listdir() if n.endswith('_ns.py') or n.endswith('_ns.dat')]
         
-        path = os.path.join(od, 'case' + str(ksol))
+        path = os.path.join(od, 'case_' + str(ksol))
         if mkdir:
             engine.mkdir(path) 
             os.chdir(path)
