@@ -17,6 +17,184 @@ rprint = debug.regular_print('StdMeshAdaptSolver')
 
 from petram.solver.std_solver_model import StdSolver, StandardSolver
 
+def vector3_to_nparray(vec):
+  npa = np.array([vec.x(), vec.y(), vec.z()])
+  return npa
+
+def project_np_array_onto_plane(e, normal):
+  e_dot_normal = np.dot(e, normal)
+  return e - e_dot_normal * normal
+
+
+def limit_refine_level(pumi_mesh, sizefield, level):
+  it = pumi_mesh.begin(0)
+  while True:
+    ent = pumi_mesh.iterate(it)
+    if not ent:
+      break
+    current_size = pumi_mesh.measureSize(ent)
+    computed_size = pyCore.getScalar(sizefield, ent, 0)
+    if computed_size < current_size / (2**level):
+      computed_size = current_size / (2**level)
+    # if computed_size > current_size:
+    #   computed_size = current_size;
+    pyCore.setScalar(sizefield, ent, 0, computed_size)
+  pumi_mesh.end(it)
+
+def limit_coarsen(pumi_mesh, sizefield, ratio):
+  it = pumi_mesh.begin(0)
+  while True:
+    ent = pumi_mesh.iterate(it)
+    if not ent:
+      break
+    current_size = pumi_mesh.measureSize(ent)
+    computed_size = pyCore.getScalar(sizefield, ent, 0)
+    if computed_size > ratio * current_size:
+      computed_size = ratio * current_size
+    pyCore.setScalar(sizefield, ent, 0, computed_size)
+  pumi_mesh.end(it)
+
+
+def clean_e_field(pumi_mesh,
+                  in_field,
+                  max_val):
+
+  name = pyCore.getName(in_field)
+  clean_name = name+"_clean"
+  out_field = pyCore.createField(pumi_mesh,
+                                 clean_name,
+                                 pyCore.VECTOR,
+                                 pyCore.getLagrange(1))
+
+  it = pumi_mesh.begin(0)
+  while True:
+    ent = pumi_mesh.iterate(it)
+    if not ent:
+      break
+    vec = pyCore.Vector3()
+    pyCore.getVector(in_field, ent, 0, vec)
+
+    npvec = vector3_to_nparray(vec)
+
+    for i in range(3):
+      if npvec[i] < -max_val:
+        npvec[i] = -max_val
+      if npvec[i] > max_val:
+        npvec[i] = max_val
+
+    new_vec = pyCore.Vector3(npvec[0], npvec[1], npvec[2])
+
+    pyCore.setVector(out_field, ent, 0, new_vec)
+
+  pumi_mesh.end(it)
+  return out_field
+
+def compute_relative_size(pumi_mesh,
+                          size):
+
+  name = pyCore.getName(size)
+  relative_name = "relative_"+name
+  out_field = pyCore.createField(pumi_mesh,
+                                 relative_name,
+                                 pyCore.SCALAR,
+                                 pyCore.getLagrange(1))
+
+  it = pumi_mesh.begin(0)
+  while True:
+    ent = pumi_mesh.iterate(it)
+    if not ent:
+      break
+    current_size = pumi_mesh.measureSize(ent)
+    s = pyCore.getScalar(size, ent, 0)
+    pyCore.setScalar(out_field, ent, 0, s/current_size)
+
+  pumi_mesh.end(it)
+  return out_field
+
+def compute_phase_amplitude_fields(pumi_mesh,
+                                   field_real,
+                                   field_imag,
+                                   phase_field,
+                                   amplitude_field,
+                                   plane):
+  it = pumi_mesh.begin(0)
+  while True:
+    ent = pumi_mesh.iterate(it)
+    if not ent:
+      break
+    real_e = pyCore.Vector3()
+    imag_e = pyCore.Vector3()
+    pyCore.getVector(field_real, ent, 0, real_e)
+    pyCore.getVector(field_imag, ent, 0, imag_e)
+
+    npreal_e = vector3_to_nparray(real_e)
+    npimag_e = vector3_to_nparray(imag_e)
+
+    if (plane != -1):
+      npreal_e[plane] = 0.0
+      npimag_e[plane] = 0.0
+
+    real_e_mag = np.linalg.norm(npreal_e);
+    imag_e_mag = np.linalg.norm(npimag_e);
+
+    emag = math.sqrt(real_e_mag*real_e_mag + imag_e_mag*imag_e_mag)
+    phase = math.atan2(imag_e_mag, real_e_mag)
+    pyCore.setScalar(phase_field, ent, 0, phase)
+    pyCore.setScalar(amplitude_field, ent, 0, emag)
+
+  pumi_mesh.end(it)
+
+
+def compute_phase_amplitude_fields_radial_x(pumi_mesh,
+                                            field_real,
+                                            field_imag,
+                                            phase_field,
+                                            amplitude_field):
+
+  it = pumi_mesh.begin(0)
+  while True:
+    ent = pumi_mesh.iterate(it)
+    if not ent:
+      break
+    loc = pyCore.Vector3()
+    pumi_mesh.getPoint(ent, 0, loc)
+    p = vector3_to_nparray(loc)
+    # adjust the center
+    p[2] = p[2] - 0.2
+    # radial and tangential vectors
+    r_vec = np.array([0.,  p[1], p[2]])
+    t_vec = np.array([0., -p[2], p[1]])
+
+    r_norm = np.linalg.norm(r_vec)
+    t_norm = np.linalg.norm(t_vec)
+
+    if r_norm < 0.000001:
+      r_vec = np.array([0.,1.,0.])
+      t_vec = np.array([0.,0.,1.])
+    else:
+      r_vec = r_vec / r_norm
+      t_vec = t_vec / t_norm
+
+
+    real_e = pyCore.Vector3()
+    imag_e = pyCore.Vector3()
+    pyCore.getVector(field_real, ent, 0, real_e)
+    pyCore.getVector(field_imag, ent, 0, imag_e)
+
+    real_e_projected = project_np_array_onto_plane(vector3_to_nparray(real_e), t_vec)
+    imag_e_projected = project_np_array_onto_plane(vector3_to_nparray(imag_e), t_vec)
+
+
+    real_e_mag = np.linalg.norm(real_e_projected);
+    imag_e_mag = np.linalg.norm(imag_e_projected);
+
+    emag = math.sqrt(real_e_mag*real_e_mag + imag_e_mag*imag_e_mag)
+    phase = math.atan2(imag_e_mag, real_e_mag)
+    pyCore.setScalar(phase_field, ent, 0, phase)
+    pyCore.setScalar(amplitude_field, ent, 0, emag)
+
+  pumi_mesh.end(it)
+
 def get_field_component(pumi_mesh, in_field, component):
   name = ""
   if component == 0:
@@ -56,20 +234,17 @@ def get_field_component(pumi_mesh, in_field, component):
 
   return field_component
 
-
-def limit_refine_level(pumi_mesh, sizefield, level):
+def ignore_refine_in_model_region(pumi_mesh, sizefield, region_tag):
   it = pumi_mesh.begin(0)
   while True:
     ent = pumi_mesh.iterate(it)
     if not ent:
       break
-    current_size = pumi_mesh.measureSize(ent)
-    computed_size = pyCore.getScalar(sizefield, ent, 0)
-    if computed_size < current_size / (2**level):
-      computed_size = current_size / (2**level)
-    if computed_size > current_size:
-      computed_size = current_size;
-    pyCore.setScalar(sizefield, ent, 0, computed_size)
+    mtag = pumi_mesh.getModelTag(pumi_mesh.toModel(ent))
+    mdim = pumi_mesh.getModelType(pumi_mesh.toModel(ent))
+    if region_tag == mtag or pumi_mesh.isBoundingModelRegion(region_tag, mdim, mtag):
+      current_size = pumi_mesh.measureSize(ent)
+      pyCore.setScalar(sizefield, ent, 0, current_size)
   pumi_mesh.end(it)
 
 
@@ -151,16 +326,17 @@ class StdMeshAdaptSolver(StdSolver):
             instance.solve()
 
         adapt_loop_no = 0;
-        while adapt_loop_no < self.mesh_adapt_num:
-            instance.save_solution(ksol = 0,
+        while adapt_loop_no < int(self.mesh_adapt_num):
+            instance.save_solution(ksol = 0, suffix = "_adapt_iter_"+str(adapt_loop_no),
                                 skip_mesh = False,
                                 mesh_only = False,
-                                save_parmesh=self.save_parmesh)
+                                save_parmesh=True)
             engine.sol = instance.sol
             dprint1(debug.format_memory_usage())
 
 
             x = engine.r_x[0]
+            y = engine.i_x[0]
             # par_pumi_mesh = self.root()._par_pumi_mesh
 
             par_pumi_mesh = ParMesh2ParPumiMesh(engine.meshes[0])
@@ -168,54 +344,81 @@ class StdMeshAdaptSolver(StdSolver):
             pumi_mesh = self.root()._pumi_mesh
 
             # transfer the e field to a nedelec field in pumi
-            pumi_nedelec_field = pyCore.createField(pumi_mesh,
-                                                    "e_field",
-                                                    pyCore.SCALAR,
-                                                    pyCore.getNedelec(order))
+            e_real = pyCore.createField(pumi_mesh,
+                                        "e_real_nd",
+                                        pyCore.SCALAR,
+                                        pyCore.getNedelec(order))
+            e_imag = pyCore.createField(pumi_mesh,
+                                        "e_imag_nd",
+                                        pyCore.SCALAR,
+                                        pyCore.getNedelec(order))
 
-            pumi_projected_nedelec_field = pyCore.createField(pumi_mesh,
-                                                            "projected_e_field",
-                                                            pyCore.VECTOR,
-                                                            pyCore.getLagrange(1))
+            e_real_projected = pyCore.createField(pumi_mesh,
+                                                  "e_real_projected",
+                                                   pyCore.VECTOR,
+                                                   pyCore.getLagrange(1))
+            e_imag_projected = pyCore.createField(pumi_mesh,
+                                                  "e_imag_projected",
+                                                   pyCore.VECTOR,
+                                                   pyCore.getLagrange(1))
 
-            par_pumi_mesh.NedelecFieldMFEMtoPUMI(pumi_mesh, x, pumi_nedelec_field)
-            pyCore.projectNedelecField(pumi_projected_nedelec_field, pumi_nedelec_field)
+            par_pumi_mesh.NedelecFieldMFEMtoPUMI(pumi_mesh, x, e_real)
+            par_pumi_mesh.NedelecFieldMFEMtoPUMI(pumi_mesh, y, e_imag)
+            pyCore.projectNedelecField(e_real_projected, e_real)
+            pyCore.projectNedelecField(e_imag_projected, e_imag)
 
-            # native file output for debug
-            native_name = "pumi_mesh_e_field_ma_iter_" + str(adapt_loop_no) + ".smb"
-            print("native_name is ", native_name)
+            e_real_projected_clean = clean_e_field(pumi_mesh, e_real_projected, 1.25)
+            e_imag_projected_clean = clean_e_field(pumi_mesh, e_imag_projected, 1.25)
+
+            phase_r = pyCore.createField(pumi_mesh,
+                                       "phase_radial",
+                                       pyCore.SCALAR,
+                                       pyCore.getLagrange(1))
+            amplitude_r = pyCore.createField(pumi_mesh,
+                                           "amplitude_radial",
+                                           pyCore.SCALAR,
+                                           pyCore.getLagrange(1))
+
+            compute_phase_amplitude_fields_radial_x(pumi_mesh,
+                                                    e_real_projected_clean,
+                                                    e_imag_projected_clean,
+                                                    phase_r,
+                                                    amplitude_r)
+
+
+            pumi_mesh.removeField(e_real)
+            pumi_mesh.removeField(e_imag)
+            pyCore.destroyField(e_real)
+            pyCore.destroyField(e_imag)
+
+
+            # pumi_projected_nedelec_field = pumi_projected_nedelec_field_real
+            # print("user choose the indicator ", self.mesh_adapt_indicator)
+            # indicator_field = 0;
+            # if self.mesh_adapt_indicator == "E":
+            #   indicator_field = pumi_projected_nedelec_field
+            # elif self.mesh_adapt_indicator == "Emag":
+            #   indicator_field = get_field_component(pumi_mesh, pumi_projected_nedelec_field, 0)
+            # elif self.mesh_adapt_indicator == "Ex":
+            #   indicator_field = get_field_component(pumi_mesh, pumi_projected_nedelec_field, 1)
+            # elif self.mesh_adapt_indicator == "Ey":
+            #   indicator_field = get_field_component(pumi_mesh, pumi_projected_nedelec_field, 2)
+            # elif self.mesh_adapt_indicator == "Ez":
+            #   indicator_field = get_field_component(pumi_mesh, pumi_projected_nedelec_field, 3)
+            # else:
+            #   assert False, "wrong indicator selected"
+
+            ip_field = pyCore.getGradIPField(amplitude_r, "mfem_grad_ip", 2)
+            size_field = pyCore.getTargetSPRSizeField(ip_field, int(pumi_mesh.count(3)*2) , 0.125, 2.)
+            limit_refine_level(pumi_mesh, size_field, 3)
+            limit_coarsen(pumi_mesh, size_field, 1.5)
+            relative_size_field = compute_relative_size(pumi_mesh, size_field)
+
+            native_name = "pumi_mesh_before_adapt_"+str(adapt_loop_no)+"_.smb";
             pumi_mesh.writeNative(native_name)
 
-
-            pumi_mesh.removeField(pumi_nedelec_field)
-            pyCore.destroyField(pumi_nedelec_field)
-
-
-            print("user choose the indicator ", self.mesh_adapt_indicator)
-            indicator_field = 0;
-            if self.mesh_adapt_indicator == "E":
-              indicator_field = pumi_projected_nedelec_field
-            elif self.mesh_adapt_indicator == "Emag":
-              indicator_field = get_field_component(pumi_mesh, pumi_projected_nedelec_field, 0)
-            elif self.mesh_adapt_indicator == "Ex":
-              indicator_field = get_field_component(pumi_mesh, pumi_projected_nedelec_field, 1)
-            elif self.mesh_adapt_indicator == "Ey":
-              indicator_field = get_field_component(pumi_mesh, pumi_projected_nedelec_field, 2)
-            elif self.mesh_adapt_indicator == "Ez":
-              indicator_field = get_field_component(pumi_mesh, pumi_projected_nedelec_field, 3)
-            else:
-              assert False, "wrong indicator selected"
-
-            ip_field = pyCore.getGradIPField(indicator_field, "mfem_grad_ip", 2)
-
-            ## transferring the curl of E and using it in spr
-            size_field = pyCore.getSPRSizeField(ip_field, float(self.mesh_adapt_ar))
-
-
-            limit_refine_level(pumi_mesh, size_field, 5)
             before_prefix = "before_adapt_"+str(adapt_loop_no);
             pyCore.writeASCIIVtkFiles(before_prefix, pumi_mesh);
-
 
             pumi_mesh.removeField(ip_field)
             pyCore.destroyField(ip_field)
@@ -223,7 +426,7 @@ class StdMeshAdaptSolver(StdSolver):
             adapt_input = pyCore.configure(pumi_mesh, size_field)
             adapt_input.shouldFixShape = True
             adapt_input.shouldCoarsen = True
-            adapt_input.maximumIterations = 6
+            adapt_input.maximumIterations = 3
             adapt_input.goodQuality = 0.35 * 0.35 * 0.35 # mean-ratio cubed
 
             pyCore.adaptVerbose(adapt_input)
@@ -231,13 +434,30 @@ class StdMeshAdaptSolver(StdSolver):
             after_prefix = "after_adapt_"+str(adapt_loop_no);
             pyCore.writeASCIIVtkFiles(after_prefix, pumi_mesh);
 
+            native_name = "pumi_mesh_after_adapt_"+str(adapt_loop_no)+".smb";
+            pumi_mesh.writeNative(native_name)
+
             # clean up rest of the fields
-            pumi_mesh.removeField(pumi_projected_nedelec_field)
-            pyCore.destroyField(pumi_projected_nedelec_field)
+            pumi_mesh.removeField(e_real_projected)
+            pyCore.destroyField(e_real_projected)
+            pumi_mesh.removeField(e_real_projected_clean)
+            pyCore.destroyField(e_real_projected_clean)
+
+            pumi_mesh.removeField(e_imag_projected)
+            pyCore.destroyField(e_imag_projected)
+            pumi_mesh.removeField(e_imag_projected_clean)
+            pyCore.destroyField(e_imag_projected_clean)
+
+            pumi_mesh.removeField(phase_r)
+            pyCore.destroyField(phase_r)
+
             pumi_mesh.removeField(size_field)
             pyCore.destroyField(size_field)
-            pumi_mesh.removeField(indicator_field)
-            pyCore.destroyField(indicator_field)
+
+            pumi_mesh.removeField(relative_size_field)
+            pyCore.destroyField(relative_size_field)
+
+            pumi_mesh.removeField(amplitude_r)
 
             adapted_mesh = mfem.ParMesh(pyCore.PCU_Get_Comm(), pumi_mesh)
             # add the boundary attributes

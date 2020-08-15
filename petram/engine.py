@@ -1823,23 +1823,24 @@ class Engine(object):
     #  save to file
     #
     
-    def save_sol_to_file(self, phys_target, skip_mesh = False,
+    def save_sol_to_file(self, phys_target, suffix, skip_mesh = False,
                                mesh_only = False,
                                save_parmesh = False):
         if not skip_mesh:
             mesh_filenames =self.save_mesh()
         if save_parmesh:
-            self.save_parmesh()
+            self.save_parmesh(suffix)
         if mesh_only: return mesh_filenames
 
         self.access_idx = 0
         for phys in phys_target:
             emesh_idx = phys.emesh_idx
             for name in phys.dep_vars:
+                full_name = name + suffix
                 ifes = self.r_ifes(name)
                 r_x = self.r_x[ifes]
                 i_x = self.i_x[ifes]
-                self.save_solfile_fespace(name, emesh_idx, r_x, i_x)
+                self.save_solfile_fespace(full_name, emesh_idx, r_x, i_x)
                 
     def extrafile_name(self):
         return 'sol_extended.data'
@@ -2690,7 +2691,7 @@ class SerialEngine(Engine):
     def collect_all_ess_tdof(self):
         self.gl_ess_tdofs = self.ess_tdofs
 
-    def save_parmesh(self):
+    def save_parmesh(self, suffix):
         # serial engine does not do anything
         return
      
@@ -2903,7 +2904,7 @@ class ParallelEngine(Engine):
                dprint1('Number of finite element unknowns: '+  str(fe_sizes))
         return fe_sizes
      
-    def save_parmesh(self):
+    def save_parmesh(self, suffix):
         from mpi4py import MPI                               
         num_proc = MPI.COMM_WORLD.size
         myid     = MPI.COMM_WORLD.rank
@@ -2912,7 +2913,7 @@ class ParallelEngine(Engine):
         mesh_names = []
         for k, mesh in enumerate(self.meshes):
             if mesh is None: continue
-            mesh_name  =  "solparmesh_"+str(k)+"."+smyid
+            mesh_name  =  "solparmesh_" + suffix + "_" + str(k)+"."+smyid
             mesh.ParPrintToFile(mesh_name, 8)
         return
      
