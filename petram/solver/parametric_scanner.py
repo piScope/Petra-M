@@ -23,7 +23,7 @@ class DefaultParametricScanner(object):
             raise StopIteration
 
         data = self._data[self.idx]
-        dprint0("Entering next parameter:", data, "(" +
+        dprint0("==== Entering next parameter:", data, "(" +
                 str(self.idx+1)+ "/" + str(self.max) + ")")
         dprint1(format_memory_usage())
 

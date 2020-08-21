@@ -100,7 +100,7 @@ class NCEdgeEvaluator(EvaluatorAgent):
         self.ifaces = []
 
         if mesh.Dimension() == 2:
-            getface = mesh.GetBdrElementFace
+            getface = lambda x: (mesh.GetBdrElementEdges(x)[0][0], 1)
             gettrans = mesh.GetBdrElementTransformation            
             getarray = mesh.GetBdrArray
             getelement = mesh.GetBdrElement

@@ -322,8 +322,16 @@ def find_cp_pc_parameter(mesh, abcd, e1, gsize=None, gcount=100, origin=None, at
 
     v = mfem.Vector()
     mesh.GetVertices(v)
+    sdim = mesh.SpaceDimension()
     vv = v.GetDataArray().copy()
-    vv = vv.reshape(3, -1)
+    
+    vv = vv.reshape(sdim, -1)
+    if sdim == 3:
+       pass
+    elif sdim == 2:
+       vv = np.vstack([vv, vv[:1, :]*0])
+    else:
+        assert False, "1D mesh is not supported"
     
     val =  vv[0, :]*abcd[0] + vv[1,:]*abcd[1] + vv[2,:]*abcd[2] + abcd[3]
     

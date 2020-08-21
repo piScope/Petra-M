@@ -54,16 +54,24 @@ class PostProcess(PostProcessBase):
     has_2nd_panel = False    
     def get_possible_child(self):
         from petram.postprocess.project_solution import DerivedValue
-        from petram.postprocess.discrt_v_integration import LinearformIntegrator, BilinearformIntegrator 
-        return [DerivedValue, LinearformIntegrator, BilinearformIntegrator]
+        from petram.postprocess.discrt_v_integration import (LinearformIntegrator,
+                                                             BilinearformIntegrator)
+        from petram.postprocess.discrt_v_interpolator import Grad, Curl, Div
+        
+        return [DerivedValue, LinearformIntegrator, BilinearformIntegrator, Grad, Curl, Div]
     
     def get_possible_child_menu(self):
         from petram.postprocess.project_solution import DerivedValue
-        from petram.postprocess.discrt_v_integration import LinearformIntegrator, BilinearformIntegrator
+        from petram.postprocess.discrt_v_integration import (LinearformIntegrator,
+                                                             BilinearformIntegrator)
+        from petram.postprocess.discrt_v_interpolator import Grad, Curl, Div
         
         return [("", DerivedValue),
                 ("Integrator", LinearformIntegrator),
-                ("!", BilinearformIntegrator)
+                ("!", BilinearformIntegrator),
+                ("Derivative", Grad),
+                ("", Curl),
+                ("!", Div),                
                 ]
     
     def run_postprocess(self, engine):

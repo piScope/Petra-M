@@ -42,7 +42,7 @@ def MFEM_menus(parent):
     self = parent
     menus = [("+Open Model...", None, None),
              ("Binary...", self.onOpenPMFEM, None, None),
-             #("Script/Data Files...", self.onOpenModelS, None),
+             ("Script/Data Files...", self.onOpenModelS, None),
              ("!", None, None),
              ("+Mesh", None, None),
              ("New Mesh File...",  self.onNewMesh, None),
@@ -56,7 +56,6 @@ def MFEM_menus(parent):
              ("Rebuild", self.onRebuildNS, None),
              ("!", None, None),
              ("Edit Model...", self.onEditModel, None),
-             ("Selection Panel...", self.onSelectionPanel, None),
              ("+Solve", None, None),
              ("Serial",    self.onSerDriver, None),
              ("Parallel",  self.onParDriver, None),
@@ -91,7 +90,31 @@ def MFEM_menus(parent):
              ("Reset Model", self.onResetModel, None), ]
     return menus
 
+from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
 
+class MFEMViewerCanvas(ifigure_canvas):
+    def __init__(self, *args, **kwags):
+        self._mfemviewer_spacehit = False
+        return ifigure_canvas.__init__(self, *args, **kwags)
+    
+    def unselect_all(self):
+        ifigure_canvas.unselect_all(self)
+        self.TopLevelParent._dom_bdr_sel = ([], [], [], [])
+
+    def onKey(self, evt):
+        keycode = evt.guiEvent.GetKeyCode()
+        if keycode == wx.WXK_SPACE:
+            self._mfemviewer_spacehit = True
+
+        return ifigure_canvas.onKey(self, evt)
+    def onKey2(self, evt):
+        keycode = evt.guiEvent.GetKeyCode()        
+        if keycode == wx.WXK_SPACE:
+            if self._mfemviewer_spacehit:
+                self.TopLevelParent.handle_shifthit()
+        self._mfemviewer_spacehit = False
+        return ifigure_canvas.onKey2(self, evt)
+        
 class MFEMViewer(BookViewer):
     def __init__(self, *args, **kargs):
         kargs['isattachable'] = False
@@ -126,12 +149,14 @@ class MFEMViewer(BookViewer):
         self.model = self.book.get_parent()
         self.editdlg = None
         self.selection_palette = None
+        self.geom_info_palette = None
         self.plotsoldlg = None
         self.plotexprdlg = None
         self.engine = None
         self.dombdr = None
 
         from petram.pi.sel_buttons import btask, refresh
+
         self.install_toolbar_palette('petram_phys',
                                      btask,
                                      mode='3D',
@@ -149,7 +174,7 @@ class MFEMViewer(BookViewer):
                                          btask,
                                          mode='3D',
                                          refresh=refresh)
-
+            
         od = self.model.param.getvar('mfem_model')
         od.set_root_path(self.model.owndir())
 
@@ -181,9 +206,17 @@ class MFEMViewer(BookViewer):
                   self.onTD_DragSelectionInFigure)
 
         self.canvas._popup_style = 1  # popup_skip_2d
-        #self.canvas.__class__ = MFEMViewerCanvas
+        self.canvas.__class__ = MFEMViewerCanvas
         #self.Bind(wx.EVT_ACTIVATE, self.onActivate)
 
+    @property
+    def view_mode_group(self):
+        return self._view_mode_group
+    
+    @property
+    def dom_bdr_sel(self):
+        return self._dom_bdr_sel
+    
     def set_view_mode(self, mode, mm=None):
         p = mm
         while p is not None:
@@ -242,7 +275,7 @@ class MFEMViewer(BookViewer):
                     ret = d[name]
                     plot_geometry(self,  ret)
                 else:
-                    print('Geometry figur data not found :' + name)
+                    #print('Geometry figure data not found :' + name)
                     self.cls()
                     return
 
@@ -264,7 +297,7 @@ class MFEMViewer(BookViewer):
                         d = self._figure_data['geom']
                         plot_geometry(self,  d[name[1]])
                     if name[0] in d:
-                        print("calling oplot")
+                        #print("calling oplot")
                         oplot_meshed(self,  d[name[0]])
                         self._hidemesh = False
                     else:
@@ -396,14 +429,15 @@ class MFEMViewer(BookViewer):
             self.editdlg.set_model(od)
         self.model.variables.setvar('modelfile_path', path)
         evt.Skip()
-    '''    
+
     def onOpenModelS(self, evt):
         import imp, shutil
-        import cPickle as pickle
+        import ifigure.utils.pickle_wrapper as pickle
         from ifigure.mto.py_code import PyData
         from ifigure.mto.py_script import PyScript        
         path = dialog.read(message='Select model file to read', wildcard='*.py')
         try:
+            print("loading", path)
             m = imp.load_source('petram.user_model', path)        
             model = m.make_model()
         except:
@@ -426,7 +460,7 @@ class MFEMViewer(BookViewer):
                 sc = self.model.namespaces.add_childobject(PyScript, file[:-3])
                 sc.load_script(os.path.join(self.model.namespaces.owndir(), file))
             if file.endswith('.dat'):
-                fid = open(os.path.join(dir, file), 'r')
+                fid = open(os.path.join(dir, file), 'rb')
                 data = pickle.load(fid)
                 fid.close()
                 obj = self.model.datasets.add_childobject(PyData, file[:-6]+'data')
@@ -441,7 +475,7 @@ class MFEMViewer(BookViewer):
             self.editdlg.set_model(od)        
 
         evt.Skip()
-    '''
+
 
     def _getSelectedIndexVolume(self, already_selected_surface):
         objs = [o().figobj for o in self.canvas.selection
@@ -667,6 +701,7 @@ class MFEMViewer(BookViewer):
             cdir = expanduser("~")
 
         try:
+            err = -1
             os.chdir(self.model.owndir())
             try:
                 self.engine.run_mesh(skip_refine=True)
@@ -825,9 +860,14 @@ class MFEMViewer(BookViewer):
                     self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
+
+        self._dom_bdr_sel = (self._dom_bdr_sel[0],
+                             tuple(i),
+                             self._dom_bdr_sel[2],
+                             self._dom_bdr_sel[3],)
         wx.CallAfter(self.canvas.refresh_hl)
 
-    def highlight_edge(self, i):
+    def highlight_edge(self, i, unselect=True):
         '''
         i is 1-based index
         '''
@@ -837,7 +877,8 @@ class MFEMViewer(BookViewer):
             i = list(i)
         ax = self.get_axes()
 
-        self.canvas.unselect_all()
+        if unselect:
+            self.canvas.unselect_all()
 
         for name, obj in ax.get_children():
             if not name.startswith('edge'):
@@ -848,9 +889,15 @@ class MFEMViewer(BookViewer):
                     self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
-        self.canvas.refresh_hl()
+                
+        self._dom_bdr_sel = (self._dom_bdr_sel[0],
+                             self._dom_bdr_sel[1],
+                             tuple(i),
+                             self._dom_bdr_sel[3],)
+        
+        wx.CallAfter(self.canvas.refresh_hl)             
 
-    def highlight_point(self, i):
+    def highlight_point(self, i, unselect=True):
         '''
         i is 1-based index
         '''
@@ -860,7 +907,8 @@ class MFEMViewer(BookViewer):
             i = list(i)
         ax = self.get_axes()
 
-        self.canvas.unselect_all()
+        if unselect:
+            self.canvas.unselect_all()
 
         for name, obj in ax.get_children():
             if not name.startswith('point'):
@@ -871,7 +919,13 @@ class MFEMViewer(BookViewer):
                     self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
-        self.canvas.refresh_hl()
+
+        self._dom_bdr_sel = (self._dom_bdr_sel[0],
+                             self._dom_bdr_sel[1],
+                             self._dom_bdr_sel[2],
+                             tuple(i),)
+
+        wx.CallAfter(self.canvas.refresh_hl)                             
 
     def highlight_none(self):
         self.canvas.unselect_all()
@@ -922,11 +976,27 @@ class MFEMViewer(BookViewer):
 
     def onSelectionPanel(self, evt):
         from petram.pi.selection_palette import SelectionPalette
+        
         if self.selection_palette is None:
             self.selection_palette = SelectionPalette(
                 self, wx.ID_ANY, 'Selection')
             self.selection_palette.Show()
         self.selection_palette.Raise()
+        evt.Skip()
+
+    def onGeomInfo(self, evt):
+        try:
+            from petram.geom.geom_info_palette import GeomInfoPalette
+
+            if self.geom_info_palette is None:
+                self.geom_info_palette = GeomInfoPalette(self,
+                                                         wx.ID_ANY,
+                                                         'Geometry')
+                self.geom_info_palette.Show()
+            self.geom_info_palette.Raise()
+        except ImportError:
+            pass
+        evt.Skip()
 
     def onSaveModel(self, evt):
         from ifigure.widgets.dialog import write
@@ -965,23 +1035,29 @@ class MFEMViewer(BookViewer):
         m = self.model.param.getvar('mfem_model')
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
+        odir = os.getcwd()
         try:
             self.run_preprocess()
         except:
+            os.chdir(odir)
             dialog.showtraceback(parent=self,
                                  txt='Failed to during pre-processing model data',
                                  title='Error',
                                  traceback=traceback.format_exc())
             return
         self.model.scripts.run_serial.RunT(debug=debug_level)
-
+        
+        os.chdir(odir)
+        
     def onParDriver(self, evt):
         m = self.model.param.getvar('mfem_model')
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
+        odir = os.getcwd()        
         try:
             self.run_preprocess()
         except:
+            os.chdir(odir)            
             dialog.showtraceback(parent=self,
                                  txt='Failed to during pre-processing model data',
                                  title='Error',
@@ -991,9 +1067,11 @@ class MFEMViewer(BookViewer):
         if nproc is None:
             nproc = 2
         self.model.scripts.run_parallel.RunT(nproc=nproc, debug=debug_level)
-
+        
+        os.chdir(odir)
+                                             
     def viewer_canvasmenu(self):
-        menus = [("+MFEM", None, None), ]
+        menus = [("+MFEM", None, None),]
         if self._hidemesh:
             menus.append(("Show Mesh",  self.onShowMesh, None))
         else:
@@ -1006,7 +1084,7 @@ class MFEMViewer(BookViewer):
         if self._view_mode == 'geom':
             menus.append(
                 ("Copy " + selmode + " selection with prefix", self.onCopySelection2, None))
-
+                
         # if len(self.canvas.selection) > 0:
         #    if self._view_mode == 'mesh':
         #        menus.append(("Show meshed " + selmode, self.onShowMeshedEntity, None))
@@ -1089,6 +1167,20 @@ class MFEMViewer(BookViewer):
             pass
         else:
             pass
+
+        palette_menu = []
+        if self.selection_palette is None:
+            palette_menu.append(("Selection palette...", self.onSelectionPanel, None),)
+
+        if (self._view_mode == 'geom' and 
+            self._view_mode_group.startswith('OCC') and
+            self.geom_info_palette is None):
+            palette_menu.append(("Geomtry info ...", self.onGeomInfo,  None),)
+
+        if len(palette_menu) > 0:
+             menus.append(('---', None, None),)
+             menus.extend(palette_menu)
+
         menus.extend([("!", None, None),
                       ("---", None, None), ])
         return menus
@@ -1604,3 +1696,36 @@ class MFEMViewer(BookViewer):
         for k in dd:
             seen[k] += 1
         return [k for k in seen if seen[k] > 1]
+
+    def handle_shifthit(self):
+        '''
+        when space is hit in canvas
+        '''
+        if self._sel_mode == 'volume':
+            mode = 'point'
+            bmode = 'dot'
+        if self._sel_mode == 'face':
+            mode = 'volume'
+            bmode = 'domain'
+        if self._sel_mode == 'edge':
+            mode = 'face'
+            bmode = 'face'
+        if self._sel_mode == 'point':
+            mode = 'edge'
+            bmode = 'edge'
+        self._sel_mode = mode
+        
+        toolbarname = self.canvas.toolbar.p1_choice[1]
+
+        
+        buttonname = bmode + '_' + toolbarname
+
+        if toolbarname == 'petram_mesh':
+            buttonname = "m"+buttonname
+        if toolbarname == 'petram_geom':
+            buttonname = "g"+buttonname
+
+        self.canvas.toolbar.ClickP1Button(buttonname)
+        self.canvas.toolbar.ClickP1Button('select')
+            
+        

@@ -91,11 +91,11 @@ class Operator(object):
         self._sel   = kwargs.pop('sel', self._sel)
         self._ssel  = kwargs.pop('src', self._ssel)        
         if fes1 is not None:
-           if isinstance(fes1, 'str'):
+           if isinstance(fes1, str):
                fes1 = engine.fespaces[fes]
            self._fes1 = weakref.ref(fes1)        
         if fes2 is not None:
-           if isinstance(fes2, 'str'):
+           if isinstance(fes2, str):
                fes2 = engine.fespaces[fes]
            self._fes2 = weakref.ref(fes2)        
 
@@ -702,11 +702,127 @@ class Projection(Operator):
                
 class Gradient(Operator):               
     '''
-
+    Operator to compute Gradient
+    input (domain) should be H1
+    output (range) should be ND
 
     '''
-    pass
+    def assemble(self, *args, **kwargs):
+        engine = self._engine()        
+        self.process_kwargs(engine, kwargs)
+        
+        if len(args)>0: self._sel_mode = args[0]
+        if len(args)>1: self._sel = args[1]
 
+        if not self.fes1.FEColl().Name().startswith('ND'):
+           assert False, "range should be ND"           
+        if not self.fes2.FEColl().Name().startswith('H1'):
+           assert False, "domain should be H1"
+
+        dim1 = self.fes1.GetMesh().Dimension()
+        dim2 = self.fes2.GetMesh().Dimension()
+
+        if use_parallel:
+            import mfem.par as mfem
+            DiscreteLinearOperator = mfem.ParDiscreteLinearOperator
+        else:
+            import mfem.ser as mfem
+            DiscreteLinearOperator = mfem.DiscreteLinearOperator
+        
+        grad = DiscreteLinearOperator(self.fes2, self.fes1)
+        itp = mfem.GradientInterpolator()
+        grad.AddDomainInterpolator(itp)
+        grad.Assemble();
+        grad.Finalize();
+        
+        from mfem.common.chypre import BF2PyMat
+        
+        M = BF2PyMat(grad)
+
+        return M
+        
+class Curl(Operator):               
+    '''
+    Operator to compute Gradient
+    input (domain) should be H1
+    output (range) should be ND
+
+    '''
+    def assemble(self, *args, **kwargs):
+        engine = self._engine()        
+        self.process_kwargs(engine, kwargs)
+        
+        if len(args)>0: self._sel_mode = args[0]
+        if len(args)>1: self._sel = args[1]
+
+        #if not self.fes1.FEColl().Name().startswith('ND'):
+        #   assert False, "range should be ND"           
+        if not self.fes2.FEColl().Name().startswith('ND'):
+           assert False, "domain should be ND"
+
+        dim1 = self.fes1.GetMesh().Dimension()
+        dim2 = self.fes2.GetMesh().Dimension()
+
+        if use_parallel:
+            import mfem.par as mfem
+            DiscreteLinearOperator = mfem.ParDiscreteLinearOperator
+        else:
+            import mfem.ser as mfem
+            DiscreteLinearOperator = mfem.DiscreteLinearOperator
+        
+        curl = DiscreteLinearOperator(self.fes2, self.fes1)
+        itp = mfem.CurlInterpolator()
+        curl.AddDomainInterpolator(itp)
+        curl.Assemble();
+        curl.Finalize();
+        
+        from mfem.common.chypre import BF2PyMat
+        
+        M = BF2PyMat(curl)
+
+        return M
+        
+class Divergence(Operator):               
+    '''
+    Operator to compute Gradient
+    input (domain) should be H1
+    output (range) should be ND
+
+    '''
+    def assemble(self, *args, **kwargs):
+        engine = self._engine()        
+        self.process_kwargs(engine, kwargs)
+        
+        if len(args)>0: self._sel_mode = args[0]
+        if len(args)>1: self._sel = args[1]
+
+        if not self.fes1.FEColl().Name().startswith('L2'):
+           assert False, "range should be L2"           
+        if not self.fes2.FEColl().Name().startswith('RT'):
+           assert False, "domain should be RT"
+
+        dim1 = self.fes1.GetMesh().Dimension()
+        dim2 = self.fes2.GetMesh().Dimension()
+
+        if use_parallel:
+            import mfem.par as mfem
+            DiscreteLinearOperator = mfem.ParDiscreteLinearOperator
+        else:
+            import mfem.ser as mfem
+            DiscreteLinearOperator = mfem.DiscreteLinearOperator
+        
+        div = DiscreteLinearOperator(self.fes2, self.fes1)
+        itp = mfem.DivergenceInterpolator()
+        div.AddDomainInterpolator(itp)
+        div.Assemble();
+        div.Finalize();
+        
+        from mfem.common.chypre import BF2PyMat
+        
+        M = BF2PyMat(div)
+
+        return M
+        
 
         
     
