@@ -91,13 +91,17 @@ class Parametric(SolveStep, NS_mixin):
         from petram.solver.std_solver_model import StdSolver        
         return [StdSolver,]
     
-    def get_scanner(self):
+    def get_scanner(self, nosave=False):
         try:
             scanner = self.eval_param_expr(str(self.scanner), 
                                            'scanner')[0]
         except:
             traceback.print_exc()
             return
+
+        if not nosave:
+            scanner.save_scanner_data(self)
+
         return scanner
 
     def get_default_ns(self):
@@ -260,7 +264,16 @@ class Parametric(SolveStep, NS_mixin):
         os.chdir(od)
         for p in probes:
             p.write_file()
-            
+
+    def set_scanner_physmodel(self, scanner):
+        solvers = self.get_active_solvers()
+        phys_models = []
+        for s in solvers:
+            for p in s.get_phys():
+                if not p in phys_models: phys_models.append(p)
+        scanner.set_phys_models(phys_models)
+        return solvers
+
     def run(self, engine, is_first=True):
         #
         # is_first is not used
@@ -274,14 +287,8 @@ class Parametric(SolveStep, NS_mixin):
         scanner = self.get_scanner()
         if scanner is None: return
 
-        solvers = self.get_active_solvers()
-        
-        phys_models = []
-        for s in solvers:
-            for p in s.get_phys():
-                if not p in phys_models: phys_models.append(p)
-        scanner.set_phys_models(phys_models)
-        
+        solvers = self.set_scanner_physmodel(scanner)
+
         self.case_dirs = []
         if self.assembly_method == 0: 
             self._run_full_assembly(engine, solvers, scanner, is_first=is_first)

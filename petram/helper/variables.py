@@ -1624,21 +1624,24 @@ class BdrVariable(ExpressionVariable, SurfVariable):
 
 
 def append_suffix_to_expression(expr, vars, suffix):
+    if vars is None:
+        return expr + suffix
     for v in vars:
         expr = expr.replace(v, v + suffix)
     return expr
 
 
-def add_scalar(solvar, name, suffix, ind_vars, solr, soli=None, deriv=None):
-    solvar[name + suffix] = GFScalarVariable(solr, soli, comp=1,
-                                             deriv=deriv)
+def add_scalar(solvar, name, suffix, ind_vars, solr, soli=None, deriv=None, vars=None):
+    name = append_suffix_to_expression(name, vars, suffix)    
+    solvar[name] = GFScalarVariable(solr, soli, comp=1, deriv=deriv)
 
 
 def add_components(solvar, name, suffix, ind_vars, solr,
-                   soli=None, deriv=None):
-    solvar[name + suffix] = GFVectorVariable(solr, soli, deriv=deriv)
+                   soli=None, deriv=None, vars=None):
+    name = append_suffix_to_expression(name, vars, suffix)        
+    solvar[name] = GFVectorVariable(solr, soli, deriv=deriv)
     for k, p in enumerate(ind_vars):
-        solvar[name + suffix + p] = GFScalarVariable(solr, soli, comp=k + 1,
+        solvar[name + p] = GFScalarVariable(solr, soli, comp=k + 1,
                                                      deriv=deriv)
 
 

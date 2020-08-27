@@ -904,7 +904,7 @@ class PhysModule(Phys):
     def get_possible_pair(self):
         from projection import BdrProjection, DomainProjection
         return [DomainProjection, BdrProjection,]
-     
+
     def soldict_to_solvars(self, soldict, variables):
         keys = list(soldict)
         depvars = self.dep_vars
