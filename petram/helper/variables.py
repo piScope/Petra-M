@@ -284,6 +284,12 @@ class Constant(Variable):
     def __repr__(self):
         return "Constant(" + str(self.value) + ")"
 
+    def __float__(self):
+        return float(self.value)
+
+    def __int__(self):
+        return int(self.value)
+
     def set_point(self, T, ip, g, l, t=None):
         self.x = T.Transform(ip)
 

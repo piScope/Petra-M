@@ -23,6 +23,8 @@ try:
 except ImportError:
     hasGeom = False
 
+from petram.utils import check_cluster_access
+has_cluster_access = check_cluster_access()
 
 def setup_figure(fig):
     fig.nsec(1)
@@ -40,7 +42,7 @@ ID_SOL_FOLDER = wx.NewIdRef(count=1)
 
 def MFEM_menus(parent):
     self = parent
-    menus = [("+Open Model...", None, None),
+    menu1 = [("+Open Model...", None, None),
              ("Binary...", self.onOpenPMFEM, None, None),
              ("Script/Data Files...", self.onOpenModelS, None),
              ("!", None, None),
@@ -67,14 +69,19 @@ def MFEM_menus(parent):
              ("Clear sol", self.onClearSol, None),
              ("Preprocess data",   self.onRunPreprocess, None),
              ("!", None, None),
-             ("!", None, None),
-             ("+Cluster", None, None),
-             ("Setting...", self.onServerSetting, None),
-             #("New WorkDir...", self.onServerNewDir, None),
-             ("Solve...", self.onServerSolve, None),
-             ("Retrieve File", self.onServerRetrieve, None),
-             ("!", None, None),
-             ("+Plot", None, None),
+             ("!", None, None),]
+
+    if has_cluster_access:
+        menu2 = [("+Cluster", None, None),
+                 ("Setting...", self.onServerSetting, None),
+                 ("Solve...", self.onServerSolve, None),
+                 ("Retrieve File", self.onServerRetrieve, None),
+                 ("!", None, None),]
+    else:
+        menu2 = []
+
+
+    menu3 = [("+Plot", None, None),
              ("Function...",    self.onPlotExpr, None),
              ("Solution ...",    self.onDlgPlotSol, None),
              ("!", None, None),
@@ -88,7 +95,7 @@ def MFEM_menus(parent):
              ("!", None, None),
              ("---", None, None),
              ("Reset Model", self.onResetModel, None), ]
-    return menus
+    return menu1 + menu2 + menu3
 
 from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
 
