@@ -203,7 +203,7 @@ def submit_job(model):
     lk = ','.join(lk)
     lt = "'".join(lt.split('"'))
 
-    lt = base64.b64encode(lt.encode()))
+    lt = base64.b64encode(lt.encode())
 
     q1 = q.strip().split("(")[0]
     q2 = "" if q.find("(") == -1 else "(".join(q.strip().split("(")[1:])[:-1]
