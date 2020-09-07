@@ -60,7 +60,6 @@ def clean_remote_dir(model):
 
     return True
 
-
 def prepare_remote_dir(model, txt = '', dirbase = base_remote_path):
     model_dir = model.owndir()
     param = model.param
@@ -76,8 +75,7 @@ def prepare_remote_dir(model, txt = '', dirbase = base_remote_path):
         host.Execute('mkdir -p ' + rwdir)
     except:
         assert  False, "Failed to make remote directory"
-    param.eval('remote')['rwdir'] =  rwdir
-
+    param.eval('remote')['rwdir'] = rwdir
 
 def send_file(model, skip_mesh = False):
     model_dir = model.owndir()
@@ -156,14 +154,23 @@ def get_job_queue(model=None, host = None, user = None):
     command = "ssh " + user+'@' + host + " 'cat $PetraM/etc/queue_config'", 
     p= sp.Popen(command, shell=True, stdout=sp.PIPE)
     lines = [x.decode('utf-8') for x in p.stdout.readlines()]
-    return interpret_job_queue_file(lines)
+
+    try:
+        value = interpret_job_queue_file(lines)
+    except BaseException:
+        assert False, "Failed to load server queue config"
+    return value
 
 def interpret_job_queue_file(lines):
     lines = [x.strip() for x in lines if not x.startswith("#")
              if len(x.strip()) != 0]
     q = {'type': lines[0], 'queues':[]}
     for l in lines[1:]:
-        if l.startswith('QUEUE'):
+        if l.startswith('KEYWORD'):
+            if not 'keywords' in q:
+                q['keywords'] = []
+            q['keywords'].append(l.split(':')[1])
+        elif l.startswith('QUEUE'):
             q['queues'].append({'name':l.split(':')[1]})
         else:
             data = ':'.join(l.split(':')[1:])
@@ -188,6 +195,12 @@ def submit_job(model):
     N = str(remote["num_nodes"])
     o = str(remote["num_openmp"])
     q = str(remote["queue"])
+    lk = str(remote["log_keywords"])
+    lt = str(remote["log_txt"])
+    nt = str(remote["notificaiton"])
+
+    lk = ','.join(lk)
+    lt = '"' + "'".join(lt.split('"')) + '"'
 
     q1 = q.strip().split("(")[0]
     q2 = "" if q.find("(") == -1 else "(".join(q.strip().split("(")[1:])[:-1]
@@ -195,7 +208,8 @@ def submit_job(model):
     if q2 != "":
         q2 = "_".join(q2.split("/"))
     
-    exe = '$PetraM/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q1
+    exe = ('$PetraM/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q1
+           ' -L ' + lt + ' -K ' + lt + ' -M ' + nt)
     if q2 != "":
        exe = exe +  ' -V ' + q2        
 
