@@ -5,6 +5,7 @@ import datetime
 import os 
 import shlex 
 import socket
+import base64
 import subprocess as sp
 
 base_remote_path = '~/myscratch/mfem_batch'
@@ -197,10 +198,12 @@ def submit_job(model):
     q = str(remote["queue"])
     lk = str(remote["log_keywords"])
     lt = str(remote["log_txt"])
-    nt = str(remote["notificaiton"])
+    nt = str(remote["notification"])
 
     lk = ','.join(lk)
-    lt = '"' + "'".join(lt.split('"')) + '"'
+    lt = "'".join(lt.split('"'))
+
+    lt = base64.b64encode(lt)
 
     q1 = q.strip().split("(")[0]
     q2 = "" if q.find("(") == -1 else "(".join(q.strip().split("(")[1:])[:-1]
