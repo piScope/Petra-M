@@ -209,7 +209,7 @@ def submit_job(model):
         q2 = "_".join(q2.split("/"))
     
     exe = ('$PetraM/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q1
-           ' -L ' + lt + ' -K ' + lt + ' -M ' + nt)
+           + ' -L ' + lt + ' -K ' + lt + ' -M ' + nt)
     if q2 != "":
        exe = exe +  ' -V ' + q2        
 
