@@ -203,6 +203,7 @@ def submit_job(model):
     lk = ','.join(lk)
     lt = "'".join(lt.split('"'))
 
+    lk = base64.b64encode(lk.encode()).decode()    
     lt = base64.b64encode(lt.encode()).decode()
 
     q1 = q.strip().split("(")[0]
@@ -212,7 +213,7 @@ def submit_job(model):
         q2 = "_".join(q2.split("/"))
     
     exe = ('$PetraM/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q1
-           + ' -L ' + lt + ' -K ' + lt + ' -M ' + nt)
+           + ' -L ' + lt + ' -K ' + lk + ' -M ' + nt)
     if q2 != "":
        exe = exe +  ' -V ' + q2        
 
