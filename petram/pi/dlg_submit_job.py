@@ -11,7 +11,7 @@ def elp_setting(log_keywords):
           ["Wall clock", "00:15:00", 0, {}],
           ["Queue", "Debug", 0, {}],
           ["Remote Dir.", "", 0, {}],
-          ["Note", None, 35, {'nlines': 5}],
+          ["Note", None, 235, {'nlines': 5}],
           ["Keywords", None, 36, {'col': 4, 'labels': list(log_keywords)}],
           ["Notification",  "None", 4, setting1],
           [None,   False,  3, {"text":"Skip sending mesh file"}],]
@@ -83,7 +83,7 @@ class dlg_jobsubmission(wx.Dialog):
                 if name in log_keywords:
                     value7[log_keywords.index(name)]=v
             value[7] = value7
-            
+
             self.elp.SetValue(value)
 
         #self.SetSizeHints(minH=-1, minW=size.GetWidth())

@@ -196,12 +196,16 @@ def submit_job(model):
     N = str(remote["num_nodes"])
     o = str(remote["num_openmp"])
     q = str(remote["queue"])
-    lk = str(remote["log_keywords"])
-    lt = str(remote["log_txt"])
-    nt = str(remote["notification"])
 
+    lk = []
+    for k, v in remote["log_keywords"]:
+       if v: lk.append(k.strip())
     lk = ','.join(lk)
+    
+    lt = str(remote["log_txt"])
     lt = "'".join(lt.split('"'))
+    
+    nt = str(remote["notification"])
 
     lk = base64.b64encode(lk.encode()).decode()    
     lt = base64.b64encode(lt.encode()).decode()
