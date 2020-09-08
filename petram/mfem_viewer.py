@@ -1561,7 +1561,8 @@ class MFEMViewer(BookViewer):
                                               def_string=hostname,
                                               center=False,
                                               center_on_screen=True,
-                                              choices=names)
+                                              choices=names,
+                                              endmodal_on_lastvalue=names[-1])
             if not ret:
                 return
             if ret and new_name == "New...":
