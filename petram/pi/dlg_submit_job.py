@@ -12,7 +12,7 @@ def elp_setting(log_keywords):
           ["Queue", "Debug", 0, {}],
           ["Remote Dir.", "", 0, {}],
           ["Note", None, 235, {'nlines': 5}],
-          ["Keywords", None, 36, {'col': 4, 'labels': list(log_keywords)}],
+          ["Keywords", None, 36, {'col': 3, 'labels': list(log_keywords)}],
           ["Notification",  "None", 4, setting1],
           [None,   False,  3, {"text":"Skip sending mesh file"}],]
     return ll
