@@ -180,6 +180,10 @@ class Parametric(SolveStep, NS_mixin):
                      instance.assemble(inplace=False)
                 else:
                      engine.set_update_flag('ParametricRHS')
+                     for phys in phys_target:
+                         engine.run_update_param(phys)
+                     for phys in phys_range:
+                         engine.run_update_param(phys)
                      engine.run_apply_essential(phys_target,
                                                 phys_range,
                                                 update=True)
