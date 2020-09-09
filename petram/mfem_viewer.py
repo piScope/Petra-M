@@ -1565,20 +1565,23 @@ class MFEMViewer(BookViewer):
                                               endmodal_on_lastvalue=names[-1])
             if not ret:
                 return
-            if ret and new_name == "New...":
+            if (ret and new_name == "New...") or c.get_child(name=new_name) is None:
                 remote = {'name': '',
                           'rwdir': '',
                           'sol': ''}
-
-                ret, new_name = dialog.textentry(self,
+                if new_name == "New...":
+                    ret, new_name = dialog.textentry(self,
                                                  "Enter the name of new connection",
                                                  "Add Connection",
-                                                 hostname,
+                                                 "enter-hostname.pppl.gov",
                                                  center=False,
                                                  center_on_screen=True)
+                else:
+                    pass
             else:
                 child = c.get_child(name=new_name)
                 child.onSetting()
+                remote['name'] = new_name                
                 self.model.param.setvar('host', '='+child.get_full_path())
                 return
 
@@ -1644,7 +1647,7 @@ class MFEMViewer(BookViewer):
             q = {'type': '',
                  'queues': [{'name': 'failed to read queue config'}, ]}
 
-        setting = get_job_submisson_setting(self, 'Job submission : '+remote['name'].upper(),
+        setting = get_job_submisson_setting(self, remote['name'].upper(),
                                             value=values,
                                             queues=q)
         if len(setting) == 0:

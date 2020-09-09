@@ -652,9 +652,6 @@ class Engine(object):
                 dprint1("!!!!! These phys are not initiazliaed (FES variable is not available)!!!!!", phys_range)
        
     def run_apply_essential(self, phys_target, phys_range, update=False):
-        for phys in phys_target:
-            self.run_update_param(phys)
-       
         L = len(self.r_dep_vars)       
         self.mask_X = np.array([not update]*L*self.n_matrix,
                                 dtype=bool).reshape(-1, L)
@@ -867,6 +864,7 @@ class Engine(object):
     #  step 0: update mode param
     #
     def run_update_param(self, phys):
+        dprint1("run update_param : ", phys)
         for mm in phys.walk():
             if not mm.enabled: continue
             mm.update_param()
