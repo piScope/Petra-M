@@ -864,6 +864,7 @@ class Engine(object):
     #  step 0: update mode param
     #
     def run_update_param(self, phys):
+        dprint1("run update_param : ", phys)
         for mm in phys.walk():
             if not mm.enabled: continue
             mm.update_param()

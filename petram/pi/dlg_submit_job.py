@@ -104,7 +104,13 @@ class dlg_jobsubmission(wx.Dialog):
         self.EndModal(wx.ID_CANCEL)
         
     def onSubmit(self, evt):
-        self.value = self.elp.GetValue()     
+        self.value = self.elp.GetValue()
+
+        if not any([x[1] for x in self.value[7]]):
+            from ifigure.widgets.dialog import message
+            message(self, title="Error", message="Select at least one keyword")
+            return
+        
         self.EndModal(wx.ID_OK)
  
 def get_job_submisson_setting(parent, servername = '', value = None,
