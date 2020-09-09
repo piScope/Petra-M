@@ -372,7 +372,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         ''' 
         called everytime it assembles either matrix or rhs
         '''
-        pass
+        if hasattr(self, 'vt'):
+            self.vt.preprocess_params(self)                      
      
     def postprocess_extra(self, sol, flag, sol_extra):
         '''
