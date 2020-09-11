@@ -1018,7 +1018,7 @@ class DlgPlotSol(SimpleFramePlus):
             v.lighting(light=0.5)
             v.update(True)
         else:  # make 2D plot
-            v = figure()
+            v = figure(viewer=cls)
             for yy, xx in zip(data, data_x):
                 y = yy[1].flatten()
                 x = xx[1].flatten()
