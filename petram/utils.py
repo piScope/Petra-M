@@ -128,9 +128,13 @@ def get_pkg_datafile(pkg, *path):
 def get_evn_petram_root():
     petram = os.getenv("PetraM")
     return petram
+ 
+def get_evn_twopiroot():
+    petram = os.getenv("TwoPiRoot")
+    return petram
 
 def check_cluster_access():
-    petram = get_evn_petram_root()
+    petram = get_evn_twopiroot()
     return os.path.exists(os.path.join(petram, "etc", "cluster_access"))
 
 '''
