@@ -139,7 +139,10 @@ var_g = {'sin': np.sin,
          'pi': np.pi,
          'min': np.max,
          'min': np.min,
-         'sign': np.sign}
+         'sign': np.sign,
+         'ones': np.ones,
+         'diag': np.diag,
+         'zeros': np.zeros}
 
 class Variables(dict):
     def __repr__(self):
@@ -409,7 +412,7 @@ class ExpressionVariable(Variable):
     def nodal_values(self, iele=None, el2v=None, locs=None,
                      wverts=None, elvertloc=None, g=None,
                      **kwargs):
-
+        #print("Entering nodal(expr)", self.expr)
         size = len(wverts)
         dtype = np.complex if self.complex else np.float
         ret = np.zeros(size, dtype=dtype)
@@ -447,6 +450,8 @@ class ExpressionVariable(Variable):
         from petram.helper.right_broadcast import multi
 
         ret = multi(ret, value)
+        #print("return (expr)", ret.shape)
+
         return ret
 
     def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
@@ -593,16 +598,19 @@ class DomainVariable(Variable):
         return idx
 
     def nodal_values(self, iele=None, elattr=None, g=None,
-                     **kwargs):
+                     current_domain=None, **kwargs):
         # iele = None, elattr = None, el2v = None,
         # wverts = None, locs = None, g = None):
-
         from petram.helper.right_broadcast import add
 
         ret = None
         w = None
 
         for domains in self.domains.keys():
+            if (current_domain is not None and
+                domains != current_domain):
+                continue
+               
             iele0 = np.zeros(iele.shape) - 1
             for domain in domains:
                 idx = np.where(np.array(elattr) == domain)[0]
@@ -610,12 +618,16 @@ class DomainVariable(Variable):
 
             expr = self.domains[domains]
 
-            gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
+            if self.gdomains[domains] is None:
+                gdomain = g
+            else:
+                gdomain = g.copy()
+                for key in self.gdomains[domains]:
+                    gdomain[key] = self.gdomains[domains][key]
+
             v = expr.nodal_values(iele=iele0, elattr=elattr,
+                                  current_domain=domains,
                                   g=gdomain, **kwargs)
-            #iele = iele, elattr = elattr,
-            #el2v = el2v, wvert = wvert,
-            #locs = locs, g = g
 
             if w is None:
                 a = np.sum(np.abs(v.reshape(len(v), -1)), -1)
@@ -623,17 +635,20 @@ class DomainVariable(Variable):
             else:
                 a = np.sum(np.abs(v.reshape(len(v), -1)), -1)
                 w = w + (a != 0).astype(float)
-            ret = v if ret is None else add(ret, v)
-
+                
+            #ret = v if ret is None else add(ret, v)
+            ret = v if ret is None else ret + v
+            
         idx = np.where(w != 0)[0]
         #ret2 = ret.copy()
         from petram.helper.right_broadcast import div
         ret[idx, ...] = div(ret[idx, ...], w[idx])
+
         return ret
 
     def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
                     g=None, attr1=None, attr2=None, locs=None,
-                    **kwargs):
+                    current_domain=None, **kwargs):
 
         from petram.helper.right_broadcast import add, multi
 
@@ -652,6 +667,10 @@ class DomainVariable(Variable):
         weight = np.repeat(w, npts)
 
         for domains in self.domains.keys():
+            if (current_domain is not None and
+                domains != current_domain):
+                continue
+            
             w = np.zeros(ifaces.shape)
             for domain in domains:
                 idx = np.where(np.array(attr1) == domain)[0]
@@ -665,10 +684,12 @@ class DomainVariable(Variable):
             v = m(ifaces=ifaces, irs=irs,
                   gtypes=gtypes, locs=locs, attr1=attr1,
                   attr2=attr2, g=gdomain,
-                  weight=w2, **kwargs)
+                  weight=w2, current_domain=domains,
+                  **kwargs)
             
             v = multi(v, w2)
-            ret = v if ret is None else add(ret, v)
+            ret = v if ret is None else ret + v            
+            #ret = v if ret is None else add(ret, v)
         return ret
 
     def ncface_values(self, *args, **kwargs):
@@ -863,7 +884,7 @@ class CoefficientVariable(Variable):
 
     def nodal_values(self, iele=None, ibele=None, elattr=None, el2v=None,
                      locs=None, elvertloc=None, wverts=None, mesh=None,
-                     iverts_f=None, g=None, knowns=None):
+                     iverts_f=None, g=None, knowns=None, **kwargs):
 
         g = mfem.Geometry()
         size = len(iverts_f)
@@ -1667,8 +1688,7 @@ def add_component_expression(solvar, name, suffix, ind_vars, expr, vars,
 
     if isinstance(componentname, int):
         componentname = ind_vars[componentname]
-    elif isinstance(componentname, tuple):
-        componentname = ''.join([ind_vars[x] for x in componentname])
+
     cname = name + suffix + componentname
     if domains is not None:
         if (cname) in solvar:
@@ -1689,7 +1709,9 @@ def add_component_expression(solvar, name, suffix, ind_vars, expr, vars,
 def add_expression(solvar, name, suffix, ind_vars, expr, vars,
                    domains=None, bdrs=None, complex=None,
                    gdomain=None, gbdr=None):
+
     expr = append_suffix_to_expression(expr, vars, suffix)
+
     if domains is not None:
         if (name + suffix) in solvar:
             solvar[name + suffix].add_expression(expr, ind_vars, domains,
