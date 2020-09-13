@@ -982,11 +982,12 @@ class DlgPlotSol(SimpleFramePlus):
 
         self.post_threadend(self.make_plot_edge, data, battrs,
                             data_x=data_x,
-                            cls=cls, expr=expr, expr_x=expr_x)
+                            cls=cls, expr=expr, expr_x=expr_x,
+                            force_float=(not value[4]))
 
     def make_plot_edge(self, data, battrs,
                        data_x=None, cls=None,
-                       expr='', expr_x=''):
+                       expr='', expr_x='', force_float=False):
         from ifigure.interactive import figure
 
         if data_x is None:
@@ -1018,12 +1019,19 @@ class DlgPlotSol(SimpleFramePlus):
             v.lighting(light=0.5)
             v.update(True)
         else:  # make 2D plot
-            v = figure()
+            v = figure(viewer=cls)
             for yy, xx in zip(data, data_x):
                 y = yy[1].flatten()
                 x = xx[1].flatten()
                 xidx = np.argsort(x)
-                v.plot(x[xidx], y[xidx])
+                if force_float:
+                    yy = y[xidx]
+                    if np.iscomplexobj(yy):
+                        v.plot(x[xidx], yy.real)
+                    else:
+                        v.plot(x[xidx], yy)                        
+                else:
+                    v.plot(x[xidx], y[xidx])
 
     def onExportEdge(self, evt):
         from petram.sol.evaluators import area_tri

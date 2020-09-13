@@ -719,6 +719,83 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys',  self)
+
+
+    #
+    #  utilities for add_domain_variables
+    #
+    def add_domain_variable_scalar(self, v, suffix, ind_vars, name, f_name):
+        from petram.helper.variables import add_expression, add_constant
+        from petram.helper.variables import NativeCoefficientGenBase
+       
+        if isinstance(f_name, NativeCoefficientGenBase):
+            pass   
+        elif isinstance(f_name, str):      
+            add_expression(v, name, suffix, ind_vars, f_name,
+                          [], domains = self._sel_index, 
+                           gdomain = self._global_ns)            
+        else:
+            add_constant(v, name, suffix, f_name,
+                         domains = self._sel_index,
+                         gdomain = self._global_ns)
+
+    def add_domain_variable_matrix(self, v, suffix, ind_vars, name, f_name):
+        from petram.helper.variables import add_expression, add_constant
+        from petram.helper.variables import NativeCoefficientGenBase
+
+        if isinstance(f_name[0], NativeCoefficientGenBase):
+            pass   
+        elif len(f_name) == 1:
+            if not isinstance(f_name[0], str): expr  = f_name[0].__repr__()
+            else: expr = f_name[0]
+            add_expression(v, name, suffix, ind_vars, expr, 
+                           [], domains = self._sel_index,
+                              gdomain = self._global_ns)
+        else:  # elemental format
+            expr_txt = [x.__repr__() if not isinstance(x, str) else x
+                        for x in f_name]
+            a = '['+','.join(expr_txt[:3]) +']'
+            b = '['+','.join(expr_txt[3:6])+']'
+            c = '['+','.join(expr_txt[6:]) +']'
+            expr = '[' + ','.join((a,b,c)) + ']'
+            add_expression(v, name, suffix, ind_vars, expr, 
+                           [], domains = self._sel_index,
+                           gdomain = self._global_ns)
+
+    def add_matrixlike_component_expression_scalar(self, v, suffix, ind_vars, name):
+        '''
+        this routine add matrix-like access to scalar variable
+  
+           epsilonr1xx = epsilonr1
+           epsilonr1yy = epsilonr1
+           epsilonr1zz = epsilonr1
+           the reset is defined as 0
+        '''
+        
+        from petram.helper.variables import add_component_expression as addc_expression
+        from itertools import product
+        ll = len(ind_vars)
+        for lll in product(range(ll), range(ll)):
+            if lll[0] == lll[1]:
+                addc_expression(v, name, suffix, ind_vars, name, [name], lll)
+            else:
+                addc_expression(v, name, suffix, ind_vars, '0', [], lll)        
+            
+    def add_matrix_component_expression(self, v, suffix, ind_vars, name):
+        '''
+        this routine add matrix-like access to scalar variable
+  
+           epsilonr1xx = epsilonr1[0,0]
+           epsilonr1yy = epsilonr1[1,1]
+        '''
+        
+        from petram.helper.variables import add_component_expression as addc_expression
+        from itertools import product
+        ll = len(ind_vars)
+        for lll in product(range(ll), range(ll)):
+            expr = '['+ str(lll[0]) + ',' + str(lll[1]) + ']'
+            addc_expression(v, name, suffix, ind_vars, expr, [name], lll)
+            
     
 class PhysModule(Phys):
     hide_ns_menu = False

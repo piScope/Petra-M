@@ -1667,6 +1667,8 @@ def add_component_expression(solvar, name, suffix, ind_vars, expr, vars,
 
     if isinstance(componentname, int):
         componentname = ind_vars[componentname]
+    elif isinstance(componentname, tuple):
+        componentname = ''.join([ind_vars[x] for x in componentname])
     cname = name + suffix + componentname
     if domains is not None:
         if (cname) in solvar:
