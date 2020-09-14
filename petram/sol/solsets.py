@@ -10,11 +10,11 @@ class Solfiles(object):
     '''
     def __init__(self, l, no_scan=False):
         if isinstance(l, Solfiles):
-            print("in this case")
+            #print("in this case")
             self.set = l.set
             self.parametric_data = l.parametric_data
         else:
-            print("in that case")            
+            #print("in that case")            
             self.set = l
             if not no_scan:
                 self.check_parametric_data()

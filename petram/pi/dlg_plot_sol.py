@@ -469,6 +469,7 @@ class DlgPlotSol(SimpleFramePlus):
 
             elp1 = [["Sol", "sol", 4, {"style": wx.CB_READONLY,
                                        "choices": ["sol", ],
+                                       "choices_cb": self.local_sollist,
                                        "UpdateUI": self.OnUpdateUI_local}],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
@@ -478,6 +479,7 @@ class DlgPlotSol(SimpleFramePlus):
                                        "label": "Reload chocies"}], ]
             elp2 = [["Number of workers", self.config['mp_worker'], 400, ],
                     ["Sol", "sol", 4, {"style": wx.CB_READONLY,
+                                       "choices_cb": self.local_sollist,                                       
                                        "choices": ["sol", ], }],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
@@ -692,6 +694,7 @@ class DlgPlotSol(SimpleFramePlus):
         return remote, base, sorted_subs
 
     def OnLoadLocalSol(self, evt):
+        print("update local sol")
         self.update_sollist_local()
         self.load_sol_if_needed()
 
@@ -706,6 +709,9 @@ class DlgPlotSol(SimpleFramePlus):
         pass
         # print "CS UI update", evt.GetEventObject().GetParent()
 
+    def local_sollist(self):
+        sols = self.GetParent().model.solutions.get_children()
+        return [x[0] for x in sols]
     def OnChildFocus(self, evt):
         self.GetParent()._palette_focus = 'plot'
         evt.Skip()
@@ -948,7 +954,7 @@ class DlgPlotSol(SimpleFramePlus):
         attrs = self.elps[t].GetValue()[i()]
         if attrs.strip().lower() == 'all':
             return
-        print(attrs, sel)
+        #print(attrs, sel)
         attrs = sorted([int(x) for x in attrs.split(',') if not int(x) in sel])
         self.set_selection(attrs)
 
