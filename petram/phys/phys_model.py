@@ -7,6 +7,7 @@ import glob
 import types
 import parser
 import numbers
+from abc import abstractmethod
 
 import petram
 from petram.model import Model, Bdry, Domain
@@ -851,8 +852,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             expr = name + '['+ str(i1) + ',' + str(i2) + ']'
             addc_expression(v, name, suffix, ind_vars, expr, [name], componentname,
                             **kywds)
-            
-    
+
 class PhysModule(Phys):
     hide_ns_menu = False
     dim_fixed = True # if ndim of physics is fixed
@@ -888,20 +888,18 @@ class PhysModule(Phys):
         
     def goem_signature(self):
         pass
-     
-    @property
-    def fes_type(self):
+
+    @abstractmethod
+    def get_fec_type(self, idx):
+        pass
         '''
+        return FEC type
         H1 
         H1v2 (vector dim)
         ND
         RT
         '''
-        ret = self.element[:2]
-        if self.vdim > 1:
-           ret = ret + 'v'+str(self.vdim)
-        return ret
-           
+        
     def attribute_set(self, v):
         v = super(PhysModule, self).attribute_set(v)
         v["order"] = 1
