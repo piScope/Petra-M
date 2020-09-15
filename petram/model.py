@@ -70,8 +70,8 @@ class Restorable(object):
         raise NotImplementedError(
              "you must specify the _restore method with the Restorable type")
 
-
-class RestorableOrderedDict(MutableMapping, Restorable, object):
+from abc import ABC
+class RestorableOrderedDict(ABC, MutableMapping, Restorable, object):
      def __init__(self, *args, **kwargs):
          self._contents = OrderedDict(*args, **kwargs)
          Restorable.__init__(self)
@@ -157,6 +157,7 @@ class ModelDict(WeakKeyDictionary):
     def __iter__(self):
         return [reduce(lambda x, y: x[y], [self.root()] + hook().names)
                 for hook in self]
+    
 
 class Model(RestorableOrderedDict):
     can_delete = True

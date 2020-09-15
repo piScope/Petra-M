@@ -346,12 +346,11 @@ class MFEMViewer(BookViewer):
                     #path = os.path.join(dir, dir0)
                     #print('loading sol from ' + path)
                     model = self.model
-                    folder = model.solutions.get_child(name=str(m0))
+                    folder = model.solutions.get_child(name=str(dir0))
                     param = model.param
                     param.setvar('sol', '='+folder.get_full_path())
                     m = self.model.param.getvar('mfem_model')
                     m.set_root_path(self.model.owndir())
-
                     evt.Skip()
 
                 mm.append((m2, 'Store solution in ' + m0, handler))
@@ -1474,7 +1473,7 @@ class MFEMViewer(BookViewer):
 
         if len(names) > 0:
             numbers = [''.join(re.findall('\d+$', n)) for n in names]
-            numbers = [long(x if len(x) > 0 else '0') for x in numbers]
+            numbers = [int(x if len(x) > 0 else '0') for x in numbers]
             basename = [n.rstrip('0123456789') for n in names]
             txt = basename[-1] + str(numbers[-1]+1)
         else:

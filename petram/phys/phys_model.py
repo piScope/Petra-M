@@ -7,6 +7,7 @@ import glob
 import types
 import parser
 import numbers
+from abc import abstractmethod
 
 import petram
 from petram.model import Model, Bdry, Domain
@@ -719,7 +720,139 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys',  self)
-    
+
+
+    #
+    #  utilities for add_domain_variables
+    #
+    def do_add_scalar_expr(self, v, suffix, ind_vars, name, f_name,
+                           add_diag=False):
+       
+        from petram.helper.variables import add_expression, add_constant
+        from petram.helper.variables import NativeCoefficientGenBase
+        
+        kywds = {}
+        if isinstance(self, Domain):
+           kywds['domains'] = self._sel_index
+           kywds['gdomain'] = self._global_ns
+        elif isinstance(self, Bdry):
+           kywds['bdrs'] = self._sel_index
+           kywds['gbdr'] = self._global_ns
+       
+        if isinstance(f_name, NativeCoefficientGenBase):
+            pass   
+        elif isinstance(f_name, str):      
+            add_expression(v, name, suffix, ind_vars, f_name,
+                          [], **kywds)
+
+        else:
+            add_constant(v, name, suffix, f_name, **kywds)
+            
+        if add_diag:
+            '''
+            convension: 
+               scalar parameters should be s+name
+
+               ex) in RF epsilonr is (3,3)
+                  sepsilonr : scarlar version
+                  epsilonr : matrix
+            '''
+            size = int(add_diag)
+            add_expression(v, name[1:], suffix, ind_vars,
+                           'diag([1]*'+str(size) +')*'+name,
+                           [name], **kywds)
+
+    def do_add_matrix_expr(self, v, suffix, ind_vars, name, f_name):
+       
+        from petram.helper.variables import add_expression, add_constant
+        from petram.helper.variables import NativeCoefficientGenBase
+        
+        kywds = {}
+        if isinstance(self, Domain):
+           kywds['domains'] = self._sel_index
+           kywds['gdomain'] = self._global_ns
+        elif isinstance(self, Bdry):           
+           kywds['bdrs'] = self._sel_index
+           kywds['gbdr'] = self._global_ns
+
+        if isinstance(f_name[0], NativeCoefficientGenBase):
+            pass   
+        elif len(f_name) == 1:
+            if not isinstance(f_name[0], str): expr  = f_name[0].__repr__()
+            else: expr = f_name[0]
+            add_expression(v, name, suffix, ind_vars, expr, 
+                           [], **kywds)
+        else:  # elemental format
+            expr_txt = [x.__repr__() if not isinstance(x, str) else x
+                        for x in f_name]
+            a = '['+','.join(expr_txt[:3]) +']'
+            b = '['+','.join(expr_txt[3:6])+']'
+            c = '['+','.join(expr_txt[6:]) +']'
+            expr = '[' + ','.join((a,b,c)) + ']'
+            add_expression(v, name, suffix, ind_vars, expr, 
+                           [], **kywds)
+
+    def do_add_matrixlike_component_expr_scalar(self, v, suffix, ind_vars, var, name):
+        '''
+        this routine add matrix-like access to scalar variable
+  
+           epsilonr1xx = epsilonr1
+           epsilonr1yy = epsilonr1
+           epsilonr1zz = epsilonr1
+           the reset is defined as 0
+        '''
+        
+        from petram.helper.variables import add_component_expression as addc_expression
+        from itertools import product
+
+        kywds = {}
+        if isinstance(self, Domain):
+           kywds['domains'] = self._sel_index
+           kywds['gdomain'] = self._global_ns
+        elif isinstance(self, Bdry):
+           kywds['bdrs'] = self._sel_index
+           kywds['gbdr'] = self._global_ns
+           
+        ll = len(var)        
+        for lll in product(var, var):
+            componentname = lll[0]+lll[1]
+            if lll[0] == lll[1]:
+                addc_expression(v, name, suffix, ind_vars, name, [name], componentname,
+                                **kywds)
+            else:
+                addc_expression(v, name, suffix, ind_vars, '0', [], componentname,
+                                **kywds)                                
+            
+    def do_add_matrix_component_expr(self, v, suffix, ind_vars, var, name):
+        '''
+        this routine add matrix-like access to scalar variable
+  
+           epsilonr1xx = epsilonr1[0,0]
+           epsilonr1yy = epsilonr1[1,1]
+
+        var 
+        '''
+        
+        from petram.helper.variables import add_component_expression as addc_expression
+        from itertools import product
+
+        kywds = {}
+        if isinstance(self, Domain):        
+           kywds['domains'] = self._sel_index
+           kywds['gdomain'] = self._global_ns
+        elif isinstance(self, Bdry):           
+           kywds['bdrs'] = self._sel_index
+           kywds['gbdr'] = self._global_ns
+        
+        ll = len(var)
+        for lll in product(var, var):
+            componentname = lll[0]+lll[1]
+            i1 = var.index(lll[0])
+            i2 = var.index(lll[1])            
+            expr = name + '['+ str(i1) + ',' + str(i2) + ']'
+            addc_expression(v, name, suffix, ind_vars, expr, [name], componentname,
+                            **kywds)
+
 class PhysModule(Phys):
     hide_ns_menu = False
     dim_fixed = True # if ndim of physics is fixed
@@ -755,20 +888,18 @@ class PhysModule(Phys):
         
     def goem_signature(self):
         pass
-     
-    @property
-    def fes_type(self):
+
+    @abstractmethod
+    def get_fec_type(self, idx):
+        pass
         '''
+        return FEC type
         H1 
         H1v2 (vector dim)
         ND
         RT
         '''
-        ret = self.element[:2]
-        if self.vdim > 1:
-           ret = ret + 'v'+str(self.vdim)
-        return ret
-           
+        
     def attribute_set(self, v):
         v = super(PhysModule, self).attribute_set(v)
         v["order"] = 1
