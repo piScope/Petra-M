@@ -106,9 +106,11 @@ class dlg_jobsubmission(wx.Dialog):
     def onSubmit(self, evt):
         self.value = self.elp.GetValue()
 
-        if not any([x[1] for x in self.value[7]]):
+        if (self.value[6].strip()=='' or 
+            not any([x[1] for x in self.value[7]])):
+            
             from ifigure.widgets.dialog import message
-            message(self, title="Error", message="Select at least one keyword")
+            message(self, title="Error", message="Enter job description and select at least one keyword")
             return
         
         self.EndModal(wx.ID_OK)
