@@ -2280,7 +2280,7 @@ class Engine(object):
             if file.startswith('soli'): os.remove(os.path.join(d, file))
             if file.startswith('checkpoint.'): os.remove(os.path.join(d, file))
             if file.startswith('sol_extended'): os.remove(os.path.join(d, file))
-            if file.startswith('proble'): os.remove(os.path.join(d, file))
+            if file.startswith('probe'): os.remove(os.path.join(d, file))
             if file.startswith('matrix'): os.remove(os.path.join(d, file))
             if file.startswith('rhs'): os.remove(os.path.join(d, file))
             if file.startswith('SolveStep'): os.remove(os.path.join(d, file))
