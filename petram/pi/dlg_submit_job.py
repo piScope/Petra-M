@@ -2,7 +2,7 @@ import os
 import wx
 from ifigure.utils.edit_list import EditListPanel
 
-setting1 = {"style": wx.CB_READONLY, "choices": ("None", "Begin", "End")}
+setting1 = {"style": wx.CB_READONLY, "choices": ("None", "Begin", "End", "Fail", "All")}
 
 def elp_setting(log_keywords):
     ll = [["Num. of Nodes", 1, 400, {}],

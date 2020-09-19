@@ -500,16 +500,7 @@ class ExpressionVariable(Variable):
     def point_values(self, counts=None, locs=None, points=None,
                      attrs=None, elem_ids=None,
                      mesh=None, int_points=None, g=None,
-                     knowns=None):
-
-        dtype = np.complex if self.complex else np.float
-
-        for kk, m, loc in zip(iele, el2v, elvertloc):
-            if kk < 0:
-                continue
-            for pair, xyz in zip(m, loc):
-                idx = pair[1]
-                ret[idx] = 1
+                     knowns=None, **kwargs):
 
         l = {}
         ll_name = []
@@ -520,7 +511,7 @@ class ExpressionVariable(Variable):
                 l[n] = g[n].point_values(counts=counts, locs=locs, points=points,
                                          attrs=attrs, elem_ids=elem_ids,
                                          mesh=mesh, int_points=int_points, g=g,
-                                         knowns=knows)
+                                         knowns=knowns)
                 ll_name.append(n)
                 ll_value.append(l[n])
             elif (n in g):
@@ -534,13 +525,8 @@ class ExpressionVariable(Variable):
             value = np.array(eval_code(self.co, var_g2, l), copy=False)
             if value.ndim > 1:
                 value = np.stack([value] * size)
-        #value = np.array(eval_code(self.co, var_g, l), copy=False)
 
-        from petram.helper.right_broadcast import multi
-
-        ret = multi(ret, value)
-        return ret
-
+        return value
 
 class DomainVariable(Variable):
     def __init__(self, expr='', ind_vars=None, domains=None,
@@ -698,7 +684,51 @@ class DomainVariable(Variable):
     def ncedge_values(self, *args, **kwargs):
         return self._ncx_values('ncedge_values', *args, **kwargs)
 
+    def point_values(self, counts=None, locs=None, points=None,
+                     attrs=None, elem_ids=None,
+                     mesh=None, int_points=None, g=None,
+                     knowns=None, current_domain=None):
 
+        valid_idx = np.where(attrs != -1)[0]
+        valid_attrs = attrs[attrs != -1]
+        ret = None
+        
+        for domains in self.domains.keys():
+            if (current_domain is not None and
+                domains != current_domain):
+                continue
+
+            '''
+            iele0 = np.zeros(iele.shape) - 1
+            for domain in domains:
+                idx = np.where(np.array(elattr) == domain)[0]
+                iele0[idx] = iele[idx]
+            '''
+            expr = self.domains[domains]
+
+            if self.gdomains[domains] is None:
+                gdomain = g
+            else:
+                gdomain = g.copy()
+                for key in self.gdomains[domains]:
+                    gdomain[key] = self.gdomains[domains][key]
+
+            idx = np.in1d(valid_attrs, domains)
+            attrs2 = attrs.copy()
+            attrs2[np.in1d(attrs, domains)] = -1
+            v = expr.point_values(counts=counts, locs=locs, points=points,
+                                  attrs=attrs, elem_ids=elem_ids,
+                                  mesh=mesh, int_points=int_points, g=gdomain,
+                                  current_domain=domains,                                  
+                                  knowns=knowns)
+            if ret is None:
+                ret = v
+            else:
+                idx = np.in1d(valid_attrs, domains)
+                ret[idx] = v[idx]
+
+        return ret
+    
 class PyFunctionVariable(Variable):
     def __init__(self, func, complex=False, shape=tuple(), dependency=None):
         super(
@@ -809,7 +839,7 @@ class PyFunctionVariable(Variable):
     def point_values(self, counts=None, locs=None, points=None,
                      attrs=None, elem_ids=None,
                      mesh=None, int_points=None, g=None,
-                     knowns=None):
+                     knowns=None, current_domains=None):
 
         if locs is None:
             return
@@ -819,21 +849,24 @@ class PyFunctionVariable(Variable):
             knowns = WKD()
 
         shape = [counts] + list(self.shape)
-
         dtype = np.complex if self.complex else np.float
         ret = np.zeros(shape, dtype=dtype)
 
-        jj = 0
-        for i in range(len(attrs)):
-            if attrs[i] == -1:
-                continue
+        valid_attrs = attrs[attrs != -1]
 
-            xyz = tuple(points[i])
+        jj = 0
+        for i in range(counts):
+            if valid_attrs[i] == -1:
+                continue
+            if (current_domains is not None and
+                not valid_attrs[i] in current_domains):
+                continue
+            
+            xyz = tuple(locs[i])
             kwargs = {n: knowns[g[n]][i] for n in self.dependency}
             value = self.func(*xyz, **kwargs)
 
-            ret[jj, :] = value
-            jj = jj + 1
+            ret[i, :] = value
 
         return ret
 
@@ -1249,7 +1282,7 @@ class GFScalarVariable(GridFunctionVariable):
     def point_values(self, counts=None, locs=None, points=None,
                      attrs=None, elem_ids=None,
                      mesh=None, int_points=None, g=None,
-                     knowns=None):
+                     knowns=None, **kwargs):
 
         if not self.isDerived:
             self.set_funcs()
@@ -1434,7 +1467,7 @@ class GFVectorVariable(GridFunctionVariable):
     def point_values(self, counts=None, locs=None, points=None,
                      attrs=None, elem_ids=None,
                      mesh=None, int_points=None, g=None,
-                     knowns=None):
+                     knowns=None, **kwargs):
 
         if not self.isDerived:
             self.set_funcs()

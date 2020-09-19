@@ -540,6 +540,8 @@ class EvaluatorMP(Evaluator):
         for v, c, a in res[1:]:
             idx = (a != -1)
             if np.sum(idx) == 0: continue
+            print(a)
+            print(attrs)
             attrs[idx] = a[idx]
 	    #print(data.shape, c.shape)                                                                                                                         
             data[idx] = c[idx]
