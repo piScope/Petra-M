@@ -62,11 +62,12 @@ class PointcloudEvaluator(EvaluatorAgent):
 
         if points.shape[-1] > sdim:
             points = points[...,:sdim]
+
+        print("shape points", points.shape)
+        assert len(points)>0, "PointCloud: Number of points = 0"
         self.ans_shape = points.shape
         self.ans_points = points
         self.points = points.reshape(-1, points.shape[-1])
-
- 
 
         v = mfem.Vector()
         mesh.GetVertices(v)

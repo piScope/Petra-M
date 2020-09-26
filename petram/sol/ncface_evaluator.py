@@ -101,14 +101,26 @@ class NCFaceEvaluator(EvaluatorAgent):
         self.ifaces = []
 
         if mesh.Dimension() == 3:
+            def f1(ibele):
+                iface, o = mesh.GetBdrElementFace(ibele)
+                e1 = mesh.GetFaceElementTransformations(iface).Elem1No
+                return mesh.GetAttribute(e1)
+            def f2(ibele):
+                iface, o = mesh.GetBdrElementFace(ibele)
+                e2 = mesh.GetFaceElementTransformations(iface).Elem2No
+                if e2 >= 0:
+                    return mesh.GetAttribute(e2)
+                else:
+                    return -1
+            
             getface = mesh.GetBdrElementFace
             gettrans = mesh.GetBdrElementTransformation            
             getarray = mesh.GetBdrArray
             getelement = mesh.GetBdrElement
             getbasegeom = mesh.GetBdrElementBaseGeometry
             getvertices = mesh.GetBdrElementVertices
-            getattr1 = lambda x: mesh.GetFaceElementTransformations(x).Elem1No
-            getattr2 = lambda x: mesh.GetFaceElementTransformations(x).Elem2No
+            getattr1 = f1
+            getattr2 = f2
             
         elif mesh.Dimension() == 2:
             getface = lambda x: (x, 1)

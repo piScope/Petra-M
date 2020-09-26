@@ -427,6 +427,7 @@ class ExpressionVariable(Variable):
         ll_name = []
         ll_value = []
         var_g2 = var_g.copy()
+        
         for n in self.names:
             if (n in g and isinstance(g[n], Variable)):
                 l[n] = g[n].nodal_values(iele=iele, el2v=el2v, locs=locs,
@@ -597,7 +598,7 @@ class DomainVariable(Variable):
                 domains != current_domain):
                 continue
                
-            iele0 = np.zeros(iele.shape) - 1
+            iele0 = np.zeros(iele.shape, dtype=int) - 1
             for domain in domains:
                 idx = np.where(np.array(elattr) == domain)[0]
                 iele0[idx] = iele[idx]
@@ -635,44 +636,50 @@ class DomainVariable(Variable):
     def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
                     g=None, attr1=None, attr2=None, locs=None,
                     current_domain=None, **kwargs):
-
         from petram.helper.right_broadcast import add, multi
 
         ret = None
 
         w = ifaces * 0  # w : 0 , 0.5, 1
-        for domains in self.domains.keys():
-            for domain in domains:
-                idx = np.where(np.array(attr1) == domain)[0]
-                w[idx] = w[idx] + 1.0
-                idx = np.where(np.array(attr2) == domain)[0]
-                w[idx] = w[idx] + 2.0
+        for domains in self.domains:
+            idx = np.in1d(attr1, domains)
+            w[idx] = w[idx] + 1.0            
+            idx = np.in1d(attr2, domains)
+            w[idx] = w[idx] + 1.0            
         w[w > 0] = 1. / w[w > 0]
 
         npts = [irs[gtype].GetNPoints() for gtype in gtypes]
-        weight = np.repeat(w, npts)
-
+        base_weight = np.repeat(w, npts)
+        # 1 for exterior face, 0.5 for internal faces
+        
         for domains in self.domains.keys():
             if (current_domain is not None and
                 domains != current_domain):
                 continue
             
             w = np.zeros(ifaces.shape)
-            for domain in domains:
-                idx = np.where(np.array(attr1) == domain)[0]
-                w[idx] = 1.0
-            w2 = weight * np.repeat(w, npts)
+            w[np.in1d(attr1, domains)] += 1.0
+            w[np.in1d(attr2, domains)] += 1.0
+            w2 = base_weight * np.repeat(w, npts)
 
             expr = self.domains[domains]
-            gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
+
+            if self.gdomains[domains] is None:
+                gdomain = g
+            else:
+                gdomain = g.copy()
+                for key in self.gdomains[domains]:
+                    gdomain[key] = self.gdomains[domains][key]
 
             m = getattr(expr, method)
+            #kwargs['weight'] = w2
+
             v = m(ifaces=ifaces, irs=irs,
                   gtypes=gtypes, locs=locs, attr1=attr1,
                   attr2=attr2, g=gdomain,
-                  weight=w2, current_domain=domains,
+                  current_domain=domains,
                   **kwargs)
-            
+
             v = multi(v, w2)
             ret = v if ret is None else ret + v            
             #ret = v if ret is None else add(ret, v)
@@ -776,20 +783,19 @@ class PyFunctionVariable(Variable):
         dtype = np.complex if self.complex else np.float
         ret = np.zeros(shape, dtype=dtype)
         wverts = np.zeros(size)
-
+    
         for kk, m, loc in zip(iele, el2v, elvertloc):
             if kk < 0:
                 continue
             for pair, xyz in zip(m, loc):
                 idx = pair[1]
-                '''
                 for n in self.dependency:
-                    g[n].local_value = knowns[g[n]][idx]
-                    # putting the dependency variable to functions global.
-                    # this may not ideal, since there is potential danger
-                    # of name conflict?
-                    self.func.func_globals[n] = g[n]
-                '''
+                    if not g[n] in knowns:
+                        knowns[g[n]]=g[n].nodal_values(iele=iele, el2v=el2v,
+                                                    locs=locs, wverts=wverts,
+                                                    elvertloc=elvertloc,
+                                                    g=g,knows=knowns,
+                                                    **kwargs)
                 kwargs = {n: knowns[g[n]][idx] for n in self.dependency}
                 ret[idx] = ret[idx] + self.func(*xyz, **kwargs)
                 wverts[idx] = wverts[idx] + 1
@@ -803,7 +809,7 @@ class PyFunctionVariable(Variable):
         #print("PyFunctionVariable", ret)
         return ret
 
-    def _ncx_values(self, ifaces=None, irs=None, gtypes=None,
+    def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
                     g=None, attr1=None, attr2=None, locs=None,
                     knowns=None, **kwargs):
         if locs is None:
@@ -825,16 +831,25 @@ class PyFunctionVariable(Variable):
                 # of name conflict?
                 self.func.func_globals[n] = g[n]
             '''
+            for n in self.dependency:
+                if not g[n] in knowns:
+                    m = getattr(g[n], method)                    
+                    knowns[g[n]] = m(ifaces=ifaces, irs=irs,
+                                     gtypes=gtypes, g=g,
+                                     attr1=attr1, attr2=attr2,
+                                     locs=locs, knows=knowns,
+                                     **kwargs)
+            
             kwargs = {n: knowns[g[n]][idx] for n in self.dependency}
             ret[idx] = self.func(*xyz, **kwargs)
         ret = np.stack(ret).astype(dtype, copy=False)
         return ret
 
     def ncface_values(self, *args, **kwargs):
-        return self._ncx_values(*args, **kwargs)
+        return self._ncx_values('ncface_values', *args, **kwargs)
 
     def ncedge_values(self, *args, **kwargs):
-        return self._ncx_values(*args, **kwargs)
+        return self._ncx_values('ncedge_values', *args, **kwargs)
 
     def point_values(self, counts=None, locs=None, points=None,
                      attrs=None, elem_ids=None,
@@ -862,11 +877,18 @@ class PyFunctionVariable(Variable):
                 not valid_attrs[i] in current_domains):
                 continue
             
+            for n in self.dependency:
+                if not g[n] in knowns:
+                    knowns[g[n]] = g[n].point_values(counts=counts, locs=locs, points=points,
+                                                     attrs=attrs, elem_ids=elem_ids,
+                                                     mesh=mesh, int_points=int_points, g=g,
+                                                     knowns=knowns, current_domains=current_domains)
+            
             xyz = tuple(locs[i])
             kwargs = {n: knowns[g[n]][i] for n in self.dependency}
             value = self.func(*xyz, **kwargs)
 
-            ret[i, :] = value
+            ret[i, ...] = value
 
         return ret
 
@@ -1137,19 +1159,24 @@ class GFScalarVariable(GridFunctionVariable):
             ret = np.zeros(size, dtype=np.float)
         else:
             ret = np.zeros(size, dtype=np.complex)
+        wverts = np.zeros(size)
+        
         for kk, m in zip(iele, el2v):
             if kk < 0:
                 continue
             values = mfem.doubleArray()
+
             self.gfr.GetNodalValues(kk, values, self.comp)
 
             for k, idx in m:
                 ret[idx] = ret[idx] + values[k]
+                wverts[idx] += 1                
             if self.gfi is not None:
                 arr = mfem.doubleArray()
                 self.gfi.GetNodalValues(kk, arr, self.comp)
                 for k, idx in m:
                     ret[idx] = ret[idx] + arr[k] * 1j
+
         ret = ret / wverts
         return ret
 
@@ -1398,7 +1425,7 @@ class GFVectorVariable(GridFunctionVariable):
                      **kwargs):
         # iele = None, elattr = None, el2v = None,
         # wverts = None, locs = None, g = None
-
+        print("grid vector nodal")
         if iele is None:
             return
         if not self.isDerived:
@@ -1406,12 +1433,15 @@ class GFVectorVariable(GridFunctionVariable):
 
         size = len(wverts)
 
+        
         ans = []
         for comp in range(self.dim):
             if self.gfi is None:
                 ret = np.zeros(size, dtype=np.float)
             else:
                 ret = np.zeros(size, dtype=np.complex)
+                
+            wverts = np.zeros(size)                
             for kk, m in zip(iele, el2v):
                 if kk < 0:
                     continue
@@ -1419,11 +1449,13 @@ class GFVectorVariable(GridFunctionVariable):
                 self.gfr.GetNodalValues(kk, values, comp + 1)
                 for k, idx in m:
                     ret[idx] = ret[idx] + values[k]
+                    wverts[idx] += 1                    
                 if self.gfi is not None:
                     arr = mfem.doubleArray()
                     self.gfi.GetNodalValues(kk, arr, comp + 1)
                     for k, idx in m:
                         ret[idx] = ret[idx] + arr[k] * 1j
+            print(list(wverts))
             ans.append(ret / wverts)
         ret = np.transpose(np.vstack(ans))
         return ret
