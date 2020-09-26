@@ -1860,22 +1860,23 @@ class DlgPlotSol(SimpleFramePlus):
                 return
 
             pc_param = pc_param['pc_param']
+            im_center = pc_param[0]
             im_axes = (pc_param[1], pc_param[2])
             midx = (pc_param[3][0] + pc_param[3][1]) / 2.0
             midy = (pc_param[4][0] + pc_param[4][1]) / 2.0
             xmin, xmax, xsize = pc_param[3]
             ymin, ymax, ysize = pc_param[4]
-            dx = np.sum(np.array(pc_param[0]) * np.array(pc_param[1]))
-            dy = np.sum(np.array(pc_param[0]) * np.array(pc_param[2]))
-
-            x = np.linspace(xmin, xmax, int((xmax - xmin) / xsize)) + dx
-            y = np.linspace(ymin, ymax, int((ymax - ymin) / ysize)) + dy
+            
+            x = np.linspace(xmin, xmax, int((xmax - xmin) / xsize))
+            y = np.linspace(ymin, ymax, int((ymax - ymin) / ysize))
 
             if mode == 'export':
-                data = {'data': data, 'x': x, 'y': y, 'im_axes':im_axes}
+                data = {'data': data, 'x': x, 'y': y,
+                        'im_axes':im_axes, 'im_center': im_center}
                 self.export_to_piScope_shell(data, 'slice_data')
             elif mode == 'export_return':
-                data = {'data': data, 'x': x, 'y': y, 'im_axes':im_axes}
+                data = {'data': data, 'x': x, 'y': y,
+                        'im_axes':im_axes, 'im_center': im_center}                        
                 return data
             else:                                
                 self.post_threadend(
@@ -1883,7 +1884,7 @@ class DlgPlotSol(SimpleFramePlus):
                     data,
                     attrs_out,
                     attrs,
-                    x, y, im_axes,
+                    x, y, im_axes, im_center,
                     cls=cls,
                     expr=expr)
         
@@ -1915,7 +1916,8 @@ class DlgPlotSol(SimpleFramePlus):
             data,
             attrs_out,
             attrs,
-            x, y, im_axes, 
+            x, y,
+            im_axes, im_center,
             cls=None,
             expr=False):
         from ifigure.interactive import figure
@@ -1934,8 +1936,7 @@ class DlgPlotSol(SimpleFramePlus):
             data = np.ma.masked_array(
                 data, mask=np.in1d(
                     attrs_out, attrs, invert=True))
-        viewer.image(x, y, data, im_axes=im_axes,
-                     im_center=np.array([0, 0, 0]))
+        viewer.image(x, y, data, im_axes=im_axes, im_center=im_center)
 
         viewer.view('noclip')
         viewer.view('equal')
