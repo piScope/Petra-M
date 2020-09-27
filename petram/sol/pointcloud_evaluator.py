@@ -63,8 +63,10 @@ class PointcloudEvaluator(EvaluatorAgent):
         if points.shape[-1] > sdim:
             points = points[...,:sdim]
 
-        print("shape points", points.shape)
-        assert len(points)>0, "PointCloud: Number of points = 0"
+        if np.prod(points.shape) == 0:
+            assert False, "PointCloud: Number of points = 0"            
+            return
+
         self.ans_shape = points.shape
         self.ans_points = points
         self.points = points.reshape(-1, points.shape[-1])

@@ -1450,6 +1450,12 @@ class MFEMViewer(BookViewer):
                                  title='Error',
                                  traceback=traceback.format_exc())
             return
+
+        dialog.message(parent=self,
+                       message='Namespace is built successfully. ',
+                       title='Passed',
+                       center_on_screen=True)
+        
         evt.Skip()
 
     def onClearSol(self, evt):
