@@ -430,7 +430,6 @@ class SolverInstance(object):
     def save_solution(self, ksol = 0, skip_mesh = False, 
                       mesh_only = False, save_parmesh=False):
 
-        print("save solution is called", self, self.gui)
         engine = self.engine
         phys_target = self.get_phys()
 

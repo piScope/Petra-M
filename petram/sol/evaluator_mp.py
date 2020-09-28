@@ -436,6 +436,10 @@ class EvaluatorMP(Evaluator):
         res = [self.results.get() for x in range(len(self.workers))]
         for x in range(len(self.workers)):
             self.results.task_done()
+
+        for v, c, a in res: # handle (myid, error, message)
+            if c is None and v is not None and a is not None:
+                assert False, a
             
         # sort it so that the data is in the order of workes.rank
         res = [(x[1], x[2]) for x in sorted(res)]
@@ -532,14 +536,21 @@ class EvaluatorMP(Evaluator):
             self.results.task_done()
 
         res = [x for x in res if x[-1] is not None]
+
         if len(res) == 0:
             return None, None, None
+        
+        for v, c, a in res: # handle (myid, error, message)
+            if c is None and v is not None and a is not None:
+                assert False, a
 
         ptx, data, attrs = res[0]
 
         for v, c, a in res[1:]:
             idx = (a != -1)
             if np.sum(idx) == 0: continue
+            print(a)
+            print(attrs)
             attrs[idx] = a[idx]
 	    #print(data.shape, c.shape)                                                                                                                         
             data[idx] = c[idx]
