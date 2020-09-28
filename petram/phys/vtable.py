@@ -330,16 +330,22 @@ class VtableElement(object):
             if getattr(obj, 'use_m_'+self.name):
                 suffix = ['_m']                          
                 eval_expr = obj.eval_phys_array_expr
+                array_mode = True
             else:
                 suffix = ['_'+x for x in self.suffix] 
-                eval_expr = obj.eval_phys_expr         
+                eval_expr = obj.eval_phys_expr
+                array_mode = False                
             f_name = []
             for n in suffix:
                var, f_name0 = eval_expr(getattr(obj, self.name+n), self.name + n, **kwargs)
                if f_name0 is None:
-                   f_name.append(var)
+                   if array_mode:
+                       f_name = var
+                   else:
+                       f_name.append(var)
                else:
                    f_name.append(f_name0)
+            #print("f_name here", f_name)
             return f_name
         
     def panel_tip(self):
