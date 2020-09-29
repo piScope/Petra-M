@@ -1999,6 +1999,8 @@ class Engine(object):
               rem = node
            elif ret == -1:
               node._sel_index = choice
+              if not node.is_secondary_condition:
+                 checklist[np.in1d(choice, node._sel_index)] = False                 
               dprint1(node.fullname(), node._sel_index)              
            else:
               dprint1(node.fullname(), ret)
