@@ -79,7 +79,8 @@ class NS_mixin(object):
         path1 = os.path.join(dir, self.ns_name+'_ns.py')
         path2 = os.path.join(dir, self.ns_name+'_ns.dat')
         fid = open(path1, 'r')
-        self.ns_string = '\n'.join(fid.readlines())
+        #self.ns_string = '\n'.join(fid.readlines())
+        self.ns_string = ''.join(fid.readlines())
         fid.close()
         import petram.helper.pickle_wrapper as pickle
         fid = open(path2, 'rb')
