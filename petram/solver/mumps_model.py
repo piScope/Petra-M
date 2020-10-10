@@ -443,8 +443,12 @@ class MUMPSSolver(LinearSolver):
             case_base = MPI.COMM_WORLD.bcast(case_base, root=0)
         if myid == 0:
             s.set_lrhs_nrhs(b.shape[0], b.shape[1])
+            #b = b[:, [1, 0, 3, 2]]
+            #b = b[:, [1, 1, 1, 1]]
             bstack = np.hstack(np.transpose(b))
             bstack = self.make_vector_entries(bstack)
+            np.save("bstack", bstack)
+            np.save("b_data", b)
             s.set_rhs(self.data_array(bstack))
 
         if not self.silent:
@@ -470,7 +474,10 @@ class MUMPSSolver(LinearSolver):
                 sol = s.get_real_rhs()+1j*s.get_imag_rhs()
             else:
                 sol = s.get_real_rhs()
+
+            #sol = sol.reshape(len(b), -1)
             sol = np.transpose(sol.reshape(-1, len(b)))
+            np.save("sol", sol)            
             return sol
 
 from petram.mfem_config import use_parallel

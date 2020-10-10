@@ -188,6 +188,8 @@ class Parametric(SolveStep, NS_mixin):
                                                 phys_range,
                                                 update=True)
                      engine.run_fill_X_block(update=True)
+                     engine.run_assemble_extra_rhs(phys_target, phys_range,
+                                                   update=True)                      
                      engine.run_assemble_b(phys_target, update=True) 
                      engine.run_assemble_blocks(instance.compute_A,
                                                 instance.compute_rhs, 
