@@ -170,7 +170,7 @@ class Variable():
             return self() + other()
         return self() + other
 
-    def __sub__(self, other):
+    def __sub__(self, other):    
         if isinstance(other, Variable):
             return self() - other()
         return self() - other

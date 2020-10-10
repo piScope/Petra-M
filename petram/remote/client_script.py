@@ -152,10 +152,20 @@ def get_job_queue(model=None, host = None, user = None):
     #lines = p.stdout.readlines()
     #PetraM = lines[-1].decode('utf-8').strip()
 
-    command = "ssh " + user+'@' + host + " 'cat $PetraM/etc/queue_config'", 
+    command = ("ssh -o PasswordAuthentication=no -o PreferredAuthentications=publickey " +
+               user+'@' + host + " 'cat $PetraM/etc/queue_config'" )
     p= sp.Popen(command, shell=True, stdout=sp.PIPE)
-    lines = [x.decode('utf-8') for x in p.stdout.readlines()]
-
+    try:
+        timeout = False
+        outs, errs = p.communicate(timeout=30)
+    except sp.TimeoutExpired:
+        timeout = True        
+        p.kill()
+        outs, errs = p.communicate()
+    lines = [x.strip() for x in outs.decode('utf-8').split('\n')]
+    
+    if timeout:
+        assert False, "Failed to load server queue config (timeout)"
     try:
         value = interpret_job_queue_file(lines)
     except BaseException:
