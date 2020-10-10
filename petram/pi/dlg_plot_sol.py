@@ -72,10 +72,10 @@ def read_solinfo_remote(user, server, path):
     res = [x for x in res if len(x) > 0]
     res = res[-1].strip()
     res = pk.loads(binascii.a2b_hex(res))
-
+    
     if not res[0]:
-        assert False, res
-    print(res)
+        assert False, res[1]
+
     return res[1]
 
 ThreadEnd = wx.NewEventType()
@@ -679,6 +679,13 @@ class DlgPlotSol(SimpleFramePlus):
                                            self.config['cs_server'],
                                            self.config['cs_soldir'])
 
+        except AssertionError as err:
+            print("here", err.args[0])
+            wx.CallAfter(dialog.showtraceback, parent=self,
+                         txt='Faled to read remote directory info',
+                         title='Error',
+                         traceback=err.args[0])
+            return ""
         except:
             #_, _, tb = sys.exc_info()
             #traceback.print_tb(tb) # Fixed format
