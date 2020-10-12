@@ -441,7 +441,7 @@ class DlgPlotSol(SimpleFramePlus):
             choices = list(mfem_model['Phys'])
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
             if len(choices) == 0:
-                choices = ['no physcs in model']
+                choices = ['no physics in model']
 
             ll = [['Expression', '', 0, {}],
                   ['Expression(x)', '', 0, {}],
