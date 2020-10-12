@@ -486,19 +486,24 @@ class Vtable_mixin(object):
                 x = self._local_ns[value]
                 if isinstance(x, NativeCoefficientGenBase):
                     return x, None
-                
+            '''
+            make sure that we can make array from input.
+            but return an list which is the same as what the elemental 
+            form mode would return
+            '''
             x = eval('array('+value+')', self._global_ns, self._local_ns)
-            
             if isinstance(x, NativeCoefficientGenBase):
-                pass            
-            elif chk_int:
-                x = x.astype(int)
-            elif chk_complex:
-                x = x.astype(complex)
-            elif chk_float:
-                x = x.astype(float)
+                pass
             else:
-                x = x + 0   # at least check if it is number.
+                if chk_int:
+                    x = x.astype(int)
+                elif chk_complex:
+                    x = x.astype(complex)
+                elif chk_float:
+                    x = x.astype(float)
+                else:
+                    x = x + 0   # at least check if it is number.
+                x = list(x.flatten())
             dprint2('Value Evaluation ', param, '=', x)            
             return x, None
          

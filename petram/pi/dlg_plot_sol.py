@@ -893,17 +893,17 @@ class DlgPlotSol(SimpleFramePlus):
         t = self.get_selected_plotmode()
         m = getattr(self, 'onInteg' + t)
         m(evt)
-
+        
     def onExport(self, evt):
         t = self.get_selected_plotmode()
         m = getattr(self, 'onExport' + t)
         m(evt)
-
+    '''
     def onExport2(self, evt):
         t = self.get_selected_plotmode()
         m = getattr(self, 'onExport2' + t)
         m(evt)
-
+    '''
     def onExportR(self, evt):
         t = self.get_selected_plotmode()
         m1 = getattr(self, 'onExportR1' + t)
@@ -1341,7 +1341,9 @@ class DlgPlotSol(SimpleFramePlus):
 
         if pc_mode == 'XYZ':
             data = {'vertices': ptx, 'data': data, 'attrs': attrs_out}
-            wx.CallAfter(self.export_to_piScope_shell, data, 'point_data')
+            self.post_threadend(self.export_to_piScope_shell,
+                                data,
+                                'point_data')
         else:
             self.post_threadend(
                 self.make_plot_point,
@@ -1351,7 +1353,7 @@ class DlgPlotSol(SimpleFramePlus):
                 pc_param,
                 cls=cls,
                 expr=expr)
-
+        
     def onExportPoints(self, evt):
         value = self.elps['Points'] .GetValue()
 
@@ -1478,11 +1480,11 @@ class DlgPlotSol(SimpleFramePlus):
 
         ll = {}
         if pc_mode == 'XYZ':
-            x = list(np.atleast_1d(eval(pc_value[0], ll, phys_ns)))
-            y = list(np.atleast_1d(eval(pc_value[1], ll, phys_ns)))
-            z = list(np.atleast_1d(eval(pc_value[2], ll, phys_ns)))
+            xx = np.atleast_1d(eval(pc_value[0], ll, phys_ns))
+            yy = np.atleast_1d(eval(pc_value[1], ll, phys_ns))
+            zz = np.atleast_1d(eval(pc_value[2], ll, phys_ns))
             pc_param = {'pc_type': 'xyz',
-                        'pc_param': np.vstack([x, y, z]).transpose()}
+                        'pc_param': np.stack([xx, yy, zz], -1)}
 
         elif pc_mode == 'Line':
             sp = tuple(np.atleast_1d(eval(pc_value[0], ll, phys_ns)))

@@ -447,7 +447,6 @@ class ExpressionVariable(Variable):
             if value.ndim > 1:
                 value = np.stack([value] * size)
         #value = np.array(eval_code(self.co, var_g, l), copy=False)
-
         from petram.helper.right_broadcast import multi
 
         ret = multi(ret, value)
