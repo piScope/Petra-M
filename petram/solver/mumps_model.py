@@ -194,40 +194,40 @@ class MUMPSSolver(LinearSolver):
         if gui.ordering == 'auto':
             pass
         elif gui.ordering == 'QAMD':
-            if use_parallel:
-                dprint1(
-                    "!!! QAMD ordering is selected. But solver is not in serial mode. Ignored")
-            else:
-                s.set_icntl(28, 1)
-                s.set_icntl(7, 6)
+            #if use_parallel:
+            #    dprint1(
+            #        "!!! QAMD ordering is selected. But solver is not in serial mode. Ignored")
+            #else:
+            s.set_icntl(28, 1)
+            s.set_icntl(7, 6)
         elif gui.ordering == 'AMF':
-            if use_parallel:
-                dprint1(
-                    "!!! AMF ordering is selected. But solver is not in serial mode. Ignored")
-            else:
-                s.set_icntl(28, 1)
-                s.set_icntl(7, 2)
+            #if use_parallel:
+            #    dprint1(
+            #        "!!! AMF ordering is selected. But solver is not in serial mode. Ignored")
+            #else:
+            s.set_icntl(28, 1)
+            s.set_icntl(7, 2)
         elif gui.ordering == 'PORD':
-            if use_parallel:
-                dprint1(
-                    "!!! PORD ordering is selected. But solver is not in serial mode. Ignored")
-            else:
-                s.set_icntl(28, 1)
-                s.set_icntl(7, 4)
+            #if use_parallel:
+            #    dprint1(
+            #        "!!! PORD ordering is selected. But solver is not in serial mode. Ignored")
+            #else:
+            s.set_icntl(28, 1)
+            s.set_icntl(7, 4)
         elif gui.ordering == 'Metis':
-            if use_parallel:
-                dprint1(
-                    "!!! Metis ordering is selected. But solver is not in serial mode. Ignored")
-            else:
-                s.set_icntl(28, 1)
-                s.set_icntl(7, 5)
+            #if use_parallel:
+            #    dprint1(
+            #        "!!! Metis ordering is selected. But solver is not in serial mode. Ignored")
+            #else:
+            s.set_icntl(28, 1)
+            s.set_icntl(7, 5)
         elif gui.ordering == 'Scotch':
-            if use_parallel:
-                dprint1(
-                    "!!! Scotch ordering is selected. But solver is not in serial mode. Ignored")
-            else:
-                s.set_icntl(28, 1)
-                s.set_icntl(7, 3)
+            #if use_parallel:
+            #    dprint1(
+            #        "!!! Scotch ordering is selected. But solver is not in serial mode. Ignored")
+            #else:
+            s.set_icntl(28, 1)
+            s.set_icntl(7, 3)
         elif gui.ordering == 'ParMetis':
             if use_parallel:
                 s.set_icntl(28, 2)
