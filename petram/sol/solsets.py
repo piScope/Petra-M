@@ -8,15 +8,27 @@ class Solfiles(object):
     '''
     solfile list container ( used to refer it weakly)
     '''
-    def __init__(self, l):
+    def __init__(self, l, no_scan=False):
         if isinstance(l, Solfiles):
-            self.set = l.set            
+            #print("in this case")
+            self.set = l.set
+            self.parametric_data = l.parametric_data
         else:
+            #print("in that case")            
             self.set = l
+            if not no_scan:
+                self.check_parametric_data()
+            
+        
     def __len__(self):
         return len(self.set)
+    
     def __getitem__(self, idx):
-        return Solfiles(self.set[idx])
+        items = Solfiles(self.set[idx], no_scan=True)
+        items.parametric_data = self.parametric_data
+        print("parametric data", items.parametric_data)        
+        return items
+    
     @property
     def path(self):
         return os.path.dirname(self.set[0][0][0])
@@ -41,10 +53,38 @@ class Solfiles(object):
             if solfiles.timestamps[x] != self.timestamps[x]:
                 return True
         return False
-        
+    
+    @property
+    def has_parametic_data(self):
+        return len(self.parametric_data) > 0
+    
+    def check_parametric_data(self):
+        import petram.helper.pickle_wrapper as pickle
+        self.parametric_data = []
+
+        bname = os.path.basename(self.path)
+        idx = -1
+        try:
+            if bname.startswith('case_'):
+                idx = int(bname.split('_')[-1])
+        except:
+            return
+
+        if idx == -1:
+            return
+
+        for f in os.listdir(os.path.dirname(self.path)):
+            if f.startswith("parametric_data"):
+                try:
+                    params = pickle.load(open(f, 'rb'))
+                    self.parametric_data.append((params['name'], params['data'][idx]))
+                except:
+                    pass
+        print("parametric data", self.parametric_data)
+
 class MeshDict(dict):
     pass
-        
+
 class Solsets(object):
     '''
     Solsets: bundle of GridFunctions
@@ -154,6 +194,7 @@ def find_solfiles(path, idx = None):
         solfiles.append([meshes, sol])                  
 
     ret = Solfiles(solfiles)
+
     ret.store_timestamps()
 
     return ret
@@ -161,6 +202,7 @@ def find_solfiles(path, idx = None):
 def read_solsets(path, idx = None, refine=0):
     solfiles = find_solfiles(path, idx)
     return Solsets(solfiles, refine=refine)
+
 read_sol = read_solsets
 
 

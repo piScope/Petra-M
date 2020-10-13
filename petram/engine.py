@@ -870,6 +870,7 @@ class Engine(object):
     #  step 0: update mode param
     #
     def run_update_param(self, phys):
+        dprint1("run update_param : ", phys)
         for mm in phys.walk():
             if not mm.enabled: continue
             mm.update_param()
@@ -2009,6 +2010,8 @@ class Engine(object):
               rem = node
            elif ret == -1:
               node._sel_index = choice
+              if not node.is_secondary_condition:
+                 checklist[np.in1d(choice, node._sel_index)] = False                 
               dprint1(node.fullname(), node._sel_index)              
            else:
               dprint1(node.fullname(), ret)
@@ -2110,14 +2113,15 @@ class Engine(object):
         mesh = self.emeshes[emesh_idx]
         isParMesh = hasattr(mesh, 'ParPrint')
         sdim= mesh.SpaceDimension()
+        dim = mesh.Dimension()
 
         if self.__class__.__name__ == "ParallelEngine":
             if self.pcounter == 0:
                 isParMesh = False
 
         is_new = False
-        key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
-        dprint1( "(emesh_idx, elem, order, sdim, vdim, isParMesh) = " + str(key))
+        key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
+        dprint1( "(emesh_idx, elem, order, dim, sdim, vdim, isParMesh) = " + str(key))
 	
         if key in self.fecfes_storage:
             fec, fes = self.fecfes_storage[key]
@@ -2129,8 +2133,13 @@ class Engine(object):
             fec = getattr(mfem, elem)
             #if fec is mfem.ND_FECollection:
             #   mesh.ReorientTetMesh()
-            fec = fec(order, sdim)
+            fecdim = dim
+            if elem.startswith('RT'): fecdim = sdim
+            if elem.startswith('ND'): fecdim = sdim
+            
+            fec = fec(order, fecdim)
             fes = self.new_fespace(mesh, fec, vdim)
+
             mesh.GetEdgeVertexTable()
             self.fecfes_storage[key] = (fec, fes)
 
@@ -2191,16 +2200,22 @@ class Engine(object):
         raise NotImplementedError(
              "you must specify this method in subclass")
 
+    def prep_emesh_data_ifneeded(self):
+        from petram.mesh.mesh_extension import MeshExt
+        if self.emesh_data is None:
+            self.emesh_data = MeshExt()
+        
     def run_mesh_serial(self, meshmodel = None,
                         skip_refine = False):
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
-        from petram.mesh.mesh_extension import MeshExt
+        #from petram.mesh.mesh_extension import MeshExt
         from petram.mesh.mesh_utils import  get_extended_connectivity
         
         self.meshes = []
+        self.prep_emesh_data_ifneeded()
+        #if self.emesh_data is None:
+        #    self.emesh_data = MeshExt()
         self.emeshes = []
-        if self.emesh_data is None:
-            self.emesh_data = MeshExt()
 
         if meshmodel is None:
             parent = self.model['Mesh']
@@ -2281,13 +2296,13 @@ class Engine(object):
             if file.startswith('soli'): os.remove(os.path.join(d, file))
             if file.startswith('checkpoint.'): os.remove(os.path.join(d, file))
             if file.startswith('sol_extended'): os.remove(os.path.join(d, file))
-            if file.startswith('proble'): os.remove(os.path.join(d, file))
+            if file.startswith('probe'): os.remove(os.path.join(d, file))
             if file.startswith('matrix'): os.remove(os.path.join(d, file))
             if file.startswith('rhs'): os.remove(os.path.join(d, file))
             if file.startswith('SolveStep'): os.remove(os.path.join(d, file))
             if file.startswith('cProfile_'): os.remove(os.path.join(d, file))                        
             if file.startswith('checkpoint_') and os.path.isdir(file):
-               print("removing checkpoint_", file)
+               dprint1("removing checkpoint_", file)
                shutil.rmtree(os.path.join(d, file))
 
     def remove_case_dirs(self):
@@ -2296,7 +2311,7 @@ class Engine(object):
         files = os.listdir(d)
         for file in files:
             if file.startswith('case') and os.path.isdir(file):
-               print("removing case directory", file)
+               dprint1("removing case directory", file)
                shutil.rmtree(os.path.join(d, file))
        
     def clear_solmesh_files(self, header):
@@ -2323,9 +2338,11 @@ class Engine(object):
         fnamer = fnamer+suffix
         fnamei = fnamei+suffix
         
-        r_x.SaveToFile(fnamer, 8)
+        #r_x.SaveToFile(fnamer, 8)
+        r_x.Save(fnamer, 8)
         if i_x is not None:
-            i_x.SaveToFile(fnamei, 8)
+            i_x.Save(fnamei, 8)           
+            #i_x.SaveToFile(fnamei, 8)
 
     def save_mesh(self):
         mesh_names = []
@@ -2338,7 +2355,8 @@ class Engine(object):
             self.clear_solmesh_files(header)
             
             name = header+suffix            
-            mesh.PrintToFile(name, 8)
+            #mesh.PrintToFile(name, 8)
+            mesh.Print(name, 8)
             mesh_names.append(name)
         return mesh_names
 
@@ -2611,8 +2629,8 @@ class Engine(object):
                  return {'emesh_idx': k[0],
                          'element': k[1],
                          'order': k[2],
-                         'sdim': k[3],
-                         'vdim': k[4],}
+                         'sdim': k[4],
+                         'vdim': k[5],}
         return None
     def variable2vector(self, v, horizontal=False):
         '''
@@ -3168,12 +3186,10 @@ class ParallelEngine(Engine):
         MPI.COMM_WORLD.Barrier()
        
     def run_mesh_gen(self, gen):
-        myid     = MPI.COMM_WORLD.rank                
-        if myid == 0:
-            gen.generate_mesh_file()           
-        else:
-            pass
-        MPI.COMM_WORLD.Barrier()
+        '''
+        run mesh generator 
+        '''
+        gen.generate_mesh_file()           
        
     def save_processed_model(self):
         myid     = MPI.COMM_WORLD.rank                

@@ -130,6 +130,18 @@ class WF(PhysModule):
                     names.append(t)
             return names
 
+    def get_fec_type(self, idx):
+        '''
+        H1 
+        H1v2 (vector dim)
+        ND
+        RT
+        '''
+        ret = self.element[:2]
+        if self.vdim > 1:
+           ret = ret + 'v'+str(self.vdim)
+        return ret
+        
     def postprocess_after_add(self, engine):
         try:
             sdim = engine.meshes[0].SpaceDimension()

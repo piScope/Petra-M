@@ -330,16 +330,22 @@ class VtableElement(object):
             if getattr(obj, 'use_m_'+self.name):
                 suffix = ['_m']                          
                 eval_expr = obj.eval_phys_array_expr
+                array_mode = True
             else:
                 suffix = ['_'+x for x in self.suffix] 
-                eval_expr = obj.eval_phys_expr         
+                eval_expr = obj.eval_phys_expr
+                array_mode = False                
             f_name = []
             for n in suffix:
                var, f_name0 = eval_expr(getattr(obj, self.name+n), self.name + n, **kwargs)
                if f_name0 is None:
-                   f_name.append(var)
+                   if array_mode:
+                       f_name = var
+                   else:
+                       f_name.append(var)
                else:
                    f_name.append(f_name0)
+            #print("f_name here", f_name)
             return f_name
         
     def panel_tip(self):
@@ -480,19 +486,24 @@ class Vtable_mixin(object):
                 x = self._local_ns[value]
                 if isinstance(x, NativeCoefficientGenBase):
                     return x, None
-                
+            '''
+            make sure that we can make array from input.
+            but return an list which is the same as what the elemental 
+            form mode would return
+            '''
             x = eval('array('+value+')', self._global_ns, self._local_ns)
-            
             if isinstance(x, NativeCoefficientGenBase):
-                pass            
-            elif chk_int:
-                x = x.astype(int)
-            elif chk_complex:
-                x = x.astype(complex)
-            elif chk_float:
-                x = x.astype(float)
+                pass
             else:
-                x = x + 0   # at least check if it is number.
+                if chk_int:
+                    x = x.astype(int)
+                elif chk_complex:
+                    x = x.astype(complex)
+                elif chk_float:
+                    x = x.astype(float)
+                else:
+                    x = x + 0   # at least check if it is number.
+                x = list(x.flatten())
             dprint2('Value Evaluation ', param, '=', x)            
             return x, None
          

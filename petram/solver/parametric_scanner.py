@@ -1,11 +1,14 @@
 from __future__ import print_function
 
 from itertools import product
+import os
 import numpy as np
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('ParametricScanner')
 dprint0 = debug.regular_print('ParametricScanner', True)
 format_memory_usage = debug.format_memory_usage
+
+import petram.helper.pickle_wrapper as pickle
 
 class DefaultParametricScanner(object):
     def __init__(self, data = None):
@@ -23,11 +26,12 @@ class DefaultParametricScanner(object):
             raise StopIteration
 
         data = self._data[self.idx]
-        dprint0("Entering next parameter:", data, "(" +
+        dprint0("==== Entering next parameter:", data, "(" +
                 str(self.idx+1)+ "/" + str(self.max) + ")")
         dprint1(format_memory_usage())
 
         self.apply_param(data)
+
         self.idx = self.idx +1
         return self.idx
 
@@ -52,7 +56,25 @@ class DefaultParametricScanner(object):
     def len(self):
         return self.max
 
-    def set_model(self, data):     
+    def save_scanner_data(self, solver):
+        solver_name = solver.fullpath()
+        data = self.list_data()
+        dprint1("saving parameter", os.getcwd())
+        try:
+            from mpi4py import MPI
+        except ImportError:
+            from petram.helper.dummy_mpi import MPI
+        myid = MPI.COMM_WORLD.rank
+
+        if myid == 0:
+            fid = open("parametric_data_"+solver_name, "wb")
+            dd = {"name": solver_name, "data":data}
+            pickle.dump(dd, fid)
+            fid.close()
+
+        MPI.COMM_WORLD.Barrier()
+
+    def set_model(self, data):
         raise NotImplementedError(
              "set model for parametric scanner needs to be given in subclass")
 

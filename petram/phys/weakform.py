@@ -5,7 +5,7 @@
 '''
 import os
 import numpy as np
-
+from abc import abstractmethod
 
 from petram.phys.phys_model import Phys
 from petram.model import Domain, Bdry, Edge, Point, Pair
@@ -75,6 +75,10 @@ class WeakIntegration(Phys):
     def panel1_tip(self):
         pass
 
+    def itg_choice_cb(self):
+        names = [x[0] for x in self.itg_choice()]
+        return names
+     
     def panel1_param(self):
         import wx       
         p = ["coeff. type", "S", 4,
@@ -82,8 +86,9 @@ class WeakIntegration(Phys):
 
         names = [x[0] for x in self.itg_choice()]
         p2 = ["integrator", names[0], 4,
-              {"style":wx.CB_READONLY, "choices": names}]
-        
+              {"style":wx.CB_READONLY, "choices": names,
+               "choices_cb": self.itg_choice_cb}]
+
         dep_vars = self.get_root_phys().dep_vars             
         panels = self.vt_coeff.panel_param(self)
         ll = [["test space (Rows)", dep_vars[0], 4,
@@ -182,7 +187,8 @@ class WeakIntegration(Phys):
     def add_mix_contribution2(self, engine, mbf, r, c,  is_trans, is_conj,
                               real = True):
         self.add_contribution(engine, mbf, real=real, is_trans=is_trans, is_conj=is_conj)
-        
+
+    @abstractmethod        
     def itg_choice(self):
         return []
      
@@ -191,17 +197,38 @@ class WeakLinIntegration(WeakIntegration):
         return self.test_idx == kfes
      
     def itg_choice(self):
-        t = self.get_root_phys().fes_type
+        t = self.get_root_phys().get_fec_type(self.test_idx)
         if len(t)>2 and t[2] == "v":
            t = t[:3]
-        return [b for b in linintegs if t in b[1]]
+        bb = [b for b in linintegs if t in b[1]]
+        
+        dim = self.dim
+        bb = [b for b in bb if dim in b[4]]
+
+        return bb
      
 class WeakBilinIntegration(WeakIntegration):
     def itg_choice(self):
-        t = self.get_root_phys().fes_type
+        t = self.get_root_phys().get_fec_type(self.test_idx)
         if len(t)>2 and t[2] == "v":
            t = t[:3]
-        return [b for b in bilinintegs if t in b[2]]
+
+        bb = [b for b in bilinintegs if t in b[2]]
+        if self.paired_var is not None:
+            paired_name, paired_idx = self.paired_var
+        else:
+            paired_name = self.get_root_phys().name()
+            paired_idx = 0
+            
+        t2 = (self.get_root_phys().parent)[paired_name].get_fec_type(paired_idx)
+        if len(t2)>2 and t2[2] == "v":
+            t2 = t2[:3]
+        bb = [b for b in bb if t in b[1]]
+
+
+        dim = self.dim
+        bb = [b for b in bb if dim in b[4]]           
+        return bb
    
     def attribute_set(self, v):
         v = super(WeakBilinIntegration, self).attribute_set(v)

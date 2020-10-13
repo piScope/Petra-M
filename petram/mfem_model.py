@@ -294,7 +294,7 @@ class MFEM_SolverRoot(Model):
                 if not x in ret: ret.append(x)
         return ret
     
-    def get_special_menu(self):
+    def get_special_menu(self, evt):
         return [["+Run...", None, None,],
                 ["Serial",   self.run_serial, None,],
                 ["Parallel", self.run_parallel, None,],

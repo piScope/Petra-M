@@ -398,9 +398,13 @@ def find_edge_corner(mesh):
 
     vert2vert = {iv: iu-myoffsetv for iv, iu in zip(ivert, u_own)}
     #nicePrint('vert2vert', vert2vert)
+
+    vv_values = np.array([x[1] for x in vert2vert.items()])
+    vv_keys = np.array([x[0] for x in vert2vert.items()])
     
     # mapping line index to vertex index (not MFFEM vertex id)
     line2vert = {}
+
     #nicePrint(corners)
     for j, key in enumerate(sorted_key):
         data = corners[key] if key in corners else None
@@ -418,8 +422,14 @@ def find_edge_corner(mesh):
         else:
             data = np.array(data, dtype=int)                        
         data = list(data - myoffsetv)
+
+        line2vert[j+1] = list(vv_keys[np.in1d(vv_values, data)])
+
+        '''
+        (this was origial very slow)
         line2vert[j+1] = [k for k in vert2vert
                           if vert2vert[k] in data]
+        '''
 
     # finish-up edge data
     if use_parallel:
@@ -735,17 +745,18 @@ def populate_plotdata(mesh, table, cells, cell_data):
     kedge = []
 
     if len(l2e) > 0:
-        kedge = np.array(sum([[key]*len(l2e[key]) for key in l2e], [])).astype(int)
+        #kedge = np.array(sum([[key]*len(l2e[key]) for key in l2e], [])).astype(int)
+        kedge = np.hstack([[key]*len(l2e[key]) for key in l2e]).astype(int, copy=False)
         iverts = np.vstack([mesh.GetEdgeVertices(ie)
                         for key in l2e for ie in l2e[key]])
     else:
-        iverts = np.atleast_1d([]).astype(int)        
+        iverts = np.atleast_1d([]).astype(int)
     cells['line'] = table[iverts]
     cell_data['line']['physical'] = np.array(kedge)
 
-    kvert = np.array([key for key in v2v]).astype(int)    
-    iverts = np.array([v2v[key] for key in v2v]).astype(int)    
-    
+    kvert = np.array([key for key in v2v]).astype(int, copy=False)
+    iverts = np.array([v2v[key] for key in v2v]).astype(int, copy=False)
+
     cells['vertex'] = table[iverts]    
     cell_data['vertex']['physical'] = kvert
     if ndim == 3:

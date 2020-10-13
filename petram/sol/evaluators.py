@@ -134,8 +134,8 @@ class EvaluatorCommon(Evaluator):
     '''
     def set_model(self, model):
         self.mfem_model = weakref.ref(model)
-    
-    def load_solfiles(self, mfem_mode = None):
+
+    def load_solfiles(self, mfem_mode=None):
         if self.solfiles is None: return
 
         if self.solfiles in self.solvars:
@@ -144,15 +144,17 @@ class EvaluatorCommon(Evaluator):
         from petram.sol.solsets import Solsets
 
         solsets = Solsets(self.solfiles)
+        
         print("reading sol variables")
+        if self.solfiles.has_parametic_data:
+            self.set_parametric_data()
+        
         phys_root = self.mfem_model()["Phys"]
         solvars = phys_root.make_solvars(solsets.set)
         
         pp_root = self.mfem_model()["PostProcess"]        
         solvars = pp_root.add_solvars(solsets.set, solvars)
-        print("solvars", solvars[0])
-        #for k in solvars:
-        #    print(k + ':' + solvars[k])
+        print("=== solvars= ===", solvars[0])
         
         self.solvars[self.solfiles] = solvars
         
@@ -161,6 +163,14 @@ class EvaluatorCommon(Evaluator):
                 a.forget_knowns()
         self.solsets = solsets
         return solvars
+
+    def set_parametric_data(self):
+        model = self.mfem_model()
+        for name, data in self.solfiles.parametric_data:
+            parametric = model[name]
+            scanner = parametric.get_scanner(nosave=True)
+            solvers = parametric.set_scanner_physmodel(scanner)
+            scanner.apply_param(data)
 
     def make_agents(self, name, params, **kwargs):
         if name == 'Probe':

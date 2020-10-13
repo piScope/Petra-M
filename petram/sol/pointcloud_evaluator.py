@@ -57,17 +57,25 @@ class PointcloudEvaluator(EvaluatorAgent):
         elif pc_type == 'xyz':
             points = pc_param
 
+        mesh = self.mesh()[emesh_idx]
+        sdim = mesh.SpaceDimension()
+
+        if points.shape[-1] > sdim:
+            points = points[...,:sdim]
+
+        if np.prod(points.shape) == 0:
+            assert False, "PointCloud: Number of points = 0"            
+            return
 
         self.ans_shape = points.shape
         self.ans_points = points
         self.points = points.reshape(-1, points.shape[-1])
 
-        mesh = self.mesh()[emesh_idx]
-
         v = mfem.Vector()
         mesh.GetVertices(v)
         vv = v.GetDataArray()
-        vv = vv.reshape(3, -1)
+
+        vv = vv.reshape(sdim, -1)
         max_mesh_ptx = np.max(vv, 1)
         min_mesh_ptx = np.min(vv, 1)
 
