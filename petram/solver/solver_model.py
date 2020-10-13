@@ -427,14 +427,14 @@ class SolverInstance(object):
         self.blk_mask = (mask1, mask2)
         self.engine._matrix_blk_mask = self.blk_mask
         
-    def save_solution(self, ksol = 0, suffix = "", skip_mesh = False, 
+    def save_solution(self, ksol = 0, skip_mesh = False, 
                       mesh_only = False, save_parmesh=False):
 
         engine = self.engine
         phys_target = self.get_phys()
 
         if mesh_only:
-            engine.save_sol_to_file(phys_target, suffix,
+            engine.save_sol_to_file(phys_target,
                                      mesh_only = True,
                                      save_parmesh = save_parmesh)
         else:
@@ -443,7 +443,7 @@ class SolverInstance(object):
             extra_data = engine.process_extra(sol_extra)
 
 
-            engine.save_sol_to_file(phys_target, suffix,
+            engine.save_sol_to_file(phys_target, 
                                 skip_mesh = skip_mesh,
                                 mesh_only = False,
                                 save_parmesh = save_parmesh)
