@@ -326,11 +326,9 @@ class StdMeshAdaptSolver(StdSolver):
             instance.solve()
 
         adapt_loop_no = 0;
+        # save the initial (before adapt) solution
+        instance.ma_save_mfem(adapt_loop_no, parmesh = True)
         while adapt_loop_no < int(self.mesh_adapt_num):
-            instance.save_solution(ksol = 0,
-                                skip_mesh = False,
-                                mesh_only = False,
-                                save_parmesh=True)
             engine.sol = instance.sol
             dprint1(debug.format_memory_usage())
 
@@ -494,14 +492,6 @@ class StdMeshAdaptSolver(StdSolver):
 
             # engine.meshes[0] = mfem.ParMesh(pyCore.PCU_Get_Comm(), par_pumi_mesh)
             engine.emeshes[0] = engine.meshes[0]
-            mfem_prefix_1 = "after_update_using_par_pmesh_"+str(adapt_loop_no)+".vtk"
-            mfem_prefix_2 = "after_update_using_meshes0_"+str(adapt_loop_no)+".vtk"
-            par_pumi_mesh.PrintVTK(mfem_prefix_1)
-            engine.meshes[0].PrintVTK(mfem_prefix_2)
-            engine.meshes[0].Print("test_mesh_after_update.mesh")
-            engine.emeshes[0].PrintVTK("emesh.vtk")
-            engine.emeshes[0].Print("emesh.mesh")
-
             # reorient the new mesh
             engine.meshes[0].ReorientTetMesh()
 
@@ -512,6 +502,7 @@ class StdMeshAdaptSolver(StdSolver):
             instance.ma_update_assemble()
             instance.solve()
             adapt_loop_no = adapt_loop_no + 1
+            instance.ma_save_mfem(adapt_loop_no, parmesh = True)
         return is_first
 
 class StandardMeshAdaptSolver(StandardSolver):
@@ -546,3 +537,31 @@ class StandardMeshAdaptSolver(StandardSolver):
         phys_range = self.get_phys_range()
         engine.run_apply_essential(phys_target, phys_range, update=False)
         engine.run_fill_X_block(update=False)
+    # Save the mfem mesh and solution at the beginning of each adapt loop.
+    # Solutions will be saved in sub-folders named case_xxx, where xxx is adapt-solve loop #
+    def ma_save_mfem(self, loop_num, parmesh = True):
+        engine = self.engine
+        phys_target = self.get_phys()
+
+        # take care of sub-folders here
+        sub_folder = "case_" + str(loop_num).zfill(3)
+        od = os.getcwd()
+        path = os.path.join(od, sub_folder)
+        engine.mkdir(path)
+        os.chdir(path)
+        engine.cleancwd()
+
+        # save the mesh and solution in new location
+        sol, sol_extra = engine.split_sol_array(self.sol)
+        engine.recover_sol(sol)
+        extra_data = engine.process_extra(sol_extra)
+
+
+        engine.save_sol_to_file(phys_target,
+                            skip_mesh = False,
+                            mesh_only = False,
+                            save_parmesh = True)
+        engine.save_extra_to_file(extra_data)
+
+        # go back to the original working directory
+        os.chdir(od)
