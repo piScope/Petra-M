@@ -506,8 +506,8 @@ class StdMeshAdaptSolver(StdSolver):
             engine.meshes[0].ReorientTetMesh()
 
             # the rest of the updates happen here
-            instance.ma_update_form_sol_variables(engine)
-            instance.ma_init(engine)
+            instance.ma_update_form_sol_variables()
+            instance.ma_init()
             instance.set_blk_mask()
             instance.ma_update_assemble()
             instance.solve()
@@ -525,7 +525,8 @@ class StandardMeshAdaptSolver(StandardSolver):
         engine.run_assemble_b(phys_target, update=False)
         self.engine.run_assemble_blocks(self.compute_A,self.compute_rhs,inplace=True,update=False)
         self.assembled = True
-    def ma_update_form_sol_variables(self, engine):
+    def ma_update_form_sol_variables(self):
+        engine = self.engine
         phys_target = self.get_phys()
         phys_range = self.get_phys_range()
         num_matrix = engine.n_matrix
@@ -539,7 +540,8 @@ class StandardMeshAdaptSolver(StandardSolver):
             engine.accept_idx = j
             engine.r_x.set_no_allocator()
             engine.i_x.set_no_allocator()
-    def ma_init(self, engine):
+    def ma_init(self):
+        engine = self.engine
         phys_target = self.get_phys()
         phys_range = self.get_phys_range()
         engine.run_apply_essential(phys_target, phys_range, update=False)
