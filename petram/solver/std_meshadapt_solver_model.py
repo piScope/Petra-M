@@ -327,7 +327,7 @@ class StdMeshAdaptSolver(StdSolver):
 
         adapt_loop_no = 0;
         while adapt_loop_no < int(self.mesh_adapt_num):
-            instance.save_solution(ksol = 0, suffix = "_adapt_iter_"+str(adapt_loop_no),
+            instance.save_solution(ksol = 0,
                                 skip_mesh = False,
                                 mesh_only = False,
                                 save_parmesh=True)
