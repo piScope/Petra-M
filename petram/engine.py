@@ -729,6 +729,40 @@ class Engine(object):
             
         return np.any(self.mask_M) or len(updated_extra) > 0
 
+    def run_assemble_extra_rhs(self, phys_target, phys_range, update=False):
+        # assemble extra only
+        #    this is used when filling RHS only
+        #    (TODO) split assemble_extra to assemble_extra_matrix and
+        #           assemble_extra_rhs
+       
+        R = len(self.dep_vars)
+        C = len(self.r_dep_vars)        
+        self.mask_M = np.array([not update]*R*C*self.n_matrix,
+                                dtype=bool).reshape(-1, R, C)
+
+        for phys in phys_target:       
+            self.assemble_interp(phys)     ## global interpolation (periodic BC)
+            self.assemble_projection(phys) ## global interpolation (mesh coupling)
+
+
+        self.extras_mm = {}
+
+        for j in range(self.n_matrix):
+            self.access_idx = j
+            
+            self.extras = {}
+            updated_extra = []
+            for phys in phys_target:
+                self.assemble_extra(phys, phys_range)
+                updated_extra.extend(self.extra_update_check_M(phys, phys_range))
+                
+            for extra_name, dep_name, kfes in updated_extra:
+                r = self.dep_var_offset(extra_name)
+                c = self.r_dep_var_offset(dep_name)
+                self.mask_M[j, r, c] = True
+
+        return np.any(self.mask_M) or len(updated_extra) > 0
+     
     def run_assemble_b(self, phys_target = None, update=False):
         '''
         assemble only RHS
