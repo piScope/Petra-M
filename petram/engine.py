@@ -2215,7 +2215,7 @@ class Engine(object):
                     if not o.enabled: continue
                     if o.isMeshGenerator:
                         dprint1("Loading mesh (serial)")                       
-                        self.meshes[idx] = o.run()
+                        self.meshes[idx] = o.run_serial()
                         target = self.meshes[idx]
                     else:
                         if o.isRefinement and skip_refine: continue
