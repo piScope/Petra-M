@@ -243,7 +243,7 @@ class MeshFile(Mesh):
 
     def run_serial(self, mesh = None):
         # By default this will call run. Sub-classes can re-implement this.
-        run()
+        return self.run(mesh=mesh)
 
     def run(self, mesh = None):
         path = self.get_real_path()
