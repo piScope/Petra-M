@@ -71,7 +71,8 @@ class MFEMMesh(Model):
 
     def panel1_param(self):
         if not hasattr(self, "_topo_check_char"):
-           self._topo_check_char = ''
+            self._topo_check_char = ''
+            self._invalid_data = None                      
         import wx
         return [[None, None, 341, {"label": "Reload mesh",
                                    "func": 'call_reload_mfem_mesh',
@@ -85,6 +86,7 @@ class MFEMMesh(Model):
     def get_panel1_value(self):
         if not hasattr(self, "_topo_check_char"):
            self._topo_check_char = ''
+           self._invalid_data = None           
        
         return [self, self, self._topo_check_char]
      
@@ -106,8 +108,13 @@ class MFEMMesh(Model):
         return 'mfem'
 
     def get_special_menu(self, evt):
-        return [["Reload Mesh", self.reload_mfem_mesh, None,],]
-     
+        #menu =[["Reload Mesh", self.reload_mfem_mesh, None,],]
+        menu =[]
+        if (self._invalid_data is not None and
+            len(self._invalid_data[0]) > 0):
+            menu.append(["Plot invalid faces", self.plot_invalids, None])
+        return menu
+            
     def reload_mfem_mesh(self, evt):
         evt.GetEventObject().GetParent().onLoadMesh(evt)
         
@@ -117,6 +124,7 @@ class MFEMMesh(Model):
 
         viewer.onLoadMesh(evt)
         self._topo_check_char = ''
+        self._invalid_data = None
         editor.import_selected_panel_value()
         
     def check_topology(self, evt):
@@ -134,9 +142,20 @@ class MFEMMesh(Model):
                out = 'No error'
             else:
                out = format_error(invalids, invalid_attrs)
-               
+            self._invalid_data = invalids, invalid_attrs
         self._topo_check_char = out
         editor.import_selected_panel_value()
+        
+    def plot_invalids(self, evt):
+        from petram.mesh.mesh_inspect import plot_faces_containing_elements
+        
+        editor = evt.GetEventObject().GetTopLevelParent()
+        viewer = editor.GetParent()        
+        mesh = viewer.model.variables.getvar('mesh')
+
+        invalids = self._invalid_data[0]
+        plot_faces_containing_elements(mesh, invalids, refine=10)
+        
     @property
     def sdim(self):
         if not hasattr(self, '_sdim'): self._sdim = 1
