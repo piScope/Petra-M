@@ -241,6 +241,10 @@ class MeshFile(Mesh):
                 assert False, "can not find mesh file from relative path: "+path
         return path
 
+    def run_serial(self, mesh = None):
+        # By default this will call run. Sub-classes can re-implement this.
+        return self.run(mesh=mesh)
+
     def run(self, mesh = None):
         path = self.get_real_path()
         if not os.path.exists(path):
