@@ -17,7 +17,7 @@ with open(path.join(here, 'README.md')) as f:
 setup(
     name='PetraM_Base',
   
-    version='1.2.8',
+    version='1.2.9',
 
     description='PetraM base package',
     long_description=long_description,
