@@ -52,17 +52,45 @@ class MFEMMesh(Model):
     def get_possible_child(self):
         try:
            from petram.mesh.pumimesh_model import PumiMesh
-           return [MeshFile, PumiMesh, Mesh1D, Mesh2D, Mesh3D, UniformRefinement, DomainRefinement]
+           return [MeshFile, PumiMesh, Mesh1D, Mesh2D, Mesh3D,
+                   UniformRefinement, DomainRefinement]
         except:
-           return [MeshFile, Mesh1D, Mesh2D, Mesh3D, UniformRefinement, DomainRefinement]
+           return [MeshFile, Mesh1D, Mesh2D, Mesh3D, UniformRefinement,
+                   DomainRefinement]
 
     def get_possible_child_menu(self):
         try:
            from petram.mesh.pumimesh_model import PumiMesh
-           return [("", MeshFile), ("Other Meshes", Mesh1D), ("", Mesh2D), ("", Mesh3D), ("!", PumiMesh), ("Refinement...", UniformRefinement), ("!", DomainRefinement)]
+           return [("", MeshFile), ("Other Meshes", Mesh1D),
+                   ("", Mesh2D), ("", Mesh3D), ("!", PumiMesh),
+                   ("Refinement...", UniformRefinement), ("!", DomainRefinement)]
         except:
-           return [("", MeshFile), ("Other Meshes", Mesh1D), ("", Mesh2D), ("!", Mesh3D), ("Refinement...", UniformRefinement), ("!", DomainRefinement)]           
-                
+           return [("", MeshFile), ("Other Meshes", Mesh1D),
+                   ("", Mesh2D), ("!", Mesh3D), ("Refinement...", UniformRefinement),
+                   ("!", DomainRefinement)]           
+
+    def panel1_param(self):
+        if not hasattr(self, "_topo_check_char"):
+           self._topo_check_char = ''
+        import wx
+        return [[None, None, 341, {"label": "Reload mesh",
+                                   "func": 'call_reload_mfem_mesh',
+                                   "noexpand": True}], 
+                [None, None, 341, {"label": "Check topology",
+                                   "func": 'check_topology',
+                                   "noexpand": True}],
+                [None, self._topo_check_char ,2, None],]
+        
+        
+    def get_panel1_value(self):
+        if not hasattr(self, "_topo_check_char"):
+           self._topo_check_char = ''
+       
+        return [self, self, self._topo_check_char]
+     
+    def import_panel1_value(self, v):
+        pass
+     
     def onItemSelChanged(self, evt):
         '''
         GUI response when model object is selected in
@@ -83,6 +111,32 @@ class MFEMMesh(Model):
     def reload_mfem_mesh(self, evt):
         evt.GetEventObject().GetParent().onLoadMesh(evt)
         
+    def call_reload_mfem_mesh(self, evt):
+        editor = evt.GetEventObject().GetTopLevelParent()
+        viewer = editor.GetParent()        
+
+        viewer.onLoadMesh(evt)
+        self._topo_check_char = ''
+        editor.import_selected_panel_value()
+        
+    def check_topology(self, evt):
+        from petram.mesh.mesh_inspect import (find_invalid_topology,
+                                              format_error)
+
+        editor = evt.GetEventObject().GetTopLevelParent()
+        viewer = editor.GetParent()        
+        mesh = viewer.model.variables.getvar('mesh')
+        if mesh is None:
+            out = 'Mesh is not loaded'
+        else:
+            invalids, invalid_attrs = find_invalid_topology(mesh)
+            if len(invalids) == 0:
+               out = 'No error'
+            else:
+               out = format_error(invalids, invalid_attrs)
+               
+        self._topo_check_char = out
+        editor.import_selected_panel_value()
     @property
     def sdim(self):
         if not hasattr(self, '_sdim'): self._sdim = 1
