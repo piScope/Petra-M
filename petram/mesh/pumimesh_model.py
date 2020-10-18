@@ -105,6 +105,27 @@ class PumiMesh(Mesh):
                 assert False, "can not find mesh file from relative path: "+path
         return path
 
+    def run_serial(self, mesh = None):
+        mesh_path = self.get_real_path(self.mesh_path)
+
+        if not os.path.exists(mesh_path):
+            dprint2("mesh file does not exists : " + mesh_path + " in " + os.getcwd())
+            return None
+
+        # there should be an mfem mesh with the same name and extension .mesh
+        dummy_mfem_mesh_path = mesh_path[0:-5] + ".mesh"
+        if not os.path.exists(dummy_mfem_mesh_path):
+            dprint2("dummy mfem mesh file does not exists : " + dummy_mfem_mesh_path + " in " + os.getcwd())
+            return None
+
+        args = (dummy_mfem_mesh_path, self.generate_edges, self.refine, self.fix_orientation)
+        mesh = mfem.Mesh(*args)
+        try:
+          mesh.GetNBE()
+          return mesh
+        except:
+          return None
+
     def run(self, mesh = None):
         if self.model_path == ".null":
             model_path = self.model_path
@@ -160,10 +181,10 @@ class PumiMesh(Mesh):
 
         self.root()._pumi_mesh = pumi_mesh # hack to be able to access pumi_mesh later!
 
-        if not globals()['is_licenses_initialized']:
-            print("do license etc here ...once")
+        # if not globals()['is_licenses_initialized']:
+        #     print("do license etc here ...once")
 
-            globals()['is_licenses_initialized'] = True
+        #     globals()['is_licenses_initialized'] = True
 
         # convert pumi_mesh to mfem mesh
         mesh = mfem.ParMesh(MPI.COMM_WORLD, pumi_mesh)
@@ -204,8 +225,6 @@ class PumiMesh(Mesh):
           return mesh
         except:
           return None
-
-        assert False, "not implemented : pumi_mesh must return mfem mesh"
 
         '''
         args = (path,  self.generate_edges, self.refine, self.fix_orientation)
