@@ -27,6 +27,7 @@ def project_np_array_onto_plane(e, normal):
 
 
 def limit_refine_level(pumi_mesh, sizefield, level):
+  # TODO: this needs to be updated for parallel runs to use cavity ops
   it = pumi_mesh.begin(0)
   while True:
     ent = pumi_mesh.iterate(it)
@@ -40,8 +41,10 @@ def limit_refine_level(pumi_mesh, sizefield, level):
     #   computed_size = current_size;
     pyCore.setScalar(sizefield, ent, 0, computed_size)
   pumi_mesh.end(it)
+  pyCore.synchronize(sizefield)
 
 def limit_coarsen(pumi_mesh, sizefield, ratio):
+  # TODO: this needs to be updated for parallel runs to use cavity ops
   it = pumi_mesh.begin(0)
   while True:
     ent = pumi_mesh.iterate(it)
@@ -53,6 +56,7 @@ def limit_coarsen(pumi_mesh, sizefield, ratio):
       computed_size = ratio * current_size
     pyCore.setScalar(sizefield, ent, 0, computed_size)
   pumi_mesh.end(it)
+  pyCore.synchronize(sizefield)
 
 
 def clean_e_field(pumi_mesh,
