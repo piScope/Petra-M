@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import mfem
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 PyMFEM_PATH =os.path.dirname(os.path.dirname(mfem.__file__))
 PetraM_PATH =os.getenv("PetraM")
