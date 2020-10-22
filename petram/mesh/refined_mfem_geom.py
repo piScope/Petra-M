@@ -5,7 +5,7 @@ from mfem.ser import GlobGeometryRefiner as GR
 from mfem.ser import DenseMatrix
 default_refine = 5
 
-def get_geom(idx, size, base, get_transformation,attrs, sdim, refine = None):
+def get_geom(idx, size, base, get_transformation, attrs, sdim, refine = None):
     # base 
     # SEGMENT     = 1
     # TRIANGLE    = 2

@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import mfem
+from abc import abstractmethod
 
 PyMFEM_PATH =os.path.dirname(os.path.dirname(mfem.__file__))
 PetraM_PATH =os.getenv("PetraM")
@@ -45,6 +46,19 @@ class Mesh(Model, NS_mixin):
             if isinstance(p, MFEM_MeshRoot): return p           
             p = p.parent
             
+class MeshGenerator(Mesh):
+    isMeshGenerator = True
+    isRefinement = False       
+    def run_serial(self, mesh = None):
+        # By default this will call run. Sub-classes can re-implement this.
+        m = self.run(mesh=mesh)
+        print(m)
+        return m
+     
+    @abstractmethod   
+    def run(self, mesh=None):
+        pass
+     
 class MFEMMesh(Model):  
     can_delete = True
     has_2nd_panel = False
@@ -52,17 +66,47 @@ class MFEMMesh(Model):
     def get_possible_child(self):
         try:
            from petram.mesh.pumimesh_model import PumiMesh
-           return [MeshFile, PumiMesh, Mesh1D, Mesh2D, Mesh3D, UniformRefinement, DomainRefinement]
+           return [MeshFile, PumiMesh, Mesh1D, Mesh2D, Mesh3D,
+                   UniformRefinement, DomainRefinement]
         except:
-           return [MeshFile, Mesh1D, Mesh2D, Mesh3D, UniformRefinement, DomainRefinement]
+           return [MeshFile, Mesh1D, Mesh2D, Mesh3D, UniformRefinement,
+                   DomainRefinement]
 
     def get_possible_child_menu(self):
         try:
            from petram.mesh.pumimesh_model import PumiMesh
-           return [("", MeshFile), ("Other Meshes", Mesh1D), ("", Mesh2D), ("", Mesh3D), ("!", PumiMesh), ("Refinement...", UniformRefinement), ("!", DomainRefinement)]
+           return [("", MeshFile), ("Other Meshes", Mesh1D),
+                   ("", Mesh2D), ("", Mesh3D), ("!", PumiMesh),
+                   ("Refinement...", UniformRefinement), ("!", DomainRefinement)]
         except:
-           return [("", MeshFile), ("Other Meshes", Mesh1D), ("", Mesh2D), ("!", Mesh3D), ("Refinement...", UniformRefinement), ("!", DomainRefinement)]           
-                
+           return [("", MeshFile), ("Other Meshes", Mesh1D),
+                   ("", Mesh2D), ("!", Mesh3D), ("Refinement...", UniformRefinement),
+                   ("!", DomainRefinement)]           
+
+    def panel1_param(self):
+        if not hasattr(self, "_topo_check_char"):
+            self._topo_check_char = ''
+            self._invalid_data = None                      
+        import wx
+        return [[None, None, 341, {"label": "Reload mesh",
+                                   "func": 'call_reload_mfem_mesh',
+                                   "noexpand": True}], 
+                [None, None, 341, {"label": "Check topology",
+                                   "func": 'check_topology',
+                                   "noexpand": True}],
+                [None, self._topo_check_char ,2, None],]
+        
+        
+    def get_panel1_value(self):
+        if not hasattr(self, "_topo_check_char"):
+           self._topo_check_char = ''
+           self._invalid_data = None           
+       
+        return [self, self, self._topo_check_char]
+     
+    def import_panel1_value(self, v):
+        pass
+     
     def onItemSelChanged(self, evt):
         '''
         GUI response when model object is selected in
@@ -78,10 +122,53 @@ class MFEMMesh(Model):
         return 'mfem'
 
     def get_special_menu(self, evt):
-        return [["Reload Mesh", self.reload_mfem_mesh, None,],]
-     
+        #menu =[["Reload Mesh", self.reload_mfem_mesh, None,],]
+        menu =[]
+        if (self._invalid_data is not None and
+            len(self._invalid_data[0]) > 0):
+            menu.append(["Plot invalid faces", self.plot_invalids, None])
+        return menu
+            
     def reload_mfem_mesh(self, evt):
         evt.GetEventObject().GetParent().onLoadMesh(evt)
+        
+    def call_reload_mfem_mesh(self, evt):
+        editor = evt.GetEventObject().GetTopLevelParent()
+        viewer = editor.GetParent()        
+
+        viewer.onLoadMesh(evt)
+        self._topo_check_char = ''
+        self._invalid_data = None
+        editor.import_selected_panel_value()
+        
+    def check_topology(self, evt):
+        from petram.mesh.mesh_inspect import (find_invalid_topology,
+                                              format_error)
+
+        editor = evt.GetEventObject().GetTopLevelParent()
+        viewer = editor.GetParent()        
+        mesh = viewer.model.variables.getvar('mesh')
+        if mesh is None:
+            out = 'Mesh is not loaded'
+        else:
+            invalids, invalid_attrs = find_invalid_topology(mesh)
+            if len(invalids) == 0:
+               out = 'No error'
+            else:
+               out = format_error(invalids, invalid_attrs)
+            self._invalid_data = invalids, invalid_attrs
+        self._topo_check_char = out
+        editor.import_selected_panel_value()
+        
+    def plot_invalids(self, evt):
+        from petram.mesh.mesh_inspect import plot_faces_containing_elements
+        
+        editor = evt.GetEventObject().GetTopLevelParent()
+        viewer = editor.GetParent()        
+        mesh = viewer.model.variables.getvar('mesh')
+
+        invalids = self._invalid_data[0]
+        plot_faces_containing_elements(mesh, invalids, refine=10)
         
     @property
     def sdim(self):
@@ -145,9 +232,7 @@ def format_mesh_characteristic(mesh):
       out.append("kappa_max              : " + str(kappa_max))
    return '\n'.join(out)
 
-class MeshFile(Mesh):
-    isMeshGenerator = True   
-    isRefinement = False   
+class MeshFile(MeshGenerator):
     has_2nd_panel = False        
     def __init__(self, parent = None, **kwargs):
         self.path = kwargs.pop("path", "")
@@ -241,9 +326,6 @@ class MeshFile(Mesh):
                 assert False, "can not find mesh file from relative path: "+path
         return path
 
-    def run_serial(self, mesh = None):
-        # By default this will call run. Sub-classes can re-implement this.
-        return self.run(mesh=mesh)
 
     def run(self, mesh = None):
         path = self.get_real_path()
@@ -261,9 +343,7 @@ class MeshFile(Mesh):
         except:
            return None
         
-class Mesh1D(Mesh):
-    isMeshGenerator = True      
-    isRefinement = False   
+class Mesh1D(MeshGenerator):
     has_2nd_panel = False
     unique_child = True    
 
@@ -355,8 +435,7 @@ class Mesh1D(Mesh):
         except:
            return None
         
-class Mesh2D(Mesh):
-    isMeshGenerator = True      
+class Mesh2D(MeshGenerator):
     isRefinement = False   
     has_2nd_panel = False
     unique_child = True    
@@ -459,9 +538,7 @@ class Mesh2D(Mesh):
         except:
            return None
 
-class Mesh3D(Mesh):
-    isMeshGenerator = True      
-    isRefinement = False   
+class Mesh3D(MeshGenerator):
     has_2nd_panel = False        
     unique_child = True
     
