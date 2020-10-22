@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import mfem
+from abc import ABC, abstractmethod
 
 PyMFEM_PATH =os.path.dirname(os.path.dirname(mfem.__file__))
 PetraM_PATH =os.getenv("PetraM")
@@ -45,6 +46,19 @@ class Mesh(Model, NS_mixin):
             if isinstance(p, MFEM_MeshRoot): return p           
             p = p.parent
             
+class MeshGenerator(Mesh):
+    isMeshGenerator = True
+    isRefinement = False       
+    def run_serial(self, mesh = None):
+        # By default this will call run. Sub-classes can re-implement this.
+        m = self.run(mesh=mesh)
+        print(m)
+        return m
+     
+    @abstractmethod   
+    def run(self, mesh=None):
+        pass
+     
 class MFEMMesh(Model):  
     can_delete = True
     has_2nd_panel = False
@@ -218,9 +232,7 @@ def format_mesh_characteristic(mesh):
       out.append("kappa_max              : " + str(kappa_max))
    return '\n'.join(out)
 
-class MeshFile(Mesh):
-    isMeshGenerator = True   
-    isRefinement = False   
+class MeshFile(MeshGenerator):
     has_2nd_panel = False        
     def __init__(self, parent = None, **kwargs):
         self.path = kwargs.pop("path", "")
@@ -314,9 +326,6 @@ class MeshFile(Mesh):
                 assert False, "can not find mesh file from relative path: "+path
         return path
 
-    def run_serial(self, mesh = None):
-        # By default this will call run. Sub-classes can re-implement this.
-        return self.run(mesh=mesh)
 
     def run(self, mesh = None):
         path = self.get_real_path()
@@ -334,9 +343,7 @@ class MeshFile(Mesh):
         except:
            return None
         
-class Mesh1D(Mesh):
-    isMeshGenerator = True      
-    isRefinement = False   
+class Mesh1D(MeshGenerator):
     has_2nd_panel = False
     unique_child = True    
 
@@ -428,8 +435,7 @@ class Mesh1D(Mesh):
         except:
            return None
         
-class Mesh2D(Mesh):
-    isMeshGenerator = True      
+class Mesh2D(MeshGenerator):
     isRefinement = False   
     has_2nd_panel = False
     unique_child = True    
@@ -532,9 +538,7 @@ class Mesh2D(Mesh):
         except:
            return None
 
-class Mesh3D(Mesh):
-    isMeshGenerator = True      
-    isRefinement = False   
+class Mesh3D(MeshGenerator):
     has_2nd_panel = False        
     unique_child = True
     
