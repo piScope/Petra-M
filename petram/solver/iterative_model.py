@@ -33,6 +33,29 @@ SparseSmootherCls = {"Jacobi": (mfem.DSmoother, 0),
                      "backwardGS": (mfem.GSSmoother, 2),
                      "MUMPS": (MUMPSPreconditioner, None),}
 
+single1_elp =  [["log_level",   0,  400, {}],
+               ["max  iter.",  200, 400, {}],
+               ["rel. tol",    1e-7,  300,  {}],
+               ["abs. tol.",   1e-7,  300, {}],]
+single2_elp =  [["log_level",   0,  400, {}],
+               ["max  iter.",  200, 400, {}],
+               ["rel. tol",    1e-7,  300,  {}],
+               ["abs. tol.",   1e-7,  300, {}],
+               ["restart(kdim)", 50,     400, {}]]
+nested_elp =  [["log_level",   0,  400, {}],
+               ["max  iter.",  200,  400, {}],
+               ["rel. tol",    1e-7,  300,  {}],
+               ["abs. tol.",   1e-7,  300, {}],
+               ["restart(kdim)", 50,     400, {}],
+               [None, 'GMRES', 34, [{'choices': ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB',
+                                                  'MINRES']},
+                                     {'elp':single1_elp},  #CG
+                                     {'elp':single_elp},  #GMRES
+                                     {'elp':single_elp},  #FGMRES
+                                     {'elp':single1_elp},  #BiCGSTAB
+                                     {'elp':single_elp},]]  #MINRES
+               ,]
+
 class Iterative(LinearSolverModel, NS_mixin): 
     hide_ns_menu = True
     has_2nd_panel = False
@@ -52,14 +75,16 @@ class Iterative(LinearSolverModel, NS_mixin):
         smp1 = [None, None, 99, {"UI":WidgetSmoother, "span":(1,2)}]
 
         mm = [[None, self.use_block_symmetric,  3, {"text":"block symmetric format"}], ]        
-        return [[None, 'GMRES', 4, {'style':wx.CB_READONLY,
-                                     'choices': ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB',
-                                                 'MINRES', 'SLI']}],      
-                ["log_level",   self.log_level,  400, {}],
-                ["max  iter.",  self.maxiter,  400, {}],
-                ["rel. tol",    self.reltol,  300,  {}],
-                ["abs. tol.",   self.abstol,  300, {}],
-                ["restart(kdim)", self.kdim,     400, {}],
+        return [[None, 'GMRES', 34, [{'choices': ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB',
+                                                  'MINRES', 'SLI', 'Nested FGMRES']},
+                                     {'elp':single1_elp},  #CG
+                                     {'elp':single_elp},   #GMRES
+                                     {'elp':single_elp},   #FGMRES
+                                     {'elp':single1_elp},  #BiCGSTAB
+                                     {'elp':single1_elp},  #MINRES
+                                     {'elp':single1_elp},  #SLI
+                                     {'elp':nexted_elp},   #Nested FGMRES
+                                     ],],
                 [None,  [False, [''], [[],]], 27, [{'text':'advanced mode'},
                                                {'elp':[['preconditioner', '', 0, None],]},
                                                {'elp':[smp1,]}],],
@@ -67,8 +92,7 @@ class Iterative(LinearSolverModel, NS_mixin):
                 [None, self.assert_no_convergence,  3, {"text":"check converegence"}],
                 [None, self.use_ls_reducer,  3, {"text":"Reduce linear system when possible"}],
                 [None, (self.merge_real_imag,(self.use_block_symmetric,)),
-                 27, ({"text":"Use ComplexOperator"}, {"elp":mm},)],]          
-     
+                 27, ({"text":"Use ComplexOperator"}, {"elp":mm},)],]
     
     def get_panel1_value(self):
         # this will set _mat_weight
