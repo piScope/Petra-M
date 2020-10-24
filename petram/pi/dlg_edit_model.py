@@ -161,7 +161,8 @@ class DlgEditModel(SimpleFramePlus):
         self._opened_dlg = None
         self._enable = True
         self.SetSize((600, 400))
-
+        
+        wx.CallAfter(self.CentreOnParent)
         #hbox = wx.BoxSizer(wx.HORIZONTAL)
         #self.GetSizer().Add(hbox, 0, wx.EXPAND|wx.ALL,5)
         #button=wx.Button(self, wx.ID_ANY, "Close")
