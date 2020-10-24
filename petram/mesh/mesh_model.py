@@ -52,7 +52,6 @@ class MeshGenerator(Mesh):
     def run_serial(self, mesh = None):
         # By default this will call run. Sub-classes can re-implement this.
         m = self.run(mesh=mesh)
-        print(m)
         return m
      
     @abstractmethod   

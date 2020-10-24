@@ -452,7 +452,8 @@ class MUMPSSolver(LinearSolver):
         self.set_ordering_flag(s)
 
         MPI.COMM_WORLD.Barrier()
-        dprint1("job1")
+        if not self.silent:        
+           dprint1("job1")
         s.set_job(1)
         s.run()
         info1 = s.get_info(1)
@@ -461,7 +462,8 @@ class MUMPSSolver(LinearSolver):
             assert False, "MUMPS call (job1) failed. Check error log"
 
         MPI.COMM_WORLD.Barrier()
-        dprint1("job2")
+        if not self.silent:                
+            dprint1("job2")
         s.set_icntl(24, 1)
         s.set_job(2)
         s.run()
@@ -547,7 +549,7 @@ else:
 
 
 class MUMPSPreconditioner(mfem.PyOperator):
-    def __init__(self, A0, gui=None, engine=None, silent=False, **kwargs):
+    def __init__(self, A0, gui=None, engine=None, silent=True, **kwargs):
         mfem.PyOperator.__init__(self, A0.Height())
         self.gui = gui
         self.engine = engine
