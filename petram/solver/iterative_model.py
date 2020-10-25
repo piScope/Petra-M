@@ -35,31 +35,37 @@ SparseSmootherCls = {"Jacobi": (mfem.DSmoother, 0),
 
 choices_a = ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB',
              'MINRES', 'SLI', 'Nested FGMRES']
-choices_b = ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB', 'MINRES']
+choices_b = ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB', 'MINRES', 'MUMPS']
 
-single1_elp =  [["log_level",   0,  400, {}],
+single1_elp =  [["log_level",   -1,  400, {}],
                ["max  iter.",  200, 400, {}],
                ["rel. tol",    1e-7,  300,  {}],
                ["abs. tol.",   1e-7,  300, {}],]
-single2_elp =  [["log_level",   0,  400, {}],
+single2_elp =  [["log_level",   -1,  400, {}],
                ["max  iter.",  200, 400, {}],
                ["rel. tol",    1e-7,  300,  {}],
                ["abs. tol.",   1e-7,  300, {}],
                ["restart(kdim)", 50,     400, {}]]
-nested_elp =  [["log_level",   0,  400, {}],
+nsingle1_elp =  [["log_level",   -1,  400, {}],
+                 ["max  iter.",  200, 400, {}],]
+nsingle2_elp =  [["log_level",   -1,  400, {}],
+                 ["max  iter.",  200, 400, {}],
+                 ["restart(kdim)", 50,     400, {}],]
+nmumps_elp = [['MUMPS Config', '', 0, {}],]
+nested_elp =  [["log_level",   -1,  400, {}],
                ["max  iter.",  200,  400, {}],
                ["rel. tol",    1e-7,  300,  {}],
                ["abs. tol.",   1e-7,  300, {}],
                ["restart(kdim)", 50,     400, {}],
                [None, None, 34, [{'text': "Inner Solver",
                                      'choices': choices_b},
-                                     {'elp':single1_elp},  #CG
-                                     {'elp':single2_elp},  #GMRES
-                                     {'elp':single2_elp},  #FGMRES
-                                     {'elp':single1_elp},  #BiCGSTAB
-                                     {'elp':single1_elp},]]  #MINRES
+                                     {'elp':nsingle1_elp},  #CG
+                                     {'elp':nsingle2_elp},  #GMRES
+                                     {'elp':nsingle2_elp},  #FGMRES
+                                     {'elp':nsingle1_elp},  #BiCGSTAB
+                                     {'elp':nsingle1_elp}, #MINRES
+                                     {'elp':nmumps_elp},]]  #MUMPS
                ,]
-
 class Iterative(LinearSolverModel, NS_mixin): 
     hide_ns_menu = True
     has_2nd_panel = False
@@ -122,14 +128,14 @@ class Iterative(LinearSolverModel, NS_mixin):
                   self.reltol, self.abstol]
         single2 = [int(self.log_level), int(self.maxiter),
                   self.reltol, self.abstol, int(self.kdim)]
-        single1in = [int(self.log_level_in), int(self.maxiter_in),
-                    self.reltol_in, self.abstol_in]
-        single2in = [int(self.log_level_in), int(self.maxiter),
-                    self.reltol_in, self.abstol_in, int(self.kdim_in)]
+        single1in = [int(self.log_level_in), int(self.maxiter_in),]
+        single2in = [int(self.log_level_in), int(self.maxiter_in),
+                     int(self.kdim_in)]
+        mumpsin = [self.mumps_in]
         nested = [int(self.log_level), int(self.maxiter),
                   self.reltol, self.abstol, int(self.kdim),
                   [self.solver_type_in, single1in, single2in, single2in,
-                   single1in, single1in],]
+                   single1in, single1in, mumpsin],]
         value = ([self.solver_type, single1, single2, single2,
                                    single1, single1, single1,
                                    nested],
@@ -155,13 +161,14 @@ class Iterative(LinearSolverModel, NS_mixin):
         if self.solver_type.startswith('Nested'):
             self.solver_type_in = vv[5][0]
             idx = choices_b.index(self.solver_type_in)
-            vv = vv[5][idx+1]
-            self.log_level_in = int(vv[0])
-            self.maxiter_in = int(vv[1])
-            self.reltol_in = vv[2]
-            self.abstol_in = vv[3]
-            if len(vv) > 4:
-                self.kdim_in = int(vv[4])
+            vv = vv[5][idx+1]            
+            if self.solver_type_in != 'MUMPS':
+                self.log_level_in = int(vv[0])
+                self.maxiter_in = int(vv[1])
+                if len(vv) > 2:
+                    self.kdim_in = int(vv[2])
+            else:
+                self.mumps_in = vv[0]
            
         self.preconditioners = v[1][2][0]
         self.write_mat = bool(v[2])
@@ -186,7 +193,8 @@ class Iterative(LinearSolverModel, NS_mixin):
         v['maxiter_in'] = 200
         v['reltol_in']  = 1e-7
         v['abstol_in'] = 1e-7
-        v['kdim_in'] =   50
+        v['kdim_in'] = 50
+        v['mumps_in'] =  ''
         
         v['printit'] = 1
         v['preconditioner'] = ''
@@ -360,15 +368,41 @@ class IterativeSolver(LinearSolver):
        
         args = (MPI.COMM_WORLD,) if use_mpi else ()
 
-        cls = getattr(mfem, self.gui.solver_type+'Solver')
+        if self.gui.solver_type.startswith("Nested"):
+            solver_type = self.gui.solver_type.split(" ")[-1]
+            nested = True
+        else:
+            solver_type = self.gui.solver_type
+            nested = False            
+        cls = getattr(mfem, solver_type+'Solver')
 
         solver = cls(*args)
-        if self.gui.solver_type == 'GMRES':
+        if solver_type in ['GMRES', 'FGMRES']:
             solver.SetKDim(kdim)
-        if self.gui.solver_type == 'FGMRES':
-            solver.SetKDim(kdim)
+            
+        if nested:
+            inner_solver_type = self.gui.solver_type_in
+            if inner_solver_type != "MUMPS":
+                cls = getattr(mfem, inner_solver_type+'Solver')
+                inner_solver = cls(*args)
+                inner_solver.SetAbsTol(0.0)
+                inner_solver.SetRelTol(0.0)
+                inner_solver.SetMaxIter(self.gui.maxiter_in)
+                inner_solver.SetPrintLevel(self.gui.log_level_in)
+                if inner_solver_type in ['GMRES', 'FGMRES']:
+                    inner_solver.SetKDim(int(self.gui.kdim_in))
+                inner_solver.iterative_mode = False
+                inner_solver.SetOperator(A)
+                inner_solver.SetPreconditioner(M)
+                #return inner_solver
+                prc = inner_solver
+            else:
+                pass   
+        else:
+            prc = M
+        solver._prc = prc
 
-        solver.SetPreconditioner(M)
+        solver.SetPreconditioner(prc)
         solver.SetOperator(A)
         
         solver.SetAbsTol(atol)

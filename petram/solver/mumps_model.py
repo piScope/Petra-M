@@ -514,7 +514,6 @@ class MUMPSSolver(LinearSolver):
 
         if not self.silent:
             dprint1("job3")
-
         self.set_error_analysis(s)
         s.set_job(3)
         s.run()
@@ -547,7 +546,7 @@ else:
 
 
 class MUMPSPreconditioner(mfem.PyOperator):
-    def __init__(self, A0, gui=None, engine=None, silent=False, **kwargs):
+    def __init__(self, A0, gui=None, engine=None, silent=True, **kwargs):
         mfem.PyOperator.__init__(self, A0.Height())
         self.gui = gui
         self.engine = engine
