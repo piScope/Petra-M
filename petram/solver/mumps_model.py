@@ -42,15 +42,16 @@ class MUMPS(LinearSolverModel):
                 ["Itr. refinement (ICNTL10)", self.icntl10, 0, {}],
                 ["refinement stop Cond. (CNTL2)", self.cntl2, 0, {}],
                 ["permutation/scaling Opt.(ICNTL6)", self.icntl6, 0, {}],
-                ["scaling strategy (ICNTL8)", self.icntl8, 0, {}], ]
+                ["scaling strategy (ICNTL8)", self.icntl8, 0, {}], 
+                ["write inverse", self.write_inv, 3, {"text": ""}],]                    
 
     def get_panel1_value(self):
         return (int(self.log_level), self.ordering, self.out_of_core,
                 self.error_ana, self.write_mat, self.write_fac,
-                self.use_blr, self.blr_drop, str(
-                    self.icntl14), str(self.icntl23),
+                self.use_blr, self.blr_drop, str(self.icntl14),
+                str(self.icntl23),
                 self.cntl1, self.cntl4, self.icntl10, self.cntl2,
-                self.icntl6, self.icntl8)
+                self.icntl6, self.icntl8,  self.write_inv)
 
     def import_panel1_value(self, v):
         self.log_level = int(v[0])
@@ -69,7 +70,8 @@ class MUMPS(LinearSolverModel):
         self.cntl2 = v[13]
         self.icntl6 = v[14]
         self.icntl8 = v[15]
-
+        self.write_inv = v[16]
+        
     def attribute_set(self, v):
         v = super(MUMPS, self).attribute_set(v)
 
@@ -98,6 +100,7 @@ class MUMPS(LinearSolverModel):
         v['icntl6'] = 'default'
         v['icntl8'] = 'default'
         v['use_single_precision'] = False
+        v['write_inv'] = False        
 
         # make sure that old data type (data was stored as int) is converted to
         # string
@@ -322,6 +325,26 @@ class MUMPSSolver(LinearSolver):
             else:
                 return B.astype(np.float64, copy=False)
 
+    def _merge_coo_matrix(self, myid, rank):
+        def filename(myid):
+            smyid = '{:0>6d}'.format(myid)
+            return "matrix."+smyid+".npz"
+        MPI.COMM_WORLD.Barrier()
+        
+        if myid != 0: return
+        f = filename(myid) 
+        mat = np.load(f, allow_pickle=True)
+        os.remove(f)
+        mat = mat['A'][()]
+
+        for i in range(1, rank):
+            f = filename(i)             
+            mat2 = np.load(f, allow_pickle=True)
+            os.remove(f)
+            mat = mat + mat2['A'][()]
+
+        np.savez("matrix", A=mat)            
+                          
     def SetOperator(self, A, dist, name=None):
         try:
             from mpi4py import MPI
@@ -337,14 +360,16 @@ class MUMPSSolver(LinearSolver):
             dprint1("SetOperator distributed matrix")
             A.eliminate_zeros()
             if gui.write_mat:
-                write_coo_matrix('matrix', A)
-
+                write_coo_matrix('matrix', A)                
+            if gui.write_inv:
+                smyid = '{:0>6d}'.format(myid)                
+                np.savez("matrix."+smyid, A=A)
+                self._merge_coo_matrix(myid, nproc)
+                
             import petram.ext.mumps.mumps_solve as mumps_solve
             dprint1('!!!these two must be consistent')
             dprint1('sizeof(MUMPS_INT) ', mumps_solve.SIZEOF_MUMPS_INT())
-            #dprint1('index data size ' , type(A.col[0]))
-            #dprint1('matrix data type ' , type(A.data[0]))
-
+            
             # set matrix format
             s.set_icntl(5, 0)
             s.set_icntl(18, 3)
@@ -468,7 +493,38 @@ class MUMPSSolver(LinearSolver):
         info1 = s.get_info(1)
         if info1 != 0:
             assert False, "MUMPS call (job2) failed. Check error log"
-
+            
+    def write_inverse(self, s, b):
+        try:
+            from mpi4py import MPI
+        except BaseException:
+            from petram.helper.dummy_mpi import MPI
+        myid = MPI.COMM_WORLD.rank
+        
+        if myid == 0:
+            num = b.shape[0]
+            #num = 5
+            s.set_lrhs_nrhs(b.shape[0], num)
+            bb = np.zeros((b.shape[0], num))
+            for i in range(num):
+                bb[i, i] = 1.0
+            bstack = np.hstack(np.transpose(bb))
+            bstack = self.make_vector_entries(bstack)
+            s.set_rhs(self.data_array(bstack))
+        self.set_error_analysis(s)
+        s.set_job(3)
+        s.run()
+        info1 = s.get_info(1)
+        if info1 != 0:
+           assert False, "MUMPS call (job3) failed. Check error log"
+        if myid == 0:
+            if self.is_complex:
+                sol = s.get_real_rhs() + 1j * s.get_imag_rhs()
+            else:
+                sol = s.get_real_rhs()
+            sol = np.transpose(sol.reshape(-1, len(bb)))
+            np.savez("matrix_inv", A_inv=sol)
+     
     def Mult(self, b, x=None, case_base=0):
         try:
             from mpi4py import MPI
@@ -488,6 +544,9 @@ class MUMPSSolver(LinearSolver):
             else:
                 case_base = None
             case_base = MPI.COMM_WORLD.bcast(case_base, root=0)
+
+        if self.gui.write_inv:
+            self.write_inverse(s, b)
         if myid == 0:
             s.set_lrhs_nrhs(b.shape[0], b.shape[1])
             bstack = np.hstack(np.transpose(b))
