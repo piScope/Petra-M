@@ -42,8 +42,9 @@ class MUMPS(LinearSolverModel):
                 ["Itr. refinement (ICNTL10)", self.icntl10, 0, {}],
                 ["refinement stop Cond. (CNTL2)", self.cntl2, 0, {}],
                 ["permutation/scaling Opt.(ICNTL6)", self.icntl6, 0, {}],
-                ["scaling strategy (ICNTL8)", self.icntl8, 0, {}], 
-                ["write inverse", self.write_inv, 3, {"text": ""}],]                    
+                ["scaling strategy (ICNTL8)", self.icntl8, 0, {}],
+                ["write inverse", self.write_inv, 3, {"text": ""}],
+                ["use float32", self.use_single_precision, 3, {"text": ""}],]
 
     def get_panel1_value(self):
         return (int(self.log_level), self.ordering, self.out_of_core,
@@ -51,7 +52,8 @@ class MUMPS(LinearSolverModel):
                 self.use_blr, self.blr_drop, str(self.icntl14),
                 str(self.icntl23),
                 self.cntl1, self.cntl4, self.icntl10, self.cntl2,
-                self.icntl6, self.icntl8,  self.write_inv)
+                self.icntl6, self.icntl8,  self.write_inv,
+                self.use_single_precision)
 
     def import_panel1_value(self, v):
         self.log_level = int(v[0])
@@ -71,6 +73,7 @@ class MUMPS(LinearSolverModel):
         self.icntl6 = v[14]
         self.icntl8 = v[15]
         self.write_inv = v[16]
+        self.use_single_precision = v[17]
         
     def attribute_set(self, v):
         v = super(MUMPS, self).attribute_set(v)
@@ -299,8 +302,24 @@ class MUMPSSolver(LinearSolver):
             s.set_icntl(2, 6)
             s.set_icntl(3, 6)
             s.set_icntl(4, 6)
-
+            
+    def _data_type(self):
+        if self.gui.use_single_precision:
+            if self.is_complex:
+                return np.complex64
+            else:
+                return np.float32
+        else:
+            if self.is_complex:
+                return np.complex128
+            else:
+                return np.float64
+            
     def make_matrix_entries(self, A):
+        datatype = self._data_type()
+        AA = A.data.astype(datatype, copy=False)
+        return AA
+        '''
         if self.gui.use_single_precision:
             if self.is_complex:
                 AA = A.data.astype(np.complex64, copy=False)
@@ -312,8 +331,11 @@ class MUMPSSolver(LinearSolver):
             else:
                 AA = A.data.astype(np.float64, copy=False)
         return AA
-
+        '''
     def make_vector_entries(self, B):
+        datatype = self._data_type()
+        return B.astype(datatype, copy=False)
+        '''        
         if self.gui.use_single_precision:
             if self.is_complex:
                 return B.astype(np.complex64, copy=False)
@@ -324,7 +346,7 @@ class MUMPSSolver(LinearSolver):
                 return B.astype(np.complex128, copy=False)
             else:
                 return B.astype(np.float64, copy=False)
-
+        '''
     def _merge_coo_matrix(self, myid, rank):
         def filename(myid):
             smyid = '{:0>6d}'.format(myid)
@@ -501,11 +523,12 @@ class MUMPSSolver(LinearSolver):
             from petram.helper.dummy_mpi import MPI
         myid = MPI.COMM_WORLD.rank
         
+        datatype = self._data_type()        
         if myid == 0:
             num = b.shape[0]
             #num = 5
             s.set_lrhs_nrhs(b.shape[0], num)
-            bb = np.zeros((b.shape[0], num))
+            bb = np.zeros((b.shape[0], num), dtype=datatype)
             for i in range(num):
                 bb[i, i] = 1.0
             bstack = np.hstack(np.transpose(bb))
