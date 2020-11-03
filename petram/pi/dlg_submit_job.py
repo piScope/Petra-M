@@ -88,7 +88,7 @@ class dlg_jobsubmission(wx.Dialog):
 
         #self.SetSizeHints(minH=-1, minW=size.GetWidth())
         self.SetSizeHints(minH=-1, minW=300)
-        self.Show()
+
         self.Layout()
         self.Fit()
         size= self.GetSize()
@@ -96,6 +96,8 @@ class dlg_jobsubmission(wx.Dialog):
         width = min(width, 1200)
         self.SetSize((width, size.GetHeight()))
         self.CenterOnScreen()
+        
+        self.Show()        
         #wx.CallAfter(self.Fit)
         self.value = self.elp.GetValue()
         

@@ -1424,7 +1424,7 @@ class GFVectorVariable(GridFunctionVariable):
                      **kwargs):
         # iele = None, elattr = None, el2v = None,
         # wverts = None, locs = None, g = None
-        print("grid vector nodal")
+        #print("grid vector nodal")
         if iele is None:
             return
         if not self.isDerived:
@@ -1454,7 +1454,7 @@ class GFVectorVariable(GridFunctionVariable):
                     self.gfi.GetNodalValues(kk, arr, comp + 1)
                     for k, idx in m:
                         ret[idx] = ret[idx] + arr[k] * 1j
-            print(list(wverts))
+            #print(list(wverts))
             ans.append(ret / wverts)
         ret = np.transpose(np.vstack(ans))
         return ret

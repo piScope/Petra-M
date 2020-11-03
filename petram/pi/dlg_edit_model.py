@@ -790,6 +790,7 @@ class DlgEditModel(SimpleFramePlus):
                 phys = mm.get_root_phys()
             except:
                 pass
+            
             elp1.SetValue(mm.get_panel1_value())
 
         if mm.has_2nd_panel:
@@ -1205,3 +1206,11 @@ class DlgEditModel(SimpleFramePlus):
         dlg.Raise()
         self._opened_dlg = dlg
         parent.Enable(False)
+
+    def show_progress_bar(self, message, title='In progress', count=5):
+        dlg = dialog.progressbar(self, message, title, count)
+        dlg.Show()
+        wx.GetApp().Yield()
+
+        return dlg
+        

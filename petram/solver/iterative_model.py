@@ -46,6 +46,7 @@ single2_elp =  [["log_level",   -1,  400, {}],
                ["rel. tol",    1e-7,  300,  {}],
                ["abs. tol.",   1e-7,  300, {}],
                ["restart(kdim)", 50,     400, {}]]
+
 nsingle1_elp =  [["log_level",   -1,  400, {}],
                  ["max  iter.",  200, 400, {}],]
 nsingle2_elp =  [["log_level",   -1,  400, {}],
@@ -66,6 +67,7 @@ nested_elp =  [["log_level",   -1,  400, {}],
                                      {'elp':nsingle1_elp}, #MINRES
                                      {'elp':nmumps_elp},]]  #MUMPS
                ,]
+
 class Iterative(LinearSolverModel, NS_mixin): 
     hide_ns_menu = True
     has_2nd_panel = False
@@ -85,6 +87,7 @@ class Iterative(LinearSolverModel, NS_mixin):
         smp1 = [None, None, 99, {"UI":WidgetSmoother, "span":(1,2)}]
 
         mm = [[None, self.use_block_symmetric,  3, {"text":"block symmetric format"}], ]        
+
         return [[None, None, 34, [{'text': "Solver", 'choices': choices_a},
                                      {'elp':single1_elp},  #CG
                                      {'elp':single2_elp},   #GMRES

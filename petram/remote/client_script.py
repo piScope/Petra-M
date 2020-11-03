@@ -147,10 +147,6 @@ def get_job_queue(model=None, host = None, user = None):
         hosto = param.eval('host')
         host = hosto.getvar('server')
         user = hosto.getvar('user')
-    #command = "ssh " + user+'@' + host + " 'printf $PetraM'"
-    #p = sp.Popen(command, shell=True,  stdout=sp.PIPE)
-    #lines = p.stdout.readlines()
-    #PetraM = lines[-1].decode('utf-8').strip()
 
     command = ("ssh -o PasswordAuthentication=no -o PreferredAuthentications=publickey " +
                user+'@' + host + " 'cat $PetraM/etc/queue_config'" )
