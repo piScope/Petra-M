@@ -388,11 +388,6 @@ class StdMeshAdaptSolver(StdSolver):
                                                     amplitude_r)
 
 
-            pumi_mesh.removeField(e_real)
-            pumi_mesh.removeField(e_imag)
-            pyCore.destroyField(e_real)
-            pyCore.destroyField(e_imag)
-
 
             # pumi_projected_nedelec_field = pumi_projected_nedelec_field_real
             # print("user choose the indicator ", self.mesh_adapt_indicator)
@@ -422,6 +417,10 @@ class StdMeshAdaptSolver(StdSolver):
             before_prefix = "before_adapt_"+str(adapt_loop_no);
             pyCore.writeASCIIVtkFiles(before_prefix, pumi_mesh);
 
+            pumi_mesh.removeField(e_real)
+            pumi_mesh.removeField(e_imag)
+            pyCore.destroyField(e_real)
+            pyCore.destroyField(e_imag)
             pumi_mesh.removeField(ip_field)
             pyCore.destroyField(ip_field)
 
