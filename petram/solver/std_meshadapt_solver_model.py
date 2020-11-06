@@ -27,7 +27,7 @@ def cap_field_by_size(pumi_mesh,
 
   dim = pumi_mesh.getDimension()
   fs = pyCore.getShape(field)
-  for d in range(dim):
+  for d in range(dim+1):
     if not fs.hasNodesIn(d):
       continue
     it = pumi_mesh.begin(d)
