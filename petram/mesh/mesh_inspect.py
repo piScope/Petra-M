@@ -10,13 +10,6 @@ from ifigure.interactive import figure
 
 from petram.mfem_config import use_parallel
 
-if use_parallel:
-   import mfem.par as mfem
-   from mfem.par import intp   
-else:
-   import mfem.ser as mfem
-   from mfem.ser import intp
-
 '''
 Data collectors
 '''   
@@ -131,14 +124,12 @@ def find_invalid_topology(mesh):
 
     invalid = []
     invalid_attrs = []
-    elem1inf = intp()
-    elem2inf = intp()
     
     for i in range(NFaces):
         info = mesh.GetFaceElementTransformations(i)
-        mesh.GetFaceInfos(i, elem1inf, elem2inf)
+        _elem1inf, elem2inf = mesh.GetFaceInfos(i)
 
-        check = info.Elem2No < 0 or (elem2inf.value() % 2) != 0
+        check = info.Elem2No < 0 or (elem2inf % 2) != 0
         if not check:
             invalid.append(i)
             tmp = (attrs[info.Elem1No], attrs[info.Elem2No])
