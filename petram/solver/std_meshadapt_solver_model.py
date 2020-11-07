@@ -475,14 +475,15 @@ class StdMeshAdaptSolver(StdSolver):
                                                    pyCore.getH1Shape(order))
 
 	    # integration points for error estimation
+            ip_order = 2
             e_real_ip = pyCore.createIPField(pumi_mesh,
                                              "e_real_ip",
                                              pyCore.VECTOR,
-                                             order)
+                                             ip_order)
             e_imag_ip = pyCore.createIPField(pumi_mesh,
                                            "e_imag_ip",
                                            pyCore.VECTOR,
-                                           order)
+                                           ip_order)
 
             par_pumi_mesh.NedelecFieldMFEMtoPUMI(pumi_mesh, x, e_real)
             par_pumi_mesh.NedelecFieldMFEMtoPUMI(pumi_mesh, y, e_imag)
