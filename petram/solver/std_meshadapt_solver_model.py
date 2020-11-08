@@ -535,9 +535,9 @@ class StdMeshAdaptSolver(StdSolver):
             before_prefix = "before_adapt_"+str(adapt_loop_no);
             if mesh_order == 1:
                 pyCore.writeASCIIVtkFiles(before_prefix, pumi_mesh);
-            else:
-                pyCore.writeCurvedVtuFiles(pumi_mesh, 2, 8, before_prefix);
-                pyCore.writeCurvedWireFrame(pumi_mesh, 8, before_prefix);
+            # else:
+            #     pyCore.writeCurvedVtuFiles(pumi_mesh, 4, 8, before_prefix);
+            #     pyCore.writeCurvedWireFrame(pumi_mesh, 8, before_prefix);
 
             pumi_mesh.removeField(e_real)
             pumi_mesh.removeField(e_imag)
@@ -558,14 +558,14 @@ class StdMeshAdaptSolver(StdSolver):
             if mesh_order == 1:
                 pyCore.adaptVerbose(adapt_input)
             else:
-                pyCore.crvddapt(adapt_input)
+                pyCore.crvadapt(adapt_input)
 
             after_prefix = "after_adapt_"+str(adapt_loop_no);
             if mesh_order == 1:
                 pyCore.writeASCIIVtkFiles(after_prefix, pumi_mesh);
-            else:
-                pyCore.writeCurvedVtuFiles(pumi_mesh, 2, 8, after_prefix);
-                pyCore.writeCurvedWireFrame(pumi_mesh, 8, after_prefix);
+            # else:
+            #     pyCore.writeCurvedVtuFiles(pumi_mesh, 4, 8, after_prefix);
+            #     pyCore.writeCurvedWireFrame(pumi_mesh, 8, after_prefix);
 
             if mesh_order == 1:
                 native_name = "pumi_mesh_after_adapt_"+str(adapt_loop_no)+".smb";

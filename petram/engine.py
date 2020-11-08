@@ -922,7 +922,7 @@ class Engine(object):
             # old_true_v_sizes = self.get_true_v_sizes(phys)
             for key in self.fecfes_storage:
                 fec, fes = self.fecfes_storage[key]
-                fes.Update()
+                fes.Update(False)
         # self.allocate_fespace(phys)
         true_v_sizes = self.get_true_v_sizes(phys)
 

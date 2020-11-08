@@ -179,6 +179,13 @@ class PumiMesh(Mesh):
         else:
             pumi_mesh = pyCore.loadMdsMesh(gmodel, pumi_mesh_path)
 
+        mesh_shape = pumi_mesh.getShape()
+        mesh_order = mesh_shape.getOrder()
+
+	if not mesh_order == 1:
+            bezier_curver = pyCore.BezierCurver(pumi_mesh, 2, 0);
+            bezier_curver.run();
+
         self.root()._pumi_mesh = pumi_mesh # hack to be able to access pumi_mesh later!
 
         # if not globals()['is_licenses_initialized']:
