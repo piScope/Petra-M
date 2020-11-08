@@ -126,6 +126,9 @@ class MFEMMesh(Model):
         if (self._invalid_data is not None and
             len(self._invalid_data[0]) > 0):
             menu.append(["Plot invalid faces", self.plot_invalids, None])
+        if (self._invalid_data is not None and
+            len(self._invalid_data[2]) > 0):
+            menu.append(["Plot inverted elements", self.plot_inverted, None])
         return menu
             
     def reload_mfem_mesh(self, evt):
@@ -153,12 +156,12 @@ class MFEMMesh(Model):
             if mesh is None:
                 out = 'Mesh is not loaded'
             else:
-                invalids, invalid_attrs = find_invalid_topology(mesh)
+                invalids, invalid_attrs, inverted = find_invalid_topology(mesh)
                 if len(invalids) == 0:
                     out = 'No error'
                 else:
-                    out = format_error(invalids, invalid_attrs)
-                self._invalid_data = invalids, invalid_attrs
+                    out = format_error(invalids, invalid_attrs, inverted)
+                self._invalid_data = invalids, invalid_attrs, inverted
             self._topo_check_char = out
 
             import wx
@@ -183,8 +186,24 @@ class MFEMMesh(Model):
         from petram.mfem_viewer import setup_figure
         win = figure()
         setup_figure(win)
+        win.view('noclip')
         plot_faces_containing_elements(mesh, invalids, refine=10,
                                        win=win)
+    def plot_inverted(self, evt):
+        from petram.mesh.mesh_inspect import plot_elements
+        
+        editor = evt.GetEventObject().GetTopLevelParent()
+        viewer = editor.GetParent()        
+        mesh = viewer.model.variables.getvar('mesh')
+
+        inverted = self._invalid_data[2]
+
+        from ifigure.interactive import figure
+        from petram.mfem_viewer import setup_figure
+        win = figure()
+        setup_figure(win)
+        win.view('noclip')        
+        plot_elements(mesh, inverted, refine=10, win=win)
         
     @property
     def sdim(self):

@@ -9,6 +9,10 @@ from collections import defaultdict
 from ifigure.interactive import figure
 
 from petram.mfem_config import use_parallel
+if use_parallel:
+    import mfem.par as mfem
+else:
+    import mfem.ser as mfem
 
 '''
 Data collectors
@@ -98,8 +102,17 @@ def plot_faces_containing_elements(mesh, faces, refine=5, fcs=None, win=None):
 
 def plot_element(mesh, element, refine=3, win=None, fc='b'):
     faces, _void = mesh.GetElementFaces(element)
-    win = plot_face(mesh, faces, refine=refine, win=win, fc=fc)
+    win = plot_faces(mesh, faces, refine=refine, win=win, fc=fc)
     return win
+
+def plot_elements(mesh, elements, refine=3, win=None, fc='b'):
+    f = []
+    for e in elements:
+       faces, _void = mesh.GetElementFaces(e)
+       f.extend(faces)
+    win = plot_faces(mesh, f, refine=refine, win=win, fc=fc)
+    return win
+ 
 
 '''
 Invalid topology check
@@ -118,7 +131,7 @@ def find_invalid_topology(mesh):
 
     if not (dim > 2 and sdim==dim):
         # this case does not need this check
-        return [], []
+        return [], [], []
 
     NFaces = mesh.GetNumFaces()
 
@@ -134,9 +147,12 @@ def find_invalid_topology(mesh):
             invalid.append(i)
             tmp = (attrs[info.Elem1No], attrs[info.Elem2No])
             invalid_attrs.append(tmp)
-    return invalid, invalid_attrs
+            
+    sj = get_scaled_jacobian(mesh)
+    inverted_elements = np.where(sj < 0)[0]
+    return invalid, invalid_attrs, inverted_elements
 
-
+'''
 def check_invalid_topology(mesh, verbose=True, do_assert=False):
     invalid = find_invalid_topology(mesh)
 
@@ -147,8 +163,8 @@ def check_invalid_topology(mesh, verbose=True, do_assert=False):
         assert False, str(len(invalid)) + " of invalid topology is found"
 
     return (len(invalid)==0, invalid)
-
-def format_error(invalids, invalid_attrs, width=60):
+'''
+def format_error(invalids, invalid_attrs, inverted, width=60):
     out1 = textwrap.wrap(', '.join([str(x) for x in invalids]),
                          width=width)
     unique_attrs = list(np.unique(np.array(invalid_attrs).flatten()))
@@ -156,5 +172,32 @@ def format_error(invalids, invalid_attrs, width=60):
                          width=width)
     out1 = ['    ' + x for x in out1]
     out2 = ['    ' + x for x in out2]    
-    return '\n'.join([str(len(invalids))+" invalid Faces:"] + out1 + ["Found in domain:"] + out2)
+    return '\n'.join([str(len(inverted))+" inverted elements (negativ det(J))",
+                      str(len(invalids))+" invalid Faces:"] +
+                     out1 + ["Found in domain:"] + out2)
     
+def get_scaled_jacobian(mesh, sd=-1):
+    if sd == -1:
+        nd = mesh.GetNodes()
+        if nd is None:
+            sd = 1
+        else:
+            order = nd.FESpace().GetOrder(0)
+            sd = int(order)
+            
+    scaled_jac = np.array([mesh.GetScaledJacobian(i, sd) for i in range(mesh.GetNE())])
+
+    return scaled_jac
+
+def save_scaled_jacobian(filename, mesh, sd=-1):
+
+    sj = get_scaled_jacobian(mesh, sd=sd)
+
+    fec = mfem.L2_FECollection(0, mesh.Dimension())
+    fes = mfem.FiniteElementSpace(mesh, fec)
+
+    vec = mfem.Vector(sj)
+    gf = mfem.GridFunction(fes, vec.GetData())
+
+    gf.Save(filename)
+
