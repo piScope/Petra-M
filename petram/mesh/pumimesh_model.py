@@ -182,7 +182,7 @@ class PumiMesh(Mesh):
         mesh_shape = pumi_mesh.getShape()
         mesh_order = mesh_shape.getOrder()
 
-	if not mesh_order == 1:
+        if not mesh_order == 1:
             bezier_curver = pyCore.BezierCurver(pumi_mesh, 2, 0);
             bezier_curver.run();
 
