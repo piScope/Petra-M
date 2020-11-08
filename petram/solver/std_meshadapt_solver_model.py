@@ -526,11 +526,18 @@ class StdMeshAdaptSolver(StdSolver):
 
             min_of_size_field = pumi_mesh.getMinOfScalarField(size_field)
 
-            native_name = "pumi_mesh_before_adapt_"+str(adapt_loop_no)+"_.smb";
-            pumi_mesh.writeNative(native_name)
+            mesh_shape = pumi_mesh.getShape()
+            mesh_order = mesh_shape.getOrder()
+            if mesh_order == 1:
+                native_name = "pumi_mesh_before_adapt_"+str(adapt_loop_no)+"_.smb";
+                pumi_mesh.writeNative(native_name)
 
             before_prefix = "before_adapt_"+str(adapt_loop_no);
-            pyCore.writeASCIIVtkFiles(before_prefix, pumi_mesh);
+            if mesh_order == 1:
+                pyCore.writeASCIIVtkFiles(before_prefix, pumi_mesh);
+            else:
+                pyCore.writeCurvedVtuFiles(pumi_mesh, 2, 8, before_prefix);
+                pyCore.writeCurvedWireFrame(pumi_mesh, 8, before_prefix);
 
             pumi_mesh.removeField(e_real)
             pumi_mesh.removeField(e_imag)
@@ -548,13 +555,21 @@ class StdMeshAdaptSolver(StdSolver):
             adapt_input.maximumIterations = 3
             adapt_input.goodQuality = 0.35 * 0.35 * 0.35 # mean-ratio cubed
 
-            pyCore.adaptVerbose(adapt_input)
+            if mesh_order == 1:
+                pyCore.adaptVerbose(adapt_input)
+            else:
+                pyCore.crvddapt(adapt_input)
 
             after_prefix = "after_adapt_"+str(adapt_loop_no);
-            pyCore.writeASCIIVtkFiles(after_prefix, pumi_mesh);
+            if mesh_order == 1:
+                pyCore.writeASCIIVtkFiles(after_prefix, pumi_mesh);
+            else:
+                pyCore.writeCurvedVtuFiles(pumi_mesh, 2, 8, after_prefix);
+                pyCore.writeCurvedWireFrame(pumi_mesh, 8, after_prefix);
 
-            native_name = "pumi_mesh_after_adapt_"+str(adapt_loop_no)+".smb";
-            pumi_mesh.writeNative(native_name)
+            if mesh_order == 1:
+                native_name = "pumi_mesh_after_adapt_"+str(adapt_loop_no)+".smb";
+                pumi_mesh.writeNative(native_name)
 
             # clean up rest of the fields
             pumi_mesh.removeField(e_real_projected)
