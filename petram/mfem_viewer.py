@@ -854,7 +854,7 @@ class MFEMViewer(BookViewer):
                     self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
-        self.canvas.refresh_hl()
+        wx.CallAfter(self.canvas.refresh_hl)
 
     def highlight_face(self, i):
         '''
@@ -1758,21 +1758,17 @@ class MFEMViewer(BookViewer):
         '''
         if self._sel_mode == 'volume':
             mode = 'point'
-            bmode = 'dot'
         if self._sel_mode == 'face':
             mode = 'volume'
-            bmode = 'domain'
         if self._sel_mode == 'edge':
             mode = 'face'
-            bmode = 'face'
         if self._sel_mode == 'point':
             mode = 'edge'
-            bmode = 'edge'
+        self.set_toolbar_mode(mode)
+        '''
         self._sel_mode = mode
         
         toolbarname = self.canvas.toolbar.p1_choice[1]
-
-        
         buttonname = bmode + '_' + toolbarname
 
         if toolbarname == 'petram_mesh':
@@ -1782,5 +1778,27 @@ class MFEMViewer(BookViewer):
 
         self.canvas.toolbar.ClickP1Button(buttonname)
         self.canvas.toolbar.ClickP1Button('select')
+        '''
+
+    def set_toolbar_mode(self, mode):
+        bmodes = {'volume':'domain',
+                  'face': 'face',
+                  'edge': 'edge',
+                  'point':'dot'}
+        bmode = bmodes[mode]
+
+        self.set_sel_mode(mode)
+        
+        toolbarname = self.canvas.toolbar.p1_choice[1]
+        buttonname = bmode + '_' + toolbarname
+
+        if toolbarname == 'petram_mesh':
+            buttonname = "m"+buttonname
+        if toolbarname == 'petram_geom':
+            buttonname = "g"+buttonname
+
+        self.canvas.toolbar.ClickP1Button(buttonname)
+        self.canvas.toolbar.ClickP1Button('select')
+        
             
         
