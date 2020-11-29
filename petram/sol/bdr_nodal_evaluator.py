@@ -224,9 +224,19 @@ class BdrNodalEvaluator(EvaluatorAgent):
             ibdrs = ibdrs[::self.decimate]
 
         self.ibeles = np.array(ibdrs)
+
+        def get_vertices_array(i):
+            arr = getelement(i).GetVerticesArray()
+            if len(arr) == 3:
+                return arr
+            elif len(arr) == 4:
+                x = arr[:-1]
+                y = np.array([arr[0], arr[2], arr[3]])
+                return np.vstack([x, y])
+            
+        # we handle quad as two triangles
+        iverts = np.vstack([get_vertices_array(i) for i in ibdrs])
         
-        iverts = np.stack([getelement(i).GetVerticesArray()
-                           for i in ibdrs])
         self.iverts = iverts
         if len(self.iverts) == 0: return
 

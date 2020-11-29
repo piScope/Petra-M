@@ -247,6 +247,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
     _has_4th_panel = True
     can_rename = True
+    allow_custom_intorder = False    
 
     # matrix element can be time-dependent
     can_timedpendent = False        
@@ -283,7 +284,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         v['timestep_config'] = [True, False, False]
         v['timestep_weight'] = ["1", "0", "0"]
         v['isTimeDependent'] = False
-        v['isTimeDependent_RHS'] = False        
+        v['isTimeDependent_RHS'] = False
+        v['add_intorder'] = 0
         return v
         
     def get_possible_bdry(self):
@@ -623,13 +625,15 @@ class Phys(Model, Vtable_mixin, NS_mixin):
            ll = [['', False, 3, {"text": "Time dependent"}],]
 
         else:
-           ll = [['', True,  3, {"text": "y(t)"}],
-                 ['', False, 3, {"text": "dy/dt"}],
-                 ['', False, 3, {"text": "d2y/dt2"}],
-                 ['', False, 3, {"text": "Time dependent"}],]
+           ll = [['y(t)', True,  3, {"text": ""}],
+                 ['dy/dt', False, 3, {"text": ""}],
+                 ['d2y/dt2', False, 3, {"text": ""}],
+                 ['Time Varing Term.', False, 3, {"text": ""}],]
 #              ['M(t)',     "1", 0],
 #              ['M(t-dt)',  "0", 0],
 #              ['M(t-2dt)', "0", 0],]
+        if self.allow_custom_intorder:
+           ll.append(['Increase int. order', '0', 400, ''])
         return ll
      
     def panel4_tip(self):
@@ -644,15 +648,18 @@ class Phys(Model, Vtable_mixin, NS_mixin):
            self.timestep_config[1] = value[1]
            self.timestep_config[2] = value[2]
            self.isTimeDependent = value[3]
-        #self.timestep_weight[0] = value[3]
-        #self.timestep_weight[1] = value[4]
-        #self.timestep_weight[2] = value[5]
+
+        if self.allow_custom_intorder:
+           self.add_intorder = int(value[-1])
         
     def get_panel4_value(self):
         if self.has_essential:
-            return [self.isTimeDependent]
+            ret = [self.isTimeDependent]
         else:
-            return (self.timestep_config[0:3]+[self.isTimeDependent])
+            ret = self.timestep_config[0:3]+[self.isTimeDependent]
+        if self.allow_custom_intorder:
+            ret = ret + [self.add_intorder]
+        return ret
          
     @property
     def geom_dim(self):
@@ -685,7 +692,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             return coeff
            
     def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None,
-                       transpose=False):
+                       transpose=False, ir=None):
         if coeff is None: return
         if vt is None: vt = self.vt
         #if vt[name].ndim == 0:
@@ -709,8 +716,12 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if transpose:
            itg2 = mfem.TransposeIntegrator(itg)
            itg2._link = itg
+           if ir is not None:
+              itg2.SetIntRule(ir)
            adder(itg2)
         else:
+           if ir is not None:
+              itg.SetIntRule(ir)
            adder(itg)
 
     def onItemSelChanged(self, evt):

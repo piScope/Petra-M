@@ -73,7 +73,7 @@ def extract_mesh_data_1D(mesh):
     
     return X, cells, cell_data, [None, None], None
 
-def extract_mesh_data(mesh, refine = 1):
+def extract_mesh_data(mesh, refine=1):
     if isinstance(mesh, ParMesh):
         assert False, "mesh data must be processed in serial"
     

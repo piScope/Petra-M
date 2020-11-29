@@ -588,6 +588,7 @@ class DlgPlotSol(SimpleFramePlus):
 
         dirnames = [""]
         choices = [""]
+        
         solvers = list(info["checkpoint"])
         for solver in solvers:
             kk = sorted(list(info["checkpoint"][solver]))
@@ -597,6 +598,7 @@ class DlgPlotSol(SimpleFramePlus):
         choices = choices + info["cases"]
         dirnames = dirnames + info["cases"]
 
+        
         single_cb2.SetChoices(choices)
         multi_cb2.SetChoices(choices)
 
@@ -756,7 +758,6 @@ class DlgPlotSol(SimpleFramePlus):
         pass
 
     def local_sollist(self):
-        print("local_sollist")
         model = self.GetParent().model
         sol_names = [name for name, child in model.solutions.get_children()]
         
@@ -904,6 +905,7 @@ class DlgPlotSol(SimpleFramePlus):
                 owndir = sol.owndir()
             if self.local_sols is None:
                 self.update_sollist_local1()
+
             ss1 = self.local_sols[2][str(v[0][1][1])]
             ss1 = self.update_subdir_local(owndir, ss1)
             self.local_soldir =owndir
