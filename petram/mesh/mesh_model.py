@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import parser
 import mfem
 from abc import abstractmethod
 
@@ -727,6 +728,7 @@ class DomainRefinement(Mesh):
     def __init__(self, parent = None, **kwargs):
         self.num_refine = kwargs.pop("num_refine", "0")
         self.domain_txt = kwargs.pop("domain_txt", "")
+        self.expression = kwargs.pop("expression", "")        
         super(DomainRefinement, self).__init__(parent = parent, **kwargs)        
     def __repr__(self):
         try:
@@ -738,18 +740,27 @@ class DomainRefinement(Mesh):
         v = super(DomainRefinement, self).attribute_set(v)       
         v['num_refine'] = '0'
         v['domain_txt'] = ''
+        v['expression'] = ''
+        v['expression_ns'] = 'global'                
         return v
         
     def panel1_param(self):
         return [["Number",    str(self.num_refine),  0, {}],
-                ["Domains",   self.domain_txt,  0, {}],]
+                ["Domains",   self.domain_txt,  0, {}],
+                ["Expr.",     self.expression,  0, {}],
+                ["NS for expr.",   self.expression_ns,  0, {}],]     
      
     def import_panel1_value(self, v):
         self.num_refine = str(v[0])
         self.domain_txt = str(v[1])
-        
+        self.expression = str(v[2])
+        self.expression_ns = str(v[3])
+
     def get_panel1_value(self):
-        return (str(self.num_refine), str(self.domain_txt))
+        return (str(self.num_refine),
+                str(self.domain_txt),
+                str(self.expression),
+                str(self.expression_ns), )
      
     def run(self, mesh):
         gtype = np.unique([mesh.GetElementBaseGeometry(i) for i in range(mesh.GetNE())])
@@ -764,11 +775,34 @@ class DomainRefinement(Mesh):
         domains = [int(x) for x in self.domain_txt.split(',')]
         if len(domains) == 0: return mesh
 
+        if self.expression != '':
+            st = parser.expr(self.expression)
+            code= st.compile('<string>')
+            names = list(code.co_names)
+            ns_obj, ns_g = self.find_ns_by_name(self.expression_ns)
+
+        v = mfem.Vector()
+        coords = ['x', 'y', 'z']
 
         for i in range(int(self.num_refine)):
             attr = mesh.GetAttributeArray()
-            idx = mfem.intArray(list(np.where(np.in1d(attr, domains))[0]))
-            mesh.GeneralRefinement(idx) # this is parallel refinement
+            idx = list(np.where(np.in1d(attr, domains))[0])
+
+            if self.expression != '':
+               idx2 = []
+
+               for ii in idx:
+                   ll = {}
+                   vv = mesh.GetElementCenterArray(ii)
+                   for i in range(len(vv)):
+                       ll[coords[i]] = vv[i]
+                   if eval(code, ns_g, ll):
+                       idx2.append(ii)
+
+               idx = idx2
+            print("refining elements", idx)
+            idx0 = mfem.intArray(idx)
+            mesh.GeneralRefinement(idx0) # this is parallel refinement
         return mesh
 
    

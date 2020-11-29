@@ -42,6 +42,20 @@ class NS_mixin(object):
     def get_ns_name(self):
         if not hasattr(self, 'ns_name'):self.reset_ns()
         return self.ns_name
+
+    def find_ns_by_name(self, name):
+        '''
+        return NameSpace for given name
+        It walks through the model tree to find an model object
+        whose namespace name matches with input
+        '''
+        root = self.root()
+        for obj in root.walk():
+            if not isinstance(obj, NS_mixin):
+                continue
+            if obj.get_ns_name() == name:
+                return obj, obj._global_ns
+        return None, {}
     
     def get_ns_chain(self):
         chain = []

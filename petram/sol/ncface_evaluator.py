@@ -163,13 +163,25 @@ class NCFaceEvaluator(EvaluatorAgent):
                 RefG = GR.Refine(gtype, self.refine)
                 ir = RefG.RefPts                
                 npt = ir.GetNPoints()
-                ele = np.array(RefG.RefGeoms.ToList()).reshape(-1, len(verts))
+                ele0 = np.array(RefG.RefGeoms.ToList()).reshape(-1, len(verts))
                 gtype_st = gtype
                 self.irs[gtype] = ir
 
+                # we handle quad as two triangles to handle mixed element case
+                ele = []
+                for eee in ele0:
+                    if len(eee) == 3:
+                        ele.append(eee)
+                    elif len(eee) == 4:
+                        x = eee[:-1]
+                        y = np.array([eee[0], eee[2], eee[3]])
+                        ele.extend([x, y])
+                ele = np.array(ele)
+                
             T = gettrans(i)
             pt = np.vstack([T.Transform(ir.IntPoint(j)) for j in range(npt)])
             ptx.append(pt)
+
             ridx.append(ele + nele)
             nele = nele + ir.GetNPoints()
             ifaces.append(iface)

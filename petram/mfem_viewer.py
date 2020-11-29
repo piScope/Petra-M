@@ -50,6 +50,8 @@ def MFEM_menus(parent):
              ("New Mesh File...",  self.onNewMesh, None),
 
              ("Reload Mesh",  self.onLoadMesh, None),
+             ("Mesh visualization +",  self.onMeshVisPlus, None),
+             ("Mesh visualization -",  self.onMeshVisMinus, None),             
              ("!", None, None),
              ("+Namespace", None, None),
              ("New...", self.onNewNS, None),
@@ -140,6 +142,8 @@ class MFEMViewer(BookViewer):
         self._selected_volume = []    # store selected volume
         self._figure_data = {}
 
+        # extra refinement of mesh for visualization
+        self._mesh_vis = 0
         # hidden element in MFEM mode
         self._hidden_volume = []
 
@@ -742,7 +746,15 @@ class MFEMViewer(BookViewer):
         if err != -1:
             self.plot_mfem_geom()
             self.use_toolbar_palette('petram_phys', mode='3D')
-
+            
+    def onMeshVisPlus(self, evt):
+        self._mesh_vis = self._mesh_vis + 1
+        self.onLoadMesh(evt)
+        
+    def onMeshVisMinus(self, evt):        
+        self._mesh_vis = self._mesh_vis - 1
+        self.onLoadMesh(evt)
+        
     def plot_mfem_geom(self):
         from petram.mesh.geo_plot import plot_geometry
         from petram.mesh.read_mfemmesh import extract_mesh_data
@@ -755,7 +767,7 @@ class MFEMViewer(BookViewer):
                 refine = mesh.GetNodalFESpace().GetOrder(0)
             else:
                 refine = 1
-
+            refine = refine + self._mesh_vis
             X, cells, cell_data, sl, iedge2bb = extract_mesh_data(mesh, refine)
             self._s_v_loop['phys'] = sl
             self._s_v_loop['mesh'] = sl
