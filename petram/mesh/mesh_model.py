@@ -52,7 +52,6 @@ class MeshGenerator(Mesh):
     def run_serial(self, mesh = None):
         # By default this will call run. Sub-classes can re-implement this.
         m = self.run(mesh=mesh)
-        print(m)
         return m
      
     @abstractmethod   
@@ -127,6 +126,9 @@ class MFEMMesh(Model):
         if (self._invalid_data is not None and
             len(self._invalid_data[0]) > 0):
             menu.append(["Plot invalid faces", self.plot_invalids, None])
+        if (self._invalid_data is not None and
+            len(self._invalid_data[2]) > 0):
+            menu.append(["Plot inverted elements", self.plot_inverted, None])
         return menu
             
     def reload_mfem_mesh(self, evt):
@@ -146,19 +148,30 @@ class MFEMMesh(Model):
                                               format_error)
 
         editor = evt.GetEventObject().GetTopLevelParent()
-        viewer = editor.GetParent()        
-        mesh = viewer.model.variables.getvar('mesh')
-        if mesh is None:
-            out = 'Mesh is not loaded'
-        else:
-            invalids, invalid_attrs = find_invalid_topology(mesh)
-            if len(invalids) == 0:
-               out = 'No error'
+        dlg = editor.show_progress_bar('Checking topology...')
+
+        try:
+            viewer = editor.GetParent()        
+            mesh = viewer.model.variables.getvar('mesh')
+            if mesh is None:
+                out = 'Mesh is not loaded'
             else:
-               out = format_error(invalids, invalid_attrs)
-            self._invalid_data = invalids, invalid_attrs
-        self._topo_check_char = out
-        editor.import_selected_panel_value()
+                invalids, invalid_attrs, inverted = find_invalid_topology(mesh)
+                if len(invalids) == 0:
+                    out = 'No error'
+                else:
+                    out = format_error(invalids, invalid_attrs, inverted)
+                self._invalid_data = invalids, invalid_attrs, inverted
+            self._topo_check_char = out
+
+            import wx
+            wx.CallAfter(editor.import_selected_panel_value)
+        except BaseException:
+            import traceback
+            traceback.print_exc()
+        finally:
+            dlg.Destroy()
+            evt.Skip()            
         
     def plot_invalids(self, evt):
         from petram.mesh.mesh_inspect import plot_faces_containing_elements
@@ -168,7 +181,29 @@ class MFEMMesh(Model):
         mesh = viewer.model.variables.getvar('mesh')
 
         invalids = self._invalid_data[0]
-        plot_faces_containing_elements(mesh, invalids, refine=10)
+
+        from ifigure.interactive import figure
+        from petram.mfem_viewer import setup_figure
+        win = figure()
+        setup_figure(win)
+        win.view('noclip')
+        plot_faces_containing_elements(mesh, invalids, refine=10,
+                                       win=win)
+    def plot_inverted(self, evt):
+        from petram.mesh.mesh_inspect import plot_elements
+        
+        editor = evt.GetEventObject().GetTopLevelParent()
+        viewer = editor.GetParent()        
+        mesh = viewer.model.variables.getvar('mesh')
+
+        inverted = self._invalid_data[2]
+
+        from ifigure.interactive import figure
+        from petram.mfem_viewer import setup_figure
+        win = figure()
+        setup_figure(win)
+        win.view('noclip')        
+        plot_elements(mesh, inverted, refine=10, win=win)
         
     @property
     def sdim(self):

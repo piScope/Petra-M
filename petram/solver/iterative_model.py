@@ -33,6 +33,41 @@ SparseSmootherCls = {"Jacobi": (mfem.DSmoother, 0),
                      "backwardGS": (mfem.GSSmoother, 2),
                      "MUMPS": (MUMPSPreconditioner, None),}
 
+choices_a = ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB',
+             'MINRES', 'SLI', 'Nested FGMRES']
+choices_b = ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB', 'MINRES', 'MUMPS']
+
+single1_elp =  [["log_level",   -1,  400, {}],
+               ["max  iter.",  200, 400, {}],
+               ["rel. tol",    1e-7,  300,  {}],
+               ["abs. tol.",   1e-7,  300, {}],]
+single2_elp =  [["log_level",   -1,  400, {}],
+               ["max  iter.",  200, 400, {}],
+               ["rel. tol",    1e-7,  300,  {}],
+               ["abs. tol.",   1e-7,  300, {}],
+               ["restart(kdim)", 50,     400, {}]]
+
+nsingle1_elp =  [["log_level",   -1,  400, {}],
+                 ["max  iter.",  200, 400, {}],]
+nsingle2_elp =  [["log_level",   -1,  400, {}],
+                 ["max  iter.",  200, 400, {}],
+                 ["restart(kdim)", 50,     400, {}],]
+nmumps_elp = [['MUMPS Config', '', 0, {}],]
+nested_elp =  [["log_level",   -1,  400, {}],
+               ["max  iter.",  200,  400, {}],
+               ["rel. tol",    1e-7,  300,  {}],
+               ["abs. tol.",   1e-7,  300, {}],
+               ["restart(kdim)", 50,     400, {}],
+               [None, None, 34, [{'text': "Inner Solver",
+                                     'choices': choices_b},
+                                     {'elp':nsingle1_elp},  #CG
+                                     {'elp':nsingle2_elp},  #GMRES
+                                     {'elp':nsingle2_elp},  #FGMRES
+                                     {'elp':nsingle1_elp},  #BiCGSTAB
+                                     {'elp':nsingle1_elp}, #MINRES
+                                     {'elp':nmumps_elp},]]  #MUMPS
+               ,]
+
 class Iterative(LinearSolverModel, NS_mixin): 
     hide_ns_menu = True
     has_2nd_panel = False
@@ -52,14 +87,16 @@ class Iterative(LinearSolverModel, NS_mixin):
         smp1 = [None, None, 99, {"UI":WidgetSmoother, "span":(1,2)}]
 
         mm = [[None, self.use_block_symmetric,  3, {"text":"block symmetric format"}], ]        
-        return [[None, 'GMRES', 4, {'style':wx.CB_READONLY,
-                                     'choices': ['CG', 'GMRES', 'FGMRES', 'BiCGSTAB',
-                                                 'MINRES', 'SLI']}],      
-                ["log_level",   self.log_level,  400, {}],
-                ["max  iter.",  self.maxiter,  400, {}],
-                ["rel. tol",    self.reltol,  300,  {}],
-                ["abs. tol.",   self.abstol,  300, {}],
-                ["restart(kdim)", self.kdim,     400, {}],
+
+        return [[None, None, 34, [{'text': "Solver", 'choices': choices_a},
+                                     {'elp':single1_elp},  #CG
+                                     {'elp':single2_elp},   #GMRES
+                                     {'elp':single2_elp},   #FGMRES
+                                     {'elp':single1_elp},  #BiCGSTAB
+                                     {'elp':single1_elp},  #MINRES
+                                     {'elp':single1_elp},  #SLI
+                                     {'elp':nested_elp},   #Nested FGMRES
+                                     ],],
                 [None,  [False, [''], [[],]], 27, [{'text':'advanced mode'},
                                                {'elp':[['preconditioner', '', 0, None],]},
                                                {'elp':[smp1,]}],],
@@ -67,8 +104,7 @@ class Iterative(LinearSolverModel, NS_mixin):
                 [None, self.assert_no_convergence,  3, {"text":"check converegence"}],
                 [None, self.use_ls_reducer,  3, {"text":"Reduce linear system when possible"}],
                 [None, (self.merge_real_imag,(self.use_block_symmetric,)),
-                 27, ({"text":"Use ComplexOperator"}, {"elp":mm},)],]          
-     
+                 27, ({"text":"Use ComplexOperator"}, {"elp":mm},)],]
     
     def get_panel1_value(self):
         # this will set _mat_weight
@@ -90,43 +126,83 @@ class Iterative(LinearSolverModel, NS_mixin):
            if not n in names:
               prec.append((n, ['None', 'None']))
         self.preconditioners = prec
-        
-        return (self.solver_type,
-                int(self.log_level), int(self.maxiter),
-                self.reltol, self.abstol, int(self.kdim),
-                [self.adv_mode, [self.adv_prc, ], [self.preconditioners,]],
-                self.write_mat, self.assert_no_convergence,
-                self.use_ls_reducer,
-                (self.merge_real_imag, (self.use_block_symmetric,)), )
+
+        single1 = [int(self.log_level), int(self.maxiter),
+                  self.reltol, self.abstol]
+        single2 = [int(self.log_level), int(self.maxiter),
+                  self.reltol, self.abstol, int(self.kdim)]
+        single1in = [int(self.log_level_in), int(self.maxiter_in),]
+        single2in = [int(self.log_level_in), int(self.maxiter_in),
+                     int(self.kdim_in)]
+        mumpsin = [self.mumps_in]
+        nested = [int(self.log_level), int(self.maxiter),
+                  self.reltol, self.abstol, int(self.kdim),
+                  [self.solver_type_in, single1in, single2in, single2in,
+                   single1in, single1in, mumpsin],]
+        value = ([self.solver_type, single1, single2, single2,
+                                   single1, single1, single1,
+                                   nested],
+                 (self.adv_mode, [self.adv_prc, ], [self.preconditioners,]),
+                 self.write_mat, self.assert_no_convergence,
+                 self.use_ls_reducer,
+                 (self.merge_real_imag, [self.use_block_symmetric,]),)
+
+        return value
     
     def import_panel1_value(self, v):
-        self.solver_type = str(v[0])
-        self.log_level = int(v[1])
-        self.maxiter = int(v[2])
-        self.reltol = v[3]
-        self.abstol = v[4]
-        self.kdim = int(v[5])
-        self.preconditioners = v[6][2][0]
-        self.write_mat = bool(v[7])
-        self.assert_no_convergence = bool(v[8])
-        self.use_ls_reducer = bool(v[9])
-        self.adv_mode = v[6][0]
-        self.adv_prc = v[6][1][0]
-        self.merge_real_imag = bool(v[10][0])
-        self.use_block_symmetric = bool(v[10][1][0])                                
+        self.solver_type = str(v[0][0])
+        idx = choices_a.index(self.solver_type)
+        vv = v[0][idx+1]
+        self.log_level = int(vv[0])
+        self.maxiter = int(vv[1])
+        self.reltol = vv[2]
+        self.abstol = vv[3]
+
+        if len(vv) > 4:
+            self.kdim = int(vv[4])
+           
+        if self.solver_type.startswith('Nested'):
+            self.solver_type_in = vv[5][0]
+            idx = choices_b.index(self.solver_type_in)
+            vv = vv[5][idx+1]            
+            if self.solver_type_in != 'MUMPS':
+                self.log_level_in = int(vv[0])
+                self.maxiter_in = int(vv[1])
+                if len(vv) > 2:
+                    self.kdim_in = int(vv[2])
+            else:
+                self.mumps_in = vv[0]
+           
+        self.preconditioners = v[1][2][0]
+        self.write_mat = bool(v[2])
+        self.assert_no_convergence = bool(v[3])
+        self.use_ls_reducer = bool(v[4])
+        self.adv_mode = v[1][0]
+        self.adv_prc = v[1][1][0]
+        self.merge_real_imag = bool(v[5][0])
+        self.use_block_symmetric = bool(v[5][1][0])                                
         
     def attribute_set(self, v):
         v = super(Iterative, self).attribute_set(v)
+        v['solver_type'] = 'GMRES'        
         v['log_level'] = 0
         v['maxiter'] = 200
         v['reltol']  = 1e-7
         v['abstol'] = 1e-7
         v['kdim'] =   50
+        
+        v['solver_type_in'] = 'GMRES'                
+        v['log_level_in'] = 0
+        v['maxiter_in'] = 200
+        v['reltol_in']  = 1e-7
+        v['abstol_in'] = 1e-7
+        v['kdim_in'] = 50
+        v['mumps_in'] =  ''
+        
         v['printit'] = 1
         v['preconditioner'] = ''
         v['preconditioners'] = []        
         v['write_mat'] = False
-        v['solver_type'] = 'GMRES'
         v['assert_no_convergence'] = True
         v['use_ls_reducer'] = False
         v['adv_mode'] = False
@@ -295,15 +371,41 @@ class IterativeSolver(LinearSolver):
        
         args = (MPI.COMM_WORLD,) if use_mpi else ()
 
-        cls = getattr(mfem, self.gui.solver_type+'Solver')
+        if self.gui.solver_type.startswith("Nested"):
+            solver_type = self.gui.solver_type.split(" ")[-1]
+            nested = True
+        else:
+            solver_type = self.gui.solver_type
+            nested = False            
+        cls = getattr(mfem, solver_type+'Solver')
 
         solver = cls(*args)
-        if self.gui.solver_type == 'GMRES':
+        if solver_type in ['GMRES', 'FGMRES']:
             solver.SetKDim(kdim)
-        if self.gui.solver_type == 'FGMRES':
-            solver.SetKDim(kdim)
+            
+        if nested:
+            inner_solver_type = self.gui.solver_type_in
+            if inner_solver_type != "MUMPS":
+                cls = getattr(mfem, inner_solver_type+'Solver')
+                inner_solver = cls(*args)
+                inner_solver.SetAbsTol(0.0)
+                inner_solver.SetRelTol(0.0)
+                inner_solver.SetMaxIter(self.gui.maxiter_in)
+                inner_solver.SetPrintLevel(self.gui.log_level_in)
+                if inner_solver_type in ['GMRES', 'FGMRES']:
+                    inner_solver.SetKDim(int(self.gui.kdim_in))
+                inner_solver.iterative_mode = False
+                inner_solver.SetOperator(A)
+                inner_solver.SetPreconditioner(M)
+                #return inner_solver
+                prc = inner_solver
+            else:
+                pass   
+        else:
+            prc = M
+        solver._prc = prc
 
-        solver.SetPreconditioner(M)
+        solver.SetPreconditioner(prc)
         solver.SetOperator(A)
         
         solver.SetAbsTol(atol)
