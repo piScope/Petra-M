@@ -532,7 +532,7 @@ class DlgEditModel(SimpleFramePlus):
 
             if mm.has_4th_panel:
                 if self.nb.GetPageCount() == 3:
-                    self.nb.AddPage(self.p4, "Time Dep.")
+                    self.nb.AddPage(self.p4, "Time Dep./Adv.")
                 self.p4sizer.Add(p4panel, 1, wx.EXPAND | wx.ALL, 1)
                 p4panel.SetValue(mm.get_panel4_value())
                 p4panel.Show()
@@ -614,7 +614,7 @@ class DlgEditModel(SimpleFramePlus):
 
             if mm.has_4th_panel:
                 if self.nb.GetPageCount() == 3:
-                    self.nb.AddPage(self.p4, "Time Dep.")
+                    self.nb.AddPage(self.p4, "Time Dep./Adv.")
                 self.p4sizer.Add(p4panel, 1, wx.EXPAND | wx.ALL, 1)
                 p4panel.SetValue(mm.get_panel4_value())
                 p4panel.Show()
