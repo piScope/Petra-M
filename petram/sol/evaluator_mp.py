@@ -328,7 +328,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
 
         if use_pr:
             path = os.path.expanduser('~/MPChild_profile'+ str(os.getpid()) + '.out')
-            pr.dump(path)
+            pr.dump_stats(path)
             pr.disable()
         return ptx, data, attrs
 
