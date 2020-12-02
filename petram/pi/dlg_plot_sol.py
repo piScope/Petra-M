@@ -567,7 +567,15 @@ class DlgPlotSol(SimpleFramePlus):
 
     def clean_evaluators(self):
         for k in self.evaluators:
-            self.evaluators[k].terminate_all()
+            self.evaluators[k].terminate_allnow()
+        wx.Sleep(1)
+        from petram.sol.evaluator_cs import EvaluatorClient 
+        for k in self.evaluators:
+            if isinstance(self.evaluators[k],
+                          EvaluatorClient):
+                if (self.evaluators[k].p is not None and
+                    self.evaluators[k].p.poll() is None):
+                    self.evaluators[k].p.terminate()
         self.evaluators = {}
 
     def get_remote_subdir_cb(self):

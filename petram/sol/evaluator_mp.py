@@ -266,6 +266,12 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
 
     def eval_pointcloud(self, expr, **kwargs):
         if self.phys_path == '': return None, None, None
+
+        use_pr = True
+        import cProfile
+        if use_pr:
+            pr = cProfile.Profile()
+            pr.enable()
         
         phys = self.mfem_model()[self.phys_path]
         solvars = self.load_solfiles()
@@ -319,6 +325,11 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             if np.sum(idx) == 0: continue
             attrs[idx] = a[idx]
             data[idx] = c
+
+        if use_pr:
+            path = os.path.expanduser('~/MPChild_profile'+ str(os.getpid()) + '.out')
+            pr.dump(path)
+            pr.disable()
         return ptx, data, attrs
 
     def eval_probe(self, expr, xexpr, probes):
@@ -549,8 +560,8 @@ class EvaluatorMP(Evaluator):
         for v, c, a in res[1:]:
             idx = (a != -1)
             if np.sum(idx) == 0: continue
-            print(a)
-            print(attrs)
+            #print(a)
+            #print(attrs)
             attrs[idx] = a[idx]
 	    #print(data.shape, c.shape)                                                                                                                         
             data[idx] = c[idx]
@@ -590,6 +601,9 @@ class EvaluatorMP(Evaluator):
             w.join()
         
         print('joined')
+        
+    def terminate_allnow(self):
+        return self.terminate_all()
 
     
 

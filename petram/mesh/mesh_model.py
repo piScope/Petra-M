@@ -783,7 +783,7 @@ class DomainRefinement(Mesh):
 
         v = mfem.Vector()
         coords = ['x', 'y', 'z']
-
+        #nicePrint("refining elements domain choice", domains)
         for i in range(int(self.num_refine)):
             attr = mesh.GetAttributeArray()
             idx = list(np.where(np.in1d(attr, domains))[0])
@@ -800,7 +800,7 @@ class DomainRefinement(Mesh):
                        idx2.append(ii)
 
                idx = idx2
-            print("refining elements", idx)
+            #nicePrint("number of refined element: ", len(idx))
             idx0 = mfem.intArray(idx)
             mesh.GeneralRefinement(idx0) # this is parallel refinement
         return mesh
