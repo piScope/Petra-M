@@ -267,11 +267,11 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
     def eval_pointcloud(self, expr, **kwargs):
         if self.phys_path == '': return None, None, None
 
-        use_pr = True
-        import cProfile
-        if use_pr:
-            pr = cProfile.Profile()
-            pr.enable()
+        #use_pr = True
+        #import cProfile
+        #if use_pr:
+        #    pr = cProfile.Profile()
+        #    pr.enable()
         
         phys = self.mfem_model()[self.phys_path]
         solvars = self.load_solfiles()
@@ -326,10 +326,10 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             attrs[idx] = a[idx]
             data[idx] = c
 
-        if use_pr:
-            path = os.path.expanduser('~/MPChild_profile'+ str(os.getpid()) + '.out')
-            pr.dump_stats(path)
-            pr.disable()
+        #if use_pr:
+        #    path = os.path.expanduser('~/MPChild_profile'+ str(os.getpid()) + '.out')
+        #    pr.dump_stats(path)
+        #    pr.disable()
         return ptx, data, attrs
 
     def eval_probe(self, expr, xexpr, probes):
