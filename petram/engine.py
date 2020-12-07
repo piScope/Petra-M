@@ -2867,7 +2867,11 @@ class ParallelEngine(Engine):
                                                    max(smesh.GetBdrAttributeArray())])
                              self.max_attr = np.max([self.max_attr,
                                                 max(smesh.GetAttributeArray())])
-                        self.meshes[idx] = mfem.ParMesh(MPI.COMM_WORLD, smesh)
+                        if smesh.GetNE() < MPI.COMM_WORLD.size:
+                            parts = smesh.GeneratePartitioning(smesh.GetNE()//1000+1, 1)
+                        else:
+                            parts = None
+                        self.meshes[idx] = mfem.ParMesh(MPI.COMM_WORLD, smesh, parts)
                         target = self.meshes[idx]
                     else:
                         if hasattr(o, 'run') and target is not None:
