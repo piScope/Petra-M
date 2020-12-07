@@ -229,6 +229,9 @@ class EvaluatorClient(Evaluator):
 
     def __del__(self):
         self.terminate_all()
+        if self.p is not None:
+           if self.p.poll() is None:
+               self.p.terminate()
         self.p = None
 
     def __call_server0(self, name, *params, **kparams):
@@ -236,17 +239,21 @@ class EvaluatorClient(Evaluator):
         verbose = kparams.pop("verbose", False)
         force_protocol1 = kparams.pop("force_protocol1", False)
         prompt = kparams.pop("prompt", "?")
+        nowait = kparams.pop("nowait", False)
         command = [name, params, kparams]
         data = binascii.b2a_hex(pickle.dumps(command))
         print("Sending request", command)
         self.p.stdin.write(data.decode('utf-8') + '\n')
         self.p.stdin.flush()
-        
+
+        if nowait:
+           return
         protocol = 1 if force_protocol1 else self.p.evalsvr_protocol
 
         import threading
         print("calling wait for prompt", threading.current_thread())
-        output, alive = wait_for_prompt(self.p, prompt=prompt, 
+        output, alive = wait_for_prompt(self.p,
+                                        prompt=prompt, 
                                         verbose = verbose,
                                         withsize = protocol > 1)
         if not alive:
@@ -322,7 +329,9 @@ class EvaluatorClient(Evaluator):
 
     def terminate_all(self):
         try:
-            ret =  self.__call_server('terminate_all', prompt='byebye', force_protocol1=True)
+            ret =  self.__call_server('terminate_all',
+                                      prompt='byebye',
+                                      force_protocol1=True)
             
         except BrokenPipeError:
             ### when server-side client is dead, terminate connection
@@ -335,6 +344,23 @@ class EvaluatorClient(Evaluator):
            if self.p.poll() is None:
                self.p.terminate()
         return ret
+
+    def terminate_allnow(self):
+        try:
+            ret =  self.__call_server('terminate_all',
+                                      nowait=True)
+            
+        except BrokenPipeError:
+            ### when server-side client is dead, terminate connection
+            print("Broken Pipe Error, teminating the connection")
+            self.p.terminate()
+            self.p = None
+            return 
+         
+        if self.p is not None:
+           if self.p.poll() is None:
+               self.p.terminate()
+        return ret     
         
     
 

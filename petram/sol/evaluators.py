@@ -229,6 +229,7 @@ class EvaluatorCommon(Evaluator):
         
     def terminate_all(self):        
         pass
+    
 
 '''                
 from petram.sol.bdr_nodal_evaluator import BdrNodalEvaluator    

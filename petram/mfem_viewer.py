@@ -16,6 +16,7 @@ from ifigure.widgets.book_viewer import BookViewer
 from ifigure.utils.cbook import BuildMenu
 import ifigure.widgets.dialog as dialog
 import ifigure.events
+from petram.pi.dlg_progressbar import progressbar
 
 try:
     import petram.geom
@@ -1669,28 +1670,41 @@ class MFEMViewer(BookViewer):
         from petram.pi.dlg_submit_job import get_job_submisson_setting
         from petram.remote.client_script import get_job_queue
         
-        dlg = dialog.progressbar(self, 'Checking queue config...',
-                         'In progress', 5)
+        dlg = progressbar(self, 'Checking queue config...',
+                          'In progress', 5,
+                          can_abort = True)
         dlg.Show()
         wx.GetApp().Yield()
 
-        try:
-            q = get_job_queue(self.model)
-        except:
-            traceback.print_exc()
+        success, q = get_job_queue(self.model, progdlg=dlg)
+        if dlg:
+            dlg.Destroy()
+        
+        if not success:
             q = {'type': '',
                  'queues': [{'name': 'failed to read queue config'}, ]}
-        dlg.Destroy()
         
         setting = get_job_submisson_setting(self, remote['name'].upper(),
                                             value=values,
                                             queues=q)
         if len(setting) == 0:
             return
+        
+        dlg = progressbar(self, 'Preparing...', 'Job submission',
+                          4, can_abort = True)        
+        dlg.Show()
+        wx.GetApp().Yield()
 
         from petram.remote.client_script import prepare_remote_dir
         # if remote['rwdir'] != setting['rwdir']:
-        prepare_remote_dir(self.model, setting['rwdir'], dirbase='')
+        cancelled = prepare_remote_dir(self.model,
+                                       setting['rwdir'],
+                                       dirbase='',
+                                       progdlg=dlg)
+        if not dlg: return
+        if cancelled:
+            dlg.Destroy()
+            return
 
         for k in setting.keys():
             remote[k] = setting[k]
@@ -1699,10 +1713,6 @@ class MFEMViewer(BookViewer):
         else:
             sol = self.model.param.eval('sol')
 
-        dlg = dialog.progressbar(self, 'Preparing...',
-                          'Job submission', 4)
-        dlg.Show()
-        wx.GetApp().Yield()
         
         dlg.Update(1, newmsg="Preparing Data...")
         wx.GetApp().Yield()        
@@ -1717,12 +1727,21 @@ class MFEMViewer(BookViewer):
         dlg.Update(2, newmsg="Sending file")
         wx.GetApp().Yield()
         
-        send_file(self.model, skip_mesh=setting['skip_mesh'])
-
+        cancelled = send_file(self.model, dlg,
+                              skip_mesh=setting['skip_mesh'])
+        if not dlg: return
+        if cancelled:
+            dlg.Destroy()
+            return
+        
         dlg.Update(3, newmsg="Submitting a job...")
         wx.GetApp().Yield()
         
-        submit_job(self.model)
+        cancelled = submit_job(self.model, dlg)
+        if not dlg: return
+        if cancelled:
+            dlg.Destroy()
+            return
 
         dlg.Update(3, newmsg="Done...")
         wx.GetApp().Yield()
