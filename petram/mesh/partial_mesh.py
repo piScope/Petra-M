@@ -427,7 +427,7 @@ def edge(mesh, in_attr, filename = '', precision=8):
         #nicePrint(len(dof2_idx))
         '''
     if isParMesh(mesh):
-        if omesh.GetNE() < nproc*3:
+        if omesh.GetNE() < nprc*3:
             parts = smesh.GeneratePartitioning(1, 1)
         else:
             parts = None
@@ -609,7 +609,7 @@ def surface(mesh, in_attr, filename = '', precision=8):
         #nicePrint(len(dof2_idx))
 
     if isParMesh(mesh):
-        if omesh.GetNE() < nproc*3:
+        if omesh.GetNE() < nprc*3:
             parts = smesh.GeneratePartitioning(1, 1)
         else:
             parts = None
@@ -780,7 +780,7 @@ def volume(mesh, in_attr, filename = '', precision=8):
         #nicePrint(len(dof2_idx))
 
     if isParMesh(mesh):
-        if omesh.GetNE() < nproc*3:
+        if omesh.GetNE() < nprc*3:
             parts = smesh.GeneratePartitioning(1, 1)
         else:
             parts = None
