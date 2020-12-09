@@ -2867,7 +2867,7 @@ class ParallelEngine(Engine):
                                                    max(smesh.GetBdrAttributeArray())])
                              self.max_attr = np.max([self.max_attr,
                                                 max(smesh.GetAttributeArray())])
-                        if smesh.GetNE() < MPI.COMM_WORLD.size:
+                        if smesh.GetNE() < MPI.COMM_WORLD.size*3:
                             parts = smesh.GeneratePartitioning(smesh.GetNE()//1000+1, 1)
                         else:
                             parts = None
