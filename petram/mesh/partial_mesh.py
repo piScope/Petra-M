@@ -426,8 +426,12 @@ def edge(mesh, in_attr, filename = '', precision=8):
         node_ptx2[dof2_idx] = data 
         #nicePrint(len(dof2_idx))
         '''
-    if isParMesh(mesh):              
-        omesh = mfem.ParMesh(comm, omesh)
+    if isParMesh(mesh):
+        if omesh.GetNE() < nprc*3:
+            parts = omesh.GeneratePartitioning(1, 1)
+        else:
+            parts = None
+        omesh = mfem.ParMesh(comm, omesh, parts)
 
     if filename != '':
         if isParMesh(mesh):                         
@@ -605,7 +609,12 @@ def surface(mesh, in_attr, filename = '', precision=8):
         #nicePrint(len(dof2_idx))
 
     if isParMesh(mesh):
-        omesh = mfem.ParMesh(comm, omesh)
+        if omesh.GetNE() < nprc*3:
+            parts = omesh.GeneratePartitioning(1, 1)
+        else:
+            parts = None
+        omesh = mfem.ParMesh(comm, omesh, parts)
+        #omesh = mfem.ParMesh(comm, omesh)
 
     if filename != '':
         if isParMesh(mesh):       
@@ -771,7 +780,12 @@ def volume(mesh, in_attr, filename = '', precision=8):
         #nicePrint(len(dof2_idx))
 
     if isParMesh(mesh):
-        omesh = mfem.ParMesh(comm, omesh)
+        if omesh.GetNE() < nprc*3:
+            parts = omesh.GeneratePartitioning(1, 1)
+        else:
+            parts = None
+        omesh = mfem.ParMesh(comm, omesh, parts)
+        #omesh = mfem.ParMesh(comm, omesh)
         
     if filename != '':
         if isParMesh(mesh):
