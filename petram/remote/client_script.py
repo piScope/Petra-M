@@ -6,6 +6,7 @@ import os
 import shlex 
 import socket
 import base64
+import traceback
 import subprocess as sp
 
 base_remote_path = '~/myscratch/mfem_batch'
