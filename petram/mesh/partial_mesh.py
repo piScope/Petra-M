@@ -428,7 +428,7 @@ def edge(mesh, in_attr, filename = '', precision=8):
         '''
     if isParMesh(mesh):
         if omesh.GetNE() < nprc*3:
-            parts = smesh.GeneratePartitioning(1, 1)
+            parts = omesh.GeneratePartitioning(1, 1)
         else:
             parts = None
         omesh = mfem.ParMesh(comm, omesh, parts)
@@ -610,7 +610,7 @@ def surface(mesh, in_attr, filename = '', precision=8):
 
     if isParMesh(mesh):
         if omesh.GetNE() < nprc*3:
-            parts = smesh.GeneratePartitioning(1, 1)
+            parts = omesh.GeneratePartitioning(1, 1)
         else:
             parts = None
         omesh = mfem.ParMesh(comm, omesh, parts)
@@ -781,7 +781,7 @@ def volume(mesh, in_attr, filename = '', precision=8):
 
     if isParMesh(mesh):
         if omesh.GetNE() < nprc*3:
-            parts = smesh.GeneratePartitioning(1, 1)
+            parts = omesh.GeneratePartitioning(1, 1)
         else:
             parts = None
         omesh = mfem.ParMesh(comm, omesh, parts)
