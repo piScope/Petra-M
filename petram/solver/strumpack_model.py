@@ -39,11 +39,12 @@ else:
 
 attr_names = ['log_level',
                'ordering',
+               'mc64job', 
                'compression',
                'compression_rel_tol',
                'compression_abs_tol',
-               'lossy_pression',
-               'klyrov',
+               'lossy_precision',
+               'krylov',
                'rctol',
                'actol',
                'gmres_restart',
@@ -51,19 +52,44 @@ attr_names = ['log_level',
                'maxiter',
                'use_gpu',
                'cuda_cutoff',
-               'cuda_strams',
+               'cuda_streams',
                'MUMPS_SYMQAMD',
                'agg_amalg',
                'indirect_sampling',
                'replace_tiny_pivots',
                'compression_min_sep_size',
                'compression_leaf_size',
-               'separator_order_level',
+               'separator_ordering_level',
                'hodlr_butterfly_levels',
                'use_single_precision',
                'write_mat',
                'extra_options']
 
+ordering_modes = {"Natural" : "STRUMPACK_NATURAL",
+                  "Metis" : "STRUMPACK_METIS", 
+                  "ParMetis" : "STRUMPACK_PARMETIS", 
+                  "Scotch" : "STRUMPACK_SCOTCH", 
+                  "PT-Scotch" : "STRUMPACK_PTSCOTCH",
+                  "RCM" : "STRUMPACK_RCM"}
+
+krylov_modes = {"Auto" : "STRUMPACK_AUTO",
+                "Direct" : "STRUMPACK_DIRECT",
+                "Refinement" : "STRUMPACK_REFINE",
+                "PGMRES" : "STRUMPACK_PREC_GMRES",
+                "GMRES" : "STRUMPACK_GMRES",
+                "PBICGSTAB" : "STRUMPACK_PREC_BICGSTAB",
+                "BICGSTAB" : "BICGSTAB",}
+
+compression_modes = {"None" : "STRUMPACK_NONE", 
+                     "HSS" : "STRUMPACK_HSS",
+                     "BLR" : "STRUMPACK_BLR", 
+                     "HOLDR" : "STRUMPACK_HODLR",
+                     "HOLBF" : "STRUMPACK_HODLR",  # this is special                      
+                     "LOESSLESS" : "STRUMPACK_LOSSLESS",
+                     "LOSSY" : "STRUMPACK_LOSSY",}
+
+GramSchmidt_types = {"Classical" : "STRUMPACK_CLASSICAL", 
+                     "Modified" : "STRUMPACK_MODIFIED"}
 
 class Strumpack(LinearSolverModel):
     hide_ns_menu = True
@@ -82,53 +108,50 @@ class Strumpack(LinearSolverModel):
         return [
                 ["log_level", self.log_level,  400, {}],
                 ["ordering", self.ordering, 4, {"readonly": True,
-                       "choices": ["Natural", "Metis", "Scotch",
-                                   "Parmetis", "PtScotch", "RCM", ],}],
-                ["mc64 matching", str(self.mc64job), 4, {"readonly": True,
+                       "choices": list(ordering_modes),}],
+                ["mc64 matching", self.mc64job, 4, {"readonly": True,
                                   "choices": ["0 (default)", "2", "3", "4", "5", "6"], }],
                 ["compression", self.compression, 4, {"readonly": True,
-                                   "choices": ["None", "HSS", "BLR", "HODLR", "HODBF",
-                                               "BLR_HOLDR", "LOSSY", "LOSSLESS"]}, ],
+                                                      "choices": list(compression_modes)}, ],
                 ["compression rel. tol.", self.compression_rel_tol, 0, {}],
                 ["compression abs. tol.", self.compression_abs_tol, 0, {}],
-                ["lossy precision", self.lossy_pression, 0, {}],
-                ["Klyrov", self.klyrov, 4, {"readonly": True,
-                    "choices": ["Auto", "Direct", "Refinement",
-                                "PGMRES", "GMRES", "PBICGSTAB", "BICGSTAB"]}],
+                ["lossy precision", self.lossy_precision, 0, {}],
+                ["Krylov", self.krylov, 4, {"readonly": True,
+                                            "choices": list(krylov_modes)}],
                 ["rctol", self.rctol, 0, {}],
                 ["actol", self.actol, 0, {}],
-                ["gmres restrart", self.gmres_restart, 400, {}],
-                ["GramSchmit type", self.gstype, 4, {"readonly": True,
-                                                     "choices": ["Modified", "Classical"], }],
+                ["gmres restrart", self.gmres_restart, 0, {}],
+                ["GramSchmidt type", self.gstype, 4, {"readonly": True,
+                                                     "choices": list(GramSchmidt_types), }],
                 ["max iter.", self.maxiter, 0, {}],
                 ["GPU",  self.use_gpu,   3, {"text": ""}],
                 ["CUDA cutoff", self.cuda_cutoff, 0, {}],
-                ["CUDA streams", self.cuda_strams, 0, {}],
+                ["CUDA streams", self.cuda_streams, 0, {}],
                 ["MUMPS_SYMQAMD", self.MUMPS_SYMQAMD,   3, {"text": ""}],
                 ["agg_amalg", self.agg_amalg,   3, {"text": ""}],
                 ["indirect_sampling", self.indirect_sampling,   3, {"text": ""}],
                 ["replace_tiny_pivots", self.replace_tiny_pivots,   3, {"text": ""}],
                 ["compression min step", self.compression_min_sep_size, 0, {}],
                 ["compression leaf size", self.compression_leaf_size, 0, {}],
-                ["separator ordering level", self.separator_order_level, 0, {}],
+                ["separator ordering level", self.separator_ordering_level, 0, {}],
                 ["hodlr butterfly levels", self.hodlr_butterfly_levels, 0, {}],
                 ["single preceision", self.use_single_precision, 3, {"text": ""}],
                 ["write matrix",  self.write_mat,   3, {"text": ""}],
-                ["extra options", self.extra_options,   35, {'nlines':10}, ], ]
+                ["extra options", self.extra_options,   35, {'nlines':3}, ], ]
 
     def get_panel1_value(self):
         ans = []
-        for n, p in  zip(attr_names, self.panel1_param):
+        for n, p in  zip(attr_names, self.panel1_param()):
             value = getattr(self, n)
             if p[3] == 3:
                  value = bool(value)
             if p[3] == 400:
                  value = int(value)
             ans.append(value)
-        return value
+        return ans
                  
     def import_panel1_value(self, v):
-        for value, n, p in zip(v, attr_names, self.panel1_param):
+        for value, n, p in zip(v, attr_names, self.panel1_param()):
             if p[3] == 3:
                  value = bool(value)
             if p[3] == 400:
@@ -139,32 +162,30 @@ class Strumpack(LinearSolverModel):
         v= super(Strumpack, self).attribute_set(v)
         v['log_level']= 0
         v['write_mat']= False
-        v['hss']= False
-        v['hss_front_size']= 2500
         v['gstype'] = 'Classical'
         v['rctol']= "1e-6 (default)"
         v['actol']= "1e-10 (default)"
         v['maxiter']= "5000 (default)"
         v['gmres_restart']= "30 (default)"
         v['mc64job']= "0 (default)"
-        v['klyrov']= 'Auto'
+        v['krylov']= 'Auto'
         v['use_gpu'] = False
         v['ordering'] = "Metis"
         v['compression']= "None"
         v['use_single_precision']= False
         v["cuda_cutoff"]= "500 (default)"
-        v["cuda_strams"]= "10 (default)"
+        v["cuda_streams"]= "10 (default)"
         v["MUMPS_SYMQAMD"]= False
         v["agg_amalg"]= False
         v["indirect_sampling"]= False
         v["replace_tiny_pivots"]= False
         v["compression_min_sep_size"]= "2147483647 (default)"
         v["compression_leaf_size"]= "2147483647 (default)"
-        v["separator_order_level"]= "1 (default)"
+        v["separator_ordering_level"]= "1 (default)"
         v["hodlr_butterfly_levels"]= "100 (default)"
         v["compression_rel_tol"]= "0.01 (default)"
         v["compression_abs_tol"]= "1e-8 (default)"
-        v["lossy_pression"]= "16 (default)"
+        v["lossy_precision"]= "16 (default)"
         v["extra_options"]= ""
 
         return v
@@ -335,10 +356,109 @@ def build_csr_local(A, dtype, is_complex):
     csr2= csr[:, np.argsort(np.hstack(map))]
     return csr2
 
+
+    
 class StrumpackSolver(LinearSolver):
     def __init__(self, gui, engine):
         LinearSolver.__init__(self, gui, engine)
 
+    def spss_set_options(self):
+        try:
+            import STRUMPACK as ST
+        except:
+            assert False, "Can not load STRUMPACK"
+
+        o = getattr(ST, ordering_modes[self.gui.ordering])
+        self.spss.set_reordering_method(o)
+
+        if self.gui.mc64job.find('default') == -1:
+           job = int(self.gui.mc64job.split('(')[0])
+           self.spss.set_matching(job)
+
+        ### compression
+        o = getattr(ST, compression_modes[self.gui.compression])
+        self.spss.set_compression(o)
+        if self.gui.compression_rel_tol.find('default') == -1:
+           tol = float(self.gui.compression_rel_tol.split('(')[0])
+           self.spss.set_compression_rel_tol(tol)
+        if self.gui.compression_abs_tol.find('default') == -1:
+           tol = float(self.gui.compression_abs_tol.split('(')[0])
+           self.spss.set_compression_abs_tol(tol)
+        if self.gui.compression == "HOLBF":
+           l = int(self.gui.hodlr_butterfly_levels.split('(')[0])           
+           self.spss.set_compression_butterfly_levels(l)
+        if self.gui.compression_min_sep_size.find('default') == -1:
+           l = int(self.gui.compression_min_sep_size.split('(')[0])
+           self.spss.set_compression_min_sep_size(l)
+        if self.gui.compression_leaf_size.find('default') == -1:
+           l = int(self.gui.compression_leaf_size.split('(')[0])
+           self.spss.set_compression_leaf_size(l)
+           
+        ### iterative
+        o = getattr(ST, krylov_modes[self.gui.krylov])
+        self.spss.set_Krylov_solver(o)
+        if self.gui.rctol.find('default') == -1:
+           tol = float(self.gui.rctol.split('(')[0])
+           self.spss.set_rel_tol(tol)
+        if self.gui.actol.find('default') == -1:
+           tol = float(self.gui.actol.split('(')[0])
+           self.spss.set_abs_tol(tol)
+        if self.gui.gmres_restart.find('default') == -1:
+           m = int(self.gui.gmres_restart.split('(')[0])           
+           self.spss.set_gmres_restart(m)
+        gs = getattr(ST, GramSchmidt_types[self.gui.gstype])
+        self.spss.set_GramSchmidt_type(gs)
+        if self.gui.maxiter.find('default') == -1:
+           it = int(self.gui.maxiter.split('(')[0])                      
+           self.spss.set_maxit(it)
+           
+        ### gpu           
+        if self.gui.use_gpu:
+           self.spss.enable_gpu()
+        else:
+           self.spss.disable_gpu()
+
+    def spss_options_args(self):
+        opts = ["--sp_enable_METIS_NodeNDP", ]
+#               "--sp_enable_METIS_NodeND"]
+        if self.gui.lossy_precision.find('default') == -1:
+           tol = int(self.gui.lossy_precision.split('(')[0])
+           opts.extend(["--sp_lossy_precision", str(tol)])
+           
+        if self.gui.use_gpu:
+            if self.gui.cuda_cutoff.find('default') == -1:
+                cutoff = int(self.gui.cuda_cutoff.split('(')[0])
+                opts.extend(["--sp_cuda_cutoff", str(cutoff)])                
+            if self.gui.cuda_streams.find('default') == -1:
+                streams = int(self.gui.cuda_streams.split('(')[0])
+                opts.extend(["--sp_cuda_streams", str(streams)])
+                
+        if self.gui.MUMPS_SYMQAMD:
+           opts.extend(["--sp_enable_MUMPS_SYMQAMD",])
+        else:
+           opts.extend(["--sp_disable_MUMPS_SYMQAMD",])
+           
+        if self.gui.agg_amalg:
+           opts.extend(["--sp_enable_agg_amalg",])
+        else:
+           opts.extend(["--sp_disable_agg_amalg",])
+           
+        if self.gui.indirect_sampling:
+           opts.extend(["--sp_enable_indirect_sampling",])
+        else:
+           opts.extend(["--sp_disable_indirect_sampling",])
+           
+        if self.gui.replace_tiny_pivots:
+           opts.extend(["--sp_enable_replace_tiny_pivots",])
+        else:
+           opts.extend(["--sp_disable_replace_tiny_pivots",])
+
+        if self.gui.separator_ordering_level.find('default') == -1:
+           l = int(self.gui.separator_ordering_level.split('(')[0])
+           opts.extend(["--sp_separator_ordering_level", str(l)])        
+
+        return opts
+           
     def AllocSolver(self, is_complex, use_single_precision):
         try:
             import STRUMPACK as ST
@@ -346,8 +466,8 @@ class StrumpackSolver(LinearSolver):
             assert False, "Can not load STRUMPACK"
         dprint1("AllocSolver", is_complex, use_single_precision)
 
-        opts= ["--sp_enable_gpu",
-                "--sp_enable_METIS_NodeNDP"]
+        opts = self.spss_options_args()
+        print("options", opts)
         verbose= self.gui.log_level > 0
         if use_parallel:
             args= (MPI.COMM_WORLD, opts, verbose)
@@ -369,10 +489,13 @@ class StrumpackSolver(LinearSolver):
                 dtype = np.float64
                 spss= ST.DStrumpackSolver(*args)
 
-        # spss.set_from_options()
+        assert spss.isValid(), "Failed to create STRUMPACK solver object"
+        spss.set_from_options()
+        
         self.dtype= dtype
         self.spss= spss
         self.is_complex= is_complex
+        self.spss_set_options()        
 
     def SetOperator(self, A, dist, name =None):
         try:
@@ -442,13 +565,6 @@ class StrumpackSolver(LinearSolver):
                write_vector('x_' +str(kk), xxv)
 
            sys.stdout.flush(); sys.stderr.flush()
-           if self.gui.mc64job != 0:
-              ret= self.spss.set_matching(self.gui.mc64job)
-              if ret != ST.STRUMPACK_SUCCESS:
-                 assert False, "error during mc64 (Strumpack)"
-
-           self.spss.set_reordering_method(ST.STRUMPACK_METIS)
-
            dprint1("callring reorder")
            ret= self.spss.reorder()
            if ret != ST.STRUMPACK_SUCCESS:
@@ -491,334 +607,3 @@ class StrumpackSolver(LinearSolver):
             return None
 
 
-
-'''
-    def make_solver(self, A):
-        offset = np.array(A.RowOffsets().ToList(), dtype=int)
-        rows = A.NumRowBlocks()
-        cols = A.NumColBlocks()
-
-        local_size = np.diff(offset)
-        x = allgather_vector(local_size)
-        global_size = np.sum(x.reshape(num_proc,-1), 0)
-        nicePrint(local_size)
-
-        global_offset = np.hstack(([0], np.cumsum(global_size)))
-        global_roffset = global_offset + offset
-        print(global_offset)
-
-        new_offset = np.hstack(([0], np.cumsum(x)))[:-1]
-#                                np.cumsum(x.reshape(2,-1).transpose().flatten())))
-        new_size =   x.reshape(num_proc, -1)
-        new_offset = new_offset.reshape(num_proc, -1)
-        print(new_offset)
-
-        # index_mapping
-        def blk_stm_idx_map(i):
-            stm_idx = [new_offset[kk, i]+
-                       np.arange(new_size[kk, i], dtype=int)
-                       for kk in range(num_proc)]
-            return np.hstack(stm_idx)
-
-        map = [blk_stm_idx_map(i) for i in range(rows)]
-
-
-        newi = []
-        newj = []
-        newd = []
-        nrows = np.sum(local_size)
-        ncols = np.sum(global_size)
-
-        for i in range(rows):
-            for j in range(cols):
-                 m = self.get_block(A, i, j)
-                 if m is None: continue
-#                      num_rows, ilower, iupper, jlower, jupper, irn, jcn, data = 0, 0, 0, 0, 0, np.array([0,0]), np.array([0,0]), np.array([0,0])
-#                 else:
-                 num_rows, ilower, iupper, jlower, jupper, irn, jcn, data = m.GetCooDataArray()
-
-                 irn = irn         #+ global_roffset[i]
-                 jcn = jcn         #+ global_offset[j]
-
-                 nicePrint(i, j, map[i].shape, map[i])
-                 nicePrint(irn)
-                 irn2 = map[i][irn]
-                 jcn2 = map[j][jcn]
-
-                 newi.append(irn2)
-                 newj.append(jcn2)
-                 newd.append(data)
-
-        newi = np.hstack(newi)
-        newj = np.hstack(newj)
-        newd = np.hstack(newd)
-
-        from scipy.sparse import coo_matrix
-
-        nicePrint(new_offset)
-        nicePrint((nrows, ncols),)
-        nicePrint('newJ', np.min(newj), np.max(newj))
-        nicePrint('newI', np.min(newi)-new_offset[myid, 0],
-                          np.max(newi)-new_offset[myid, 0])
-        mat = coo_matrix((newd,(newi-new_offset[myid, 0], newj)),
-                          shape=(nrows, ncols),
-                          dtype=newd.dtype).tocsr()
-
-        AA = ToHypreParCSR(mat)
-
-        import mfem.par.strumpack as strmpk
-        Arow = strmpk.STRUMPACKRowLocMatrix(AA)
-
-        args = []
-        if self.hss:
-            args.extend(["--sp_enable_hss",
-                         "--hss_verbose",
-                         "--sp_hss_min_sep_size",
-                         str(int(self.hss_front_size)),
-                         "--hss_rel_tol",
-                         str(0.01),
-                         "--hss_abs_tol",
-                         str(1e-4),])
-
-        args.extend(["--sp_maxit", str(int(self.maxiter))])
-        args.extend(["--sp_rel_tol", str(self.rctol)])
-        args.extend(["--sp_abs_tol", str(self.actol)])
-        args.extend(["--sp_gmres_restart", str(int(self.gmres_restart))])
-
-        strumpack = strmpk.STRUMPACKSolver(args, MPI.COMM_WORLD)
-
-        if self.gui.log_level == 0:
-            strumpack.SetPrintFactorStatistics(False)
-            strumpack.SetPrintSolveStatistics(False)
-        elif self.gui.log_level == 1:
-            strumpack.SetPrintFactorStatistics(True)
-            strumpack.SetPrintSolveStatistics(False)
-        else:
-            strumpack.SetPrintFactorStatistics(True)
-            strumpack.SetPrintSolveStatistics(True)
-
-        strumpack.SetKrylovSolver(strmpk.KrylovSolver_DIRECT);
-        strumpack.SetReorderingStrategy(strmpk.ReorderingStrategy_METIS)
-        strumpack.SetMC64Job(strmpk.MC64Job_NONE)
-        # strumpack.SetSymmetricPattern(True)
-        strumpack.SetOperator(Arow)
-        strumpack.SetFromCommandLine()
-
-        strumpack._mapper = map
-        return strumpack
-
-    def solve_parallel(self, A, b, x=None):
-        if self.gui.write_mat:
-            self. write_mat(A, b, x, "."+smyid)
-
-        solver = self.make_solver(A)
-        sol = []
-
-        # solve the problem and gather solution to head node...
-        # may not be the best approach
-
-        from petram.helper.mpi_recipes import gather_vector
-        offset = A.RowOffsets()
-        for bb in b:
-           rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
-           rowstarts = np.hstack((0, np.cumsum(rows)))
-           dprint1("rowstarts/offser",rowstarts, offset.ToList())
-           if x is None:
-              xx = mfem.BlockVector(offset)
-              xx.Assign(0.0)
-           else:
-              xx = x
-              # for j in range(cols):
-              #   dprint1(x.GetBlock(j).Size())
-              #   dprint1(x.GetBlock(j).GetDataArray())
-              # assert False, "must implement this"
-           solver.Mult(bb, xx)
-
-           s = []
-           for i in range(offset.Size()-1):
-               v = xx.GetBlock(i).GetDataArray()
-               vv = gather_vector(v)
-               if myid == 0:
-                   s.append(vv)
-               else:
-                   pass
-           if myid == 0:
-               sol.append(np.hstack(s))
-        if myid == 0:
-            sol = np.transpose(np.vstack(sol))
-            return sol
-        else:
-            return None
-'''
-'''
-from Strumpack.SparseSolver import Sp_attrs
-
-class SpSparse(Solver):
-    has_2nd_panel = False
-    accept_complex = True
-    def init_solver(self):
-        pass
-    def panel1_param(self):
-        return [
-                ["hss compression",  self.hss,   3, {"text":""}],
-                ["hss min front size",  self.hss_front_size, 400, {}],
-                ["rctol",  self.rctol, 300, {}],
-                ["actol",  self.actol, 300, {}],
-                ["mc64job",  self.mc64job, 400, {}],
-                ["write matrix",  self.write_mat,   3, {"text":""}],]
-
-    def get_panel1_value(self):
-        return (self.hss,
-                self.hss_front_size,
-                self.rctol,
-                self.actol,
-                self.mc64job,
-                self.write_mat, )
-
-    def import_panel1_value(self, v):
-        self.hss = v[0]
-        self.hss_front_size = v[1]
-        self.rctol = v[2]
-        self.actol = v[3]
-        self.mc64job = v[4]
-        self.write_mat = v[5]
-
-
-    def attribute_set(self, v):
-        v = super(SpSparse, self).attribute_set(v)
-        v['write_mat'] = False
-        v['hss'] = False
-        v['hss_front_size'] = 2500
-        v['rctol'] = 0.01
-        v['actol'] = 1e-10
-        v['mc64job'] = 0
-        return v
-
-    def linear_system_type(self, assemble_real, phys_real):
-        if phys_real: return 'coo'
-        assert not assemble_real, "no conversion to real matrix is supported"
-        return 'coo'
-
-    def solve_central_matrix(self, engine, A, b):
-        dprint1("entering solve_central_matrix")
-        try:
-           from mpi4py import MPI
-           myid     = MPI.COMM_WORLD.rank
-           nproc    = MPI.COMM_WORLD.size
-        except:
-           myid == 0
-           MPI  = None
-
-        if (A.dtype == 'complex'):
-            is_complex = True
-        else:
-            is_complex = False
-
-        print("A matrix type:", A.__class__, A.dtype, A.shape)
-
-        if self.write_mat:
-            # tocsr().tocoo() forces the output is row sorted.
-            write_coo_matrix('matrix', A.tocsr().tocoo())
-            for ib in range(b.shape[1]):
-                write_vector('rhs_'+str(ib + engine.case_base), b[:,ib])
-            engine.case_base = engine.case_base + len(b)
-
-        from Strumpack import Sp, SUCCESS, DIRECT
-
-        if myid ==0:
-            A = A.tocsr()
-            s = Sp()
-            s.set_csr_matrix(A)
-            s.solver.set_Krylov_solver(DIRECT)
-            for attr in Sp_attrs:
-                if hasattr(self, attr):
-                    value = getattr(self, attr)
-                    s.set_param(attr, value)
-            returncode, sol = s.solve(b)
-            assert returncode == SUCCESS, "StrumpackSparseSolver failed"
-            sol = np.transpose(sol.reshape(-1, len(b)))
-            return sol
-
-    def solve_distributed_matrix(self, engine, A, b):
-        dprint1("entering solve_distributed_matrix")
-
-        from mpi4py import MPI
-        myid     = MPI.COMM_WORLD.rank
-        nproc    = MPI.COMM_WORLD.size
-
-        if (A.dtype == 'complex'):
-            is_complex = True
-        else:
-            is_complex = False
-
-        import gc
-        A.eliminate_zeros()
-
-        if self.write_mat:
-            write_coo_matrix('matrix', A)
-            if myid == 0:
-                for ib in range(b.shape[1]):
-                    write_vector('rhs_'+str(ib + engine.case_base), b[:,ib])
-                case_base = engine.case_base + b.shape[1]
-            else: case_base = None
-            engine.case_base = MPI.COMM_WORLD.bcast(case_base, root=0)
-
-        print("A matrix type:", A.__class__, A.dtype, A.shape)
-
-
-        dprint1("NNZ local: ", A.nnz)
-        nnz_array = np.array(MPI.COMM_WORLD.allgather(A.nnz))
-        if myid ==0:
-            dprint1("NNZ all: ", nnz_array, np.sum(nnz_array))
-            dprint1("RHS DoF: ", b.shape[0])
-            dprint1("RHS len: ", b.shape[1])
-
-        from petram.helper.mpi_recipes import distribute_global_coo, distribute_vec_from_head, gather_vector
-
-        A_local = distribute_global_coo(A)
-        b_local = distribute_vec_from_head(b)
-
-        # assert False, "Lets' stop here"
-        A_local = A_local.tocsr()
-        print("A matrix type:", A_local.__class__, A_local.dtype, A_local.shape,
-              A_local.nnz)
-
-        from Strumpack import SpMPIDist, SUCCESS, DIRECT
-
-        s = SpMPIDist()
-        s.set_distributed_csr_matrix(A_local)
-        s.solver.set_Krylov_solver(DIRECT)
-        for attr in Sp_attrs:
-            if hasattr(self, attr):
-                value = getattr(self, attr)
-                s.set_param(attr, value)
-        returncode, sol = s.solve(b_local)
-        assert returncode == SUCCESS, "StrumpackSparseSolver failed"
-        sol = gather_vector(sol)
-
-        if (myid==0):
-            sol = np.transpose(sol.reshape(-1, len(b)))
-            return sol
-        else:
-            return None
-
-    def solve(self, engine, A, b):
-        try:
-           from mpi4py import MPI
-           myid     = MPI.COMM_WORLD.rank
-           nproc    = MPI.COMM_WORLD.size
-           from petram.helper.mpi_recipes import gather_vector
-        except:
-           myid == 0
-           MPI  = None
-
-
-        if engine.is_matrix_distributed:
-            # call SpMPIDist
-            ret = self.solve_distributed_matrix(engine, A, b)
-            return ret
-        else:
-            # call Sp
-            ret = self.solve_central_matrix(engine, A, b)
-            return ret
-'''
