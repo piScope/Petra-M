@@ -741,7 +741,10 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
 
     return data, map_1_2
  
-def get_empty_map(fes1, fes2):
+def get_empty_map(fes1, fes2, is_complex=False):
+    '''
+    empty matrix (fes1: test, fes2: 
+    '''
     if use_parallel:   
        fesize1 = fes1.GetTrueVSize()
        fesize2 = fes2.GlobalTrueVSize()
@@ -750,8 +753,9 @@ def get_empty_map(fes1, fes2):
        fesize1 = fes1.GetNDofs()
        fesize2 = fes2.GetNDofs()
        rstart = 0
-       
-    map = lil_matrix((fesize1, fesize2), dtype=float)       
+
+    dtype = complex if is_complex else float
+    map = lil_matrix((fesize1, fesize2), dtype=dtype)       
     return  map, rstart
  
 def map_xxx_h1(xxx, idx1, idx2, fes1, fes2=None, trans1=None,

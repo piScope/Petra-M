@@ -41,45 +41,6 @@ class Operator(object):
     def assemble(self, fes):
         raise NotImplementedError("Subclass needs to implement this")
 
-    ''' 
-    def get_restriction_array(self, fes):
-        mesh = fes.GetMesh()
-        intArray = mfem.intArray
-
-        if self._sel_mode == 'domain':
-            size = np.max(mesh.GetAttributeArray())
-        else:
-            size = np.max(mesh.GetBdrAttributeArray())
-
-        if size == 0: return None
-
-        if self._sel[0] == "all":
-            arr = [1]*size
-        else:
-            if len(self._sel) > 0:
-                size = np.max((size, np.max(self._sel)))
-            arr = [0]*size           
-            for k in self._sel: arr[k-1] = 1
-        return intArray(arr)
-    
-    def restrict_coeff(self, coeff, fes, vec = False, matrix=False):
-        if self._sel == 'all': 
-           return coeff
-
-        arr = self.get_restriction_array(fes)
-        
-        if arr is None:
-           # this could happen when local mesh does not have Bdr/Domain attribute
-           return coeff
-        
-        if vec:
-            return mfem.VectorRestrictedCoefficient(coeff, arr)
-        elif matrix:
-            return mfem.MatrixRestrictedCoefficient(coeff, arr)           
-        else:
-            return mfem.RestrictedCoefficient(coeff, arr)
-    '''
-
     def process_kwargs(self, engine, kwargs):
         '''
         kwargs in expression can overwrite this.
@@ -108,6 +69,37 @@ class Operator(object):
     @property
     def sel_mode(self):
         return self._sel_mode
+
+    def convert_mat_to_operator(self, mat):
+        '''
+        a utility routine to convert locally assembled mat
+        to linear operator
+        '''
+        is_complex = np.iscomplexobj(mat)
+        m_coo = mat.tocoo()
+        row = m_coo.row
+        col = m_coo.col
+        col = np.unique(col)
+
+        from scipy.sparse import coo_matrix, csr_matrix
+        if use_parallel:
+            if is_complex:
+                m1 = csr_matrix(mat.real, dtype=float)
+                m2 = csr_matrix(mat.imag, dtype=float) 
+            else:
+                m1 = csr_matrix(mat.real, dtype=float)
+                m2 = None
+            from mfem.common.chypre import CHypreMat
+            start_col = self.fes1.GetMyTDofOffset()
+            end_col = self.fes1.GetMyTDofOffset() + self.fes1.GetTrueVSize()
+            col_starts = [start_col, end_col, mat.shape[1]]
+            
+            M = CHypreMat(m1, m2, col_starts=col_starts)
+        else:
+            from petram.helper.block_matrix import convert_to_ScipyCoo
+
+            M = convert_to_ScipyCoo(coo_matrix(mat, dtype=mat.dtype))
+     
 
 class LoopIntegral(Operator):
     def assemble(self, *args, **kwargs):
@@ -785,8 +777,8 @@ class Curl(Operator):
 class Divergence(Operator):               
     '''
     Operator to compute Gradient
-    input (domain) should be H1
-    output (range) should be ND
+    input (domain) should be RT
+    output (range) should be L2
 
     '''
     def assemble(self, *args, **kwargs):
@@ -822,6 +814,50 @@ class Divergence(Operator):
         M = BF2PyMat(div)
 
         return M
+
+class Conv1D(Operator):               
+    '''
+    Operator to compute convolution integral in 1D
+
+    \int F_test(x) coeff(x-x') F_trial(x') dx'
+
+    input (domain) should be H1/L2
+    output (range) should be H1
+
+    Usage: 
+       = conv1d(coeff, complex=False)
+       coeff should either function coefficient or float
+       if it is function coefficient, it takes one argument 
+
+
+    '''
+    def assemble(self, *args, **kwargs):
+        engine = self._engine()
+        is_complex = kwargs.pop("complex", False)
+        self.process_kwargs(engine, kwargs)
+        
+        if len(args)>0: self._sel_mode = args[0]
+        if len(args)>1: self._sel = args[1]
+
+        if (not self.fes1.FEColl().Name().startswith('L2') and
+            not self.fes1.FEColl().Name().startswith('H1')):
+           assert False, "range should be H1/L2"
+        if not self.fes2.FEColl().Name().startswith('H1'):
+           assert False, "domain should be H1"
+
+        if len(args) != 0:
+            self._coeff = args[0]
+
+        from petram.helper.dof_map import get_empty_map
+            
+        mat, rstart = get_empty_map(self.fes2,
+                                    self.fes1,
+                                    is_complex=is_complex)
+
+        M = self.convert_mat_to_operator(mat)     
+
+        return M
+     
         
 
         

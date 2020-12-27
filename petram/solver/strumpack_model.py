@@ -183,7 +183,7 @@ class Strumpack(LinearSolverModel):
         v["compression_leaf_size"]= "2147483647 (default)"
         v["separator_ordering_level"]= "1 (default)"
         v["hodlr_butterfly_levels"]= "100 (default)"
-        v["compression_rel_tol"]= "0.01 (default)"
+        v["compression_rel_tol"]= "1e-4 (default)"
         v["compression_abs_tol"]= "1e-8 (default)"
         v["lossy_precision"]= "16 (default)"
         v["extra_options"]= ""
@@ -467,7 +467,7 @@ class StrumpackSolver(LinearSolver):
         dprint1("AllocSolver", is_complex, use_single_precision)
 
         opts = self.spss_options_args()
-        print("options", opts)
+        dprint1("options", opts)
         verbose= self.gui.log_level > 0
         if use_parallel:
             args= (MPI.COMM_WORLD, opts, verbose)
