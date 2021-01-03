@@ -36,15 +36,18 @@ def delta(x, w=None):
         return 1/w
     return 0.0
 
-def get_rule(fe1, fe2, trans, orderinc):
+def get_rule(fe1, fe2, trans, orderinc, verbose):
     order = fe1.GetOrder() + fe2.GetOrder() + trans.OrderW() + orderinc
     if (fe1.Space() == mfem.FunctionSpace.rQk):
         assert False, "not supported"
     ir = mfem.IntRules.Get(fe1.GetGeomType(), order)
-    print("Order, N Points", order, ir.GetNPoints())
+    
+    if verbose:
+        print("Order, N Points", order, ir.GetNPoints())
     return ir
 
-def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False):
+def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False,
+               verbose=False):
     '''
     fill linear operator for convolution
     \int phi_test(x) func(x-x') phi_trial(x') dx
@@ -61,7 +64,7 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False):
     mat, rstart = get_empty_map(fes2, fes1, is_complex=is_complex)
 
     eltrans1 = fes1.GetElementTransformation(0)
-    ir = get_rule(fes1.GetFE(0), fes2.GetFE(0), eltrans1, orderinc)
+    ir = get_rule(fes1.GetFE(0), fes2.GetFE(0), eltrans1, orderinc, verbose)
 
     shape1 = mfem.Vector()
     shape2 = mfem.Vector()
@@ -76,6 +79,7 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False):
     #   (4) non-zero results of (3) and global index should be send back
 
     # Step (1, 2)
+    if verbose: nicePrint("Step 1,2")    
     x2_arr = []
 
     ptx = mfem.DenseMatrix(ir.GetNPoints(), 1)
@@ -96,11 +100,16 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False):
     #nicePrint("x2_all shape", x2_all.shape)
 
     if USE_PARALLEL:
+        #this is global TrueDoF (offset is not subtracted)        
         P = fes1.Dof_TrueDof_Matrix()
         P = ToScipyCoo(P).tocsr()
-        VDoFtoGTDoF = P.indices  #this is global TrueDoF (offset is not subtracted)
-
+        VDoFtoGTDoF1 = P.indices  
+        P = fes2.Dof_TrueDof_Matrix()
+        P = ToScipyCoo(P).tocsr()
+        VDoFtoGTDoF2 = P.indices
+        
     # Step 3
+    if verbose: nicePrint("Step 3")
     for knode1, x2_onenode in enumerate(x2_all):
         elmats_all = []
         vdofs1_all = []
@@ -109,7 +118,7 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False):
         for j in range(fes1.GetNE()):
             local_vdofs = fes1.GetElementVDofs(j)
             if USE_PARALLEL:
-                subvdofs2 = [VDoFtoGTDoF[i] for i in local_vdofs]
+                subvdofs2 = [VDoFtoGTDoF1[i] for i in local_vdofs]
                 vdofs1_all.append(subvdofs2)
             else:
                 vdofs1_all.append(local_vdofs)
@@ -167,6 +176,7 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False):
             elmats_data = [elmats_all,]
 
     # Step 4
+    if verbose: nicePrint("Step 4")        
     shared_data = []
     for vdofs1, elmats_all in zip(vdofs1_data, elmats_data): # loop over MPI nodes
         #nicePrint("len elmats", len(elmats_all))
@@ -198,7 +208,7 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False):
                 # merge contribution to final mat
                 if USE_PARALLEL:
                     vdofs22 = [fes2.GetLocalTDofNumber(i) for i in vdofs2]
-                    vdofs22g = [VDoFtoGTDoF[i] for i in vdofs2]
+                    vdofs22g = [VDoFtoGTDoF2[i] for i in vdofs2]
                     kkk = 0
                     for v2, v2g in zip(vdofs22, vdofs22g):
                         if v2 < 0:
@@ -210,6 +220,9 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False):
                         if USE_PARALLEL:
                             mmm = mm[np.where(np.array(vdofs22) >= 0)[0], :]                            
                             vdofs222 = [x for x in vdofs22 if x >= 0]
+                        else:
+                            vdofs222 = vdofs2
+                            mmm = mm
                         #if myid == 1:
                         #    print("check here", vdofs2, vdofs22, vdofs222)
                         #print(mmm[:, [k]])
@@ -218,16 +231,37 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False):
                     except:
                         import traceback
                         print("error", myid)
-                        print(vdofs1, vdofs22, vdofs222, mmm.shape, k)
+                        #print(vdofs1, vdofs22, vdofs222, mmm.shape, k)
                         traceback.print_exc()
 
-    for source_id in range(nprc):
-        data = comm.bcast(shared_data, root=source_id)
-        myoffset = fes2.GetMyTDofOffset()
-        for v2g, elmat, vdofs1 in data:
-            if v2g >= myoffset and v2g < myoffset + mat.shape[0]:
-                i = v2g - myoffset
-                #print("procesising this", myid, i, v2g, elmat, vdofs1)                
-                mat[i, vdofs1] = mat[i, vdofs1] + elmat
+    if USE_PARALLEL:
+        for source_id in range(nprc):
+            data = comm.bcast(shared_data, root=source_id)
+            myoffset = fes2.GetMyTDofOffset()
+            for v2g, elmat, vdofs1 in data:
+                if v2g >= myoffset and v2g < myoffset + mat.shape[0]:
+                    i = v2g - myoffset
+                    #print("procesising this", myid, i, v2g, elmat, vdofs1)                
+                    mat[i, vdofs1] = mat[i, vdofs1] + elmat
 
-    return mat
+    from scipy.sparse import coo_matrix, csr_matrix
+
+    if USE_PARALLEL:
+        if is_complex:
+            m1 = csr_matrix(mat.real, dtype=float)
+            m2 = csr_matrix(mat.imag, dtype=float) 
+        else:
+            m1 = csr_matrix(mat.real, dtype=float)
+            m2 = None
+        from mfem.common.chypre import CHypreMat
+        start_col = fes1.GetMyTDofOffset()
+        end_col = fes1.GetMyTDofOffset() + fes1.GetTrueVSize()
+        col_starts = [start_col, end_col, mat.shape[1]]
+        M = CHypreMat(m1, m2, col_starts=col_starts)
+        print("mat", M)
+    else:
+        from petram.helper.block_matrix import convert_to_ScipyCoo
+
+        M = convert_to_ScipyCoo(coo_matrix(mat, dtype=mat.dtype))
+                
+    return M

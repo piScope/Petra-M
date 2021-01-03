@@ -815,7 +815,7 @@ class Divergence(Operator):
 
         return M
 
-class Conv1D(Operator):               
+class Convolve1D(Operator):               
     '''
     Operator to compute convolution integral in 1D
 
@@ -832,29 +832,39 @@ class Conv1D(Operator):
 
     '''
     def assemble(self, *args, **kwargs):
+        from petram.helper.convolve1d import convolve1d, delta
+        
         engine = self._engine()
         is_complex = kwargs.pop("complex", False)
+        orderinc = kwargs.pop("orderinc", 1)
+        verbose = kwargs.pop("verbose", False)        
         self.process_kwargs(engine, kwargs)
-        
-        if len(args)>0: self._sel_mode = args[0]
-        if len(args)>1: self._sel = args[1]
+
+        func = delta
+        if len(args)>0: func = args[0]
+        #if len(args)>1: self._sel = args[1]
 
         if (not self.fes1.FEColl().Name().startswith('L2') and
             not self.fes1.FEColl().Name().startswith('H1')):
-           assert False, "range should be H1/L2"
-        if not self.fes2.FEColl().Name().startswith('H1'):
-           assert False, "domain should be H1"
+           assert False, "trial(domain) should be H1/L2"
+        if (not self.fes2.FEColl().Name().startswith('L2') and
+            not self.fes2.FEColl().Name().startswith('H1')):
+           assert False, "test(range) should be H1/L2"
 
         if len(args) != 0:
             self._coeff = args[0]
 
-        from petram.helper.dof_map import get_empty_map
-            
-        mat, rstart = get_empty_map(self.fes2,
-                                    self.fes1,
-                                    is_complex=is_complex)
+        #from petram.helper.dof_map import get_empty_map
+        #mat, rstart = get_empty_map(self.fes2,
+        #                            self.fes1,
+        #                            is_complex=is_complex)
 
-        M = self.convert_mat_to_operator(mat)     
+        M = convolve1d(self.fes1,
+                       self.fes2,
+                       func = func,
+                       is_complex=is_complex,
+                       orderinc=orderinc,
+                       verbose=verbose)
 
         return M
      
