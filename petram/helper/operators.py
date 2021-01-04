@@ -819,31 +819,43 @@ class Convolve1D(Operator):
     '''
     Operator to compute convolution integral in 1D
 
-    \int F_test(x) coeff(x-x') F_trial(x') dx'
+    \int F_test(x) coeff(x-x', (x+x')/2.) F_trial(x') dx'
 
     input (domain) should be H1/L2
     output (range) should be H1
 
     Usage: 
-       = conv1d(coeff, complex=False)
-       coeff should either function coefficient or float
-       if it is function coefficient, it takes one argument 
+       = conv1d(coeff, (optional) support, complex=False, 
+                orderinc=1, zero_support=False)
+       coeff is a callable defining the convolution kernel. 
+       this function takes two (x-x', x+x'/2) arguments.
+       support is a callable, which takes one argment (x+x'/2,
+       returning the support of kernel at the given location.
 
+       The code skips the numerical integration for those points
+       sitting outside the support or x-x' > support((x+x')/2.0).
 
+       options:
+          orderinc=1 : increase intengration order
+          zero_support=False : use zero support function.
     '''
     def assemble(self, *args, **kwargs):
-        from petram.helper.convolve1d import convolve1d, delta
+        from petram.helper.convolve1d import convolve1d, delta, zero
         
         engine = self._engine()
         is_complex = kwargs.pop("complex", False)
         orderinc = kwargs.pop("orderinc", 1)
-        verbose = kwargs.pop("verbose", False)        
+        verbose = kwargs.pop("verbose", False)
+        zero_support = kwargs.pop("zero_support", False)        
         self.process_kwargs(engine, kwargs)
 
-        func = delta
-        if len(args)>0: func = args[0]
-        #if len(args)>1: self._sel = args[1]
-
+        kernel = delta
+        support = None
+        if len(args)>0: kernel = args[0]
+        if len(args)>1: support = args[1]        
+        if zero_support:
+            support = zero
+            
         if (not self.fes1.FEColl().Name().startswith('L2') and
             not self.fes1.FEColl().Name().startswith('H1')):
            assert False, "trial(domain) should be H1/L2"
@@ -861,7 +873,8 @@ class Convolve1D(Operator):
 
         M = convolve1d(self.fes1,
                        self.fes2,
-                       func = func,
+                       kernel = kernel,
+                       support = support,
                        is_complex=is_complex,
                        orderinc=orderinc,
                        verbose=verbose)

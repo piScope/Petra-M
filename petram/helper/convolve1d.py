@@ -7,6 +7,9 @@ from mfem.common.parcsr_extra import ToScipyCoo
 
 from petram.helper.dof_map import get_empty_map
 
+import petram.debug
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('convolve1d')
+
 from petram.mfem_config import use_parallel
 if use_parallel:
     USE_PARALLEL = True
@@ -25,7 +28,7 @@ else:
     mfem.ParMesh = type(None)
     mfem.ParMixedBilinearForm = type(None)
 
-def delta(x, w=None):
+def delta(x, _x0, w=None):
     '''
     delta function like coefficient.
     has to return 1/w instead of 1.
@@ -36,6 +39,13 @@ def delta(x, w=None):
         return 1/w
     return 0.0
 
+def zero(x):
+    '''
+    sample support funciton. 0.0 means that the contribution is non-zero
+    only when x1 and x2 are the same location
+    '''
+    return 0.0
+
 def get_rule(fe1, fe2, trans, orderinc, verbose):
     order = fe1.GetOrder() + fe2.GetOrder() + trans.OrderW() + orderinc
     if (fe1.Space() == mfem.FunctionSpace.rQk):
@@ -43,10 +53,11 @@ def get_rule(fe1, fe2, trans, orderinc, verbose):
     ir = mfem.IntRules.Get(fe1.GetGeomType(), order)
     
     if verbose:
-        print("Order, N Points", order, ir.GetNPoints())
+        dprint1("Order, N Points", order, ir.GetNPoints())
     return ir
 
-def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False,
+def convolve1d(fes1, fes2, kernel=delta, support=None,
+               orderinc=5, is_complex=False,
                verbose=False):
     '''
     fill linear operator for convolution
@@ -68,7 +79,6 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False,
 
     shape1 = mfem.Vector()
     shape2 = mfem.Vector()
-    tmp_int = mfem.Vector()
 
     #nicePrint("shape", mat.shape, fes2.GetNE(), fes1.GetNE())
 
@@ -79,7 +89,8 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False,
     #   (4) non-zero results of (3) and global index should be send back
 
     # Step (1, 2)
-    if verbose: nicePrint("Step 1,2")    
+    if verbose:
+        dprint1("Step 1,2")    
     x2_arr = []
 
     ptx = mfem.DenseMatrix(ir.GetNPoints(), 1)
@@ -109,7 +120,8 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False,
         VDoFtoGTDoF2 = P.indices
         
     # Step 3
-    if verbose: nicePrint("Step 3")
+    if verbose:
+        dprint1("Step 3")
     for knode1, x2_onenode in enumerate(x2_all):
         elmats_all = []
         vdofs1_all = []
@@ -123,7 +135,7 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False,
             else:
                 vdofs1_all.append(local_vdofs)
 
-        for x2s in x2_onenode: # loop over fes2
+        for i, x2s in enumerate(x2_onenode): # loop over fes2
             nd2 = len(x2s)
             #nicePrint(x2s)
             elmats = []
@@ -134,34 +146,43 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False,
                 shape1.SetSize(nd1)
                 eltrans = fes1.GetElementTransformation(j)
 
-                tmp_int.SetSize(shape1.Size())
-                elmat = np.zeros((nd2, nd1), dtype=float)
+                tmp_int = np.zeros(shape1.Size(), dtype=mat.dtype)
+                elmat = np.zeros((nd2, nd1), dtype=mat.dtype)
 
                 #if myid == 0: print("fes1 idx", j)
+
+                dataset = []
+                for jj in range(ir.GetNPoints()):
+                    ip1 = ir.IntPoint(jj)
+                    eltrans.SetIntPoint(ip1)
+                    x1 = eltrans.Transform(ip1)[0]
+                    fe1.CalcShape(ip1, shape1)
+                    w = eltrans.Weight() * ip1.weight
+                    dataset.append((x1, w, shape1.GetDataArray().copy()))
+                    
+                has_contribution = False
                 for kkk, x2 in enumerate(x2s):
-                    tmp_int.Assign(0.0)
-                    for jj in range(ir.GetNPoints()):
-                        ip1 = ir.IntPoint(jj)
-                        eltrans.SetIntPoint(ip1)
-                        x1 = eltrans.Transform(ip1)[0]
+                    tmp_int *= 0.0
+                    
+                    for x1, w, shape_arr in dataset:
+                        if support is not None:
+                            s = support((x1 + x2)/2.0)
+                            if np.abs(x1-x2) > s:
+                                continue
+
+                        has_contribution = True
                         #if myid == 0: print("check here", x1, x2)
+                        val = kernel(x2-x1, (x2+x1)/2.0, w=w)
 
+                        shape_arr *= w*val
+                        tmp_int += shape_arr
+                    elmat[kkk, :] = tmp_int
 
-                        fe1.CalcShape(ip1, shape1)
-                        #print("shape1", shape1.GetDataArray())
-
-                        w = eltrans.Weight() * ip1.weight
-
-                        #val = delta(x2-x1, w)
-                        val = func(x2-x1, w=w)
-
-                        shape1 *= w*val
-                        tmp_int += shape1
-                    elmat[kkk, :] = tmp_int.GetDataArray()
-                elmats.append(elmat)
+                if has_contribution:
+                    elmats.append((j, elmat))
                 #print(elmats)
-
-            elmats_all.append(elmats)
+            if len(elmats) > 0:
+                elmats_all.append((i, elmats))
 
         # send this information to knodes;
         if USE_PARALLEL:
@@ -176,11 +197,13 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False,
             elmats_data = [elmats_all,]
 
     # Step 4
-    if verbose: nicePrint("Step 4")        
+    if verbose:
+        dprint1("Step 4")        
     shared_data = []
     for vdofs1, elmats_all in zip(vdofs1_data, elmats_data): # loop over MPI nodes
         #nicePrint("len elmats", len(elmats_all))
-        for i, elmats in enumerate(elmats_all):  # corresponds to loop over fes2
+        #for i, elmats in enumerate(elmats_all):  # corresponds to loop over fes2
+        for i, elmats in elmats_all:  # corresponds to loop over fes2
             #nicePrint(len(vdofs1), len(elmats))
             vdofs2 = fes2.GetElementVDofs(i)
             fe2 = fes2.GetFE(i)
@@ -188,8 +211,15 @@ def convolve1d(fes1, fes2, func=delta, orderinc=5, is_complex=False,
             shape2.SetSize(nd2)
 
             eltrans = fes2.GetElementTransformation(i)
-            for j, elmat in enumerate(elmats):
+
+            if verbose:
+                print("number of contributions", len(elmats))
+            #for j, elmat in enumerate(elmats):                
+            for j, elmat in elmats:
                 #print(vdofs1[j], elmat.shape)
+                #if elmat is None:
+                #    continue
+                
                 mm = np.zeros((len(vdofs2), len(vdofs1[j])), dtype=float)
 
                 for ii in range(ir.GetNPoints()):
