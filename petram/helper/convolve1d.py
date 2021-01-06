@@ -174,8 +174,8 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
                         #if myid == 0: print("check here", x1, x2)
                         val = kernel(x2-x1, (x2+x1)/2.0, w=w)
 
-                        shape_arr *= w*val
-                        tmp_int += shape_arr
+                        #shape_arr *= w*val
+                        tmp_int += shape_arr*w*val
                     elmat[kkk, :] = tmp_int
 
                 if has_contribution:
@@ -200,11 +200,20 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
     if verbose:
         dprint1("Step 4")        
     shared_data = []
+    mpi_rank = 0
     for vdofs1, elmats_all in zip(vdofs1_data, elmats_data): # loop over MPI nodes
         #nicePrint("len elmats", len(elmats_all))
         #for i, elmats in enumerate(elmats_all):  # corresponds to loop over fes2
+        
+        if verbose:
+            coupling = [len(elmats) for i, elmats in elmats_all]
+            nicePrint("Element coupling for rank", mpi_rank)
+            nicePrint("   Average :", (0 if len(coupling)==0 else np.mean(coupling)))
+            nicePrint("   Max/Min :", (0 if len(coupling)==0 else np.max(coupling)),
+                                      (0 if len(coupling)==0 else np.min(coupling)))
+            mpi_rank += 1
+                
         for i, elmats in elmats_all:  # corresponds to loop over fes2
-            #nicePrint(len(vdofs1), len(elmats))
             vdofs2 = fes2.GetElementVDofs(i)
             fe2 = fes2.GetFE(i)
             nd2 = fe2.GetDof()
@@ -212,8 +221,6 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
 
             eltrans = fes2.GetElementTransformation(i)
 
-            if verbose:
-                print("number of contributions", len(elmats))
             #for j, elmat in enumerate(elmats):                
             for j, elmat in elmats:
                 #print(vdofs1[j], elmat.shape)
