@@ -170,6 +170,7 @@ class DlgPlotSol(SimpleFramePlus):
             self.config['cs_soldir'] = remote['rwdir']
             self.config['cs_server'] = host.getvar('server')
             self.config['cs_user'] = host.getvar('user')
+            self.config['cs_ssh_opts'] = host.get_multiplex_opts()
 
         super(
             DlgPlotSol,

@@ -269,10 +269,11 @@ def build_evaluator(params,
     elif config['use_cs']:
        solpath = os.path.join(config['cs_soldir'],
                               config['cs_solsubdir'])
-       evaluator = EvaluatorClient(nproc = config['cs_worker'],
-                                   host  = config['cs_server'],
-                                   soldir = solpath,
-                                   user = config['cs_user'])
+       evaluator = EvaluatorClient(nproc=config['cs_worker'],
+                                   host=config['cs_server'],
+                                   soldir=solpath,
+                                   user=config['cs_user'],
+                                   ssh_opts=config['cs_ssh_opts'],)
     else:
         raise ValueError("Unknown evaluator mode")
     evaluator.set_model(mfem_model)
