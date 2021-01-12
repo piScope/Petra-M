@@ -1110,7 +1110,7 @@ class DlgPlotSol(SimpleFramePlus):
         if data_x is None:
             v = figure(viewer=cls)
             v.update(False)
-            v.suptitle(expr + ':' + str(battrs))
+            v.title(expr + ':' + str(battrs))
             setup_figure(v, self.GetParent())
             for verts, cdata, adata in data:
                 if cls is None:
@@ -1131,6 +1131,8 @@ class DlgPlotSol(SimpleFramePlus):
             v.update(True)
         else:  # make 2D plot
             v = figure(viewer=cls)
+            v.title(expr)
+            v.xtitle(expr_x)
             for yy, xx in zip(data, data_x):
                 y = yy[1].flatten()
                 x = xx[1].flatten()
