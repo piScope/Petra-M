@@ -9,7 +9,6 @@ import weakref
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MUMPSModel')
 
-
 class MUMPS(LinearSolverModel):
     has_2nd_panel = False
     accept_complex = True
@@ -25,14 +24,15 @@ class MUMPS(LinearSolverModel):
     def panel1_param(self):
         return [["log_level(0-2)", self.log_level, 400, {}],
                 ["ordering", self.ordering, 4, {"readonly": True,
-                                                "choices": ["auto", "AMF", "PORD", "QAMD", "Metis",
-                                                            "Scotch", "ParMetis", "PT-Scotch"]}],
+                       "choices": ["auto", "AMF", "PORD", "QAMD",
+                                   "Metis", "Scotch",
+                                   "ParMetis", "PT-Scotch"]}],
                 ["out-of-core", self.out_of_core, 3, {"text": ""}],
                 ["error analysis", self.error_ana, 4, {"readonly": True,
-                                                       "choices": ["none", "full stat.", "main stat."]}],
+                       "choices": ["none", "full stat.", "main stat."]}],
                 ["write matrix", self.write_mat, 3, {"text": ""}],
                 ["write factor", self.write_fac, 3, {"text": ""}],
-                #                ["centralize matrix",  self.central_mat,   3, {"text":""}],
+         #                ["centralize matrix",  self.central_mat,   3, {"text":""}],
                 ["use BLR", self.use_blr, 3, {"text": ""}],
                 ["BLR drop parameter", self.blr_drop, 300, {}],
                 ["WS Inc. (ICNTL14)", self.icntl14, 0, {}],
@@ -112,8 +112,8 @@ class MUMPS(LinearSolverModel):
         if hasattr(self, "icntl23"):
             self.icntl23 = str(self.icntl23)
 
-        # this flag needs to be set, so that destcuctor works when model tree is loaded from
-        # pickled file
+        # this flag needs to be set, so that destcuctor works when
+        # model tree is loaded from pickled file
         v['s'] = None
         return v
 

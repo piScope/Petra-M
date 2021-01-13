@@ -60,10 +60,14 @@ def launch_ssh_command(model, command, verbose=True):
     hosto = param.eval('host')
     host = hosto.getvar('server')
     user = hosto.getvar('user')
+    opts = hosto.get_multiplex_opts()
 
+    opts = ' '.join(opts)
+    command = ("ssh -x " + opts + " -oPasswordAuthentication=no -oPreferredAuthentications=publickey " + user+'@' + host + " '" + command + "'")
+    
     if verbose:
         print("Executing on host (ssh): " + command)
-    command = ("ssh -x -o PasswordAuthentication=no -o PreferredAuthentications=publickey " + user+'@' + host + " '" + command + "'")    
+    
     p= sp.Popen(command, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
     return p
     
@@ -229,11 +233,12 @@ def retrieve_files(model, rhs=False, matrix = False, sol_dir = None):
 def get_job_queue(model, host=None, user=None,
                   progdlg=None):
 
+    '''
     param = model.param
     hosto = param.eval('host')
     host = hosto.getvar('server')
     user = hosto.getvar('user')
-
+    '''
     #command = ("ssh -o PasswordAuthentication=no -o PreferredAuthentications=publickey " +
     #           user+'@' + host + " 'cat $PetraM/etc/queue_config'" )
     #p= sp.Popen(command, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)

@@ -139,8 +139,17 @@ def wait_for_prompt(p, prompt = '?', verbose = True, withsize=False):
                                    verbose=verbose,
                                    withsize=withsize)
         
-def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
-    if user != '': user = user+'@'
+def start_connection(host='localhost',
+                     num_proc=2,
+                     user='',
+                     soldir='',
+                     ssh_opts=None):
+   
+    if user != '':
+       user = user+'@'
+
+    opts = ssh_opts if ssh_opts is not None else []
+    
     #p= sp.Popen("ssh " + user + host + " 'printf $PetraM'", shell=True,
     #            stdout=sp.PIPE,
     #            universal_newlines = True)    
@@ -149,7 +158,8 @@ def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
     if soldir != '':
         command = 'cd ' + soldir + ';' + command
     print(command)
-    p = sp.Popen(['ssh', '-t', user + host, command], stdin = sp.PIPE,
+    p = sp.Popen(['ssh'] + opts + ['-t', user + host, command],
+                 stdin = sp.PIPE,
                  stdout=sp.PIPE, stderr=sp.STDOUT,
                  close_fds = ON_POSIX,
                  universal_newlines = True)
@@ -215,16 +225,22 @@ class EvaluatorServer(EvaluatorMP):
 
     
 class EvaluatorClient(Evaluator):
-    def __init__(self, nproc = 2, host = 'localhost',
-                       soldir = '', user = ''):
+    def __init__(self,
+                 nproc=2,
+                 host='localhost',
+                 soldir='',
+                 user='',
+                 ssh_opts=None):
+       
         self.init_done = False        
         self.soldir = soldir
         self.solfiles = None
         self.nproc = nproc
-        self.p = start_connection(host =  host,
-                                  num_proc = nproc,
-                                  user = user,
-                                  soldir = soldir)
+        self.p = start_connection(host=host,
+                                  num_proc=nproc,
+                                  user=user,
+                                  soldir=soldir,
+                                  ssh_opts=ssh_opts)
         self.failed = False
 
     def __del__(self):
