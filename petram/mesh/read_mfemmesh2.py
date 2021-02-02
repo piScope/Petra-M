@@ -10,7 +10,7 @@ from petram.mesh.find_edges import find_edges
 from petram.mesh.find_vertex import find_vertex
 from mfem.ser import GlobGeometryRefiner as GR
 
-def extract_refined_mesh_data2(mesh, refine = None):
+def extract_refined_mesh_data2(mesh, refine=None):
     ndim = mesh.Dimension()
     sdim = mesh.SpaceDimension()
     

@@ -170,6 +170,7 @@ class DlgPlotSol(SimpleFramePlus):
             self.config['cs_soldir'] = remote['rwdir']
             self.config['cs_server'] = host.getvar('server')
             self.config['cs_user'] = host.getvar('user')
+            self.config['cs_ssh_opts'] = host.get_multiplex_opts()
 
         super(
             DlgPlotSol,
@@ -485,10 +486,8 @@ class DlgPlotSol(SimpleFramePlus):
             vbox = wx.BoxSizer(wx.VERTICAL)
             p.SetSizer(vbox)
 
-            elp1 = [["Sol", "sol", 4, {"style": wx.CB_DROPDOWN|wx.TE_PROCESS_ENTER,
-                                       "choices": ["sol", ],
-                                       "choices_cb": self.local_sollist}],
-#                                       "UpdateUI": self.OnUpdateUI_local}],
+            elp1 = [["Sol", "sol", 504, {"choices": ["sol", ],
+                                         "choices_cb": self.local_sollist}],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
                     [None, None, 141, {"alignright": True,
@@ -496,9 +495,8 @@ class DlgPlotSol(SimpleFramePlus):
                                        "noexpand": True,
                                        "label": "Reload chocies"}], ]
             elp2 = [["Number of workers", self.config['mp_worker'], 400, ],
-                    ["Sol", "sol", 4, {"style": wx.CB_DROPDOWN|wx.TE_PROCESS_ENTER,
-                                       "choices_cb": self.local_sollist,          
-                                       "choices": ["sol", ],}],
+                    ["Sol", "sol", 504, {"choices_cb": self.local_sollist,
+                                         "choices": ["sol", ],}],
 #                                       "UpdateUI": self.OnUpdateUI_local}],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
@@ -508,9 +506,8 @@ class DlgPlotSol(SimpleFramePlus):
                                        "label": "Reload chocies"}], ]
             elp3 = [["Server", self.config['cs_server'], 0, ],
                     ["Number of workers", self.config['cs_worker'], 400, ],
-                    ["Sol dir.", self.config['cs_soldir'], 4,
-                                 {"style": wx.CB_DROPDOWN|wx.TE_PROCESS_ENTER,
-                                  "choices": [self.config['cs_soldir'],],
+                    ["Sol dir.", self.config['cs_soldir'], 504,
+                                 {"choices": [self.config['cs_soldir'],],
                                   "choices_cb": self.remote_sollist,}],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
@@ -571,7 +568,15 @@ class DlgPlotSol(SimpleFramePlus):
 
     def clean_evaluators(self):
         for k in self.evaluators:
-            self.evaluators[k].terminate_all()
+            self.evaluators[k].terminate_allnow()
+        wx.Sleep(1)
+        from petram.sol.evaluator_cs import EvaluatorClient 
+        for k in self.evaluators:
+            if isinstance(self.evaluators[k],
+                          EvaluatorClient):
+                if (self.evaluators[k].p is not None and
+                    self.evaluators[k].p.poll() is None):
+                    self.evaluators[k].p.terminate()
         self.evaluators = {}
 
     def get_remote_subdir_cb(self):
@@ -592,6 +597,7 @@ class DlgPlotSol(SimpleFramePlus):
 
         dirnames = [""]
         choices = [""]
+        
         solvers = list(info["checkpoint"])
         for solver in solvers:
             kk = sorted(list(info["checkpoint"][solver]))
@@ -601,6 +607,7 @@ class DlgPlotSol(SimpleFramePlus):
         choices = choices + info["cases"]
         dirnames = dirnames + info["cases"]
 
+        
         single_cb2.SetChoices(choices)
         multi_cb2.SetChoices(choices)
 
@@ -674,13 +681,20 @@ class DlgPlotSol(SimpleFramePlus):
         self.update_sollist_local_common(2)        
 
     def update_subdir_remote(self):
+        from ifigure.widgets.dialog import progressbar                    
+
+        dlg = progressbar(self, 'Checking remote work directory...',
+                          'In progress', 5)
+        dlg.Show()
+        wx.GetApp().Yield()
         try:
             info = read_solinfo_remote(self.config['cs_user'],
                                            self.config['cs_server'],
                                            self.config['cs_soldir'])
 
         except AssertionError as err:
-            print("here", err.args[0])
+            print(err.args[0])
+            dlg.Destroy()
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
                          title='Error',
@@ -691,12 +705,13 @@ class DlgPlotSol(SimpleFramePlus):
             #traceback.print_tb(tb) # Fixed format
             #tb_info = traceback.extract_tb(tb)
             #filename, line, func, text = tb_info[-1]
+            dlg.Destroy()            
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
                          title='Error',
                          traceback=traceback.format_exc(limit=-1))
             return ""
-
+        dlg.Destroy()            
         dirnames = [""]
         choices = [""]
         solvers = list(info["checkpoint"])
@@ -752,15 +767,16 @@ class DlgPlotSol(SimpleFramePlus):
         pass
 
     def local_sollist(self):
-        print("local_sollist")
         model = self.GetParent().model
         sol_names = [name for name, child in model.solutions.get_children()]
         
         single_cb1 = self.elps['Config'].widgets[0][0].elps[0].widgets[0][0]
         multi_cb1 = self.elps['Config'].widgets[0][0].elps[1].widgets[1][0]
 
-        choices = ([single_cb1.GetString(n) for n in range(single_cb1.GetCount())] +
-                   [multi_cb1.GetString(n) for n in range(multi_cb1.GetCount())])
+        choices = ([single_cb1.GetString(n)
+                    for n in range(single_cb1.GetCount())] +
+                   [multi_cb1.GetString(n)
+                    for n in range(multi_cb1.GetCount())])
         choices = list(set(choices))
 
         s1 = str(single_cb1.GetValue())
@@ -898,6 +914,7 @@ class DlgPlotSol(SimpleFramePlus):
                 owndir = sol.owndir()
             if self.local_sols is None:
                 self.update_sollist_local1()
+
             ss1 = self.local_sols[2][str(v[0][1][1])]
             ss1 = self.update_subdir_local(owndir, ss1)
             self.local_soldir =owndir
@@ -1094,7 +1111,7 @@ class DlgPlotSol(SimpleFramePlus):
         if data_x is None:
             v = figure(viewer=cls)
             v.update(False)
-            v.suptitle(expr + ':' + str(battrs))
+            v.title(expr + ':' + str(battrs))
             setup_figure(v, self.GetParent())
             for verts, cdata, adata in data:
                 if cls is None:
@@ -1115,6 +1132,8 @@ class DlgPlotSol(SimpleFramePlus):
             v.update(True)
         else:  # make 2D plot
             v = figure(viewer=cls)
+            v.title(expr)
+            v.xtitle(expr_x)
             for yy, xx in zip(data, data_x):
                 y = yy[1].flatten()
                 x = xx[1].flatten()

@@ -11,7 +11,8 @@ operators = {"integral": ops.Integral,
              "zero": ops.Zero,
              "curl": ops.Curl,
              "grad": ops.Gradient,
-             "div": ops.Divergence}
+             "div": ops.Divergence,
+             "convolve1d": ops.Convolve1D}
 
 
 def get_operators():

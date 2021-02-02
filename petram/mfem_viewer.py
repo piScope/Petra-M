@@ -16,6 +16,7 @@ from ifigure.widgets.book_viewer import BookViewer
 from ifigure.utils.cbook import BuildMenu
 import ifigure.widgets.dialog as dialog
 import ifigure.events
+from petram.pi.dlg_progressbar import progressbar
 
 try:
     import petram.geom
@@ -50,6 +51,8 @@ def MFEM_menus(parent):
              ("New Mesh File...",  self.onNewMesh, None),
 
              ("Reload Mesh",  self.onLoadMesh, None),
+             ("Mesh visualization +",  self.onMeshVisPlus, None),
+             ("Mesh visualization -",  self.onMeshVisMinus, None),             
              ("!", None, None),
              ("+Namespace", None, None),
              ("New...", self.onNewNS, None),
@@ -140,6 +143,8 @@ class MFEMViewer(BookViewer):
         self._selected_volume = []    # store selected volume
         self._figure_data = {}
 
+        # extra refinement of mesh for visualization
+        self._mesh_vis = 0
         # hidden element in MFEM mode
         self._hidden_volume = []
 
@@ -687,8 +692,20 @@ class MFEMViewer(BookViewer):
         self.load_mesh()
 
     def onLoadMesh(self, evt):
+        win = evt.GetEventObject()
+        if hasattr(win, 'GetTopLevelParent'):
+            top_win = win.GetTopLevelParent()
+        else:
+            top_win = self
+        dlg = dialog.progressbar(top_win, 'Loading mesh...',
+                                'In progress', 5)
+        dlg.Show()
+        wx.GetApp().Yield()
+        
         self.load_mesh()
         self._hidemesh = True
+
+        dlg.Destroy()
 
     def load_mesh(self):
         if self.engine is None:
@@ -730,7 +747,15 @@ class MFEMViewer(BookViewer):
         if err != -1:
             self.plot_mfem_geom()
             self.use_toolbar_palette('petram_phys', mode='3D')
-
+            
+    def onMeshVisPlus(self, evt):
+        self._mesh_vis = self._mesh_vis + 1
+        self.onLoadMesh(evt)
+        
+    def onMeshVisMinus(self, evt):        
+        self._mesh_vis = self._mesh_vis - 1
+        self.onLoadMesh(evt)
+        
     def plot_mfem_geom(self):
         from petram.mesh.geo_plot import plot_geometry
         from petram.mesh.read_mfemmesh import extract_mesh_data
@@ -743,7 +768,7 @@ class MFEMViewer(BookViewer):
                 refine = mesh.GetNodalFESpace().GetOrder(0)
             else:
                 refine = 1
-
+            refine = refine + self._mesh_vis
             X, cells, cell_data, sl, iedge2bb = extract_mesh_data(mesh, refine)
             self._s_v_loop['phys'] = sl
             self._s_v_loop['mesh'] = sl
@@ -842,7 +867,7 @@ class MFEMViewer(BookViewer):
                     self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
-        self.canvas.refresh_hl()
+        wx.CallAfter(self.canvas.refresh_hl)
 
     def highlight_face(self, i):
         '''
@@ -1644,23 +1669,42 @@ class MFEMViewer(BookViewer):
 
         from petram.pi.dlg_submit_job import get_job_submisson_setting
         from petram.remote.client_script import get_job_queue
+        
+        dlg = progressbar(self, 'Checking queue config...',
+                          'In progress', 5,
+                          can_abort = True)
+        dlg.Show()
+        wx.GetApp().Yield()
 
-        try:
-            q = get_job_queue(self.model)
-        except:
-            traceback.print_exc()
+        success, q = get_job_queue(self.model, progdlg=dlg)
+        if dlg:
+            dlg.Destroy()
+        
+        if not success:
             q = {'type': '',
                  'queues': [{'name': 'failed to read queue config'}, ]}
-
+        
         setting = get_job_submisson_setting(self, remote['name'].upper(),
                                             value=values,
                                             queues=q)
         if len(setting) == 0:
             return
+        
+        dlg = progressbar(self, 'Preparing...', 'Job submission',
+                          4, can_abort = True)        
+        dlg.Show()
+        wx.GetApp().Yield()
 
         from petram.remote.client_script import prepare_remote_dir
         # if remote['rwdir'] != setting['rwdir']:
-        prepare_remote_dir(self.model, setting['rwdir'], dirbase='')
+        cancelled = prepare_remote_dir(self.model,
+                                       setting['rwdir'],
+                                       dirbase='',
+                                       progdlg=dlg)
+        if not dlg: return
+        if cancelled:
+            dlg.Destroy()
+            return
 
         for k in setting.keys():
             remote[k] = setting[k]
@@ -1669,6 +1713,9 @@ class MFEMViewer(BookViewer):
         else:
             sol = self.model.param.eval('sol')
 
+        
+        dlg.Update(1, newmsg="Preparing Data...")
+        wx.GetApp().Yield()        
         # remote.scripts.clean_remote_dir()
         sol.clean_owndir()
         self.model.scripts.helpers.save_model(os.path.join(sol.owndir(),
@@ -1676,8 +1723,31 @@ class MFEMViewer(BookViewer):
                                               meshfile_relativepath=True)
 
         from petram.remote.client_script import send_file, submit_job
-        send_file(self.model, skip_mesh=setting['skip_mesh'])
-        submit_job(self.model)
+        
+        dlg.Update(2, newmsg="Sending file")
+        wx.GetApp().Yield()
+        
+        cancelled = send_file(self.model, dlg,
+                              skip_mesh=setting['skip_mesh'])
+        if not dlg: return
+        if cancelled:
+            dlg.Destroy()
+            return
+        
+        dlg.Update(3, newmsg="Submitting a job...")
+        wx.GetApp().Yield()
+        
+        cancelled = submit_job(self.model, dlg)
+        if not dlg: return
+        if cancelled:
+            dlg.Destroy()
+            return
+
+        dlg.Update(3, newmsg="Done...")
+        wx.GetApp().Yield()
+        wx.Sleep(1)
+        
+        dlg.Destroy()
 
     def onServerRetrieve(self, evt):
         from petram.remote.client_script import retrieve_files
@@ -1719,21 +1789,17 @@ class MFEMViewer(BookViewer):
         '''
         if self._sel_mode == 'volume':
             mode = 'point'
-            bmode = 'dot'
         if self._sel_mode == 'face':
             mode = 'volume'
-            bmode = 'domain'
         if self._sel_mode == 'edge':
             mode = 'face'
-            bmode = 'face'
         if self._sel_mode == 'point':
             mode = 'edge'
-            bmode = 'edge'
+        self.set_toolbar_mode(mode)
+        '''
         self._sel_mode = mode
         
         toolbarname = self.canvas.toolbar.p1_choice[1]
-
-        
         buttonname = bmode + '_' + toolbarname
 
         if toolbarname == 'petram_mesh':
@@ -1743,5 +1809,27 @@ class MFEMViewer(BookViewer):
 
         self.canvas.toolbar.ClickP1Button(buttonname)
         self.canvas.toolbar.ClickP1Button('select')
+        '''
+
+    def set_toolbar_mode(self, mode):
+        bmodes = {'volume':'domain',
+                  'face': 'face',
+                  'edge': 'edge',
+                  'point':'dot'}
+        bmode = bmodes[mode]
+
+        self.set_sel_mode(mode)
+        
+        toolbarname = self.canvas.toolbar.p1_choice[1]
+        buttonname = bmode + '_' + toolbarname
+
+        if toolbarname == 'petram_mesh':
+            buttonname = "m"+buttonname
+        if toolbarname == 'petram_geom':
+            buttonname = "g"+buttonname
+
+        self.canvas.toolbar.ClickP1Button(buttonname)
+        self.canvas.toolbar.ClickP1Button('select')
+        
             
         

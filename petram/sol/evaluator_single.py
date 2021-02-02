@@ -217,4 +217,5 @@ class EvaluatorSingle(EvaluatorCommon):
         evaluator = self.agents[1][0]
         return evaluator.eval_probe(expr, xexpr, probes, phys)
 
-
+    def terminate_allnow(self):
+        pass

@@ -403,10 +403,9 @@ def generate_pc_from_cpparam(origin=None, e1=None, e2=None, x=None, y=None):
     yy = np.linspace(ymin, ymax, int((ymax-ymin)/ysize))
 
     XX, YY = np.meshgrid(xx, yy)
-
     e1 = np.atleast_2d(e1)
     e2 = np.atleast_2d(e2)
-    pc = origin + e1*XX.reshape(-1,1) + e2*YY.reshape(-1,1)
+    pc = np.array(origin) + e1*XX.reshape(-1,1) + e2*YY.reshape(-1,1)
     pc = pc.reshape(len(yy), len(xx), 3)
     return pc
     
@@ -415,29 +414,4 @@ def make_cp_pc(mesh, abcd, e1, gsize=None, gcount=100):
     pc = generate_pc_from_cpparam(param)
     return pc
     
-'''
-def poly_trainagulation(shape, edge2point, coords, normal):
-
-    def make_loop(shape, edge2point):
-        edges = shape[1:]
-        p1, p2 = edge2point[shape[0]]
-        loop = [p1, p2]
-        while len(edges) != 0:
-           for e in edges:
-               p1, p2 = edge2point[e]
-               if p1 == loop[-1]:
-                   loop.append(p2)
-                   edge.remore(e)
-                   break
-               if p2 == loop[-1]:               
-                   loop.append(p1)
-                   edge.remore(e)                   
-                   break
-            edges.remove(e)
-        return loop
-    
-    p = coords[loop]
-    loop2 = [loop[-1]] + loop[:] + [loop[0]]
-    dp =coords[loop2[:-1]] - coords[loop2[1:]]
-'''
 

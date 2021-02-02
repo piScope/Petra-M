@@ -2818,7 +2818,7 @@ class SerialEngine(Engine):
         fes = x.FESpace()
         X = mfem.Vector()
         if not fes.Conforming():
-            P = fes.GetConformingProlongation()
+            #P = fes.GetConformingProlongation()
             R = fes.GetConformingRestriction()
             X.SetSize(R.Height())
             R.Mult(x, X)

@@ -128,10 +128,11 @@ def find_domain_bdr(mesh, dom_check_list):
     ndom = mesh.attributes.Max()
     ne   = mesh.GetNE()
     kbdr = mesh.bdr_attributes.ToList()
-    
+
     domainbdr = []
-    for i in range(ndom):domainbdr.append([])
-    
+    for i in range(ndom):
+        domainbdr.append([])
+
     '''
     This old method scan all elements...
     for i in range(ndom): domainbdr[i] = list()

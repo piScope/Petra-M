@@ -41,45 +41,6 @@ class Operator(object):
     def assemble(self, fes):
         raise NotImplementedError("Subclass needs to implement this")
 
-    ''' 
-    def get_restriction_array(self, fes):
-        mesh = fes.GetMesh()
-        intArray = mfem.intArray
-
-        if self._sel_mode == 'domain':
-            size = np.max(mesh.GetAttributeArray())
-        else:
-            size = np.max(mesh.GetBdrAttributeArray())
-
-        if size == 0: return None
-
-        if self._sel[0] == "all":
-            arr = [1]*size
-        else:
-            if len(self._sel) > 0:
-                size = np.max((size, np.max(self._sel)))
-            arr = [0]*size           
-            for k in self._sel: arr[k-1] = 1
-        return intArray(arr)
-    
-    def restrict_coeff(self, coeff, fes, vec = False, matrix=False):
-        if self._sel == 'all': 
-           return coeff
-
-        arr = self.get_restriction_array(fes)
-        
-        if arr is None:
-           # this could happen when local mesh does not have Bdr/Domain attribute
-           return coeff
-        
-        if vec:
-            return mfem.VectorRestrictedCoefficient(coeff, arr)
-        elif matrix:
-            return mfem.MatrixRestrictedCoefficient(coeff, arr)           
-        else:
-            return mfem.RestrictedCoefficient(coeff, arr)
-    '''
-
     def process_kwargs(self, engine, kwargs):
         '''
         kwargs in expression can overwrite this.
@@ -108,6 +69,37 @@ class Operator(object):
     @property
     def sel_mode(self):
         return self._sel_mode
+
+    def convert_mat_to_operator(self, mat):
+        '''
+        a utility routine to convert locally assembled mat
+        to linear operator
+        '''
+        is_complex = np.iscomplexobj(mat)
+        m_coo = mat.tocoo()
+        row = m_coo.row
+        col = m_coo.col
+        col = np.unique(col)
+
+        from scipy.sparse import coo_matrix, csr_matrix
+        if use_parallel:
+            if is_complex:
+                m1 = csr_matrix(mat.real, dtype=float)
+                m2 = csr_matrix(mat.imag, dtype=float) 
+            else:
+                m1 = csr_matrix(mat.real, dtype=float)
+                m2 = None
+            from mfem.common.chypre import CHypreMat
+            start_col = self.fes1.GetMyTDofOffset()
+            end_col = self.fes1.GetMyTDofOffset() + self.fes1.GetTrueVSize()
+            col_starts = [start_col, end_col, mat.shape[1]]
+            
+            M = CHypreMat(m1, m2, col_starts=col_starts)
+        else:
+            from petram.helper.block_matrix import convert_to_ScipyCoo
+
+            M = convert_to_ScipyCoo(coo_matrix(mat, dtype=mat.dtype))
+     
 
 class LoopIntegral(Operator):
     def assemble(self, *args, **kwargs):
@@ -785,8 +777,8 @@ class Curl(Operator):
 class Divergence(Operator):               
     '''
     Operator to compute Gradient
-    input (domain) should be H1
-    output (range) should be ND
+    input (domain) should be RT
+    output (range) should be L2
 
     '''
     def assemble(self, *args, **kwargs):
@@ -822,6 +814,73 @@ class Divergence(Operator):
         M = BF2PyMat(div)
 
         return M
+
+class Convolve1D(Operator):               
+    '''
+    Operator to compute convolution integral in 1D
+
+    \int F_test(x) coeff(x-x', (x+x')/2.) F_trial(x') dx'
+
+    input (domain) should be H1/L2
+    output (range) should be H1
+
+    Usage: 
+       = conv1d(coeff, (optional) support, complex=False, 
+                orderinc=1, zero_support=False)
+       coeff is a callable defining the convolution kernel. 
+       this function takes two (x-x', x+x'/2) arguments.
+       support is a callable, which takes one argment (x+x'/2,
+       returning the support of kernel at the given location.
+
+       The code skips the numerical integration for those points
+       sitting outside the support or x-x' > support((x+x')/2.0).
+
+       options:
+          orderinc=1 : increase intengration order
+          zero_support=False : use zero support function.
+    '''
+    def assemble(self, *args, **kwargs):
+        from petram.helper.convolve1d import convolve1d, delta, zero
+        
+        engine = self._engine()
+        is_complex = kwargs.pop("complex", False)
+        orderinc = kwargs.pop("orderinc", 1)
+        verbose = kwargs.pop("verbose", False)
+        zero_support = kwargs.pop("zero_support", False)        
+        self.process_kwargs(engine, kwargs)
+
+        kernel = delta
+        support = None
+        if len(args)>0: kernel = args[0]
+        if len(args)>1: support = args[1]        
+        if zero_support:
+            support = zero
+            
+        if (not self.fes1.FEColl().Name().startswith('L2') and
+            not self.fes1.FEColl().Name().startswith('H1')):
+           assert False, "trial(domain) should be H1/L2"
+        if (not self.fes2.FEColl().Name().startswith('L2') and
+            not self.fes2.FEColl().Name().startswith('H1')):
+           assert False, "test(range) should be H1/L2"
+
+        if len(args) != 0:
+            self._coeff = args[0]
+
+        #from petram.helper.dof_map import get_empty_map
+        #mat, rstart = get_empty_map(self.fes2,
+        #                            self.fes1,
+        #                            is_complex=is_complex)
+
+        M = convolve1d(self.fes1,
+                       self.fes2,
+                       kernel = kernel,
+                       support = support,
+                       is_complex=is_complex,
+                       orderinc=orderinc,
+                       verbose=verbose)
+
+        return M
+     
         
 
         

@@ -113,8 +113,8 @@ def gather_vector(data, mpi_data_type = None, parent = False,
     else:
         recvdata = [None, rcounts, disps, mpi_data_type]
         recvbuf = None
-    world.Barrier()           
-    world.Gatherv(senddata, recvdata,  root = root)
+    world.Barrier()
+    world.Gatherv(senddata, recvdata, root=root)
     if parent:
         #print 'collected'
         world.Barrier()

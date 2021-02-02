@@ -54,39 +54,60 @@ gmsh_ho_el_idx = {'triangle6': ([0, 3, 5], [3, 1, 4], [5, 3, 4], [5, 4, 2]),
                   'triangle10': ([0, 3, 8], [8, 3, 9], [3, 4, 9], [9, 4, 5], [1, 5, 4],
                                  [7, 8, 9], [7, 9, 6], [6, 9, 5], [2, 7, 6]),
                   'triangle15': ([0, 3, 11], [11, 3, 12], [12, 3, 4], [4, 13, 12], [13, 4, 5],
-                                 [13, 5, 6], [6, 5, 1], [10, 11, 12], [10, 12, 14],
-                                 [14, 12, 13], [14, 13, 7], [7, 13, 6], [9, 10, 14],
+                                 [13, 5, 6], [6, 5, 1], [
+                                     10, 11, 12], [10, 12, 14],
+                                 [14, 12, 13], [14, 13, 7], [
+                                     7, 13, 6], [9, 10, 14],
                                  [9, 14, 8], [8, 14, 7], [2, 9, 8]),
                   'triangle21': ([0, 3, 14], [3, 15, 14], [3, 4, 15], [4, 18, 15],
-                                 [4, 5, 18], [5, 16, 18], [5, 6, 16], [6, 7, 16],
+                                 [4, 5, 18], [5, 16, 18], [
+                                     5, 6, 16], [6, 7, 16],
                                  [6, 1, 7], [13, 14, 15], [13, 15, 20],
-                                 [15, 18, 20], [18, 19, 20], [18, 16, 19], [16, 8, 19],
-                                 [16, 7, 8], [12, 13, 20], [20, 17, 12], [20, 19, 17],
-                                 [19, 9, 17], [19, 8, 9], [11, 12, 17], [11, 17, 10],
+                                 [15, 18, 20], [18, 19, 20], [
+                                     18, 16, 19], [16, 8, 19],
+                                 [16, 7, 8], [12, 13, 20], [
+                                     20, 17, 12], [20, 19, 17],
+                                 [19, 9, 17], [19, 8, 9], [
+                                     11, 12, 17], [11, 17, 10],
                                  [10, 17, 9], [2, 11, 10]),
 
                   'quad9': ([0, 4, 7], [7, 4, 8], [8, 4, 1], [8, 1, 5], [3, 7, 8],
                             [3, 8, 6], [6, 8, 5], [6, 5, 2],),
                   'quad16': ([0, 4, 11], [11, 4, 12], [4, 5, 12], [12, 5, 13], [5, 1, 13],
-                             [13, 1, 6], [11, 12, 10], [10, 12, 15], [12, 13, 15], [15, 13, 14],
-                             [13, 6, 14], [14, 6, 7], [10, 15, 3], [3, 15, 9], [15, 14, 9],
+                             [13, 1, 6], [11, 12, 10], [10, 12, 15], [
+                                 12, 13, 15], [15, 13, 14],
+                             [13, 6, 14], [14, 6, 7], [10, 15, 3], [
+                                 3, 15, 9], [15, 14, 9],
                              [9, 14, 8], [14, 7, 8], [8, 7, 2]),
                   'quad25': ([0, 4, 15], [15, 4, 16], [4, 5, 16], [16, 5, 20], [5, 6, 20],
-                             [20, 6, 17], [6, 1, 17], [17, 1, 7], [15, 16, 14], [14, 16, 23],
-                             [16, 20, 23], [23, 20, 24], [20, 17, 24], [24, 17, 21], [17, 7, 21],
-                             [21, 7, 8], [14, 23, 13], [13, 23, 19], [23, 24, 19], [19, 24, 22],
-                             [24, 21, 22], [22, 21, 18], [21, 8, 18], [18, 8, 9], [13, 19, 3],
-                             [3, 19, 12], [19, 22, 12], [12, 22, 11], [22, 18, 11],
+                             [20, 6, 17], [6, 1, 17], [17, 1, 7], [
+                                 15, 16, 14], [14, 16, 23],
+                             [16, 20, 23], [23, 20, 24], [
+                                 20, 17, 24], [24, 17, 21], [17, 7, 21],
+                             [21, 7, 8], [14, 23, 13], [13, 23, 19], [
+                                 23, 24, 19], [19, 24, 22],
+                             [24, 21, 22], [22, 21, 18], [
+                                 21, 8, 18], [18, 8, 9], [13, 19, 3],
+                             [3, 19, 12], [19, 22, 12], [
+                                 12, 22, 11], [22, 18, 11],
                              [11, 18, 10], [18, 9, 10], [10, 9, 2]),
                   'quad36': ([0, 4, 19], [19, 4, 20], [4, 5, 20], [20, 5, 24], [5, 6, 24],
-                             [24, 6, 25], [6, 7, 25], [25, 7, 21], [7, 1, 21], [21, 1, 8],
-                             [19, 20, 18], [18, 20, 31], [20, 24, 31], [31, 24, 32], [24, 25, 32],
-                             [32, 25, 33], [25, 21, 33], [33, 21, 26], [21, 8, 26], [26, 8, 9],
-                             [18, 31, 17], [17, 31, 30], [31, 32, 30], [30, 32, 35], [32, 33, 35],
-                             [35, 33, 34], [33, 26, 34], [34, 26, 27], [26, 9, 27], [27, 9, 10],
-                             [17, 30, 16], [16, 30, 23], [30, 35, 23], [23, 35, 29], [35, 34, 29],
-                             [29, 34, 28], [34, 27, 28], [28, 27, 22], [27, 10, 22], [22, 10, 11],
-                             [16, 23, 3], [3, 23, 15], [23, 29, 15], [15, 29, 14], [29, 28, 14],
+                             [24, 6, 25], [6, 7, 25], [
+                                 25, 7, 21], [7, 1, 21], [21, 1, 8],
+                             [19, 20, 18], [18, 20, 31], [20, 24, 31], [
+                                 31, 24, 32], [24, 25, 32],
+                             [32, 25, 33], [25, 21, 33], [
+                                 33, 21, 26], [21, 8, 26], [26, 8, 9],
+                             [18, 31, 17], [17, 31, 30], [31, 32, 30], [
+                                 30, 32, 35], [32, 33, 35],
+                             [35, 33, 34], [33, 26, 34], [
+                                 34, 26, 27], [26, 9, 27], [27, 9, 10],
+                             [17, 30, 16], [16, 30, 23], [30, 35, 23], [
+                                 23, 35, 29], [35, 34, 29],
+                             [29, 34, 28], [34, 27, 28], [28, 27, 22], [
+                                 27, 10, 22], [22, 10, 11],
+                             [16, 23, 3], [3, 23, 15], [23, 29, 15], [
+                                 15, 29, 14], [29, 28, 14],
                              [14, 28, 13], [28, 22, 13], [13, 22, 12], [22, 11, 12], [12, 11, 2]),
                   }
 
@@ -201,39 +222,116 @@ def call_solid2(viewer, name, verts, elem_idx, array_idx=None, lw=1.5):
 
 
 def plot_geometry(viewer, ret, geo_phys='geometrical', lw=0):
+    '''
+    plot_geometry
+    '''
     viewer.cls()
     viewer.set_hl_color((1, 0, 0))
 
     X, cells, pt_data, cell_data, field_data = ret
 
-    if 'triangle_x' in cells:
+    if 'triangle_x' in cells or 'quad_x' in cells:
+        # merge two cases as triangle data
         verts = cell_data['X_refined_face']
-        elem_idx = cells['triangle_x']
-        array_idx = cell_data['triangle_x'][geo_phys]
-        eelem_idx = cells['triangle_xe']
+
+        elem_idx0 = []
+        eelem_idx0 = []
+        array_idx = np.zeros(len(verts))
+
+        for n in ['triangle_x', 'quad_x']:
+            if not n in cells:
+                continue
+            xxx = cells[n]
+            if n == 'quad_x':
+                elem_idx0.append(xxx[:, :3])
+                elem_idx0.append(xxx[:, [0, 2, 3]])
+            else:
+                elem_idx0.append(xxx)
+            eelem_idx0.append(cells[n + 'e'])
+            idx = cell_data[n][geo_phys]
+            array_idx[np.unique(cells[n])] = idx
+
+        elem_idx = np.vstack(elem_idx0)
+        eelem_idx = np.vstack(eelem_idx0)
 
         call_solid1(viewer, 'face_t', verts, elem_idx, array_idx, lw,
                     edge_idx=eelem_idx)
 
-    elif 'triangle' in cells:
-        verts, elem_idx, array_idx = expand_vertex_data(X, cells['triangle'],
-                                                        cell_data['triangle'][geo_phys])
+    elif 'triangle' in cells or 'quad' in cells:
+        verts0 = []
+        elem_idx0 = []
+        eelem_idx0 = []
+        array_idx0 = []
 
-        call_solid1(viewer, 'face_t', verts, elem_idx, array_idx, lw)
+        l_verts = 0
+        for n in ['triangle', 'quad']:
+            if not n in cells:
+                continue
+            verts, elem_idx, array_idx = expand_vertex_data(X, cells[n],
+                                                            cell_data[n][geo_phys])
+            verts0.append(verts)
+            xxx = elem_idx if l_verts == 0 else elem_idx + l_verts
 
+            if n == 'quad':
+                elem_idx0.append(xxx[:, :3])
+                elem_idx0.append(xxx[:, [0, 2, 3]])
+                eelem_idx0.extend([xxx[:, :2],
+                                   xxx[:, 1:3],
+                                   xxx[:, -2:],
+                                   xxx[:, [0, -1]]])
+            else:
+                elem_idx0.append(xxx)
+                eelem_idx0.extend([xxx[:, :2],
+                                   xxx[:, -2:],
+                                   xxx[:, [0, 2]]])
+            l_verts = l_verts + len(verts)
+            array_idx0.append(array_idx)
+
+        verts = np.vstack(verts0)
+        elem_idx = np.vstack(elem_idx0)
+        array_idx = np.hstack(array_idx0)
+        eelem_idx = np.vstack(eelem_idx0)
+
+        call_solid1(viewer, 'face_t', verts, elem_idx, array_idx, lw,
+                    edge_idx=eelem_idx)
+
+    '''
+    if 'triangle_x' in cells:
+        elem_idx = cells['triangle_x']
+        array_idx = cell_data['triangle_x'][geo_phys]
+        eelem_idx = cells['triangle_xe']
+
+        array_idx = np.zeros(len(verts))
+
+
+        array_idx[np.unique(elem_idx.flatten()] =
+
+        ### to handle mixed mesh, where verts contains vertices for tri and quad
+        ar, idx = np.unique(np.hstack([elem_idx.flatten(),
+                                       eelem_idx.flatten()]), return_inverse=True)
+        elem_idx = idx[:np.prod(elem_idx.shape)].reshape(elem_idx.shape)
+        eelem_idx = idx[np.prod(elem_idx.shape):].reshape(eelem_idx.shape)
+        verts = verts[ar]
+
+
+        call_solid1(viewer, 'face_t', verts, elem_idx, array_idx, lw,
+                    edge_idx=eelem_idx)
     if 'quad_x' in cells:
         verts = cell_data['X_refined_face']
         elem_idx = cells['quad_x']
         array_idx = cell_data['quad_x'][geo_phys]
         eelem_idx = cells['quad_xe']
+
+        ### to handle mixed mesh, where verts contains vertices for tri and quad
+        ar, idx = np.unique(np.hstack([elem_idx.flatten(),
+                                       eelem_idx.flatten()]), return_inverse=True)
+        elem_idx = idx[:np.prod(elem_idx.shape)].reshape(elem_idx.shape)
+        eelem_idx = idx[np.prod(elem_idx.shape):].reshape(eelem_idx.shape)
+        verts = verts[ar]
+
         call_solid1(viewer, 'face_r', verts, elem_idx, array_idx, lw,
                     edge_idx=eelem_idx)
-
-    elif 'quad' in cells:
-        verts, elem_idx, array_idx = expand_vertex_data(X, cells['quad'],
-                                                        cell_data['quad'][geo_phys])
-
-        call_solid1(viewer, 'face_r', verts, elem_idx, array_idx, lw)
+    '''
 
     if 'line_x' in cells:
         verts = cell_data['X_refined_edge']
