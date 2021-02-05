@@ -8,7 +8,7 @@
 '''
 from collections import OrderedDict
 import traceback
-from collections import MutableMapping
+from collections.abc import MutableMapping
 import six
 import os
 import numpy as np
