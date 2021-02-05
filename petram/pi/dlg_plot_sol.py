@@ -1145,8 +1145,10 @@ class DlgPlotSol(SimpleFramePlus):
                     else:
                         v.plot(x[xidx], yy)                        
                 else:
-                    v.plot(x[xidx], y[xidx])
-
+                    if cls is None:
+                        v.plot(x[xidx], y[xidx])
+                    else:
+                        v.plot(x[xidx], y[xidx].astype(complex), copy=False)
     def onExportEdge(self, evt):
         from petram.sol.evaluators import area_tri
 

@@ -2203,7 +2203,7 @@ class Engine(object):
                   node.eval_ns()
 
               except Exception as e:
-                  #node._global_ns = None                               
+                  node._global_ns = {}
                   m = traceback.format_exc()
                   errors.append("failed to build ns for " + node.fullname() +
                                  "\n" + m)
