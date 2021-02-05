@@ -122,6 +122,9 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
     # Step 3
     if verbose:
         dprint1("Step 3")
+    vdofs1_senddata = []
+    elmats_senddata = []
+        
     for knode1, x2_onenode in enumerate(x2_all):
         elmats_all = []
         vdofs1_all = []
@@ -183,9 +186,15 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
                 #print(elmats)
             if len(elmats) > 0:
                 elmats_all.append((i, elmats))
-
+                
+        vdofs1_senddata.append(vdofs1_all)
+        elmats_senddata.append(elmats_all)
+        
         # send this information to knodes;
+        '''
         if USE_PARALLEL:
+            #nicePrint(vdofs1_all)
+            #nicePrint("elmats", [len(x) for x in elmats_all])
             if myid == knode1:
                 vdofs1_data = comm.gather(vdofs1_all, root=knode1)
                 elmats_data = comm.gather(elmats_all, root=knode1)
@@ -195,7 +204,21 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
         else:
             vdofs1_data = [vdofs1_all,]
             elmats_data = [elmats_all,]
-
+        '''
+    if USE_PARALLEL:
+        knode1 = 0
+        for vdofs1_all, elmats_all in zip(vdofs1_senddata, elmats_senddata):
+            if myid == knode1:
+                vdofs1_data = comm.gather(vdofs1_all, root=knode1)
+                elmats_data = comm.gather(elmats_all, root=knode1)
+            else:
+                _ = comm.gather(vdofs1_all, root=knode1)
+                _ = comm.gather(elmats_all, root=knode1)
+            knode1 = knode1 + 1
+    else:
+        vdofs1_data = vdofs1_senddata
+        elmats_data = elmats_senddata
+        
     # Step 4
     if verbose:
         dprint1("Step 4")        
