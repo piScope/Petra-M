@@ -122,7 +122,7 @@ class NS_mixin(object):
         if ns_script is None:
             raise ValueError("namespace script is not found")                   
         err_string = ns_script.reload_script()
-        if err_string != '' and err_string is not None: 
+        if err_string != '' and err_string is not None:
             assert False, err_string
             
         self.ns_string = ns_script._script._script

@@ -4,6 +4,7 @@ import sys
 import os
 import six
 import shutil
+import traceback
 import numpy as np
 import scipy.sparse
 from warnings import warn
@@ -2195,17 +2196,23 @@ class Engine(object):
         return self.new_mixed_bf(fes2, fes1) # argument = trial(=domain), test(=range)
     
     def build_ns(self):
+        errors = []
         for node in self.model.walk():
            if node.has_ns():
               try:
                   node.eval_ns()
 
               except Exception as e:
-                  import traceback
+                  node._global_ns = {}
                   m = traceback.format_exc()
-                  assert False, "Failed to build name space: " + m
+                  errors.append("failed to build ns for " + node.fullname() +
+                                 "\n" + m)
            else:
+              #node._global_ns = None              
               node._local_ns = self.model.root()._variables
+              
+        if len(errors) > 0:
+           assert False, "\n".join(errors)
 
     def preprocess_ns(self, ns_folder, data_folder):
         '''

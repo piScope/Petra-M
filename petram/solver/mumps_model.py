@@ -314,6 +314,10 @@ class MUMPSSolver(LinearSolver):
                 return np.complex128
             else:
                 return np.float64
+    def _int_type(self):
+        import petram.ext.mumps.mumps_solve as mumps_solve
+        dtype_int = 'int' + str(mumps_solve.SIZEOF_MUMPS_INT() * 8)
+        return dtype_int
             
     def make_matrix_entries(self, A):
         datatype = self._data_type()
@@ -512,6 +516,7 @@ class MUMPSSolver(LinearSolver):
         if not self.silent:                
             dprint1("job2")
         s.set_icntl(24, 1)
+        
         s.set_job(2)
         s.run()
         info1 = s.get_info(1)
@@ -524,32 +529,68 @@ class MUMPSSolver(LinearSolver):
         except BaseException:
             from petram.helper.dummy_mpi import MPI
         myid = MPI.COMM_WORLD.rank
+        smyid = '{:0>6d}'.format(myid)                        
+        mpi_size = MPI.COMM_WORLD.size
         
-        datatype = self._data_type()        
+        datatype = self._data_type()
+
+
+        nrhs = b.shape[0] if myid == 0 else 0
+        #nrhs = 30
+        
+        if mpi_size > 1:
+            nrhs = MPI.COMM_WORLD.bcast(nrhs)
+
         if myid == 0:
-            num = b.shape[0]
-            #num = 5
-            s.set_lrhs_nrhs(b.shape[0], num)
-            bb = np.zeros((b.shape[0], num), dtype=datatype)
-            for i in range(num):
+            print("nrhs", nrhs)
+            s.set_lrhs_nrhs(b.shape[0], nrhs)
+            bb = np.zeros((b.shape[0], nrhs), dtype=datatype)
+            for i in range(nrhs):
                 bb[i, i] = 1.0
             bstack = np.hstack(np.transpose(bb))
             bstack = self.make_vector_entries(bstack)
             s.set_rhs(self.data_array(bstack))
+            
+        n_pivots = s.get_info(23)
+        #print("n_pivots", n_pivots)
+        
+        sol_loc = np.zeros(n_pivots*nrhs, dtype=self._data_type())
+        isol_loc = np.zeros(n_pivots, dtype=self._int_type())
+
+        from petram.ext.mumps.mumps_solve import i_array        
+        s.set_sol_loc(self.data_array(sol_loc),
+                      n_pivots,
+                      i_array(isol_loc))
+        
         self.set_error_analysis(s)
+
+        # set to distributed sol mode
+        use_distributed_save = True
+        if use_distributed_save:
+           s.set_icntl(21, 1)      
         s.set_job(3)
         s.run()
         info1 = s.get_info(1)
         if info1 != 0:
            assert False, "MUMPS call (job3) failed. Check error log"
-        if myid == 0:
-            if self.is_complex:
-                sol = s.get_real_rhs() + 1j * s.get_imag_rhs()
-            else:
-                sol = s.get_real_rhs()
-            sol = np.transpose(sol.reshape(-1, len(bb)))
-            np.savez("matrix_inv", A_inv=sol)
-     
+           
+        #sol = s.get_sol_loc()
+        if use_distributed_save:        
+            sol = np.transpose(sol_loc.reshape(-1, n_pivots))
+            np.savez("matrix_inv_idx."+smyid, A_inv_idx=isol_loc)            
+            np.savez("matrix_inv."+smyid, A_inv=sol)
+        else:
+            if myid == 0:
+                if self.is_complex:
+                    sol = s.get_real_rhs() + 1j * s.get_imag_rhs()
+                else:
+                    sol = s.get_real_rhs()
+                sol = np.transpose(sol.reshape(-1, len(bb)))
+                np.savez("matrix_inv", A_inv=sol)
+
+        # set to gathered sol mode        
+        s.set_icntl(21, 0)            
+        
     def Mult(self, b, x=None, case_base=0):
         try:
             from mpi4py import MPI

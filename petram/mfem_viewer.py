@@ -735,15 +735,22 @@ class MFEMViewer(BookViewer):
             self.model.variables.setvar('mesh', mesh)
             os.chdir(cdir)
 
-            err, exception = self.engine.run_config()
-            if err != 0:
-                assert False, "error in run_config"
         except:
             os.chdir(cdir)
             dialog.showtraceback(parent=self,
                                  txt='Mesh load error',
-                                 title='Error',
+                                 title='Error (Load Mesh)',
                                  traceback=exception)
+        try:
+            err, exception = self.engine.run_config()
+            if err != 0:
+                assert False, "error in run_config"
+        except:
+            dialog.showtraceback(parent=self,
+                                 txt='Error during run_config after loading mesh',
+                                 title='Error (run_config)',
+                                 traceback=exception)
+            
         if err != -1:
             self.plot_mfem_geom()
             self.use_toolbar_palette('petram_phys', mode='3D')
