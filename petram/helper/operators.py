@@ -826,7 +826,9 @@ class Convolve1D(Operator):
 
     Usage: 
        = conv1d(coeff, (optional) support, complex=False, 
-                orderinc=1, zero_support=False)
+                orderinc=1, zero_support=False, 
+                test_domain='all',
+                trial_domain='all')
        coeff is a callable defining the convolution kernel. 
        this function takes two (x-x', x+x'/2) arguments.
        support is a callable, which takes one argment (x+x'/2,
@@ -846,7 +848,9 @@ class Convolve1D(Operator):
         is_complex = kwargs.pop("complex", False)
         orderinc = kwargs.pop("orderinc", 1)
         verbose = kwargs.pop("verbose", False)
-        zero_support = kwargs.pop("zero_support", False)        
+        zero_support = kwargs.pop("zero_support", False)
+        test_domain = kwargs.pop("test_domain", 'all')
+        trial_domain = kwargs.pop("trial_domain", 'all')        
         self.process_kwargs(engine, kwargs)
 
         kernel = delta
@@ -877,6 +881,8 @@ class Convolve1D(Operator):
                        support = support,
                        is_complex=is_complex,
                        orderinc=orderinc,
+                       trial_domain=trial_domain,
+                       test_domain=test_domain,                       
                        verbose=verbose)
 
         return M

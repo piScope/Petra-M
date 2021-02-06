@@ -58,20 +58,13 @@ def get_rule(fe1, fe2, trans, orderinc, verbose):
 
 def convolve1d(fes1, fes2, kernel=delta, support=None,
                orderinc=5, is_complex=False,
+               trial_domain='all',
+               test_domain='all',
                verbose=False):
     '''
     fill linear operator for convolution
     \int phi_test(x) func(x-x') phi_trial(x') dx
     '''
-    #smesh = mfem.Mesh(3, 1.0)
-    #if USE_PARALLEL:
-    #    mesh = mfem.ParMesh(comm, smesh)
-    #else:
-    #    mesh = smesh
-    #sdim = mesh.SpaceDimension()
-    #fes1 = new_fespace(mesh, fec1, vdim=1)
-    #fes2 = new_fespace(mesh, fec2, vdim=1)
-
     mat, rstart = get_empty_map(fes2, fes1, is_complex=is_complex)
 
     eltrans1 = fes1.GetElementTransformation(0)
@@ -92,22 +85,36 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
     if verbose:
         dprint1("Step 1,2")    
     x2_arr = []
+    i2_arr = []
 
     ptx = mfem.DenseMatrix(ir.GetNPoints(), 1)
-
+    
+    attrs1 = fes2.GetMesh().GetAttributeArray()
+    attrs2 = fes2.GetMesh().GetAttributeArray()
+    
     for i in range(fes2.GetNE()): # scan test space
+        if test_domain != 'all':
+            if not attrs1[i] in test_domain: continue
         eltrans = fes2.GetElementTransformation(i)
         eltrans.Transform(ir, ptx)
         x2_arr.append(ptx.GetDataArray().copy())
-    ptx_x2 = np.vstack(x2_arr)
+        i2_arr.append(i)
+    if len(i2_arr) > 0:
+       ptx_x2 = np.vstack(x2_arr)
+       i2_arr = np.hstack(i2_arr)
+    else:
+       ptx_x2 = np.array([[]])
+       i2_arr = np.array([])
 
     #nicePrint("x2 shape", ptx_x2.shape)
     if USE_PARALLEL:
         ## note: we could implement more advanced alg. to reduce
         ## the amount of data exchange..
         x2_all = comm.allgather(ptx_x2)
+        i2_all = comm.allgather(i2_arr)
     else:
         x2_all = [ptx_x2]
+        i2_all = [i2_arr]
     #nicePrint("x2_all shape", x2_all.shape)
 
     if USE_PARALLEL:
@@ -125,7 +132,9 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
     vdofs1_senddata = []
     elmats_senddata = []
         
-    for knode1, x2_onenode in enumerate(x2_all):
+    for knode1 in range(len(x2_all)):
+        x2_onenode = x2_all[knode1]
+        i2_onenode = i2_all[knode1]
         elmats_all = []
         vdofs1_all = []
 
@@ -138,11 +147,14 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
             else:
                 vdofs1_all.append(local_vdofs)
 
-        for i, x2s in enumerate(x2_onenode): # loop over fes2
+        for i, x2s in zip(i2_onenode, x2_onenode): # loop over fes2
             nd2 = len(x2s)
             #nicePrint(x2s)
             elmats = []
             for j in range(fes1.GetNE()):
+                if trial_domain != 'all':
+                    if not attrs1[j] in trial_domain: continue
+                
                 # collect integration
                 fe1 = fes1.GetFE(j)
                 nd1 = fe1.GetDof()
@@ -267,8 +279,8 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
 
                 # merge contribution to final mat
                 if USE_PARALLEL:
-                    vdofs22 = [fes2.GetLocalTDofNumber(i) for i in vdofs2]
-                    vdofs22g = [VDoFtoGTDoF2[i] for i in vdofs2]
+                    vdofs22 = [fes2.GetLocalTDofNumber(ii) for ii in vdofs2]
+                    vdofs22g = [VDoFtoGTDoF2[ii] for ii in vdofs2]
                     kkk = 0
                     for v2, v2g in zip(vdofs22, vdofs22g):
                         if v2 < 0:
