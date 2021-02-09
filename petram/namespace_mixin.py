@@ -20,10 +20,11 @@ class NSRef_mixin(object):
             self.reset_ns()
         return self.ns_name
     
-    def find_ns_by_name(self, name):
+    def find_ns_by_name(self):
         '''
         return NameSpace
         '''
+        name = self.ns_name
         root = self.root()
         for obj in root.walk():
             if not isinstance(obj, NS_mixin):
@@ -32,10 +33,11 @@ class NSRef_mixin(object):
                 return obj._global_ns
         return  self.root()['General']._global_ns
 
-    def find_nsobj_by_name(self, name):
+    def find_nsobj_by_name(self):
         '''
         return model holding NameSpace for given name
         '''
+        name = self.ns_name        
         root = self.root()
         for obj in root.walk():
             if not isinstance(obj, NS_mixin):
