@@ -1942,7 +1942,7 @@ class Engine(object):
     #
     #  postprocess
     #
-    def store_pp_extra(self, name, data):
+    def store_pp_extra(self, name, data, save_once=False):
         self.model._parameters[name] = data
         self._pp_extra_update.append(name)
         
@@ -2221,7 +2221,9 @@ class Engine(object):
         for od in self.model.walk():
             if od.has_ns():
                od.preprocess_ns(ns_folder, data_folder)
-
+            if od.has_nsref():
+               od.reset_ns()
+               
     def form_linear_system(self, ess_tdof_list, extra, interp, r_A, r_B, i_A, i_B):
         raise NotImplementedError(
              "you must specify this method in subclass")
@@ -2941,6 +2943,15 @@ class ParallelEngine(Engine):
         if (myid == 0):
                dprint1('Number of finite element unknowns: '+  str(fe_sizes))
         return fe_sizes
+
+    #
+    #  postprocess
+    #
+    def store_pp_extra(self, name, data, save_once=False):
+        from mpi4py import MPI 
+        self.model._parameters[name] = data
+        if not save_once or MPI.COMM_WORLD.rank == 0:
+            self._pp_extra_update.append(name)
      
     def save_parmesh(self):
         from mpi4py import MPI                               
@@ -3114,6 +3125,7 @@ class ParallelEngine(Engine):
             self.gl_ess_tdofs[name] = tmp
      
     def mkdir(self, path):
+        from mpi4py import MPI       
         myid     = MPI.COMM_WORLD.rank                
         if myid == 0:
            if not os.path.exists(path): os.mkdir(path)           
@@ -3122,6 +3134,7 @@ class ParallelEngine(Engine):
         MPI.COMM_WORLD.Barrier()
         
     def symlink(self, target, link):
+        from mpi4py import MPI
         myid     = MPI.COMM_WORLD.rank
         if myid == 0:
             if not os.path.exists(link):                   
@@ -3131,12 +3144,14 @@ class ParallelEngine(Engine):
         #MPI.COMM_WORLD.Barrier()
         
     def open_file(self, *args, **kwargs):
+        from mpi4py import MPI       
         myid     = MPI.COMM_WORLD.rank                
         if myid == 0:
            return open(*args, **kwargs)
         return
 
     def cleancwd(self):
+        from mpi4py import MPI       
         myid     = MPI.COMM_WORLD.rank                
         if myid == 0:
             for f in os.listdir("."): os.remove(f)            
@@ -3144,7 +3159,8 @@ class ParallelEngine(Engine):
             pass
         MPI.COMM_WORLD.Barrier()                
 
-    def remove_solfiles(self):       
+    def remove_solfiles(self):
+        from mpi4py import MPI       
         myid     = MPI.COMM_WORLD.rank                
         if myid == 0:
             super(ParallelEngine, self).remove_solfiles()
@@ -3153,6 +3169,7 @@ class ParallelEngine(Engine):
         MPI.COMM_WORLD.Barrier()
         
     def remove_case_dirs(self):
+        from mpi4py import MPI       
         myid     = MPI.COMM_WORLD.rank                
         if myid == 0:
             super(ParallelEngine, self).remove_case_dirs()
@@ -3198,6 +3215,7 @@ class ParallelEngine(Engine):
         P.Mult(X, x)
      
     def run_geom_gen(self, gen):
+        from mpi4py import MPI              
         myid     = MPI.COMM_WORLD.rank                
         if myid == 0:
             gen.generate_final_geometry()           
@@ -3212,6 +3230,7 @@ class ParallelEngine(Engine):
         gen.generate_mesh_file()           
        
     def save_processed_model(self):
+        from mpi4py import MPI       
         myid     = MPI.COMM_WORLD.rank                
         if myid == 0:
             self.model.save_to_file('model_proc.pmfm', meshfile_relativepath = False)
