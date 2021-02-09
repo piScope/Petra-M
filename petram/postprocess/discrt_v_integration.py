@@ -259,7 +259,9 @@ class LinearformIntegrator(WeakformIntegrator):
         value = np.array(V.dot(V1), copy=False)
         #value = np.array(V1.dot(V2), copy=False)
         dprint1("Integrated Value :" + self.integration_name + ":" + str(value))
-        engine.store_pp_extra(self.integration_name, value)
+        engine.store_pp_extra(self.integration_name,
+                              value,
+                              save_once=True)
     
 class BilinearformIntegrator(WeakformIntegrator):
     def itg_choice(self):
@@ -406,6 +408,8 @@ class BilinearformIntegrator(WeakformIntegrator):
         value = np.array(V1.dot(M.dot(V2)), copy=False)
         #value = np.array(V1.dot(V2), copy=False)
         dprint1("Integrated Value :" + self.integration_name + ":" + str(value))        
-        engine.store_pp_extra(self.integration_name, value)
+        engine.store_pp_extra(self.integration_name,
+                              value,
+                              save_once=True)
         
 

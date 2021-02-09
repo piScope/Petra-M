@@ -6,6 +6,10 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Namespace')
 
 class NSRef_mixin(object):
     hide_ns_menu = False
+    def __init__(self, *args, **kwargs):
+        object.__init__(self)
+        self.reset_ns()
+    
     def get_info_str(self):
         if self.ns_name is not None:
             return 'NS:'+self.ns_name
