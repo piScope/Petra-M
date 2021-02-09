@@ -2221,7 +2221,9 @@ class Engine(object):
         for od in self.model.walk():
             if od.has_ns():
                od.preprocess_ns(ns_folder, data_folder)
-
+            if od.has_nsref():
+               od.reset_ns()
+               
     def form_linear_system(self, ess_tdof_list, extra, interp, r_A, r_B, i_A, i_B):
         raise NotImplementedError(
              "you must specify this method in subclass")

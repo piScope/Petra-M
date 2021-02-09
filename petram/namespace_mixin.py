@@ -4,6 +4,52 @@ import os
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Namespace')
 
+class NSRef_mixin(object):
+    hide_ns_menu = False
+    def get_info_str(self):
+        if self.ns_name is not None:
+            return 'NS:'+self.ns_name
+        return ""
+    
+    def reset_ns(self):
+        if not hasattr(self, 'ns_name'):
+            self.ns_name = None
+        
+    def get_ns_name(self):
+        if not hasattr(self, 'ns_name'):
+            self.reset_ns()
+        return self.ns_name
+    
+    def find_ns_by_name(self, name):
+        '''
+        return NameSpace
+        '''
+        root = self.root()
+        for obj in root.walk():
+            if not isinstance(obj, NS_mixin):
+                continue
+            if obj.get_ns_name() == name:
+                return obj._global_ns
+        return  self.root()['General']._global_ns
+
+    def find_nsobj_by_name(self, name):
+        '''
+        return model holding NameSpace for given name
+        '''
+        root = self.root()
+        for obj in root.walk():
+            if not isinstance(obj, NS_mixin):
+                continue
+            if obj.get_ns_name() == name:
+                return obj
+        return self.root()['General']
+    
+    def new_ns(self, name):
+        self.ns_name = name
+        
+    def delete_ns(self):
+        self.ns_name = None
+    
 class NS_mixin(object):
     hide_ns_menu = False
     def __init__(self, *args, **kwargs):

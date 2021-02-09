@@ -35,7 +35,7 @@ class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
         item = self.topwindow.model.GetItem(indices)
         txt = self.topwindow.model.GetItemText(indices)
 
-        if item.has_ns():
+        if item.has_ns() or item.has_nsref():
             info = item.get_info_str()
             if info != "":
                 txt = txt + "(" + info + ")"
@@ -266,7 +266,7 @@ class DlgEditModel(SimpleFramePlus):
             for t, m, m2 in mm.get_special_menu(e):
                 menus = menus+[(t, m, m2), ]
             menus = menus + [('---', None, None)]
-            if mm.has_ns() and not mm.hide_ns_menu:
+            if (mm.has_ns() or mm.has_nsref()) and not mm.hide_ns_menu:
                 if mm.ns_name is not None:
                     menus.append(("Delete NS.",  self.OnDelNS, None))
                     if hasattr(mm, '_global_ns'):
