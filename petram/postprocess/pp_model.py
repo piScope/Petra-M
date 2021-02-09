@@ -40,9 +40,8 @@ class PostProcessBase(Model):
         from petram.model import convert_sel_txt
         try:
             arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
-            self.sel_index = karr            
+            self.sel_index = arr            
         except:
-            print(self)
             assert False, "failed to convert "+self.sel_index_txt
 
 
