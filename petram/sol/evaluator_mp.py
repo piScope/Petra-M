@@ -158,8 +158,11 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     kwargs = task[3]
                     self.make_probe_agents(cls, params, **kwargs)
                     
-                elif task[0] == 10: # (8, expr)  = eval_pointcloud
+                elif task[0] == 10: # (10, expr)  = eval_pointcloud
                     value =  self.eval_pointcloud(task[1], **task[2])
+                    
+                elif task[0] == 11: # (11, expr)  = eval_integral
+                    value =  self.eval_integral(task[1], **task[2])
                         
             except:
                 traceback.print_exc()
@@ -179,6 +182,8 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                 if task[0] == 8:
                     self.result_queue.put(value)
                 if task[0] == 10:
+                    self.result_queue.put(value)
+                if task[0] == 11:
                     self.result_queue.put(value)
                     
                 if self.use_stringio:
@@ -332,6 +337,31 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         #    pr.disable()
         return ptx, data, attrs
 
+    def eval_integral(self, expr, **kwargs):
+        phys_path = self.phys_path
+        phys = self.mfem_model()[phys_path]
+        solvars = self.load_solfiles()
+        
+        if solvars is None:
+            return self.myid, None, None
+
+        data = []
+        for key in six.iterkeys(self.agents): # scan over battr
+            data.append([])
+            evaluators = self.agents[key]
+            for o, solvar in zip(evaluators, solvars): # scan over sol files
+                try:
+                     v  = o.eval_integral(expr, solvar, phys, **kwargs)
+                except:
+                     import traceback
+                     return self.myid, None, traceback.format_exc()
+                     
+                if v is None:
+                    v = None
+                data[-1].append(v)
+
+        return self.myid, data
+        
     def eval_probe(self, expr, xexpr, probes):
         if self.phys_path == '': return None, None
         
@@ -567,6 +597,25 @@ class EvaluatorMP(Evaluator):
             data[idx] = c[idx]
 
         return ptx, data, attrs
+
+    def eval_integral(self, expr, **kwargs):
+        self.tasks.put((11, expr, kwargs), join = True)
+
+        res = [self.results.get() for x in range(len(self.workers))]
+        for x in range(len(self.workers)):
+            self.results.task_done()
+
+        res = [x for x in res if x[-1] is not None]
+
+        if len(res) == 0:
+            return None, None, None
+
+        v = 0
+        for vv in res: # handle (myid, error, message)
+            if vv is not None:
+                v = v + vv
+
+        return v
             
     def eval_probe(self, expr, xexpr, probes):
         self.tasks.put_single((8, expr, xexpr, probes), join = True)

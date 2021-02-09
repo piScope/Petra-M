@@ -815,7 +815,7 @@ class Divergence(Operator):
 
         return M
 
-class Convolve1D(Operator):               
+class Convolve(Operator):               
     '''
     Operator to compute convolution integral in 1D
 
@@ -842,7 +842,7 @@ class Convolve1D(Operator):
           zero_support=False : use zero support function.
     '''
     def assemble(self, *args, **kwargs):
-        from petram.helper.convolve1d import convolve1d, delta, zero
+        from petram.helper.convolve1d import convolve1d, convolve2d, delta, zero
         
         engine = self._engine()
         is_complex = kwargs.pop("complex", False)
@@ -859,31 +859,43 @@ class Convolve1D(Operator):
         if len(args)>1: support = args[1]        
         if zero_support:
             support = zero
+
+        info1 = engine.get_fes_info(self.fes1)
+        emesh1_idx = info1['emesh_idx']
+        info2 = engine.get_fes_info(self.fes2)
+        emesh2_idx = info1['emesh_idx']
+
+        assert emesh1_idx == emesh2_idx, "convolution is performed only on the same mesh"
             
-        if (not self.fes1.FEColl().Name().startswith('L2') and
-            not self.fes1.FEColl().Name().startswith('H1')):
-           assert False, "trial(domain) should be H1/L2"
-        if (not self.fes2.FEColl().Name().startswith('L2') and
-            not self.fes2.FEColl().Name().startswith('H1')):
-           assert False, "test(range) should be H1/L2"
+        dim1 = self.fes1.GetMesh().Dimension()
+        if dim1 == 1:
+            if (not self.fes1.FEColl().Name().startswith('L2') and
+                not self.fes1.FEColl().Name().startswith('H1')):
+               assert False, "trial(domain) should be H1/L2"
+            if (not self.fes2.FEColl().Name().startswith('L2') and
+                not self.fes2.FEColl().Name().startswith('H1')):
+               assert False, "test(range) should be H1/L2"
+            func = convolve1d
+        elif dim1 == 2:
+            func = convolve2d
+        elif dim1 == 3:
+            assert False, "unsupported dimension"
+        else:
+            assert False, "unsupported dimension"
+         
 
         if len(args) != 0:
-            self._coeff = args[0]
+            self._coeff = (kernel, support)
 
-        #from petram.helper.dof_map import get_empty_map
-        #mat, rstart = get_empty_map(self.fes2,
-        #                            self.fes1,
-        #                            is_complex=is_complex)
-
-        M = convolve1d(self.fes1,
-                       self.fes2,
-                       kernel = kernel,
-                       support = support,
-                       is_complex=is_complex,
-                       orderinc=orderinc,
-                       trial_domain=trial_domain,
-                       test_domain=test_domain,                       
-                       verbose=verbose)
+        M = func(self.fes1,
+                 self.fes2,
+                 kernel = kernel,
+                 support = support,
+                 is_complex=is_complex,
+                 orderinc=orderinc,
+                 trial_domain=trial_domain,
+                 test_domain=test_domain,                       
+                 verbose=verbose)
 
         return M
      

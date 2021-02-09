@@ -99,9 +99,14 @@ class AUX_Operator(Phys):
             p = self.get_root_phys().name()
         else:
             mfem_physroot = self.get_root_phys().parent
-            var_s = mfem_physroot[self.paired_var[0]].dep_vars
-            n  = var_s[self.paired_var[1]]
-            p  = self.paired_var[0]
+            if self.paired_var[0] in mfem_physroot:
+                var_s = mfem_physroot[self.paired_var[0]].dep_vars
+                n  = var_s[self.paired_var[1]]
+                p  = self.paired_var[0]
+            else:
+                # if paird var does not exist in the model
+                n = self.get_root_phys().dep_vars[0]
+                p = self.get_root_phys().name()
 
         var = n + " ("+p + ")"
 

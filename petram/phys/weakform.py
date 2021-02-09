@@ -223,8 +223,8 @@ class WeakBilinIntegration(WeakIntegration):
         t2 = (self.get_root_phys().parent)[paired_name].get_fec_type(paired_idx)
         if len(t2)>2 and t2[2] == "v":
             t2 = t2[:3]
-        bb = [b for b in bb if t in b[1]]
 
+        bb = [b for b in bb if t2 in b[1]]
 
         dim = self.dim
         bb = [b for b in bb if dim in b[4]]           

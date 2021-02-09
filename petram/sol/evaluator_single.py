@@ -208,10 +208,35 @@ class EvaluatorSingle(EvaluatorCommon):
             data[idx] = c
         return ptx, data, attrs
 
-    
+    def eval_integral(self, expr, kind='Domain', idx='all', order=2):
+        if self.phys_path == '':
+            return None, None
+
+        phys = self.mfem_model()[self.phys_path]
+        solvars = self.load_solfiles()
+        if solvars is None:
+            return None, None
+
+        data = []
+
+        key = list(self.agents)[0]
+
+        attrs.append(key)                                  
+        evaluators = self.agents[key]
+        v = 0
+        for o, solvar in zip(evaluators, solvars): # scan over sol files
+           vv = o.eval_integral(expr, solvar, phys, kind=kind, idx=idx, order=order)
+           if vv is None:
+               pass
+           else:
+               v = v + vv
+
+        return v
+
     def eval_probe(self, expr, xexpr, probes):
-        if self.phys_path == '': return None, None
-        
+        if self.phys_path == '':
+            return None, None
+
         phys = self.mfem_model()[self.phys_path]
 
         evaluator = self.agents[1][0]
