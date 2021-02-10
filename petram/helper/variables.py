@@ -1070,6 +1070,7 @@ class GridFunctionVariable(Variable):
         if idx is None:
             idx = []
         gf_real, gf_imag = self.deriv_args
+
         if gf_real is not None:
             if not gf_real._emesh_idx in idx:
                 idx.append(gf_real._emesh_idx)

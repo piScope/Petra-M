@@ -2128,23 +2128,18 @@ class DlgPlotSol(SimpleFramePlus):
                      'order': order,
                      'idx': idx,
                      'expr': expr,}
-             self.export_to_piScope_shell(data, 'integral_data')
+             self.post_threadend(self.export_to_piScope_shell,
+                                 data, 'integral_data')
 
     def eval_integral(self):
         value = self.elps['Integral'] .GetValue()        
         expr = str(value[0]).strip()
         kind = str(value[1]).strip()
-        attrs = str(value[2]).strip()
-        if attrs != 'all':
-            try:
-                attrs = [int(x) for x in attrs.split(',')]
-            except:
-                assert False, "invalid attributes are given: "+idx
+        attrs = str(value[2])
         order = int(value[3])
         phys_path = str(value[4]).strip()
         
         value = self.evaluate_sol_integral(expr, kind, attrs, order, phys_path)
-
         return expr, value, kind, attrs, order
     '''
     probe
@@ -2541,9 +2536,15 @@ class DlgPlotSol(SimpleFramePlus):
                 assert False, "Failed to evaluate attrs " + attrs
         else:
             if mesh.Dimension() == 3:
-                attrs = list(mesh.extended_connectivity['vol2surf'])
-            elif mesh.Dimension() == 2:                
-                attrs = list(mesh.extended_connectivity['surf2line'])
+                if kind == 'Domain':
+                    attrs = list(mesh.extended_connectivity['vol2surf'])
+                else:
+                    attrs = list(mesh.extended_connectivity['surf2line'])                    
+            elif mesh.Dimension() == 2:
+                if kind == 'Domain':                
+                    attrs = list(mesh.extended_connectivity['surf2line'])
+                else:
+                    attrs = list(mesh.extended_connectivity['line2vert'])                                
             elif mesh.Dimension() == 1:                                
                 attrs = list(mesh.extended_connectivity['line2vert'])            
             else:
@@ -2566,7 +2567,10 @@ class DlgPlotSol(SimpleFramePlus):
                 probes = self.remote_sols[0:2]
 
             self.evaluators['Integral'].set_phys_path(phys_path)
-            return self.evaluators['Integral'].eval_integral(expr, kind, idx, order)
+            return self.evaluators['Integral'].eval_integral(expr,
+                                                             kind=kind,
+                                                             attrs=attrs,
+                                                             order=order)
         except BaseException:
             wx.CallAfter(dialog.showtraceback,
                          parent=self,
@@ -2575,7 +2579,7 @@ class DlgPlotSol(SimpleFramePlus):
                          traceback=traceback.format_exc())
 
             wx.CallAfter(self.set_title_no_status)
-        return None, None
+        return None
 
     def evaluate_sol_probe(self, expr, xexpr, phys_path):
         model = self.GetParent().model
