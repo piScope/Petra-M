@@ -1,5 +1,5 @@
 '''
-    Copyright (c) 2018, S. Shiraiwa
+    Copyright (c) 2018-, S. Shiraiwa
     All Rights reserved. See file COPYRIGHT for details.
 
     Variables
@@ -251,7 +251,16 @@ class Variable():
 
     def point_values(self, *args, **kwargs):
         raise NotImplementedError("Subclass need to implement")
-    
+
+    def add_topological_info(self, mesh):
+        if not isinstance(self, DomainVariable):
+            return
+        if mesh.Dimension() == 3:
+            self.topo_info = (3, mesh.extended_connectivity['surf2vol'])
+        if mesh.Dimension() == 2:
+            self.topo_info = (2, mesh.extended_connectivity['line2surf'])
+        if mesh.Dimension() == 1:
+            self.topo_info = (1, mesh.extended_connectivity['vert2line'])
     '''
     def make_callable(self):
         raise NotImplementedError("Subclass need to implement")
@@ -563,17 +572,32 @@ class DomainVariable(Variable):
             self.complex = True
 
     def set_point(self, T, ip, g, l, t=None):
-        attr = T.Attribute
-        self.domain_target = None
+        attr = T.Attribute        
+        if T.GetDimension() == self.topo_info[0]:
+            # domain mode
+            attrs = [attr]
+
+        elif T.GetDimension() == self.topo_info[0]-1:
+            # boundary mode
+            attrs = self.topo_info[1][attr]
+            
+        self.domain_target = []
         for domains in self.domains.keys():
-            if attr in domains:
-                self.domains[domains].set_point(T, ip, g, l, t=t)
-            self.domain_target = domains
+            for a in attrs:
+                if a in domains:
+                    self.domains[domains].set_point(T, ip, g, l, t=t)
+                self.domain_target.append(domains)
 
     def __call__(self, **kwargs):
-        if self.domain_target is None:
+        if len(self.domain_target) == 0:
             return 0.0
-        return self.domains[self.domain_target]()
+        # we return average for now. when domain variable is
+        # evaluated on the boundary, it computes the aveage on both side.
+        values = [self.domains[x]() for x in self.domain_target]
+        ans = values[0]
+        for v in values[1:]:
+            ans = ans + v
+        return ans/len(values)
 
     def get_emesh_idx(self, idx=None, g=None):
         if idx is None:

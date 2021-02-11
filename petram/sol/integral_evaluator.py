@@ -29,7 +29,7 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
                                          NativeCoefficientGenBase,
                                          CoefficientVariable)
     from petram.phys.coefficient import SCoeff
-    
+
     st = parser.expr(expr)
     code= st.compile('<string>')
     names = code.co_names

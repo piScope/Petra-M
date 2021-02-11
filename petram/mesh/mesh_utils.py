@@ -708,7 +708,23 @@ def get_extended_connectivity(mesh):
     me['line2edge'] = l2e
     me['line2vert'] = l2v
     me['vert2vert'] = v2v
+
+def get_reverse_connectivity(mesh):
+    def reverse_dict(d):
+        dd = defaultdict(list)        
+        for k in d:
+            for v in d[k]:
+                dd[v].append(k)
+        return dict(dd)
     
+    me = mesh.extended_connectivity
+    if me['vol2surf'] is not None:
+        me['surf2vol'] = reverse_dict(me['vol2surf'])
+    if me['surf2line'] is not None:
+        me['line2surf'] = reverse_dict(me['surf2line'])
+    if me['line2vert'] is not None:
+        me['vert2line'] = reverse_dict(me['line2vert'])        
+
 def vol2line(v2s, s2l):
     v2l =  {}
     for v in v2s:
