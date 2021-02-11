@@ -348,7 +348,7 @@ class EvaluatorClient(Evaluator):
 
     def terminate_all(self):
         try:
-            ret =  self.__call_server('terminate_all',
+            ret = self.__call_server('terminate_all',
                                       prompt='byebye',
                                       force_protocol1=True)
             

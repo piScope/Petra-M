@@ -345,9 +345,8 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         if solvars is None:
             return self.myid, None, None
 
-        data = []
+        data = 0.0
         for key in six.iterkeys(self.agents): # scan over battr
-            data.append([])
             evaluators = self.agents[key]
             for o, solvar in zip(evaluators, solvars): # scan over sol files
                 try:
@@ -358,9 +357,9 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                      
                 if v is None:
                     v = None
-                data[-1].append(v)
+                data = data + v
 
-        return self.myid, np.sum(data), 0
+        return self.myid, data, 0
         
     def eval_probe(self, expr, xexpr, probes):
         if self.phys_path == '': return None, None
