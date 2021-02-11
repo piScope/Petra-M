@@ -339,6 +339,9 @@ class EvaluatorClient(Evaluator):
      
     def eval_pointcloud(self,  *params, **kparams):
         return self.__call_server('eval_pointcloud', *params, **kparams)
+     
+    def eval_integral(self,  *params, **kparams):
+        return self.__call_server('eval_integral', *params, **kparams)
     
     def eval_probe(self,  *params, **kparams):
         return self.__call_server('eval_probe', *params, **kparams)
