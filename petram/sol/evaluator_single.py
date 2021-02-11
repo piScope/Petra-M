@@ -227,13 +227,12 @@ class EvaluatorSingle(EvaluatorCommon):
         for o, solvar in zip(evaluators, solvars): # scan over sol files
             kwargs['num'] = num           
             vv = o.eval_integral(expr, solvar, phys, **kwargs)
-            print("integrated value", vv)
             num = num + 1
             if vv is None:
                 pass
             else:
                 v = v + vv
-        print("integrated value (total)", v)                
+
         return v
 
     def eval_probe(self, expr, xexpr, probes):

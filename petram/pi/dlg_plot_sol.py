@@ -1065,13 +1065,19 @@ class DlgPlotSol(SimpleFramePlus):
                      'Edge': 'edge',
                      'Slice': 'domain',
                      'Points': 'domain',
+                     'Integral': 'domain/boundary',
                      'Domain': 'domain'}
             i = getattr(self, 'get_attrs_field_' + t)
             value = self.elps[t].GetValue()
             attrs = str(value[i()])
             if attrs.strip().lower() != 'all':
                 attrs = [int(x) for x in attrs.split(',') if x.strip() != '']
-            return kinds[t], attrs
+            if t == 'Integral':
+                value = self.elps['Integral'].GetValue()        
+                kind = str(value[1]).strip()
+                return kinds[t].lower(), attrs                
+            else:
+                return kinds[t], attrs
         else:
             return t
 
@@ -2130,6 +2136,11 @@ class DlgPlotSol(SimpleFramePlus):
                      'expr': expr,}
              self.post_threadend(self.export_to_piScope_shell,
                                  data, 'integral_data')
+             self.post_threadend(print,
+                                 "Integrated value", data['value'])
+             
+    def get_attrs_field_Integral(self):
+        return 2
 
     def eval_integral(self):
         value = self.elps['Integral'] .GetValue()        

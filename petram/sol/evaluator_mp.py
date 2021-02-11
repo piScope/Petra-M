@@ -165,7 +165,8 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
 
             except:
                 traceback.print_exc()
-                value = (self.myid, None, None)
+                err = traceback.format_exc()
+                value = (self.myid, err, None)
             finally:
                 self.task_queue.task_done()
 
@@ -359,7 +360,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     v = None
                 data[-1].append(v)
 
-        return self.myid, np.sum(data)
+        return self.myid, np.sum(data), 0
         
     def eval_probe(self, expr, xexpr, probes):
         if self.phys_path == '': return None, None
@@ -610,7 +611,7 @@ class EvaluatorMP(Evaluator):
             return None, None, None
 
         v = 0
-        for _myid, vv in res: # handle (myid, error, message)
+        for _myid, vv, _extra in res: # handle (myid, error, message)
             if vv is not None:
                 v = v + vv
 

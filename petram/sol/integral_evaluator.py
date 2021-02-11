@@ -55,25 +55,31 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
     flag = mfem.intArray(arr)
 
     s = SCoeff(expr, ind_vars, l, g, return_complex=False)
-    fec = mfem.L2_FECollection(order, mesh.Dimension())
+
+    ## note L2 does not work for boundary....:D
+    if kind == 'Domain':
+        fec = mfem.L2_FECollection(order, mesh.Dimension())
+    else:
+        fec = mfem.H1_FECollection(order, mesh.Dimension())
+
     fes = mfem.FiniteElementSpace(mesh, fec)
     gf = mfem.GridFunction(fes)
-    #if kind == 'Domain':    
-    gf.ProjectCoefficient(mfem.RestrictedCoefficient(s, flag))
-    #else:
-    #gf.ProjectBdrCoefficient(s, flag)
+
+    if kind == 'Domain':
+        gf.ProjectCoefficient(mfem.RestrictedCoefficient(s, flag))
+    else:
+        gf.ProjectBdrCoefficient(s, flag)
 
     b = mfem.LinearForm(fes)
     one = mfem.ConstantCoefficient(1)
-    #if kind == 'Domain':
-    itg = mfem.DomainLFIntegrator(one)    
-    b.AddDomainIntegrator(itg)
-    #else:
-    #itg = mfem.BoundaryLFIntegrator(one)
-    #b.AddBoundaryIntegrator(itg)
-    
+    if kind == 'Domain':
+        itg = mfem.DomainLFIntegrator(one)
+        b.AddDomainIntegrator(itg)
+    else:
+        itg = mfem.BoundaryLFIntegrator(one)
+        b.AddBoundaryIntegrator(itg, flag)
+
     b.Assemble()
-    
     ans = mfem.InnerProduct(gf, b)
 
     return ans

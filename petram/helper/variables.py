@@ -387,6 +387,7 @@ class ExpressionVariable(Variable):
 
     def set_point(self, T, ip, g, l, t=None):
         self.x = T.Transform(ip)
+        #print("setting x", self, self.x)
         for n in self.names:
             if (n in g and isinstance(g[n], Variable)):
                 g[n].set_point(T, ip, g, l, t=t)

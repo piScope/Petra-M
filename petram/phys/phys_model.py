@@ -109,6 +109,7 @@ class Coefficient_Evaluator(object):
         self.variables = []
 
         self.co = []
+
         for expr in exprs:
            if isinstance(expr, str):
                st = parser.expr(expr.strip())
