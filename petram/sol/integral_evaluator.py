@@ -81,8 +81,9 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
 
     b.Assemble()
 
-    from petram.engine.SerialEngine import x2X, b2B
-    ans = mfem.InnerProduct(x2X(gf), b2B(b))
+    from petram.engine import SerialEngine
+    en = SerialEngine()
+    ans = mfem.InnerProduct(en.x2X(gf), en.b2B(b))
     if not np.isfinite(ans):
         print("not finite", ans, arr)
         from mfem.common.chypre import LF2PyVec, PyVec2PyMat, Array2PyVec, IdentityPyMat
