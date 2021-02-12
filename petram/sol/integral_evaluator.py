@@ -69,7 +69,7 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
     
     gf = mfem.GridFunction(fes)
 
-    gf.ProjectBdrCoefficient(one, flag)  # <===============================
+    gf.ProjectBdrCoefficient(s, flag)  # <===============================
     #if kind == 'Domain':
     #    gf.ProjectCoefficient(mfem.RestrictedCoefficient(s, flag))
     #else:
