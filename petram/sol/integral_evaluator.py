@@ -54,7 +54,7 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
     for k in attrs: arr[k-1] = 1
     flag = mfem.intArray(arr)
     
-    arr = [1]*size    # <===============================
+    arr = [1]*size
     flag2 = mfem.intArray(arr)
 
     s = SCoeff(expr, ind_vars, l, g, return_complex=False)
@@ -70,12 +70,10 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
     
     gf = mfem.GridFunction(fes)
 
-    gf.ProjectBdrCoefficient(mfem.RestrictedCoefficient(s, flag), flag2)
-    #gf.ProjectBdrCoefficient(s, flag)  # <===============================
-    #if kind == 'Domain':
-    #    gf.ProjectCoefficient(mfem.RestrictedCoefficient(s, flag))
-    #else:
-    #    gf.ProjectBdrCoefficient(s, flag)
+    if kind == 'Domain':
+        gf.ProjectCoefficient(mfem.RestrictedCoefficient(s, flag))
+    else:
+        gf.ProjectBdrCoefficient(mfem.RestrictedCoefficient(s, flag), flag2)
     
     b = mfem.LinearForm(fes)
     one = mfem.ConstantCoefficient(1)
