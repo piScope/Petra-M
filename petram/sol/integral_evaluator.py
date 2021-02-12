@@ -50,11 +50,11 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
     else:
         size = max(max(mesh.bdr_attributes.ToList()), max(attrs))
         
-    arr = [0]*size
+    arr = [0]*(size+1)
     for k in attrs: arr[k-1] = 1
     flag = mfem.intArray(arr)
     
-    arr2 = [1]*size
+    arr2 = [1]*(size+1)
     flag2 = mfem.intArray(arr2)
 
     s = SCoeff(expr, ind_vars, l, g, return_complex=False)
