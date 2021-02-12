@@ -81,7 +81,11 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
 
     b.Assemble()
     ans = mfem.InnerProduct(gf, b)
-
+    if not np.isfinite(ans):
+        from mfem.common.chypre import LF2PyVec, PyVec2PyMat, Array2PyVec, IdentityPyMat
+        print(list(b.GetDataArray()))
+        v2 = LF2PyVec(b, None, horizontal=True)        
+        print(b[0])
     return ans
 
 class IntegralEvaluator(EvaluatorAgent):
