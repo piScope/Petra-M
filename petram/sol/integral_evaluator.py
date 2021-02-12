@@ -81,7 +81,7 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
 
     b.Assemble()
 
-    from petram.engein.SerialEngine import x2X, b2B
+    from petram.engine.SerialEngine import x2X, b2B
     ans = mfem.InnerProduct(x2X(gf), b2B(b))
     if not np.isfinite(ans):
         print("not finite", ans, arr)
