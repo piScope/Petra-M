@@ -166,7 +166,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             except:
                 traceback.print_exc()
                 err = traceback.format_exc()
-                value = (self.myid, err, None)
+                value = (self.myid, None, None)
             finally:
                 self.task_queue.task_done()
 
@@ -607,12 +607,14 @@ class EvaluatorMP(Evaluator):
         res = [x for x in res if x[-1] is not None]
 
         if len(res) == 0:
-            return None, None, None
+            return None
 
         v = 0
         for _myid, vv, _extra in res: # handle (myid, error, message)
             if vv is not None:
                 v = v + vv
+            else:
+                assert False, _extra
 
         return v
             

@@ -2585,7 +2585,7 @@ class DlgPlotSol(SimpleFramePlus):
         except BaseException:
             wx.CallAfter(dialog.showtraceback,
                          parent=self,
-                         txt='Failed to evauate expression (probe)',
+                         txt='Failed to evauate expression (integral)',
                          title='Error',
                          traceback=traceback.format_exc())
 

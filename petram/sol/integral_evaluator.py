@@ -46,9 +46,9 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
     ind_vars = ','.join(phys.get_independent_variables())
 
     if kind == 'Domain':
-        size = max(mesh.attributes.ToList())
+        size = max(max(mesh.attributes.ToList()), max(attrs))
     else:
-        size = max(mesh.bdr_attributes.ToList())
+        size = max(max(mesh.bdr_attributes.ToList()), max(attrs))
     arr = [0]*size
 
     for k in attrs: arr[k-1] = 1
@@ -102,4 +102,5 @@ class IntegralEvaluator(EvaluatorAgent):
 
         mesh = self.mesh()[emesh_idx[0]]
         itg = do_integration(expr, solvars, phys, mesh, kind, attrs, order, num)
+
         return itg

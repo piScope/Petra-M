@@ -215,7 +215,7 @@ class EvaluatorSingle(EvaluatorCommon):
         phys = self.mfem_model()[self.phys_path]
         solvars = self.load_solfiles()
         if solvars is None:
-            return None, None
+            return None
 
         key = list(self.agents)[0]
         evaluators = self.agents[key]
