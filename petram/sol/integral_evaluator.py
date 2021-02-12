@@ -49,9 +49,11 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
         size = max(max(mesh.attributes.ToList()), max(attrs))
     else:
         size = max(max(mesh.bdr_attributes.ToList()), max(attrs))
+        
     arr = [0]*size
-
     for k in attrs: arr[k-1] = 1
+
+    arr = [1]*size    # <===============================
     flag = mfem.intArray(arr)
 
     s = SCoeff(expr, ind_vars, l, g, return_complex=False)
@@ -63,13 +65,16 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
         fec = mfem.H1_FECollection(order, mesh.Dimension())
 
     fes = mfem.FiniteElementSpace(mesh, fec)
+    one = mfem.ConstantCoefficient(1)
+    
     gf = mfem.GridFunction(fes)
 
-    if kind == 'Domain':
-        gf.ProjectCoefficient(mfem.RestrictedCoefficient(s, flag))
-    else:
-        gf.ProjectBdrCoefficient(s, flag)
-
+    gf.ProjectBdrCoefficient(one, flag)  # <===============================
+    #if kind == 'Domain':
+    #    gf.ProjectCoefficient(mfem.RestrictedCoefficient(s, flag))
+    #else:
+    #    gf.ProjectBdrCoefficient(s, flag)
+    
     b = mfem.LinearForm(fes)
     one = mfem.ConstantCoefficient(1)
     if kind == 'Domain':
@@ -88,7 +93,7 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
         print("not finite", ans, arr)
         from mfem.common.chypre import LF2PyVec, PyVec2PyMat, Array2PyVec, IdentityPyMat
         #print(list(gf.GetDataArray()))
-        print(len(gf.GetDataArray()))
+        print(len(gf.GetDataArray()), np.sum(gf.GetDataArray()))
         print(np.sum(list(b.GetDataArray())))
     return ans
 
