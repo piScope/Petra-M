@@ -77,12 +77,12 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
         b.AddDomainIntegrator(itg)
     else:
         itg = mfem.BoundaryLFIntegrator(one)
-        b.AddBoundaryIntegrator(itg, flag)
+        b.AddBoundaryIntegrator(itg)
 
     b.Assemble()
     ans = mfem.InnerProduct(gf, b)
     if not np.isfinite(ans):
-        print("not finite", ans)
+        print("not finite", ans, arr)
         from mfem.common.chypre import LF2PyVec, PyVec2PyMat, Array2PyVec, IdentityPyMat
         print(list(gf.GetDataArray()))
         print(list(b.GetDataArray()))        
