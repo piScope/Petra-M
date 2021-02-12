@@ -84,9 +84,8 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
     if not np.isfinite(ans):
         print("not finite", ans)
         from mfem.common.chypre import LF2PyVec, PyVec2PyMat, Array2PyVec, IdentityPyMat
-        print(list(b.GetDataArray()))
-        v2 = LF2PyVec(b, None, horizontal=True)        
-        print(b[0])
+        print(list(gf.GetDataArray())
+        print(list(b.GetDataArray()))        
     return ans
 
 class IntegralEvaluator(EvaluatorAgent):
