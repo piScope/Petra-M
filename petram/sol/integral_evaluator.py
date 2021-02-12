@@ -73,7 +73,7 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
     if kind == 'Domain':
         gf.ProjectCoefficient(mfem.RestrictedCoefficient(s, flag))
     else:
-        gf.ProjectBdrCoefficient(mfem.RestrictedCoefficient(s, flag), flag2)
+        gf.ProjectBdrCoefficient(mfem.RestrictedCoefficient(one, flag), flag2)
     
     b = mfem.LinearForm(fes)
     one = mfem.ConstantCoefficient(1)
