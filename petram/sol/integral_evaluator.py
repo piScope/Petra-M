@@ -80,7 +80,9 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
         b.AddBoundaryIntegrator(itg)
 
     b.Assemble()
-    ans = mfem.InnerProduct(gf, b)
+
+    from petram.engein.SerialEngine import x2X, b2B
+    ans = mfem.InnerProduct(x2X(gf), b2B(b))
     if not np.isfinite(ans):
         print("not finite", ans, arr)
         from mfem.common.chypre import LF2PyVec, PyVec2PyMat, Array2PyVec, IdentityPyMat
