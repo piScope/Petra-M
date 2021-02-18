@@ -1,5 +1,5 @@
-
 import traceback
+from petram.namespace_mixin import NSRef_mixin
 
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('PP_Mode')
@@ -12,8 +12,16 @@ class PostProcessBase(Model):
     @property
     def _global_ns(self):
         # used for text box validator
-        return self.root()['General']._global_ns
-    
+        p = self
+        while True:
+            if isinstance(p, NSRef_mixin):
+                break
+            p = p.parent
+            if p is None:
+                # it should not come here...x
+                return {}
+        return p.find_ns_by_name()
+
     def run_postprocess(self, engin):
         raise NotImplemented("Subclass must implement run_postprocess")
     
@@ -50,8 +58,19 @@ class PostProcessBase(Model):
             if self.sdim == 1:               
                self.sel_index = alle
     
-class PostProcess(PostProcessBase):
-    has_2nd_panel = False    
+class PostProcess(PostProcessBase, NSRef_mixin):
+    has_2nd_panel = False
+    
+    def __init__(self, *args, **kwargs):
+        super(PostProcess, self).__init__(*args, **kwargs)
+        NSRef_mixin.__init__(self, *args, **kwargs)
+        
+    def get_info_str(self):
+        txt = []
+        if NSRef_mixin.get_info_str(self) != "":
+            txt.append(NSRef_mixin.get_info_str(self))
+        return ",".join(txt)
+    
     def get_possible_child(self):
         from petram.postprocess.project_solution import DerivedValue
         from petram.postprocess.discrt_v_integration import (LinearformIntegrator,

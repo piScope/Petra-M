@@ -86,13 +86,26 @@ class MFEM_PhysRoot(Model):
         return classes
     
     def make_solvars(self, solsets, g=None):
+        from petram.mesh.mesh_utils import (get_extended_connectivity,
+                                            get_reverse_connectivity)
+        from petram.helper.variables import Variable
+        
         solvars = [None]*len(solsets)
         if g is None: g = {}
         for k, v in enumerate(solsets):
             mesh, soldict = v
+
+            get_extended_connectivity(mesh[0])
+            get_reverse_connectivity(mesh[0])      
+
             solvar = g.copy()
             for phys in self.iter_enabled():
                 phys.soldict_to_solvars(soldict, solvar)
+
+            for var in solvar.values():
+                if isinstance(var, Variable):
+                    var.add_topological_info(mesh[0])
+                    
             solvars[k] = solvar
         #print "solvars", solvars
         return solvars

@@ -129,13 +129,22 @@ class MFEMViewer(BookViewer):
     def __init__(self, *args, **kargs):
         kargs['isattachable'] = False
         kargs['isinteractivetarget'] = False
+        kargs['ismultipage'] = False        
         BookViewer.__init__(self, *args, **kargs)
         extra_menu = wx.Menu()
         self.menuBar.Insert(self.menuBar.GetMenuCount()-1,
                             extra_menu, "MFEM")
         menus = MFEM_menus(self)
         ret = BuildMenu(extra_menu, menus)
-        self._solmenu = ret[ID_SOL_FOLDER]
+        
+        data = ret[ID_SOL_FOLDER]
+        if len(data) == 2:
+            self._solmenu, item = data
+            self._ID_SOL_FOLDER = item.GetId()
+        else:
+            self._solmenu = data            
+            self._ID_SOL_FOLDER = ID_SOL_FOLDER
+            
         self._hidemesh = True
         self._sel_mode = ''  # selecting particular geomgetry element
         self._view_mode = ''  # ('geom', 'mesh', 'phys')
@@ -323,7 +332,7 @@ class MFEMViewer(BookViewer):
                 self._hidemesh = True
 
     def onUpdateUI(self, evt):
-        if evt.GetId() == ID_SOL_FOLDER:
+        if evt.GetId() == self._ID_SOL_FOLDER:
             m = self._solmenu
             for item in m.GetMenuItems():
                 m.DestroyItem(item)
@@ -1823,6 +1832,7 @@ class MFEMViewer(BookViewer):
                   'face': 'face',
                   'edge': 'edge',
                   'point':'dot'}
+        if not mode in bmodes: return
         bmode = bmodes[mode]
 
         self.set_sel_mode(mode)

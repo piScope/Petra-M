@@ -17,7 +17,7 @@ from weakref import WeakKeyDictionary
 
 from functools import reduce
 
-from petram.namespace_mixin import NS_mixin
+from petram.namespace_mixin import NS_mixin, NSRef_mixin
 
 def validate_sel(value, obj, w):
     g = obj._global_ns
@@ -380,20 +380,21 @@ class Model(RestorableOrderedDict):
             
         m = []
         for k in self.keys():
-            ll = 0
-            while ll < len(k):
-               if not k[ll].isdigit(): ll = ll+1
+            ll = len(k)
+            while ll >= 0:
+               if k[ll-1].isdigit(): ll = ll-1
                else: break
 
             name = k[:ll]
             if name == txt:
                 if len(k) > len(name):
-                    m.append(int(k[len(name):]))
+                    m.append(int(k[ll:]))
 
         if len(m) == 0:
            name = txt+str(1)
         else:
            name = txt + str(max(m)+1)
+
         obj = cls(**kwargs)
         done = False
         if obj.mustbe_firstchild:
@@ -648,6 +649,9 @@ class Model(RestorableOrderedDict):
     
     def has_ns(self):
         return isinstance(self, NS_mixin)
+    
+    def has_nsref(self):
+        return isinstance(self, NSRef_mixin)
 
     def add_node(self, name = '', cls = ''):
         ''' 
@@ -707,7 +711,7 @@ class Model(RestorableOrderedDict):
             script.append(self._script_name + '.'+attr + ' = ' +
                               value.__repr__())
             
-        if self.has_ns() and self.ns_name is not None:
+        if (self.has_ns() or self.has_nsref()) and self.ns_name is not None:
             script.append(self._script_name + '.ns_name = "' +
                           self.ns_name + '"')
 

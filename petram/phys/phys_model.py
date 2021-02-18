@@ -109,6 +109,7 @@ class Coefficient_Evaluator(object):
         self.variables = []
 
         self.co = []
+
         for expr in exprs:
            if isinstance(expr, str):
                st = parser.expr(expr.strip())
@@ -1039,6 +1040,21 @@ class PhysModule(Phys):
     def is_complex(self):
         return False
 
+    def get_possible_domain(self):
+        from petram.phys.wf.wf_constraints import WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint
+        return [WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint]
+    
+    def get_possible_bdry(self):
+        from petram.phys.wf.wf_constraints import WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint
+        return [WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint]
+    
+    def get_possible_point(self):
+        from petram.phys.wf.wf_constraints import WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint
+        #from wf_essential import WF_Essential
+        #return [WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint]
+        # Bilinear form does not suppoert delta coefficent
+        return [WF_WeakPointLinConstraint]
+     
     def get_possible_child(self):
         from petram.phys.aux_variable import AUX_Variable
         from petram.phys.aux_operator import AUX_Operator        

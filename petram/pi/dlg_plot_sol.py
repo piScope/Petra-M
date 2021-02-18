@@ -187,7 +187,7 @@ class DlgPlotSol(SimpleFramePlus):
         box.Add(self.nb, 1, wx.EXPAND | wx.ALL, 1)
 
         tabs = ['GeomBdr', 'Points', 'Edge', 'Bdr', 'Bdr(arrow)', 'Slice',
-                'Probe', 'Config']
+                'Probe', 'Integral', 'Config']
         self.pages = {}
         self.elps = {}
         for t in tabs:
@@ -361,7 +361,7 @@ class DlgPlotSol(SimpleFramePlus):
 
             hbox = wx.BoxSizer(wx.HORIZONTAL)
             vbox.Add(hbox, 0, wx.EXPAND | wx.ALL, 5)
-            ibutton = wx.Button(p, wx.ID_ANY, "Integrate")
+            ibutton = wx.Button(p, wx.ID_ANY, "Integral")
             ebutton = wx.Button(p, wx.ID_ANY, "Export")
             button = wx.Button(p, wx.ID_ANY, "Apply")
             ibutton.Bind(wx.EVT_BUTTON, self.onInteg)
@@ -451,7 +451,37 @@ class DlgPlotSol(SimpleFramePlus):
             hbox.Add(ebutton, 0, wx.ALL, 1)
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
+            
+        if 'Integral' in tabs:
+            p = self.pages['Integral']
+            vbox = wx.BoxSizer(wx.VERTICAL)
+            p.SetSizer(vbox)
 
+            choices = list(mfem_model['Phys'])
+            choices = [mfem_model['Phys'][c].fullpath() for c in choices]
+            if len(choices) == 0:
+                choices = ['no physics in model']
+
+            dom_bdr = ['Domain', 'Boundary']
+            ll = [['Expression', '', 0, {}],
+                  ['Kind', dom_bdr[0], 4, {'style': wx.CB_READONLY,
+                                                'choices': dom_bdr}],
+                  ['Index', text, 0, {}],
+                  ['Order', '2',  0, {}],                  
+                  ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
+                                                'choices': choices}], ]
+
+            elp = EditListPanel(p, ll)
+            vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
+            self.elps['Integral'] = elp
+
+            hbox = wx.BoxSizer(wx.HORIZONTAL)
+            vbox.Add(hbox, 0, wx.EXPAND | wx.ALL, 5)
+            button = wx.Button(p, wx.ID_ANY, "Apply")
+            button.Bind(wx.EVT_BUTTON, self.onApply)
+            hbox.AddStretchSpacer()
+            hbox.Add(button, 0, wx.ALL, 1)
+            
         if 'Probe' in tabs:
             p = self.pages['Probe']
             vbox = wx.BoxSizer(wx.VERTICAL)
@@ -1035,13 +1065,19 @@ class DlgPlotSol(SimpleFramePlus):
                      'Edge': 'edge',
                      'Slice': 'domain',
                      'Points': 'domain',
+                     'Integral': 'domain/boundary',
                      'Domain': 'domain'}
             i = getattr(self, 'get_attrs_field_' + t)
             value = self.elps[t].GetValue()
             attrs = str(value[i()])
             if attrs.strip().lower() != 'all':
                 attrs = [int(x) for x in attrs.split(',') if x.strip() != '']
-            return kinds[t], attrs
+            if t == 'Integral':
+                value = self.elps['Integral'].GetValue()        
+                kind = str(value[1]).strip()
+                return kinds[t].lower(), attrs                
+            else:
+                return kinds[t], attrs
         else:
             return t
 
@@ -2086,6 +2122,39 @@ class DlgPlotSol(SimpleFramePlus):
             return None, None
         return data, verts
 
+    '''
+    integral
+    '''
+    @run_in_piScope_thread    
+    def onApplyIntegral(self, evt):
+        expr, value, kind, idx, order = self.eval_integral()
+        if value is not None:
+             data = {'value': value,
+                     'kind': kind,
+                     'order': order,
+                     'idx': idx,
+                     'expr': expr,}
+             self.post_threadend(self.export_to_piScope_shell,
+                                 data, 'integral_data')
+             self.post_threadend(print,
+                                 "Integrated value", data['value'])
+             
+    def get_attrs_field_Integral(self):
+        return 2
+
+    def eval_integral(self):
+        value = self.elps['Integral'] .GetValue()        
+        expr = str(value[0]).strip()
+        kind = str(value[1]).strip()
+        attrs = str(value[2])
+        order = int(value[3])
+        phys_path = str(value[4]).strip()
+        
+        value = self.evaluate_sol_integral(expr, kind, attrs, order, phys_path)
+        return expr, value, kind, attrs, order
+    '''
+    probe
+    '''
     @run_in_piScope_thread
     def onApplyProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
@@ -2461,6 +2530,67 @@ class DlgPlotSol(SimpleFramePlus):
 
             wx.CallAfter(self.set_title_no_status)
         return None, None
+    
+    def evaluate_sol_integral(self, expr, kind, attrs, order, phys_path):
+        model = self.GetParent().model
+        solfiles = self.get_model_soldfiles()        
+        mfem_model = model.param.getvar('mfem_model')
+
+        phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
+        mesh = model.variables.getvar('mesh')
+        
+        if attrs != 'all':
+            try:
+                attrs = list(np.atleast_1d(eval(attrs, {}, phys_ns)))
+            except BaseException:
+                traceback.print_exc()
+                assert False, "Failed to evaluate attrs " + attrs
+        else:
+            if mesh.Dimension() == 3:
+                if kind == 'Domain':
+                    attrs = list(mesh.extended_connectivity['vol2surf'])
+                else:
+                    attrs = list(mesh.extended_connectivity['surf2line'])                    
+            elif mesh.Dimension() == 2:
+                if kind == 'Domain':                
+                    attrs = list(mesh.extended_connectivity['surf2line'])
+                else:
+                    attrs = list(mesh.extended_connectivity['line2vert'])                                
+            elif mesh.Dimension() == 1:                                
+                attrs = list(mesh.extended_connectivity['line2vert'])            
+            else:
+                assert False, "unsupported mesh dimension"
+            
+        from petram.sol.evaluators import build_evaluator
+
+        if 'Integral' in self.evaluators:
+            self.evaluators['Integral'].terminate_all()
+        self.evaluators['Integral'] = build_evaluator(attrs,
+                                                   mfem_model,
+                                                   solfiles,
+                                                   name='Integral',
+                                                   config=self.config)
+
+        try:
+            if model.variables.getvar('remote_soldir') is None:
+                probes = self.local_sols[0:2]
+            else:
+                probes = self.remote_sols[0:2]
+
+            self.evaluators['Integral'].set_phys_path(phys_path)
+            return self.evaluators['Integral'].eval_integral(expr,
+                                                             kind=kind,
+                                                             attrs=attrs,
+                                                             order=order)
+        except BaseException:
+            wx.CallAfter(dialog.showtraceback,
+                         parent=self,
+                         txt='Failed to evauate expression (integral)',
+                         title='Error',
+                         traceback=traceback.format_exc())
+
+            wx.CallAfter(self.set_title_no_status)
+        return None
 
     def evaluate_sol_probe(self, expr, xexpr, phys_path):
         model = self.GetParent().model
