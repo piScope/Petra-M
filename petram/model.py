@@ -380,20 +380,21 @@ class Model(RestorableOrderedDict):
             
         m = []
         for k in self.keys():
-            ll = 0
-            while ll < len(k):
-               if not k[ll].isdigit(): ll = ll+1
+            ll = len(k)
+            while ll >= 0:
+               if k[ll-1].isdigit(): ll = ll-1
                else: break
 
             name = k[:ll]
             if name == txt:
                 if len(k) > len(name):
-                    m.append(int(k[len(name):]))
+                    m.append(int(k[ll:]))
 
         if len(m) == 0:
            name = txt+str(1)
         else:
            name = txt + str(max(m)+1)
+
         obj = cls(**kwargs)
         done = False
         if obj.mustbe_firstchild:

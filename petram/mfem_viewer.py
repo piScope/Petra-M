@@ -1832,6 +1832,7 @@ class MFEMViewer(BookViewer):
                   'face': 'face',
                   'edge': 'edge',
                   'point':'dot'}
+        if not mode in bmodes: return
         bmode = bmodes[mode]
 
         self.set_sel_mode(mode)

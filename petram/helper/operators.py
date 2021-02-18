@@ -842,7 +842,7 @@ class Convolve(Operator):
           zero_support=False : use zero support function.
     '''
     def assemble(self, *args, **kwargs):
-        from petram.helper.convolve1d import convolve1d, convolve2d, delta, zero
+        from petram.helper.convolve import convolve1d, convolve2d, delta, zero
         
         engine = self._engine()
         is_complex = kwargs.pop("complex", False)

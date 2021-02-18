@@ -35,7 +35,7 @@ def delta(x, _x0, w=None):
     (this is for debugging)
     '''
     #return 1.0
-    if np.abs(x) < 1e-5:
+    if np.sqrt(np.sum(x**2)) < 1e-5:
         return 1/w
     return 0.0
 
@@ -357,12 +357,29 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
     '''
     mat, rstart = get_empty_map(fes2, fes1, is_complex=is_complex)
 
+    if fes1.GetNE() == 0:
+        assert False, "FESpace does not have element"
     eltrans1 = fes1.GetElementTransformation(0)
     ir = get_rule(fes1.GetFE(0), fes2.GetFE(0), eltrans1, orderinc, verbose)
 
-    shape1 = mfem.Vector()
-    shape2 = mfem.Vector()
+    name_fes1 = fes1.FEColl().Name()[:2]
+    name_fes2 = fes2.FEColl().Name()[:2]
 
+
+    sdim = fes1.GetMesh().SpaceDimension()
+    if name_fes1 in ['RT', 'ND']:
+        shape1 = mfem.DenseMatrix()
+        vdim1 = fes1.GetMesh().SpaceDimension()
+    else:
+        shape1 = mfem.Vector()
+        vdim1 = 1
+    if name_fes2 in ['RT', 'ND']:
+        shape2 = mfem.DenseMatrix()
+        vdim2 = fes1.GetMesh().SpaceDimension()        
+    else:
+        shape2 = mfem.Vector()
+        vdim1 = 1        
+    
     #nicePrint("shape", mat.shape, fes2.GetNE(), fes1.GetNE())
 
     # communication strategy
@@ -377,23 +394,23 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
     x2_arr = []
     i2_arr = []
 
-    ptx = mfem.DenseMatrix(ir.GetNPoints(), 1)
+    ptx = mfem.DenseMatrix(ir.GetNPoints(), sdim)
     
     attrs1 = fes2.GetMesh().GetAttributeArray()
     attrs2 = fes2.GetMesh().GetAttributeArray()
-    
+
     for i in range(fes2.GetNE()): # scan test space
         if test_domain != 'all':
             if not attrs1[i] in test_domain: continue
         eltrans = fes2.GetElementTransformation(i)
         eltrans.Transform(ir, ptx)
-        x2_arr.append(ptx.GetDataArray().copy())
+        x2_arr.append(ptx.GetDataArray().copy().transpose())
         i2_arr.append(i)
     if len(i2_arr) > 0:
-       ptx_x2 = np.vstack(x2_arr)
+       ptx_x2 = np.stack(x2_arr)
        i2_arr = np.hstack(i2_arr)
     else:
-       ptx_x2 = np.array([[]])
+       ptx_x2 = np.array([[[]]])
        i2_arr = np.array([])
 
     #nicePrint("x2 shape", ptx_x2.shape)
@@ -431,6 +448,7 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
         # collect vdofs
         for j in range(fes1.GetNE()):
             local_vdofs = fes1.GetElementVDofs(j)
+            local_vdofs = [vv if vv >=0 else  -1 -vv for vv in local_vdofs]
             if USE_PARALLEL:
                 subvdofs2 = [VDoFtoGTDoF1[i] for i in local_vdofs]
                 vdofs1_all.append(subvdofs2)
@@ -439,20 +457,25 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
 
         for i, x2s in zip(i2_onenode, x2_onenode): # loop over fes2
             nd2 = len(x2s)
-            #nicePrint(x2s)
+            #nicePrint("x2s", i, x2s.shape, x2s)
             elmats = []
             for j in range(fes1.GetNE()):
                 if trial_domain != 'all':
                     if not attrs1[j] in trial_domain: continue
-                
+
                 # collect integration
                 fe1 = fes1.GetFE(j)
                 nd1 = fe1.GetDof()
-                shape1.SetSize(nd1)
                 eltrans = fes1.GetElementTransformation(j)
+                dof_sign1 = np.array([1 if vv >=0 else -1
+                             for vv in fes1.GetElementVDofs(j)])
 
-                tmp_int = np.zeros(shape1.Size(), dtype=mat.dtype)
-                elmat = np.zeros((nd2, nd1), dtype=mat.dtype)
+                if name_fes1 in ['RT', 'ND']:
+                    shape1.SetSize(nd1, vdim1)
+                else:
+                    shape1.SetSize(nd1)
+                elmat = np.zeros((nd2, vdim2, nd1), dtype=mat.dtype)
+                tmp_int = np.zeros((vdim2, nd1), dtype=mat.dtype).squeeze()
 
                 #if myid == 0: print("fes1 idx", j)
 
@@ -460,31 +483,40 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                 for jj in range(ir.GetNPoints()):
                     ip1 = ir.IntPoint(jj)
                     eltrans.SetIntPoint(ip1)
-                    x1 = eltrans.Transform(ip1)[0]
-                    fe1.CalcShape(ip1, shape1)
+                    x1 = eltrans.Transform(ip1)
+                    if name_fes1 in ['RT', 'ND']:
+                        fe1.CalcVShape(eltrans, shape1)
+                    else:
+                        fe1.CalcShape(ip1, shape1)
                     w = eltrans.Weight() * ip1.weight
-                    dataset.append((x1, w, shape1.GetDataArray().copy()))
+                    ss = shape1.GetDataArray().copy()
+                    
+                    if len(ss.shape) > 1:
+                        ss = np.transpose(ss)
+                    ss = ss * dof_sign1
+                    dataset.append((x1, w, ss))
                     
                 has_contribution = False
                 for kkk, x2 in enumerate(x2s):
                     tmp_int *= 0.0
-                    
+
                     for x1, w, shape_arr in dataset:
                         if support is not None:
-                            s = support((x1 + x2)/2.0)
-                            if np.abs(x1-x2) > s:
+                            s = support((x1 + x2 )/2.0)
+                            if np.sqrt(np.sum((x1-x2)**2)) > s:
                                 continue
 
                         has_contribution = True
                         #if myid == 0: print("check here", x1, x2)
                         val = kernel(x2-x1, (x2+x1)/2.0, w=w)
-
                         #shape_arr *= w*val
-                        tmp_int += shape_arr*w*val
-                    elmat[kkk, :] = tmp_int
+                        tmp_int += np.dot(val, shape_arr)*w
+
+                    elmat[kkk, ...] = tmp_int
 
                 if has_contribution:
                     elmats.append((j, elmat))
+
                 #print(elmats)
             if len(elmats) > 0:
                 elmats_all.append((i, elmats))
@@ -540,9 +572,17 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                 
         for i, elmats in elmats_all:  # corresponds to loop over fes2
             vdofs2 = fes2.GetElementVDofs(i)
+            dof_sign2 = np.array([[1 if vv >= 0 else -1
+                                   for vv in vdofs2],]).transpose()
+            vdofs2 = [-1-x if x < 0 else x for x in vdofs2]            
+            
             fe2 = fes2.GetFE(i)
             nd2 = fe2.GetDof()
-            shape2.SetSize(nd2)
+            
+            if name_fes2 in ['RT', 'ND']:
+                shape2.SetSize(nd2, vdim2)
+            else:
+                shape2.SetSize(nd2)
 
             eltrans = fes2.GetElementTransformation(i)
 
@@ -558,25 +598,32 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                     ip2 = ir.IntPoint(ii)
                     eltrans.SetIntPoint(ip2)
                     ww = eltrans.Weight() * ip2.weight
-                    fe2.CalcShape(ip2, shape2)
+                    
+                    if name_fes2 in ['RT', 'ND']:
+                        fe2.CalcVShape(eltrans, shape2)
+                    else:
+                        fe2.CalcShape(ip2, shape2)
+
                     shape2 *= ww
+                    ss = shape2.GetDataArray().reshape(-1, vdim2)
+                    ss = ss * dof_sign2
 
-                    tmp_int = elmat[ii, :]
-                    tmp = np.dot(np.atleast_2d(shape2.GetDataArray()).transpose(),
-                                 np.atleast_2d(tmp_int))
+                    tmp_int = elmat[ii, ...].reshape(vdim1, -1)
+                    tmp = np.dot(ss, tmp_int)
                     mm = mm + tmp
-                    #print("check here", myid, mm.shape, tmp.shape)
 
-                # merge contribution to final mat
+                # preapre shared data
                 if USE_PARALLEL:
                     vdofs22 = [fes2.GetLocalTDofNumber(ii) for ii in vdofs2]
                     vdofs22g = [VDoFtoGTDoF2[ii] for ii in vdofs2]
                     kkk = 0
-                    for v2, v2g in zip(vdofs22, vdofs22g):
+                    #for v2, v2g in zip(vdofs22, vdofs22g):
+                    for v2, v2g in zip(vdofs2, vdofs22g):
                         if v2 < 0:
                             shared_data.append([v2g, mm[kkk, :], vdofs1[j]])
                         kkk = kkk + 1
-
+                        
+                # merge contribution to final mat
                 for k, vv in enumerate(vdofs1[j]):
                     try:
                         if USE_PARALLEL:
@@ -590,6 +637,7 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                         #print(mmm[:, [k]])
                         tmp = mat[vdofs222, vv] + mmm[:, [k]]
                         mat[vdofs222, vv] = tmp.flatten()
+
                     except:
                         import traceback
                         print("error", myid)
@@ -608,6 +656,8 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
 
     from scipy.sparse import coo_matrix, csr_matrix
 
+
+
     if USE_PARALLEL:
         if is_complex:
             m1 = csr_matrix(mat.real, dtype=float)
@@ -620,7 +670,6 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
         end_col = fes1.GetMyTDofOffset() + fes1.GetTrueVSize()
         col_starts = [start_col, end_col, mat.shape[1]]
         M = CHypreMat(m1, m2, col_starts=col_starts)
-        print("mat", M)
     else:
         from petram.helper.block_matrix import convert_to_ScipyCoo
 
