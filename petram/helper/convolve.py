@@ -330,7 +330,7 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
         end_col = fes1.GetMyTDofOffset() + fes1.GetTrueVSize()
         col_starts = [start_col, end_col, mat.shape[1]]
         M = CHypreMat(m1, m2, col_starts=col_starts)
-        print("mat", M)
+        #print("mat", M)
     else:
         from petram.helper.block_matrix import convert_to_ScipyCoo
 
