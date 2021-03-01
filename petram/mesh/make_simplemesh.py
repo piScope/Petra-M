@@ -64,13 +64,13 @@ def quad_rectangle_mesh(xlengths, xnsegs, ylengths, ynsegs,
     
     Lx = np.hstack(([0], np.cumsum(xlengths)))
     x = [np.linspace(Lx[i], Lx[i+1], n+1)[:-1].astype(float) for i, n in enumerate(xnsegs)]+[np.sum(xlengths)]
-    x = np.hstack(np.array(x))
+    x = np.hstack(x)
     kx = np.hstack(([0], np.cumsum(xnsegs)))
     kkx = sum([[i]*n for i,n in enumerate(xnsegs)],[])
     
     Ly = np.hstack(([0], np.cumsum(ylengths)))
     y = [np.linspace(Ly[i], Ly[i+1], n+1)[:-1].astype(float) for i, n in enumerate(ynsegs)]+[np.sum(ylengths)]
-    y = np.hstack(np.array(y))
+    y = np.hstack(y)
     ky = np.hstack(([0], np.cumsum(ynsegs)))
     kky = sum([[i]*n for i,n in enumerate(ynsegs)],[])
 
@@ -142,19 +142,19 @@ def hex_box_mesh(xlengths, xnsegs, ylengths, ynsegs, zlengths, znsegs,
     
     Lx = np.hstack(([0], np.cumsum(xlengths)))
     x = [np.linspace(Lx[i], Lx[i+1], n+1)[:-1].astype(float) for i, n in enumerate(xnsegs)]+[np.sum(xlengths)]
-    x = np.hstack(np.array(x))
+    x = np.hstack(x)
     kx = np.hstack(([0], np.cumsum(xnsegs)))
     kkx = sum([[i]*n for i,n in enumerate(xnsegs)],[])
     
     Ly = np.hstack(([0], np.cumsum(ylengths)))
     y = [np.linspace(Ly[i], Ly[i+1], n+1)[:-1].astype(float) for i, n in enumerate(ynsegs)]+[np.sum(ylengths)]
-    y = np.hstack(np.array(y))
+    y = np.hstack(y)
     ky = np.hstack(([0], np.cumsum(ynsegs)))
     kky = sum([[i]*n for i,n in enumerate(ynsegs)],[])
 
     Lz = np.hstack(([0], np.cumsum(zlengths)))
     z = [np.linspace(Lz[i], Lz[i+1], n+1)[:-1].astype(float) for i, n in enumerate(znsegs)]+[np.sum(zlengths)]
-    z = np.hstack(np.array(z))
+    z = np.hstack(z)
     kz = np.hstack(([0], np.cumsum(znsegs)))
     kkz = sum([[i]*n for i,n in enumerate(znsegs)],[])
     

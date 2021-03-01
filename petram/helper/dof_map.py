@@ -486,7 +486,11 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                s = np.sign(newk1[k,1] +0.5)*np.sign(newk2[d,1] + 0.5)
 
                p1 = pto1[k]; p2 = pto2[d]
-               delta = np.sum(np.std(pto1, 0))/np.sum(np.std(sh1, 0))/10.
+               
+               if np.sum(np.std(sh1, 0)) != 0:
+                  delta = np.sum(np.std(pto1, 0))/np.sum(np.std(sh1, 0))/10.
+               else:
+                  delta = 1  # this happens on edge....
 
                v1 = trans1(p1) - trans1(p1 + delta*sh1[newk1[k, 0]])
                v2 = trans2(p2) - trans2(p2 + delta*sh2[newk2[d, 0]])
@@ -657,7 +661,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
                                trans2, tol, shape_type = 'scalar',
                                mode = 'surface'):
    
-    dprint1("gather_dataset1", debug.format_memory_usage())
+    #dprint1("gather_dataset1", debug.format_memory_usage())
     
     if fes2 is None: fes2 = fes1
     if trans1 is None: trans1=notrans
@@ -693,7 +697,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
     else:
         assert False, "Unknown shape type"
         
-    dprint1("gather_dataset2", debug.format_memory_usage())
+    #dprint1("gather_dataset2", debug.format_memory_usage())
     
     # pt is on (u, v), pto is (x, y, z)
     try:
@@ -713,7 +717,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
        ct2 = np.atleast_2d(ct2).reshape(-1, max(ct1dim))
        ct2 =  allgather_vector(ct2, MPI.DOUBLE)
        
-    dprint1("gather_dataset3", debug.format_memory_usage())
+    #dprint1("gather_dataset3", debug.format_memory_usage())
     
     # mapping between elements
 
@@ -721,7 +725,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
     tree = cKDTree(ct2)
     ctr_dist, map_1_2 = tree.query(ct1)
 
-    dprint1("gather_dataset4", debug.format_memory_usage())    
+    #dprint1("gather_dataset4", debug.format_memory_usage())    
     
     if ctr_dist.size > 0 and np.max(ctr_dist) > 1e-15:
        print('Center Dist may be too large (check mesh): ' + 
@@ -733,7 +737,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
                                                             pto2all, k2all, sh2all,
                                                             map_1_2)
        
-       dprint1("gather_dataset5", debug.format_memory_usage())
+       #dprint1("gather_dataset5", debug.format_memory_usage())
        
     # map is fill as transposed shape (row = fes1)
 
@@ -912,6 +916,8 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
         mapper = map_volume_h1
     elif fec_name.startswith('L2') and mode == 'surface':
         mapper = map_surface_h1
+    elif fec_name.startswith('L2') and mode == 'edge':
+        mapper = map_edge_h1
     elif fec_name.startswith('RT') and mode == 'volume':
         mapper = map_volume_rt
     elif fec_name.startswith('RT') and mode == 'surface':

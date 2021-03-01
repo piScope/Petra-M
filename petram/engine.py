@@ -1624,7 +1624,7 @@ class Engine(object):
             idx2 = self.r_dep_var_offset(name)            
             P, nonzeros, zeros = self.interps[name]
             if P is None: continue
-            
+
             if A is not None:
                shape = A.shape               
                A1 = A[idx1,idx2]
@@ -1637,11 +1637,12 @@ class Engine(object):
                    if idx1 == i: continue
                    if A[idx1,i] is not None:
                        A[idx1,i] = PP.dot(A[idx1,i])
-               P = PP.conj(inplace=True)                        
+               P = PP.conj(inplace=True)
+               PP = P.transpose()
                for i in range(shape[0]):
                    if idx2 == i: continue
                    if A[i,idx2] is not None:
-                       A[i, idx2] = A[i, idx2].dot(P)
+                       A[i, idx2] = A[i, idx2].dot(PP)
             if RHS is not None:
                 RHS[idx1] = P.conj(inplace=True).dot(RHS[idx1])
                 P.conj(inplace=True)
