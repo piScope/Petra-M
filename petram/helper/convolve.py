@@ -566,11 +566,12 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                 has_contribution = False
                 for kkk, x2 in enumerate(x2s):
                     if su >= 0:
-                        check = [np.sqrt(np.sum((x1-x2)**2)) > su
-                                 for x1, w in dataset]
-                        if np.all(check):
+                        outside = True
+                        for x1, w in dataset:
+                            outside = outside and (np.sqrt(np.sum((x1-x2)**2)) > su)
+                        if outside:
                             continue
-
+                        
                     has_contribution = True
 
                     tmp_int *= 0.0
@@ -601,7 +602,7 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                 if has_contribution:
                     elmats.append((j, elmat))
                     
-        if myid == 0  and  i%50 == 0:
+        if myid == 0:
             pr.dump_stats("/home/shiraiwa/test.prf")                
             profile_stop(pr)
             assert False, "hoge"
