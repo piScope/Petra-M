@@ -511,12 +511,12 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
             else:
                 vdofs1_all.append(local_vdofs)
         dprint1("here", myid, len(i2_onenode))
-        if myid == 0:
-            pr = profile_start()
-        
+
         for i, x2s, su in zip(i2_onenode, x2_onenode, s_onenode): # loop over fes2
             if i%10 == 0:
                 dprint1("here2", myid, i, su)
+            if myid == 0:
+                 pr = profile_start()
             
             nd2 = len(x2s)
             #nicePrint("x2s", i, x2s.shape, x2s)
@@ -543,6 +543,7 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                 #if myid == 0: print("fes1 idx", j)
 
                 dataset = []
+                shapes = []                
                 for jj in range(ir.GetNPoints()):
                     ip1 = ir.IntPoint(jj)
                     eltrans.SetIntPoint(ip1)
@@ -555,33 +556,56 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                     ss = shape1.GetDataArray().copy()
                     
                     if len(ss.shape) > 1:
+                        #dof_sign1 = dof_sign1.reshape(-1, 1)
                         ss = np.transpose(ss)
                     ss = ss * dof_sign1
-                    dataset.append((x1, w, ss))
+                    dataset.append((x1, w))
+                    shapes.append(ss)
                     
+                shapes = np.stack(shapes)
                 has_contribution = False
                 for kkk, x2 in enumerate(x2s):
-                    tmp_int *= 0.0
+                    if su >= 0:
+                        check = [np.sqrt(np.sum((x1-x2)**2)) > su
+                                 for x1, w in dataset]
+                        if np.all(check):
+                            continue
 
-                    for x1, w, shape_arr in dataset:
-                        if su >= 0:
-                            if np.sqrt(np.sum((x1-x2)**2)) > su:
-                                continue
-                            
-                        has_contribution = True
+                    has_contribution = True
+
+                    tmp_int *= 0.0
+                    values = [None]*len(dataset)
+                    for iii, _val in enumerate(dataset):
+                        x1, w = _val
+
+
                         val = kernel(x2-x1, (x2+x1)/2.0, w=w)
                         if val is None:
                             continue
-                        #shape_arr *= w*val
+                        #values[iii] = val*w
+                        shape_arr = shapes[iii]                        
                         tmp_int += np.dot(val, shape_arr)*w
-
+                    '''    
+                    values = np.stack(values)
+                    if len(values.shape) > 1:
+                        tmp = np.tensordot(values, shapes, [-1, -1])
+                        tmp_int = np.trace(tmp, axis2=2)
+                    else:
+                        tmp_int = np.tensordot(values, shapes, [0, 0])
+                        tmp_int = np.transpose(tmp_int)
+                    '''
+                    #print(tmp_int.shape)
+                    #assert False, "stop here"
                     elmat[kkk, ...] = tmp_int
 
                 if has_contribution:
                     elmats.append((j, elmat))
                     
-        if myid == 0:
-            profile_stop(pr)
+            if myid == 0  and  i%50 == 0:
+                pr.dump_stats("/home/shiraiwa/test.prf")                
+                profile_stop(pr)
+                assert False, "hoge"
+                pr = profile_start()
                        
 
                 #print(elmats)
