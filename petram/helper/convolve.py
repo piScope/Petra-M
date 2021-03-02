@@ -511,12 +511,12 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
             else:
                 vdofs1_all.append(local_vdofs)
         dprint1("here", myid, len(i2_onenode))
+        if myid == 0:
+            pr = profile_start()
 
         for i, x2s, su in zip(i2_onenode, x2_onenode, s_onenode): # loop over fes2
             if i%10 == 0:
                 dprint1("here2", myid, i, su)
-            if myid == 0:
-                 pr = profile_start()
             
             nd2 = len(x2s)
             #nicePrint("x2s", i, x2s.shape, x2s)
@@ -601,11 +601,11 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                 if has_contribution:
                     elmats.append((j, elmat))
                     
-            if myid == 0  and  i%50 == 0:
-                pr.dump_stats("/home/shiraiwa/test.prf")                
-                profile_stop(pr)
-                assert False, "hoge"
-                pr = profile_start()
+        if myid == 0  and  i%50 == 0:
+            pr.dump_stats("/home/shiraiwa/test.prf")                
+            profile_stop(pr)
+            assert False, "hoge"
+            pr = profile_start()
                        
 
                 #print(elmats)
