@@ -831,8 +831,13 @@ class Convolve(Operator):
                 trial_domain='all')
        coeff is a callable defining the convolution kernel. 
        this function takes two (x-x', x+x'/2) arguments.
-       support is a callable, which takes one argment (x+x'/2,
+
+       support is a callable, which takes one argment x
        returning the support of kernel at the given location.
+       
+       coeff can return None to indicate there is no contribution.
+       this can be used as an alternative to using support. In this
+       one can check support using (x+x')/2
 
        The code skips the numerical integration for those points
        sitting outside the support or x-x' > support((x+x')/2.0).
