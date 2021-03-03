@@ -474,7 +474,7 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
         x2_all = [ptx_x2]
         i2_all = [i2_arr]
         s_all = [supports]
-    nicePrint("x2_all shape", supports.shape, len(x2_all), [tmp.shape for tmp in x2_all])
+    #nicePrint("x2_all shape", supports.shape, len(x2_all), [tmp.shape for tmp in x2_all])
 
     if USE_PARALLEL:
         #this is global TrueDoF (offset is not subtracted)        
@@ -492,7 +492,7 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
     elmats_senddata = []
         
     for knode1 in range(len(x2_all)):
-        dprint1("new knode1", myid, knode1)
+        #dprint1("new knode1", myid, knode1)
             
         x2_onenode = x2_all[knode1]
         i2_onenode = i2_all[knode1]
@@ -556,58 +556,37 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                         #dof_sign1 = dof_sign1.reshape(-1, 1)
                         ss = np.transpose(ss)
                     ss = ss * dof_sign1
-                    dataset.append((x1, w))
-                    shapes.append(ss)
+                    dataset.append((x1, w, ss))
                     
-                shapes = np.stack(shapes)
                 has_contribution = False
                 for kkk, x2 in enumerate(x2s):
-                    if su >= 0:
-                        outside = True
-                        for x1, w in dataset:
-                            outside = outside and (np.sqrt(np.sum((x1-x2)**2)) > su)
-                        if outside:
-                            continue
-                        
-                    has_contribution = True
-
                     tmp_int *= 0.0
-                    values = [None]*len(dataset)
-                    for iii, _val in enumerate(dataset):
-                        x1, w = _val
-
-
+                    has_contribution2 = False                    
+                    for x1, w, shape_arr in dataset:
+                        s = np.sqrt(np.sum((x1-x2)**2))
+                        if su >= 0 and s > su:
+                            continue
+                                          
                         val = kernel(x2-x1, (x2+x1)/2.0, w=w)
                         if val is None:
                             continue
-                        #values[iii] = val*w
-                        shape_arr = shapes[iii]                        
-                        tmp_int += np.dot(val, shape_arr)*w
-                    '''    
-                    values = np.stack(values)
-                    if len(values.shape) > 1:
-                        tmp = np.tensordot(values, shapes, [-1, -1])
-                        tmp_int = np.trace(tmp, axis2=2)
-                    else:
-                        tmp_int = np.tensordot(values, shapes, [0, 0])
-                        tmp_int = np.transpose(tmp_int)
-                    '''
-                    #print(tmp_int.shape)
-                    #assert False, "stop here"
-                    elmat[kkk, ...] = tmp_int
 
+                        tmp_int += np.dot(val, shape_arr)*w
+                        has_contribution2 = True
+                        
+                    if has_contribution2:
+                        elmat[kkk, ...] = tmp_int
+                        has_contribution = True
                 if has_contribution:
                     elmats.append((j, elmat))
                     
-        #if myid == 0:
-        #    pr.dump_stats("/home/shiraiwa/test.prf")                
-        #    profile_stop(pr)
-        #    assert False, "hoge"
-        #    pr = profile_start()
-
-                #print(elmats)
-        if len(elmats) > 0:
-            elmats_all.append((i, elmats))
+            #if myid == 0:
+            #    pr.dump_stats("/home/shiraiwa/test.prf")                
+            #    profile_stop(pr)
+            #    assert False, "hoge"
+            #    pr = profile_start()
+            if len(elmats) > 0:
+                elmats_all.append((i, elmats))
                 
         vdofs1_senddata.append(vdofs1_all)
         elmats_senddata.append(elmats_all)
@@ -627,7 +606,6 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
             vdofs1_data = [vdofs1_all,]
             elmats_data = [elmats_all,]
         '''
-    print("entering next", myid)
     if USE_PARALLEL:
         knode1 = 0
         for vdofs1_all, elmats_all in zip(vdofs1_senddata, elmats_senddata):
@@ -653,12 +631,12 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
         
         if verbose:
             coupling = [len(elmats) for i, elmats in elmats_all]
-            nicePrint("Element coupling for rank", mpi_rank)
+            nicePrint("Element coupling for rank/count", mpi_rank, len(coupling))
             nicePrint("   Average :", (0 if len(coupling)==0 else np.mean(coupling)))
             nicePrint("   Max/Min :", (0 if len(coupling)==0 else np.max(coupling)),
                                       (0 if len(coupling)==0 else np.min(coupling)))
             mpi_rank += 1
-                
+
         for i, elmats in elmats_all:  # corresponds to loop over fes2
             vdofs2 = fes2.GetElementVDofs(i)
             dof_sign2 = np.array([[1 if vv >= 0 else -1
