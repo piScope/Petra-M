@@ -179,8 +179,14 @@ def get_element_data(fes, idx, trans, mode='Bdr', use_global=False):
     return ret
 
 def get_shape(fes, ibdr , mode='Bdr'):
-    mesh = fes.GetMesh()  
+    mesh = fes.GetMesh()
 
+    use_weight = False
+    fec_name = fes.FEColl().Name()
+    if (fec_name.startswith('RT') and
+        mode == 'Bdr'):
+        use_weight = True
+    print(fes, fec_name, ibdr, mode,fes.FEColl())
     GetTrans = getattr(fes, methods[mode]['Transformation'])
     GetElement = getattr(fes, methods[mode]['Element'])
     GetVDofs = getattr(fes, methods[mode]['VDofs'])
@@ -188,6 +194,10 @@ def get_shape(fes, ibdr , mode='Bdr'):
     ret = [None]*len(ibdr)
     for iii, k1 in enumerate(ibdr):
         tr1 = GetTrans(k1)
+        
+        weight = tr1.Weight() if use_weight else 1
+        print(weight)
+
         el = GetElement(k1)
         nodes1 = el.GetNodes()
         v = mfem.Vector(nodes1.GetNPoints())
@@ -195,7 +205,8 @@ def get_shape(fes, ibdr , mode='Bdr'):
         for idx in range(len(shape)):
             el.CalcShape(nodes1.IntPoint(idx), v)
             shape[idx] = v.GetDataArray()[idx]
-        ret[iii]  = shape
+        ret[iii]  = np.array(shape)*weight
+    print(ret)
     return ret
  
 def get_vshape(fes, ibdr , mode='Bdr'):
@@ -332,7 +343,7 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                d = d[0]
                s1 = sh1[newk1[k, 0]]
                s2 = sh2[newk2[d, 0]]
-               #dprint1("case1 ", s1, s2) this looks all 1
+               dprint1("case1 ", s1, s2) #this looks all 1
                if s1/s2 < 0: dprint2("not positive")
                #if myid == 1: print(newk1[d][2]-rstart, newk2[k][2])
                value = np.around(s1/s2, decimals)               
