@@ -186,7 +186,7 @@ def get_shape(fes, ibdr , mode='Bdr'):
     if (fec_name.startswith('RT') and
         mode == 'Bdr'):
         use_weight = True
-    print(fes, fec_name, ibdr, mode,fes.FEColl())
+
     GetTrans = getattr(fes, methods[mode]['Transformation'])
     GetElement = getattr(fes, methods[mode]['Element'])
     GetVDofs = getattr(fes, methods[mode]['VDofs'])
@@ -196,7 +196,6 @@ def get_shape(fes, ibdr , mode='Bdr'):
         tr1 = GetTrans(k1)
         
         weight = tr1.Weight() if use_weight else 1
-        print(weight)
 
         el = GetElement(k1)
         nodes1 = el.GetNodes()
@@ -206,7 +205,7 @@ def get_shape(fes, ibdr , mode='Bdr'):
             el.CalcShape(nodes1.IntPoint(idx), v)
             shape[idx] = v.GetDataArray()[idx]
         ret[iii]  = np.array(shape)*weight
-    print(ret)
+
     return ret
  
 def get_vshape(fes, ibdr , mode='Bdr'):
