@@ -185,7 +185,8 @@ def get_shape(fes, ibdr , mode='Bdr'):
     fec_name = fes.FEColl().Name()
     if (fec_name.startswith('RT') and
         mode == 'Bdr'):
-        use_weight = True
+        #use_weight = True
+        use_weight = False
 
     GetTrans = getattr(fes, methods[mode]['Transformation'])
     GetElement = getattr(fes, methods[mode]['Element'])

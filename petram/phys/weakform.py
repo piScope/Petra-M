@@ -200,6 +200,11 @@ class WeakLinIntegration(WeakIntegration):
         t = self.get_root_phys().get_fec_type(self.test_idx)
         if len(t)>2 and t[2] == "v":
            t = t[:3]
+           
+        if (t == 'RT' and self.get_root_phys().dim == 2 and
+            self.get_root_phys().geom_dim == 3):
+            t = 'L2'
+           
         bb = [b for b in linintegs if t in b[1]]
         
         dim = self.dim
@@ -213,6 +218,11 @@ class WeakBilinIntegration(WeakIntegration):
         if len(t)>2 and t[2] == "v":
            t = t[:3]
 
+        # adjust choices for RT-Trace
+        if (t == 'RT' and self.get_root_phys().dim == 2 and
+            self.get_root_phys().geom_dim == 3):
+            t = 'L2'
+        
         bb = [b for b in bilinintegs if t in b[2]]
         if self.paired_var is not None:
             paired_name, paired_idx = self.paired_var
@@ -223,6 +233,11 @@ class WeakBilinIntegration(WeakIntegration):
         t2 = (self.get_root_phys().parent)[paired_name].get_fec_type(paired_idx)
         if len(t2)>2 and t2[2] == "v":
             t2 = t2[:3]
+            
+        # adjust choices for RT-Trace            
+        if (t2 == 'RT' and self.get_root_phys().dim == 2 and
+            self.get_root_phys().geom_dim == 3):
+            t2 = 'L2'            
 
         bb = [b for b in bb if t2 in b[1]]
 
