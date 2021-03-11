@@ -56,7 +56,7 @@ class WeakIntegration(Phys):
     def attribute_set(self, v):
         v['use_src_proj'] = False
         v['use_dst_proj'] = False
-        v['coeff_type'] = 'S'
+        v['coeff_type'] = 'Scalar'
         v['integrator'] = 'MassIntegrator'
         v['test_idx'] = 0     #(index)
         self.vt_coeff.attribute_set(v)
@@ -81,7 +81,7 @@ class WeakIntegration(Phys):
      
     def panel1_param(self):
         import wx       
-        p = ["coeff. type", "S", 4,
+        p = ["coeff. type", "Scalar", 4,
              {"style":wx.CB_READONLY, "choices": ["Scalar", "Vector", "Diagonal", "Matrix"]}]
 
         names = [x[0] for x in self.itg_choice()]

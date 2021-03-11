@@ -78,11 +78,10 @@ class WF_common(object):
                        real = real)
             
         else:
-            coeff = VCoeff(ll, f_name,  self.get_root_phys().ind_vars,
+            coeff = VCoeff(ll, f_name[0],  self.get_root_phys().ind_vars,
                              self._local_ns, self._global_ns,
                              real = real)
             kwargs['vec'] = True
-            
         return self.restrict_coeff(coeff, engine, **kwargs)
 
     

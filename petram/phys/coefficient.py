@@ -864,3 +864,47 @@ def PyComplexMatrixSliceCoefficient(coeff, slice1, slice2):
         return PyComplexMatrixSliceMatrixCoefficient(coeff, slice1, slice2)
     else:
         assert False, "slice size must be greater than 1"
+
+
+def sum_coefficient(c_arr):
+    '''
+    return sum_coefficient made from list of coefficient
+    '''
+    if len(c_arr) == 0:
+        return None
+    if len(c_arr) == 1:
+        return c_arr[0]
+    kind = ''
+    for c in c_arr:
+        if isinstance(c, mfem.Coefficient):
+            if kind != '' and kind != 'v':
+                assert False, "can not mix diffenrnt kind of coefficient"
+            kind = 's'
+        if isinstance(c, mfem.VectorCoefficient):
+            if kind != '' and kind != 'v':
+                assert False, "can not mix diffenrnt kind of coefficient"
+            kind = 'v'
+        if isinstance(c, mfem.MatrixCoefficient):
+            if kind != '' and kind != 'v':
+                assert False, "can not mix diffenrnt kind of coefficient"
+            kind = 'm'
+            
+    if kind == 's':
+         c = mfem.SumCoefficient(c_arr[0], c_arr[1])
+         for cc in c_arr[2:]:
+             c = mfem.SumCoefficient(c, cc)
+    elif kind == 'v':
+         c = mfem.VectorSumCoefficient(c_arr[0], c_arr[1])
+         for cc in c_arr[2:]:
+             c = mfem.VectorSumCoefficient(c, cc)
+    elif kind == 'm':
+         c = mfem.MatrixSumCoefficient(c_arr[0], c_arr[1])
+         for cc in c_arr[2:]:
+             c = mfem.MatrixSumCoefficient(c, cc)
+             
+    return c
+ 
+    
+            
+                
+                

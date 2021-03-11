@@ -945,26 +945,62 @@ class Engine(object):
                     mm.apply_essential(self, igf, real = False, kfes = kfes)
 
     def apply_init_from_init_panel(self, phys):
+        from petram.model import Domain, Bdry
+        from petram.phys.coefficient import sum_coefficient
+
         is_complex = phys.is_complex()
-        
+
+        def loop_over_phys_mm(gf, phys):
+            bdrs = []
+            c1_arr = []
+            c2_arr = [] 
+            
+            for mm in phys.walk():
+                if not mm.enabled: continue
+                if isinstance(mm, Domain):
+                   c = mm.get_init_coeff(self, real = True, kfes = kfes)
+                   if c is None: continue
+                   c1_arr.append(c)
+                if isinstance(mm, Bdry):
+                   c = mm.get_init_coeff(self, real = True, kfes = kfes)
+                   if c is None: continue
+                   bdrs.extend(mm._sel_index)
+                   c2_arr.append(c)
+                   
+            if len(c1_arr) > 0:
+                cc = sum_coefficient(c1_arr)
+                gf.ProjectCoefficient(cc)
+                
+            if len(c2_arr) > 0:
+                print(bdrs)
+                attrs = mfem.intArray(bdrs)               
+                cc = sum_coefficient(c2_arr)
+                name = gf.FESpace().FEColl().Name()
+                if name.startswith('ND'):
+                    gf.ProjectBdrCoefficientTangent(cc, attrs)
+                elif name.startswith('RT'):
+                    gf.ProjectBdrCoefficientNormal(cc, attrs)
+                else:
+                    gf.ProjectBdrCoefficient(cc, attr)                
+                          
         for kfes, name in enumerate(phys.dep_vars):
             if not name in self._init_done: self._init_done.append(name)           
             r_ifes = self.r_ifes(name)
-            rfg = self.r_x[r_ifes]
-            for mm in phys.walk():
-                if not mm.enabled: continue
-                c = mm.get_init_coeff(self, real = True, kfes = kfes)
-                if c is None: continue
-                rfg.ProjectCoefficient(c)                
-                #rgf += tmp
+            rgf = self.r_x[r_ifes]
+
+            loop_over_phys_mm(rgf, phys)
+            
             if not is_complex: continue
-            ifg = self.i_x[r_ifes]            
+            igf = self.i_x[r_ifes]
+            loop_over_phys_mm(igf, phys)
+            '''
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = False, kfes = kfes)
                 if c is None: continue
                 ifg.ProjectCoefficient(c)
                 #igf += tmp
+            '''
                 
     def apply_init_from_previous(self, names):
        
@@ -1560,7 +1596,7 @@ class Engine(object):
            for j in range(nblock2):
               if j == idx2: continue
               if A[idx1, j] is None: continue
-              A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof, inplace=inplace)
+              #A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof, inplace=inplace)
 
            for j in range(nblock1):            
               if j == idx1: continue
@@ -1568,8 +1604,8 @@ class Engine(object):
               SM = A.get_squaremat_from_right(j, idx2)
               SM.setDiag(gl_ess_tdof)
 
-              Ae[j, idx2] = A[j, idx2].dot(SM)
-              A[j, idx2]=A[j, idx2].resetCol(gl_ess_tdof, inplace=inplace)
+              #Ae[j, idx2] = A[j, idx2].dot(SM)
+              #A[j, idx2]=A[j, idx2].resetCol(gl_ess_tdof, inplace=inplace)
 
         return A, Ae
 
