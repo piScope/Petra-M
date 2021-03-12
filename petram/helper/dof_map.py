@@ -966,7 +966,9 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
      smap: source mapping
 
      old_mapping: True : periodic boundary conditions are implemented this way
+                         x = M*y
                   False: projection operator should use this flag.
+                         y = M*x
         the difference is only when mapping two/three DoFs sitting at the
         same location. therefore, it only matters for ND and RT cases
      
