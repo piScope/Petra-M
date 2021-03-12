@@ -683,7 +683,8 @@ class Projection(Operator):
         # matrix to transfer unknown from trail to test
         M, row, col = pm(idx2, idx1, self.fes2, [], fes2=self.fes1,
                          trans1=trans2, trans2=trans1,
-                         mode=projmode, tol=tol, filldiag=False)
+                         mode=projmode, tol=tol, filldiag=False,
+                         old_mapping = False)
         return M
         
 # for now we assemble matrix whcih mapps essentials too...        

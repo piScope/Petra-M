@@ -425,7 +425,8 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
 
 def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                    k1all, k2all, sh1all, sh2all, map_1_2,
-                   trans1, trans2, tol, tdof, rstart):
+                   trans1, trans2, tol, tdof, rstart,
+                   old_mapping=True):
    
     dprint1("map_dof_vector1", debug.format_memory_usage())
     
@@ -570,17 +571,20 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                       v3 = proj2d(v3, e1, e2)
                       v4 = proj2d(v4, e1, e2)
 
-                   m1 = np.vstack((v1, v2))
-                   m2 = np.vstack((v3, v4))
-                   m = np.dot(m2, np.linalg.inv(m1))
-                   m = np.around(m, decimals = decimals)                   
-                   m = np.transpose(m)
+                   if old_mapping:
+                       m1 = np.transpose(np.vstack((v1, v2)))
+                       m2 = np.transpose(np.vstack((v3, v4)))
+                       m = np.dot(np.linalg.inv(m1), m2)
+                       m = np.around(np.linalg.inv(m), decimals = decimals)
+                       m = np.transpose(m)                       
+                   else:
+                       m1 = np.vstack((v1, v2))
+                       m2 = np.vstack((v3, v4))
+                       m = np.dot(m2, np.linalg.inv(m1))
+                       m = np.around(m, decimals = decimals)                   
+                       m = np.transpose(m)
                    '''
                    #this was wrong. keeping it for now for record (2020.03)
-                   m1 = np.transpose(np.vstack((v1, v2)))
-                   m2 = np.transpose(np.vstack((v3, v4)))
-                   m = np.dot(np.linalg.inv(m1), m2)
-                   m = np.around(np.linalg.inv(m), decimals = decimals)
                    '''                   
                    num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[0],2], m[0,0], num2)
                    num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[1],2], m[0,1], num2)
@@ -608,7 +612,10 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                     return v/np.sqrt(np.sum(v**2))
                 v1n = [vnorm(v) for v in v1]
                 v2n = [vnorm(v) for v in v2]
-                
+
+                '''
+                note: see old_mapping flag note below
+
                 m1 = np.transpose(np.vstack(v1))
                 m2 = np.transpose(np.vstack(v2))
                 m = np.dot(np.linalg.inv(m1), m2)
@@ -624,6 +631,32 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                 num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[0],2], m[0,2], num2)
                 num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[1],2], m[1,2], num2)
                 num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[2],2], m[2,2], num2)
+                '''
+                if old_mapping:
+                    m1 = np.transpose(np.vstack(v1))
+                    m2 = np.transpose(np.vstack(v2))
+                    m = np.dot(np.linalg.inv(m1), m2)
+                    m = np.around(np.linalg.inv(m), decimals = decimals)
+                    m = np.transpose(m)                    
+                else:            
+                    m1 = np.vstack(v1)
+                    m2 = np.vstack(v2)
+                    m = np.dot(m2, np.linalg.inv(m1))
+                    m = np.around(m, decimals = decimals)                   
+                    m = np.transpose(m)
+
+                num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[0],2], m[0,0], num2)
+                num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[1],2], m[0,1], num2)
+                num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[2],2], m[0,2], num2)
+                                  
+                num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[0],2], m[1,0], num2)
+                num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[1],2], m[1,1], num2)
+                num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[2],2], m[1,2], num2)
+                                  
+                num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[0],2], m[2,0], num2)
+                num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[1],2], m[2,1], num2)
+                num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[2],2], m[2,2], num2)
+                
                                   
             else:
                 print(pt1, pt2)
@@ -793,7 +826,8 @@ def get_empty_map(fes1, fes2, is_complex=False):
     return  map, rstart
  
 def map_xxx_h1(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
-                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
+                   trans2=None, tdof1=None, tdof2=None, tol=1e-4,
+                   old_mapping=True):
     '''
     map DoF on surface to surface
 
@@ -834,8 +868,8 @@ def map_edge_h1(*args, **kwargs):
 
 
 def map_xxx_nd(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
-                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
- 
+                   trans2=None, tdof1=None, tdof2=None, tol=1e-4,
+                   old_mapping=True):
     '''
     map DoF on surface to surface
 
@@ -862,7 +896,7 @@ def map_xxx_nd(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
     
     map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
                    k1all, k2all, sh1all, sh2all, elmap,
-                   trans1, trans2, tol, tdof1, rstart)
+                   trans1, trans2, tol, tdof1, rstart, old_mapping=old_mapping)
 
     return map
 def map_volume_nd(*args, **kwargs):
@@ -873,7 +907,8 @@ def map_edge_nd(*args, **kwargs):
     return map_xxx_nd('edge', *args, **kwargs)
 
 def map_xxx_rt(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
-                   trans2=None, tdof1=None, tdof2=None, tol=1e-4):
+                   trans2=None, tdof1=None, tdof2=None, tol=1e-4,
+                   old_mapping=True):
  
     '''
     map DoF on surface to surface
@@ -899,8 +934,9 @@ def map_xxx_rt(xxx, idx1, idx2, fes1, fes2=None, trans1=None,
                                               mode=xxx)
         pt1all, pt2all, pto1all, pto2all, k1all, k2all, sh1all, sh2all  = data
         map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all, 
-                   k1all, k2all, sh1all, sh2all, elmap,
-                   trans1, trans2, tol, tdof1, rstart)
+                       k1all, k2all, sh1all, sh2all, elmap,
+                       trans1, trans2, tol, tdof1, rstart,
+                       old_mapping=old_mapping)
     else:
         tdof = tdof1 # ToDo support tdof2    
         data, elmap = gather_dataset(idx1, idx2, fes1, fes2, trans1,
@@ -923,10 +959,17 @@ def map_surface_rt(*args, **kwargs):
 
 def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
                       trans1=None, trans2 = None, dphase=0.0, weight = None,
-                      tol = 1e-7, mode = 'surface', filldiag=True):
+                      tol = 1e-7, mode = 'surface', filldiag=True,
+                      old_mapping=True):
     '''
      map: destinatiom mapping 
      smap: source mapping
+
+     old_mapping: True : periodic boundary conditions are implemented this way
+                  False: projection operator should use this flag.
+        the difference is only when mapping two/three DoFs sitting at the
+        same location. therefore, it only matters for ND and RT cases
+     
     '''
     fec_name = fes.FEColl().Name()
     dprint1("constructing mapping to fec_name", fec_name)
@@ -956,7 +999,7 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
         raise NotImplementedError("mapping :" + fec_name + ", mode: " + mode)
 
     map = mapper(idx2, idx1, fes, fes2=fes2, trans1=trans1, trans2=trans2, tdof1=tdof1,
-                 tdof2=tdof2, tol=tol)
+                 tdof2=tdof2, tol=tol, old_mapping=old_mapping)
 
 
     if weight is None:
