@@ -1596,7 +1596,7 @@ class Engine(object):
            for j in range(nblock2):
               if j == idx2: continue
               if A[idx1, j] is None: continue
-              #A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof, inplace=inplace)
+              A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof, inplace=inplace)
 
            for j in range(nblock1):            
               if j == idx1: continue
@@ -1604,8 +1604,8 @@ class Engine(object):
               SM = A.get_squaremat_from_right(j, idx2)
               SM.setDiag(gl_ess_tdof)
 
-              #Ae[j, idx2] = A[j, idx2].dot(SM)
-              #A[j, idx2]=A[j, idx2].resetCol(gl_ess_tdof, inplace=inplace)
+              Ae[j, idx2] = A[j, idx2].dot(SM)
+              A[j, idx2]=A[j, idx2].resetCol(gl_ess_tdof, inplace=inplace)
 
         return A, Ae
 
