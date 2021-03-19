@@ -763,7 +763,7 @@ class BlockMatrix(object):
         if rsize != csize:
             assert False, "matrix is not squre"
         if self.kind == 'scipy':
-            m = scipy.sparse.eye(rsize, format='coo', dtype=float)
+            m = scipy.sparse.eye(rsize, format='coo', dtype=float)*0
             self[r,c] = convert_to_ScipyCoo(m)
         else:
             from mfem.common.chypre import SquareCHypreMat

@@ -683,7 +683,8 @@ class Projection(Operator):
         # matrix to transfer unknown from trail to test
         M, row, col = pm(idx2, idx1, self.fes2, [], fes2=self.fes1,
                          trans1=trans2, trans2=trans1,
-                         mode=projmode, tol=tol, filldiag=False)
+                         mode=projmode, tol=tol, filldiag=False,
+                         old_mapping = False)
         return M
         
 # for now we assemble matrix whcih mapps essentials too...        
@@ -831,8 +832,13 @@ class Convolve(Operator):
                 trial_domain='all')
        coeff is a callable defining the convolution kernel. 
        this function takes two (x-x', x+x'/2) arguments.
-       support is a callable, which takes one argment (x+x'/2,
+
+       support is a callable, which takes one argment x
        returning the support of kernel at the given location.
+       
+       coeff can return None to indicate there is no contribution.
+       this can be used as an alternative to using support. In this
+       one can check support using (x+x')/2
 
        The code skips the numerical integration for those points
        sitting outside the support or x-x' > support((x+x')/2.0).

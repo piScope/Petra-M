@@ -56,6 +56,50 @@ def get_rule(fe1, fe2, trans, orderinc, verbose):
         dprint1("Order, N Points", order, ir.GetNPoints())
     return ir
 
+def profile_start():
+    '''
+    profiling start
+    usage:
+       pr = profile_start()
+       ... do something
+       profile_stop(pr)
+    '''
+    import cProfile
+    print('starting profiler')
+    pr = cProfile.Profile()
+    pr.enable()
+    return pr
+
+
+def profile_stop(pr, sortby='cumulative'):
+    '''
+    profile_stop(pr, sortby='cumulative'):
+
+    end profile
+    sortby = 'cumulative', 'calls', 'cumtime', 
+             'file', 'filename', 'module',
+             'ncalls', pcalls', 'line', 'name',
+             'nfl', stdname', 'time', 'tottime'
+    '''
+    from six import StringIO
+    import pstats
+    pr.disable()
+    # print 'stopped profiler'
+    lsortby = ['cumulative', 'calls', 'cumtime',
+               'file', 'filename', 'module',
+               'ncalls', 'pcalls', 'line', 'name',
+               'nfl', 'stdname', 'time', 'tottime']
+    if not sortby in lsortby:
+        print('invalid sortby')
+        print(lsortby)
+        return
+
+    s = StringIO()
+    sortby = sortby
+    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    ps.print_stats()
+    print((s.getvalue()))
+
 def convolve1d(fes1, fes2, kernel=delta, support=None,
                orderinc=5, is_complex=False,
                trial_domain='all',
@@ -406,6 +450,12 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
         eltrans.Transform(ir, ptx)
         x2_arr.append(ptx.GetDataArray().copy().transpose())
         i2_arr.append(i)
+        
+    if support is not None:
+        supports = np.array([support(np.mean(xxx, 0))  for xxx in  x2_arr])
+    else:
+        supports = -np.ones(len(x2_arr))
+
     if len(i2_arr) > 0:
        ptx_x2 = np.stack(x2_arr)
        i2_arr = np.hstack(i2_arr)
@@ -419,10 +469,12 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
         ## the amount of data exchange..
         x2_all = comm.allgather(ptx_x2)
         i2_all = comm.allgather(i2_arr)
+        s_all = comm.allgather(supports)
     else:
         x2_all = [ptx_x2]
         i2_all = [i2_arr]
-    #nicePrint("x2_all shape", x2_all.shape)
+        s_all = [supports]
+    #nicePrint("x2_all shape", supports.shape, len(x2_all), [tmp.shape for tmp in x2_all])
 
     if USE_PARALLEL:
         #this is global TrueDoF (offset is not subtracted)        
@@ -440,8 +492,12 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
     elmats_senddata = []
         
     for knode1 in range(len(x2_all)):
+        #dprint1("new knode1", myid, knode1)
+            
         x2_onenode = x2_all[knode1]
         i2_onenode = i2_all[knode1]
+        s_onenode = s_all[knode1]
+        
         elmats_all = []
         vdofs1_all = []
 
@@ -455,11 +511,15 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
             else:
                 vdofs1_all.append(local_vdofs)
 
-        for i, x2s in zip(i2_onenode, x2_onenode): # loop over fes2
+        #if myid == 0:
+        #    pr = profile_start()
+
+        for i, x2s, su in zip(i2_onenode, x2_onenode, s_onenode): # loop over fes2
             nd2 = len(x2s)
             #nicePrint("x2s", i, x2s.shape, x2s)
             elmats = []
             for j in range(fes1.GetNE()):
+                
                 if trial_domain != 'all':
                     if not attrs1[j] in trial_domain: continue
 
@@ -480,6 +540,7 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                 #if myid == 0: print("fes1 idx", j)
 
                 dataset = []
+                shapes = []                
                 for jj in range(ir.GetNPoints()):
                     ip1 = ir.IntPoint(jj)
                     eltrans.SetIntPoint(ip1)
@@ -492,6 +553,7 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                     ss = shape1.GetDataArray().copy()
                     
                     if len(ss.shape) > 1:
+                        #dof_sign1 = dof_sign1.reshape(-1, 1)
                         ss = np.transpose(ss)
                     ss = ss * dof_sign1
                     dataset.append((x1, w, ss))
@@ -499,25 +561,30 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                 has_contribution = False
                 for kkk, x2 in enumerate(x2s):
                     tmp_int *= 0.0
-
+                    has_contribution2 = False                    
                     for x1, w, shape_arr in dataset:
-                        if support is not None:
-                            s = support((x1 + x2 )/2.0)
-                            if np.sqrt(np.sum((x1-x2)**2)) > s:
-                                continue
-
-                        has_contribution = True
-                        #if myid == 0: print("check here", x1, x2)
+                        s = np.sqrt(np.sum((x1-x2)**2))
+                        if su >= 0 and s > su:
+                            continue
+                                          
                         val = kernel(x2-x1, (x2+x1)/2.0, w=w)
-                        #shape_arr *= w*val
+                        if val is None:
+                            continue
+
                         tmp_int += np.dot(val, shape_arr)*w
-
-                    elmat[kkk, ...] = tmp_int
-
+                        has_contribution2 = True
+                        
+                    if has_contribution2:
+                        elmat[kkk, ...] = tmp_int
+                        has_contribution = True
                 if has_contribution:
                     elmats.append((j, elmat))
-
-                #print(elmats)
+                    
+            #if myid == 0:
+            #    pr.dump_stats("/home/shiraiwa/test.prf")                
+            #    profile_stop(pr)
+            #    assert False, "hoge"
+            #    pr = profile_start()
             if len(elmats) > 0:
                 elmats_all.append((i, elmats))
                 
@@ -564,12 +631,12 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
         
         if verbose:
             coupling = [len(elmats) for i, elmats in elmats_all]
-            nicePrint("Element coupling for rank", mpi_rank)
+            nicePrint("Element coupling for rank/count", mpi_rank, len(coupling))
             nicePrint("   Average :", (0 if len(coupling)==0 else np.mean(coupling)))
             nicePrint("   Max/Min :", (0 if len(coupling)==0 else np.max(coupling)),
                                       (0 if len(coupling)==0 else np.min(coupling)))
             mpi_rank += 1
-                
+
         for i, elmats in elmats_all:  # corresponds to loop over fes2
             vdofs2 = fes2.GetElementVDofs(i)
             dof_sign2 = np.array([[1 if vv >= 0 else -1

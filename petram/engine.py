@@ -845,7 +845,6 @@ class Engine(object):
         M, B, M_changed = self.fill_M_B_blocks(M, B, update=update)
 
         #B.save_to_file("B")
-
         #M[0].save_to_file("M0")        
         #M[1].save_to_file("M1")
         #X[0].save_to_file("X0")
@@ -853,15 +852,13 @@ class Engine(object):
         A2, isAnew = compute_A(M, B, X,
                               self.mask_M,
                               self.mask_B)  # solver determins A
-
         if isAnew:
             # generate Ae and eliminated A
             A, Ae = self.fill_BCeliminate_matrix(A2,
                                              inplace=inplace,
                                              update=update)     
-        
         RHS = compute_rhs(M, B, X)          # solver determins RHS
-                      
+
         #for m in M: 
         #    A.check_shared_id(m)
         #for x in X: 
@@ -871,6 +868,7 @@ class Engine(object):
         #Ae.save_to_file("Ae")
         
         RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
+
         #RHS.save_to_file("RHS")
         
         A, RHS = self.apply_interp(A, RHS)     # A and RHS is modifedy by global DoF coupling P
@@ -947,26 +945,62 @@ class Engine(object):
                     mm.apply_essential(self, igf, real = False, kfes = kfes)
 
     def apply_init_from_init_panel(self, phys):
+        from petram.model import Domain, Bdry
+        from petram.phys.coefficient import sum_coefficient
+
         is_complex = phys.is_complex()
-        
+
+        def loop_over_phys_mm(gf, phys):
+            bdrs = []
+            c1_arr = []
+            c2_arr = [] 
+            
+            for mm in phys.walk():
+                if not mm.enabled: continue
+                if isinstance(mm, Domain):
+                   c = mm.get_init_coeff(self, real = True, kfes = kfes)
+                   if c is None: continue
+                   c1_arr.append(c)
+                if isinstance(mm, Bdry):
+                   c = mm.get_init_coeff(self, real = True, kfes = kfes)
+                   if c is None: continue
+                   bdrs.extend(mm._sel_index)
+                   c2_arr.append(c)
+                   
+            if len(c1_arr) > 0:
+                cc = sum_coefficient(c1_arr)
+                gf.ProjectCoefficient(cc)
+                
+            if len(c2_arr) > 0:
+                print(bdrs)
+                attrs = mfem.intArray(bdrs)               
+                cc = sum_coefficient(c2_arr)
+                name = gf.FESpace().FEColl().Name()
+                if name.startswith('ND'):
+                    gf.ProjectBdrCoefficientTangent(cc, attrs)
+                elif name.startswith('RT'):
+                    gf.ProjectBdrCoefficientNormal(cc, attrs)
+                else:
+                    gf.ProjectBdrCoefficient(cc, attr)                
+                          
         for kfes, name in enumerate(phys.dep_vars):
             if not name in self._init_done: self._init_done.append(name)           
             r_ifes = self.r_ifes(name)
-            rfg = self.r_x[r_ifes]
-            for mm in phys.walk():
-                if not mm.enabled: continue
-                c = mm.get_init_coeff(self, real = True, kfes = kfes)
-                if c is None: continue
-                rfg.ProjectCoefficient(c)                
-                #rgf += tmp
+            rgf = self.r_x[r_ifes]
+
+            loop_over_phys_mm(rgf, phys)
+            
             if not is_complex: continue
-            ifg = self.i_x[r_ifes]            
+            igf = self.i_x[r_ifes]
+            loop_over_phys_mm(igf, phys)
+            '''
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = False, kfes = kfes)
                 if c is None: continue
                 ifg.ProjectCoefficient(c)
                 #igf += tmp
+            '''
                 
     def apply_init_from_previous(self, names):
        
@@ -1401,10 +1435,11 @@ class Engine(object):
             M_changed = True
             
         nfes = len(self.fes_vars)
-        nrfes = len(self.r_fes_vars)        
+        nrfes = len(self.r_fes_vars)
+
         for k in range(self.n_matrix):
             self.access_idx = k
-            
+
             self.r_a.generateMatVec(self.a2A, self.a2Am)
             self.i_a.generateMatVec(self.a2A, self.a2Am)
             
@@ -1439,7 +1474,7 @@ class Engine(object):
                 M[k][r,c] = t2 if M[k][r,c] is None else M[k][r,c]+t2
                 #M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3                
                 M[k][r,c1] = t3 if M[k][r,c1] is None else M[k][r,c1]+t3
-                
+
             #print("aux", k, self.aux_ops.keys())                
             for key in self.aux_ops.keys():
                 testname, trialname, mm_fullpath = key
@@ -1557,11 +1592,12 @@ class Engine(object):
               In the serial mode, Aee_diag is not properly set. But this element
               does not impact the final RHS.
               '''
+
            for j in range(nblock2):
               if j == idx2: continue
               if A[idx1, j] is None: continue
               A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof, inplace=inplace)
-                  
+
            for j in range(nblock1):            
               if j == idx1: continue
               if A[j, idx2] is None: continue
