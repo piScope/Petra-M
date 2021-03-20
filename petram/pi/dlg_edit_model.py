@@ -640,11 +640,38 @@ class DlgEditModel(SimpleFramePlus):
             self.p1.Layout()
 
         self._focus_idx = None
+        
         from petram.model import Bdry, Domain, Pair
         from petram.phys.phys_model import PhysModule
+        
         viewer = self.GetParent()
         engine = viewer.engine
-        if hasattr(mm, '_sel_index'):
+        
+        if isinstance(mm, PhysModule):
+            if not mm.enabled:
+                viewer.highlight_none()
+                viewer._dom_bdr_sel = ([], [], [], [])
+            else:
+                if not hasattr(mm, '_phys_sel_index') or mm.sel_index == 'all':
+                    engine.assign_sel_index(mm)
+                if hasattr(mm, '_phys_sel_index'):
+                    # need this if in case mesh is not loaded....
+                    if mm.dim == 3:
+                        viewer.change_panel_button('domain')
+                        viewer.highlight_domain(mm._phys_sel_index)
+                        viewer._dom_bdr_sel = (mm._phys_sel_index, [], [], [])
+                    elif mm.dim == 2:
+                        viewer.change_panel_button('face')
+                        viewer.highlight_face(mm._phys_sel_index)
+                        viewer._dom_bdr_sel = ([], mm._phys_sel_index, [], [])
+                    elif mm.dim == 1:
+                        viewer.change_panel_button('edge')
+                        viewer.highlight_edge(mm._phys_sel_index)
+                        viewer._dom_bdr_sel = ([], [], mm._phys_sel_index, [],)
+                    else:
+                        pass
+                    
+        elif hasattr(mm, '_sel_index'):
             self._focus_idx = 0
             if not mm.enabled:
                 viewer.highlight_none()
@@ -691,29 +718,7 @@ class DlgEditModel(SimpleFramePlus):
                     viewer._dom_bdr_sel = ([], [], mm._sel_index, [],)
                 else:
                     pass
-        elif isinstance(mm, PhysModule):
-            if not mm.enabled:
-                viewer.highlight_none()
-                viewer._dom_bdr_sel = ([], [], [], [])
-            else:
-                if not hasattr(mm, '_phys_sel_index') or mm.sel_index == 'all':
-                    engine.assign_sel_index(mm)
-                if hasattr(mm, '_phys_sel_index'):
-                    # need this if in case mesh is not loaded....
-                    if mm.dim == 3:
-                        viewer.change_panel_button('domain')
-                        viewer.highlight_domain(mm._phys_sel_index)
-                        viewer._dom_bdr_sel = (mm._phys_sel_index, [], [], [])
-                    elif mm.dim == 2:
-                        viewer.change_panel_button('face')
-                        viewer.highlight_face(mm._phys_sel_index)
-                        viewer._dom_bdr_sel = ([], mm._phys_sel_index, [], [])
-                    elif mm.dim == 1:
-                        viewer.change_panel_button('edge')
-                        viewer.highlight_edge(mm._phys_sel_index)
-                        viewer._dom_bdr_sel = ([], [], mm._phys_sel_index, [],)
-                    else:
-                        pass
+                
         elif isinstance(mm, AUX_Operator) or isinstance(mm, AUX_Variable):
             if not mm.enabled:
                 viewer.highlight_none()
@@ -739,8 +744,10 @@ class DlgEditModel(SimpleFramePlus):
                             [], [], mm2._phys_sel_index, [],)
                     else:
                         pass
+                    
         else:
             pass
+        
         if evt is not None:
             mm.onItemSelChanged(evt)
             evt.Skip()
@@ -785,12 +792,11 @@ class DlgEditModel(SimpleFramePlus):
         if len(p1children) > 0:
             elp1 = p1children[0].GetWindow()
             v1 = elp1.GetValue()
-            viewer_update = mm.import_panel1_value(v1)
+            viewer_update = mm.import_panel1_value(v1) or viewer_update
             try:
                 phys = mm.get_root_phys()
             except:
                 pass
-            
             elp1.SetValue(mm.get_panel1_value())
 
         if mm.has_2nd_panel:
@@ -798,7 +804,7 @@ class DlgEditModel(SimpleFramePlus):
             if len(p2children) > 0:
                 elp2 = p2children[0].GetWindow()
                 v2 = elp2.GetValue()
-                viewer_update = mm.import_panel2_value(v2)
+                viewer_update = mm.import_panel2_value(v2) or viewer_update
                 elp2.SetValue(mm.get_panel2_value())
 
         if mm.has_3rd_panel:
@@ -806,7 +812,7 @@ class DlgEditModel(SimpleFramePlus):
             if len(p3children) > 0:
                 elp3 = p3children[0].GetWindow()
                 v3 = elp3.GetValue()
-                viewer_update = mm.import_panel3_value(v3)
+                viewer_update = mm.import_panel3_value(v3) or viewer_update
                 elp3.SetValue(mm.get_panel3_value())
 
         if mm.has_4th_panel:
@@ -814,7 +820,7 @@ class DlgEditModel(SimpleFramePlus):
             if len(p4children) > 0:
                 elp4 = p4children[0].GetWindow()
                 v4 = elp4.GetValue()
-                viewer_update = mm.import_panel4_value(v4)
+                viewer_update = mm.import_panel4_value(v4) or viewer_update
                 elp4.SetValue(mm.get_panel4_value())
 
         if phys is not None:
@@ -823,11 +829,13 @@ class DlgEditModel(SimpleFramePlus):
                 engine = viewer.engine.assign_sel_index(phys)
             except:
                 traceback.print_exc()
-
+        
         if viewer_update:
-            mm.update_after_ELChanged(self)
-            if evt is not None:
-                mm.update_after_ELChanged2(evt)            
+             mm.update_after_ELChanged(self)
+             if evt is not None:
+                 mm.update_after_ELChanged2(evt)
+             wx.CallAfter(self.show_panel, mm)
+                 
         self.tree.RefreshItems()
         return viewer_update
 
