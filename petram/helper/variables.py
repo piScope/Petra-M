@@ -144,6 +144,20 @@ var_g = {'sin': np.sin,
          'diag': np.diag,
          'zeros': np.zeros}
 
+def check_vectorfe_in_lowdim(gf):
+    ### check if this is VectorFE in lower dimensionality 
+
+    fes = gf.FESpace()
+    sdim = fes.GetMesh().SpaceDimension()
+
+    assert fes.GetNE() > 0,  "Finite Element space has zero elements"
+    
+    isVector = (fes.GetFE(0).GetRangeType() == fes.GetFE(0).VECTOR)
+    dim = fes.GetFE(0).GetDim()
+    
+    if isVector and dim < sdim:
+        assert False, "Nodal evaluator does not work for low dimenstional vector field (try without averaging)"
+
 class Variables(dict):
     def __repr__(self):
         txt = []
@@ -1176,9 +1190,14 @@ class GFScalarVariable(GridFunctionVariable):
                      **kwargs):
         if iele is None:
             return
+
         if not self.isDerived:
             self.set_funcs()
 
+        ### check if this is VectorFE in lower dimensionality 
+        gf = self.gfr if self.gfr is not None else self.gfi
+        check_vectorfe_in_lowdim(gf)
+            
         size = len(wverts)
         if self.gfi is None:
             ret = np.zeros(size, dtype=np.float)
@@ -1203,6 +1222,7 @@ class GFScalarVariable(GridFunctionVariable):
                     ret[idx] = ret[idx] + arr[k] * 1j
 
         ret = ret / wverts
+
         return ret
 
     def ncface_values(self, ifaces=None, irs=None,
@@ -1458,6 +1478,9 @@ class GFVectorVariable(GridFunctionVariable):
 
         size = len(wverts)
 
+        ### check if this is VectorFE in lower dimensionality 
+        gf = self.gfr if self.gfr is not None else self.gfi
+        check_vectorfe_in_lowdim(gf)
         
         ans = []
         for comp in range(self.dim):

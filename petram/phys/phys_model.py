@@ -1009,6 +1009,7 @@ class PhysModule(Phys):
            self.sel_index_txt = str(v[1])
            
         self.update_dom_selection()
+        return True
         
     @property
     def dep_vars(self):

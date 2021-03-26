@@ -200,12 +200,12 @@ class WeakLinIntegration(WeakIntegration):
         t = self.get_root_phys().get_fec_type(self.test_idx)
         if len(t)>2 and t[2] == "v":
            t = t[:3]
-           
+        bb = [b for b in linintegs if t in b[1]]
+        
         if (t == 'RT' and self.get_root_phys().dim == 2 and
             self.get_root_phys().geom_dim == 3):
             t = 'L2'
-           
-        bb = [b for b in linintegs if t in b[1]]
+            bb = bb + [b for b in linintegs if t in b[1]]            
         
         dim = self.dim
         bb = [b for b in bb if dim in b[4]]
@@ -217,32 +217,37 @@ class WeakBilinIntegration(WeakIntegration):
         t = self.get_root_phys().get_fec_type(self.test_idx)
         if len(t)>2 and t[2] == "v":
            t = t[:3]
-
-        # adjust choices for RT-Trace
+        bb = [b for b in bilinintegs if t in b[2]]
+        
+        # adjust choices for RT-Trace (I need this to have MassIntegrator in menu)
         if (t == 'RT' and self.get_root_phys().dim == 2 and
             self.get_root_phys().geom_dim == 3):
             t = 'L2'
+            bb = bb + [b for b in bilinintegs if t in b[2]]            
         
-        bb = [b for b in bilinintegs if t in b[2]]
         if self.paired_var is not None:
             paired_name, paired_idx = self.paired_var
         else:
             paired_name = self.get_root_phys().name()
             paired_idx = 0
-            
-        t2 = (self.get_root_phys().parent)[paired_name].get_fec_type(paired_idx)
-        if len(t2)>2 and t2[2] == "v":
-            t2 = t2[:3]
-            
-        # adjust choices for RT-Trace            
-        if (t2 == 'RT' and self.get_root_phys().dim == 2 and
-            self.get_root_phys().geom_dim == 3):
-            t2 = 'L2'            
 
-        bb = [b for b in bb if t2 in b[1]]
-
+        if paired_name in self.get_root_phys().parent:
+            t2 = (self.get_root_phys().parent)[paired_name].get_fec_type(paired_idx)
+            if len(t2)>2 and t2[2] == "v":
+                t2 = t2[:3]
+            bb2 = [b for b in bb if t2 in b[1]]
+        
+            # adjust choices for RT-Trace            
+            if (t2 == 'RT' and self.get_root_phys().dim == 2 and
+                self.get_root_phys().geom_dim == 3):
+                t2 = 'L2'
+                bb2 = bb2 + [b for b in bb if t2 in b[1]]
+        else:
+            bb2 =bb
         dim = self.dim
-        bb = [b for b in bb if dim in b[4]]           
+
+        bb = [b for b in bb2 if dim in b[4]]
+
         return bb
    
     def attribute_set(self, v):
@@ -354,17 +359,17 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
     else:
         el_name = self.get_root_phys().element
         dim = self.get_root_phys().geom_dim
-    sdim = self.get_root_phys().geom_dim        
- 
+    sdim = self.get_root_phys().geom_dim
+
     integrator = getattr(mfem, self.integrator)
     adder = a.AddDomainIntegrator
-            
+
     for pos in self.pos_value:
         args = list(pos[:sdim])
         if cotype == 'S':
              for b in self.itg_choice():
                 if b[0] == self.integrator: break
-               
+
              if not "S*2" in b[3]:
                  if isinstance(c[0], str):
                       c_coeff = None                    
@@ -386,10 +391,10 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
                          assert False, "This option needs update of PyMFEM"
                          d2 = mfem.ProductCoefficient(c_coeff, d)
                          d2._linked_c = (c_coeff, d)
-                         adder(integrator(d2))                         
+                         adder(integrator(d2))
                      else:
                          adder(integrator(d))
-                     
+
              else: # so far this is only for an elastic integrator
                  if real:
                      args.append(float(np.array(c)[0].real))
@@ -401,20 +406,20 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
                  else:
                      args.append(float(np.array(c)[1].imag))
                  d2 = mfem.DeltaCoefficient(*args)
-                 adder(integrator(d1, d2))                 
+                 adder(integrator(d1, d2))
 
         elif cotype == 'V':
             if real:
                 direction = np.array(c).real
             else:
-                direction = np.array(c).imag              
+                direction = np.array(c).imag
             args.append(1.0)
             dir = mfem.Vector(direction)
             d = mfem.VectorDeltaCoefficient(dir, *args)
-            adder(integrator(d))            
+            adder(integrator(d))
         else:
             assert False, "M and D are not supported for delta coefficient"
-        
+
 def validate_sel(value, obj, w):
     g = obj._global_ns
     try:

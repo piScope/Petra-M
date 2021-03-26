@@ -104,18 +104,24 @@ class WF(PhysModule):
             val = ["".join(self.dep_vars_base_txt.split(','))]
         else:
             val =  self.dep_vars_base_txt.split(',')
-        return [x + self.dep_vars_suffix for x in val]            
-
+        return [x + self.dep_vars_suffix for x in val]
+    
     @property 
     def der_vars(self):
+        sdim = self.geom_dim
         names = []
         isVector = False
         isNormal = False
-        if (self.element.startswith('RT') and self.dim == 3):
+        if self.element.startswith('RT'):
+            if self.dim != sdim:
+                if self.element.endswith(')'):
+                    isNormal = True
+                else:
+                    isVector = True
+            else:
+                isVector = True                
+        elif self.element.startswith('ND'):
             isVector = True
-        if (self.element.startswith('RT') and self.dim < 3):
-            isNormal = True
-        if self.element.startswith('ND'): isVector = True
         
         if self.vdim > 1:
             return self.dep_vars_base_txt.split(',')
@@ -177,15 +183,31 @@ class WF(PhysModule):
         return v
 
     def panel1_param(self):
+        sdim = self.geom_dim        
+
+        if sdim == self.dim and sdim > 2:
+            choices=["H1_FECollection",
+                     "L2_FECollection",
+                     "ND_FECollection",
+                     "RT_FECollection",
+                     "DG_FECollection"]
+        elif self.dim == 1:
+            choices=["H1_FECollection",
+                     "L2_FECollection"]
+        else:
+            choices=["H1_FECollection",
+                     "L2_FECollection",
+                     "ND_FECollection",
+                     "RT_FECollection",
+                     "ND_FECollection (dim="+str(self.dim)+")",
+                     "RT_FECollection (dim="+str(self.dim)+")",
+                     "DG_FECollection"]
+            
         import wx        
         panels = super(WF, self).panel1_param()
         panels[1] = ["element", "H1", 4,
                      {"style":wx.CB_READONLY, 
-                     "choices": ["H1_FECollection",
-                                 "L2_FECollection",
-                                 "ND_FECollection",
-                                 "RT_FECollection",
-                                 "DG_FECollection"]}]
+                      "choices": choices}]
 
         a, b = self.get_var_suffix_var_name_panel()
         panels.extend([
@@ -229,6 +251,7 @@ class WF(PhysModule):
         else:
             self.vdim = 1
         self.generate_dt_fespace = bool(v[6])
+        return True
 
     '''
     The same as parent
@@ -261,7 +284,9 @@ class WF(PhysModule):
         from petram.helper.variables import add_expression
         from petram.helper.variables import add_surf_normals
         from petram.helper.variables import add_constant
-        from petram.helper.variables import GFScalarVariable        
+        from petram.helper.variables import GFScalarVariable
+
+
 
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
         suffix = self.dep_vars_suffix
@@ -273,15 +298,22 @@ class WF(PhysModule):
         add_surf_normals(v, ind_vars)
 
         dep_vars = self.dep_vars
+        sdim = self.geom_dim
         
-        isVector = False; isNormal=False
-        if (self.element.startswith('RT') and self.dim == 3):
+        isVector = False
+        isNormal=False
+        if self.element.startswith('RT'):
+            if self.dim != sdim:
+                if self.element.endswith(')'):
+                    isNormal = True
+                else:
+                    isVector = True
+            else:
+                isVector = True                
+
+        elif self.element.startswith('ND'):
             isVector = True
-        if (self.element.startswith('RT') and self.dim < 3):
-            isNormal = True
-        if self.element.startswith('ND'): 
-            isVector = True
-            
+
         for dep_var in dep_vars:
             if name != dep_var: continue
             if isVector:

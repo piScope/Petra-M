@@ -2187,12 +2187,14 @@ class Engine(object):
         else:
             dprint1("making a new fec/fes")
             is_new = True
-            fec = getattr(mfem, elem)
-            #if fec is mfem.ND_FECollection:
-            #   mesh.ReorientTetMesh()
-            fecdim = dim
-            if elem.startswith('RT'): fecdim = sdim
-            if elem.startswith('ND'): fecdim = sdim
+            
+            fec = getattr(mfem, elem.split('(')[0].strip())
+            if "(" in elem:
+                fecdim = dim
+            else:
+                fecdim = dim
+                if elem.startswith('RT'): fecdim = sdim
+                if elem.startswith('ND'): fecdim = sdim
             
             fec = fec(order, fecdim)
             fes = self.new_fespace(mesh, fec, vdim)
