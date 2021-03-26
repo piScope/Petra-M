@@ -1009,11 +1009,18 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
         if (dphase == 0.):
             pass
         elif (dphase == 180.):
-            map = -map
+            map = map.tocsr()
+            map *= -1
+            map = map.tolil()
+            
         else:
             iscomplex = True
-            map = map.astype(complex)        
+            map = map.astype(complex)
+            # need to this to make efficient....
+            map = map.tocsr()
             map *= np.exp(-1j*np.pi/180*dphase)
+            map = map.tolil()
+
     else:
         iscomplex = np.iscomplexobj(weight)
         if iscomplex:

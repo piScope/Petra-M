@@ -113,10 +113,13 @@ class WF(PhysModule):
         isVector = False
         isNormal = False
         if self.element.startswith('RT'):
-            if self.dim == sdim:
-                isNormal = True                
+            if self.dim != sdim:
+                if self.element.endswith(')'):
+                    isNormal = True
+                else:
+                    isVector = True
             else:
-                isVector = True
+                isVector = True                
         elif self.element.startswith('ND'):
             isVector = True
         
@@ -300,8 +303,11 @@ class WF(PhysModule):
         isVector = False
         isNormal=False
         if self.element.startswith('RT'):
-            if self.dim == sdim:
-                isNormal = True
+            if self.dim != sdim:
+                if self.element.endswith(')'):
+                    isNormal = True
+                else:
+                    isVector = True
             else:
                 isVector = True                
 
