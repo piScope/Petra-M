@@ -56,8 +56,6 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         petram.debug.debug_default_level = int(self.debug_level)        
         
     def run(self):
-
-        
         import petram.debug
         if petram.debug.debug_default_level == 0:
             petram.debug.debug_default_level = int(self.debug_level)
@@ -282,8 +280,9 @@ class MFEM_SolverRoot(Model):
     def get_possible_child(self):
         from petram.solver.solver_model import SolveStep
         from petram.solver.parametric import Parametric        
-        from petram.solver.solve_loop import Loop
-        return [SolveStep, Parametric, Loop]
+        #from petram.solver.solve_loop import Loop
+        from petram.solver.solver_controls import ForLoop        
+        return [SolveStep, Parametric, ForLoop]
     
     def get_active_solvers(self, mm = None):
         return [x for x in self.iter_enabled()]

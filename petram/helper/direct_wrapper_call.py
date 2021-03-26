@@ -27,9 +27,16 @@ class DWC(object):
             t = kwargs.pop('time')
             icp = kwargs.pop('icheckpoint')
             return (t, icp), kwargs
+        elif mode == 'loopcontrol':
+            ct = kwargs.pop('count')
+            return (ct,), kwargs
         else:
-            assert False, "unknown DWC method :" + mode
-            
+            # default no argument
+            return tuple(), kwargs
+
+    def loopcontrol(self, caller, count, *args, **kwargs):
+        raise NotImplementedError("loopcontrol must be implemented by a user")       
+       
     def postprocess(self, caller,  *args, **kwargs):
         ''' 
         postprocess is called from solvestep after store_sol

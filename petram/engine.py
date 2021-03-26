@@ -284,12 +284,15 @@ class Engine(object):
 
         # convert old model which does not use SolveStep...
         from petram.solver.solver_model import SolveStep
+        from petram.solver.solver_controls import SolveControl
+        
         solk = list(model['Solver'])
         flag = any([not isinstance(model['Solver'][k], SolveStep) for k in solk])
         if flag:
             box = None
             for k in solk:
-                if not isinstance(model['Solver'][k], SolveStep):
+                if not (isinstance(model['Solver'][k], SolveStep) or 
+                    isinstance(model['Solver'][k], SolveControl)):
                     print("moving ", k)
                     if box is None:
                         name = model['Solver'].add_item('SolveStep', SolveStep)
@@ -2653,7 +2656,8 @@ class Engine(object):
                else:
                   assert False, "update mode not supported: mode = "+mode
                   
-    def call_dwc(self, phys_range, method='', callername = '', args = '', **kwargs):
+    def call_dwc(self, phys_range, method='', callername='',
+                 dwcname='', args = '', **kwargs):
 
         for phys in phys_range:
             for name in phys.dep_vars:
@@ -2666,7 +2670,10 @@ class Engine(object):
                    kwargs[name] = (rgf, igf)                   
        
         g = self.model['General']._global_ns
-        dwc = g[self.model['General'].dwc_object_name]
+        if dwcname == '':
+            dwc = g[self.model['General'].dwc_object_name]
+        else:
+            dwc = g[dwcname]
         args0, kwargs = dwc.make_args(method, kwargs)
 
         m = getattr(dwc, method)
@@ -2684,7 +2691,7 @@ class Engine(object):
         args = tuple(list(args0) + list(args))
         
         try:
-            m(callername, *args, **kwargs)
+            return m(callername, *args, **kwargs)
         except:
             import traceback
             traceback.print_exc()
