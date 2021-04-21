@@ -88,7 +88,8 @@ def extract_mesh_data(mesh, refine=1):
            from petram.mesh.read_mfemmesh2 import extract_refined_mesh_data2
            return extract_refined_mesh_data2(mesh, refine)
        else:
-           assert False, "1D mesh not supported"           
+           from petram.mesh.read_mfemmesh1 import extract_refined_mesh_data1
+           return extract_refined_mesh_data1(mesh, refine)
     if ndim == 3:
         ivert0 = [mesh.GetBdrElement(i).GetVerticesArray()
                            for i in range(mesh.GetNBE())]

@@ -12,7 +12,8 @@ operators = {"integral": ops.Integral,
              "curl": ops.Curl,
              "grad": ops.Gradient,
              "div": ops.Divergence,
-             "convolve": ops.Convolve}
+             "convolve": ops.Convolve,
+             "hcurln": ops.Hcurln}
 
 def get_operators():
     return {key: operators[key]() for key in operators}

@@ -165,6 +165,45 @@ def scatter_vector2(vector, mpi_data_type, rcounts = None):
            r = None
         return scatter_vector(r, mpi_data_type, rcounts = rcounts)
 
+def alltoall_vector(data):
+    '''
+    data = list of np.array.
+        each array goes to different MPI proc.
+        length of data must be equal to MPI size
+    '''
+    from mfem.common.mpi_dtype import  get_mpi_datatype
+
+    num_proc = MPI.COMM_WORLD.size
+
+    senddata = np.hstack(data)
+    senddtype = get_mpi_datatype(senddata)
+
+    sendsize = np.array([len(x) for x in data], dtype=int)
+    senddisp = list(np.hstack((0, np.cumsum(sendsize)))[:-1])
+
+    # (step 1) communicate the size of data
+    if len(sendsize) != num_proc:
+        assert False, "senddata size does not match with mpi size"
+    recvsize = np.empty(num_proc, dtype=int)
+    disp = list(range(num_proc))
+    counts = [1]*num_proc
+    dtype = get_mpi_datatype(recvsize)
+    s1 = [sendsize, counts, disp, dtype]
+    r1 = [recvsize, counts, disp, dtype]
+    MPI.COMM_WORLD.Alltoallv(s1, r1)
+
+    # (step 2) communicate the data    
+    recvsize = list(recvsize)
+    recvdisp = list(np.hstack((0, np.cumsum(recvsize))))
+    recvdata = np.empty(np.sum(recvsize), dtype=int)
+
+    s1 = [senddata, sendsize, senddisp, senddtype]
+    r1 = [recvdata, recvsize, recvdisp[:-1], senddtype]
+    MPI.COMM_WORLD.Alltoallv(s1, r1)
+
+    data = [recvdata[recvdisp[i]:recvdisp[i+1]] for i in range(num_proc)]
+    return data
+
 def check_complex(obj, root=0):
     return MPI.COMM_WORLD.bcast(np.iscomplexobj(obj), root=root)
 

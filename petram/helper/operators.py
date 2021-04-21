@@ -815,6 +815,71 @@ class Divergence(Operator):
         M = BF2PyMat(div)
 
         return M
+     
+class Hcurln(Operator):               
+    '''
+    Operator to compute normal compnent of hcurl on surface
+
+    \int F_test(x) coeff(x) F_trial(x') dx'
+
+    input (domain) should be Hcurl
+    output (range) should be H1/L2
+
+    Usage: 
+       = hcurln(coeff, (optional) support, complex=False, 
+                orderinc=1, 
+                bdr='all')
+    '''
+    def assemble(self, *args, **kwargs):
+        from petram.helper.hcurl_normal import hcurln
+        
+        engine = self._engine()
+        is_complex = kwargs.pop("complex", False)
+        verbose = kwargs.pop("verbose", False)
+        bdr = kwargs.pop("bdr", 'all')
+        if bdr != 'all':
+            try:
+                _void = bdr[0]
+            except:
+                bdr = [bdr]
+        self.process_kwargs(engine, kwargs)
+
+        info1 = engine.get_fes_info(self.fes1)
+        emesh1_idx = info1['emesh_idx']
+        info2 = engine.get_fes_info(self.fes2)
+        emesh2_idx = info1['emesh_idx']
+
+        assert emesh1_idx == emesh2_idx, "convolution is performed only on the same mesh"
+            
+        dim1 = self.fes1.GetMesh().Dimension()
+        if not self.fes1.FEColl().Name().startswith('ND'):
+            assert False, "trial(domain) should be ND"
+        if (not self.fes2.FEColl().Name().startswith('L2') and
+            not self.fes2.FEColl().Name().startswith('H1')):
+            assert False, "test(range) should be H1/L2"
+        
+        if dim1 == 3:
+            func = hcurln
+        elif dim1 == 2:
+            func = hcurln
+        elif dim1 == 3:
+            assert False, "unsupported dimension"
+        else:
+            assert False, "unsupported dimension"
+         
+        if len(args) == 0:
+            self._coeff = np.eye(dim1)
+        else:
+            self._coeff = args[0]
+            
+        M = func(self.fes1,
+                 self.fes2,
+                 self._coeff,
+                 is_complex=is_complex,
+                 bdr=bdr,
+                 verbose=verbose)
+
+        return M
 
 class Convolve(Operator):               
     '''

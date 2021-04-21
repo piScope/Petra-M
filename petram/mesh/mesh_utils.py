@@ -695,10 +695,14 @@ def get_extended_connectivity(mesh):
     else:
         lp = bdr_loop(mesh)        
         v2s = None; s2l = None
-        l2e = {k:k for k in lp.keys()}
+        attrs = mesh.GetAttributeArray()        
+        l2e = {k:list(np.where(attrs==k)[0]) for k in lp.keys()}
         l2v = bdr_loop(mesh)
         v = np.unique(np.hstack([lp[k] for k in lp.keys()]))
-        v2v = {k:k for k in v}
+        battrs = mesh.GetBdrAttributeArray()
+        v2v = {battr:mesh.GetBdrElementVertices(k)[0]
+               for k, battr in enumerate(battrs)}
+        
     from mfem.common.mpi_debug import nicePrint, niceCall                
     #nicePrint('s2l', s2l)
     mesh.extended_connectivity = {}
@@ -760,10 +764,15 @@ def populate_plotdata(mesh, table, cells, cell_data):
 
     kedge = []
 
+    if mesh.Dimension() >= 2:
+        method = mesh.GetEdgeVertices
+    else:
+        method = mesh.GetElementVertices
+        
     if len(l2e) > 0:
         #kedge = np.array(sum([[key]*len(l2e[key]) for key in l2e], [])).astype(int)
         kedge = np.hstack([[key]*len(l2e[key]) for key in l2e]).astype(int, copy=False)
-        iverts = np.vstack([mesh.GetEdgeVertices(ie)
+        iverts = np.vstack([method(ie)
                         for key in l2e for ie in l2e[key]])
     else:
         iverts = np.atleast_1d([]).astype(int)

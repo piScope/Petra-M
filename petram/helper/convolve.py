@@ -723,8 +723,6 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
 
     from scipy.sparse import coo_matrix, csr_matrix
 
-
-
     if USE_PARALLEL:
         if is_complex:
             m1 = csr_matrix(mat.real, dtype=float)

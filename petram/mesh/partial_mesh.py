@@ -49,13 +49,11 @@ def _collect_data(index, mesh, mode, skip_vtx= False):
       nverts : num of vertices for each element
       base : element geometry base
     '''
-
     LEN = len
     if mode == 'bdr':
         GetXElementVertices = mesh.GetBdrElementVertices
         GetXBaseGeometry    = mesh.GetBdrElementBaseGeometry
         attrs = mesh.GetBdrAttributeArray()
-        
         idx = np.arange(len(attrs))[np.in1d(attrs, index)]
         attrs = attrs[idx]
         
@@ -73,7 +71,7 @@ def _collect_data(index, mesh, mode, skip_vtx= False):
         
         s2l = mesh.extended_connectivity['surf2line']
         l2e = mesh.extended_connectivity['line2edge']
-        idx = sum([l2e[ea] for ea in index], [])
+        idx = np.array(sum([l2e[ea] for ea in index], []), dtype=int)
         if len(idx) == 0:
             attrs = np.atleast_1d([]).astype(int)
         else:
@@ -84,7 +82,7 @@ def _collect_data(index, mesh, mode, skip_vtx= False):
         GetXElementVertices = lambda x: v2v[x] if x in v2v else []
         GetXBaseGeometry    = lambda x: 0
         LEN    = lambda x: 1
-        idx = [x for x in index if x in v2v]
+        idx = np.array([x for x in index if x in v2v], dtype=int)
         if len(idx) == 0:
             attrs =  np.atleast_1d([]).astype(int)
         else:
@@ -264,16 +262,7 @@ def _fill_mesh_bdr_elements(omesh, vtx, bindices, nbverts,
     
 def edge(mesh, in_attr, filename = '', precision=8):
     '''
-    make a new mesh which contains only spedified boundaries.
-
-    mesh must be 
-    if sdim == 3:
-       not supported
-    if dim == 2:
-       a boundary in 2D mesh
-    elif dim == 1:
-       a domain in 1D mesh
-
+    make a new mesh which contains only spedified edges.
 
     in_attr : eihter
     filename : an option to save the file 
@@ -350,8 +339,9 @@ def edge(mesh, in_attr, filename = '', precision=8):
     Nelem = len(attrs)    
     Nbelem = len(eattrs)
 
-    if myid ==0: print("NV, NBE, NE: " +
-                       ",".join([str(x) for x in (Nvert, Nbelem, Nelem)]))
+    if myid ==0:
+       print("NV, NBE, NE: " +
+             ",".join([str(x) for x in (Nvert, Nbelem, Nelem)]))
     
 
     omesh = mfem.Mesh(1, Nvert, Nelem, Nbelem, sdim)
@@ -364,38 +354,24 @@ def edge(mesh, in_attr, filename = '', precision=8):
     omesh.Finalize(refine=True, fix_orientation=True)
 
     if hasNodal:
-        assert False, "high order edge mesh is not supported"
-        '''
         odim = omesh.Dimension()
-        print("odim, dim, sdim", odim, " ", dim, " ", sdim)
+        if myid == 0:
+           print("odim, dim, sdim", odim, " ", dim, " ", sdim)
         fec = Nodal.FEColl()
         dNodal = mfem.FiniteElementSpace(omesh, fec, sdim)
         omesh.SetNodalFESpace(dNodal)
         omesh._nodal= dNodal
 
-        if sdim == 3:
-           if dim == 3:
-               GetXDofs        =  Nodal.GetBdrElementDofs
-               GetNX           =  Nodal.GetNBE
-           elif dim == 2:
-               GetXDofs        =  Nodal.GetElementDofs
-               GetNX           =  Nodal.GetNE               
-           else:
-               assert False, "not supported ndim 1" 
-           if odim == 3:
-               dGetXDofs       = dNodal.GetBdrElementDofs
-               dGetNX          = dNodal.GetNBE                              
-           elif odim == 2:
-               dGetXDofs       = dNodal.GetElementDofs
-               dGetNX          = dNodal.GetNE               
-           else:
-               assert False, "not supported ndim (3->1)" 
-        elif sdim == 2:
-           GetNX           =  Nodal.GetNE                          
-           dGetNX          = dNodal.GetNE                          
-           GetXDofs         =  Nodal.GetElementDofs
-           dGetXDofs        = dNodal.GetElementDofs
-           
+        GetXDofs        =  Nodal.GetElementDofs
+        if dim == 3:
+            GetXDofs       =  Nodal.GetEdgeDofs
+        elif dim == 2:
+            GetXDofs        =  Nodal.GetBdrElementDofs
+        elif dim == 1:
+            GetXDofs        =  Nodal.GetElementDofs            
+
+        dGetXDofs       = dNodal.GetElementDofs
+        
         DofToVDof        =  Nodal.DofToVDof
         dDofToVDof       = dNodal.DofToVDof
 
@@ -416,8 +392,8 @@ def edge(mesh, in_attr, filename = '', precision=8):
         else:
            dof1_idx = np.array([])
            data = np.array([])
-        if use_parallel: data  = allgather_vector(data)
-        if use_parallel: idx  = allgather_vector(idx)
+        if isParMesh(mesh): data  = allgather_vector(data)
+        if isParMesh(mesh): idx  = allgather_vector(idx)
         #nicePrint(len(data), ',', len(idx))
 
         dof2_idx = np.hstack([[dDofToVDof(i, d) for d in range(sdim)]
@@ -425,7 +401,7 @@ def edge(mesh, in_attr, filename = '', precision=8):
                               for i in dGetXDofs(j)])
         node_ptx2[dof2_idx] = data 
         #nicePrint(len(dof2_idx))
-        '''
+
     if isParMesh(mesh):
         if omesh.GetNE() < nprc*3:
             parts = omesh.GeneratePartitioning(1, 1)
