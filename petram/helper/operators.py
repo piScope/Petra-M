@@ -837,6 +837,7 @@ class Hcurln(Operator):
         is_complex = kwargs.pop("complex", False)
         verbose = kwargs.pop("verbose", False)
         bdr = kwargs.pop("bdr", 'all')
+        orderinc = kwargs.pop("orderinc", 1)        
         if bdr != 'all':
             try:
                 _void = bdr[0]
@@ -847,9 +848,9 @@ class Hcurln(Operator):
         info1 = engine.get_fes_info(self.fes1)
         emesh1_idx = info1['emesh_idx']
         info2 = engine.get_fes_info(self.fes2)
-        emesh2_idx = info1['emesh_idx']
+        emesh2_idx = info2['emesh_idx']
 
-        assert emesh1_idx == emesh2_idx, "convolution is performed only on the same mesh"
+        #assert emesh1_idx == emesh2_idx, "HcurlN is performed only on the same mesh"
             
         dim1 = self.fes1.GetMesh().Dimension()
         if not self.fes1.FEColl().Name().startswith('ND'):
@@ -877,6 +878,7 @@ class Hcurln(Operator):
                  self._coeff,
                  is_complex=is_complex,
                  bdr=bdr,
+                 orderinc=orderinc, 
                  verbose=verbose)
 
         return M
@@ -934,7 +936,7 @@ class Convolve(Operator):
         info1 = engine.get_fes_info(self.fes1)
         emesh1_idx = info1['emesh_idx']
         info2 = engine.get_fes_info(self.fes2)
-        emesh2_idx = info1['emesh_idx']
+        emesh2_idx = info2['emesh_idx']
 
         assert emesh1_idx == emesh2_idx, "convolution is performed only on the same mesh"
             

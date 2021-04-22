@@ -8,6 +8,27 @@ from mpi4py import MPI
 from  warnings import warn
 from mfem.common.mpi_debug import nicePrint, niceCall
 
+
+def mpi_type_flag(d):
+    if d == MPI.LONG:
+        return 1
+    elif d == MPI.INT:
+        return  2
+    elif d == MPI.SHORT:
+        return  3
+    elif d == MPI.LONG_DOUBLE:
+        return  4
+    elif d == MPI.DOUBLE:
+        return  5
+    elif d == MPI.COMPLEX:
+        return  6
+    elif d == MPI.DOUBLE_COMPLEX:
+        return  7
+    elif d == MPI.BOOL:
+        return  8
+    else:
+        assert False, "unsupporte data type"
+    
 def allgather(data):
     comm     = MPI.COMM_WORLD     
     num_proc = MPI.COMM_WORLD.size
@@ -165,7 +186,7 @@ def scatter_vector2(vector, mpi_data_type, rcounts = None):
            r = None
         return scatter_vector(r, mpi_data_type, rcounts = rcounts)
 
-def alltoall_vector(data):
+def alltoall_vector(data, datatype):
     '''
     data = list of np.array.
         each array goes to different MPI proc.
@@ -175,8 +196,12 @@ def alltoall_vector(data):
 
     num_proc = MPI.COMM_WORLD.size
 
-    senddata = np.hstack(data)
+
+    senddata = np.hstack(data).astype(datatype, copy=False)
     senddtype = get_mpi_datatype(senddata)
+    senddtypes = MPI.COMM_WORLD.allgather(mpi_type_flag(senddtype))
+    if len(np.unique(senddtypes)) != 1:
+        assert False, "data type is not unique"
 
     sendsize = np.array([len(x) for x in data], dtype=int)
     senddisp = list(np.hstack((0, np.cumsum(sendsize)))[:-1])
@@ -195,13 +220,73 @@ def alltoall_vector(data):
     # (step 2) communicate the data    
     recvsize = list(recvsize)
     recvdisp = list(np.hstack((0, np.cumsum(recvsize))))
-    recvdata = np.empty(np.sum(recvsize), dtype=int)
+    recvdata = np.empty(np.sum(recvsize), dtype=senddata.dtype)
+
+    print("here", senddata)
+    s1 = [senddata, sendsize, senddisp, senddtype]
+    r1 = [recvdata, recvsize, recvdisp[:-1], senddtype]
+    MPI.COMM_WORLD.Alltoallv(s1, r1)
+    print("here", recvdata)
+    data = [recvdata[recvdisp[i]:recvdisp[i+1]] for i in range(num_proc)]
+    return data
+
+def alltoall_vectorv(data, datatype):
+    '''
+    mulitidimension, arbitrary size version
+    data = list of list of np.array.
+        each list element goes to different MPI proc.
+        length of data must be equal to MPI size
+    '''
+    from mfem.common.mpi_dtype import  get_mpi_datatype
+
+    num_proc = MPI.COMM_WORLD.size
+
+    datashape = [np.array([y.shape for y in x]).flatten()  for x in data]
+    nicePrint(datashape)
+    datadim = [np.hstack([len(y.shape) for y in x]) if len(x)>0 else np.array([], dtype=int)
+               for x in data]
+
+
+    senddata = [np.hstack([y.flatten() for y in x]) if len(x) > 0
+                else np.array([], dtype=datatype)
+                for x in data]
+    sendsize = np.array([len(x) for x in senddata], dtype=int)
+    senddisp = list(np.hstack((0, np.cumsum(sendsize)))[:-1])
+    senddata = np.hstack(senddata).astype(datatype, copy=False)
+
+    senddtype = get_mpi_datatype(senddata)
+    senddtypes = MPI.COMM_WORLD.allgather(mpi_type_flag(senddtype))
+
+    if len(np.unique(senddtypes)) != 1:
+        assert False, "data type is not unique"
+
+    # (step 1) communicate the size of data
+
+    datashape = alltoall_vector(datashape, int)
+    datadim = alltoall_vector(datadim, int)
+
+    # (step 2) communicate the data
+    recvshapes = []
+    for dims, shapes in zip(datadim, datashape):
+        disps = np.hstack([0, np.cumsum(dims)])
+        recvshapes.append([shapes[disps[i]:disps[i+1]] for i in range(len(disps)-1)])
+
+    recvsize = [np.sum([np.prod(s) for s in ss]).astype(int)
+                for ss in recvshapes]
+
+    recvdisp = list(np.hstack((0, np.cumsum(recvsize))))
+    recvdata = np.empty(np.sum(recvsize), dtype=senddata.dtype)
 
     s1 = [senddata, sendsize, senddisp, senddtype]
     r1 = [recvdata, recvsize, recvdisp[:-1], senddtype]
     MPI.COMM_WORLD.Alltoallv(s1, r1)
 
-    data = [recvdata[recvdisp[i]:recvdisp[i+1]] for i in range(num_proc)]
+    data0 = [recvdata[recvdisp[i]:recvdisp[i+1]] for i in range(num_proc)]
+    data = []
+    for d, shapes in zip(data0, recvshapes):
+        disps = np.hstack((0, np.cumsum([np.prod(s) for s in shapes])))
+        data.append([d[disps[i]:disps[i+1]].reshape(shapes[i])for i in range(len(shapes))])
+
     return data
 
 def check_complex(obj, root=0):
