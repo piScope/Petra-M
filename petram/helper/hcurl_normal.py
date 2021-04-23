@@ -1,5 +1,6 @@
 from petram.mfem_config import use_parallel
 import numpy as np
+import itertools
 from scipy.sparse import lil_matrix
 import itertools
 from collections import defaultdict, OrderedDict
@@ -52,7 +53,15 @@ def get_rule(fe1o, fe2, trans, orderinc=1, verbose=True):
         dprint1("Order, N Points", order, ir.GetNPoints())
     return ir
 
-
+ref_shapes = {}
+ref_shapes["tri"] = [np.array(x, dtype=float) for x in [[0, 0], [1, 0], [0, 1]]] 
+ref_shapes["quad"] = [np.array(x, dtype=float) for x in [[0, 0], [1, 0], [1, 1], [0, 1]]] 
+ref_shapes["tet"] = [np.array(x, dtype=float) for x in
+                    [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]] 
+ref_shapes["hex"] = [np.array(x, dtype=float) for x in
+                    [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1],
+                     [1, 1, 0], [1, 0, 1], [0, 1, 1], [1, 1, 1]]] 
+                
 def map_ir(fe1, eltrans, coeff1,
            shape1, dim2, sdim2, locnors2, sign1, th=1e-7):
 
@@ -60,29 +69,41 @@ def map_ir(fe1, eltrans, coeff1,
     ip = mfem.IntegrationPoint()
 
     res = []
-    dim = -1
 
     def get_options(g1, *pp):
-        if g1 == 2:  # triangle <- line
-            p0 = pp[0]
-            options = ((p0, 0),
-                       (1 - p0, 0),
-                       (0, p0),
-                       (0, 1 - p0),
-                       (p0, 1 - p0),
-                       (1 - p0, p0),)
+        if g1 == 2 or g1 == 3:
+            s = ref_shapes['tri'] if g1 == 2 else ref_shapes['quad']
+            options = [pp[0]*s[i] + (1-pp[0])*s[j] for i, j
+                       in itertools.permutations(range(len(s)), 2)]
+        elif g1 == 4 or g1 == 5:
+            s = ref_shapes['tet'] if g1 == 4 else ref_shapes['hex']
+            options = [pp[0]*s[i] + pp[1]*s[j] + (1-pp[0]-pp[1])*s[k] for i, j, k 
+                       in itertools.permutations(range(len(s)), 3)]
+        else:
+            print(pp)
+            assert False, "geometry type: " + str(g1) + " is not supported."
         return options
 
+    d_misalginment = []
     for data in locnors2:
         pp = data[:dim2]
         p = data[dim2:dim2 + sdim2]
         nor = data[dim2 + sdim2:]
-        #print("target", p)
         options = get_options(g1, *pp)
         dd = []
+
+        pxs = []
         for o in options:
-            ip.Set2(*o)
-            dd.append(np.sum((p - eltrans.Transform(ip))**2))
+            if g1 == 2 or g1 == 3:
+                ip.Set2(*o)
+            elif g1 == 4 or g1 == 5:
+                ip.Set3(*o)
+            else:
+                assert False, "geometry type: " + str(g1) + " is not supported."
+            px = eltrans.Transform(ip)
+            pxs.append(px)
+            dd.append(np.sum((p - px)**2))
+        
         assert np.min(dd) < np.max(dd) * \
             th, "point not found: " + str(np.min(dd))
 
@@ -93,8 +114,9 @@ def map_ir(fe1, eltrans, coeff1,
             coeff1.dot(
                 shape1.GetDataArray().transpose())) * sign1  # /ww
         res.append(val)
+        d_misalginment.append(np.min(dd))
 
-    return np.vstack(res)
+    return np.vstack(res), np.array(d_misalginment)
 
 
 def hcurln(fes1, fes2, coeff,
@@ -109,14 +131,16 @@ def hcurln(fes1, fes2, coeff,
 
     if verbose:
         if myid == 0:
-            print("fes", name_fes1, name_fes2)
+            dprint1("fes", name_fes1, name_fes2)
 
     mesh1 = fes1.GetMesh()
     mesh2 = fes2.GetMesh()
 
+    mesh2.Print("/home/shiraiwa/part.mesh")
+
     if verbose:
         if myid == 0:
-            print("NE", mesh1.GetNE(), mesh2.GetNE())
+            dprint1("NE", mesh1.GetNE(), mesh2.GetNE())
     elmap, elmap_r = map_element(mesh1, mesh2, bdr, map_bdr=True)
 
     sdim1 = mesh1.SpaceDimension()
@@ -174,12 +198,10 @@ def hcurln(fes1, fes2, coeff,
     rank = 0
     for rank, i_bdrs in enumerate(el1_arr):
         for i_bdr in i_bdrs:
-            print(i_bdr)
             iface = mesh1.GetBdrElementEdgeIndex(i_bdr)
             transs = mesh1.GetFaceElementTransformations(iface)
             i_el1 = transs.Elem1No
-            i_el2 = transs.Elem2No
-            assert i_el2 == -1, "boundary must be exterior for this operator"
+            assert  transs.Elem2No == -1, "boundary must be exterior for this operator"
             fe1 = fes1.GetFE(i_el1)
             fe1o_arr[rank].append(fe1.GetOrder())
             i_fe1_arr[rank].append(i_el1)
@@ -243,6 +265,7 @@ def hcurln(fes1, fes2, coeff,
     vdofs1_arr = [list() for x in range(nprc)]
     data1_arr = [list() for x in range(nprc)]
 
+    max_misalignment = -np.inf
     for rank, i_fe1s in enumerate(i_fe1_arr):
         locnorss = locnor_arr[rank]
         for k, i_fe1 in enumerate(i_fe1s):
@@ -259,16 +282,20 @@ def hcurln(fes1, fes2, coeff,
             if USE_PARALLEL:
                 vdofs1 = [VDoFtoGTDoF1[i] for i in vdofs1]
 
-            res = map_ir(fe1, eltrans, coeff,
-                         shape1, dim2, sdim2, locnors2, dof_sign1)
+            res, misalignment = map_ir(fe1, eltrans, coeff,
+                                       shape1, dim2, sdim2, locnors2, dof_sign1,)
 
             vdofs1_arr[rank].append(np.array(vdofs1))
             data1_arr[rank].append(res)
+            max_misalignment = np.max([max_misalignment, np.max(misalignment)])
             # res.shape = (#Npoints, #DoF1)
 
+    
     if USE_PARALLEL:
         vdofs1_arr = alltoall_vectorv(vdofs1_arr, int)  # transfer to mesh2
         data1_arr = alltoall_vectorv(data1_arr, float)  # transfer to mesh2
+        max_misalignment = np.max(MPI.COMM_WORLD.gather(max_misalignment, root=0))
+    dprint1("Max misalignment: ", max_misalignment)
 
     shared_data = []
     for rank, i_el2s in enumerate(el2_arr):

@@ -17,6 +17,8 @@ import os
 import numpy as np
 
 from petram.mfem_config import use_parallel
+import petram.debug
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('partial_mesh')
 
 if use_parallel:
    import mfem.par as mfem
@@ -339,10 +341,8 @@ def edge(mesh, in_attr, filename = '', precision=8):
     Nelem = len(attrs)    
     Nbelem = len(eattrs)
 
-    if myid ==0:
-       print("NV, NBE, NE: " +
+    dprint1("NV, NBE, NE: " +
              ",".join([str(x) for x in (Nvert, Nbelem, Nelem)]))
-    
 
     omesh = mfem.Mesh(1, Nvert, Nelem, Nbelem, sdim)
 
@@ -351,12 +351,11 @@ def edge(mesh, in_attr, filename = '', precision=8):
                             ebase, keelem)
 
     omesh.FinalizeTopology()
-    omesh.Finalize(refine=True, fix_orientation=True)
 
     if hasNodal:
         odim = omesh.Dimension()
-        if myid == 0:
-           print("odim, dim, sdim", odim, " ", dim, " ", sdim)
+
+        dprint1("odim, dim, sdim", odim, " ", dim, " ", sdim)
         fec = Nodal.FEColl()
         dNodal = mfem.FiniteElementSpace(omesh, fec, sdim)
         omesh.SetNodalFESpace(dNodal)
@@ -402,6 +401,9 @@ def edge(mesh, in_attr, filename = '', precision=8):
         node_ptx2[dof2_idx] = data 
         #nicePrint(len(dof2_idx))
 
+    # this should be after setting HO nodals...
+    omesh.Finalize(refine=True, fix_orientation=True)
+    
     if isParMesh(mesh):
         if omesh.GetNE() < nprc*3:
             parts = omesh.GeneratePartitioning(1, 1)
@@ -510,8 +512,8 @@ def surface(mesh, in_attr, filename = '', precision=8):
     Nelem = len(attrs)    
     Nbelem = len(eattrs)
 
-    if myid ==0: print("NV, NBE, NE: " +
-                       ",".join([str(x) for x in (Nvert, Nbelem, Nelem)]))
+    dprint1("NV, NBE, NE: " +
+             ",".join([str(x) for x in (Nvert, Nbelem, Nelem)]))
     
 
     omesh = mfem.Mesh(2, Nvert, Nelem, Nbelem, sdim)
@@ -521,11 +523,10 @@ def surface(mesh, in_attr, filename = '', precision=8):
                             ebase, keelem)
 
     omesh.FinalizeTopology()
-    omesh.Finalize(refine=True, fix_orientation=True)
 
     if hasNodal:
         odim = omesh.Dimension()
-        print("odim, dim, sdim", odim, " ", dim, " ", sdim)
+        dprint1("odim, dim, sdim", odim, " ", dim, " ", sdim)
         fec = Nodal.FEColl()
         dNodal = mfem.FiniteElementSpace(omesh, fec, sdim)
         omesh.SetNodalFESpace(dNodal)
@@ -540,19 +541,12 @@ def surface(mesh, in_attr, filename = '', precision=8):
                GetNX           =  Nodal.GetNE               
            else:
                assert False, "not supported ndim 1" 
-           if odim == 3:
-               dGetXDofs       = dNodal.GetBdrElementDofs
-               dGetNX          = dNodal.GetNBE                              
-           elif odim == 2:
-               dGetXDofs       = dNodal.GetElementDofs
-               dGetNX          = dNodal.GetNE               
-           else:
-               assert False, "not supported ndim (3->1)" 
         elif sdim == 2:
-           GetNX           =  Nodal.GetNE                          
-           dGetNX          = dNodal.GetNE                          
+           GetNX           =  Nodal.GetNE
            GetXDofs         =  Nodal.GetElementDofs
-           dGetXDofs        = dNodal.GetElementDofs
+           
+        dGetNX          = dNodal.GetNE                          
+        dGetXDofs        = dNodal.GetElementDofs
            
         DofToVDof        =  Nodal.DofToVDof
         dDofToVDof       = dNodal.DofToVDof
@@ -582,8 +576,10 @@ def surface(mesh, in_attr, filename = '', precision=8):
                               for j in range(len(idx))
                               for i in dGetXDofs(j)])
         node_ptx2[dof2_idx] = data 
-        #nicePrint(len(dof2_idx))
-
+        
+    # this should be after setting HO nodals...
+    omesh.Finalize(refine=True, fix_orientation=True)
+    
     if isParMesh(mesh):
         if omesh.GetNE() < nprc*3:
             parts = omesh.GeneratePartitioning(1, 1)
@@ -693,14 +689,13 @@ def volume(mesh, in_attr, filename = '', precision=8):
     bindices = tmp[ivi]
     
     #print('check', np.sum(np.abs(indices - indices0)))    
-
     
     Nvert = len(vtx)
     Nelem = len(attrs)    
     Nbelem = np.sum(kbelem) #len(battrs)
 
-    if myid ==0: print("NV, NBE, NE: " +
-                       ",".join([str(x) for x in (Nvert, Nbelem, Nelem)]))
+    dprint1("NV, NBE, NE: " +
+            ",".join([str(x) for x in (Nvert, Nbelem, Nelem)]))
 
     
     omesh = mfem.Mesh(3, Nvert, Nelem, Nbelem, sdim)
@@ -711,10 +706,12 @@ def volume(mesh, in_attr, filename = '', precision=8):
                             bbase, kbelem)
    
     omesh.FinalizeTopology()
-    omesh.Finalize(refine=True, fix_orientation=True)
+
 
     if hasNodal:
         odim = omesh.Dimension()
+        dprint1("odim, dim, sdim", odim, " ", dim, " ", sdim)
+        
         fec = Nodal.FEColl()
         dNodal = mfem.FiniteElementSpace(omesh, fec, sdim)
         omesh.SetNodalFESpace(dNodal)
@@ -753,8 +750,10 @@ def volume(mesh, in_attr, filename = '', precision=8):
                               for j in range(len(idx))
                               for i in dGetXDofs(j)])
         node_ptx2[dof2_idx] = data 
-        #nicePrint(len(dof2_idx))
 
+    # this should be after setting HO nodals...        
+    omesh.Finalize(refine=True, fix_orientation=True)
+    
     if isParMesh(mesh):
         if omesh.GetNE() < nprc*3:
             parts = omesh.GeneratePartitioning(1, 1)

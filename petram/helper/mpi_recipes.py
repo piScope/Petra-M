@@ -222,11 +222,10 @@ def alltoall_vector(data, datatype):
     recvdisp = list(np.hstack((0, np.cumsum(recvsize))))
     recvdata = np.empty(np.sum(recvsize), dtype=senddata.dtype)
 
-    print("here", senddata)
     s1 = [senddata, sendsize, senddisp, senddtype]
     r1 = [recvdata, recvsize, recvdisp[:-1], senddtype]
     MPI.COMM_WORLD.Alltoallv(s1, r1)
-    print("here", recvdata)
+
     data = [recvdata[recvdisp[i]:recvdisp[i+1]] for i in range(num_proc)]
     return data
 
@@ -242,7 +241,7 @@ def alltoall_vectorv(data, datatype):
     num_proc = MPI.COMM_WORLD.size
 
     datashape = [np.array([y.shape for y in x]).flatten()  for x in data]
-    nicePrint(datashape)
+
     datadim = [np.hstack([len(y.shape) for y in x]) if len(x)>0 else np.array([], dtype=int)
                for x in data]
 
