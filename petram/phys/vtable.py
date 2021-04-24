@@ -51,6 +51,8 @@ from collections import OrderedDict
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Vtable')
 
+def dummy():
+    pass
 
 class VtableElement(object):
     def __init__(self, name, type = '', 
@@ -187,7 +189,7 @@ class VtableElement(object):
             if self.readonly:
                 ret[2] = ret[2]-10000
             if self.chkbox:
-                ret =  [None, [True, [value]], 27, [{'text':'Use'},
+                ret = [None, [True, [value]], 27, [{'text':'Use'},
                                                     {'elp': [ret]}],]
             return ret
         else:
@@ -440,14 +442,17 @@ class Vtable_mixin(object):
                        chk_any = False):
 
         from petram.helper.variables import NativeCoefficientGenBase
-        def dummy():
-            pass
-        
         if value.startswith('='):
             return dummy,  '='.join(value.split('=')[1:])
         else:
             if value.strip()=='': return None, None
-            x = eval(value, self._global_ns, self._local_ns)
+            
+            g = self._global_ns.copy()
+            from petram.helper.expression import get_dummy_operators
+            operators = get_dummy_operators()
+            for op in operators: g[op] = operators[op]
+            
+            x = eval(value, g, self._local_ns)
 
             if isinstance(x, NativeCoefficientGenBase):
                 pass            

@@ -865,6 +865,43 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             addc_expression(v, name, suffix, ind_vars, expr, [name], componentname,
                             **kywds)
 
+    def get_coefficient_from_expression(self, c, cotype, use_dual=False, real=True, is_conj=False):
+        from petram.phys.coefficient import SCoeff, VCoeff, DCoeff, MCoeff
+        
+        if self.get_root_phys().vdim > 1:
+            dim = self.get_root_phys().vdim
+        else:
+            dim = self.get_root_phys().geom_dim
+            
+        if cotype == 'S':
+             #for b in self.itg_choice():
+             #   if b[0] == self.integrator: break
+             #if not "S*2" in b[3]:
+             if not use_dual:
+                 c_coeff = SCoeff(c,  self.get_root_phys().ind_vars,
+                              self._local_ns, self._global_ns,
+                              real = real, conj=is_conj)
+             else: # so far this is only for an elastic integrator 
+                 c_coeff = (SCoeff(c,  self.get_root_phys().ind_vars,
+                                   self._local_ns, self._global_ns,
+                                   real = real, conj=is_conj, component=0),
+                            SCoeff(c,  self.get_root_phys().ind_vars,
+                                   self._local_ns, self._global_ns,
+                                   real = real, conj=is_conj, component=1))
+        elif cotype == 'V':
+             c_coeff = VCoeff(dim, c,  self.get_root_phys().ind_vars,
+                              self._local_ns, self._global_ns,
+                              real = real, conj=is_conj)
+        elif cotype == 'M':
+             c_coeff = MCoeff(dim, c,  self.get_root_phys().ind_vars,
+                              self._local_ns, self._global_ns,
+                              real = real, conj=is_conj)
+        elif cotype == 'D':
+             c_coeff = DCoeff(dim, c,  self.get_root_phys().ind_vars,
+                              self._local_ns, self._global_ns,
+                              real = real, conj=is_conj)
+        return c_coeff
+     
 class PhysModule(Phys):
     hide_ns_menu = False
     dim_fixed = True # if ndim of physics is fixed

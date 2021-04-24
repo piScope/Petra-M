@@ -61,9 +61,38 @@ ref_shapes["tet"] = [np.array(x, dtype=float) for x in
 ref_shapes["hex"] = [np.array(x, dtype=float) for x in
                     [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1],
                      [1, 1, 0], [1, 0, 1], [0, 1, 1], [1, 1, 1]]] 
-                
+
+def eval_coeff(coeff, T, ip, MV):
+    if isinstance(coeff[0], mfem.MatrixCoefficient):
+         coeff[0].Eval(MV[1], T, ip)
+         if coeff[1] is None:
+             return MV[1].GetDataArray()         
+         else:
+             d = MV[1].GetDataArray().copy()
+             coeff[1].Eval(MV[1], T, ip)
+             d = d + 1j*MV[1].GetDataArray().copy()
+             return d
+    elif isinstance(coeff[0], mfem.VectorCoefficient):
+         coeff[0].Eval(MV[0], T, ip)
+         if coeff[1] is None:
+             return MV[0].GetDataArray()         
+         else:
+             d = MV[0].GetDataArray().copy()
+             coeff[1].Eval(MV[0], T, ip)
+             d = d + 1j*MV[0].GetDataArray().copy()
+             return d
+    elif isinstance(coeff[0], mfem.Coefficient):
+         value = coeff[0].Eval(T, ip)
+         if coeff[1] is None:
+             return np.array(value)
+         else:
+             value = value + 1j*coeff[1].Eval(T, ip)
+             return np.array(value)
+    else:
+        assert False, "unsupported type of coefficient: " + str(type(coeff[0]))
+
 def map_ir(fe1, eltrans, coeff1,
-           shape1, dim2, sdim2, locnors2, sign1, th=1e-7):
+           shape1, dim2, sdim2, locnors2, sign1, MV, th=1e-7):
 
     g1 = fe1.GetGeomType()
     ip = mfem.IntegrationPoint()
@@ -108,10 +137,18 @@ def map_ir(fe1, eltrans, coeff1,
             th, "point not found: " + str(np.min(dd))
 
         fe1.CalcVShape(eltrans, shape1)
-        #ww = eltrans.Weight()
 
-        val = nor.dot(
-            coeff1.dot(
+        kk = np.argmin(dd)
+        if g1 == 2 or g1 == 3:
+            ip.Set2(*options[kk])
+        elif g1 == 4 or g1 == 5:
+            ip.Set3(*options[kk])
+        else:
+            assert False, "geometry type: " + str(g1) + " is not supported."
+               
+        cc = eval_coeff(coeff1, eltrans, ip, MV)
+        #ww = eltrans.Weight()
+        val = nor.dot(cc.dot(
                 shape1.GetDataArray().transpose())) * sign1  # /ww
         res.append(val)
         d_misalginment.append(np.min(dd))
@@ -265,6 +302,10 @@ def hcurln(fes1, fes2, coeff,
     vdofs1_arr = [list() for x in range(nprc)]
     data1_arr = [list() for x in range(nprc)]
 
+    # space to compute the coefficient           
+    MV = [mfem.Vector(sdim1), 
+          mfem.DenseMatrix(sdim1, sdim1)]
+
     max_misalignment = -np.inf
     for rank, i_fe1s in enumerate(i_fe1_arr):
         locnorss = locnor_arr[rank]
@@ -283,7 +324,7 @@ def hcurln(fes1, fes2, coeff,
                 vdofs1 = [VDoFtoGTDoF1[i] for i in vdofs1]
 
             res, misalignment = map_ir(fe1, eltrans, coeff,
-                                       shape1, dim2, sdim2, locnors2, dof_sign1,)
+                                       shape1, dim2, sdim2, locnors2, dof_sign1, MV)
 
             vdofs1_arr[rank].append(np.array(vdofs1))
             data1_arr[rank].append(res)

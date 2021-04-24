@@ -125,20 +125,31 @@ class WeakIntegration(Phys):
             dprint1("Add "+self.integrator+ " contribution(imag)" + str(self._sel_index), "c", c)
 
         cotype = self.coeff_type[0]
+        use_dual = False
+        for b in self.itg_choice():
+            if b[0] == self.integrator:
+               use_dual == "S*2" in b[3]
+               break
+  
+        c_coeff = self.get_coefficient_from_expression(c, cotype,
+                                                       use_dual=use_dual,
+                                                       real=real,
+                                                       is_conj=is_conj)
 
+        '''
         if self.get_root_phys().vdim > 1:
             dim = self.get_root_phys().vdim
         else:
             el_name = self.get_root_phys().element
             dim = self.get_root_phys().geom_dim
-            '''
-            if el_name.startswith("ND"):
-                dim = self.get_root_phys().geom_dim            
-            elif el_name.startswith("RT"):
-                dim = self.get_root_phys().geom_dim
-            else:
-                dim = 1  #H1 scalar (this case does not exist..)
-            '''
+
+            #if el_name.startswith("ND"):
+            #    dim = self.get_root_phys().geom_dim            
+            #elif el_name.startswith("RT"):
+            #    dim = self.get_root_phys().geom_dim
+            #else:
+            #    dim = 1  #H1 scalar (this case does not exist..)
+
         if cotype == 'S':
              for b in self.itg_choice():
                 if b[0] == self.integrator: break
@@ -165,7 +176,7 @@ class WeakIntegration(Phys):
              c_coeff = DCoeff(dim, c,  self.get_root_phys().ind_vars,
                               self._local_ns, self._global_ns,
                               real = real, conj=is_conj)
-
+        '''
         integrator = getattr(mfem, self.integrator)
         if isinstance(self, Bdry):
             #print "Bdry Integrator"

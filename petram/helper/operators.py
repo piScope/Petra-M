@@ -19,6 +19,10 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints("Operators")
 rprint = debug.regular_print('Operators')
 
+from petram.phys.phys_model  import PhysConstant, PhysVectorConstant, PhysMatrixConstant            
+from petram.phys.coefficient import complex_coefficient_from_real_and_imag        
+from petram.helper.variables import NativeCoefficientGenBase
+
 class Operator(object):
     def __repr__(self):
         return self.__class__.__name__ + "("+",".join(self.sel)+")"
@@ -34,6 +38,7 @@ class Operator(object):
         self._transpose = False
         self._trial_ess_tdof = None
         self._test_ess_tdof = None
+        self._c_coeff = None   # coefficient 
         
     def __call__(self, *args, **kwargs):
         return self.assemble(*args, **kwargs )
@@ -826,9 +831,7 @@ class Hcurln(Operator):
     output (range) should be H1/L2
 
     Usage: 
-       = hcurln(coeff, (optional) support, complex=False, 
-                orderinc=1, 
-                bdr='all')
+       = hcurln(complex=False, orderinc=1, bdr='all')
     '''
     def assemble(self, *args, **kwargs):
         from petram.helper.hcurl_normal import hcurln
@@ -867,15 +870,10 @@ class Hcurln(Operator):
             assert False, "unsupported dimension"
         else:
             assert False, "unsupported dimension"
-         
-        if len(args) == 0:
-            self._coeff = np.eye(dim1)
-        else:
-            self._coeff = args[0]
-            
+
         M = func(self.fes1,
                  self.fes2,
-                 self._coeff,
+                 self._c_coeff,
                  is_complex=is_complex,
                  bdr=bdr,
                  orderinc=orderinc, 

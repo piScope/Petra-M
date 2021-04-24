@@ -376,6 +376,8 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
             v =  float(v)
             return PhysConstant(v)
 
+
+        
 '''
 
    Complex Coefficient 
