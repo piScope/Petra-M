@@ -2235,6 +2235,13 @@ class Engine(object):
         fes1 = self.fespaces[self.fes_vars[idx1]]
         fes2 = self.fespaces[self.r_fes_vars[idx2]]
 
+        info1 = self.get_fes_info(fes1)
+        info2 = self.get_fes_info(fes2)
+        
+        if info1.emesh_idx != info2.emesh_idx:
+           print("info1", self.get_fes_info(fes1))
+           print("info2", self.get_fes_info(fes2))
+
         return self.new_mixed_bf(fes2, fes1) # argument = trial(=domain), test(=range)
     
     def build_ns(self):

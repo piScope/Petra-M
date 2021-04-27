@@ -13,11 +13,22 @@ import petram.helper.pickle_wrapper as pickle
 class DefaultParametricScanner(object):
     def __init__(self, data = None):
         if data is None: data = []
-        self._data = data
         self.idx = 0
-        self.max = len(data)
         self.target = None
+        self.set_data(data)
 
+    def set_data_from_model(self, model):
+        '''
+        this is called after __init__.
+        model is passed. so that it can be set using   
+        model tree
+        '''
+        pass
+    
+    def set_data(self, data):
+        self._data = data
+        self.max = len(data)
+    
     def __iter__(self): return self
 
     def __next__(self):
@@ -90,11 +101,13 @@ class DefaultParametricScanner(object):
 class SimpleScanner(DefaultParametricScanner):
     '''
     Scan("freq", [3e9, 4e9, 5e9])
-    Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90])      # parameters are expanded to run all combination
+    # parameters are expanded to run all combination
+    Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90])
     Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90, 180], product = False)
-    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = 3)  # 1D scan 
-    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = (3,4)) # 2D scan 
-
+    # 1D scan
+    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = 3)
+    # 2D scan
+    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = (3,4)) 
     '''
     def __init__(self, *args, **kwargs):
         use_product = kwargs.pop('product', True)

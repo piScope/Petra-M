@@ -136,47 +136,6 @@ class WeakIntegration(Phys):
                                                        real=real,
                                                        is_conj=is_conj)
 
-        '''
-        if self.get_root_phys().vdim > 1:
-            dim = self.get_root_phys().vdim
-        else:
-            el_name = self.get_root_phys().element
-            dim = self.get_root_phys().geom_dim
-
-            #if el_name.startswith("ND"):
-            #    dim = self.get_root_phys().geom_dim            
-            #elif el_name.startswith("RT"):
-            #    dim = self.get_root_phys().geom_dim
-            #else:
-            #    dim = 1  #H1 scalar (this case does not exist..)
-
-        if cotype == 'S':
-             for b in self.itg_choice():
-                if b[0] == self.integrator: break
-             if not "S*2" in b[3]:
-                 c_coeff = SCoeff(c,  self.get_root_phys().ind_vars,
-                              self._local_ns, self._global_ns,
-                              real = real, conj=is_conj)
-             else: # so far this is only for an elastic integrator 
-                 c_coeff = (SCoeff(c,  self.get_root_phys().ind_vars,
-                                   self._local_ns, self._global_ns,
-                                   real = real, conj=is_conj, component=0),
-                            SCoeff(c,  self.get_root_phys().ind_vars,
-                                   self._local_ns, self._global_ns,
-                                   real = real, conj=is_conj, component=1))
-        elif cotype == 'V':
-             c_coeff = VCoeff(dim, c,  self.get_root_phys().ind_vars,
-                              self._local_ns, self._global_ns,
-                              real = real, conj=is_conj)
-        elif cotype == 'M':
-             c_coeff = MCoeff(dim, c,  self.get_root_phys().ind_vars,
-                              self._local_ns, self._global_ns,
-                              real = real, conj=is_conj)
-        elif cotype == 'D':
-             c_coeff = DCoeff(dim, c,  self.get_root_phys().ind_vars,
-                              self._local_ns, self._global_ns,
-                              real = real, conj=is_conj)
-        '''
         integrator = getattr(mfem, self.integrator)
         if isinstance(self, Bdry):
             #print "Bdry Integrator"
@@ -352,7 +311,10 @@ class WeakBilinIntegration(WeakIntegration):
              loc.append((testname, trialname, -1, 1))
 
         return loc
-           
+
+    def get_projection(self):
+        return 1
+
 def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=False):
     self = obj
     c = self.vt_coeff.make_value_or_expression(self)[0]

@@ -95,6 +95,7 @@ class Parametric(SolveStep, NS_mixin):
         try:
             scanner = self.eval_param_expr(str(self.scanner), 
                                            'scanner')[0]
+            scanner.set_data_from_model(self.root())
         except:
             traceback.print_exc()
             return
