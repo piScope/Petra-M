@@ -746,6 +746,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
     # collect data
     ibdr1 = find_element(fes1, idx1, mode = mode1)
     ibdr2 = find_element(fes2, idx2, mode = mode2)
+
     ct1 = find_el_center(fes1, ibdr1, trans1, mode=mode1)
     ct2 = find_el_center(fes2, ibdr2, trans2, mode=mode2)
     arr1 = get_element_data(fes1, ibdr1, trans1, mode=mode1)
@@ -759,7 +760,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
         sh2all = get_vshape(fes2, ibdr2, mode=mode2)
     else:
         assert False, "Unknown shape type"
-        
+
     #dprint1("gather_dataset2", debug.format_memory_usage())
     
     # pt is on (u, v), pto is (x, y, z)
@@ -783,7 +784,6 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
     #dprint1("gather_dataset3", debug.format_memory_usage())
     
     # mapping between elements
-
     from scipy.spatial import cKDTree
     tree = cKDTree(ct2)
     ctr_dist, map_1_2 = tree.query(ct1)

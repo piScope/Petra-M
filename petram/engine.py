@@ -2241,26 +2241,32 @@ class Engine(object):
 
         info1 = self.get_fes_info(fes1)
         info2 = self.get_fes_info(fes2)
-        
         if info1["emesh_idx"] != info2["emesh_idx"]:
            dprint1("fes1 and fes2 are on different mesh. Constructing a DoF map.")
            dprint1("info1", self.get_fes_info(fes1))
            dprint1("info2", self.get_fes_info(fes2))
+
            name = name2 + '_to_' + name1
            if abs(info1["dim"]-info2["dim"])>1:
                assert False, "does not support direct mapping from volume to edge (or face to vertex)"
+
+           from petram.helper.projection import simple_projection, fes_mapping
+
+           el, order =  fes_mapping(info2["element"], info2["order"], info2["dim"], info1["dim"])
+           dprint1("Generating intermediate fes")
            is_new, fec, fes = self.get_or_allocate_fecfes(name,
                                                           info1["emesh_idx"],
-                                                          info2["element"],
-                                                          info2["order"],
+                                                          el,
+                                                          order,
                                                           info2["vdim"])
+
            if info2["dim"]-info1["dim"] == 1:  # (ex)volume to surface
                mode = "boundary"   
            elif info2["dim"]-info1["dim"] == 0:
                mode = "domain"                 
            elif info2["dim"]-info1["dim"] == -1: # (ex)surface to volume
                mode = "domain"           
-           from petram.helper.projection import simple_projection
+
            p = simple_projection(fes2, fes, mode)   # fes2 (row) -> fes (col)
            self.projections[name] = p
            fes2 = fes

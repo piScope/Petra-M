@@ -588,10 +588,12 @@ class Projection(Operator):
                 else:
                     assert False, "unsupported mode"
                 idx2 = np.unique(self.fes2.GetMesh().GetAttributeArray()) 
-            else:
-                idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
+            else:  # boundary mode
+                if dim1 == dim2:
+                    idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
+                elif dim1 == dim2-1:
+                    idx1 = np.unique(self.fes1.GetMesh().GetAttributeArray())
                 idx2 = np.unique(self.fes2.GetMesh().GetBdrAttributeArray())
-
             if use_parallel:
                 idx1 = list(idx1)
                 idx2 = list(idx2)
