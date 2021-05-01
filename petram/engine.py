@@ -1453,7 +1453,8 @@ class Engine(object):
                 if update and not self.mask_M[k, r, c]: continue
                                           
                 m = convertElement(self.r_a, self.i_a,
-                                   i, j, MfemMat2PyMat)
+                                   i, j, MfemMat2PyMat,
+                                   projections=self.projections)                
 
                 M[k][r,c] = m if M[k][r,c] is None else M[k][r,c] + m
 
@@ -1523,8 +1524,9 @@ class Engine(object):
             r = self.dep_var_offset(self.fes_vars[i])
             if update and not self.mask_B[r]: continue            
 
-            v = convertElement(self.r_b, self.i_b,
-                                      i, 0, MfemVec2PyVec)
+            v = convertElement(self.r_b,
+                               self.i_b,
+                               i, 0, MfemVec2PyVec)
             B[r] = v
             
         self.access_idx = 0            
@@ -2232,17 +2234,40 @@ class Engine(object):
         return self.new_bf(fes)
 
     def alloc_mbf(self, idx1, idx2): #row col
-        fes1 = self.fespaces[self.fes_vars[idx1]]
-        fes2 = self.fespaces[self.r_fes_vars[idx2]]
+        name1 = self.fes_vars[idx1]
+        name2 = self.r_fes_vars[idx2]
+        fes1 = self.fespaces[name1]
+        fes2 = self.fespaces[name2]
 
         info1 = self.get_fes_info(fes1)
         info2 = self.get_fes_info(fes2)
         
-        if info1.emesh_idx != info2.emesh_idx:
-           print("info1", self.get_fes_info(fes1))
-           print("info2", self.get_fes_info(fes2))
-
-        return self.new_mixed_bf(fes2, fes1) # argument = trial(=domain), test(=range)
+        if info1["emesh_idx"] != info2["emesh_idx"]:
+           dprint1("fes1 and fes2 are on different mesh. Constructing a DoF map.")
+           dprint1("info1", self.get_fes_info(fes1))
+           dprint1("info2", self.get_fes_info(fes2))
+           name = name2 + '_to_' + name1
+           if abs(info1["dim"]-info2["dim"])>1:
+               assert False, "does not support direct mapping from volume to edge (or face to vertex)"
+           is_new, fec, fes = self.get_or_allocate_fecfes(name,
+                                                          info1["emesh_idx"],
+                                                          info2["element"],
+                                                          info2["order"],
+                                                          info2["vdim"])
+           if info2["dim"]-info1["dim"] == 1:  # (ex)volume to surface
+               mode = "boundary"   
+           elif info2["dim"]-info1["dim"] == 0:
+               mode = "domain"                 
+           elif info2["dim"]-info1["dim"] == -1: # (ex)surface to volume
+               mode = "domain"           
+           from petram.helper.projection import simple_projection
+           p = simple_projection(fes2, fes, mode)   # fes2 (row) -> fes (col)
+           self.projections[name] = p
+           fes2 = fes
+           proj = (1, name)   # first 1 is flat to apply projecton from left..A_ij = A_ij*Map
+        else:
+           proj = 1
+        return self.new_mixed_bf(fes2, fes1), proj  # argument = trial(=domain), test(=range)
     
     def build_ns(self):
         errors = []
@@ -2711,6 +2736,7 @@ class Engine(object):
                  return {'emesh_idx': k[0],
                          'element': k[1],
                          'order': k[2],
+                         'dim': k[3],
                          'sdim': k[4],
                          'vdim': k[5],}
         return None

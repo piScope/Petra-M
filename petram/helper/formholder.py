@@ -118,16 +118,20 @@ class FormBlock(object):
         if self.block[r][c] is None: self.block[r][c] = {}
 
         if reset:
-            del self.block[r][c][projector]
-        if not projector in self.block[r][c]:
+            for p in self.block[r][c]:
+                del self.block[r][c][p]
+                
+        if len(self.block[r][c])==0:
             if self.no_allocation and not reset:
                 pass
             else:
                 if self._diag is None or self._diag[r] == c:
                     form = self.allocator1(r)
+                    self.block[r][c][1] = [form, None]
+                    projector = 1
                 else:
-                    form = self.allocator2(r, c)                    
-                self.block[r][c][projector] = [form, None]
+                    form, projector = self.allocator2(r, c)                    
+                    self.block[r][c][projector] = [form, None]
         return r, c, projector
                 
     def renew(self, idx):                
@@ -170,7 +174,7 @@ class FormBlock(object):
                 else:
                     self.set_matvec(i, j, p, None)
                 
-def convertElement(Mreal, Mimag, i, j, converter):
+def convertElement(Mreal, Mimag, i, j, converter, projections=None):
     '''
     Generate PyVec/PyMat format data.
     It takes two FormBlocks. One for real and the other for imag.
@@ -196,10 +200,11 @@ def convertElement(Mreal, Mimag, i, j, converter):
         m = converter(rmatvec, imatvec)
         if k!=1:
             pos, projector = k
+            p = projections[projector]
             if pos > 0:
-                m = m.dot(projector)
+                m = m.dot(p)
             else:
-                m = projector.dot(m)
+                m = p.dot(m)
         if term is None:
             term = m
         else:
