@@ -118,7 +118,8 @@ class FormBlock(object):
         if self.block[r][c] is None: self.block[r][c] = {}
 
         if reset:
-            for p in self.block[r][c]:
+            keys = list(self.block[r][c])
+            for p in keys:
                 del self.block[r][c][p]
                 
         if len(self.block[r][c])==0:

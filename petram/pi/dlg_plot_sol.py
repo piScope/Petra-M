@@ -1748,7 +1748,7 @@ class DlgPlotSol(SimpleFramePlus):
                               do_merge1=do_merge1, do_merge2=do_merge2,
                               edge_only=edge_only):
             if str(expr).strip() != '':
-                v, battrs = selfe.valuate_sol_bdr(expr, battrs, phys_path,
+                v, battrs = self.evaluate_sol_bdr(expr, battrs, phys_path,
                                                   do_merge1, do_merge2,
                                                   edge_only=edge_only)
             else:

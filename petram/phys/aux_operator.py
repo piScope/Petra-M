@@ -123,7 +123,10 @@ class AUX_Operator(Phys):
         svar = self.get_root_phys().dep_vars[self.src_var]
         
         v1 = [var, svar, self.coeff_type]
-        v1.extend(self.vt_oprt.get_panel_value(self))
+        val, expr = self.vt_oprt.get_panel_value(self)
+        if expr.strip().startswith('='):
+            expr = expr.strip()[1:]
+        v1.extend([val, expr])
         v3 = [self.use_symmetric, self.use_anti_symmetric, self.use_conj]        
         return v1 + v3
         

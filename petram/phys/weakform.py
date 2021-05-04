@@ -128,7 +128,7 @@ class WeakIntegration(Phys):
         use_dual = False
         for b in self.itg_choice():
             if b[0] == self.integrator:
-               use_dual == "S*2" in b[3]
+               use_dual = "S*2" in b[3]
                break
   
         c_coeff = self.get_coefficient_from_expression(c, cotype,

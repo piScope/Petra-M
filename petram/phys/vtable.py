@@ -53,6 +53,7 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Vtable')
 
 def dummy():
     pass
+dummy.__repr__ = lambda: '"1"'
 
 class VtableElement(object):
     def __init__(self, name, type = '', 
@@ -475,8 +476,7 @@ class Vtable_mixin(object):
                              chk_float = False, chk_int = False):
         
         from petram.helper.variables import NativeCoefficientGenBase        
-        def dummy():
-            pass
+
         if value.startswith('='):
             return dummy,  value.split('=')[1]           
         else:
