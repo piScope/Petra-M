@@ -109,6 +109,7 @@ class ScipyCoo(coo_matrix):
     def resetRow(self, rows, inplace=True):
         ret = self.tolil()
         rows = np.array(rows, dtype=int, copy=False)
+        ret = self.tocsr()                
         ret[rows, :] = 0.0                
         ret = ret.tocoo()
         
@@ -121,8 +122,9 @@ class ScipyCoo(coo_matrix):
             return ret
        
     def resetCol(self, cols, inplace=True):
-        ret = self.tolil()
+
         cols = np.array(cols, dtype=int, copy=False)
+        ret = self.tocsc()        
         ret[:, cols] = 0.0                
         #for c in cols: 
         ret = ret.tocoo()
