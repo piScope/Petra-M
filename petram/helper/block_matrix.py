@@ -107,10 +107,12 @@ class ScipyCoo(coo_matrix):
     '''    
 
     def resetRow(self, rows, inplace=True):
-        ret = self.tolil()
         rows = np.array(rows, dtype=int, copy=False)
-        #ret[rows, :] = 0.0                        
-        ret.data[np.in1d(ret.row in rows)] = 0.0        
+        #ret = self.tolil()                
+        #ret[rows, :] = 0.0
+        #ret.data[np.in1d(ret.row in rows)] = 0.0        
+        ret = self.tocsr()
+        ret[rows, :] = ret[rows, :]*0.0        
         ret = ret.tocoo()
         
         if inplace:
@@ -122,11 +124,13 @@ class ScipyCoo(coo_matrix):
             return ret
        
     def resetCol(self, cols, inplace=True):
-        ret = self.tolil()
         cols = np.array(cols, dtype=int, copy=False)
-        ret.data[np.in1d(ret.col in cols)] = 0.0
-        #ret[:, cols] = 0.0                
+        #ret.data[np.in1d(ret.col in cols)] = 0.0
+        #ret = self.tolil()
+        ret = self.tocsc()
+        ret[:, cols] = ret[:, cols]*0.0                
         ret = ret.tocoo()
+        
         if inplace:
             self.data = ret.data
             self.row  = ret.row
