@@ -787,7 +787,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
            kywds['bdrs'] = self._sel_index
            kywds['gbdr'] = self._global_ns
 
-        if isinstance(f_name[0], NativeCoefficientGenBase):
+        if isinstance(f_name, NativeCoefficientGenBase):
             pass   
         elif len(f_name) == 1:
             if not isinstance(f_name[0], str): expr  = f_name[0].__repr__()

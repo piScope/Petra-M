@@ -1391,7 +1391,6 @@ class Engine(object):
                     P = P.dot(P0)
                     zeros = np.hstack((zeros, zeros0))
                     nonzeros = np.hstack((nonzeros, nonzeros0)) 
-
             self.interps[name] = (P, nonzeros, zeros)
 
     def assemble_projection(self, phys):

@@ -147,8 +147,11 @@ class ScipyCoo(coo_matrix):
     def selectCols(self, nonzeros):
         m = self.tocsc()
         ret = (m[:, nonzeros]).tocoo()
-        return convert_to_ScipyCoo(ret)        
-     
+        return convert_to_ScipyCoo(ret)
+
+    def dot(self, P):
+        return convert_to_ScipyCoo(super(ScipyCoo, self).dot(P))
+
     def rap(self, P):
         PP = P.conj().transpose()
         return convert_to_ScipyCoo(PP.dot(self.dot(P)))
