@@ -400,7 +400,13 @@ class IterativeSolver(LinearSolver):
                 #return inner_solver
                 prc = inner_solver
             else:
-                pass   
+                assert False, "this requires to convert block matrix to MUMPS format"
+                '''
+                inner_solver = cls(*args)
+                prc = MUMPSPreconditioner(A,
+                                          gui=self.gui[self.gui.mumps_in],
+                                          engine=self.engine)
+                '''
         else:
             prc = M
         solver._prc = prc

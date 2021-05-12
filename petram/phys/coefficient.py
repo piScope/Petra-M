@@ -101,7 +101,7 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
         if isinstance(e[0], NativeCoefficientGenBase):        
             if return_complex:
                 c1 = call_nativegen(e[0], l, g, True,  conj, scale)
-                c2 = call_nativegen(e[0], l, g, False, conj, scale)                
+                c2 = call_nativegen(e[0], l, g, False, conj, scale)
                 return complex_coefficient_from_real_and_imag(c1, c2)
             else:
                 return call_nativegen(e[0], l, g, real, conj, scale)                                 

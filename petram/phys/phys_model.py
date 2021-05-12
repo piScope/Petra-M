@@ -223,7 +223,6 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
         val = Coefficient_Evaluator.EvalValue(self, x)
         # reshape tosquare matrix (not necessariliy = sdim x sdim)
         # if elment is just one, it formats to diagonal matrix
-
         s = val.size
         if s == 1:
             return np.eye(self.sdim) * val[0]
