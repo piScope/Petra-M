@@ -15,14 +15,20 @@ operators = {"integral": ops.Integral,
              "convolve": ops.Convolve,
              "hcurln": ops.Hcurln}
 
+
 def get_operators():
     return {key: operators[key]() for key in operators}
 
-## this is used in vtable to evaluate the expresion containing the operators
+# this is used in vtable to evaluate the expresion containing the operators
+
+
 def dummy(*args, **kwargs):
     return 1
+
+
 def get_dummy_operators():
     return {key: dummy for key in operators}
+
 
 '''
    exp = Expression("integral("domain", "all")")
@@ -120,7 +126,6 @@ class Expression(object):
             '_is_complex',
             '_c_coeff', ]
 
-
         for op in operators:
             for attr in attrs:
                 setattr(operators[op], attr, getattr(self, attr))
@@ -129,5 +134,5 @@ class Expression(object):
             g2[op] = operators[op]
 
         op = eval(self.co, g2)
-        
+
         return op
