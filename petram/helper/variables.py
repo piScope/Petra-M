@@ -1317,7 +1317,7 @@ class GFScalarVariable(GridFunctionVariable):
         def get_method(gf, ndim, isVector):
             if gf is None:
                 return None
-            if ndim == 1:
+            if ndim == 1 or ndim == 2:
                 if gf.VectorDim() > 1:
                     def func(i, ir, vals, tr, in_gf=gf):
                         in_gf.GetValues(i, ir, vals, tr, vdim=self.comp - 1)
@@ -1328,7 +1328,7 @@ class GFScalarVariable(GridFunctionVariable):
                         return
                     return func
             else:
-                assert False, "ndim = 2/3 is not supported"
+                assert False, "ndim = 3 is not supported"
             return None
 
         getvalr = get_method(self.gfr, ndim, isVector)
