@@ -2446,11 +2446,9 @@ class Engine(object):
         fnamer = fnamer+suffix
         fnamei = fnamei+suffix
         
-        #r_x.SaveToFile(fnamer, 8)
-        r_x.Save(fnamer, 8)
+        r_x.SaveGZ(fnamer, 8)
         if i_x is not None:
-            i_x.Save(fnamei, 8)           
-            #i_x.SaveToFile(fnamei, 8)
+            i_x.SaveGZ(fnamei, 8)           
 
     def save_mesh(self):
         mesh_names = []
@@ -2463,8 +2461,7 @@ class Engine(object):
             self.clear_solmesh_files(header)
             
             name = header+suffix            
-            #mesh.PrintToFile(name, 8)
-            mesh.Print(name, 8)
+            mesh.PrintGZ(name, 8)
             mesh_names.append(name)
         return mesh_names
 
