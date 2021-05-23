@@ -419,8 +419,8 @@ class BlockMatrix(object):
 
     def __mul__(self, other):
         shape = self.shape
-        complex = self.complex or other.complex
-        ret = BlockMatrix(shape, kind=self.kind, complex=complex)
+
+        ret = BlockMatrix(shape, kind=self.kind, complex=self.complex)
 
         for i in range(shape[0]):
             for j in range(shape[1]):

@@ -1931,34 +1931,34 @@ def project_variable_to_gf(c, ind_vars, gfr, gfi,
 
 
 class _coeff_decorator(object):
-    def float(self, dependency=None):
+    def float(self, dependency=None, jit=False):
         def dec(func):
-            obj = NativeCoefficientGen(func, dependency=dependency)
+            obj = NativeCoefficientGen(func, dependency=dependency, jit=jit)
             return obj
         return dec
 
-    def complex(self, dependency=None):
+    def complex(self, dependency=None, jit=False):
         def dec(func):
-            obj = ComplexNativeCoefficientGen(func, dependency=dependency)
+            obj = ComplexNativeCoefficientGen(func, dependency=dependency, jit=jit)
             return obj
         return dec
 
-    def array(self, complex=False, shape=(1,), dependency=None):
+    def array(self, complex=False, shape=(1,), dependency=None, jit=False):
         def dec(func):
             if len(shape) == 1:
                 if complex:
                     obj = VectorComplexNativeCoefficientGen(
-                        func, dependency=dependency, shape=shape)
+                        func, dependency=dependency, shape=shape, jit=jit)
                 else:
                     obj = VectorNativeCoefficientGen(
-                        func, dependency=dependency, shape=shape)
+                        func, dependency=dependency, shape=shape, jit=jit)
             elif len(shape) == 2:
                 if complex:
                     obj = MatrixComplexNativeCoefficientGen(
-                        func, dependency=dependency, shape=shape)
+                        func, dependency=dependency, shape=shape, jit=jit)
                 else:
                     obj = MatrixNativeCoefficientGen(
-                        func, dependency=dependency, shape=shape)
+                        func, dependency=dependency, shape=shape, jit=jit)
             return obj
         return dec
 
@@ -1972,7 +1972,7 @@ class NativeCoefficientGenBase(object):
     '''
 
     def __init__(self, fgen, igen=None, complex=False,
-                 dependency=None, shape=None):
+                 dependency=None, shape=None, jit=False):
         self.complex = complex
         # dependency stores a list of Finite Element space discrite variable
         # names whose set_point has to be called
@@ -1980,6 +1980,7 @@ class NativeCoefficientGenBase(object):
         self.fgen = fgen
         self.shape = shape
         self.complex = complex
+        self.jit = jit
 
     def __call__(self, l, g=None):
         '''
@@ -2033,46 +2034,46 @@ class NativeCoefficientGenBase(object):
 class NativeCoefficientGen(NativeCoefficientGenBase):
     kind = "scalar"
 
-    def __init__(self, func, dependency=None):
+    def __init__(self, func, dependency=None, jit=False):
         NativeCoefficientGenBase.__init__(
-            self, func, complex=False, dependency=dependency)
+            self, func, complex=False, dependency=dependency, jit=jit)
 
 
 class ComplexNativeCoefficientGen(NativeCoefficientGenBase):
     kind = "scalar"
 
-    def __init__(self, func, dependency=None):
+    def __init__(self, func, dependency=None, jit=False):
         NativeCoefficientGenBase.__init__(
-            self, func, complex=True, dependency=dependency)
+            self, func, complex=True, dependency=dependency, jit=jit)
 
 
 class VectorNativeCoefficientGen(NativeCoefficientGenBase):
     kind = "vector"
 
-    def __init__(self, func, dependency=None, shape=None):
+    def __init__(self, func, dependency=None, shape=None, jit=False):
         NativeCoefficientGenBase.__init__(
-            self, func, complex=False, dependency=dependency, shape=shape)
+            self, func, complex=False, dependency=dependency, shape=shape, jit=jit)
 
 
 class VectorComplexNativeCoefficientGen(NativeCoefficientGenBase):
     kind = "vector"
 
-    def __init__(self, func, dependency=None, shape=None):
+    def __init__(self, func, dependency=None, shape=None, jit=False):
         NativeCoefficientGenBase.__init__(
-            self, func, complex=True, dependency=dependency, shape=shape)
+            self, func, complex=True, dependency=dependency, shape=shape, jit=jit)
 
 
 class MatrixNativeCoefficientGen(NativeCoefficientGenBase):
     kind = "matrix"
 
-    def __init__(self, func, dependency=None, shape=None):
+    def __init__(self, func, dependency=None, shape=None, jit=False):
         NativeCoefficientGenBase.__init__(
-            self, func, complex=False, dependency=dependency, shape=shape)
+            self, func, complex=False, dependency=dependency, shape=shape, jit=jit)
 
 
 class MatrixComplexNativeCoefficientGen(NativeCoefficientGenBase):
     kind = "matrix"
 
-    def __init__(self, func, dependency=None, shape=None):
+    def __init__(self, func, dependency=None, shape=None, jit=False):
         NativeCoefficientGenBase.__init__(
-            self, func, complex=True, dependency=dependency, shape=shape)
+            self, func, complex=True, dependency=dependency, shape=shape, jit=jit)
