@@ -417,7 +417,7 @@ class BlockMatrix(object):
                     ret[i, j] = self[i, j] - v[i, j]
         return ret
 
-    def __mul__(self, other):
+    def __mul__(self, other):  # note other is scalar.. this is not matrix multiplicaiton
         shape = self.shape
 
         ret = BlockMatrix(shape, kind=self.kind, complex=self.complex)
