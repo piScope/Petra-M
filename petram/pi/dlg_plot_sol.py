@@ -1201,6 +1201,12 @@ class DlgPlotSol(SimpleFramePlus):
         cdata = np.hstack([c.flatten() for v, c, a in data]).flatten()
         verts = verts.reshape(-1, ndim)
         data = {'vertices': verts, 'data': cdata}
+
+        if data_x is not None:
+            cxdata = np.hstack([c.flatten() for v, c, a in data_x]).flatten()
+            xverts = np.hstack([v.flatten() for v, c, a in data_x]).flatten()
+            data['xvertices'] = xverts
+            data['xdata'] = cxdata
         self.export_to_piScope_shell(data, 'edge_data')
 
     def get_attrs_field_Edge(self):
@@ -2638,17 +2644,6 @@ class DlgPlotSol(SimpleFramePlus):
         app.shell.lvar[dataname] = data
         app.shell.SendShellEnterEvent()
         ret = dialog.message(app, dataname + ' is exported', 'Export', 0)
-    '''
-    def export_to_piScope_shell(self, datas, datanames):
-        import wx
-        import ifigure.widgets.dialog as dialog
-
-        app = wx.GetApp().TopWindow
-        for data, dataname in zip(datas, datanames):
-            app.shell.lvar[dataname] = data
-            app.shell.SendShellEnterEvent()
-        ret=dialog.message(app, ','.join(datanames) + ' is exported', 'Export', 0)
-    '''
 
     def get_model_soldfiles(self):
         model = self.GetParent().model
