@@ -211,6 +211,9 @@ class MFEMMesh(Model):
         viewer.engine.save_solfile_fespace('minSJac', 0, gf, None)
         os.chdir(cwd)
 
+        # this triggers to reload solfile
+        viewer.model.variables.setvar('solfiles', None)
+
     def plot_invalids(self, evt):
         from petram.mesh.mesh_inspect import plot_faces_containing_elements
 
