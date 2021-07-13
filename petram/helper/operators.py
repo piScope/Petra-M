@@ -833,13 +833,12 @@ class Hcurln(Operator):
     output (range) should be H1/L2
 
     Usage: 
-       = hcurln(complex=False, orderinc=1, bdr='all')
+       = hcurln(orderinc=1, bdr='all')
     '''
     def assemble(self, *args, **kwargs):
         from petram.helper.hcurl_normal import hcurln
         
         engine = self._engine()
-        is_complex = kwargs.pop("complex", False)
         verbose = kwargs.pop("verbose", False)
         bdr = kwargs.pop("bdr", 'all')
         orderinc = kwargs.pop("orderinc", 1)        
@@ -876,7 +875,7 @@ class Hcurln(Operator):
         M = func(self.fes1,
                  self.fes2,
                  self._c_coeff,
-                 is_complex=is_complex,
+                 is_complex = self._is_complex,
                  bdr=bdr,
                  orderinc=orderinc, 
                  verbose=verbose)

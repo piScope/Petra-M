@@ -304,8 +304,8 @@ class MFEM_SolverRoot(Model):
         from petram.solver.solver_model import SolveStep
         from petram.solver.parametric import Parametric
         #from petram.solver.solve_loop import Loop
-        from petram.solver.solver_controls import ForLoop
-        return [SolveStep, Parametric, ForLoop]
+        from petram.solver.solver_controls import ForLoop, DWCCall
+        return [SolveStep, Parametric, ForLoop, DWCCall]
 
     def get_active_solvers(self, mm=None):
         return [x for x in self.iter_enabled()]

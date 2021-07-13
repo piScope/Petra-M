@@ -14,6 +14,7 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
 
 '''
 class SolverBase(Model):
+    can_rename = True
     def onItemSelChanged(self, evt):
         '''
         GUI response when model object is selected in
@@ -38,7 +39,7 @@ class SolverBase(Model):
         if not isinstance(value, str): return value
         ll = {} if ll is None else ll 
         gg = self.root()['General']._global_ns.copy()
-        return eval(value, gg, ll)    
+        return eval(value, gg, ll)
 
 class SolveStep(SolverBase):
     has_2nd_panel = False    
@@ -94,14 +95,15 @@ class SolveStep(SolverBase):
     def get_possible_child(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
+        from petram.solver.solver_controls import DWCCall
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
   
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [StdSolver, StdMeshAdaptSolver, TimeDomain, SetVar]
+            return [StdSolver, StdMeshAdaptSolver, TimeDomain, DWCCall, SetVar]
         except:
-            return [StdSolver, TimeDomain, SetVar]
+            return [StdSolver, TimeDomain, DWCCall, SetVar]
 
     
     def get_phys(self):

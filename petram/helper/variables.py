@@ -1863,7 +1863,8 @@ def add_constant(solvar, name, suffix, value, domains=None,
     elif bdrs is not None:
         pass
     else:
-        solvar[name + suffix] = Constant(value)
+        #solvar[name + suffix] = Constant(value)
+        solvar[name + suffix] = value
 
 
 def add_surf_normals(solvar, ind_vars):

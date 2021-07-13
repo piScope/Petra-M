@@ -62,6 +62,30 @@ def fes_mapping(element1, order1, dim1, dim2):
 
     return ret
 
+def find_fes_mapping(phys1, fes_idx1, phys2, fes_idx2):
+    '''
+    call fes_mappinng using phys and fes_idx. This is used
+    when we need this in GUI.
+    '''
+    emesh1 = phys1.emesh_idx
+    emesh2 = phys2.emesh_idx
+
+    fec_type1 = phys1.get_fec_type(fes_idx1)
+    dim1 = phys1.dim
+    sdim1 = phys1.geom_dim
+    order1 = phys1.fes_order
+
+    fec_type2 = phys2.get_fec_type(fes_idx2)
+    dim2 = phys2.dim
+    sdim2 = phys1.geom_dim
+    order2 = phys1.fes_order
+
+    if emesh1 == emesh2:
+        return fec_type1, order1
+
+    el, order = fes_mapping(fec_type1, order1, dim1, dim2)
+    return el, order
+
 def simple_projection(fes1, fes2, sel_mode, tol=1e-5):
     mesh1 = fes1.GetMesh()
     mesh2 = fes1.GetMesh()

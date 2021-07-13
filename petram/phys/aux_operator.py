@@ -184,7 +184,7 @@ class AUX_Operator(Phys):
         if oprt.startswith('='):  # old setting
            oprt = oprt[1:]
         coeff = self.vt_oprt['coeff_lambda'].make_value_or_expression(self)
-        
+
         from petram.helper.expression import Expression
 
         fes1 = engine.fespaces[trialname]
@@ -206,12 +206,12 @@ class AUX_Operator(Phys):
            if is_complex:
                c_coeff2 = self.get_coefficient_from_expression(coeff, cotype,
                                                                use_dual=False,
-                                                               real=True,
+                                                               real=False,
                                                                is_conj=False)
            else:
                c_coeff2 = None
            c_coeff = (c_coeff1, c_coeff2)
-           dprint1("coeff", c_coeff)
+
            expr = Expression(oprt, engine=engine, trial=fes1, test=fes2,
                              trial_ess_tdof=trial_ess_tdof,
                              test_ess_tdof=test_ess_tdof,

@@ -244,13 +244,15 @@ class NS_mixin(object):
         from petram.helper.variables import variable, coefficient
         g['variable'] = variable
         g['coefficient'] = coefficient
-        
+
+
         if self.root() is self:
              if not hasattr(self.root(), "_variables"):
                  from petram.helper.variables import Variables            
                  self.root()._variables = Variables()
         else:
             self._local_ns = self.root()._variables
+
         if len(chain) == 0:
             raise ValueError("namespace chain is not found")
         # step1 (fill ns using upstream + constant (no expression)        
@@ -322,13 +324,17 @@ class NS_mixin(object):
 
         for k in l:
             g[k] = l[k]
-        
+
         # step 5  re-eval attribute with self-namespace
         #         passing previous invalid as a list of variables
         #         to evaluate
-        result, invalid =  self.eval_attribute_expr(invalid)
+        result, invalid = self.eval_attribute_expr(invalid)
         for k in result:
             setattr(self, k, result[k])
+
+        #if self is not self.root()["General"] (Let's set it in General too)
+        from petram.helper.dot_dict import DotDict
+        g['general'] =  DotDict(self.root()["General"]._global_ns)
 
         # if something is still not known,,, raise
         if len(invalid) != 0:

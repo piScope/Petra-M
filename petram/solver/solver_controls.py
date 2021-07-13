@@ -29,8 +29,9 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
         v['phys_model'] = ''
         v['init_setting'] = ''
         v['postprocess_sol'] = ''
-        v['use_dwc_pp'] = False
-        v['dwc_pp_arg'] = ''
+        v['dwc_name'] = ''
+        v['use_dwc'] = False
+        v['dwc_args'] = ''
         v['counter_name'] = 'loop_counter'
         self.vt_loop.attribute_set(v)
 
@@ -40,13 +41,19 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
     def get_possible_child(self):
         from petram.solver.solver_model import SolveStep
         from petram.solver.parametric import Parametric
-        return [SolveStep, Parametric, Break, Continue]
+        return [SolveStep, Parametric, Break, Continue, DWCCall]
 
     def panel1_param(self):
         panels = self.vt_loop.panel_param(self)
-        return [  # ["Initial value setting", self.init_setting, 0, {},],
-            ["Postporcess solution", self.postprocess_sol, 0, {}, ],
-            ["Counter name", self.counter_name, 0, {}, ]] + panels
+
+        ret1 = [["dwc", self.dwc_name, 0, {}, ],
+                ["args.", self.dwc_args, 0, {}, ], ]
+        value1 = [self.dwc_name, self.dwc_args]
+        panel2 = [[None, [False, value1, ], 27, [{'text': 'Use DWC (postprocess)'},
+                                                 {'elp': ret1}, ]], ]
+
+        return ([["Postporcess solution", self.postprocess_sol, 0, {}, ],
+                 ["Counter name", self.counter_name, 0, {}, ]] + panels + panel2)
 
     def get_panel1_value(self):
         val = self.vt_loop.get_panel_value(self)
@@ -54,28 +61,40 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
         return (  # self.init_setting,
             self.postprocess_sol,
             self.counter_name,
-            val[0])
+            val[0],
+            [self.use_dwc, [self.dwc_name, self.dwc_args]])
 
     def import_panel1_value(self, v):
         #self.init_setting = v[0]
         self.postprocess_sol = v[0]
         self.counter_name = v[1]
         self.vt_loop.import_panel_value(self, (v[2],))
+        self.use_dwc = v[3][0]
+        self.dwc_name = v[3][1][0]
+        self.dwc_args = v[3][1][1]
 
     def get_all_phys_range(self):
         steps = self.get_active_steps()
-        ret = sum([s.get_phys_range() for s in steps], [])
-        return list(set(ret))
+        ret0 = sum([s.get_phys_range() for s in steps], [])
 
-    def get_active_steps(self):
+        ret = []
+        for x in ret0:
+            if not x in ret:
+                ret.append(x)
+
+        return ret
+
+    def get_active_steps(self, with_control=False):
         steps = []
         for x in self.iter_enabled():
             if not x.enabled:
                 continue
 
-            if isinstance(x, Break):
+            if isinstance(x, Break) and with_control:
                 steps.append(x)
-            elif isinstance(x, Continue):
+            elif isinstance(x, Continue) and with_control:
+                steps.append(x)
+            elif isinstance(x, DWCCall) and with_control:
                 steps.append(x)
             elif len(list(x.iter_enabled())) > 0:
                 steps.append(x)
@@ -90,7 +109,7 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
     def run(self, engine, is_first=True):
         dprint1("!!!!! Entering SolveLoop :" + self.name() + " !!!!!")
 
-        steps = self.get_active_steps()
+        steps = self.get_active_steps(with_control=True)
         self.vt_loop.preprocess_params(self)
         max_count = self.vt_loop.make_value_or_expression(self)[0]
 
@@ -104,6 +123,8 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
                     do_break = s.run(engine, i)
                 elif isinstance(s, Continue):
                     do_continue = s.run(engine, i)
+                elif isinstance(s, DWCCall):
+                    do_continue = s.run(engine, i)
                 else:
                     s.run(engine, is_first=is_first)
                     if s.solve_error[0]:
@@ -114,7 +135,7 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
                             s.solve_error[1])
                         break
                     is_first = False
-                print("do_break", do_break)
+
                 if do_break or do_continue:
                     break
             if do_break:
@@ -123,11 +144,12 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
         postprocess = self.get_pp_setting()
         engine.run_postprocess(postprocess, name=self.name())
 
-        if self.use_dwc_pp:
+        if self.use_dwc:
             engine.call_dwc(self.get_all_phys_range(),
                             method="postprocess",
                             callername=self.name(),
-                            args=self.dwc_pp_arg)
+                            dwcname=self.dwc_name,
+                            args=self.dwc_args)
 
 
 class Break(SolveControl, NS_mixin):
@@ -143,36 +165,36 @@ class Break(SolveControl, NS_mixin):
         return super(Break, self).attribute_set(v)
 
     def panel1_param(self):
-        ret = [["dwc", self.dwc_name, 0, {}, ],
-               ["args.", self.dwc_args, 0, {}, ], ]
-        value = [self.dwc_name, self.dwc_args]
-        return [["Break cond.", self.break_cond, 0, {}, ],
-                [None, [False, value], 27, [{'text': 'Use DWC (loopcontrol)'},
-                                            {'elp': ret}]], ]
+        ret0 = [["Break cond.", self.break_cond, 0, {}, ], ]
+        ret1 = [["dwc", self.dwc_name, 0, {}, ],
+                ["args.", self.dwc_args, 0, {}, ], ]
+        value0 = [self.break_cond]
+        value1 = [self.dwc_name, self.dwc_args]
+        return [[None, [False, value1, value0], 127, [{'text': 'Use DWC (loopcontrol)'},
+                                                      {'elp': ret1},
+                                                      {'elp': ret0}]], ]
 
     def import_panel1_value(self, v):
-        self.break_cond = v[0]
-        self.use_dwc = v[1][0]
-        self.dwc_name = v[1][1][0]
-        self.dwc_args = v[1][1][1]
+        self.use_dwc = v[0][0]
+        self.dwc_name = v[0][1][0]
+        self.dwc_args = v[0][1][1]
+        self.break_cond = v[0][2][0]
 
     def get_panel1_value(self):
-        return (self.break_cond,
-                [self.use_dwc, [self.dwc_name, self.dwc_args, ]])
+        return ([self.use_dwc, [self.dwc_name, self.dwc_args],
+                 [self.break_cond], ], )
 
     def get_all_phys_range(self):
-        return self.parent().get_all_phys_range()
+        return self.parent.get_all_phys_range()
 
     def run(self, engine, count):
-        print("Checking break condition")
-        print(self._global_ns.keys())
-
         if self.use_dwc:
             return engine.call_dwc(self.get_all_phys_range(),
                                    method="loopcontrol",
                                    callername=self.name(),
                                    dwcname=self.dwc_name,
-                                   args=self.dwc_args,)
+                                   args=self.dwc_args,
+                                   count=count,)
         else:
             if self.break_cond in self._global_ns:
                 break_func = self._global_ns[self.break_cond]
@@ -182,7 +204,7 @@ class Break(SolveControl, NS_mixin):
             code = "check =" + self.break_cond + '(count)'
             ll = {'count': count}
             exec(code, g, ll)
-            print(ll)
+
             return ll['check']
 
 
@@ -199,25 +221,27 @@ class Continue(SolveControl, NS_mixin):
         return super(Continue, self).attribute_set(v)
 
     def panel1_param(self):
-        ret = [["dwc", self.dwc_name, 0, {}, ],
-               ["args.", self.dwc_args, 0, {}, ], ]
-        value = [self.dwc_name, self.dwc_arg]
-        return [["Continue cond.", self.continue_cond, 0, {}, ],
-                [None, [False, value], 27, [{'text': 'Use DWC (loopcontrol)'},
-                                            {'elp': ret}]], ]
+        ret0 = [["Continue cond.", self.continue_cond, 0, {}, ], ]
+        ret1 = [["dwc", self.dwc_name, 0, {}, ],
+                ["args.", self.dwc_args, 0, {}, ], ]
+        value0 = [self.continue_cond]
+        value1 = [self.dwc_name, self.dwc_args]
+        return [[None, [False, value1, value0], 127, [{'text': 'Use DWC (loopcontrol)'},
+                                                      {'elp': ret1},
+                                                      {'elp': ret0}]], ]
 
     def import_panel1_value(self, v):
-        self.continue_cond = v[0]
-        self.use_dwc = v[1][0]
-        self.dwc_name = v[1][1][0]
-        self.dwc_arg = v[1][1][1]
+        self.use_dwc = v[0][0]
+        self.dwc_name = v[0][1][0]
+        self.dwc_args = v[0][1][1]
+        self.continue_cond = v[0][2][0]
 
     def get_panel1_value(self):
-        return (self.continue_cond,
-                [self.use_dwc, [self.dwc_name, self.dwc_args, ]])
+        return ([self.use_dwc, [self.dwc_name, self.dwc_args],
+                 [self.continue_cond], ], )
 
     def get_all_phys_range(self):
-        return self.parent().get_all_phys_range()
+        return self.parent.get_all_phys_range()
 
     def run(self, engine, count):
         if self.use_dwc:
@@ -225,7 +249,8 @@ class Continue(SolveControl, NS_mixin):
                                    method="loopcontrol",
                                    callername=self.name(),
                                    dwcname=self.dwc_name,
-                                   args=self.dwc_args,)
+                                   args=self.dwc_args,
+                                   count=count)
         else:
             if self.continue_cond in self._global_ns:
                 c_func = self._global_ns[self.continue_cond]
@@ -236,5 +261,50 @@ class Continue(SolveControl, NS_mixin):
             code = "check=" + self.continue_cond + '(count)'
             ll = {'count': count}
             exec(code, g, ll)
-            print(ll)
+
             return ll['check']
+
+
+class DWCCall(SolveControl):
+    '''
+    standalone DWC caller
+    '''
+
+    def __init__(self, *args, **kwargs):
+        SolverBase.__init__(self, *args, **kwargs)
+
+    def attribute_set(self, v):
+        v['dwc_args'] = ''
+        v['dwc_name'] = ''
+        super(DWCCall, self).attribute_set(v)
+        return v
+
+    def get_possible_child(self):
+        return []
+
+    def panel1_param(self):
+        panels = [["dwc", self.dwc_name, 0, {}, ],
+                  ["args.", self.dwc_args, 0, {}, ], ]
+
+        return panels
+
+    def get_panel1_value(self):
+        return [self.dwc_name, self.dwc_args]
+
+    def import_panel1_value(self, v):
+        self.dwc_name = v[0]
+        self.dwc_args = v[1]
+
+    def get_target_phys(self):
+        return []
+
+    def get_all_phys(self):
+        phys_root = self.root()['Phys']
+        return [x for x in phys_root.iter_enabled()]
+
+    def run(self, engine, is_first=True):
+        engine.call_dwc(self.get_all_phys(),
+                        method="call",
+                        callername=self.name(),
+                        dwcname=self.dwc_name,
+                        args=self.dwc_args)

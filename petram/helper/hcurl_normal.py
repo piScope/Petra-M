@@ -147,9 +147,11 @@ def map_ir(fe1, eltrans, coeff1,
             assert False, "geometry type: " + str(g1) + " is not supported."
                
         cc = eval_coeff(coeff1, eltrans, ip, MV)
+
         #ww = eltrans.Weight()
         val = nor.dot(cc.dot(
                 shape1.GetDataArray().transpose())) * sign1  # /ww
+
         res.append(val)
         d_misalginment.append(np.min(dd))
 
@@ -334,7 +336,10 @@ def hcurln(fes1, fes2, coeff,
     
     if USE_PARALLEL:
         vdofs1_arr = alltoall_vectorv(vdofs1_arr, int)  # transfer to mesh2
-        data1_arr = alltoall_vectorv(data1_arr, float)  # transfer to mesh2
+        if is_complex:
+            data1_arr = alltoall_vectorv(data1_arr, complex)  # transfer to mesh2
+        else:
+            data1_arr = alltoall_vectorv(data1_arr, float)  # transfer to mesh2
         max_misalignment = np.max(MPI.COMM_WORLD.gather(max_misalignment, root=0))
     dprint1("Max misalignment: ", max_misalignment)
 

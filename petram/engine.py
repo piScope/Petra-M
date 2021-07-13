@@ -73,7 +73,11 @@ class Engine(object):
         self._access_idx= -1
         self._dep_vars = []
         self._isFESvar = []
-
+        self._rdep_vars = []
+        self._rdep_var_grouped = []
+        self._risFESvar = []
+        self._risFESvar_grouped = []
+        self._rfes_vars = []
 
         self.max_bdrattr = -1
         self.max_attr = -1        
@@ -82,6 +86,7 @@ class Engine(object):
 
         self._r_x_old = {}
         self._i_x_old = {}
+
         
         # assembled block [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]        
         self.assembled_blocks = [None]*7
@@ -408,6 +413,8 @@ class Engine(object):
                 node.read_ns_script_data(dir = dir)
         self.build_ns()
         solver = model["Solver"].get_active_solvers()
+
+        dprint1("solver", solver)
         return solver
 
     def run_config(self):
@@ -478,7 +485,10 @@ class Engine(object):
 
     #  mesh manipulation
     #
-    def run_mesh_extension_prep(self):
+    def run_mesh_extension_prep(self, reset=False):
+        if reset:
+            self.reset_emesh_data()
+
         for k in self.model['Phys'].keys():
             phys = self.model['Phys'][k]
             if not phys.enabled: continue            
@@ -495,7 +505,7 @@ class Engine(object):
                 self.emesh_data.add_default_info(j,
                                                  self.emeshes[j].Dimension(),
                                                  attrs)
-        info = phys.get_mesh_ext_info()
+        info = phys.get_mesh_ext_info(self.meshes[phys.mesh_idx])
         idx = self.emesh_data.add_info(info)
 
         phys.emesh_idx = idx
@@ -2307,10 +2317,13 @@ class Engine(object):
         raise NotImplementedError(
              "you must specify this method in subclass")
 
-    def prep_emesh_data_ifneeded(self):
+    def reset_emesh_data(self):
         from petram.mesh.mesh_extension import MeshExt
+        self.emesh_data = MeshExt()
+
+    def prep_emesh_data_ifneeded(self):
         if self.emesh_data is None:
-            self.emesh_data = MeshExt()
+            self.reset_emesh_data()
         
     def run_mesh_serial(self, meshmodel = None,
                         skip_refine = False):
@@ -2483,7 +2496,9 @@ class Engine(object):
         return self._fes_vars.index(name)
 
     def r_ifes(self, name):
-        return self._rfes_vars.index(name)
+        if name in self._rfes_vars:
+           return self._rfes_vars.index(name)
+        return -1
      
     def has_rfes(self, name):
         return name in self._rfes_vars
@@ -2696,6 +2711,8 @@ class Engine(object):
         for phys in phys_range:
             for name in phys.dep_vars:
                 rifes = self.r_ifes(name)
+                if rifes == -1:
+                   continue
                 rgf = self.r_x[rifes]
                 igf = self.i_x[rifes]
                 if igf is None:
@@ -2723,9 +2740,10 @@ class Engine(object):
             
         for k in kwargs2: kwargs[k] = kwargs2[k]
         args = tuple(list(args0) + list(args))
-        
+
         try:
             return m(callername, *args, **kwargs)
+
         except:
             import traceback
             traceback.print_exc()
