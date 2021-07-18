@@ -586,7 +586,8 @@ class DomainVariable(Variable):
     def add_const(self, value, domains, gdomain):
         domains = sorted(domains)
 
-        self.domains[tuple(domains)] = Constant(value)
+        #self.domains[tuple(domains)] = Constant(value)
+        self.domains[tuple(domains)] = value
         self.gdomains[tuple(domains)] = gdomain
         if np.iscomplexobj(value):
             self.complex = True
@@ -1271,7 +1272,8 @@ class GFScalarVariable(GridFunctionVariable):
                     return func
                 elif gf.VectorDim() > 1:
                     def func(i, side, ir, vals, tr, in_gf=gf):
-                        in_gf.GetValues(i, ir, vals, tr, vdim=self.comp - 1)
+                        #in_gf.GetValues(i, ir, vals, tr, vdim=self.comp - 1)
+                        in_gf.GetValues(i, ir, vals, tr, self.comp-1)
                     return func
                 else:
                     def func(i, side, ir, vals, tr, in_gf=gf):

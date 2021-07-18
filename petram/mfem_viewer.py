@@ -216,6 +216,7 @@ class MFEMViewer(BookViewer):
         if self.model.variables.getvar('mesh') is None:
             try:
                 self.load_mesh()
+                self.engine.run_mesh_extension_prep(reset=True)
             except:
                 dialog.showtraceback(parent=self,
                                      txt='mesh file load error',
