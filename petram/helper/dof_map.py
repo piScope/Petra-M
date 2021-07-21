@@ -1004,6 +1004,7 @@ def map_point_h1(idx1, idx2, fes1, fes2=None, trans1=None,
 
     else:
         gtdofs1 = vdofs1
+        gtdofs2 = vdofs2
 
     for v1, v2 in zip(gtdofs1, gtdofs2):
         if v1 <= 0:
