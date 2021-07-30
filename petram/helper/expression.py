@@ -12,10 +12,22 @@ operators = {"integral": ops.Integral,
              "curl": ops.Curl,
              "grad": ops.Gradient,
              "div": ops.Divergence,
-             "convolve": ops.Convolve}
+             "convolve": ops.Convolve,
+             "hcurln": ops.Hcurln}
+
 
 def get_operators():
     return {key: operators[key]() for key in operators}
+
+# this is used in vtable to evaluate the expresion containing the operators
+
+
+def dummy(*args, **kwargs):
+    return 1
+
+
+def get_dummy_operators():
+    return {key: dummy for key in operators}
 
 
 '''
@@ -49,6 +61,7 @@ class Expression(object):
         self._test_ess_tdof = kwargs.pop('test_ess_tdof', None)
         self._ind_vars = kwargs.pop('ind_vars', 'x, y, z')
         self._is_complex = kwargs.pop('is_complex', False)
+        self._c_coeff = kwargs.pop('c_coeff', False)
 
         super(Expression, self).__init__()
         variables = []
@@ -110,7 +123,8 @@ class Expression(object):
             '_trial_ess_tdof',
             '_test_ess_tdof',
             '_ind_vars',
-            '_is_complex']
+            '_is_complex',
+            '_c_coeff', ]
 
         for op in operators:
             for attr in attrs:
@@ -120,4 +134,5 @@ class Expression(object):
             g2[op] = operators[op]
 
         op = eval(self.co, g2)
+
         return op

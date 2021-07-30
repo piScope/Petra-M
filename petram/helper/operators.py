@@ -19,6 +19,10 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints("Operators")
 rprint = debug.regular_print('Operators')
 
+from petram.phys.phys_model  import PhysConstant, PhysVectorConstant, PhysMatrixConstant            
+from petram.phys.coefficient import complex_coefficient_from_real_and_imag        
+from petram.helper.variables import NativeCoefficientGenBase
+
 class Operator(object):
     def __repr__(self):
         return self.__class__.__name__ + "("+",".join(self.sel)+")"
@@ -34,6 +38,7 @@ class Operator(object):
         self._transpose = False
         self._trial_ess_tdof = None
         self._test_ess_tdof = None
+        self._c_coeff = None   # coefficient 
         
     def __call__(self, *args, **kwargs):
         return self.assemble(*args, **kwargs )
@@ -583,10 +588,12 @@ class Projection(Operator):
                 else:
                     assert False, "unsupported mode"
                 idx2 = np.unique(self.fes2.GetMesh().GetAttributeArray()) 
-            else:
-                idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
+            else:  # boundary mode
+                if dim1 == dim2:
+                    idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
+                elif dim1 == dim2-1:
+                    idx1 = np.unique(self.fes1.GetMesh().GetAttributeArray())
                 idx2 = np.unique(self.fes2.GetMesh().GetBdrAttributeArray())
-
             if use_parallel:
                 idx1 = list(idx1)
                 idx2 = list(idx2)
@@ -815,6 +822,65 @@ class Divergence(Operator):
         M = BF2PyMat(div)
 
         return M
+     
+class Hcurln(Operator):               
+    '''
+    Operator to compute normal compnent of hcurl on surface
+
+    \int F_test(x) coeff(x) F_trial(x') dx'
+
+    input (domain) should be Hcurl
+    output (range) should be H1/L2
+
+    Usage: 
+       = hcurln(orderinc=1, bdr='all')
+    '''
+    def assemble(self, *args, **kwargs):
+        from petram.helper.hcurl_normal import hcurln
+        
+        engine = self._engine()
+        verbose = kwargs.pop("verbose", False)
+        bdr = kwargs.pop("bdr", 'all')
+        orderinc = kwargs.pop("orderinc", 1)        
+        if bdr != 'all':
+            try:
+                _void = bdr[0]
+            except:
+                bdr = [bdr]
+        self.process_kwargs(engine, kwargs)
+
+        info1 = engine.get_fes_info(self.fes1)
+        emesh1_idx = info1['emesh_idx']
+        info2 = engine.get_fes_info(self.fes2)
+        emesh2_idx = info2['emesh_idx']
+
+        #assert emesh1_idx == emesh2_idx, "HcurlN is performed only on the same mesh"
+            
+        dim1 = self.fes1.GetMesh().Dimension()
+        if not self.fes1.FEColl().Name().startswith('ND'):
+            assert False, "trial(domain) should be ND"
+        if (not self.fes2.FEColl().Name().startswith('L2') and
+            not self.fes2.FEColl().Name().startswith('H1')):
+            assert False, "test(range) should be H1/L2"
+        
+        if dim1 == 3:
+            func = hcurln
+        elif dim1 == 2:
+            func = hcurln
+        elif dim1 == 3:
+            assert False, "unsupported dimension"
+        else:
+            assert False, "unsupported dimension"
+
+        M = func(self.fes1,
+                 self.fes2,
+                 self._c_coeff,
+                 is_complex = self._is_complex,
+                 bdr=bdr,
+                 orderinc=orderinc, 
+                 verbose=verbose)
+
+        return M
 
 class Convolve(Operator):               
     '''
@@ -869,7 +935,7 @@ class Convolve(Operator):
         info1 = engine.get_fes_info(self.fes1)
         emesh1_idx = info1['emesh_idx']
         info2 = engine.get_fes_info(self.fes2)
-        emesh2_idx = info1['emesh_idx']
+        emesh2_idx = info2['emesh_idx']
 
         assert emesh1_idx == emesh2_idx, "convolution is performed only on the same mesh"
             

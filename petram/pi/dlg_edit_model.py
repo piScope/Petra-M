@@ -243,6 +243,8 @@ class DlgEditModel(SimpleFramePlus):
                         model.GetItem(indices)[name].postprocess_after_add(engine)
                         tree.RefreshItems()
 
+                        viewer.engine.run_mesh_extension_prep(reset=True)
+
                         old_item = tree.GetItemByIndex(parent.GetIndices())
                         tree.Expand(old_item)
                         tree.SelectItem(old_item, select=False)
@@ -826,6 +828,7 @@ class DlgEditModel(SimpleFramePlus):
         if phys is not None:
             viewer = self.GetParent()
             try:
+                viewer.engine.run_mesh_extension_prep(reset=True)
                 engine = viewer.engine.assign_sel_index(phys)
             except:
                 traceback.print_exc()

@@ -29,9 +29,15 @@ from petram.helper.matrix_file import write_coo_matrix, write_vector
 #groups = ['Domain', 'Boundary', 'Edge', 'Point', 'Pair']
 groups = ['Domain', 'Boundary', 'Pair']
 
-data = [("axu_oprt", VtableElement("aux_oprt", type='any',
-                                    guilabel = "operator", default = "",
-                                    tip = "oprator (horizontal)",)),]
+data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
+                                       guilabel="lambda",
+                                       default=1.0,
+                                       tip="coefficient",)),
+        ("axu_oprt", VtableElement("aux_oprt", type='any',
+                                   guilabel="operator",
+                                   default="",
+                                   no_func=True,
+                                   tip = "oprator (horizontal)",)),]
 
 class AUX_Operator(Phys):
     vt_oprt = Vtable(data)
@@ -45,6 +51,7 @@ class AUX_Operator(Phys):
         v['use_symmetric'] = False
         v['use_anti_symmetric'] = False        
         v['use_conj'] = False
+        v['coeff_type'] = 'Scalar'
         v = self.vt_oprt.attribute_set(v)
         #vv = self.vt_oprt.attribute_set({})
         #for key in vv:
@@ -71,8 +78,10 @@ class AUX_Operator(Phys):
         ll1 = [["trial space (Cols)", names[0], 4,
                 {"style":wx.CB_READONLY, "choices": names}],
                ["test space (Rows)", dep_vars[0], 4,
-                {"style":wx.CB_READONLY, "choices": dep_vars}]]
-
+                {"style":wx.CB_READONLY, "choices": dep_vars}],
+               ["coeff. type", "Scalar", 4,
+                {"style":wx.CB_READONLY,
+                 "choices": ["Scalar", "Vector", "Diagonal", "Matrix"]},],]
         ll2 = self.vt_oprt.panel_param(self)
         ll3 = [["symmetric",  self.use_symmetric,        3, {"text":""}],
                ["anti-symmetric",  self.use_anti_symmetric,   3, {"text":""}],  
@@ -88,10 +97,11 @@ class AUX_Operator(Phys):
         self.paired_var = (pnames[idx], pindex[idx])
 
         self.src_var = self.get_root_phys().dep_vars.index(str(v[1]))
-        self.vt_oprt.import_panel_value(self, v[2:-3])
+        self.coeff_type = str(v[2])
+        self.vt_oprt.import_panel_value(self, v[3:-3])
         self.use_symmetric = v[-3]
-        self.use_anti_symmetric = v[-2]        
-        self.use_conj = v[-1]        
+        self.use_anti_symmetric = v[-2]
+        self.use_conj = v[-1]
 
     def get_panel1_value(self):
         if self.paired_var is None:
@@ -112,8 +122,11 @@ class AUX_Operator(Phys):
 
         svar = self.get_root_phys().dep_vars[self.src_var]
         
-        v1 = [var, svar]
-        v1.extend(self.vt_oprt.get_panel_value(self))
+        v1 = [var, svar, self.coeff_type]
+        val, expr = self.vt_oprt.get_panel_value(self)
+        if expr.strip().startswith('='):
+            expr = expr.strip()[1:]
+        v1.extend([val, expr])
         v3 = [self.use_symmetric, self.use_anti_symmetric, self.use_conj]        
         return v1 + v3
         
@@ -167,9 +180,11 @@ class AUX_Operator(Phys):
         trialname = var_s[self.paired_var[1]]
         testname = self.get_root_phys().dep_vars[self.src_var]
 
-        oprt = self.vt_oprt.make_value_or_expression(self)
-        oprt = oprt[0]
-        
+        oprt = self.aux_oprt_txt.strip()
+        if oprt.startswith('='):  # old setting
+           oprt = oprt[1:]
+        coeff = self.vt_oprt['coeff_lambda'].make_value_or_expression(self)
+
         from petram.helper.expression import Expression
 
         fes1 = engine.fespaces[trialname]
@@ -178,14 +193,31 @@ class AUX_Operator(Phys):
         is_complex = self.get_root_phys().is_complex()
 
         diag_size = -1
+
         if oprt is not None:
            dprint1(self.name() + " Assembling Operator: ", oprt)
-           assert isinstance(oprt, str), "operator1 must be an expression"               
+           assert isinstance(oprt, str), "operator1 must be an expression"
+
+           cotype = self.coeff_type[0]
+           c_coeff1 = self.get_coefficient_from_expression(coeff, cotype,
+                                                           use_dual=False,
+                                                           real=True,
+                                                           is_conj=False)
+           if is_complex:
+               c_coeff2 = self.get_coefficient_from_expression(coeff, cotype,
+                                                               use_dual=False,
+                                                               real=False,
+                                                               is_conj=False)
+           else:
+               c_coeff2 = None
+           c_coeff = (c_coeff1, c_coeff2)
+
            expr = Expression(oprt, engine=engine, trial=fes1, test=fes2,
-                             trial_ess_tdof = trial_ess_tdof,
-                             test_ess_tdof = test_ess_tdof,
-                             ind_vars = ind_vars,
-                             is_complex = is_complex)           
+                             trial_ess_tdof=trial_ess_tdof,
+                             test_ess_tdof=test_ess_tdof,
+                             ind_vars=ind_vars,
+                             is_complex=is_complex,
+                             c_coeff=c_coeff)
            op = expr.assemble(g=self._global_ns)
 
 

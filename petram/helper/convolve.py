@@ -685,7 +685,7 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                     vdofs22g = [VDoFtoGTDoF2[ii] for ii in vdofs2]
                     kkk = 0
                     #for v2, v2g in zip(vdofs22, vdofs22g):
-                    for v2, v2g in zip(vdofs2, vdofs22g):
+                    for v2, v2g in zip(vdofs22, vdofs22g):
                         if v2 < 0:
                             shared_data.append([v2g, mm[kkk, :], vdofs1[j]])
                         kkk = kkk + 1
@@ -722,8 +722,6 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                     mat[i, vdofs1] = mat[i, vdofs1] + elmat
 
     from scipy.sparse import coo_matrix, csr_matrix
-
-
 
     if USE_PARALLEL:
         if is_complex:

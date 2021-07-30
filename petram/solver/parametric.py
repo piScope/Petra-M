@@ -83,18 +83,20 @@ class Parametric(SolveStep, NS_mixin):
         v['assembly_method'] = 0
         v['scanner'] = 'Scan("a", [1,2,3])'
         v['save_separate_mesh'] = False
-        v['clear_wdir'] = True                      
+        v['clear_wdir'] = True
 
         return v
-    
+
     def get_possible_child(self):
-        from petram.solver.std_solver_model import StdSolver        
-        return [StdSolver,]
-    
+        from petram.solver.std_solver_model import StdSolver
+        from petram.solver.solver_controls import DWCCall
+        return [StdSolver, DWCCall]
+
     def get_scanner(self, nosave=False):
         try:
-            scanner = self.eval_param_expr(str(self.scanner), 
+            scanner = self.eval_param_expr(str(self.scanner),
                                            'scanner')[0]
+            scanner.set_data_from_model(self.root())
         except:
             traceback.print_exc()
             return

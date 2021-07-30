@@ -216,6 +216,7 @@ class MFEMViewer(BookViewer):
         if self.model.variables.getvar('mesh') is None:
             try:
                 self.load_mesh()
+                self.engine.run_mesh_extension_prep(reset=True)
             except:
                 dialog.showtraceback(parent=self,
                                      txt='mesh file load error',
@@ -228,7 +229,10 @@ class MFEMViewer(BookViewer):
 
         self.canvas._popup_style = 1  # popup_skip_2d
         self.canvas.__class__ = MFEMViewerCanvas
-        #self.Bind(wx.EVT_ACTIVATE, self.onActivate)
+
+        # make an empty sol folder if it is not defined.
+        if self.model.param.eval('sol') is None:
+            self.model.scripts.helpers.make_new_sol()
 
     @property
     def view_mode_group(self):

@@ -41,9 +41,11 @@ class TimeDomain(Solver):
         v['ts_method'] = "Backward Euler"
         v['abe_minstep']= 0.01
         v['abe_maxstep']= 1.0
-        v['use_dwc_cp']   = False   # check point               
+        v['use_dwc_cp']   = False   # check point
+        v['dwc_cp_name']   = ''              
         v['dwc_cp_arg']   = ''      
         v['use_dwc_ts']   = False   # every time step
+        v['dwc_ts_name']   = ''                      
         v['dwc_ts_arg']   = ''      
         
         super(TimeDomain, self).attribute_set(v)
@@ -53,10 +55,12 @@ class TimeDomain(Solver):
         elp_be =  [["dt", "", 0, {}],]
         elp_abe =  [["min. dt", "", 0, {}],
                     ["max. dt", "", 0, {}],]
-        ret_cp = ["args.",   self.dwc_cp_arg,   0, {},]
-        value_cp = self.dwc_cp_arg
-        ret_ts = ["args.",   self.dwc_ts_arg,   0, {},]
-        value_ts = self.dwc_ts_arg
+        ret_cp = [["dwc",   self.dwc_cp_name,   0, {}],
+                  ["args.",   self.dwc_cp_arg,   0, {}],]
+        value_cp = [self.dwc_cp_name, self.dwc_cp_arg]
+        ret_ts = [["dwc",   self.dwc_ts_name,   0, {}],
+                  ["args.",   self.dwc_ts_arg,   0, {}],]
+        value_ts = [self.dwc_ts_name, self.dwc_ts_arg]
         
         return [#["Initial value setting",   self.init_setting,  0, {},],
                 ["physics model",   self.phys_model,  0, {},],
@@ -70,10 +74,10 @@ class TimeDomain(Solver):
                                   {'elp':elp_be},
                                   {'elp':elp_be},                                                                    
                                   {'elp':elp_abe},)],
-                [None, [False, [value_cp]], 27, [{'text':'Use DWC (check point)'},
-                                              {'elp': [ret_cp]}]],
-                [None, [False, [value_ts]], 27, [{'text':'Use DWC (time stepping)'},
-                                              {'elp': [ret_ts]}]],
+                [None, [False, value_cp], 27, [{'text':'Use DWC (check point)'},
+                                              {'elp': ret_cp}]],
+                [None, [False, value_ts], 27, [{'text':'Use DWC (time stepping)'},
+                                              {'elp': ret_ts}]],
                 [None,
                  self.clear_wdir,  3, {"text":"clear working directory"}],
                 [None,
@@ -97,8 +101,8 @@ class TimeDomain(Solver):
                  [str(self.time_step_fe),],                                  
                  [str(self.abe_minstep), str(self.abe_maxstep),],
                 ],
-                [self.use_dwc_cp, [self.dwc_cp_arg,]],
-                [self.use_dwc_ts, [self.dwc_ts_arg,]],            
+                [self.use_dwc_cp, [self.dwc_cp_name, self.dwc_cp_arg,]],
+                [self.use_dwc_ts, [self.dwc_ts_name, self.dwc_ts_arg,]],            
                 self.clear_wdir,
                 self.init_only,               
                 self.assemble_real,
@@ -126,9 +130,11 @@ class TimeDomain(Solver):
         self.abe_minstep  = float(v[3][4][0])
         self.abe_maxstep  = float(v[3][4][1])
         self.use_dwc_cp   = v[4][0]
-        self.dwc_cp_arg   = v[4][1][0]         
+        self.dwc_cp_name  = v[4][1][0]                           
+        self.dwc_cp_arg   = v[4][1][1]         
         self.use_dwc_ts   = v[5][0]
-        self.dwc_ts_arg   = v[5][1][0]         
+        self.dwc_ts_name  = v[5][1][0]
+        self.dwc_ts_arg   = v[5][1][1]                           
         
 
     def get_possible_child(self):
@@ -239,14 +245,16 @@ class TimeDomain(Solver):
                 if self.use_dwc_ts:
                     engine.call_dwc(self.get_phys_range(),
                                     method="timestep",
-                                    args = self.dwc_ts_arg,                                    
                                     callername = self.name(),
+                                    dwcname = self.dwc_ts_name,
+                                    args = self.dwc_ts_arg,
                                     time = instance.time)
                 if self.use_dwc_cp and cp_written:                
                     engine.call_dwc(self.get_phys_range(),
                                     method="checkpoint",
                                     callername = self.name(),
-                                    args = self.dwc_cp_arg,                                    
+                                    dwcname = self.dwc_cp_name, 
+                                    args = self.dwc_cp_arg,
                                     time = instance.time,
                                     icheckpoint = instance.icheckpoint-1)
                 if cp_written:

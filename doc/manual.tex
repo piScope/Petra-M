@@ -75,7 +75,7 @@ from petram.helper.variables import variable
 def func(x, y, z, vhts1=None, s=None):
 
      # compute your material
-     return np.array([1,0,0], [0,1,0], [0,0,1]])
+     return np.array([[1,0,0], [0,1,0], [0,0,1]])
 
 \end{lstlisting}
  \end{minipage}
@@ -259,10 +259,12 @@ This module uses the Cartesian coordinate system (x, y, z), and solves the follo
  \subsubsection{External current source}
  
  \subsubsection{PMC (perfect magnetic conductor)}
+ This BC forces $H_t$ = 0. This is the natural boundary condition in which $\gamma$ and $\mathbf{Q}$ are zeroed in Eq.~\ref{em3d_weakBC}.
  
  \subsubsection{PEC (perfect electric conductor/electric field BC}
+ This BC forces $E_t$ = 0. This is a special case of essential BC.
  
-  \subsubsection{Surface Current}
+ \subsubsection{Surface Current}
   
  \subsubsection{Port}
  Port can be used  on the boundary $\partial\Omega$, where the mode profile ($\mathbf{E}_{\rm mode}$ and $\mathbf{H}_{\rm mode}$) and the amplitude incoming mode ($A_{\rm inc}$) is known. The outgoing wave amplitude ($A_{\rm out}$) is not known and is solved as a part of equation. We use $\gamma=0$ and $\frac{1}{\mu}\nabla\times\mathbf{E}=i \omega \mathbf{H}$ in Eq.~\ref{em3d_weak} and obtain a linear system in the block matrix from,
