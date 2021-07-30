@@ -476,7 +476,6 @@ class DeltaM(Operator):
                     d = mfem.DeltaCoefficient(x, y, z, w)
                 elif sdim == 2:
                     x, y = pt
-                    print("DeltaCoefficient call", type(x), type(y), type(x))
                     d = mfem.DeltaCoefficient(x, y, w)
                 elif sdim == 1:
                     x = pt                              
