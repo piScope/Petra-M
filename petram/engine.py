@@ -483,14 +483,14 @@ class Engine(object):
             if not phys.enabled:
                 continue
             self.run_mesh_extension(phys)
-
+            self.allocate_fespace(phys)
             # this is called already from preprocess_modeldata
             #
             for node in phys.walk():
                 if not node.enabled:
                     continue
                 node.preprocess_params(self)
-            self.allocate_fespace(phys)
+
 
         for k in self.model['InitialValue'].keys():
             init = self.model['InitialValue'][k]
@@ -1914,7 +1914,7 @@ class Engine(object):
                             verbose=True):
         if verbose:
             dprint1("A (in finalizie_coo_matrix) \n",  M_block)
-            # M_block.save_to_file("M_block")
+            M_block.save_to_file("M_block")
         if not convert_real:
             if is_complex:
                 M = M_block.get_global_coo(dtype='complex')
