@@ -1914,7 +1914,7 @@ class Engine(object):
                             verbose=True):
         if verbose:
             dprint1("A (in finalizie_coo_matrix) \n",  M_block)
-            M_block.save_to_file("M_block")
+            #M_block.save_to_file("M_block")
         if not convert_real:
             if is_complex:
                 M = M_block.get_global_coo(dtype='complex')
