@@ -482,6 +482,7 @@ class Engine(object):
             phys = self.model['Phys'][k]
             if not phys.enabled:
                 continue
+
             self.run_mesh_extension(phys)
             self.allocate_fespace(phys)
             # this is called already from preprocess_modeldata
@@ -2311,7 +2312,7 @@ class Engine(object):
         for name, elem in phys.get_fec():
             vdim = phys.vdim
             emesh_idx = phys.emesh_idx
-            order = phys.order
+            order = phys.fes_order
 
             #mesh = self.emeshes[phys.emesh_idx]
             #isParMesh = hasattr(mesh, 'ParPrint')

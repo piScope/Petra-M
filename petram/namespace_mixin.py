@@ -315,15 +315,17 @@ class NS_mixin(object):
         try:
             l = {}
             if (self.ns_string != '' and self.ns_string is not None):
-                 exec(self.ns_string, g, l)
+                 #exec(self.ns_string, g, l)
+                exec(self.ns_string, g)
             else:
                  pass ###return
         except Exception as e:
             import traceback
             assert False, traceback.format_exc()
 
-        for k in l:
-            g[k] = l[k]
+        # 2021.08.25. passing g only above allows for list comprehension to work.
+        # for k in l:
+        #     g[k] = l[k]
 
         # step 5  re-eval attribute with self-namespace
         #         passing previous invalid as a list of variables
