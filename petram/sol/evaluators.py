@@ -153,6 +153,15 @@ class EvaluatorCommon(Evaluator):
         
         phys_root = self.mfem_model()["Phys"]
         solvars = phys_root.make_solvars(solsets.set)
+
+        ### Setting _emesh_idx from emesh_idx in GridFunction
+        for phys in phys_root:
+            vnames = phys_root[phys].dep_vars
+            gf_var = solvars[0][vnames[0]]
+            gf_real, gf_imag = gf_var.deriv_args
+            eidx = gf_real._emesh_idx if gf_real is not None else gf_imag._emesh_idx
+            phys_root[phys]._emesh_idx = eidx
+            #print("setting emesh_idx from gridfunction", phys, eidx)
         
         pp_root = self.mfem_model()["PostProcess"]        
         solvars = pp_root.add_solvars(solsets.set, solvars)

@@ -217,12 +217,16 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             else:
                 s.run_config()            
                 model_path = os.path.join(os.path.dirname(model_path), 'model_proc.pmfm')
-                if (self.myid == 0):
+                if self.myid == 0:
                     s.model.save_to_file(model_path,
-                                meshfile_relativepath = False)
+                                         meshfile_relativepath=False)
 
-            s.prep_emesh_data_ifneeded()
-            s.run_mesh_extension_prep()
+            # we don't need this anymore since _emesh_idx is read
+            # from solution (encoded in filename)
+
+            #s.prep_emesh_data_ifneeded()
+            #s.run_mesh_extension_prep()
+
             ### can we skip this (run_config read mesh...)
             #s.run_config()
             ### (we don't need this for sure???)
