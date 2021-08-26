@@ -432,9 +432,13 @@ class EvaluatorMP(Evaluator):
         for x in range(len(self.workers)):
             self.results.task_done()
 
+        isnotNone = []
         for v, c, a in res: # handle (myid, error, message)
             if c is None and v is not None:
-                assert False, "solution may not exist"
+                continue
+            isnotNone.append(v)
+        if len(isnotNone) == 0:
+            assert False, "solution may not exist"
 
     def make_agents(self, name, params, **kwargs):
         super(EvaluatorMP, self).make_agents(name, params, **kwargs)
