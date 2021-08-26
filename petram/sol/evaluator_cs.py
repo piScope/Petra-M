@@ -288,7 +288,7 @@ class EvaluatorClient(Evaluator):
             print("response", response)
             print("output", output)
             assert False, "Unpickle failed"
-        #print 'output is', result
+        #print('output is', result)
         if result[0] == 'ok':
             return result[1]
         elif result[0] == 'echo':

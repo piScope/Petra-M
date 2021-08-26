@@ -58,7 +58,7 @@ def read_solinfo_remote(user, server, path):
         timeout = False
         outs, errs = p.communicate(timeout=30)
     except sp.TimeoutExpired:
-        timeout = True        
+        timeout = True
         p.kill()
         outs, errs = p.communicate()
     res = [x.strip() for x in outs.decode('utf-8').split('\n')]
@@ -72,11 +72,12 @@ def read_solinfo_remote(user, server, path):
     res = [x for x in res if len(x) > 0]
     res = res[-1].strip()
     res = pk.loads(binascii.a2b_hex(res))
-    
+
     if not res[0]:
         assert False, res[1]
 
     return res[1]
+
 
 ThreadEnd = wx.NewEventType()
 EVT_THREADEND = wx.PyEventBinder(ThreadEnd, 1)
@@ -389,7 +390,8 @@ class DlgPlotSol(SimpleFramePlus):
                   ['Boundary Index', text, 0, {}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
-                  [None, False, 3, {"text": 'dynamic extension (does not work)'}],
+                  [None, False, 3, {
+                      "text": 'dynamic extension (does not work)'}],
                   [None, True, 3, {"text": 'merge solutions'}],
                   ['Arrow count', 300, 400, None], ]
 
@@ -446,12 +448,12 @@ class DlgPlotSol(SimpleFramePlus):
             ebutton = wx.Button(p, wx.ID_ANY, "Export")
             button = wx.Button(p, wx.ID_ANY, "Apply")
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)
-            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)            
+            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
-            
+
         if 'Integral' in tabs:
             p = self.pages['Integral']
             vbox = wx.BoxSizer(wx.VERTICAL)
@@ -465,9 +467,9 @@ class DlgPlotSol(SimpleFramePlus):
             dom_bdr = ['Domain', 'Boundary']
             ll = [['Expression', '', 0, {}],
                   ['Kind', dom_bdr[0], 4, {'style': wx.CB_READONLY,
-                                                'choices': dom_bdr}],
+                                           'choices': dom_bdr}],
                   ['Index', text, 0, {}],
-                  ['Order', '2',  0, {}],                  
+                  ['Order', '2',  0, {}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}], ]
 
@@ -481,7 +483,7 @@ class DlgPlotSol(SimpleFramePlus):
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
-            
+
         if 'Probe' in tabs:
             p = self.pages['Probe']
             vbox = wx.BoxSizer(wx.VERTICAL)
@@ -526,8 +528,8 @@ class DlgPlotSol(SimpleFramePlus):
                                        "label": "Reload chocies"}], ]
             elp2 = [["Number of workers", self.config['mp_worker'], 400, ],
                     ["Sol", "sol", 504, {"choices_cb": self.local_sollist,
-                                         "choices": ["sol", ],}],
-#                                       "UpdateUI": self.OnUpdateUI_local}],
+                                         "choices": ["sol", ], }],
+                    #                                       "UpdateUI": self.OnUpdateUI_local}],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
                     [None, None, 141, {"alignright": True,
@@ -537,8 +539,8 @@ class DlgPlotSol(SimpleFramePlus):
             elp3 = [["Server", self.config['cs_server'], 0, ],
                     ["Number of workers", self.config['cs_worker'], 400, ],
                     ["Sol dir.", self.config['cs_soldir'], 504,
-                                 {"choices": [self.config['cs_soldir'],],
-                                  "choices_cb": self.remote_sollist,}],
+                     {"choices": [self.config['cs_soldir'], ],
+                      "choices_cb": self.remote_sollist, }],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
                     [None, None, 141, {"alignright": True,
@@ -584,7 +586,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.Bind(EDITLIST_SETFOCUS, self.onEL_SetFocus)
         self.Bind(EVT_THREADEND, self.onThreadEnd)
         wx.CallAfter(self.update_sollist_local1)
-        wx.CallAfter(self.update_sollist_local2)        
+        wx.CallAfter(self.update_sollist_local2)
         wx.CallAfter(self.CentreOnParent)
 
         self.solvars = WKD()
@@ -600,12 +602,12 @@ class DlgPlotSol(SimpleFramePlus):
         for k in self.evaluators:
             self.evaluators[k].terminate_allnow()
         wx.Sleep(1)
-        from petram.sol.evaluator_cs import EvaluatorClient 
+        from petram.sol.evaluator_cs import EvaluatorClient
         for k in self.evaluators:
             if isinstance(self.evaluators[k],
                           EvaluatorClient):
                 if (self.evaluators[k].p is not None and
-                    self.evaluators[k].p.poll() is None):
+                        self.evaluators[k].p.poll() is None):
                     self.evaluators[k].p.terminate()
         self.evaluators = {}
 
@@ -627,7 +629,7 @@ class DlgPlotSol(SimpleFramePlus):
 
         dirnames = [""]
         choices = [""]
-        
+
         solvers = list(info["checkpoint"])
         for solver in solvers:
             kk = sorted(list(info["checkpoint"][solver]))
@@ -637,7 +639,6 @@ class DlgPlotSol(SimpleFramePlus):
         choices = choices + info["cases"]
         dirnames = dirnames + info["cases"]
 
-        
         single_cb2.SetChoices(choices)
         multi_cb2.SetChoices(choices)
 
@@ -667,7 +668,7 @@ class DlgPlotSol(SimpleFramePlus):
 
         s1 = str(single_cb1.GetValue())
         s2 = str(multi_cb1.GetValue())
-        
+
         if s1 in sol_names:
             owndir1 = owndirs[sol_names.index(s1)]
         else:
@@ -676,7 +677,7 @@ class DlgPlotSol(SimpleFramePlus):
             owndir2 = owndirs[sol_names.index(s2)]
         else:
             owndir2 = s2
-            
+
         if not s1 in sol_names:
             sol_names.append(s1)
         if not s2 in sol_names:
@@ -684,12 +685,12 @@ class DlgPlotSol(SimpleFramePlus):
         for x in choices:
             if not x in sol_names:
                 sol_names.append(x)
-                
-        sol_names = [x for x in sol_names if len(x) > 0]            
+
+        sol_names = [x for x in sol_names if len(x) > 0]
         single_cb1.SetChoices(sol_names)
         multi_cb1.SetChoices(sol_names)
 
-        if self.local_soldir is not None:        
+        if self.local_soldir is not None:
             ss1 = self.local_solsubdir
         else:
             if model.param.eval('sol') is not None:
@@ -701,17 +702,17 @@ class DlgPlotSol(SimpleFramePlus):
             if os.path.exists(owndir1):
                 self.update_subdir_local(owndir1, ss1)
         else:
-            if os.path.exists(owndir2):            
+            if os.path.exists(owndir2):
                 self.update_subdir_local(owndir2, ss1)
-        
+
     def update_sollist_local1(self):
         self.update_sollist_local_common(1)
-        
+
     def update_sollist_local2(self):
-        self.update_sollist_local_common(2)        
+        self.update_sollist_local_common(2)
 
     def update_subdir_remote(self):
-        from ifigure.widgets.dialog import progressbar                    
+        from ifigure.widgets.dialog import progressbar
 
         dlg = progressbar(self, 'Checking remote work directory...',
                           'In progress', 5)
@@ -719,8 +720,8 @@ class DlgPlotSol(SimpleFramePlus):
         wx.GetApp().Yield()
         try:
             info = read_solinfo_remote(self.config['cs_user'],
-                                           self.config['cs_server'],
-                                           self.config['cs_soldir'])
+                                       self.config['cs_server'],
+                                       self.config['cs_soldir'])
 
         except AssertionError as err:
             print(err.args[0])
@@ -732,16 +733,16 @@ class DlgPlotSol(SimpleFramePlus):
             return ""
         except:
             #_, _, tb = sys.exc_info()
-            #traceback.print_tb(tb) # Fixed format
+            # traceback.print_tb(tb) # Fixed format
             #tb_info = traceback.extract_tb(tb)
             #filename, line, func, text = tb_info[-1]
-            dlg.Destroy()            
+            dlg.Destroy()
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
                          title='Error',
                          traceback=traceback.format_exc(limit=-1))
             return ""
-        dlg.Destroy()            
+        dlg.Destroy()
         dirnames = [""]
         choices = [""]
         solvers = list(info["checkpoint"])
@@ -784,7 +785,7 @@ class DlgPlotSol(SimpleFramePlus):
 
     def OnLoadLocalSol(self, evt):
         self.update_sollist_local1()
-        self.update_sollist_local2()        
+        self.update_sollist_local2()
         self.load_sol_if_needed()
 
     def OnLoadRemoteSol(self, evt):
@@ -799,7 +800,7 @@ class DlgPlotSol(SimpleFramePlus):
     def local_sollist(self):
         model = self.GetParent().model
         sol_names = [name for name, child in model.solutions.get_children()]
-        
+
         single_cb1 = self.elps['Config'].widgets[0][0].elps[0].widgets[0][0]
         multi_cb1 = self.elps['Config'].widgets[0][0].elps[1].widgets[1][0]
 
@@ -820,16 +821,17 @@ class DlgPlotSol(SimpleFramePlus):
                 sol_names.append(x)
         sol_names = [x for x in sol_names if len(x) > 0]
         return sol_names
-    
+
     def remote_sollist(self):
         remote_cb1 = self.elps['Config'].widgets[0][0].elps[2].widgets[2][0]
-        choices = [remote_cb1.GetString(n) for n in range(remote_cb1.GetCount())] 
+        choices = [remote_cb1.GetString(n)
+                   for n in range(remote_cb1.GetCount())]
         s1 = str(remote_cb1.GetValue())
         if not s1 in choices:
             choices.append(s1)
-        choices = [x for x in choices if len(x) > 0]            
+        choices = [x for x in choices if len(x) > 0]
         return choices
-        
+
     def OnChildFocus(self, evt):
         self.GetParent()._palette_focus = 'plot'
         evt.Skip()
@@ -909,7 +911,6 @@ class DlgPlotSol(SimpleFramePlus):
                 mfem_model = model.param.getvar('mfem_model')
                 mfem_model.local_sol_path = npath
             except BaseException:
-                import traceback
                 traceback.print_exc()
                 if model.variables.hasvar('solfiles'):
                     model.variables.delvar('solfiles')
@@ -935,7 +936,7 @@ class DlgPlotSol(SimpleFramePlus):
             #info (path, probes, dirnames)
             sol = model.solutions.get_child(name=str(v[0][1][0]))
             if sol is None:
-                tmp = os.path.expanduser(str(v[0][1][0]))                
+                tmp = os.path.expanduser(str(v[0][1][0]))
                 if os.path.exists(tmp):
                     owndir = tmp
                 else:
@@ -947,7 +948,7 @@ class DlgPlotSol(SimpleFramePlus):
 
             ss1 = self.local_sols[2][str(v[0][1][1])]
             ss1 = self.update_subdir_local(owndir, ss1)
-            self.local_soldir =owndir
+            self.local_soldir = owndir
             self.local_solsubdir = ss1
 
             self.load_sol_if_needed()
@@ -966,17 +967,17 @@ class DlgPlotSol(SimpleFramePlus):
 
             sol = model.solutions.get_child(name=str(v[0][2][1]))
             if sol is None:
-                tmp = os.path.expanduser(str(v[0][2][1]))                
+                tmp = os.path.expanduser(str(v[0][2][1]))
                 if os.path.exists(tmp):
                     owndir = tmp
                 else:
                     assert False, "Does not exits " + str(v[0][2][1])
             else:
                 owndir = sol.owndir()
-            
+
             if self.local_sols is None:
                 self.update_sollist_local2()
-                
+
             ss1 = self.local_sols[2][str(v[0][2][2])]
             ss1 = self.update_subdir_local(owndir, ss1)
             self.local_soldir = owndir
@@ -1029,7 +1030,7 @@ class DlgPlotSol(SimpleFramePlus):
         t = self.get_selected_plotmode()
         m = getattr(self, 'onInteg' + t)
         m(evt)
-        
+
     def onExport(self, evt):
         t = self.get_selected_plotmode()
         m = getattr(self, 'onExport' + t)
@@ -1040,6 +1041,7 @@ class DlgPlotSol(SimpleFramePlus):
         m = getattr(self, 'onExport2' + t)
         m(evt)
     '''
+
     def onExportR(self, evt):
         t = self.get_selected_plotmode()
         m1 = getattr(self, 'onExportR1' + t)
@@ -1073,9 +1075,9 @@ class DlgPlotSol(SimpleFramePlus):
             if attrs.strip().lower() != 'all':
                 attrs = [int(x) for x in attrs.split(',') if x.strip() != '']
             if t == 'Integral':
-                value = self.elps['Integral'].GetValue()        
+                value = self.elps['Integral'].GetValue()
                 kind = str(value[1]).strip()
-                return kinds[t].lower(), attrs                
+                return kinds[t].lower(), attrs
             else:
                 return kinds[t], attrs
         else:
@@ -1179,14 +1181,14 @@ class DlgPlotSol(SimpleFramePlus):
                     if np.iscomplexobj(yy):
                         v.plot(x[xidx], yy.real)
                     else:
-                        v.plot(x[xidx], yy)                        
+                        v.plot(x[xidx], yy)
                 else:
                     if cls is None:
                         v.plot(x[xidx], y[xidx])
                     else:
                         data = y[xidx].astype(complex, copy=False)
                         v.plot(x[xidx], data)
-                        
+
     def onExportEdge(self, evt):
         from petram.sol.evaluators import area_tri
 
@@ -1372,7 +1374,8 @@ class DlgPlotSol(SimpleFramePlus):
 
         cdata = []
         for s in subs:
-            if s.strip() == '': continue
+            if s.strip() == '':
+                continue
             if remote:
                 self.config['cs_soldir'] = base
                 self.config['cs_solsubdir'] = s
@@ -1507,7 +1510,7 @@ class DlgPlotSol(SimpleFramePlus):
                 pc_param,
                 cls=cls,
                 expr=expr)
-        
+
     def onExportPoints(self, evt):
         value = self.elps['Points'] .GetValue()
 
@@ -1628,7 +1631,6 @@ class DlgPlotSol(SimpleFramePlus):
             try:
                 attrs = list(np.atleast_1d(eval(attrs, ll, phys_ns)))
             except BaseException:
-                import traceback
                 traceback.print_exc()
                 assert False, "invalid selection: " + attrs
 
@@ -1943,14 +1945,15 @@ class DlgPlotSol(SimpleFramePlus):
 
     def onExportSlice(self, evt):
         self.onSliceCommon(evt, mode='export')
-        
+
     @run_in_piScope_thread
     def onExportR1Slice(self, evt):
         remote, base, subs = self.get_current_choices()
 
         dataset = []
         for s in subs:
-            if s.strip() == '': continue            
+            if s.strip() == '':
+                continue
             if remote:
                 self.config['cs_soldir'] = base
                 self.config['cs_solsubdir'] = s
@@ -1962,7 +1965,7 @@ class DlgPlotSol(SimpleFramePlus):
             data = self.onSliceCommon(evt, mode='export_return')
             if data is None:
                 assert False, "returned value is None ???"
-            
+
             dataset.append(data)
 
         self.post_threadend(self.export_to_piScope_shell,
@@ -1978,7 +1981,7 @@ class DlgPlotSol(SimpleFramePlus):
         wx.CallAfter(self.set_title_no_status)
 
     def onSliceCommon(self, evt, mode='plot'):
-        
+
         value = self.elps['Slice'] .GetValue()
 
         expr = str(value[0]).strip()
@@ -2002,7 +2005,7 @@ class DlgPlotSol(SimpleFramePlus):
                 return data
             else:
                 self.post_threadend(self.make_plot_slice, data, battrs,
-                                cls=cls, expr=expr)
+                                    cls=cls, expr=expr)
         elif value[1][0] == 'Grid':
             attrs = str(value[2])
             phys_path = value[3]
@@ -2022,19 +2025,19 @@ class DlgPlotSol(SimpleFramePlus):
             midy = (pc_param[4][0] + pc_param[4][1]) / 2.0
             xmin, xmax, xsize = pc_param[3]
             ymin, ymax, ysize = pc_param[4]
-            
+
             x = np.linspace(xmin, xmax, int((xmax - xmin) / xsize))
             y = np.linspace(ymin, ymax, int((ymax - ymin) / ysize))
 
             if mode == 'export':
                 data = {'data': data, 'x': x, 'y': y,
-                        'im_axes':im_axes, 'im_center': im_center}
+                        'im_axes': im_axes, 'im_center': im_center}
                 self.export_to_piScope_shell(data, 'slice_data')
             elif mode == 'export_return':
                 data = {'data': data, 'x': x, 'y': y,
-                        'im_axes':im_axes, 'im_center': im_center}                        
+                        'im_axes': im_axes, 'im_center': im_center}
                 return data
-            else:                                
+            else:
                 self.post_threadend(
                     self.make_plot_pc_slice,
                     data,
@@ -2043,7 +2046,7 @@ class DlgPlotSol(SimpleFramePlus):
                     x, y, im_axes, im_center,
                     cls=cls,
                     expr=expr)
-        
+
     def make_plot_slice(self, data, battrs, cls=None, expr=''):
         from ifigure.interactive import figure
         v = figure(viewer=cls)
@@ -2081,7 +2084,6 @@ class DlgPlotSol(SimpleFramePlus):
         viewer.update(False)
         setup_figure(viewer, self.GetParent())
         viewer.suptitle(expr + ':' + str(attrs))
-
 
         viewer.threed('on')
         if cls is None:
@@ -2131,31 +2133,31 @@ class DlgPlotSol(SimpleFramePlus):
     '''
     integral
     '''
-    @run_in_piScope_thread    
+    @run_in_piScope_thread
     def onApplyIntegral(self, evt):
         expr, value, kind, idx, order = self.eval_integral()
         if value is not None:
-             data = {'value': value,
-                     'kind': kind,
-                     'order': order,
-                     'idx': idx,
-                     'expr': expr,}
-             self.post_threadend(self.export_to_piScope_shell,
-                                 data, 'integral_data')
-             self.post_threadend(print,
-                                 "Integrated value", data['value'])
-             
+            data = {'value': value,
+                    'kind': kind,
+                    'order': order,
+                    'idx': idx,
+                    'expr': expr, }
+            self.post_threadend(self.export_to_piScope_shell,
+                                data, 'integral_data')
+            self.post_threadend(print,
+                                "Integrated value", data['value'])
+
     def get_attrs_field_Integral(self):
         return 2
 
     def eval_integral(self):
-        value = self.elps['Integral'] .GetValue()        
+        value = self.elps['Integral'] .GetValue()
         expr = str(value[0]).strip()
         kind = str(value[1]).strip()
         attrs = str(value[2])
         order = int(value[3])
         phys_path = str(value[4]).strip()
-        
+
         value = self.evaluate_sol_integral(expr, kind, attrs, order, phys_path)
         return expr, value, kind, attrs, order
     '''
@@ -2233,7 +2235,6 @@ class DlgPlotSol(SimpleFramePlus):
             try:
                 battrs = list(np.atleast_1d(eval(battrs, ll, phys_ns)))
             except BaseException:
-                import traceback
                 traceback.print_exc()
                 assert False, "invalid selection: " + battrs
 
@@ -2258,11 +2259,20 @@ class DlgPlotSol(SimpleFramePlus):
                 self.evaluators[key].failed):
             if key in self.evaluators:
                 self.evaluators[key].terminate_all()
-            self.evaluators[key] = build_evaluator(battrs,
-                                                   mfem_model,
-                                                   solfiles,
-                                                   name=name,
-                                                   config=self.config)
+            try:
+                self.evaluators[key] = build_evaluator(battrs,
+                                                       mfem_model,
+                                                       solfiles,
+                                                       name=name,
+                                                       config=self.config)
+            except:
+                wx.CallAfter(dialog.showtraceback, parent=self,
+                             txt='Failed to build evaluator',
+                             title='Error',
+                             traceback=''.join(traceback.format_exception_only(
+                                 sys.exc_info()[0], sys.exc_info()[1])))
+                wx.CallAfter(self.set_title_no_status)
+                return None, None
 
             self.evaluators[key].validate_evaluator(name,
                                                     battrs,
@@ -2273,7 +2283,6 @@ class DlgPlotSol(SimpleFramePlus):
             return self.evaluators[key].eval(expr, do_merge1, do_merge2,
                                              **kwargs)
         except BaseException:
-            import traceback
             traceback.print_exc()
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Failed to evauate expression',
@@ -2326,7 +2335,6 @@ class DlgPlotSol(SimpleFramePlus):
             try:
                 battrs = list(np.atleast_1d(eval(battrs, ll, phys_ns)))
             except BaseException:
-                import traceback
                 traceback.print_exc()
                 assert False, "invalid selection: " + battrs
 
@@ -2353,12 +2361,22 @@ class DlgPlotSol(SimpleFramePlus):
                 self.evaluators[key].failed):
             if key in self.evaluators:
                 self.evaluators[key].terminate_all()
-            self.evaluators[key] = build_evaluator(battrs,
-                                                   mfem_model,
-                                                   solfiles,
-                                                   name=name,
-                                                   config=self.config,
-                                                   decimate=decimate)
+            try:
+                self.evaluators[key] = build_evaluator(battrs,
+                                                       mfem_model,
+                                                       solfiles,
+                                                       name=name,
+                                                       config=self.config,
+                                                       decimate=decimate)
+            except:
+                wx.CallAfter(dialog.showtraceback, parent=self,
+                             txt='Failed to build evaluator',
+                             title='Error',
+                             traceback=''.join(traceback.format_exception_only(
+                                 sys.exc_info()[0], sys.exc_info()[1])))
+                wx.CallAfter(self.set_title_no_status)
+                return None, None
+
             self.evaluators[key].validate_evaluator(name,
                                                     battrs,
                                                     solfiles, isFirst=True,
@@ -2369,7 +2387,6 @@ class DlgPlotSol(SimpleFramePlus):
             return self.evaluators[key].eval(expr, do_merge1, do_merge2,
                                              **kwargs)
         except BaseException:
-            import traceback
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Failed to evauate expression',
                          title='Error',
@@ -2413,12 +2430,22 @@ class DlgPlotSol(SimpleFramePlus):
                 self.evaluators[key].failed):
             if key in self.evaluators:
                 self.evaluators[key].terminate_all()
-            self.evaluators[key] = build_evaluator(attrs,
-                                                   mfem_model,
-                                                   solfiles,
-                                                   name=name,
-                                                   config=self.config,
-                                                   **kwargs)
+
+            try:
+                self.evaluators[key] = build_evaluator(attrs,
+                                                       mfem_model,
+                                                       solfiles,
+                                                       name=name,
+                                                       config=self.config,
+                                                       **kwargs)
+            except:
+                wx.CallAfter(dialog.showtraceback, parent=self,
+                             txt='Failed to build evaluator',
+                             title='Error',
+                             traceback=''.join(traceback.format_exception_only(
+                                 sys.exc_info()[0], sys.exc_info()[1])))
+                wx.CallAfter(self.set_title_no_status)
+                return None, None
 
             self.evaluators[key].validate_evaluator(name,
                                                     attrs,
@@ -2429,7 +2456,6 @@ class DlgPlotSol(SimpleFramePlus):
             self.evaluators[key].set_phys_path(phys_path)
             return self.evaluators[key].eval_pointcloud(expr)
         except BaseException:
-            import traceback
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Failed to evauate expression',
                          title='Error',
@@ -2509,12 +2535,22 @@ class DlgPlotSol(SimpleFramePlus):
 
             if 'Slice' in self.evaluators:
                 self.evaluators['Slice'].terminate_all()
-            self.evaluators['Slice'] = build_evaluator(attrs,
-                                                       mfem_model,
-                                                       solfiles,
-                                                       name='Slice',
-                                                       config=self.config,
-                                                       plane=plane)
+
+            try:
+                self.evaluators['Slice'] = build_evaluator(attrs,
+                                                           mfem_model,
+                                                           solfiles,
+                                                           name='Slice',
+                                                           config=self.config,
+                                                           plane=plane)
+            except:
+                wx.CallAfter(dialog.showtraceback, parent=self,
+                             txt='Failed to build evaluator',
+                             title='Error',
+                             traceback=''.join(traceback.format_exception_only(
+                                 sys.exc_info()[0], sys.exc_info()[1])))
+                wx.CallAfter(self.set_title_no_status)
+                return None, None
 
             self.evaluators['Slice'].validate_evaluator('Slice', attrs,
                                                         solfiles, isFirst=True,
@@ -2536,15 +2572,15 @@ class DlgPlotSol(SimpleFramePlus):
 
             wx.CallAfter(self.set_title_no_status)
         return None, None
-    
+
     def evaluate_sol_integral(self, expr, kind, attrs, order, phys_path):
         model = self.GetParent().model
-        solfiles = self.get_model_soldfiles()        
+        solfiles = self.get_model_soldfiles()
         mfem_model = model.param.getvar('mfem_model')
 
         phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
         mesh = model.variables.getvar('mesh')
-        
+
         if attrs != 'all':
             try:
                 attrs = list(np.atleast_1d(eval(attrs, {}, phys_ns)))
@@ -2556,26 +2592,36 @@ class DlgPlotSol(SimpleFramePlus):
                 if kind == 'Domain':
                     attrs = list(mesh.extended_connectivity['vol2surf'])
                 else:
-                    attrs = list(mesh.extended_connectivity['surf2line'])                    
+                    attrs = list(mesh.extended_connectivity['surf2line'])
             elif mesh.Dimension() == 2:
-                if kind == 'Domain':                
+                if kind == 'Domain':
                     attrs = list(mesh.extended_connectivity['surf2line'])
                 else:
-                    attrs = list(mesh.extended_connectivity['line2vert'])                                
-            elif mesh.Dimension() == 1:                                
-                attrs = list(mesh.extended_connectivity['line2vert'])            
+                    attrs = list(mesh.extended_connectivity['line2vert'])
+            elif mesh.Dimension() == 1:
+                attrs = list(mesh.extended_connectivity['line2vert'])
             else:
                 assert False, "unsupported mesh dimension"
-            
+
         from petram.sol.evaluators import build_evaluator
 
         if 'Integral' in self.evaluators:
             self.evaluators['Integral'].terminate_all()
-        self.evaluators['Integral'] = build_evaluator(attrs,
-                                                   mfem_model,
-                                                   solfiles,
-                                                   name='Integral',
-                                                   config=self.config)
+
+        try:
+            self.evaluators['Integral'] = build_evaluator(attrs,
+                                                          mfem_model,
+                                                          solfiles,
+                                                          name='Integral',
+                                                          config=self.config)
+        except:
+            wx.CallAfter(dialog.showtraceback, parent=self,
+                         txt='Failed to build evaluator',
+                         title='Error',
+                         traceback=''.join(traceback.format_exception_only(
+                             sys.exc_info()[0], sys.exc_info()[1])))
+            wx.CallAfter(self.set_title_no_status)
+            return None
 
         try:
             if model.variables.getvar('remote_soldir') is None:
@@ -2609,11 +2655,21 @@ class DlgPlotSol(SimpleFramePlus):
 
         if 'Probe' in self.evaluators:
             self.evaluators['Probe'].terminate_all()
-        self.evaluators['Probe'] = build_evaluator(attrs,
-                                                   mfem_model,
-                                                   solfiles,
-                                                   name='Probe',
-                                                   config=self.config)
+
+        try:
+            self.evaluators['Probe'] = build_evaluator(attrs,
+                                                       mfem_model,
+                                                       solfiles,
+                                                       name='Probe',
+                                                       config=self.config)
+        except:
+            wx.CallAfter(dialog.showtraceback, parent=self,
+                         txt='Failed to build evaluator',
+                         title='Error',
+                         traceback=''.join(traceback.format_exception_only(
+                             sys.exc_info()[0], sys.exc_info()[1])))
+            wx.CallAfter(self.set_title_no_status)
+            return None
 
         try:
             if model.variables.getvar('remote_soldir') is None:
