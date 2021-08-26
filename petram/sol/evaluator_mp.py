@@ -127,6 +127,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
 
                 elif task[0] == 2: # (2, solfiles) = set_solfiles
                     self.set_solfiles(task[1])
+                    value = (self.myid, len(self.solfiles), None)
 
                 elif task[0] == 3: # (3, mfem_model) = set_model
                     self.set_model(task[1])
@@ -177,13 +178,8 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                                       stream=sys.stdout).sort_stats('cumulative')
                     ps.print_stats()
 
-                if task[0] == 7:
-                    self.result_queue.put(value)
-                if task[0] == 8:
-                    self.result_queue.put(value)
-                if task[0] == 10:
-                    self.result_queue.put(value)
-                if task[0] == 11:
+
+                if task[0] in [2, 7, 8, 10, 11]:
                     self.result_queue.put(value)
                     
                 if self.use_stringio:
@@ -206,7 +202,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             self.solfiles = s
         else:
             self.solfiles = None
-            
+
     def set_model(self, model_path):
         try:
             from petram.engine import SerialEngine
@@ -432,14 +428,21 @@ class EvaluatorMP(Evaluator):
     def set_solfiles(self, solfiles):
         self.solfiles = solfiles
         self.tasks.put((2, solfiles))
+        res = [self.results.get() for x in range(len(self.workers))]
+        for x in range(len(self.workers)):
+            self.results.task_done()
+
+        for v, c, a in res: # handle (myid, error, message)
+            if c is None and v is not None:
+                assert False, "solfiles is None"
 
     def make_agents(self, name, params, **kwargs):
         super(EvaluatorMP, self).make_agents(name, params, **kwargs)
         self.tasks.put((1, name, params, kwargs))
-        
+
     def load_solfiles(self, mfem_mode = None):
         self.tasks.put((4, ), join = True)
-        
+
     def set_phys_path(self, phys_path):
         self.tasks.put((5, phys_path))
         
