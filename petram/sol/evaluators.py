@@ -157,7 +157,13 @@ class EvaluatorCommon(Evaluator):
         ### Setting _emesh_idx from emesh_idx in GridFunction
         for phys in phys_root:
             vnames = phys_root[phys].dep_vars
-            gf_var = solvars[0][vnames[0]]
+            gf_var = None
+            for name in vnames:
+                if name not in solvars[0]: continue
+                gf_var = solvars[0][name]
+                break
+
+            assert gf_var is not None, "FiniteSpaceVariable is not found here"
             gf_real, gf_imag = gf_var.deriv_args
             eidx = gf_real._emesh_idx if gf_real is not None else gf_imag._emesh_idx
             phys_root[phys]._emesh_idx = eidx
