@@ -365,7 +365,14 @@ class MeshFile(MeshGenerator):
 
     def use_relative_path(self):
         self._path_bk = self.path
-        self.path = os.path.basename(self.get_real_path())
+
+        try:
+            self.path = os.path.basename(self.get_real_path())
+        except AssertionError as error:
+            if error.args[0].startswith("Mesh file does not exist :"):
+               pass
+        except BaseException:
+            raise
 
     def restore_fullpath(self):
         self.path = self._path_bk
