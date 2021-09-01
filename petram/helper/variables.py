@@ -586,8 +586,8 @@ class DomainVariable(Variable):
     def add_const(self, value, domains, gdomain):
         domains = sorted(domains)
 
-        #self.domains[tuple(domains)] = Constant(value)
-        self.domains[tuple(domains)] = value
+        self.domains[tuple(domains)] = Constant(value)
+        #self.domains[tuple(domains)] = value
         self.gdomains[tuple(domains)] = gdomain
         if np.iscomplexobj(value):
             self.complex = True
@@ -625,8 +625,9 @@ class DomainVariable(Variable):
             idx = []
         for domains in self.domains.keys():
             expr = self.domains[domains]
-            gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
-            idx = expr.get_emesh_idx(idx=idx, g=gdomain)
+            if isinstance(expr, Variable):            
+                gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
+                idx.extend(expr.get_emesh_idx(idx=idx, g=gdomain))
         return idx
 
     def nodal_values(self, iele=None, elattr=None, g=None,
@@ -1865,8 +1866,8 @@ def add_constant(solvar, name, suffix, value, domains=None,
     elif bdrs is not None:
         pass
     else:
-        #solvar[name + suffix] = Constant(value)
-        solvar[name + suffix] = value
+        solvar[name + suffix] = Constant(value)
+        #solvar[name + suffix] = value
 
 
 def add_surf_normals(solvar, ind_vars):
