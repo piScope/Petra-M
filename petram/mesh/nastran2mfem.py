@@ -114,6 +114,9 @@ class NASReader(object):
             if int(ll % num_lines_base) == 0:
                print(str(int(ll/num_lines_base)*5) + "% done.(" + str(ll) + ")")
         print("reading elements   (done)")
+        for key in elems:
+            if len(elems[key]) > 0:
+                print(str(len(elems[key])) + " elements of " + key)
         new_elems = {}
         if len(elems['TETRA']) > 0:
             TETRA = np.vstack([np.array((int(g[3]), int(g[4]), int(g[5]), int(g[6]),))
@@ -282,7 +285,8 @@ class NASReader(object):
 #        cards= [l[d*i:d*(i+1)].strip() for i in range(2)]
         return cards
 
-def write_nas2mfem(filename,  reader, exclude_bdr = None, offset=None):
+def write_nas2mfem(filename,  reader, exclude_bdr = None, offset=None,
+                   skip_unused_bdry=True):
 
         geom_type = {'TETRA': 4,
                      'TRIA6': 2,
@@ -308,16 +312,24 @@ def write_nas2mfem(filename,  reader, exclude_bdr = None, offset=None):
 
         grid = data['GRIDS']
         elems = data['ELEMS']
-        
+
         el_3d = ['TETRA','HEXA']
         if 'TETRA' in elems:
             el_2d = ['TRIA6','TRIA3']
         else:
             el_2d = ['QUAD8','QUAD4']
 
-        unique_grids = list(np.unique(np.hstack([elems[name].flatten() for name in el_3d+el_2d if name in elems])))
-        print('unique_grid (done)')
+        n3d = np.sum([len(elems[x]) for x in el_3d if x in elems])
+
+        if n3d > 0:
+            unique_grids = list(np.unique(np.hstack([elems[name].flatten()
+                                                     for name in el_3d if name in elems])))
+        else:
+            unique_grids = list(np.unique(np.hstack([elems[name].flatten()
+                                                     for name in el_2d if name in elems])))
         nvtc = len(unique_grids)
+        print('unique_grid (done)....' + str(nvtc))
+        
         ndim = grid.shape[-1]
         nelem = 0
         nbdry = 0
@@ -326,8 +338,7 @@ def write_nas2mfem(filename,  reader, exclude_bdr = None, offset=None):
             if k in el_3d: nelem = nelem + len(elems[k+'_ATTR'])
             if k in el_2d:
                 tmp = [x for x in elems[k+'_ATTR'] if not x in exclude_bdr]
-                nbrdy = nbdry + len(tmp)
-        
+                nbdry = nbdry + len(tmp)
         
         fid.write('MFEM mesh v1.0\n')
         fid.write('\n')
@@ -350,32 +361,66 @@ def write_nas2mfem(filename,  reader, exclude_bdr = None, offset=None):
                 txt.extend([str(rev_map[x]) for x in vidx[i]])
                 txts[i] = ' '.join(txt)
             fid.write('\n'.join(txts))
-        fid.write('\n')                
-        fid.write('boundary\n')
-        fid.write(str(nbrdy) + '\n')
+        fid.write('\n')
+
+        # count valid 2d elements
+        # sometimes .nas contains a boundary element which are not used
+        # in 3D mesh. By default we skip this
+
+        bdry_checks = {}
+        bdry_flags = {}
         for name in el_2d:
-            if not name in elems: continue
+            if not name in elems:
+                continue
             vidx = elems[name]
+            ss = vidx.shape
+            bdry_check = (np.in1d(vidx, unique_grids)).reshape(ss)
+            bdry_flag = [len(x) == np.sum(x) for x in bdry_check]
+            bdry_checks[name] = bdry_check
+            bdry_flags[name] = bdry_flag
+
+        n_validbdry = np.sum([np.sum(bdry_flags[x]) for x in bdry_flags])
+            
+        fid.write('boundary\n')
+        fid.write(str(n_validbdry) + '\n')
+
+        print("number of bdry in file:", nbdry)
+        print("number of used bdry in file:", n_validbdry)
+        for name in el_2d:
+            if not name in elems:
+                continue
+                  
+            vidx = elems[name]
+
             attr = elems[name+'_ATTR']
             gtyp = geom_type[name]
-            txts = [None]*len(attr)
-            for i in range(len(attr)):
-                if attr[i] in exclude_bdr: continue
-                txt = [str(attr[i]), str(gtyp)]
+            txts = [None]*n_validbdry
 
+            bdry_flag = bdry_flags[name]
+            k = 0
+            for i in range(len(attr)):
+                if attr[i] in exclude_bdr:
+                    continue
+                if not bdry_flag[i]:
+                    continue
+                txt = [str(attr[i]), str(gtyp)]
 #                txt.extend([str(unique_grids.index(x)) for x in vidx[i]])
                 txt.extend([str(rev_map[x]) for x in vidx[i]])
-                txts[i] = ' '.join(txt)
-            fid.write('\n'.join(txts))                
-        fid.write('\n')                
+                txts[k] = ' '.join(txt)
+                k = k + 1
+                
+            fid.write('\n'.join(txts))             
+        fid.write('\n')
+        print("Writing vertices", nvtc)
         fid.write('vertices\n')
-        fid.write(str(nvtc) + '\n')                        
+        fid.write(str(nvtc) + '\n')                    
         fid.write(str(ndim) + '\n')
         txts = [None]*nvtc
         for i in range(nvtc):
             txt = [str(x+offset[kk]) for kk, x in enumerate(grid[unique_grids[i]])]
             txts[i] = ' '.join(txt)
         fid.write('\n'.join(txts))
+        print("Done")
         fid.close()
 
         
