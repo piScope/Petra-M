@@ -163,11 +163,16 @@ class EvaluatorCommon(Evaluator):
                 gf_var = solvars[0][name]
                 break
 
-            assert gf_var is not None, "FiniteSpaceVariable is not found here"
-            gf_real, gf_imag = gf_var.deriv_args
-            eidx = gf_real._emesh_idx if gf_real is not None else gf_imag._emesh_idx
-            phys_root[phys]._emesh_idx = eidx
-            #print("setting emesh_idx from gridfunction", phys, eidx)
+            if gf_var is not None:
+                gf_real, gf_imag = gf_var.deriv_args
+                eidx = gf_real._emesh_idx if gf_real is not None else gf_imag._emesh_idx
+                phys_root[phys]._emesh_idx = eidx
+            else:
+                # For this variable, correnspoinding GridFunction does not exists.
+                # This happens when solution does not exists for a particular variable.
+                # We are not plotting this anyway. But we need to set something
+                # instead of stopping it here.
+                phys_root[phys]._emesh_idx = -1
         
         pp_root = self.mfem_model()["PostProcess"]        
         solvars = pp_root.add_solvars(solsets.set, solvars)
