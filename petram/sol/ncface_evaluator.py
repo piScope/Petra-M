@@ -101,14 +101,26 @@ class NCFaceEvaluator(EvaluatorAgent):
         self.ifaces = []
 
         if mesh.Dimension() == 3:
+            def f1(ibele):
+                iface, o = mesh.GetBdrElementFace(ibele)
+                e1 = mesh.GetFaceElementTransformations(iface).Elem1No
+                return mesh.GetAttribute(e1)
+            def f2(ibele):
+                iface, o = mesh.GetBdrElementFace(ibele)
+                e2 = mesh.GetFaceElementTransformations(iface).Elem2No
+                if e2 >= 0:
+                    return mesh.GetAttribute(e2)
+                else:
+                    return -1
+            
             getface = mesh.GetBdrElementFace
             gettrans = mesh.GetBdrElementTransformation            
             getarray = mesh.GetBdrArray
             getelement = mesh.GetBdrElement
             getbasegeom = mesh.GetBdrElementBaseGeometry
             getvertices = mesh.GetBdrElementVertices
-            getattr1 = lambda x: mesh.GetFaceElementTransformations(x).Elem1No
-            getattr2 = lambda x: mesh.GetFaceElementTransformations(x).Elem2No
+            getattr1 = f1
+            getattr2 = f2
             
         elif mesh.Dimension() == 2:
             getface = lambda x: (x, 1)
@@ -151,13 +163,25 @@ class NCFaceEvaluator(EvaluatorAgent):
                 RefG = GR.Refine(gtype, self.refine)
                 ir = RefG.RefPts                
                 npt = ir.GetNPoints()
-                ele = np.array(RefG.RefGeoms.ToList()).reshape(-1, len(verts))
+                ele0 = np.array(RefG.RefGeoms.ToList()).reshape(-1, len(verts))
                 gtype_st = gtype
                 self.irs[gtype] = ir
 
+                # we handle quad as two triangles to handle mixed element case
+                ele = []
+                for eee in ele0:
+                    if len(eee) == 3:
+                        ele.append(eee)
+                    elif len(eee) == 4:
+                        x = eee[:-1]
+                        y = np.array([eee[0], eee[2], eee[3]])
+                        ele.extend([x, y])
+                ele = np.array(ele)
+                
             T = gettrans(i)
             pt = np.vstack([T.Transform(ir.IntPoint(j)) for j in range(npt)])
             ptx.append(pt)
+
             ridx.append(ele + nele)
             nele = nele + ir.GetNPoints()
             ifaces.append(iface)

@@ -5,7 +5,7 @@
 '''
 import os
 import numpy as np
-
+from abc import abstractmethod
 
 from petram.phys.phys_model import Phys
 from petram.model import Domain, Bdry, Edge, Point, Pair
@@ -49,14 +49,14 @@ bilinintegs = get_integrators('BilinearOps')
 linintegs = get_integrators('LinearOps')
     
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
-         guilabel = "lambda", default = 0.0, tip = "coefficient",))]
+         guilabel="lambda", default=0.0, tip="coefficient",))]
 
 class WeakIntegration(Phys):
     vt_coeff = Vtable(data)
     def attribute_set(self, v):
         v['use_src_proj'] = False
         v['use_dst_proj'] = False
-        v['coeff_type'] = 'S'
+        v['coeff_type'] = 'Scalar'
         v['integrator'] = 'MassIntegrator'
         v['test_idx'] = 0     #(index)
         self.vt_coeff.attribute_set(v)
@@ -75,15 +75,20 @@ class WeakIntegration(Phys):
     def panel1_tip(self):
         pass
 
+    def itg_choice_cb(self):
+        names = [x[0] for x in self.itg_choice()]
+        return names
+     
     def panel1_param(self):
         import wx       
-        p = ["coeff. type", "S", 4,
+        p = ["coeff. type", "Scalar", 4,
              {"style":wx.CB_READONLY, "choices": ["Scalar", "Vector", "Diagonal", "Matrix"]}]
 
         names = [x[0] for x in self.itg_choice()]
         p2 = ["integrator", names[0], 4,
-              {"style":wx.CB_READONLY, "choices": names}]
-        
+              {"style":wx.CB_READONLY, "choices": names,
+               "choices_cb": self.itg_choice_cb}]
+
         dep_vars = self.get_root_phys().dep_vars             
         panels = self.vt_coeff.panel_param(self)
         ll = [["test space (Rows)", dep_vars[0], 4,
@@ -120,48 +125,29 @@ class WeakIntegration(Phys):
             dprint1("Add "+self.integrator+ " contribution(imag)" + str(self._sel_index), "c", c)
 
         cotype = self.coeff_type[0]
+        use_dual = False
+        for b in self.itg_choice():
+            if b[0] == self.integrator:
+               use_dual = "S*2" in b[3]
+               break
 
-        if self.get_root_phys().vdim > 1:
-            dim = self.get_root_phys().vdim
+        c_coeff = self.get_coefficient_from_expression(c, cotype,
+                                                       use_dual=use_dual,
+                                                       real=real,
+                                                       is_conj=is_conj)
+
+        if self.integrator == 'DerivativeIntegrator1':
+            integrator = getattr(mfem, 'DerivativeIntegrator')
+            c_coeff = (c_coeff, 0)
+        elif self.integrator == 'DerivativeIntegrator2':
+            integrator = getattr(mfem, 'DerivativeIntegrator')
+            c_coeff = (c_coeff, 1)
+        elif self.integrator == 'DerivativeIntegrator3':
+            integrator = getattr(mfem, 'DerivativeIntegrator')
+            c_coeff = (c_coeff, 2)
         else:
-            el_name = self.get_root_phys().element
-            dim = self.get_root_phys().geom_dim
-            '''
-            if el_name.startswith("ND"):
-                dim = self.get_root_phys().geom_dim            
-            elif el_name.startswith("RT"):
-                dim = self.get_root_phys().geom_dim
-            else:
-                dim = 1  #H1 scalar (this case does not exist..)
-            '''
-        if cotype == 'S':
-             for b in self.itg_choice():
-                if b[0] == self.integrator: break
-             if not "S*2" in b[3]:
-                 c_coeff = SCoeff(c,  self.get_root_phys().ind_vars,
-                              self._local_ns, self._global_ns,
-                              real = real, conj=is_conj)
-             else: # so far this is only for an elastic integrator 
-                 c_coeff = (SCoeff(c,  self.get_root_phys().ind_vars,
-                                   self._local_ns, self._global_ns,
-                                   real = real, conj=is_conj, component=0),
-                            SCoeff(c,  self.get_root_phys().ind_vars,
-                                   self._local_ns, self._global_ns,
-                                   real = real, conj=is_conj, component=1))
-        elif cotype == 'V':
-             c_coeff = VCoeff(dim, c,  self.get_root_phys().ind_vars,
-                              self._local_ns, self._global_ns,
-                              real = real, conj=is_conj)
-        elif cotype == 'M':
-             c_coeff = MCoeff(dim, c,  self.get_root_phys().ind_vars,
-                              self._local_ns, self._global_ns,
-                              real = real, conj=is_conj)
-        elif cotype == 'D':
-             c_coeff = DCoeff(dim, c,  self.get_root_phys().ind_vars,
-                              self._local_ns, self._global_ns,
-                              real = real, conj=is_conj)
+            integrator = getattr(mfem, self.integrator)
 
-        integrator = getattr(mfem, self.integrator)
         if isinstance(self, Bdry):
             #print "Bdry Integrator"
             adder = a.AddBoundaryIntegrator
@@ -172,8 +158,6 @@ class WeakIntegration(Phys):
             assert False, "this class is not supported in weakform"
         self.add_integrator(engine, 'c', c_coeff,
                             adder, integrator, transpose=is_trans)
-
-        
         
     def add_bf_contribution(self, engine, a, real = True, kfes=0):
         self.add_contribution(engine, a, real = real)
@@ -182,7 +166,8 @@ class WeakIntegration(Phys):
     def add_mix_contribution2(self, engine, mbf, r, c,  is_trans, is_conj,
                               real = True):
         self.add_contribution(engine, mbf, real=real, is_trans=is_trans, is_conj=is_conj)
-        
+
+    @abstractmethod        
     def itg_choice(self):
         return []
      
@@ -191,17 +176,66 @@ class WeakLinIntegration(WeakIntegration):
         return self.test_idx == kfes
      
     def itg_choice(self):
-        t = self.get_root_phys().fes_type
+        t = self.get_root_phys().get_fec_type(self.test_idx)
         if len(t)>2 and t[2] == "v":
            t = t[:3]
-        return [b for b in linintegs if t in b[1]]
+        bb = [b for b in linintegs if t in b[1]]
+        
+        if (t == 'RT' and self.get_root_phys().dim == 2 and
+            self.get_root_phys().geom_dim == 3):
+            t = 'L2'
+            bb = bb + [b for b in linintegs if t in b[1]]            
+        
+        dim = self.dim
+        bb = [b for b in bb if dim in b[4]]
+
+        return bb
      
 class WeakBilinIntegration(WeakIntegration):
     def itg_choice(self):
-        t = self.get_root_phys().fes_type
+        t = self.get_root_phys().get_fec_type(self.test_idx)
         if len(t)>2 and t[2] == "v":
            t = t[:3]
-        return [b for b in bilinintegs if t in b[2]]
+        bb = [b for b in bilinintegs if t in b[2]]
+        
+        # adjust choices for RT-Trace (I need this to have MassIntegrator in menu)
+        if (t == 'RT' and self.get_root_phys().dim == 2 and
+            self.get_root_phys().geom_dim == 3):
+            t = 'L2'
+            bb = bb + [b for b in bilinintegs if t in b[2]]            
+        
+        if self.paired_var is not None:
+            paired_name, paired_idx = self.paired_var
+        else:
+            paired_name = self.get_root_phys().name()
+            paired_idx = 0
+
+        if paired_name in self.get_root_phys().parent:
+            phys1 = (self.get_root_phys().parent)[paired_name]
+            fes_idx1 = paired_idx
+
+            from petram.helper.projection import find_fes_mapping
+            t2, _order = find_fes_mapping(phys1, fes_idx1,
+                                          self.get_root_phys(), self.test_idx)
+            #t2 = (self.get_root_phys().parent)[paired_name].get_fec_type(paired_idx)
+            if len(t2)>2 and t2[2] == "v":
+                t2 = t2[:3]
+            else:
+               t2 = t2[:2]
+            bb2 = [b for b in bb if t2 in b[1]]
+        
+            # adjust choices for RT-Trace            
+            if (t2 == 'RT' and self.get_root_phys().dim == 2 and
+                self.get_root_phys().geom_dim == 3):
+                t2 = 'L2'
+                bb2 = bb2 + [b for b in bb if t2 in b[1]]
+        else:
+            bb2 =bb
+        dim = self.dim
+
+        bb = [b for b in bb2 if dim in b[4]]
+
+        return bb
    
     def attribute_set(self, v):
         v = super(WeakBilinIntegration, self).attribute_set(v)
@@ -294,7 +328,10 @@ class WeakBilinIntegration(WeakIntegration):
              loc.append((testname, trialname, -1, 1))
 
         return loc
-           
+
+    def get_projection(self):
+        return 1
+
 def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=False):
     self = obj
     c = self.vt_coeff.make_value_or_expression(self)[0]
@@ -312,17 +349,17 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
     else:
         el_name = self.get_root_phys().element
         dim = self.get_root_phys().geom_dim
-    sdim = self.get_root_phys().geom_dim        
- 
+    sdim = self.get_root_phys().geom_dim
+
     integrator = getattr(mfem, self.integrator)
     adder = a.AddDomainIntegrator
-            
+
     for pos in self.pos_value:
         args = list(pos[:sdim])
         if cotype == 'S':
              for b in self.itg_choice():
                 if b[0] == self.integrator: break
-               
+
              if not "S*2" in b[3]:
                  if isinstance(c[0], str):
                       c_coeff = None                    
@@ -344,10 +381,10 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
                          assert False, "This option needs update of PyMFEM"
                          d2 = mfem.ProductCoefficient(c_coeff, d)
                          d2._linked_c = (c_coeff, d)
-                         adder(integrator(d2))                         
+                         adder(integrator(d2))
                      else:
                          adder(integrator(d))
-                     
+
              else: # so far this is only for an elastic integrator
                  if real:
                      args.append(float(np.array(c)[0].real))
@@ -359,20 +396,20 @@ def add_delta_contribution(obj, engine, a, real = True, is_trans=False, is_conj=
                  else:
                      args.append(float(np.array(c)[1].imag))
                  d2 = mfem.DeltaCoefficient(*args)
-                 adder(integrator(d1, d2))                 
+                 adder(integrator(d1, d2))
 
         elif cotype == 'V':
             if real:
                 direction = np.array(c).real
             else:
-                direction = np.array(c).imag              
+                direction = np.array(c).imag
             args.append(1.0)
             dir = mfem.Vector(direction)
             d = mfem.VectorDeltaCoefficient(dir, *args)
-            adder(integrator(d))            
+            adder(integrator(d))
         else:
             assert False, "M and D are not supported for delta coefficient"
-        
+
 def validate_sel(value, obj, w):
     g = obj._global_ns
     try:

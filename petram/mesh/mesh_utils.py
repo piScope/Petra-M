@@ -398,9 +398,13 @@ def find_edge_corner(mesh):
 
     vert2vert = {iv: iu-myoffsetv for iv, iu in zip(ivert, u_own)}
     #nicePrint('vert2vert', vert2vert)
+
+    vv_values = np.array([x[1] for x in vert2vert.items()])
+    vv_keys = np.array([x[0] for x in vert2vert.items()])
     
     # mapping line index to vertex index (not MFFEM vertex id)
     line2vert = {}
+
     #nicePrint(corners)
     for j, key in enumerate(sorted_key):
         data = corners[key] if key in corners else None
@@ -418,8 +422,14 @@ def find_edge_corner(mesh):
         else:
             data = np.array(data, dtype=int)                        
         data = list(data - myoffsetv)
+
+        line2vert[j+1] = list(vv_keys[np.in1d(vv_values, data)])
+
+        '''
+        (this was origial very slow)
         line2vert[j+1] = [k for k in vert2vert
                           if vert2vert[k] in data]
+        '''
 
     # finish-up edge data
     if use_parallel:
@@ -685,10 +695,14 @@ def get_extended_connectivity(mesh):
     else:
         lp = bdr_loop(mesh)        
         v2s = None; s2l = None
-        l2e = {k:k for k in lp.keys()}
+        attrs = mesh.GetAttributeArray()        
+        l2e = {k:list(np.where(attrs==k)[0]) for k in lp.keys()}
         l2v = bdr_loop(mesh)
         v = np.unique(np.hstack([lp[k] for k in lp.keys()]))
-        v2v = {k:k for k in v}
+        battrs = mesh.GetBdrAttributeArray()
+        v2v = {battr:mesh.GetBdrElementVertices(k)[0]
+               for k, battr in enumerate(battrs)}
+        
     from mfem.common.mpi_debug import nicePrint, niceCall                
     #nicePrint('s2l', s2l)
     mesh.extended_connectivity = {}
@@ -698,7 +712,23 @@ def get_extended_connectivity(mesh):
     me['line2edge'] = l2e
     me['line2vert'] = l2v
     me['vert2vert'] = v2v
+
+def get_reverse_connectivity(mesh):
+    def reverse_dict(d):
+        dd = defaultdict(list)        
+        for k in d:
+            for v in d[k]:
+                dd[v].append(k)
+        return dict(dd)
     
+    me = mesh.extended_connectivity
+    if me['vol2surf'] is not None:
+        me['surf2vol'] = reverse_dict(me['vol2surf'])
+    if me['surf2line'] is not None:
+        me['line2surf'] = reverse_dict(me['surf2line'])
+    if me['line2vert'] is not None:
+        me['vert2line'] = reverse_dict(me['line2vert'])        
+
 def vol2line(v2s, s2l):
     v2l =  {}
     for v in v2s:
@@ -734,18 +764,24 @@ def populate_plotdata(mesh, table, cells, cell_data):
 
     kedge = []
 
+    if mesh.Dimension() >= 2:
+        method = mesh.GetEdgeVertices
+    else:
+        method = mesh.GetElementVertices
+        
     if len(l2e) > 0:
-        kedge = np.array(sum([[key]*len(l2e[key]) for key in l2e], [])).astype(int)
-        iverts = np.vstack([mesh.GetEdgeVertices(ie)
+        #kedge = np.array(sum([[key]*len(l2e[key]) for key in l2e], [])).astype(int)
+        kedge = np.hstack([[key]*len(l2e[key]) for key in l2e]).astype(int, copy=False)
+        iverts = np.vstack([method(ie)
                         for key in l2e for ie in l2e[key]])
     else:
-        iverts = np.atleast_1d([]).astype(int)        
+        iverts = np.atleast_1d([]).astype(int)
     cells['line'] = table[iverts]
     cell_data['line']['physical'] = np.array(kedge)
 
-    kvert = np.array([key for key in v2v]).astype(int)    
-    iverts = np.array([v2v[key] for key in v2v]).astype(int)    
-    
+    kvert = np.array([key for key in v2v]).astype(int, copy=False)
+    iverts = np.array([v2v[key] for key in v2v]).astype(int, copy=False)
+
     cells['vertex'] = table[iverts]    
     cell_data['vertex']['physical'] = kvert
     if ndim == 3:

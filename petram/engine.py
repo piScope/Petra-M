@@ -1,22 +1,24 @@
 from __future__ import print_function
+from petram.helper.matrix_file import write_coo_matrix, write_vector
 
 import sys
 import os
 import six
 import shutil
+import traceback
 import numpy as np
 import scipy.sparse
 from warnings import warn
 
 from petram.mfem_config import use_parallel
 if use_parallel:
-   from petram.helper.mpi_recipes import *
-   import mfem.par as mfem   
+    from petram.helper.mpi_recipes import *
+    import mfem.par as mfem
 else:
-   import mfem.ser as mfem
+    import mfem.ser as mfem
 import mfem.common.chypre as chypre
 
-#these are only for debuging
+# these are only for debuging
 from mfem.common.parcsr_extra import ToScipyCoo
 from mfem.common.mpi_debug import nicePrint
 
@@ -24,37 +26,38 @@ from petram.model import Domain, Bdry, Point, Pair
 
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Engine')
-from petram.helper.matrix_file import write_coo_matrix, write_vector
 
 # if you need to turn a specific warning to exception
 #import scipy.sparse
 #import warnings
 #warnings.filterwarnings('error', category=scipy.sparse.SparseEfficiencyWarning)
 
+
 def iter_phys(phys_targets, *args):
     for phys in phys_targets:
         yield [phys] + [a[phys] for a in args]
-        
+
+
 def enum_fes(phys, *args):
     '''
     enumerate fespaces under a physics module
     '''
     for k in range(len(args[0][phys])):
         yield ([k] + [(None if a[phys] is None else a[phys][k][1])
-                     for a in args])
+                      for a in args])
+
 
 class Engine(object):
-    def __init__(self, modelfile='', model = None):
+    def __init__(self, modelfile='', model=None):
         if modelfile != '':
-           import petram.helper.pickle_wrapper as pickle
-           model = pickle.load(open(modelfile, 'rb'))
-
+            import petram.helper.pickle_wrapper as pickle
+            model = pickle.load(open(modelfile, 'rb'))
 
         from collections import deque
-        
+
         self.data_stack = deque()
         self.set_model(model)
-        
+
         # (this is called inside set_model) self.initialize_datastorage()
         '''
         self.is_assembled = False
@@ -68,21 +71,25 @@ class Engine(object):
         self.pp_extra = {}
         self.alloc_flag = {}
         '''
-        self._num_matrix= 1
-        self._access_idx= -1
+        self._num_matrix = 1
+        self._access_idx = -1
         self._dep_vars = []
         self._isFESvar = []
-
+        self._rdep_vars = []
+        self._rdep_var_grouped = []
+        self._risFESvar = []
+        self._risFESvar_grouped = []
+        self._rfes_vars = []
 
         self.max_bdrattr = -1
-        self.max_attr = -1        
+        self.max_attr = -1
         self.sol_extra = None
         self.sol = None
 
         self._r_x_old = {}
         self._i_x_old = {}
-        
-        # assembled block [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]        
+
+        # assembled block [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
         self.assembled_blocks = [None]*7
 
         # place holder : key is base physics modules, such as EM3D1...
@@ -92,17 +99,17 @@ class Engine(object):
 
         self.case_base = 0
         self._init_done = []
-        
+
     def initialize_datastorage(self):
         self.is_assembled = False
-        self.is_initialized = False        
-        self.meshes = []    
-        self.emeshes = []   
-        self.emesh_data = None   
-        self.fec = {}            
-        self.fespaces = {}      
-        self.fecfes_storage = {}  
-        self.pp_extra = {}   
+        self.is_initialized = False
+        self.meshes = []
+        self.emeshes = []
+        self.emesh_data = None
+        self.fec = {}
+        self.fespaces = {}
+        self.fecfes_storage = {}
+        self.pp_extra = {}
         self.alloc_flag = {}
 
     stored_data_names = ("is_assembled",
@@ -114,40 +121,41 @@ class Engine(object):
                          "fespaces",
                          "fecfes_storage",
                          "pp_extra",
-                         "alloc_flag")        
-        
+                         "alloc_flag")
+
     def push_datastorage(self):
         v = self.model.root()._variables
         p = self.model.root()._parameters
         data = [getattr(self, n) for n in stored_data_names]
         dataset = (v, p, data)
-        
+
         self.data_stack.append(dataset)
-        
+
     def access_datastorage(self, idx):
         data = self.data_stack.index(idx)
         return data
-     
+
     def pop_datastorage(self):
         data = self.data_stack.pop()
         self.model.root()._variables = data[0]
         self.model.root()._parameters = data[1]
         for k, n in enumerate(stored_data_names):
-           setattr(self, n, data[2][k])
-           
+            setattr(self, n, data[2][k])
+
     @property
     def n_matrix(self):
         return self._num_matrix
+
     @n_matrix.setter
     def n_matrix(self, i):
-        self._num_matrix= i
-        
+        self._num_matrix = i
+
     def set_formblocks(self, phys_target, phys_range, n_matrix):
         '''
         This version assembles a linear system as follows
 
             M_0 y_n = M_1 y_1 + M_2 y_2 + ... + M_n-1 y_n-1 + b
-  
+
         y_n   (y[0])  is unknonw (steady-state solution or next time step value)
         y_n-1 (y[-1]) is the last time step value.
 
@@ -166,105 +174,118 @@ class Engine(object):
         where A, B, C and D are in-physics coupling    
         '''
         from petram.helper.formholder import FormBlock
-        
+
         self.n_matrix = n_matrix
         self.collect_dependent_vars(phys_target, phys_range)
         self.collect_dependent_vars(phys_range,  phys_range, range_space=True)
 
-        n_fes  = len(self.fes_vars)
+        n_fes = len(self.fes_vars)
         n_rfes = len(self.r_fes_vars)
         diag = [self.r_fes_vars.index(n) for n in self.fes_vars]
         n_mat = self.n_matrix
-        
+
         self._matrix_blocks = [None for k in range(n_mat)]
-        
+
         self._r_a = [FormBlock((n_fes, n_rfes), diag=diag,
-                               new = self.alloc_bf, mixed_new=self.alloc_mbf)
+                               new=self.alloc_bf, mixed_new=self.alloc_mbf)
                      for k in range(n_mat)]
         self._i_a = [FormBlock((n_fes, n_rfes), diag=diag,
-                               new = self.alloc_bf, mixed_new=self.alloc_mbf)
+                               new=self.alloc_bf, mixed_new=self.alloc_mbf)
                      for k in range(n_mat)]
-        self._r_x = [FormBlock(n_rfes, new = self.alloc_gf) for k in range(n_mat)]
-        self._i_x = [FormBlock(n_rfes, new = self.alloc_gf) for k in range(n_mat)]
-        
-        self.r_b = FormBlock(n_fes, new = self.alloc_lf)
-        self.i_b = FormBlock(n_fes, new = self.alloc_lf)
-        
+        self._r_x = [FormBlock(n_rfes, new=self.alloc_gf)
+                     for k in range(n_mat)]
+        self._i_x = [FormBlock(n_rfes, new=self.alloc_gf)
+                     for k in range(n_mat)]
+
+        self.r_b = FormBlock(n_fes, new=self.alloc_lf)
+        self.i_b = FormBlock(n_fes, new=self.alloc_lf)
+
         self.interps = {}
-        self.projections = {}        
-        self.gl_ess_tdofs = {n:[] for n in self.fes_vars}
-        self.ess_tdofs = {n:[] for n in self.fes_vars}        
-        
+        self.projections = {}
+        self.gl_ess_tdofs = {n: [] for n in self.fes_vars}
+        self.ess_tdofs = {n: [] for n in self.fes_vars}
+
         self._extras = [None for i in range(n_mat)]
-        self._aux_ops = [None for i in range(n_mat)]        
+        self._aux_ops = [None for i in range(n_mat)]
 
     @property
     def access_idx(self):
         return self._access_idx
+
     @access_idx.setter
     def access_idx(self, i):
-        self._access_idx= i
+        self._access_idx = i
 
     # bilinearforms
     @property
     def r_a(self):
         return self._r_a[self._access_idx]
+
     @r_a.setter
     def r_a(self, v):
         self._r_a[self._access_idx] = v
+
     @property
     def i_a(self):
         return self._i_a[self._access_idx]
+
     @i_a.setter
     def i_a(self, v):
         self._i_a[self._access_idx] = v
 
-    # grid functions 
+    # grid functions
     @property
     def r_x(self):
         return self._r_x[self._access_idx]
+
     @r_x.setter
     def r_x(self, v):
         self._r_x[self._access_idx] = v
+
     @property
     def i_x(self):
         return self._i_x[self._access_idx]
+
     @i_x.setter
     def i_x(self, v):
         self._i_x[self._access_idx] = v
 
     def store_x(self):
         for k, name in enumerate(self.r_fes_vars):
-           self._r_x_old[name] = self._r_x[0][k]
-           self._i_x_old[name] = self._i_x[0][k]
-           
+            self._r_x_old[name] = self._r_x[0][k]
+            self._i_x_old[name] = self._i_x[0][k]
+
     @property
     def extras(self):
         return self._extras[self._access_idx]
-    @extras.setter     
+
+    @extras.setter
     def extras(self, v):
         self._extras[self._access_idx] = v
-        
+
     @property
     def aux_ops(self):
         return self._aux_ops[self._access_idx]
-    @aux_ops.setter     
+
+    @aux_ops.setter
     def aux_ops(self, v):
         self._aux_ops[self._access_idx] = v
 
     @property
     def matvecs(self):
         return self._matrix_block[self._access_idx]
-    @matvecs.setter     
+
+    @matvecs.setter
     def matvecs(self, v):
         self._matrix_block[self._access_idx] = v
-        
+
     def set_model(self, model):
         self.model = model
         self.initialize_datastorage()
-        if model is None: return
-            
-        self.alloc_flag  = {}
+        if model is None:
+            return
+
+        self.alloc_flag = {}
         # below is to support old version
         from petram.mesh.mesh_model import MeshGroup
         g = None
@@ -283,12 +304,16 @@ class Engine(object):
 
         # convert old model which does not use SolveStep...
         from petram.solver.solver_model import SolveStep
+        from petram.solver.solver_controls import SolveControl
+
         solk = list(model['Solver'])
-        flag = any([not isinstance(model['Solver'][k], SolveStep) for k in solk])
+        flag = any([not isinstance(model['Solver'][k], SolveStep)
+                    for k in solk])
         if flag:
             box = None
             for k in solk:
-                if not isinstance(model['Solver'][k], SolveStep):
+                if not (isinstance(model['Solver'][k], SolveStep) or
+                        isinstance(model['Solver'][k], SolveControl)):
                     print("moving ", k)
                     if box is None:
                         name = model['Solver'].add_item('SolveStep', SolveStep)
@@ -298,63 +323,69 @@ class Engine(object):
                     box.add_itemobj(k, obj, nosuffix=True)
                 else:
                     box = None
-            
+
         if not 'InitialValue' in model:
-           idx = list(model).index('Phys')+1
-           from petram.mfem_model import MFEM_InitRoot
-           model.insert_item(idx, 'InitialValue', MFEM_InitRoot())
+            idx = list(model).index('Phys')+1
+            from petram.mfem_model import MFEM_InitRoot
+            model.insert_item(idx, 'InitialValue', MFEM_InitRoot())
         if not 'PostProcess' in model:
-           idx = list(model).index('InitialValue')+1
-           from petram.mfem_model import MFEM_PostProcessRoot
-           model.insert_item(idx, 'PostProcess', MFEM_PostProcessRoot())
-           
+            idx = list(model).index('InitialValue')+1
+            from petram.mfem_model import MFEM_PostProcessRoot
+            model.insert_item(idx, 'PostProcess', MFEM_PostProcessRoot())
+
         from petram.mfem_model import has_geom
         if not 'Geom' in model and has_geom:
-           try:
-               from petram.geom.geom_model import MFEM_GeomRoot
-           except:
-               from petram.mfem_model import MFEM_GeomRoot              
-           model.insert_item(1, 'Geometry', MFEM_GeomRoot())
+            try:
+                from petram.geom.geom_model import MFEM_GeomRoot
+            except:
+                from petram.mfem_model import MFEM_GeomRoot
+            model.insert_item(1, 'Geometry', MFEM_GeomRoot())
 
-    def get_mesh(self, idx = 0, mm = None):
-        if len(self.meshes) == 0: return None
+    def get_mesh(self, idx=0, mm=None):
+        if len(self.meshes) == 0:
+            return None
         if mm is not None:
-           idx = mm.get_root_phys().mesh_idx
+            idx = mm.get_root_phys().mesh_idx
         return self.meshes[idx]
-     
-    def get_smesh(self, idx = 0, mm = None):
-        if len(self.smeshes) == 0: return None
+
+    def get_smesh(self, idx=0, mm=None):
+        if len(self.smeshes) == 0:
+            return None
         if mm is not None:
-           idx = mm.get_root_phys().mesh_idx
+            idx = mm.get_root_phys().mesh_idx
         return self.smeshes[idx]
-     
-    def get_emesh(self, idx = 0, mm = None):
-        if len(self.emeshes) == 0: return None
+
+    def get_emesh(self, idx=0, mm=None):
+        if len(self.emeshes) == 0:
+            return None
         if mm is not None:
-           idx = mm.get_root_phys().emesh_idx
+            idx = mm.get_root_phys().emesh_idx
         return self.emeshes[idx]
 
-    def get_emesh_idx(self, mm = None, name=None):
-        if len(self.emeshes) == 0: return -1
+    def get_emesh_idx(self, mm=None, name=None):
+        if len(self.emeshes) == 0:
+            return -1
         if mm is not None:
-           return mm.get_root_phys().emesh_idx
+            return mm.get_root_phys().emesh_idx
 
         if name is None:
-           for item in self.model['Phys']:
-              mm = self.model['Phys'][item]
-              if not mm.enabled: continue
-              if name in mm.dep_vars():
-                  return mm.emesh_idx
+            for item in self.model['Phys']:
+                mm = self.model['Phys'][item]
+                if not mm.enabled:
+                    continue
+                if name in mm.dep_vars():
+                    return mm.emesh_idx
         return -1
-     
+
     '''    
     def generate_fespace(self, phys):    
         fecs = phys.get_fecs(self)
         if (phys.element == 'ND_FECollection'):
             self.mesh.ReorientTetMesh()
         self.fespaces[phys] = [self.new_fespace(fec) for fec in fecs]
-    ''' 
-    def preprocess_modeldata(self, dir = None):
+    '''
+
+    def preprocess_modeldata(self, dir=None):
         '''
         do everything it takes to run a newly built
         name space is already build
@@ -362,28 +393,29 @@ class Engine(object):
         used from text script execution
         '''
         import os
-        
+
         model = self.model
         self.initialize_datastorage()
-        
+
         model['General'].run()
 
         from petram.mfem_config import use_parallel
-        
-        if use_parallel:        
-            self.run_mesh_serial(skip_refine = True)
+
+        if use_parallel:
+            self.run_mesh_serial(skip_refine=True)
         else:
             self.run_mesh_serial()
 
         self.run_preprocess()  # this must run when mesh is serial
 
         if use_parallel:
-            # make ParMesh and Par-Extended-Mesh                      
-            self.run_mesh() 
+            # make ParMesh and Par-Extended-Mesh
+            self.run_mesh()
             self.emeshes = []
             for k in self.model['Phys'].keys():
                 phys = self.model['Phys'][k]
-                if not phys.enabled: continue                            
+                if not phys.enabled:
+                    continue
                 self.run_mesh_extension(phys)
                 self.allocate_fespace(phys)
 
@@ -392,18 +424,20 @@ class Engine(object):
         solver = model["Solver"].get_active_solvers()
         return solver
 
-    def run_build_ns(self, dir = None):
+    def run_build_ns(self, dir=None):
         model = self.model
         model['General'].run()
-        
+
         if dir is None:
             from __main__ import __file__ as mainfile
-            dir = os.path.dirname(os.path.realpath(mainfile))           
+            dir = os.path.dirname(os.path.realpath(mainfile))
         for node in model.walk():
             if node.has_ns() and node.ns_name is not None:
-                node.read_ns_script_data(dir = dir)
+                node.read_ns_script_data(dir=dir)
         self.build_ns()
         solver = model["Solver"].get_active_solvers()
+
+        dprint1("solver", solver)
         return solver
 
     def run_config(self):
@@ -432,29 +466,33 @@ class Engine(object):
             return -2, exception
         return 0, None
         '''
-     
-    def run_preprocess(self, ns_folder = None, data_folder = None):
+
+    def run_preprocess(self, ns_folder=None, data_folder=None):
         dprint1("!!!!! run preprocess !!!!!")
         if ns_folder is not None:
-           self.preprocess_ns(ns_folder, data_folder)
+            self.preprocess_ns(ns_folder, data_folder)
 
         from petram.model import Domain, Bdry
-        
+
         self.assign_sel_index()
         self.assign_phys_pp_sel_index()
         self.run_mesh_extension_prep()
-        
+
         for k in self.model['Phys'].keys():
             phys = self.model['Phys'][k]
-            if not phys.enabled: continue            
+            if not phys.enabled:
+                continue
+
             self.run_mesh_extension(phys)
             self.allocate_fespace(phys)
-
             # this is called already from preprocess_modeldata
-            # 
+            #
             for node in phys.walk():
-                if not node.enabled: continue
+                if not node.enabled:
+                    continue
                 node.preprocess_params(self)
+
+
         for k in self.model['InitialValue'].keys():
             init = self.model['InitialValue'][k]
             init.preprocess_params(self)
@@ -462,24 +500,30 @@ class Engine(object):
     def run_verify_setting(self, phys_target, solver):
         for phys in phys_target:
             for mm in phys.walk():
-                if not mm.enabled: continue
+                if not mm.enabled:
+                    continue
                 error, txt, long_txt = mm.verify_setting()
                 assert error, mm.fullname() + ":" + long_txt
 
         for mm in solver.walk():
-                if not mm.enabled: continue
-                error, txt, long_txt = mm.verify_setting()           
-                assert error, mm.fullname() + ":" + long_txt
-                
+            if not mm.enabled:
+                continue
+            error, txt, long_txt = mm.verify_setting()
+            assert error, mm.fullname() + ":" + long_txt
 
     #  mesh manipulation
     #
-    def run_mesh_extension_prep(self):
+
+    def run_mesh_extension_prep(self, reset=False):
+        if reset:
+            self.reset_emesh_data()
+
         for k in self.model['Phys'].keys():
             phys = self.model['Phys'][k]
-            if not phys.enabled: continue            
+            if not phys.enabled:
+                continue
             self.do_run_mesh_extension_prep(phys)
-    
+
     def do_run_mesh_extension_prep(self, phys):
         from petram.mesh.mesh_extension import MeshExt, generate_emesh
         from petram.mesh.mesh_model import MFEMMesh
@@ -491,17 +535,17 @@ class Engine(object):
                 self.emesh_data.add_default_info(j,
                                                  self.emeshes[j].Dimension(),
                                                  attrs)
-        info = phys.get_mesh_ext_info()
+        info = phys.get_mesh_ext_info(self.meshes[phys.mesh_idx])
         idx = self.emesh_data.add_info(info)
 
         phys.emesh_idx = idx
-        #if len(self.emeshes) <= idx: 
+        # if len(self.emeshes) <= idx:
         #    m = generate_emesh(self.emeshes, info)
         #    m.ReorientTetMesh()
         #    self.emeshes.extend([None]*(1+idx-len(self.emeshes)))
         #    self.emeshes[idx] = m
         dprint1(phys.name() + ":  emesh index =", idx)
-        
+
     def run_mesh_extension(self, phys):
         from petram.mesh.mesh_extension import MeshExt, generate_emesh
         from petram.mesh.mesh_model import MFEMMesh
@@ -511,7 +555,7 @@ class Engine(object):
 
         idx = phys.emesh_idx
         info = self.emesh_data.get_info(idx)
-        
+
         if len(self.emeshes) <= idx or self.emeshes[idx] is None:
             m = generate_emesh(self.emeshes, info)
             m.ReorientTetMesh()
@@ -519,11 +563,11 @@ class Engine(object):
                 self.emeshes.extend([None]*(1+idx-len(self.emeshes)))
             self.emeshes[idx] = m
         dprint1(phys.name() + ":  emesh index =", idx)
-        
+
     #
-    #  assembly 
+    #  assembly
     #
-    def run_alloc_sol(self, phys_target = None):
+    def run_alloc_sol(self, phys_target=None):
         '''
         allocate fespace and gridfunction (unknowns)
         apply essentials
@@ -534,37 +578,36 @@ class Engine(object):
 
         allocated_phys = []
         for phys in phys_target:
-           try:
-              if self.alloc_flag[phys.name()]: alloced_phys.append[phys.name()]
-           except:
-              pass
+            try:
+                if self.alloc_flag[phys.name()]:
+                    alloced_phys.append[phys.name()]
+            except:
+                pass
         phys_target = [phys for phys in phys_target
                        if not phys.name() in allocated_phys]
         dprint1("allocating fespace/sol vector for " + str(phys_target))
-        
+
         for phys in phys_target:
             self.run_update_param(phys)
         for phys in phys_target:
             self.initialize_phys(phys)
-            
+
         for j in range(self.n_matrix):
             self.access_idx = j
             self.r_x.set_no_allocator()
-            self.i_x.set_no_allocator()            
-            
+            self.i_x.set_no_allocator()
 
         self.is_initialized = True
-        
-        for phys in phys_target:        
+
+        for phys in phys_target:
             self.alloc_flag[phys.name()] = True
 
     @property
     def isInitialized(self):
-        return  self.is_initialized
+        return self.is_initialized
 
-           
     def run_apply_init0(self, phys_range, mode,
-                       init_value=0.0, init_path=''):
+                        init_value=0.0, init_path=''):
         # mode
         #  0: zero
         #  1: init to constant
@@ -573,50 +616,54 @@ class Engine(object):
         #  4: do nothing
         dprint1("run_apply_init0", phys_range, mode)
         for j in range(self.n_matrix):
-           self.access_idx = j
-           for phys in phys_range:
-              names = phys.dep_vars
-              if mode == 0:
-                  for name in names:
-                      r_ifes = self.r_ifes(name)
-                      rgf = self.r_x[r_ifes]
-                      igf = self.i_x[r_ifes]
-                      rgf.Assign(0.0)
-                      if igf is not None: igf.Assign(0.0)
-                      if not name in self._init_done: self._init_done.append(name)
-              elif mode == 1:
-                  from petram.helper.variables import project_variable_to_gf
-                  
-                  global_ns = phys._global_ns.copy()
-                  for key in self.model.root()._variables:
-                      global_ns[key] = self.model.root()._variables[key]
-                  for name in names:
-                      r_ifes = self.r_ifes(name)
-                      rgf = self.r_x[r_ifes]
-                      igf = self.i_x[r_ifes]
-                      ind_vars = phys.ind_vars
-                      dprint1("applying init value to entire discrete space:" + name, init_value)
-                      project_variable_to_gf(init_value,
-                                             ind_vars,
-                                             rgf, igf,
-                                             global_ns=global_ns)
-                      
-                      #rgf.ProjectCoefficient(rc)                
-                      #rgf.Assign(rinit)
-                      #if igf is not None:
-                      #   igf.ProjectCoefficient(ic)
-                      if not name in self._init_done: self._init_done.append(name)                      
-              elif mode == 2: # apply Einit
-                  self.apply_init_from_init_panel(phys)
-              elif mode == 3:
-                  self.apply_init_from_file(phys, init_path)              
-              elif mode == 4:
-                  self.apply_init_from_previous(names)
-              else: #
-                  raise NotImplementedError(
-                            "unknown init mode")
+            self.access_idx = j
+            for phys in phys_range:
+                names = phys.dep_vars
+                if mode == 0:
+                    for name in names:
+                        r_ifes = self.r_ifes(name)
+                        rgf = self.r_x[r_ifes]
+                        igf = self.i_x[r_ifes]
+                        rgf.Assign(0.0)
+                        if igf is not None:
+                            igf.Assign(0.0)
+                        if not name in self._init_done:
+                            self._init_done.append(name)
+                elif mode == 1:
+                    from petram.helper.variables import project_variable_to_gf
 
-        self.add_FESvariable_to_NS(phys_range, verbose = True)
+                    global_ns = phys._global_ns.copy()
+                    for key in self.model.root()._variables:
+                        global_ns[key] = self.model.root()._variables[key]
+                    for name in names:
+                        r_ifes = self.r_ifes(name)
+                        rgf = self.r_x[r_ifes]
+                        igf = self.i_x[r_ifes]
+                        ind_vars = phys.ind_vars
+                        dprint1(
+                            "applying init value to entire discrete space:" + name, init_value)
+                        project_variable_to_gf(init_value,
+                                               ind_vars,
+                                               rgf, igf,
+                                               global_ns=global_ns)
+
+                        # rgf.ProjectCoefficient(rc)
+                        # rgf.Assign(rinit)
+                        # if igf is not None:
+                        #   igf.ProjectCoefficient(ic)
+                        if not name in self._init_done:
+                            self._init_done.append(name)
+                elif mode == 2:  # apply Einit
+                    self.apply_init_from_init_panel(phys)
+                elif mode == 3:
+                    self.apply_init_from_file(phys, init_path)
+                elif mode == 4:
+                    self.apply_init_from_previous(names)
+                else:
+                    raise NotImplementedError(
+                        "unknown init mode")
+
+        self.add_FESvariable_to_NS(phys_range, verbose=True)
 
     def run_apply_init_autozero(self, phys_range):
 
@@ -628,19 +675,20 @@ class Engine(object):
         #  4: do nothing
         dprint1("run_apply_init_autozero", phys_range)
         for j in range(self.n_matrix):
-           self.access_idx = j
-           for phys in phys_range:
-              names = phys.dep_vars
-              for name in names:
-                  if name in self._init_done: continue
-                  self._init_done.append(name)                                                                    
-                  r_ifes = self.r_ifes(name)
-                  rgf = self.r_x[r_ifes]
-                  igf = self.i_x[r_ifes]
-                  rgf.Assign(0.0)
-                  if igf is not None: igf.Assign(0.0)
-              
-        
+            self.access_idx = j
+            for phys in phys_range:
+                names = phys.dep_vars
+                for name in names:
+                    if name in self._init_done:
+                        continue
+                    self._init_done.append(name)
+                    r_ifes = self.r_ifes(name)
+                    rgf = self.r_x[r_ifes]
+                    igf = self.i_x[r_ifes]
+                    rgf.Assign(0.0)
+                    if igf is not None:
+                        igf.Assign(0.0)
+
     def run_apply_init(self, phys_range, inits=None):
         if len(inits) == 0:
             self.run_apply_init_autozero(phys_range)
@@ -649,16 +697,17 @@ class Engine(object):
                 tmp = init.run(self)
                 phys_range = [phys for phys in phys_range if not phys in tmp]
             if len(phys_range) > 0:
-                dprint1("!!!!! These phys are not initiazliaed (FES variable is not available)!!!!!", phys_range)
-       
-    def run_apply_essential(self, phys_target, phys_range, update=False):
-        L = len(self.r_dep_vars)       
-        self.mask_X = np.array([not update]*L*self.n_matrix,
-                                dtype=bool).reshape(-1, L)
+                dprint1(
+                    "!!!!! These phys are not initiazliaed (FES variable is not available)!!!!!", phys_range)
 
-        self.gl_ess_tdofs = {n:[] for n in self.fes_vars}
-        self.ess_tdofs = {n:[] for n in self.fes_vars}        
-        
+    def run_apply_essential(self, phys_target, phys_range, update=False):
+        L = len(self.r_dep_vars)
+        self.mask_X = np.array([not update]*L*self.n_matrix,
+                               dtype=bool).reshape(-1, L)
+
+        self.gl_ess_tdofs = {n: [] for n in self.fes_vars}
+        self.ess_tdofs = {n: [] for n in self.fes_vars}
+
         for phys in phys_range:
             self.gather_essential_tdof(phys)
         self.collect_all_ess_tdof()
@@ -669,24 +718,24 @@ class Engine(object):
                 self.apply_essential(phys, update=update)
 
     def run_assemble_mat(self, phys_target, phys_range, update=False):
-        #for phys in phys_target:
+        # for phys in phys_target:
         #    self.gather_essential_tdof(phys)
-       
+
         R = len(self.dep_vars)
-        C = len(self.r_dep_vars)        
+        C = len(self.r_dep_vars)
         self.mask_M = np.array([not update]*R*C*self.n_matrix,
-                                dtype=bool).reshape(-1, R, C)
+                               dtype=bool).reshape(-1, R, C)
 
-        for phys in phys_target:       
-            self.assemble_interp(phys)     ## global interpolation (periodic BC)
-            self.assemble_projection(phys) ## global interpolation (mesh coupling)
-
+        for phys in phys_target:
+            self.assemble_interp(phys)  # global interpolation (periodic BC)
+            # global interpolation (mesh coupling)
+            self.assemble_projection(phys)
 
         self.extras_mm = {}
 
         for j in range(self.n_matrix):
             self.access_idx = j
-            
+
             for phys in phys_target:
                 self.fill_bf(phys, update)
                 self.fill_mixed(phys, update)
@@ -695,44 +744,81 @@ class Engine(object):
             self.i_a.set_no_allocator()
 
             for r, c, form in self.r_a:
-               r1 = self.dep_var_offset(self.fes_vars[r])
-               c1 = self.r_dep_var_offset(self.r_fes_vars[c])
-               if self.mask_M[j, r1, c1]:
-                   form.Assemble()
-                  
+                r1 = self.dep_var_offset(self.fes_vars[r])
+                c1 = self.r_dep_var_offset(self.r_fes_vars[c])
+                if self.mask_M[j, r1, c1]:
+                    form.Assemble()
+
             for r, c, form in self.i_a:
-               r1 = self.dep_var_offset(self.fes_vars[r])
-               c1 = self.r_dep_var_offset(self.r_fes_vars[c])
-               if self.mask_M[j, r1, c1]:
-                   form.Assemble()
-            
+                r1 = self.dep_var_offset(self.fes_vars[r])
+                c1 = self.r_dep_var_offset(self.r_fes_vars[c])
+                if self.mask_M[j, r1, c1]:
+                    form.Assemble()
+
             self.extras = {}
             updated_extra = []
             for phys in phys_target:
                 self.assemble_extra(phys, phys_range)
-                updated_extra.extend(self.extra_update_check_M(phys, phys_range))
-                
+                updated_extra.extend(
+                    self.extra_update_check_M(phys, phys_range))
+
             for extra_name, dep_name, kfes in updated_extra:
                 r = self.dep_var_offset(extra_name)
                 c = self.r_dep_var_offset(dep_name)
                 self.mask_M[j, r, c] = True
 
             self.aux_ops = {}
-            updated_extra = []            
-            #for phys in phys_target:               
-            updated_aux_ops = self.assemble_aux_ops(phys_target, phys_range, update)
+            updated_extra = []
+            # for phys in phys_target:
+            updated_aux_ops = self.assemble_aux_ops(
+                phys_target, phys_range, update)
             for key in updated_aux_ops:
                 testname, trialname, mm_fullpath = key
                 r = self.dep_var_offset(testname)
                 c = self.r_dep_var_offset(trialname)
-                self.mask_M[j, r, c]=True
-            
+                self.mask_M[j, r, c] = True
+
         return np.any(self.mask_M) or len(updated_extra) > 0
 
-    def run_assemble_b(self, phys_target = None, update=False):
+    def run_assemble_extra_rhs(self, phys_target, phys_range, update=False):
+        # assemble extra only
+        #    this is used when filling RHS only
+        #    (TODO) split assemble_extra to assemble_extra_matrix and
+        #           assemble_extra_rhs
+
+        R = len(self.dep_vars)
+        C = len(self.r_dep_vars)
+        self.mask_M = np.array([not update]*R*C*self.n_matrix,
+                               dtype=bool).reshape(-1, R, C)
+
+        for phys in phys_target:
+            self.assemble_interp(phys)  # global interpolation (periodic BC)
+            # global interpolation (mesh coupling)
+            self.assemble_projection(phys)
+
+        self.extras_mm = {}
+
+        for j in range(self.n_matrix):
+            self.access_idx = j
+
+            self.extras = {}
+            updated_extra = []
+            for phys in phys_target:
+                self.assemble_extra(phys, phys_range)
+                updated_extra.extend(
+                    self.extra_update_check_M(phys, phys_range))
+
+            for extra_name, dep_name, kfes in updated_extra:
+                r = self.dep_var_offset(extra_name)
+                c = self.r_dep_var_offset(dep_name)
+                self.mask_M[j, r, c] = True
+
+        return np.any(self.mask_M) or len(updated_extra) > 0
+
+    def run_assemble_b(self, phys_target=None, update=False):
         '''
         assemble only RHS
- 
+
         bilinearform should be assmelbed before-hand
         note that self.r_b, self.r_x, self.i_b, self.i_x 
         are reused. And, since r_b and r_x shares the
@@ -742,16 +828,16 @@ class Engine(object):
         root node at the end of each assembly process. When
         other solve is added, this must be taken care. 
         '''
-        L = len(self.dep_vars)        
+        L = len(self.dep_vars)
         self.mask_B = np.array([not update]*L)
-        
+
         for phys in phys_target:
             self.run_update_param(phys)
 
-        #for phys in phys_target:
+        # for phys in phys_target:
         #    self.gather_essential_tdof(phys)
-        #self.collect_all_ess_tdof()            
-        
+        # self.collect_all_ess_tdof()
+
         self.access_idx = 0
         for phys in phys_target:
             self.fill_lf(phys, update)
@@ -762,24 +848,26 @@ class Engine(object):
         for r, c, form in self.r_b:
             name = self.fes_vars[r]
             offset = self.dep_var_offset(name)
-            if self.mask_B[offset]: form.Assemble()           
+            if self.mask_B[offset]:
+                form.Assemble()
 
         for r, c, form in self.i_b:
             name = self.fes_vars[r]
             offset = self.dep_var_offset(name)
-            if self.mask_B[offset]: form.Assemble()
+            if self.mask_B[offset]:
+                form.Assemble()
 
         updated_extra = []
         for phys in phys_target:
             updated_extra.extend(self.extra_update_check_B(phys, phys_target))
-            
+
         #  (extra_name, dep_var, kfes)
         for n, dep_var, kfes in updated_extra:
             r = self.dep_var_offset(n)
             self.mask_B[r] = True
 
         return np.any(self.mask_B)
-     
+
     def run_fill_X_block(self, update=False):
         if update:
             X = self.assembled_blocks[1]
@@ -787,9 +875,9 @@ class Engine(object):
             X = self.prepare_X_block()
         X = self.fill_X_block(X)
         self.assembled_blocks[1] = X
-        
-    def run_assemble_blocks(self, compute_A, compute_rhs, 
-                            inplace = True, update=False):
+
+    def run_assemble_blocks(self, compute_A, compute_rhs,
+                            inplace=True, update=False):
         '''
         assemble M, B, X blockmatrices.
 
@@ -797,58 +885,57 @@ class Engine(object):
         are not shared by M, B, X
         '''
         if update:
-           M = self.assembled_blocks[5]
-           B = self.assembled_blocks[4]
-           X = self.assembled_blocks[1]
-           Ae = self.assembled_blocks[3]
-           A = self.assembled_blocks[0]
+            M = self.assembled_blocks[5]
+            B = self.assembled_blocks[4]
+            X = self.assembled_blocks[1]
+            Ae = self.assembled_blocks[3]
+            A = self.assembled_blocks[0]
         else:
-           M, B = self.prepare_M_B_blocks()
-           X = self.assembled_blocks[1]
-           Ae = None
-        
+            M, B = self.prepare_M_B_blocks()
+            X = self.assembled_blocks[1]
+            Ae = None
+
         M, B, M_changed = self.fill_M_B_blocks(M, B, update=update)
 
-        #B.save_to_file("B")
+        # B.save_to_file("B")
+        # M[0].save_to_file("M0")
+        # M[1].save_to_file("M1")
+        # X[0].save_to_file("X0")
 
-        #M[0].save_to_file("M0")        
-        #M[1].save_to_file("M1")
-        #X[0].save_to_file("X0")
-        
         A2, isAnew = compute_A(M, B, X,
-                              self.mask_M,
-                              self.mask_B)  # solver determins A
-
+                               self.mask_M,
+                               self.mask_B)  # solver determins A
         if isAnew:
             # generate Ae and eliminated A
             A, Ae = self.fill_BCeliminate_matrix(A2,
-                                             inplace=inplace,
-                                             update=update)     
-        
+                                                 inplace=inplace,
+                                                 update=update)
         RHS = compute_rhs(M, B, X)          # solver determins RHS
-                      
-        #for m in M: 
+
+        # for m in M:
         #    A.check_shared_id(m)
-        #for x in X: 
+        # for x in X:
         #    B.check_shared_id(x)
-        #RHS.save_to_file("RHSbefore")
-        #M[0].save_to_file("M0there")                        
-        #Ae.save_to_file("Ae")
-        
+        # RHS.save_to_file("RHSbefore")
+        # M[0].save_to_file("M0there")
+        # Ae.save_to_file("Ae")
+
         RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
-        #RHS.save_to_file("RHS")
-        
-        A, RHS = self.apply_interp(A, RHS)     # A and RHS is modifedy by global DoF coupling P
-        #M[0].save_to_file("M0there2")                        
-        #M[1].save_to_file("M1")
-        #X[0].save_to_file("X0")
-        #RHS.save_to_file("RHS")
-        
+
+        # RHS.save_to_file("RHS")
+
+        # A and RHS is modifedy by global DoF coupling P
+        A, RHS = self.apply_interp(A, RHS)
+        # M[0].save_to_file("M0there2")
+        # M[1].save_to_file("M1")
+        # X[0].save_to_file("X0")
+        # RHS.save_to_file("RHS")
+
         self.assembled_blocks = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
-        
-        #= [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
+
+        # = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
         return self.assembled_blocks, M_changed
-     
+
     def run_update_B_blocks(self):
         '''
         assemble M, B, X blockmatrices.
@@ -863,17 +950,20 @@ class Engine(object):
     #
     #  step 0: update mode param
     #
+
     def run_update_param(self, phys):
+        dprint1("run update_param : ", phys)
         for mm in phys.walk():
-            if not mm.enabled: continue
+            if not mm.enabled:
+                continue
             mm.update_param()
 
     def initialize_phys(self, phys):
         is_complex = phys.is_complex()
-        
+
         # this is called from preprocess_modeldata
         # self.assign_sel_index(phys)
-        
+
         self.allocate_fespace(phys)
         true_v_sizes = self.get_true_v_sizes(phys)
 
@@ -888,79 +978,130 @@ class Engine(object):
                 r_ifes = self.r_ifes(n)
                 void = self.r_x[r_ifes]
                 if is_complex:
-                   void = self.i_x[r_ifes]
-                   
+                    void = self.i_x[r_ifes]
+
     #
     #  Step 1  set essential and initial values to the solution vector.
     #
-    def apply_essential(self, phys, update=False):       
+    def apply_essential(self, phys, update=False):
         is_complex = phys.is_complex()
-        
+
         for kfes, name in enumerate(phys.dep_vars):
             r_ifes = self.r_ifes(name)
             rgf = self.r_x[r_ifes]
             igf = None if not is_complex else self.i_x[r_ifes]
             for mm in phys.walk():
-                if not mm.enabled: continue
-                if not mm.has_essential: continue
-                if len(mm.get_essential_idx(kfes)) == 0: continue
-                if update and not mm.update_flag: continue
-                self.mask_X[self.access_idx, self.r_dep_var_offset(name)] = True
-                mm.apply_essential(self, rgf, real = True, kfes = kfes)
+                if not mm.enabled:
+                    continue
+                if not mm.has_essential:
+                    continue
+                if len(mm.get_essential_idx(kfes)) == 0:
+                    continue
+                if update and not mm.update_flag:
+                    continue
+                self.mask_X[self.access_idx,
+                            self.r_dep_var_offset(name)] = True
+                mm.apply_essential(self, rgf, real=True, kfes=kfes)
                 if igf is not None:
-                    mm.apply_essential(self, igf, real = False, kfes = kfes)
+                    mm.apply_essential(self, igf, real=False, kfes=kfes)
 
     def apply_init_from_init_panel(self, phys):
+        from petram.model import Domain, Bdry
+        from petram.phys.coefficient import sum_coefficient
+
         is_complex = phys.is_complex()
-        
-        for kfes, name in enumerate(phys.dep_vars):
-            if not name in self._init_done: self._init_done.append(name)           
-            r_ifes = self.r_ifes(name)
-            rfg = self.r_x[r_ifes]
+
+        def loop_over_phys_mm(gf, phys):
+            bdrs = []
+            c1_arr = []
+            c2_arr = []
+
             for mm in phys.walk():
-                if not mm.enabled: continue
-                c = mm.get_init_coeff(self, real = True, kfes = kfes)
-                if c is None: continue
-                rfg.ProjectCoefficient(c)                
-                #rgf += tmp
-            if not is_complex: continue
-            ifg = self.i_x[r_ifes]            
+                if not mm.enabled:
+                    continue
+                if isinstance(mm, Domain):
+                    c = mm.get_init_coeff(self, real=True, kfes=kfes)
+                    if c is None:
+                        continue
+                    c1_arr.append(c)
+                if isinstance(mm, Bdry):
+                    c = mm.get_init_coeff(self, real=True, kfes=kfes)
+                    if c is None:
+                        continue
+                    bdrs.extend(mm._sel_index)
+                    c2_arr.append(c)
+
+            if len(c1_arr) > 0:
+                cc = sum_coefficient(c1_arr)
+                gf.ProjectCoefficient(cc)
+
+            if len(c2_arr) > 0:
+                print(bdrs)
+                attrs = mfem.intArray(bdrs)
+                cc = sum_coefficient(c2_arr)
+                name = gf.FESpace().FEColl().Name()
+                if name.startswith('ND'):
+                    gf.ProjectBdrCoefficientTangent(cc, attrs)
+                elif name.startswith('RT'):
+                    gf.ProjectBdrCoefficientNormal(cc, attrs)
+                else:
+                    gf.ProjectBdrCoefficient(cc, attr)
+
+        for kfes, name in enumerate(phys.dep_vars):
+            if not name in self._init_done:
+                self._init_done.append(name)
+            r_ifes = self.r_ifes(name)
+            rgf = self.r_x[r_ifes]
+
+            loop_over_phys_mm(rgf, phys)
+
+            if not is_complex:
+                continue
+            igf = self.i_x[r_ifes]
+            loop_over_phys_mm(igf, phys)
+            '''
             for mm in phys.walk():
                 if not mm.enabled: continue
                 c = mm.get_init_coeff(self, real = False, kfes = kfes)
                 if c is None: continue
                 ifg.ProjectCoefficient(c)
                 #igf += tmp
-                
+            '''
+
     def apply_init_from_previous(self, names):
-       
+
         for name in names:
-            if not name in self._init_done: self._init_done.append(name)                      
-            assert name in self._r_x_old, name + " is not available from previous (real)"
-            assert name in self._i_x_old, name + " is not available from previous (imag)"
+            if not name in self._init_done:
+                self._init_done.append(name)
+            assert name in self._r_x_old, name + \
+                " is not available from previous (real)"
+            assert name in self._i_x_old, name + \
+                " is not available from previous (imag)"
             rgf_old = self._r_x_old[name]
             igf_old = self._i_x_old[name]
-            
+
             for j in range(self.n_matrix):
                 self.access_idx = j
 
                 # if it is not using name defined in init, skip it...
-                if not self.has_rfes(name):   continue
+                if not self.has_rfes(name):
+                    continue
 
                 r_ifes = self.r_ifes(name)
                 rgf = self.r_x[r_ifes]
                 igf = self.i_x[r_ifes]
-                
+
                 rgf.Assign(rgf_old)
                 if igf is not None and igf_old is not None:
                     igf.Assign(igf_old)
                 elif igf_old is None:
                     if igf is not None:
-                       igf.Assign(0.0)
-                       dprint1("New FESvar is complex while the previous one is real")
+                        igf.Assign(0.0)
+                        dprint1(
+                            "New FESvar is complex while the previous one is real")
                 else:
                     pass
-       
+
     def apply_init_from_file(self, phys, init_path):
         '''
         read initial gridfunction from solution
@@ -970,10 +1111,11 @@ class Engine(object):
         dprint1("apply_init_from_file", phys, init_path)
         emesh_idx = phys.emesh_idx
         names = phys.dep_vars
-        suffix=self.solfile_suffix()
+        suffix = self.solfile_suffix()
 
         for kfes, name in enumerate(phys.dep_vars):
-            if not name in self._init_done: self._init_done.append(name)                      
+            if not name in self._init_done:
+                self._init_done.append(name)
             r_ifes = self.r_ifes(name)
             rgf = self.r_x[r_ifes]
             if phys.is_complex():
@@ -984,182 +1126,212 @@ class Engine(object):
             meshname = 'solmesh_' + str(emesh_idx) + suffix
             fr = fr + suffix
             fi = fi + suffix
-        
+
             path = os.path.expanduser(init_path)
-            if path == '': path = os.getcwd()
+            if path == '':
+                path = os.getcwd()
             fr = os.path.join(path, fr)
             fi = os.path.join(path, fi)
             meshname = os.path.join(path, meshname)
 
             rgf.Assign(0.0)
-            if igf is not None: igf.Assign(0.0)
+            if igf is not None:
+                igf.Assign(0.0)
             if not os.path.exists(meshname):
-               assert False, "Meshfile for sol does not exist:"+meshname
+                assert False, "Meshfile for sol does not exist:"+meshname
             if not os.path.exists(fr):
-               assert False, "Solution (real) does not exist:"+fr
-            if igf is not None and not os.path.exists(fi): 
-               assert False, "Solution (imag) does not exist:"+fi
+                assert False, "Solution (real) does not exist:"+fr
+            if igf is not None and not os.path.exists(fi):
+                assert False, "Solution (imag) does not exist:"+fi
 
             m = mfem.Mesh(str(meshname), 1, 1)
-            m.ReorientTetMesh()            
+            m.ReorientTetMesh()
             solr = mfem.GridFunction(m, str(fr))
             if solr.Size() != rgf.Size():
-               assert False, "Solution file (real) has different length!!!"
+                assert False, "Solution file (real) has different length!!!"
             rgf += solr
             if igf is not None:
-               soli = mfem.GridFunction(m, str(fi))
-               if soli.Size() != igf.Size():
-                   assert False, "Solution file (imag) has different length!!!"
-               igf += soli
-               
+                soli = mfem.GridFunction(m, str(fi))
+                if soli.Size() != igf.Size():
+                    assert False, "Solution file (imag) has different length!!!"
+                igf += soli
+
         self.sol_extra = self.load_extra_from_file(init_path)
-        #print self.sol_extra
+        # print self.sol_extra
     #
     #  Step 2  fill matrix/rhs elements
     #
+
     def fill_bf(self, phys, update):
         renewargs = []
 
         if update:
-            # make mask to renew r_a/i_a           
+            # make mask to renew r_a/i_a
             mask = [False]*len(phys.dep_vars)
 
             for kfes, name in enumerate(phys.dep_vars):
-                ifes  = self.ifes(name)
+                ifes = self.ifes(name)
                 rifes = self.r_ifes(name)
                 for mm in phys.walk():
-                    if not mm.enabled: continue
-                    if not mm.has_bf_contribution2(kfes, self.access_idx):continue
-                    if len(mm._sel_index) == 0: continue
-                    if not mm.update_flag: continue
+                    if not mm.enabled:
+                        continue
+                    if not mm.has_bf_contribution2(kfes, self.access_idx):
+                        continue
+                    if len(mm._sel_index) == 0:
+                        continue
+                    if not mm.update_flag:
+                        continue
                     proj = mm.get_projection()
                     mask[kfes] = True
                     renewargs.append((ifes, rifes, proj))
                     self.mask_M[self.access_idx, self.dep_var_offset(name),
                                 self.r_dep_var_offset(name)] = True
-                    
+
         else:
             mask = [True]*len(phys.dep_vars)
         is_complex = phys.is_complex()
-                    
+
         for args in renewargs:
             self.r_a.renew(args)
 
         for kfes, name in enumerate(phys.dep_vars):
-            if not mask[kfes]: continue
-            ifes  = self.ifes(name)
+            if not mask[kfes]:
+                continue
+            ifes = self.ifes(name)
             rifes = self.r_ifes(name)
-            
+
             for mm in phys.walk():
-                if not mm.enabled: continue
-                if not mm.has_bf_contribution2(kfes, self.access_idx):continue
-                if len(mm._sel_index) == 0: continue
+                if not mm.enabled:
+                    continue
+                if not mm.has_bf_contribution2(kfes, self.access_idx):
+                    continue
+                if len(mm._sel_index) == 0:
+                    continue
                 proj = mm.get_projection()
                 ra = self.r_a[ifes, rifes, proj]
-                
-                mm.add_bf_contribution(self, ra, real = True, kfes = kfes)
-            
-        if not is_complex: return
-        
+
+                mm.add_bf_contribution(self, ra, real=True, kfes=kfes)
+
+        if not is_complex:
+            return
+
         for args in renewargs:
             self.i_a.renew(args)
-        
+
         for kfes, name in enumerate(phys.dep_vars):
-            if not mask[kfes]: continue
-            
+            if not mask[kfes]:
+                continue
+
             ifes = self.ifes(name)
-            rifes = self.r_ifes(name)                            
+            rifes = self.r_ifes(name)
             for mm in phys.walk():
-                if not mm.enabled: continue
-                if not mm.has_bf_contribution2(kfes, self.access_idx):continue
-                if len(mm._sel_index) == 0: continue
-                proj = mm.get_projection()                
+                if not mm.enabled:
+                    continue
+                if not mm.has_bf_contribution2(kfes, self.access_idx):
+                    continue
+                if len(mm._sel_index) == 0:
+                    continue
+                proj = mm.get_projection()
                 ia = self.i_a[ifes, rifes, proj]
 
-                mm.add_bf_contribution(self, ia, real = False, kfes = kfes)
-        
+                mm.add_bf_contribution(self, ia, real=False, kfes=kfes)
+
     def fill_lf(self, phys, update):
         renewargs = []
         if update:
-            # make mask to renew r_a/i_a           
+            # make mask to renew r_a/i_a
             mask = [False]*len(phys.dep_vars)
 
             for kfes, name in enumerate(phys.dep_vars):
                 ifes = self.ifes(name)
                 for mm in phys.walk():
-                    if not mm.enabled: continue
-                    if not mm.has_lf_contribution2(kfes, self.access_idx): continue
-                    if len(mm._sel_index) == 0: continue
-                    if not mm.update_flag: continue
+                    if not mm.enabled:
+                        continue
+                    if not mm.has_lf_contribution2(kfes, self.access_idx):
+                        continue
+                    if len(mm._sel_index) == 0:
+                        continue
+                    if not mm.update_flag:
+                        continue
                     mask[kfes] = True
                     renewargs.append(ifes)
-                    self.mask_B[self.dep_var_offset(name)]=True
+                    self.mask_B[self.dep_var_offset(name)] = True
         else:
             mask = [True]*len(phys.dep_vars)
-       
+
         is_complex = phys.is_complex()
         for args in renewargs:
             self.r_b.renew(args)
-        
+
         for kfes, name in enumerate(phys.dep_vars):
             ifes = self.ifes(name)
             rb = self.r_b[ifes]
             rb.Assign(0.0)
             for mm in phys.walk():
-               if not mm.enabled: continue
-               if not mm.has_lf_contribution2(kfes, self.access_idx): continue
-               if len(mm._sel_index) == 0: continue                          
-               mm.add_lf_contribution(self, rb, real=True, kfes=kfes)
-            
-        if not is_complex: return
+                if not mm.enabled:
+                    continue
+                if not mm.has_lf_contribution2(kfes, self.access_idx):
+                    continue
+                if len(mm._sel_index) == 0:
+                    continue
+                mm.add_lf_contribution(self, rb, real=True, kfes=kfes)
+
+        if not is_complex:
+            return
 
         for args in renewargs:
             self.i_b.renew(args)
 
-        for kfes, name in enumerate(phys.dep_vars):        
+        for kfes, name in enumerate(phys.dep_vars):
             ifes = self.ifes(name)
             ib = self.i_b[ifes]
             ib.Assign(0.0)
             for mm in phys.walk():
-               if not mm.enabled: continue
-               if not mm.has_lf_contribution2(kfes, self.access_idx): continue
-               if len(mm._sel_index) == 0: continue                          
-               mm.add_lf_contribution(self, ib, real=False, kfes=kfes)
-           
+                if not mm.enabled:
+                    continue
+                if not mm.has_lf_contribution2(kfes, self.access_idx):
+                    continue
+                if len(mm._sel_index) == 0:
+                    continue
+                mm.add_lf_contribution(self, ib, real=False, kfes=kfes)
+
     def fill_mixed(self, phys, update):
-       
+
         renewflag = {}
         fillflag = {}
-        phys_offset  = self.phys_offsets(phys)[0]
+        phys_offset = self.phys_offsets(phys)[0]
         rphys_offset = self.r_phys_offsets(phys)[0]
-        
+
         for mm in phys.walk():
-            if not mm.enabled: continue
-            if not mm.has_mixed_contribution2(self.access_idx):continue
-            if len(mm._sel_index) == 0: continue
-                          
+            if not mm.enabled:
+                continue
+            if not mm.has_mixed_contribution2(self.access_idx):
+                continue
+            if len(mm._sel_index) == 0:
+                continue
+
             loc_list = mm.get_mixedbf_loc()
 
             for loc in loc_list:
-                r, c, is_trans, is_conj= loc
+                r, c, is_trans, is_conj = loc
                 if isinstance(r, int):
                     idx1 = phys_offset + r
                     idx2 = rphys_offset + c
                 else:
                     idx1 = self.ifes(r)
-                    idx2 = self.r_ifes(c)                                      
+                    idx2 = self.r_ifes(c)
                 if loc[2] < 0:
                     idx1, idx2 = idx2, idx1
 
                 if not update:
-                    fillflag[(idx1, idx2)] =True                   
+                    fillflag[(idx1, idx2)] = True
                 elif mm.update_flag:
-                    renewflag[(idx1, idx2)]=True
-                    fillflag[(idx1, idx2)] =True
+                    renewflag[(idx1, idx2)] = True
+                    fillflag[(idx1, idx2)] = True
                 else:
                     if not (idx1, idx2) in fillflag:
-                        fillflag[(idx1, idx2)] =False
-       
+                        fillflag[(idx1, idx2)] = False
+
         is_complex = phys.is_complex()
         mixed_bf = {}
         tasks = {}
@@ -1170,41 +1342,48 @@ class Engine(object):
                 self.i_a.renew(idx)
 
         for mm in phys.walk():
-            if not mm.enabled: continue
-            if not mm.has_mixed_contribution2(self.access_idx):continue
-            if len(mm._sel_index) == 0: continue
-                          
+            if not mm.enabled:
+                continue
+            if not mm.has_mixed_contribution2(self.access_idx):
+                continue
+            if len(mm._sel_index) == 0:
+                continue
+
             loc_list = mm.get_mixedbf_loc()
 
             for loc in loc_list:
-                r, c, is_trans, is_conj= loc
+                r, c, is_trans, is_conj = loc
                 if isinstance(r, int):
                     idx1 = phys_offset + r
                     idx2 = rphys_offset + c
                 else:
                     idx1 = self.ifes(r)
-                    idx2 = self.r_ifes(c)                                      
+                    idx2 = self.r_ifes(c)
                 if loc[2] < 0:
                     idx1, idx2 = idx2, idx1
-                    
-                if not fillflag[(idx1, idx2)]: continue
-                ridx1 = self.dep_var_offset(self.fes_vars[idx1])
-                ridx2 = self.r_dep_var_offset(self.r_fes_vars[idx2])                
-                self.mask_M[self.access_idx, ridx1, ridx2] = True
-                
-                bf =  self.r_a[idx1, idx2]
 
-                ## ToDo fix this bool logic...;D
+                if not fillflag[(idx1, idx2)]:
+                    continue
+                ridx1 = self.dep_var_offset(self.fes_vars[idx1])
+                ridx2 = self.r_dep_var_offset(self.r_fes_vars[idx2])
+                self.mask_M[self.access_idx, ridx1, ridx2] = True
+
+                bf = self.r_a[idx1, idx2]
+
+                # ToDo fix this bool logic...;D
                 is_trans = (is_trans == -1)
-                is_conj  = (is_conj == -1)
-                mm.add_mix_contribution2(self, bf, r, c, is_trans, is_conj, real=True)
+                is_conj = (is_conj == -1)
+
+                mm.add_mix_contribution2(
+                    self, bf, r, c, is_trans, is_conj, real=True)
 
                 if is_complex:
-                    bf =  self.i_a[idx1, idx2]
-                    mm.add_mix_contribution2(self, bf, r, c, is_trans, is_conj, real=False)
-        
+                    bf = self.i_a[idx1, idx2]
+                    mm.add_mix_contribution2(
+                        self, bf, r, c, is_trans, is_conj, real=False)
+
     def update_bf(self):
-        fes_vars = self.fes_vars       
+        fes_vars = self.fes_vars
         for j in range(self.n_matrix):
             self.access_idx = j
             for name in self.fes_vars:
@@ -1218,41 +1397,47 @@ class Engine(object):
                 for p in projs:
                     ia = self.i_a[ifes, ifes, p]
                     ia.Update(fes)
-       
+
     def fill_coupling(self, coupling, phys_target):
         raise NotImplementedError("Coupling is not supported")
-  
+
     def assemble_extra(self, phys, phys_range):
         for mm in phys.walk():
-            if not mm.enabled: continue
+            if not mm.enabled:
+                continue
             for phys2 in phys_range:
-                names = phys2.dep_vars      
+                names = phys2.dep_vars
                 for kfes, name in enumerate(names):
-                    if not mm.has_extra_DoF2(kfes, phys2, self.access_idx): continue
-                    gl_ess_tdof = self.gl_ess_tdofs[name]                    
-                    tmp  = mm.add_extra_contribution(self,
-                                                     ess_tdof=gl_ess_tdof, 
-                                                     kfes = kfes,
-                                                     phys = phys2)
-                    if tmp is None: continue
+                    if not mm.has_extra_DoF2(kfes, phys2, self.access_idx):
+                        continue
+                    gl_ess_tdof = self.gl_ess_tdofs[name]
+                    tmp = mm.add_extra_contribution(self,
+                                                    ess_tdof=gl_ess_tdof,
+                                                    kfes=kfes,
+                                                    phys=phys2)
+                    if tmp is None:
+                        continue
 
                     dep_var = names[kfes]
                     extra_name = mm.extra_DoF_name2(kfes)
                     key = (extra_name, dep_var, kfes)
                     if key in self.extras:
-                         assert False, "extra with key= " + str(key) + " already exists."
+                        assert False, "extra with key= " + \
+                            str(key) + " already exists."
                     self.extras[key] = tmp
                     self.extras_mm[key] = mm.fullpath()
 
-    def _extra_update_check(self, phys, phys_range, mode = 'B'):
+    def _extra_update_check(self, phys, phys_range, mode='B'):
         updated_name = []
         for mm in phys.walk():
-            if not mm.enabled: continue
+            if not mm.enabled:
+                continue
             for phys2 in phys_range:
-                names = phys2.dep_vars      
+                names = phys2.dep_vars
                 for kfes, name in enumerate(names):
-                    if not mm.has_extra_DoF2(kfes, phys2, self.access_idx): continue
-                    
+                    if not mm.has_extra_DoF2(kfes, phys2, self.access_idx):
+                        continue
+
                     dep_var = names[kfes]
                     extra_name = mm.extra_DoF_name2(kfes)
                     key = (extra_name, dep_var, kfes)
@@ -1263,35 +1448,39 @@ class Engine(object):
                         if mode == 'M' and mm.check_extra_update('M'):
                             updated_name.append(key)
         return updated_name
-     
+
     def extra_update_check_M(self, phys, phys_range):
         return self._extra_update_check(phys, phys_range, mode='M')
+
     def extra_update_check_B(self, phys, phys_range):
-        return self._extra_update_check(phys, phys_range, mode='B')       
-                    
+        return self._extra_update_check(phys, phys_range, mode='B')
+
     def assemble_aux_ops(self, phys_target, phys_range, update):
-        updated_name = []       
-        allmm = [mm for phys in phys_target for mm in phys.walk() if mm.is_enabled()]
+        updated_name = []
+        allmm = [mm for phys in phys_target for mm in phys.walk()
+                 if mm.is_enabled()]
         for phys1 in phys_target:
-            names = phys1.dep_vars           
+            names = phys1.dep_vars
             for kfes1, name1 in enumerate(names):
                 for phys2 in phys_range:
                     names2 = phys2.dep_vars
                     for kfes2, name2 in enumerate(names2):
-                      for mm in allmm:
-                        if update and not mm.update_flag: continue
-                        
-                        if not mm.has_aux_op2(phys1, kfes1,
-                                              phys2, kfes2, self.access_idx): continue
-                        gl_ess_tdof1 = self.gl_ess_tdofs[name1]
-                        gl_ess_tdof2 = self.gl_ess_tdofs[name2]                    
-                        op = mm.get_aux_op(self, phys1, kfes1, phys2, kfes2,
-                                           test_ess_tdof=gl_ess_tdof1,
-                                           trial_ess_tdof=gl_ess_tdof2)
-                        key = (name1, name2, mm.fullpath())
-                        self.aux_ops[key] = op
-                        updated_name.append(key)
-        return updated_name                        
+                        for mm in allmm:
+                            if update and not mm.update_flag:
+                                continue
+
+                            if not mm.has_aux_op2(phys1, kfes1,
+                                                  phys2, kfes2, self.access_idx):
+                                continue
+                            gl_ess_tdof1 = self.gl_ess_tdofs[name1]
+                            gl_ess_tdof2 = self.gl_ess_tdofs[name2]
+                            op = mm.get_aux_op(self, phys1, kfes1, phys2, kfes2,
+                                               test_ess_tdof=gl_ess_tdof1,
+                                               trial_ess_tdof=gl_ess_tdof2)
+                            key = (name1, name2, mm.fullpath())
+                            self.aux_ops[key] = op
+                            updated_name.append(key)
+        return updated_name
 
     def assemble_interp(self, phys):
         names = phys.dep_vars
@@ -1300,15 +1489,17 @@ class Engine(object):
             kfes = names.index(name)
             interp = []
             for mm in phys.walk():
-                if not mm.enabled: continue           
-                if not mm.has_interpolation_contribution(kfes):continue
+                if not mm.enabled:
+                    continue
+                if not mm.has_interpolation_contribution(kfes):
+                    continue
                 interp.append(mm.add_interpolation_contribution(self,
-                                                       ess_tdof=gl_ess_tdof,
-                                                       kfes = kfes))
+                                                                ess_tdof=gl_ess_tdof,
+                                                                kfes=kfes))
             # merge all interpolation constraints
             P = None
-            nonzeros=[]
-            zeros=[]        
+            nonzeros = []
+            zeros = []
             for P0, nonzeros0, zeros0 in interp:
                 if P is None:
                     P = P0
@@ -1317,8 +1508,7 @@ class Engine(object):
                 else:
                     P = P.dot(P0)
                     zeros = np.hstack((zeros, zeros0))
-                    nonzeros = np.hstack((nonzeros, nonzeros0)) 
-
+                    nonzeros = np.hstack((nonzeros, nonzeros0))
             self.interps[name] = (P, nonzeros, zeros)
 
     def assemble_projection(self, phys):
@@ -1330,89 +1520,96 @@ class Engine(object):
     def prepare_M_B_blocks(self):
         size1 = len(self.dep_vars)
         size2 = len(self.r_dep_vars)
-        M_block = [self.new_blockmatrix((size1, size2)) for i in range(self.n_matrix)]
+        M_block = [self.new_blockmatrix((size1, size2))
+                   for i in range(self.n_matrix)]
         B_block = self.new_blockmatrix((size1, 1))
         return (M_block, B_block)
-     
+
     def prepare_X_block(self):
-        size = len(self.r_dep_vars)                         
-        X_block = [self.new_blockmatrix((size, 1))  for i in range(self.n_matrix)]
+        size = len(self.r_dep_vars)
+        X_block = [self.new_blockmatrix((size, 1))
+                   for i in range(self.n_matrix)]
         return X_block
 
     def prepare_B_blocks(self):
-        size = len(self.dep_vars)                         
+        size = len(self.dep_vars)
         B_block = self.new_blockmatrix((size, 1))
         return B_block
-    
+
     def fill_M_B_blocks(self, M, B, update=False):
         from petram.helper.formholder import convertElement
         from mfem.common.chypre import BF2PyMat, LF2PyVec, Array2PyVec
-        from mfem.common.chypre import MfemVec2PyVec, MfemMat2PyMat    
+        from mfem.common.chypre import MfemVec2PyVec, MfemMat2PyMat
         from itertools import product
 
         if update:
             M_changed = False
             R = len(self.dep_vars)
-            C = len(self.r_dep_vars)            
+            C = len(self.r_dep_vars)
             for k in range(self.n_matrix):
-                for i, j in product(range(R),range(C)):
+                for i, j in product(range(R), range(C)):
                     if self.mask_M[k, i, j]:
-                       M[k][i, j] = None
-                       M_changed = True
+                        M[k][i, j] = None
+                        M_changed = True
             for i in range(R):
-                if self.mask_B[i]: B[i] = None
+                if self.mask_B[i]:
+                    B[i] = None
         else:
             M_changed = True
-            
+
         nfes = len(self.fes_vars)
-        nrfes = len(self.r_fes_vars)        
+        nrfes = len(self.r_fes_vars)
+
         for k in range(self.n_matrix):
             self.access_idx = k
-            
+
             self.r_a.generateMatVec(self.a2A, self.a2Am)
             self.i_a.generateMatVec(self.a2A, self.a2Am)
-            
-            for i, j in product(range(nfes),range(nrfes)):
+
+            for i, j in product(range(nfes), range(nrfes)):
                 r = self.dep_var_offset(self.fes_vars[i])
                 c = self.r_dep_var_offset(self.r_fes_vars[j])
 
-                if update and not self.mask_M[k, r, c]: continue
-                                          
-                m = convertElement(self.r_a, self.i_a,
-                                   i, j, MfemMat2PyMat)
+                if update and not self.mask_M[k, r, c]:
+                    continue
 
-                M[k][r,c] = m if M[k][r,c] is None else M[k][r,c] + m
+                m = convertElement(self.r_a, self.i_a,
+                                   i, j, MfemMat2PyMat,
+                                   projections=self.projections)
+
+                M[k][r, c] = m if M[k][r, c] is None else M[k][r, c] + m
 
             for extra_name, dep_name, kfes in self.extras.keys():
                 r = self.dep_var_offset(extra_name)
                 c = self.r_dep_var_offset(dep_name)
                 c1 = self.dep_var_offset(extra_name)
                 if dep_name in self._dep_vars:
-                   r1 = self.dep_var_offset(dep_name)
+                    r1 = self.dep_var_offset(dep_name)
                 else:
-                   r1 = -1
+                    r1 = -1
 
+                if update and not self.mask_M[k, r, c]:
+                    continue
 
-                if update and not self.mask_M[k, r, c]: continue
-                
-                # t1,t2,t3,t4 = (vertical, horizontal, diag, rhs). 
+                # t1,t2,t3,t4 = (vertical, horizontal, diag, rhs).
                 t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]
-                
-                if r1 != -1:                
-                    M[k][r1,c1] = t1 if M[k][r1,c1] is None else M[k][r1,c1]+t1
-                M[k][r,c] = t2 if M[k][r,c] is None else M[k][r,c]+t2
-                #M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3                
-                M[k][r,c1] = t3 if M[k][r,c1] is None else M[k][r,c1]+t3
-                
-            #print("aux", k, self.aux_ops.keys())                
+
+                if r1 != -1:
+                    M[k][r1, c1] = t1 if M[k][r1, c1] is None else M[k][r1, c1]+t1
+                M[k][r, c] = t2 if M[k][r, c] is None else M[k][r, c]+t2
+                #M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3
+                M[k][r, c1] = t3 if M[k][r, c1] is None else M[k][r, c1]+t3
+
+            #print("aux", k, self.aux_ops.keys())
             for key in self.aux_ops.keys():
                 testname, trialname, mm_fullpath = key
                 r = self.dep_var_offset(testname)
                 c = self.r_dep_var_offset(trialname)
-                if update and not self.mask_M[k, r, c]: continue
-                
+                if update and not self.mask_M[k, r, c]:
+                    continue
+
                 m = self.aux_ops[key]
-                M[k][r,c] = m if M[k][r,c] is None else M[k][r,c]+m
+                M[k][r, c] = m if M[k][r, c] is None else M[k][r, c]+m
 
         self.fill_B_blocks(B, update=update)
         '''
@@ -1436,45 +1633,49 @@ class Engine(object):
             B[r] = t4
         '''
         return M, B, M_changed
-     
+
     def fill_B_blocks(self, B, update=False):
         from petram.helper.formholder import convertElement
         from mfem.common.chypre import MfemVec2PyVec
 
-        nfes = len(self.fes_vars)        
-        self.access_idx = 0        
+        nfes = len(self.fes_vars)
+        self.access_idx = 0
         self.r_b.generateMatVec(self.b2B)
-        self.i_b.generateMatVec(self.b2B)            
+        self.i_b.generateMatVec(self.b2B)
         for i in range(nfes):
             r = self.dep_var_offset(self.fes_vars[i])
-            if update and not self.mask_B[r]: continue            
+            if update and not self.mask_B[r]:
+                continue
 
-            v = convertElement(self.r_b, self.i_b,
-                                      i, 0, MfemVec2PyVec)
+            v = convertElement(self.r_b,
+                               self.i_b,
+                               i, 0, MfemVec2PyVec)
             B[r] = v
-            
-        self.access_idx = 0            
+
+        self.access_idx = 0
         for extra_name, dep_name, kfes in self.extras.keys():
             r = self.dep_var_offset(extra_name)
-            if update and not self.mask_B[r]: continue
-            
-            t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]            
+            if update and not self.mask_B[r]:
+                continue
+
+            t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]
             B[r] = t4
-        
+
     def fill_X_block(self, X):
         from petram.helper.formholder import convertElement
         from mfem.common.chypre import BF2PyMat, LF2PyVec, Array2PyVec
-        from mfem.common.chypre import MfemVec2PyVec, MfemMat2PyMat    
+        from mfem.common.chypre import MfemVec2PyVec, MfemMat2PyMat
         from itertools import product
-       
+
         for k in range(self.n_matrix):
             self.access_idx = k
 
             self.r_x.generateMatVec(self.x2X)
-            self.i_x.generateMatVec(self.x2X)            
+            self.i_x.generateMatVec(self.x2X)
             for dep_var in self.r_dep_vars:
                 r = self.r_dep_var_offset(dep_var)
-                if not self.mask_X[k, r]: continue
+                if not self.mask_X[k, r]:
+                    continue
                 if self.r_isFESvar(dep_var):
                     i = self.r_ifes(dep_var)
                     v = convertElement(self.r_x, self.i_x,
@@ -1482,38 +1683,40 @@ class Engine(object):
                     X[k][r] = v
                 else:
                     if self.sol_extra is not None:
-                       for key in self.sol_extra:
-                          if dep_var in self.sol_extra[key]:
-                             value = self.sol_extra[key][dep_var]
-                             X[k][r]=Array2PyVec(value)
+                        for key in self.sol_extra:
+                            if dep_var in self.sol_extra[key]:
+                                value = self.sol_extra[key][dep_var]
+                                X[k][r] = Array2PyVec(value)
                     else:
                         pass
                         # For now, it leaves as None for Lagrange Multipler?
                         # May need to allocate zeros...
         return X
-     
+
     def fill_BCeliminate_matrix(self, A, inplace=True, update=False):
         nblock1 = A.shape[0]
-        nblock2 = A.shape[1]        
-        
-        Ae = self.new_blockmatrix(A.shape)
-        for name in self.gl_ess_tdofs:
-           # we do elimination only for the varialbes to be solved
-           if not name in self._dep_vars: continue
-           
-           gl_ess_tdof = self.gl_ess_tdofs[name]
-           ess_tdof = self.ess_tdofs[name]
-           idx1 = self.dep_var_offset(name)
-           idx2 = self.r_dep_var_offset(name)
-           if A[idx1, idx2] is None:
-              A.add_empty_square_block(idx1, idx2)
+        nblock2 = A.shape[1]
 
-           if A[idx1, idx2] is not None:
-              Aee, A[idx1, idx2] = A[idx1, idx2].eliminate_RowsCols(ess_tdof,
-                                                                  inplace=inplace)
-              Ae[idx1, idx2] = Aee
-              
-              '''
+        Ae = self.new_blockmatrix(A.shape)
+
+        for name in self.gl_ess_tdofs:
+            # we do elimination only for the varialbes to be solved
+            if not name in self._dep_vars:
+                continue
+
+            gl_ess_tdof = self.gl_ess_tdofs[name]
+            ess_tdof = self.ess_tdofs[name]
+            idx1 = self.dep_var_offset(name)
+            idx2 = self.r_dep_var_offset(name)
+            if A[idx1, idx2] is None:
+                A.add_empty_square_block(idx1, idx2)
+
+            if A[idx1, idx2] is not None:
+                Aee, A[idx1, idx2] = A[idx1, idx2].eliminate_RowsCols(ess_tdof,
+                                                                      inplace=inplace)
+                Ae[idx1, idx2] = Aee
+
+                '''
               note: minor differece between serial/parallel
  
               Aee in serial ana parallel are not equal. The definition of Aee in MFEM is
@@ -1521,19 +1724,24 @@ class Engine(object):
               In the serial mode, Aee_diag is not properly set. But this element
               does not impact the final RHS.
               '''
-           for j in range(nblock2):
-              if j == idx2: continue
-              if A[idx1, j] is None: continue
-              A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof, inplace=inplace)
-                  
-           for j in range(nblock1):            
-              if j == idx1: continue
-              if A[j, idx2] is None: continue
-              SM = A.get_squaremat_from_right(j, idx2)
-              SM.setDiag(gl_ess_tdof)
 
-              Ae[j, idx2] = A[j, idx2].dot(SM)
-              A[j, idx2]=A[j, idx2].resetCol(gl_ess_tdof, inplace=inplace)
+            for j in range(nblock2):
+                if j == idx2:
+                    continue
+                if A[idx1, j] is None:
+                    continue
+                A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof, inplace=inplace)
+
+            for j in range(nblock1):
+                if j == idx1:
+                    continue
+                if A[j, idx2] is None:
+                    continue
+                SM = A.get_squaremat_from_right(j, idx2)
+                SM.setDiag(gl_ess_tdof)
+
+                Ae[j, idx2] = A[j, idx2].dot(SM)
+                A[j, idx2] = A[j, idx2].resetCol(gl_ess_tdof, inplace=inplace)
 
         return A, Ae
 
@@ -1541,32 +1749,34 @@ class Engine(object):
         try:
             AeX = Ae.dot(X)
             for name in self.gl_ess_tdofs:
-               if not name in self._dep_vars: continue
-               
-               idx = self.dep_var_offset(name)               
-               gl_ess_tdof = self.gl_ess_tdofs[name]
-               if AeX[idx, 0] is not None:
+                if not name in self._dep_vars:
+                    continue
+
+                idx = self.dep_var_offset(name)
+                gl_ess_tdof = self.gl_ess_tdofs[name]
+                if AeX[idx, 0] is not None:
                     AeX[idx, 0].resetRow(gl_ess_tdof)
-                    
+
             RHS = RHS - AeX
-            
+
         except:
             print("RHS", RHS)
             print("Ae", Ae)
             print("X", X)
             raise
-         
+
         for name in self.gl_ess_tdofs:
-            if not name in self._dep_vars: continue
-            
-            idx = self.dep_var_offset(name)      
-            ridx = self.r_dep_var_offset(name)      
+            if not name in self._dep_vars:
+                continue
+
+            idx = self.dep_var_offset(name)
+            ridx = self.r_dep_var_offset(name)
             gl_ess_tdof = self.gl_ess_tdofs[name]
             ess_tdof = self.ess_tdofs[name]
             RHS[idx].copy_element(gl_ess_tdof, X[ridx])
 
         return RHS
-              
+
     def apply_interp(self, A=None, RHS=None):
         ''''
         without interpolation, matrix become
@@ -1582,69 +1792,76 @@ class Engine(object):
              x  = P^t y
         '''
         #import traceback
-        #traceback.print_stack()
+        # traceback.print_stack()
         for name in self.interps:
             idx1 = self.dep_var_offset(name)
-            idx2 = self.r_dep_var_offset(name)            
+            idx2 = self.r_dep_var_offset(name)
             P, nonzeros, zeros = self.interps[name]
-            if P is None: continue
-            
-            if A is not None:
-               shape = A.shape               
-               A1 = A[idx1,idx2]
-               A1 = A1.rap(P.transpose())
-               A1.setDiag(zeros, 1.0)
-               A[idx1, idx2] = A1
+            if P is None:
+                continue
 
-               PP = P.conj(inplace=True)
-               for i in range(shape[1]):
-                   if idx1 == i: continue
-                   if A[idx1,i] is not None:
-                       A[idx1,i] = PP.dot(A[idx1,i])
-               P = PP.conj(inplace=True)                        
-               for i in range(shape[0]):
-                   if idx2 == i: continue
-                   if A[i,idx2] is not None:
-                       A[i, idx2] = A[i, idx2].dot(P)
+            if A is not None:
+                shape = A.shape
+                A1 = A[idx1, idx2]
+                A1 = A1.rap(P.transpose())
+                A1.setDiag(zeros, 1.0)
+                A[idx1, idx2] = A1
+
+                PP = P.conj(inplace=True)
+                for i in range(shape[1]):
+                    if idx1 == i:
+                        continue
+                    if A[idx1, i] is not None:
+                        A[idx1, i] = PP.dot(A[idx1, i])
+                P = PP.conj(inplace=True)
+                PP = P.transpose()
+                for i in range(shape[0]):
+                    if idx2 == i:
+                        continue
+                    if A[i, idx2] is not None:
+                        A[i, idx2] = A[i, idx2].dot(PP)
             if RHS is not None:
                 RHS[idx1] = P.conj(inplace=True).dot(RHS[idx1])
                 P.conj(inplace=True)
-        
-        if A is not None and RHS is not None: return A, RHS
-        if A is not None : return A, 
-        if RHS is not None: return RHS
+
+        if A is not None and RHS is not None:
+            return A, RHS
+        if A is not None:
+            return A,
+        if RHS is not None:
+            return RHS
 
     #
     #  step4 : matrix finalization (to form a data being passed to a linear solver)
     #
-    def finalize_matrix(self, M_block, mask,is_complex,format = 'coo',
+    def finalize_matrix(self, M_block, mask, is_complex, format='coo',
                         verbose=True):
-        if verbose: dprint1("A (in finalizie_matrix) \n",  M_block, mask)       
+        if verbose:
+            dprint1("A (in finalizie_matrix) \n",  M_block, mask)
         M_block = M_block.get_subblock(mask[0], mask[1])
 
-        if format == 'coo': # coo either real or complex
+        if format == 'coo':  # coo either real or complex
             M = self.finalize_coo_matrix(M_block, is_complex, verbose=verbose)
-            
-        elif format == 'coo_real': # real coo converted from complex
+
+        elif format == 'coo_real':  # real coo converted from complex
             M = self.finalize_coo_matrix(M_block, is_complex,
-                                            convert_real = True, verbose=verbose)
+                                         convert_real=True, verbose=verbose)
 
-        elif format == 'blk_interleave': # real coo converted from complex
+        elif format == 'blk_interleave':  # real coo converted from complex
             M = M_block.get_global_blkmat_interleave()
-            
 
-        elif format == 'blk_merged': # real coo converted from complex
+        elif format == 'blk_merged':  # real coo converted from complex
             M = M_block.get_global_blkmat_merged()
-            
-        elif format == 'blk_merged_s': # real coo converted from complex
-            M = M_block.get_global_blkmat_merged(symmetric = True)
+
+        elif format == 'blk_merged_s':  # real coo converted from complex
+            M = M_block.get_global_blkmat_merged(symmetric=True)
 
         dprint2('exiting finalize_matrix')
         self.is_assembled = True
         return M
-     
+
     def finalize_rhs(self,  B_blocks, M_block, X_block,
-                     mask, is_complex, format = 'coo', verbose=True):
+                     mask, is_complex, format='coo', verbose=True):
         #
         #  RHS = B - A[not solved]*X[not solved]
         #
@@ -1653,145 +1870,153 @@ class Engine(object):
         XX = X_block.get_subblock(inv_mask, [True])
         xx = MM.dot(XX)
         B_blocks = [b.get_subblock(mask[0], [True]) - xx for b in B_blocks]
-        
-        if format == 'coo': # coo either real or complex
-            BB = [self.finalize_coo_rhs(b, is_complex, verbose=verbose) for b in B_blocks]
+
+        if format == 'coo':  # coo either real or complex
+            BB = [self.finalize_coo_rhs(
+                b, is_complex, verbose=verbose) for b in B_blocks]
             BB = np.hstack(BB)
-            
-        elif format == 'coo_real': # real coo converted from complex
+
+        elif format == 'coo_real':  # real coo converted from complex
             BB = [self.finalize_coo_rhs(b, is_complex,
-                                       convert_real = True, verbose=verbose)
-                    for b in B_blocks]
+                                        convert_real=True, verbose=verbose)
+                  for b in B_blocks]
             BB = np.hstack(BB)
-            
-        elif format == 'blk_interleave': # real coo converted from complex
+
+        elif format == 'blk_interleave':  # real coo converted from complex
             BB = [b.gather_blkvec_interleave() for b in B_blocks]
-            
+
         elif format == 'blk_merged':
             BB = [b.gather_blkvec_merged() for b in B_blocks]
-            
+
         elif format == 'blk_merged_s':
             BB = [b.gather_blkvec_merged(symmetric=True) for b in B_blocks]
 
         else:
             assert False, "unsupported format for B"
-            
+
         return BB
-     
+
     def finalize_x(self,  X_block, RHS, mask, is_complex,
-                   format = 'coo', verbose=True):
+                   format='coo', verbose=True):
         X_block = X_block.get_subblock(mask[1], [True])
         RHS = RHS.get_subblock(mask[0], [True])
-        if format == 'blk_interleave': # real coo converted from complex
+        if format == 'blk_interleave':  # real coo converted from complex
             X = X_block.gather_blkvec_interleave(size_hint=RHS)
-            
-        elif format == 'blk_merged' or format == 'blk_merged_s':           
+
+        elif format == 'blk_merged' or format == 'blk_merged_s':
             X = X_block.gather_blkvec_merged(size_hint=RHS)
-            
+
         else:
             assert False, "unsupported format for X"
-        
+
         return X
-     
-    def finalize_coo_matrix(self, M_block, is_complex, convert_real = False,
+
+    def finalize_coo_matrix(self, M_block, is_complex, convert_real=False,
                             verbose=True):
-        if verbose: dprint1("A (in finalizie_coo_matrix) \n",  M_block)       
+        if verbose:
+            dprint1("A (in finalizie_coo_matrix) \n",  M_block)
+            #M_block.save_to_file("M_block")
         if not convert_real:
             if is_complex:
-                M = M_block.get_global_coo(dtype='complex')           
+                M = M_block.get_global_coo(dtype='complex')
             else:
-                M = M_block.get_global_coo(dtype='float')                          
+                M = M_block.get_global_coo(dtype='float')
         else:
-            M = M_block.get_global_coo(dtype='complex')                      
-            M = scipy.sparse.bmat([[M.real, -M.imag], [M.imag, M.real]], format='coo')
+            M = M_block.get_global_coo(dtype='complex')
+            M = scipy.sparse.bmat(
+                [[M.real, -M.imag], [M.imag, M.real]], format='coo')
             # (this one make matrix symmetric, for now it is off to do the samething
             #  as GMRES case)
             # M = scipy.sparse.bmat([[M.real, -M.imag], [-M.imag, -M.real]], format='coo')
         return M
 
     def finalize_coo_rhs(self, b, is_complex,
-                         convert_real = False,
+                         convert_real=False,
                          verbose=True):
-        if verbose: dprint1("b (in finalizie_coo_rhs) \n",  b)
+        if verbose:
+            dprint1("b (in finalizie_coo_rhs) \n",  b)
         B = b.gather_densevec()
         if convert_real:
-             B = np.vstack((B.real, B.imag))
-             # (this one make matrix symmetric)           
-             # B = np.vstack((B.real, -B.imag))
+            B = np.vstack((B.real, B.imag))
+            # (this one make matrix symmetric)
+            # B = np.vstack((B.real, -B.imag))
         else:
-           if not is_complex:
-              pass
-             # B = B.astype(float)
+            if not is_complex:
+                pass
+            # B = B.astype(float)
         return B
     #
     #  processing solution
     #
+
     def split_sol_array(self, sol):
         s = [None]*len(self.r_fes_vars)
         #nicePrint("sol", sol, self._rdep_vars)
         for name in self.fes_vars:
-            #print name
+            # print name
             j = self.r_dep_var_offset(name)
             sol_section = sol[j, 0]
 
             if name in self.interps:
-               P, nonzeros, zeros = self.interps[name]
-               if P is not None:
-                   sol_section = (P.transpose()).dot(sol_section)
-                   
+                P, nonzeros, zeros = self.interps[name]
+                if P is not None:
+                    sol_section = (P.transpose()).dot(sol_section)
+
             ifes = self.r_ifes(name)
             s[ifes] = sol_section
             sol[j, 0] = sol_section
-            
-        e = []    
+
+        e = []
         for name in self.dep_vars:
-           if not self.isFESvar(name):
-              e.append(sol[self.dep_var_offset(name)])
+            if not self.isFESvar(name):
+                e.append(sol[self.dep_var_offset(name)])
         #nicePrint(s, e)
         return s, e
-     
+
     def recover_sol(self, sol, access_idx=0):
 
-        self.access_idx=access_idx
-        #nicePrint(self.r_fes_vars)
-        #nicePrint(self.fes_vars)
+        self.access_idx = access_idx
+        # nicePrint(self.r_fes_vars)
+        # nicePrint(self.fes_vars)
         for k, s in enumerate(sol):
-           if s is None: continue # None=linear solver didnot solve this value, so no update
-           name = self.r_fes_vars[k]
-           r_ifes = self.r_ifes(name)
-           ridx  = self.r_dep_var_offset(name)
-           s = s.toarray()
-           X = self.r_x.get_matvec(r_ifes)
-           #nicePrint("size", s.shape, X.Size())
-           
-           X.Assign(s.flatten().real)
-           self.X2x(X, self.r_x[r_ifes])
-           if self.i_x[r_ifes] is not None:
-               X = self.i_x.get_matvec(r_ifes)
-               X.Assign(s.flatten().imag)              
-               self.X2x(X, self.i_x[r_ifes])
-           else:
-               dprint2("real value problem skipping i_x")
+            if s is None:
+                continue  # None=linear solver didnot solve this value, so no update
+            name = self.r_fes_vars[k]
+            r_ifes = self.r_ifes(name)
+            ridx = self.r_dep_var_offset(name)
+            s = s.toarray()
+            X = self.r_x.get_matvec(r_ifes)
+            #nicePrint("size", s.shape, X.Size())
+
+            X.Assign(s.flatten().real)
+            self.X2x(X, self.r_x[r_ifes])
+            if self.i_x[r_ifes] is not None:
+                X = self.i_x.get_matvec(r_ifes)
+                X.Assign(s.flatten().imag)
+                self.X2x(X, self.i_x[r_ifes])
+            else:
+                dprint2("real value problem skipping i_x")
 
     def process_extra(self, sol_extra):
         ret = {}
         k = 0
         extra_names = [name for name in self.dep_vars
                        if not self.isFESvar(name)]
-        
+
         if self.extras is None:
             # when init_only with fixed initial is chosen
             return ret
-         
+
         for extra_name, dep_name, kfes in self.extras.keys():
             data = sol_extra[extra_names.index(extra_name)]
             t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]
             mm_path = self.extras_mm[(extra_name, dep_name, kfes)]
             mm = self.model[mm_path]
             ret[extra_name] = {}
-            
-            if not t5: continue
-            if data is not None:            
+
+            if not t5:
+                continue
+            if data is not None:
                 ret[extra_name][mm.extra_DoF_name2(kfes)] = data.toarray()
             else:
                 pass
@@ -1805,22 +2030,23 @@ class Engine(object):
                 mm.postprocess_extra(data, t5, ret[extra_name])
             '''
         for k in ret:
-            tmp = {x:ret[k][x].flatten() for x in ret[k]}
+            tmp = {x: ret[k][x].flatten() for x in ret[k]}
             dprint1("extra", tmp)
         return ret
 
     #
     #  save to file
     #
-    
-    def save_sol_to_file(self, phys_target, skip_mesh = False,
-                               mesh_only = False,
-                               save_parmesh = False):
+
+    def save_sol_to_file(self, phys_target, skip_mesh=False,
+                         mesh_only=False,
+                         save_parmesh=False):
         if not skip_mesh:
-            mesh_filenames =self.save_mesh()
+            mesh_filenames = self.save_mesh()
         if save_parmesh:
             self.save_parmesh()
-        if mesh_only: return mesh_filenames
+        if mesh_only:
+            return mesh_filenames
 
         self.access_idx = 0
         for phys in phys_target:
@@ -1830,19 +2056,20 @@ class Engine(object):
                 r_x = self.r_x[ifes]
                 i_x = self.i_x[ifes]
                 self.save_solfile_fespace(name, emesh_idx, r_x, i_x)
-                
+
     def extrafile_name(self):
         return 'sol_extended.data'
-     
-    def save_extra_to_file(self, sol_extra, extrafile_name = ''):
-        if sol_extra is None: return
+
+    def save_extra_to_file(self, sol_extra, extrafile_name=''):
+        if sol_extra is None:
+            return
 
         if extrafile_name == '':
-           extrafile_name = self.extrafile_name()
+            extrafile_name = self.extrafile_name()
         extrafile_name += self.solfile_suffix()
 
-        self.sol_extra = sol_extra # keep it for future reuse
-        
+        self.sol_extra = sol_extra  # keep it for future reuse
+
         # count extradata length
         ll = 0
         for name in sol_extra.keys():
@@ -1854,73 +2081,79 @@ class Engine(object):
                     data = data.flatten()
                     sol_extra[name][k] = data
                     ll = ll + data.size
-        if ll == 0: return 
-        
+        if ll == 0:
+            return
+
         fid = open(extrafile_name, 'w')
         for name in sol_extra.keys():
             for k in sol_extra[name].keys():
                 data = sol_extra[name][k]
                 #  data must be NdArray
                 #  dataname : "E1.E_out"
-                fid.write('name : ' + name + '.' + str(k) +'\n')
+                fid.write('name : ' + name + '.' + str(k) + '\n')
                 if data.ndim == 0:
-                    fid.write('size : ' + str(data.size) +'\n')
-                    fid.write('dim : ' + str(data.ndim) +'\n')
-                    fid.write('dtype: ' + str(data.dtype) +'\n')                                
-                    fid.write(str(0) + ' ' + str(data) +'\n')
+                    fid.write('size : ' + str(data.size) + '\n')
+                    fid.write('dim : ' + str(data.ndim) + '\n')
+                    fid.write('dtype: ' + str(data.dtype) + '\n')
+                    fid.write(str(0) + ' ' + str(data) + '\n')
                 else:
                     data = data.flatten()
                     sol_extra[name][k] = data
-                    fid.write('size : ' + str(data.size) +'\n')
-                    fid.write('dim : ' + str(data.ndim) +'\n')
-                    fid.write('dtype: ' + str(data.dtype) +'\n')                    
+                    fid.write('size : ' + str(data.size) + '\n')
+                    fid.write('dim : ' + str(data.ndim) + '\n')
+                    fid.write('dtype: ' + str(data.dtype) + '\n')
                     for kk, d in enumerate(data):
-                         fid.write(str(kk) + ' ' + str(d) +'\n')
+                        fid.write(str(kk) + ' ' + str(d) + '\n')
         fid.close()
-        
+
     def load_extra_from_file(self, init_path):
         sol_extra = {}
         extrafile_name = self.extrafile_name()+self.solfile_suffix()
-        
+
         path = os.path.join(init_path, extrafile_name)
-        
+
         fid = open(path, 'r')
         line = fid.readline()
         while line:
             if line.startswith('name'):
-               name, name2 = line.split(':')[1].strip().split('.')
-               if not name in sol_extra: sol_extra[name]={}
-            size  = long(fid.readline().split(':')[1].strip())
-            dim   = long(fid.readline().split(':')[1].strip())
+                name, name2 = line.split(':')[1].strip().split('.')
+                if not name in sol_extra:
+                    sol_extra[name] = {}
+            size = long(fid.readline().split(':')[1].strip())
+            dim = long(fid.readline().split(':')[1].strip())
             dtype = fid.readline().split(':')[1].strip()
             if dtype.startswith('complex'):
-                data = [complex(fid.readline().split(' ')[1]) for k in range(size)]
+                data = [complex(fid.readline().split(' ')[1])
+                        for k in range(size)]
                 data = np.array(data, dtype=dtype)
             else:
-                data = [float(fid.readline().split(' ')[1]) for k in range(size)]
+                data = [float(fid.readline().split(' ')[1])
+                        for k in range(size)]
                 data = np.array(data, dtype=dtype)
             sol_extra[name][name2] = data
-            line = fid.readline()    
+            line = fid.readline()
         fid.close()
         return sol_extra
     #
     #  postprocess
     #
-    def store_pp_extra(self, name, data):
+
+    def store_pp_extra(self, name, data, save_once=False):
         self.model._parameters[name] = data
         self._pp_extra_update.append(name)
-        
-    def run_postprocess(self, postprocess, name = ''):
+
+    def run_postprocess(self, postprocess, name=''):
         self._pp_extra_update = []
-        
+
         for pp in postprocess:
-            if not pp.enabled: continue
+            if not pp.enabled:
+                continue
             pp.run(self)
 
-        extra = {n:self.model._parameters[n] for n in self._pp_extra_update}
-        extra = {name:extra}
-        
-        self.save_extra_to_file(extra, extrafile_name = name + '.data') 
+        extra = {n: self.model._parameters[n] for n in self._pp_extra_update}
+        extra = {name: extra}
+
+        self.save_extra_to_file(extra, extrafile_name=name + '.data')
 
     #
     #  helper methods
@@ -1930,12 +2163,12 @@ class Engine(object):
             #dprint1('!!!! mesh is None !!!!')
             return
         all_phys = [self.model['Phys'][k] for
-                        k in self.model['Phys'].keys()]
+                    k in self.model['Phys'].keys()]
         all_pp = []
         for k in self.model['PostProcess']:
-            for kk in self.model['PostProcess'][k]:           
+            for kk in self.model['PostProcess'][k]:
                 all_pp.append(self.model['PostProcess'][k][kk])
-        
+
         for p in all_phys + all_pp:
             #
             if hasattr(p, "mesh_idx") and p.mesh_idx != 0:
@@ -1943,16 +2176,16 @@ class Engine(object):
             base_mesh = self.meshes[0]
 
             if base_mesh is None:
-               assert False, "base_mesh not selected"
+                assert False, "base_mesh not selected"
 
             ec = base_mesh.extended_connectivity
-            allv = list(ec['vol2surf'])  if ec['vol2surf'] is not None else []
+            allv = list(ec['vol2surf']) if ec['vol2surf'] is not None else []
             alls = list(ec['surf2line']) if ec['surf2line'] is not None else []
             alle = list(ec['line2vert']) if ec['line2vert'] is not None else []
-            
-            p.update_dom_selection( all_sel = (allv, alls, alle))
-        
-    def assign_sel_index(self, phys = None):
+
+            p.update_dom_selection(all_sel=(allv, alls, alle))
+
+    def assign_sel_index(self, phys=None):
         if len(self.meshes) == 0:
             #dprint1('!!!! mesh is None !!!!')
             return
@@ -1963,24 +2196,30 @@ class Engine(object):
             all_phys = [phys]
 
         for p in all_phys:
-            if p.mesh_idx < 0: continue
+            if p.mesh_idx < 0:
+                continue
             mesh = self.meshes[p.mesh_idx]
-            if mesh is None: continue
-            
-            if len(p.sel_index) == 0: continue
+            if mesh is None:
+                continue
 
-            dom_choice, bdr_choice, internal_bdr = p.get_dom_bdr_choice(self.meshes[p.mesh_idx])
+            if len(p.sel_index) == 0:
+                continue
+
+            dom_choice, bdr_choice, internal_bdr = p.get_dom_bdr_choice(
+                self.meshes[p.mesh_idx])
             dprint1("## internal bdr index " + str(internal_bdr))
-            
+
             p._phys_sel_index = dom_choice
             self.do_assign_sel_index(p, dom_choice, Domain)
-            self.do_assign_sel_index(p, bdr_choice, Bdry, internal_bdr=internal_bdr)
+            self.do_assign_sel_index(
+                p, bdr_choice, Bdry, internal_bdr=internal_bdr)
             self.do_assign_sel_index(p, dom_choice, Point)
-            
+
     def do_assign_sel_index(self, m, choice, cls, internal_bdr=None):
         dprint1("## setting _sel_index (1-based number): " + cls.__name__ +
                 ":" + m.fullname() + ":" + str(choice))
-        #_sel_index is 0-base array
+        # _sel_index is 0-base array
+
         def _walk_physics(node):
             yield node
             for k in node.keys():
@@ -1989,63 +2228,71 @@ class Engine(object):
         checklist = np.array([True]*len(choice), dtype=bool)
 
         for node in m.walk():
-           if not isinstance(node, cls): continue
-           if not node.is_enabled(): continue
-           ret = node.process_sel_index(choice, internal_bdr=internal_bdr)
-           
-           if ret is None:
-              if rem is not None: rem._sel_index = []
-              rem = node
-           elif ret == -1:
-              node._sel_index = choice
-              dprint1(node.fullname(), node._sel_index)              
-           else:
-              dprint1(node.fullname(), ret)
-              #for k in ret:
-              #   idx = list(choice).index(k)
-              #   if node.is_secondary_condition: continue
-              #   checklist[idx] = False
-              if not node.is_secondary_condition:
-                 checklist[np.in1d(choice, ret)] = False                 
+            if not isinstance(node, cls):
+                continue
+            if not node.is_enabled():
+                continue
+            ret = node.process_sel_index(choice, internal_bdr=internal_bdr)
+
+            if ret is None:
+                if rem is not None:
+                    rem._sel_index = []
+                rem = node
+            elif ret == -1:
+                node._sel_index = choice
+                if not node.is_secondary_condition:
+                    checklist[np.in1d(choice, node._sel_index)] = False
+                dprint1(node.fullname(), node._sel_index)
+            else:
+                dprint1(node.fullname(), ret)
+                # for k in ret:
+                #   idx = list(choice).index(k)
+                #   if node.is_secondary_condition: continue
+                #   checklist[idx] = False
+                if not node.is_secondary_condition:
+                    checklist[np.in1d(choice, ret)] = False
         if rem is not None:
-           rem._sel_index = list(np.array(choice)[checklist])
-           dprint1(rem.fullname() + ':' + rem._sel_index.__repr__())
+            rem._sel_index = list(np.array(choice)[checklist])
+            dprint1(rem.fullname() + ':' + rem._sel_index.__repr__())
 
-    def find_domain_by_index(self, phys, idx,  check_enabled = False):
+    def find_domain_by_index(self, phys, idx,  check_enabled=False):
         return self._do_find_by_index(phys, idx, Domain,
-                                      check_enabled = check_enabled)       
+                                      check_enabled=check_enabled)
 
-    def find_bdry_by_index(self, phys, idx, check_enabled = False):
+    def find_bdry_by_index(self, phys, idx, check_enabled=False):
         return self._do_find_by_index(phys, idx, Bdry,
-                                      check_enabled = check_enabled)
-        
+                                      check_enabled=check_enabled)
+
     def _do_find_by_index(self, phys, idx, cls, ignore_secondary=True,
-                          check_enabled = False):
+                          check_enabled=False):
         for node in phys.walk():
-            if (check_enabled and (not node.enabled)): continue
-            if not isinstance(node, cls): continue
+            if (check_enabled and (not node.enabled)):
+                continue
+            if not isinstance(node, cls):
+                continue
             if idx in node._sel_index:
                 if ((ignore_secondary and not node.is_secondary_condition)
-                    or not ignore_secondary):
+                        or not ignore_secondary):
                     return node
 
     def gather_essential_tdof(self, phys):
         flags = self.get_essential_bdr_flag(phys)
         self.get_essential_bdr_tofs(phys, flags)
 
-                 
     def get_essential_bdr_flag(self, phys):
         flag = []
         for k,  name in enumerate(phys.dep_vars):
             fes = self.fespaces[name]
             index = []
             for node in phys.walk():
-                #if not isinstance(node, Bdry): continue           
-                if not node.enabled: continue
+                # if not isinstance(node, Bdry): continue
+                if not node.enabled:
+                    continue
                 if node.has_essential:
                     index = index + node.get_essential_idx(k)
             ess_bdr = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
-            for kk in index: ess_bdr[kk-1] = 1
+            for kk in index:
+                ess_bdr[kk-1] = 1
             flag.append((name, ess_bdr))
         dprint1("esse flag", flag)
         return flag
@@ -2065,21 +2312,23 @@ class Engine(object):
         for name, elem in phys.get_fec():
             vdim = phys.vdim
             emesh_idx = phys.emesh_idx
-            order = phys.order
+            order = phys.fes_order
 
             #mesh = self.emeshes[phys.emesh_idx]
             #isParMesh = hasattr(mesh, 'ParPrint')
             #sdim= mesh.SpaceDimension()
             #if name.startswith('RT'): vdim = 1
             #if name.startswith('ND'): vdim = 1
-            if elem.startswith('RT'): vdim = 1
-            if elem.startswith('ND'): vdim = 1
-            
-            dprint1("allocate_fespace: " + name)            
+            if elem.startswith('RT'):
+                vdim = 1
+            if elem.startswith('ND'):
+                vdim = 1
+
+            dprint1("allocate_fespace: " + name)
             is_new, fec, fes = self.get_or_allocate_fecfes(name, emesh_idx, elem,
                                                            order, vdim)
             #dprint1("debug", fec.Name(), fes.GetMesh().GetNE())
-            
+
             '''
             key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
             if key in self.fecfes_storage:
@@ -2094,15 +2343,17 @@ class Engine(object):
                 self.fecfes_storage[key] = (fec, fes)
 
             self.add_fec_fes(name, fec, fes)
-            '''                
+            '''
+
     def get_or_allocate_fecfes(self, name, emesh_idx, elem, order, vdim, make_new=True):
-        mesh = self.emeshes[emesh_idx]       
+        mesh = self.emeshes[emesh_idx]
         isParMesh = hasattr(mesh, 'ParPrint')
-        sdim= mesh.SpaceDimension()
+        sdim = mesh.SpaceDimension()
+        dim = mesh.Dimension()
 
         is_new = False
-        key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
-        dprint1( "(emesh_idx, elem, order, sdim, vdim, isParMesh) = " + str(key))
+        key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
+        dprint1("(emesh_idx, elem, order, dim, sdim, vdim, isParMesh) = " + str(key))
 
         if key in self.fecfes_storage:
             fec, fes = self.fecfes_storage[key]
@@ -2111,22 +2362,31 @@ class Engine(object):
         else:
             dprint1("making a new fec/fes")
             is_new = True
-            fec = getattr(mfem, elem)
-            #if fec is mfem.ND_FECollection:
-            #   mesh.ReorientTetMesh()
-            fec = fec(order, sdim)
+
+            fec = getattr(mfem, elem.split('(')[0].strip())
+            if "(" in elem:
+                fecdim = dim
+            else:
+                fecdim = dim
+                if elem.startswith('RT'):
+                    fecdim = sdim
+                if elem.startswith('ND'):
+                    fecdim = sdim
+
+            fec = fec(order, fecdim)
             fes = self.new_fespace(mesh, fec, vdim)
+
             mesh.GetEdgeVertexTable()
             self.fecfes_storage[key] = (fec, fes)
-            
-        self.add_fec_fes(name, fec, fes)            
+
+        self.add_fec_fes(name, fec, fes)
         return is_new, fec, fes
-                            
+
     def add_fec_fes(self, name, fec, fes):
         self.fec[name] = fec
         self.fespaces[name] = fes
-            
-    def get_fes(self, phys, kfes = 0, name = None):
+
+    def get_fes(self, phys, kfes=0, name=None):
         if name is None:
             name = phys.dep_vars[kfes]
             return self.fespaces[name]
@@ -2136,7 +2396,7 @@ class Engine(object):
     def alloc_gf(self, idx, idx2=0):
         fes = self.fespaces[self.r_fes_vars[idx]]
         return self.new_gf(fes)
-     
+
     def alloc_lf(self, idx, idx2=0):
         fes = self.fespaces[self.fes_vars[idx]]
         return self.new_lf(fes)
@@ -2145,24 +2405,88 @@ class Engine(object):
         fes = self.fespaces[self.fes_vars[idx]]
         return self.new_bf(fes)
 
-    def alloc_mbf(self, idx1, idx2): #row col
-        fes1 = self.fespaces[self.fes_vars[idx1]]
-        fes2 = self.fespaces[self.r_fes_vars[idx2]]
+    def alloc_mbf(self, idx1, idx2):  # row col
+        name1 = self.fes_vars[idx1]
+        name2 = self.r_fes_vars[idx2]
+        fes1 = self.fespaces[name1]
+        fes2 = self.fespaces[name2]
 
-        return self.new_mixed_bf(fes2, fes1) # argument = trial(=domain), test(=range)
-    
+        info1 = self.get_fes_info(fes1)
+        info2 = self.get_fes_info(fes2)
+        if info1["emesh_idx"] != info2["emesh_idx"]:
+            dprint1(
+                "fes1 and fes2 are on different mesh. Constructing a DoF map.", name1, name2)
+            dprint1("info1", self.get_fes_info(fes1))
+            dprint1("info2", self.get_fes_info(fes2))
+
+            name = name2 + '_to_' + name1
+            if abs(info1["dim"]-info2["dim"]) > 1:
+                assert False, "does not support direct mapping from volume to edge (or face to vertex)"
+
+            from petram.helper.projection import simple_projection, fes_mapping
+
+            if info2["dim"] >= info1["dim"]:
+                transpose = False
+            else:
+                _info1 = info1
+                info1 = info2
+                info2 = _info1
+                _fes2 = fes1
+                fes1 = fes2
+                fes2 = _fes2
+                transpose = True
+
+            el, order, mbfdim = fes_mapping(info2["element"], info2["order"], info2["dim"],
+                                            info1["dim"])
+
+            emesh_idx = info2["emesh_idx"] if mbfdim == 1 else info1["emesh_idx"]
+            is_new, fec, fes = self.get_or_allocate_fecfes(name,
+                                                           emesh_idx,
+                                                           el,
+                                                           order,
+                                                           info2["vdim"])
+            if info2["dim"]-info1["dim"] == 1:  # (ex)volume to surface
+                mode = "boundary"
+            elif info2["dim"]-info1["dim"] == 0:
+                mode = "domain"
+            else:
+                assert False, "should not come here."
+
+            p = simple_projection(fes2, fes, mode)   # fes2 (row) -> fes (col)
+
+            self.projections[name] = p
+            if transpose:
+                # first 1 is flag to apply projecton from righg
+                proj = (-1, name)
+                fes2 = fes
+                return self.new_mixed_bf(fes1, fes2), proj
+            else:
+                # first 1 is flag to apply projecton from left. .A_ij = A_ij*Map
+                proj = (1, name)
+                fes2 = fes
+                return self.new_mixed_bf(fes2, fes1), proj
+        else:
+            proj = 1
+            return self.new_mixed_bf(fes2, fes1), proj
+
     def build_ns(self):
+        errors = []
         for node in self.model.walk():
-           if node.has_ns():
-              try:
-                  node.eval_ns()
+            if node.has_ns():
+                try:
+                    node.eval_ns()
 
-              except Exception as e:
-                  import traceback
-                  m = traceback.format_exc()
-                  assert False, "Failed to build name space: " + m
-           else:
-              node._local_ns = self.model.root()._variables
+                except Exception as e:
+                    node._global_ns = {}
+                    m = traceback.format_exc()
+                    errors.append("failed to build ns for " + node.fullname() +
+                                  "\n" + m)
+            else:
+                #node._global_ns = None
+                node._local_ns = self.model.root()._variables
+
+        if len(errors) > 0:
+            assert False, "\n".join(errors)
 
     def preprocess_ns(self, ns_folder, data_folder):
         '''
@@ -2170,40 +2494,53 @@ class Engine(object):
         '''
         for od in self.model.walk():
             if od.has_ns():
-               od.preprocess_ns(ns_folder, data_folder)
+                od.preprocess_ns(ns_folder, data_folder)
+            if od.has_nsref():
+                od.reset_ns()
 
     def form_linear_system(self, ess_tdof_list, extra, interp, r_A, r_B, i_A, i_B):
         raise NotImplementedError(
-             "you must specify this method in subclass")
+            "you must specify this method in subclass")
 
-    def run_mesh_serial(self, meshmodel = None,
-                        skip_refine = False):
-        from petram.mesh.mesh_model import MeshFile, MFEMMesh
+    def reset_emesh_data(self):
         from petram.mesh.mesh_extension import MeshExt
-        from petram.mesh.mesh_utils import  get_extended_connectivity
-        
-        self.meshes = []
-        self.emeshes = []
+        self.emesh_data = MeshExt()
+
+    def prep_emesh_data_ifneeded(self):
         if self.emesh_data is None:
-            self.emesh_data = MeshExt()
+            self.reset_emesh_data()
+
+    def run_mesh_serial(self, meshmodel=None,
+                        skip_refine=False):
+        from petram.mesh.mesh_model import MeshFile, MFEMMesh
+        #from petram.mesh.mesh_extension import MeshExt
+        from petram.mesh.mesh_utils import get_extended_connectivity
+
+        self.meshes = []
+        self.prep_emesh_data_ifneeded()
+        # if self.emesh_data is None:
+        #    self.emesh_data = MeshExt()
+        self.emeshes = []
 
         if meshmodel is None:
             parent = self.model['Mesh']
-            children =  [parent[g] for g in parent.keys()
-                         if isinstance(parent[g], MFEMMesh) and parent[g].enabled]
+            children = [parent[g] for g in parent.keys()
+                        if isinstance(parent[g], MFEMMesh) and parent[g].enabled]
             for idx, child in enumerate(children):
-                self.meshes.append(None)                
-                #if not child.enabled: continue
+                self.meshes.append(None)
+                # if not child.enabled: continue
                 target = None
                 for k in child.keys():
                     o = child[k]
-                    if not o.enabled: continue
+                    if not o.enabled:
+                        continue
                     if o.isMeshGenerator:
-                        dprint1("Loading mesh (serial)")                       
-                        self.meshes[idx] = o.run()
+                        dprint1("Loading mesh (serial)")
+                        self.meshes[idx] = o.run_serial()
                         target = self.meshes[idx]
                     else:
-                        if o.isRefinement and skip_refine: continue
+                        if o.isRefinement and skip_refine:
+                            continue
                         if hasattr(o, 'run') and target is not None:
                             self.meshes[idx] = o.run(target)
         self.max_bdrattr = -1
@@ -2211,196 +2548,215 @@ class Engine(object):
 
         for m in self.meshes:
             if len(m.GetBdrAttributeArray()) > 0:
-                self.max_bdrattr = np.max([self.max_bdrattr, max(m.GetBdrAttributeArray())])
-                self.max_attr = np.max([self.max_attr, max(m.GetAttributeArray())])
+                self.max_bdrattr = np.max(
+                    [self.max_bdrattr, max(m.GetBdrAttributeArray())])
+                self.max_attr = np.max(
+                    [self.max_attr, max(m.GetAttributeArray())])
             m.ReorientTetMesh()
-            m.GetEdgeVertexTable()                                   
+            m.GetEdgeVertexTable()
             get_extended_connectivity(m)
-           
+
     def run_mesh(self):
         raise NotImplementedError(
-             "you must specify this method in subclass")
+            "you must specify this method in subclass")
 
     def new_lf(self, fes):
         raise NotImplementedError(
-             "you must specify this method in subclass")
-     
+            "you must specify this method in subclass")
+
     def new_bf(self, fes):
         raise NotImplementedError(
-             "you must specify this method in subclass")
-     
+            "you must specify this method in subclass")
+
     def new_mixed_bf(self, fes1, fes2):
         raise NotImplementedError(
-             "you must specify this method in subclass")
-       
+            "you must specify this method in subclass")
+
     def new_gf(self, fes):
         raise NotImplementedError(
-             "you must specify this method in subclass")
+            "you must specify this method in subclass")
 
     def new_fespace(self, mesh, fec, vdim):
         raise NotImplementedError(
-             "you must specify this method in subclass")
+            "you must specify this method in subclass")
 
-     
-    def eliminate_ess_dof(self, ess_tdof_list, M, B):     
+    def eliminate_ess_dof(self, ess_tdof_list, M, B):
         raise NotImplementedError(
-             "you must specify this method in subclass")
-     
+            "you must specify this method in subclass")
+
     def solfile_suffix(self):
         raise NotImplementedError(
-             "you must specify this method in subclass")
+            "you must specify this method in subclass")
 
     def solfile_name(self, name, mesh_idx,
-                     namer = 'solr', namei = 'soli' ):
+                     namer='solr', namei='soli'):
         fnamer = '_'.join((namer, name, str(mesh_idx)))
         fnamei = '_'.join((namei, name, str(mesh_idx)))
 
         return fnamer, fnamei
-     
-    def remove_solfiles(self):       
-        dprint1("clear sol: ", os.getcwd())                  
+
+    def remove_solfiles(self):
+        dprint1("clear sol: ", os.getcwd())
         d = os.getcwd()
         files = os.listdir(d)
         for file in files:
-            if file.startswith('solmesh'): os.remove(os.path.join(d, file))
-            if file.startswith('solr'): os.remove(os.path.join(d, file))
-            if file.startswith('soli'): os.remove(os.path.join(d, file))
-            if file.startswith('checkpoint.'): os.remove(os.path.join(d, file))
-            if file.startswith('sol_extended'): os.remove(os.path.join(d, file))
-            if file.startswith('proble'): os.remove(os.path.join(d, file))
-            if file.startswith('matrix'): os.remove(os.path.join(d, file))
-            if file.startswith('rhs'): os.remove(os.path.join(d, file))
-            if file.startswith('SolveStep'): os.remove(os.path.join(d, file))
-            if file.startswith('cProfile_'): os.remove(os.path.join(d, file))                        
+            if file.startswith('solmesh'):
+                os.remove(os.path.join(d, file))
+            if file.startswith('solr'):
+                os.remove(os.path.join(d, file))
+            if file.startswith('soli'):
+                os.remove(os.path.join(d, file))
+            if file.startswith('checkpoint.'):
+                os.remove(os.path.join(d, file))
+            if file.startswith('sol_extended'):
+                os.remove(os.path.join(d, file))
+            if file.startswith('probe'):
+                os.remove(os.path.join(d, file))
+            if file.startswith('matrix'):
+                os.remove(os.path.join(d, file))
+            if file.startswith('rhs'):
+                os.remove(os.path.join(d, file))
+            if file.startswith('SolveStep'):
+                os.remove(os.path.join(d, file))
+            if file.startswith('cProfile_'):
+                os.remove(os.path.join(d, file))
             if file.startswith('checkpoint_') and os.path.isdir(file):
-               print("removing checkpoint_", file)
-               shutil.rmtree(os.path.join(d, file))
-               
+                dprint1("removing checkpoint_", file)
+                shutil.rmtree(os.path.join(d, file))
+
     def remove_case_dirs(self):
-        dprint1("clear case directories: ", os.getcwd())                  
+        dprint1("clear case directories: ", os.getcwd())
         d = os.getcwd()
         files = os.listdir(d)
         for file in files:
             if file.startswith('case') and os.path.isdir(file):
-               print("removing case directory", file)
-               shutil.rmtree(os.path.join(d, file))
-       
+                dprint1("removing case directory", file)
+                shutil.rmtree(os.path.join(d, file))
+
     def clear_solmesh_files(self, header):
         try:
             from mpi4py import MPI
         except:
             from petram.helper.dummy_mpi import MPI
-        myid     = MPI.COMM_WORLD.rank
-        nproc    = MPI.COMM_WORLD.size
+        myid = MPI.COMM_WORLD.rank
+        nproc = MPI.COMM_WORLD.size
 
         MPI.COMM_WORLD.Barrier()
         if myid == 0:
             for f in os.listdir("."):
-                if f.startswith(header): os.remove(f)
+                if f.startswith(header):
+                    os.remove(f)
         MPI.COMM_WORLD.Barrier()
-       
+
     def save_solfile_fespace(self, name, mesh_idx, r_x, i_x):
         fnamer, fnamei = self.solfile_name(name, mesh_idx)
-        suffix=self.solfile_suffix()
+        suffix = self.solfile_suffix()
 
         self.clear_solmesh_files(fnamer)
         self.clear_solmesh_files(fnamei)
-        
+
         fnamer = fnamer+suffix
         fnamei = fnamei+suffix
-        
-        r_x.SaveToFile(fnamer, 8)
+
+        r_x.SaveGZ(fnamer, 8)
         if i_x is not None:
-            i_x.SaveToFile(fnamei, 8)
+            i_x.SaveGZ(fnamei, 8)
 
     def save_mesh(self):
         mesh_names = []
-        suffix=self.solfile_suffix()
-        
+        suffix = self.solfile_suffix()
+
         for k, mesh in enumerate(self.emeshes):
-            if mesh is None: continue
-            
+            if mesh is None:
+                continue
+
             header = 'solmesh_' + str(k)
             self.clear_solmesh_files(header)
-            
-            name = header+suffix            
-            mesh.PrintToFile(name, 8)
+
+            name = header+suffix
+            mesh.PrintGZ(name, 8)
             mesh_names.append(name)
         return mesh_names
 
-    @property   ### ALL dependent variables including Lagrange multipliers
+    @property  # ALL dependent variables including Lagrange multipliers
     def dep_vars(self):
         return self._dep_vars
-    @property   ### ALL finite element space variables
+
+    @property  # ALL finite element space variables
     def fes_vars(self):
         return self._fes_vars
-     
-    @property   ### ALL dependent variables including Lagrange multipliers
+
+    @property  # ALL dependent variables including Lagrange multipliers
     def r_dep_vars(self):
         return self._rdep_vars
-    @property   ### ALL finite element space variables
+
+    @property  # ALL finite element space variables
     def r_fes_vars(self):
         return self._rfes_vars
-               
+
     def ifes(self, name):
         return self._fes_vars.index(name)
 
     def r_ifes(self, name):
-        return self._rfes_vars.index(name)
-     
+        if name in self._rfes_vars:
+            return self._rfes_vars.index(name)
+        return -1
+
     def has_rfes(self, name):
         return name in self._rfes_vars
-       
+
     def has_fes(self, name):
         return name in self._fes_vars
-     
+
     def phys_offsets(self, phys):
         name = phys.dep_vars[0]
         idx0 = self._dep_vars.index(name)
         for names in self._dep_var_grouped:
-           if name in names: l = len(names)
+            if name in names:
+                l = len(names)
         return range(idx0, idx0+l)
 
     def dep_var_offset(self, name):
-        return self._dep_vars.index(name)       
+        return self._dep_vars.index(name)
 
     def masked_dep_var_offset(self, name):
         return [x for i, x in enumerate(self._dep_vars)
-                if self._matrix_blk_mask[0][i]].index(name)       
-     
+                if self._matrix_blk_mask[0][i]].index(name)
+
     def isFESvar(self, name):
         if not name in self._dep_vars:
-           assert False, "Variable " + name + " not used in the model"
+            assert False, "Variable " + name + " not used in the model"
         idx = self._dep_vars.index(name)
         return self._isFESvar[idx]
-     
+
     def r_phys_offsets(self, phys):
         name = phys.dep_vars[0]
         idx0 = self._rdep_vars.index(name)
         for names in self._rdep_var_grouped:
-           if name in names: l = len(names)
+            if name in names:
+                l = len(names)
         return range(idx0, idx0+l)
 
     def r_dep_var_offset(self, name):
         return self._rdep_vars.index(name)
-     
+
     def masked_r_dep_var_offset(self, name):
         return [x for i, x in enumerate(self._rdep_vars)
-                if self._matrix_blk_mask[1][i]].index(name)       
-     
+                if self._matrix_blk_mask[1][i]].index(name)
+
     def r_isFESvar(self, name):
         if not name in self._rdep_vars:
-           assert False, "Variable " + name + " not used in the model"
+            assert False, "Variable " + name + " not used in the model"
         idx = self._rdep_vars.index(name)
         return self._risFESvar[idx]
-     
-    def get_block_mask(self, all_phys, phys_target, use_range = False):
 
-        #all_phys = [self.model['Phys'][k] for k in self.model['Phys']
+    def get_block_mask(self, all_phys, phys_target, use_range=False):
+
+        # all_phys = [self.model['Phys'][k] for k in self.model['Phys']
         #            if self.model['Phys'][k].enabled]
-        #if phys_target is None:
+        # if phys_target is None:
         #   phys_target = all_phys
-        #self.collect_dependent_vars()
+        # self.collect_dependent_vars()
 
         if use_range:
             mask = [False]*len(self._rdep_vars)
@@ -2413,11 +2769,11 @@ class Engine(object):
             dep_vars = phys.dep_vars
             if use_range:
                 extra_vars = [x for x in self._rdep_var_grouped[idx]
-                         if not x in dep_vars]
+                              if not x in dep_vars]
             else:
                 extra_vars = [x for x in self._dep_var_grouped[idx]
-                         if not x in dep_vars]
-                
+                              if not x in dep_vars]
+
             for name in dep_vars0+extra_vars:
                 if use_range:
                     offset = self.r_dep_var_offset(name)
@@ -2428,41 +2784,45 @@ class Engine(object):
 
     def copy_block_mask(self, mask):
         self._matrix_blk_mask = mask
-        
+
     def collect_dependent_vars(self, phys_target=None, phys_range=None, range_space=False):
         if phys_target is None:
-           phys_target = [self.model['Phys'][k] for k in self.model['Phys']
-                          if self.model['Phys'].enabled]
+            phys_target = [self.model['Phys'][k] for k in self.model['Phys']
+                           if self.model['Phys'].enabled]
 
-        dep_vars_g  = []
+        dep_vars_g = []
         isFesvars_g = []
-        
+
         for phys in phys_target:
-            dep_vars  = []
-            isFesvars = []            
-            if not phys.enabled: continue
-            
+            dep_vars = []
+            isFesvars = []
+            if not phys.enabled:
+                continue
+
             dv = phys.dep_vars
             dep_vars.extend(dv)
             isFesvars.extend([True]*len(dv))
 
             extra_vars = []
             for mm in phys.walk():
-               if not mm.enabled: continue
+                if not mm.enabled:
+                    continue
 
-               for j in range(self.n_matrix):
-                  for k in range(len(dv)):
-                      #for phys2 in phys_target:
-                      for phys2 in phys_range:
-                          if not phys2.enabled: continue                         
-                          if not mm.has_extra_DoF2(k, phys2, j): continue
-                      
-                          name = mm.extra_DoF_name2(k)
-                          if not name in extra_vars:
-                              extra_vars.append(name)
+                for j in range(self.n_matrix):
+                    for k in range(len(dv)):
+                        # for phys2 in phys_target:
+                        for phys2 in phys_range:
+                            if not phys2.enabled:
+                                continue
+                            if not mm.has_extra_DoF2(k, phys2, j):
+                                continue
+
+                            name = mm.extra_DoF_name2(k)
+                            if not name in extra_vars:
+                                extra_vars.append(name)
             dep_vars.extend(extra_vars)
             isFesvars.extend([False]*len(extra_vars))
-            
+
             dep_vars_g.append(dep_vars)
             isFesvars_g.append(isFesvars)
 
@@ -2471,7 +2831,8 @@ class Engine(object):
             self._rdep_var_grouped = dep_vars_g
             self._risFESvar = sum(isFesvars_g, [])
             self._risFESvar_grouped = isFesvars_g
-            self._rfes_vars = [x for x, flag in zip(self._rdep_vars, self._risFESvar) if flag]
+            self._rfes_vars = [x for x, flag in zip(
+                self._rdep_vars, self._risFESvar) if flag]
             dprint1("dependent variables(range)", self._rdep_vars)
             dprint1("is FEspace variable?(range)", self._risFESvar)
 
@@ -2480,16 +2841,16 @@ class Engine(object):
             self._dep_var_grouped = dep_vars_g
             self._isFESvar = sum(isFesvars_g, [])
             self._isFESvar_grouped = isFesvars_g
-            self._fes_vars = [x for x, flag in zip(self._dep_vars, self._isFESvar) if flag]
+            self._fes_vars = [x for x, flag in zip(
+                self._dep_vars, self._isFESvar) if flag]
             dprint1("dependent variables", self._dep_vars)
             dprint1("is FEspace variable?", self._isFESvar)
-        
 
     def add_PP_to_NS(self, variables):
         for k in variables.keys():
             self.model._variables[k] = variables[k]
-     
-    def add_FESvariable_to_NS(self, phys_range, verbose = False):
+
+    def add_FESvariable_to_NS(self, phys_range, verbose=False):
         '''
         bring FESvariable to NS so that it is available in matrix assembly.
         note:
@@ -2499,74 +2860,84 @@ class Engine(object):
         '''
         from petram.helper.variables import Variables
         variables = Variables()
-        
-        self.access_idx = 0      
+
+        self.access_idx = 0
         for phys in phys_range:
             for name in phys.dep_vars:
-                if not self.has_rfes(name):   continue               
+                if not self.has_rfes(name):
+                    continue
                 rifes = self.r_ifes(name)
                 rgf = self.r_x[rifes]
                 igf = self.i_x[rifes]
                 phys.add_variables(variables, name, rgf, igf)
 
         keys = list(self.model._variables)
-        #self.model._variables.clear()
+        # self.model._variables.clear()
         if verbose:
             dprint1("===  List of variables ===")
             dprint1(variables)
         for k in variables.keys():
-            #if k in self.model._variables:
+            # if k in self.model._variables:
             #   dprint1("Note : FES variable from previous step exists, but overwritten. \n" +
-            #           "Use InitSetting to load value from previous SolveStep: ", k)               
+            #           "Use InitSetting to load value from previous SolveStep: ", k)
             self.model._variables[k] = variables[k]
 
     def set_update_flag(self, mode):
         for k in self.model['Phys'].keys():
             phys = self.model['Phys'][k]
             for mm in self.model['Phys'][k].walk():
-               mm._update_flag = False
-               if mode == 'TimeDependent':
-                  if mm.isTimeDependent: mm._update_flag = True
-                  if mm.isTimeDependent_RHS: mm._update_flag = True                  
-               elif mode == 'UpdateAll':
-                  mm._update_flag = True
-               elif mode == 'ParametricRHS':
-                  if self.n_matrix > 1:
-                      assert False,  "RHS-only parametric is not allowed for n__matrix > 1"                     
-                  for kfes, name in enumerate(phys.dep_vars):                  
-                      if mm.has_lf_contribution2(kfes, 0):
-                          mm._update_flag = True
-                  if mm.has_essential: mm._update_flag = True
-                  if mm.is_extra_RHSonly():
-                     for kfes, name in enumerate(phys.dep_vars):
-                        if mm.has_extra_DoF(kfes):
-                             mm._update_flag = True
-                  else:
-                     for kfes, name in enumerate(phys.dep_vars):
-                        if mm.has_extra_DoF(kfes):
-                             assert False, "RHS only parametric is invalid for general extra DoF (is_extra_RHSonly = False)"
-                  if mm._update_flag:
-                      for kfes, name in enumerate(phys.dep_vars):
-                          if mm.has_bf_contribution2(kfes, 0):
-                              assert False, "RHS only parametric is not possible for BF :"+mm.name()
-                              
-               else:
-                  assert False, "update mode not supported: mode = "+mode
-                  
-    def call_dwc(self, phys_range, method='', callername = '', args = '', **kwargs):
+                mm._update_flag = False
+                if mode == 'TimeDependent':
+                    if mm.isTimeDependent:
+                        mm._update_flag = True
+                    if mm.isTimeDependent_RHS:
+                        mm._update_flag = True
+                elif mode == 'UpdateAll':
+                    mm._update_flag = True
+                elif mode == 'ParametricRHS':
+                    if self.n_matrix > 1:
+                        assert False,  "RHS-only parametric is not allowed for n__matrix > 1"
+                    for kfes, name in enumerate(phys.dep_vars):
+                        if mm.has_lf_contribution2(kfes, 0):
+                            mm._update_flag = True
+                    if mm.has_essential:
+                        mm._update_flag = True
+                    if mm.is_extra_RHSonly():
+                        for kfes, name in enumerate(phys.dep_vars):
+                            if mm.has_extra_DoF(kfes):
+                                mm._update_flag = True
+                    else:
+                        for kfes, name in enumerate(phys.dep_vars):
+                            if mm.has_extra_DoF(kfes):
+                                assert False, "RHS only parametric is invalid for general extra DoF (is_extra_RHSonly = False)"
+                    if mm._update_flag:
+                        for kfes, name in enumerate(phys.dep_vars):
+                            if mm.has_bf_contribution2(kfes, 0):
+                                assert False, "RHS only parametric is not possible for BF :"+mm.name()
+
+                else:
+                    assert False, "update mode not supported: mode = "+mode
+
+    def call_dwc(self, phys_range, method='', callername='',
+                 dwcname='', args='', **kwargs):
 
         for phys in phys_range:
             for name in phys.dep_vars:
                 rifes = self.r_ifes(name)
+                if rifes == -1:
+                    continue
                 rgf = self.r_x[rifes]
                 igf = self.i_x[rifes]
                 if igf is None:
-                   kwargs[name] = rgf
+                    kwargs[name] = rgf
                 else:
-                   kwargs[name] = (rgf, igf)                   
-       
+                    kwargs[name] = (rgf, igf)
+
         g = self.model['General']._global_ns
-        dwc = g[self.model['General'].dwc_object_name]
+        if dwcname == '':
+            dwc = g[self.model['General'].dwc_object_name]
+        else:
+            dwc = g[dwcname]
         args0, kwargs = dwc.make_args(method, kwargs)
 
         m = getattr(dwc, method)
@@ -2574,17 +2945,19 @@ class Engine(object):
         def f(*args, **kargs):
             return args, kargs
         try:
-            args, kwargs2 = eval('f('+args+')',  g, {'f':f})
+            args, kwargs2 = eval('f('+args+')',  g, {'f': f})
         except:
             traceback
             traceback.print_exc()
             assert False, "Failed to convert text to argments"
-            
-        for k in kwargs2: kwargs[k] = kwargs2[k]
+
+        for k in kwargs2:
+            kwargs[k] = kwargs2[k]
         args = tuple(list(args0) + list(args))
-        
+
         try:
-            m(callername, *args, **kwargs)
+            return m(callername, *args, **kwargs)
+
         except:
             import traceback
             traceback.print_exc()
@@ -2592,14 +2965,16 @@ class Engine(object):
 
     def get_fes_info(self, fes):
         # k = emesh_idx, elem, order, sdim, vdim, isParMesh
-        for k in self.fecfes_storage:       
-             if self.fecfes_storage[k][1] == fes:
-                 return {'emesh_idx': k[0],
-                         'element': k[1],
-                         'order': k[2],
-                         'sdim': k[3],
-                         'vdim': k[4],}
+        for k in self.fecfes_storage:
+            if self.fecfes_storage[k][1] == fes:
+                return {'emesh_idx': k[0],
+                        'element': k[1],
+                        'order': k[2],
+                        'dim': k[3],
+                        'sdim': k[4],
+                        'vdim': k[5], }
         return None
+
     def variable2vector(self, v, horizontal=False):
         '''
         GFFunctionVariable to PyVec
@@ -2611,102 +2986,107 @@ class Engine(object):
         else:
             ilf = None
         return MfemVec2PyVec(rlf, ilf, horizontal=horizontal)
-     
+
     def run_geom_gen(self, gen):
         raise NotImplementedError(
-             "you must specify this method in subclass")
+            "you must specify this method in subclass")
+
     def run_mesh_gen(self, gen):
         raise NotImplementedError(
-             "you must specify this method in subclass")
-       
+            "you must specify this method in subclass")
+
+
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
-        super(SerialEngine, self).__init__(modelfile = modelfile, model=model)
-        self.isParallel = False       
+        super(SerialEngine, self).__init__(modelfile=modelfile, model=model)
+        self.isParallel = False
 
-    def run_mesh(self, meshmodel = None, skip_refine=False):
+    def run_mesh(self, meshmodel=None, skip_refine=False):
         '''
         skip_refine is for mfem_viewer
         '''
-        return self.run_mesh_serial(meshmodel = meshmodel,
+        return self.run_mesh_serial(meshmodel=meshmodel,
                                     skip_refine=skip_refine)
 
     def run_assemble_mat(self, phys_target, phys_range, update=False):
-        self.is_matrix_distributed = False       
+        self.is_matrix_distributed = False
         return super(SerialEngine, self).run_assemble_mat(phys_target, phys_range,
                                                           update=update)
 
     def new_lf(self, fes):
-        return  mfem.LinearForm(fes)
+        return mfem.LinearForm(fes)
 
     def new_bf(self, fes, fes2=None):
-        return  mfem.BilinearForm(fes)
+        return mfem.BilinearForm(fes)
 
     def new_mixed_bf(self, fes1, fes2):
         bf = mfem.MixedBilinearForm(fes1, fes2)
         bf._finalized = False
         return bf
-     
-    def new_gf(self, fes, init = True, gf = None):
+
+    def new_gf(self, fes, init=True, gf=None):
         if gf is None:
-           gf = mfem.GridFunction(fes)
+            gf = mfem.GridFunction(fes)
         else:
-           assert False, "I don't think this is used..."
-           gf = mfem.GridFunction(gf.FESpace())
-           
-        if init: gf.Assign(0.0)
-        
+            assert False, "I don't think this is used..."
+            gf = mfem.GridFunction(gf.FESpace())
+
+        if init:
+            gf.Assign(0.0)
+
         for k in self.fecfes_storage:
             if self.fecfes_storage[k][1] == fes:
-               gf._emesh_idx = k[0]
-               break
+                gf._emesh_idx = k[0]
+                break
         else:
             assert False, "new gf is called with unknonw fes"
         return gf
 
-    def new_matrix(self, init = True):                                 
-        return  mfem.SparseMatrix()
+    def new_matrix(self, init=True):
+        return mfem.SparseMatrix()
 
     def new_blockmatrix(self, shape):
         from petram.helper.block_matrix import BlockMatrix
-        return BlockMatrix(shape, kind = 'scipy')
+        return BlockMatrix(shape, kind='scipy')
 
     def new_fespace(self, mesh, fec, vdim):
-        return  mfem.FiniteElementSpace(mesh, fec, vdim)
-     
+        return mfem.FiniteElementSpace(mesh, fec, vdim)
+
     def collect_all_ess_tdof(self):
         self.gl_ess_tdofs = self.ess_tdofs
 
     def save_parmesh(self):
         # serial engine does not do anything
         return
-     
+
     def solfile_suffix(self):
         return ""
 
     def get_true_v_sizes(self, phys):
-        fe_sizes = [self.fespaces[name].GetTrueVSize() for name in phys.dep_vars]
-        dprint1('Number of finite element unknowns: '+  str(fe_sizes))
+        fe_sizes = [self.fespaces[name].GetTrueVSize()
+                    for name in phys.dep_vars]
+        dprint1('Number of finite element unknowns: ' + str(fe_sizes))
         return fe_sizes
 
     def split_sol_array_fespace(self, sol, P):
         sol0 = sol[0, 0]
         if P is not None:
-           sol0 = P.transpose().dot(sol0)
+            sol0 = P.transpose().dot(sol0)
         return sol0
-     
 
     def mkdir(self, path):
-        if not os.path.exists(path):  os.mkdir(path)
+        if not os.path.exists(path):
+            os.mkdir(path)
 
     def symlink(self, target, link):
         os.symlink(target, link)
-        
+
     def open_file(self, *args, **kwargs):
         return open(*args, **kwargs)
-     
+
     def cleancwd(self):
-        for f in os.listdir("."): os.remove(f)
+        for f in os.listdir("."):
+            os.remove(f)
 
     '''
     def remove_solfiles(self):       
@@ -2724,8 +3104,9 @@ class SerialEngine(Engine):
             if file.startswith('rhs'): os.remove(os.path.join(d, file))
             if file.startswith('checkpoint_'): shutil.removetree(os.path.joij(d, file))   
     '''
+
     def a2A(self, a):  # BilinearSystem to matrix
-        # we dont eliminate essentiaal at this level...                 
+        # we dont eliminate essentiaal at this level...
         inta = mfem.intArray()
         m = self.new_matrix()
         a.FormSystemMatrix(inta, m)
@@ -2736,7 +3117,7 @@ class SerialEngine(Engine):
             a.ConformingAssemble()
             a._finalized = True
         return a.SpMat()
-    
+
     def b2B(self, b):  # FormLinearSystem w/o elimination
         fes = b.FESpace()
         B = mfem.Vector()
@@ -2748,20 +3129,20 @@ class SerialEngine(Engine):
         else:
             B.NewDataAndSize(b.GetData(), b.Size())
         return B
-     
+
     def x2X(self, x):  # gridfunction to vector
         fes = x.FESpace()
         X = mfem.Vector()
         if not fes.Conforming():
-            P = fes.GetConformingProlongation()
+            #P = fes.GetConformingProlongation()
             R = fes.GetConformingRestriction()
             X.SetSize(R.Height())
             R.Mult(x, X)
         else:
             X.NewDataAndSize(x.GetData(), x.Size())
         return X
-     
-    def X2x(self, X, x): # RecoverFEMSolution
+
+    def X2x(self, X, x):  # RecoverFEMSolution
         fes = x.FESpace()
         if fes.Conforming():
             pass
@@ -2772,201 +3153,235 @@ class SerialEngine(Engine):
 
     def run_geom_gen(self, gen):
         gen.generate_final_geometry()
-        
+
     def run_mesh_gen(self, gen):
         gen.generate_mesh_file()
 
     def save_processed_model(self):
-        self.model.save_to_file('model_proc.pmfm', meshfile_relativepath = False)
-            
+        self.model.save_to_file('model_proc.pmfm', meshfile_relativepath=False)
+
+
 class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
-        super(ParallelEngine, self).__init__(modelfile = modelfile, model=model)
+        super(ParallelEngine, self).__init__(modelfile=modelfile, model=model)
         self.isParallel = True
 
-    def run_mesh(self, meshmodel = None):
+    def run_mesh(self, meshmodel=None):
         from mpi4py import MPI
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
         from petram.mesh.mesh_extension import MeshExt
-        from petram.mesh.mesh_utils import  get_extended_connectivity
+        from petram.mesh.mesh_utils import get_extended_connectivity
 
         dprint1("Loading mesh (parallel)")
-        
+
         self.meshes = []
         self.emeshes = []
         if self.emesh_data is None:
             assert False, "emesh data must be generated before parallel mesh generation"
-        
+
         if meshmodel is None:
             parent = self.model['Mesh']
-            children =  [parent[g] for g in parent.keys()
-                         if isinstance(parent[g], MFEMMesh) and parent[g].enabled]
+            children = [parent[g] for g in parent.keys()
+                        if isinstance(parent[g], MFEMMesh) and parent[g].enabled]
             for idx, child in enumerate(children):
                 self.meshes.append(None)
-                if not child.enabled: continue
+                if not child.enabled:
+                    continue
                 target = None
                 for k in child.keys():
                     o = child[k]
-                    if not o.enabled: continue
-                    if o.isMeshGenerator:                    
+                    if not o.enabled:
+                        continue
+                    if o.isMeshGenerator:
                         smesh = o.run()
-                        if len(smesh.GetBdrAttributeArray()) > 0:                        
-                             self.max_bdrattr = np.max([self.max_bdrattr,
-                                                   max(smesh.GetBdrAttributeArray())])
-                             self.max_attr = np.max([self.max_attr,
-                                                max(smesh.GetAttributeArray())])
-                        self.meshes[idx] = mfem.ParMesh(MPI.COMM_WORLD, smesh)
+                        if len(smesh.GetBdrAttributeArray()) > 0:
+                            self.max_bdrattr = np.max([self.max_bdrattr,
+                                                       max(smesh.GetBdrAttributeArray())])
+                            self.max_attr = np.max([self.max_attr,
+                                                    max(smesh.GetAttributeArray())])
+                        if smesh.GetNE() < MPI.COMM_WORLD.size*3:
+                            parts = smesh.GeneratePartitioning(
+                                smesh.GetNE()//1000+1, 1)
+                        else:
+                            parts = None
+                        self.meshes[idx] = mfem.ParMesh(
+                            MPI.COMM_WORLD, smesh, parts)
                         target = self.meshes[idx]
                     else:
                         if hasattr(o, 'run') and target is not None:
                             self.meshes[idx] = o.run(target)
-                            
+
         for m in self.meshes:
             m.ReorientTetMesh()
-            m.GetEdgeVertexTable()                                   
-            get_extended_connectivity(m)           
+            m.GetEdgeVertexTable()
+            get_extended_connectivity(m)
 
     def run_assemble_mat(self, phys_target, phys_range, update=False):
-        self.is_matrix_distributed = True       
+        self.is_matrix_distributed = True
         return super(ParallelEngine, self).run_assemble_mat(phys_target,
                                                             phys_range,
                                                             update=update)
-     
+
     def new_lf(self, fes):
-        return  mfem.ParLinearForm(fes)
+        return mfem.ParLinearForm(fes)
 
     def new_bf(self, fes, fes2=None):
-        return  mfem.ParBilinearForm(fes)
-     
+        return mfem.ParBilinearForm(fes)
+
     def new_mixed_bf(self, fes1, fes2):
         bf = mfem.ParMixedBilinearForm(fes1, fes2)
         bf._finalized = False
         return bf
 
-    def new_gf(self, fes, init = True, gf = None):
+    def new_gf(self, fes, init=True, gf=None):
         if gf is None:
-           gf = mfem.ParGridFunction(fes)
+            gf = mfem.ParGridFunction(fes)
         else:
-           assert False, "I don't think this is used..."           
-           gf = mfem.ParGridFunction(gf.ParFESpace())               
-        if init: gf.Assign(0.0)
+            assert False, "I don't think this is used..."
+            gf = mfem.ParGridFunction(gf.ParFESpace())
+        if init:
+            gf.Assign(0.0)
         for k in self.fecfes_storage:
             if self.fecfes_storage[k][1] == fes:
-               gf._emesh_idx = k[0]
-               break
+                gf._emesh_idx = k[0]
+                break
         else:
             assert False, "new gf is called with unknonw fes"
         return gf
-               
-    def new_fespace(self,mesh, fec, vdim):
+
+    def new_fespace(self, mesh, fec, vdim):
         if mesh.__class__.__name__ == 'ParMesh':
-            return  mfem.ParFiniteElementSpace(mesh, fec, vdim)
+            return mfem.ParFiniteElementSpace(mesh, fec, vdim)
         else:
-            return  mfem.FiniteElementSpace(mesh, fec, vdim)
-         
-    def new_matrix(self, init = True):
-        return  mfem.HypreParMatrix()
+            return mfem.FiniteElementSpace(mesh, fec, vdim)
+
+    def new_matrix(self, init=True):
+        return mfem.HypreParMatrix()
 
     def new_blockmatrix(self, shape):
         from petram.helper.block_matrix import BlockMatrix
-        return BlockMatrix(shape, kind = 'hypre')
+        return BlockMatrix(shape, kind='hypre')
 
     def get_true_v_sizes(self, phys):
-        fe_sizes = [self.fespaces[name].GlobalTrueVSize() for name in phys.dep_vars]       
+        fe_sizes = [self.fespaces[name].GlobalTrueVSize()
+                    for name in phys.dep_vars]
         from mpi4py import MPI
-        myid     = MPI.COMM_WORLD.rank        
+        myid = MPI.COMM_WORLD.rank
         if (myid == 0):
-               dprint1('Number of finite element unknowns: '+  str(fe_sizes))
+            dprint1('Number of finite element unknowns: ' + str(fe_sizes))
         return fe_sizes
-     
+
+    #
+    #  postprocess
+    #
+    def store_pp_extra(self, name, data, save_once=False):
+        from mpi4py import MPI
+        self.model._parameters[name] = data
+        if not save_once or MPI.COMM_WORLD.rank == 0:
+            self._pp_extra_update.append(name)
+
     def save_parmesh(self):
-        from mpi4py import MPI                               
+        from mpi4py import MPI
         num_proc = MPI.COMM_WORLD.size
-        myid     = MPI.COMM_WORLD.rank
+        myid = MPI.COMM_WORLD.rank
         smyid = '{:0>6d}'.format(myid)
 
         mesh_names = []
         for k, mesh in enumerate(self.meshes):
-            if mesh is None: continue
-            mesh_name  =  "solparmesh_"+str(k)+"."+smyid
+            if mesh is None:
+                continue
+            mesh_name = "solparmesh_"+str(k)+"."+smyid
             mesh.ParPrintToFile(mesh_name, 8)
         return
-     
+
     def solfile_suffix(self):
-        from mpi4py import MPI                               
+        from mpi4py import MPI
         num_proc = MPI.COMM_WORLD.size
-        myid     = MPI.COMM_WORLD.rank
+        myid = MPI.COMM_WORLD.rank
         smyid = '{:0>6d}'.format(myid)
         return "."+smyid
-     
+
     def fill_block_matrix_fespace(self, blocks, mv,
-                                        gl_ess_tdof, interp,
-                                        offset, convert_real = False):
-                                      
+                                  gl_ess_tdof, interp,
+                                  offset, convert_real=False):
         '''
         fill block matrix for the left hand side
         '''
         from mpi4py import MPI
-        myid     = MPI.COMM_WORLD.rank
-                                      
+        myid = MPI.COMM_WORLD.rank
+
         if len(mv) == 6:
-            r_X, r_B, r_A, i_X, i_B, i_A = mv 
+            r_X, r_B, r_A, i_X, i_B, i_A = mv
             is_complex = True
         else:
-            r_X, r_B, r_A = mv ; i_A = None
+            r_X, r_B, r_A = mv
+            i_A = None
             is_complex = False
-            
+
         M, B, Me = blocks
 
         A1 = chypre.MfemMat2PyMat(r_A, i_A)
-        M[offset, offset] = A1;  A1 = M[offset, offset]
-        # use the same as in the serial 
+        M[offset, offset] = A1
+        A1 = M[offset, offset]
+        # use the same as in the serial
         #M.set_element(r_A, i_A, offset, offset)
         #A1 = M[offset, offset]
 
-        A1.setDiag(gl_ess_tdof, 1.0) # fix diagonal since they are set 1+1j
+        A1.setDiag(gl_ess_tdof, 1.0)  # fix diagonal since they are set 1+1j
         P, nonzeros, zeros = interp
-        
+
         if P is not None:
-           dprint1("P is not None")
-           A1 = A1.rap(P.transpose())
-           A1.setDiag(zeros, 1.0) # comment this when making final matrix smaller
+            dprint1("P is not None")
+            A1 = A1.rap(P.transpose())
+            # comment this when making final matrix smaller
+            A1.setDiag(zeros, 1.0)
 
         M[offset, offset] = A1
-        all_extras = [(key, self.extras[phys][key])  for phys in self.extras
-                       for key in self.extras[phys]]
-                      
+        all_extras = [(key, self.extras[phys][key]) for phys in self.extras
+                      for key in self.extras[phys]]
+
         for key, v in all_extras:
             dep_var, extra_name = key
             idx0 = self.dep_var_offset(dep_var)
-            idx1 = self.dep_var_offset(extra_name)                      
+            idx1 = self.dep_var_offset(extra_name)
             t1, t2, t3, t4, t5 = v[0]
             mm = v[1]
             kk = mm_list.index(mm.fullname())
             if (isinstance(t1, chypre.CHypreMat) or
-                isinstance(t2, chypre.CHypreMat)):
-                if t1 is not None: dprint1("t1, shape", t1.shape)
-                if t2 is not None: dprint1("t2, shape", t2.shape)
-                if P is not  None:
-                    if t1 is not None: t1 = P.conj().dot(t1); P.conj()
-                    if t2 is not None: t2 = P.dot(t2)
-            elif isinstance(t1, chypre.CHypreVec): # 1D array
-                if P is not  None:
-                    if t1 is not None: t1 = P.conj().dot(t1); P.conj()
-                    if t2 is not None: t2 = P.dot(t2)
-                # this should be taken care in finalization                      
-                #for x in ess_tdof_list:
+                    isinstance(t2, chypre.CHypreMat)):
+                if t1 is not None:
+                    dprint1("t1, shape", t1.shape)
+                if t2 is not None:
+                    dprint1("t2, shape", t2.shape)
+                if P is not None:
+                    if t1 is not None:
+                        t1 = P.conj().dot(t1)
+                        P.conj()
+                    if t2 is not None:
+                        t2 = P.dot(t2)
+            elif isinstance(t1, chypre.CHypreVec):  # 1D array
+                if P is not None:
+                    if t1 is not None:
+                        t1 = P.conj().dot(t1)
+                        P.conj()
+                    if t2 is not None:
+                        t2 = P.dot(t2)
+                # this should be taken care in finalization
+                # for x in ess_tdof_list:
                 #    t1.set_element(x, 0.0)
                 #from petram.helper.chypre_to_pymatrix import Vec2MatH, Vec2MatV
                 #t1 = Vec2MatV(t1, is_complex)
-                #t2 = Vec2MatH(t2, is_complex)                
+                #t2 = Vec2MatH(t2, is_complex)
             else:
                 pass
             #nicePrint('t2', t2[0].GetRowPartArray(), t2[0].GetColPartArray())
-            
-            if t1 is not None: M[idx0,   idx1] = t1
-            if t2 is not None: M[idx1,   idx0] = t2.transpose()
-            if t3 is not None: M[idx1,   idx1] = t3
+
+            if t1 is not None:
+                M[idx0,   idx1] = t1
+            if t2 is not None:
+                M[idx1,   idx0] = t2.transpose()
+            if t3 is not None:
+                M[idx1,   idx1] = t3
     '''
     def fill_block_rhs_fespace(self, blocks, mv, interp, offset):
         from mpi4py import MPI
@@ -3024,73 +3439,82 @@ class ParallelEngine(Engine):
            P2.conj() # set P2 back...
         return m
     '''
+
     def split_sol_array_fespace(self, sol, P):
         sol0 = sol[0, 0]
         if P is not None:
-           sol0 = (P.transpose()).dot(sol0)
+            sol0 = (P.transpose()).dot(sol0)
         return sol0
 
-    def collect_all_ess_tdof(self, M = None):
+    def collect_all_ess_tdof(self, M=None):
         from mpi4py import MPI
 
         #gl_ess_tdofs = []
-        #for name in phys.dep_vars:
+        # for name in phys.dep_vars:
         #    fes = self.fespaces[name]
-            
+
         for name in self.ess_tdofs:
             tdof = self.ess_tdofs[name]
-            fes =  self.fespaces[name]
+            fes = self.fespaces[name]
             data = (np.array(tdof) +
                     fes.GetMyTDofOffset()).astype(np.int32)
-   
+
             gl_ess_tdof = allgather_vector(data, MPI.INT)
             MPI.COMM_WORLD.Barrier()
             #gl_ess_tdofs.append((name, gl_ess_tdof))
-            ## TO-DO intArray must accept np.int32
+            # TO-DO intArray must accept np.int32
             tmp = [int(x) for x in gl_ess_tdof]
             self.gl_ess_tdofs[name] = tmp
-     
+
     def mkdir(self, path):
-        myid     = MPI.COMM_WORLD.rank                
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
         if myid == 0:
-           if not os.path.exists(path): os.mkdir(path)           
+            if not os.path.exists(path):
+                os.mkdir(path)
         else:
-           pass
+            pass
         MPI.COMM_WORLD.Barrier()
-        
+
     def symlink(self, target, link):
-        myid     = MPI.COMM_WORLD.rank
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
         if myid == 0:
-            if not os.path.exists(link):                   
+            if not os.path.exists(link):
                 os.symlink(target, link)
         else:
             pass
-        #MPI.COMM_WORLD.Barrier()
-        
+        # MPI.COMM_WORLD.Barrier()
+
     def open_file(self, *args, **kwargs):
-        myid     = MPI.COMM_WORLD.rank                
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
         if myid == 0:
-           return open(*args, **kwargs)
+            return open(*args, **kwargs)
         return
 
     def cleancwd(self):
-        myid     = MPI.COMM_WORLD.rank                
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
         if myid == 0:
-            for f in os.listdir("."): os.remove(f)            
+            for f in os.listdir("."):
+                os.remove(f)
         else:
             pass
-        MPI.COMM_WORLD.Barrier()                
+        MPI.COMM_WORLD.Barrier()
 
-    def remove_solfiles(self):       
-        myid     = MPI.COMM_WORLD.rank                
+    def remove_solfiles(self):
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
         if myid == 0:
             super(ParallelEngine, self).remove_solfiles()
         else:
             pass
         MPI.COMM_WORLD.Barrier()
-        
+
     def remove_case_dirs(self):
-        myid     = MPI.COMM_WORLD.rank                
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
         if myid == 0:
             super(ParallelEngine, self).remove_case_dirs()
         else:
@@ -3098,7 +3522,7 @@ class ParallelEngine(Engine):
         MPI.COMM_WORLD.Barrier()
 
     def a2A(self, a):   # BilinearSystem to matrix
-        # we dont eliminate essentiaal at this level...                 
+        # we dont eliminate essentiaal at this level...
         inta = mfem.intArray()
         m = self.new_matrix()
         a.FormSystemMatrix(inta, m)
@@ -3107,57 +3531,54 @@ class ParallelEngine(Engine):
     def a2Am(self, a):  # MixedBilinearSystem to matrix
         if not a._finalized:
             a.Finalize()
-            a._finalized = True               
+            a._finalized = True
 
         return a.ParallelAssemble()
-    
+
     def b2B(self, b):
         fes = b.ParFESpace()
         B = mfem.HypreParVector(fes)
-        P = fes.GetProlongationMatrix()       
+        P = fes.GetProlongationMatrix()
         B.SetSize(fes.TrueVSize())
         P.MultTranspose(b, B)
 
         return B
-     
+
     def x2X(self, x):
         fes = x.ParFESpace()
-        X = mfem.HypreParVector(fes)        
-        R = fes.GetRestrictionMatrix()       
+        X = mfem.HypreParVector(fes)
+        R = fes.GetRestrictionMatrix()
         X.SetSize(fes.TrueVSize())
-        R.Mult(x, X)            
+        R.Mult(x, X)
         return X
-     
-    def X2x(self, X, x): # RecoverFEMSolution
+
+    def X2x(self, X, x):  # RecoverFEMSolution
         fes = x.ParFESpace()
         P = fes.GetProlongationMatrix()
         x.SetSize(P.Height())
         P.Mult(X, x)
-     
+
     def run_geom_gen(self, gen):
-        myid     = MPI.COMM_WORLD.rank                
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
         if myid == 0:
-            gen.generate_final_geometry()           
+            gen.generate_final_geometry()
         else:
             pass
         MPI.COMM_WORLD.Barrier()
-       
+
     def run_mesh_gen(self, gen):
-        myid     = MPI.COMM_WORLD.rank                
-        if myid == 0:
-            gen.generate_mesh_file()           
-        else:
-            pass
-        MPI.COMM_WORLD.Barrier()
-       
+        '''
+        run mesh generator 
+        '''
+        gen.generate_mesh_file()
+
     def save_processed_model(self):
-        myid     = MPI.COMM_WORLD.rank                
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
         if myid == 0:
-            self.model.save_to_file('model_proc.pmfm', meshfile_relativepath = False)
+            self.model.save_to_file(
+                'model_proc.pmfm', meshfile_relativepath=False)
         else:
             pass
         MPI.COMM_WORLD.Barrier()
-       
-        
-        
-  

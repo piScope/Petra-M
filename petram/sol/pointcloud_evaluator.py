@@ -27,6 +27,8 @@ class PointcloudEvaluator(EvaluatorAgent):
            ax * x + ay * y + ax * z + c = 0
         '''
         super(PointcloudEvaluator, self).__init__()
+        self.points = None
+        self.subset = None
         self.attrs = set(attrs)
         self.pc_type  = pc_type
         self.pc_param = pc_param
@@ -44,8 +46,10 @@ class PointcloudEvaluator(EvaluatorAgent):
         if pc_type == 'cutplane': # cutplane
             param = {"origin": pc_param[0], "e1":pc_param[1], "e2":pc_param[2],
                      "x":pc_param[3], "y":pc_param[4]}
+            cp_abc = np.cross(pc_param[1], pc_param[2])
+            cp_d = -np.sum(cp_abc*pc_param[0])
             points = generate_pc_from_cpparam(**param)
-            
+
         elif pc_type == 'line': 
             sp = np.array(pc_param[0])
             ep = np.array(pc_param[1])
@@ -57,17 +61,25 @@ class PointcloudEvaluator(EvaluatorAgent):
         elif pc_type == 'xyz':
             points = pc_param
 
+        mesh = self.mesh()[emesh_idx]
+        sdim = mesh.SpaceDimension()
+
+        if points.shape[-1] > sdim:
+            points = points[...,:sdim]
+
+        if np.prod(points.shape) == 0:
+            assert False, "PointCloud: Number of points = 0"            
+            return
 
         self.ans_shape = points.shape
         self.ans_points = points
         self.points = points.reshape(-1, points.shape[-1])
 
-        mesh = self.mesh()[emesh_idx]
-
         v = mfem.Vector()
         mesh.GetVertices(v)
         vv = v.GetDataArray()
-        vv = vv.reshape(3, -1)
+
+        vv = vv.reshape(sdim, -1)
         max_mesh_ptx = np.max(vv, 1)
         min_mesh_ptx = np.min(vv, 1)
 
@@ -80,12 +92,53 @@ class PointcloudEvaluator(EvaluatorAgent):
            if max_mesh_ptx[i] < min_ptx[i]: out_of_range = True
            if min_mesh_ptx[i] > max_ptx[i]: out_of_range = True
 
+        self.subset = None
+
+        if pc_type == "cutplane" and sdim == 3:
+            ### in 3D, we try to cut down the number of point query to FindPoints
+            param = vv[0, :]*cp_abc[0] + vv[1, :]*cp_abc[1] + vv[2, :]*cp_abc[2] + cp_d
+            if np.max(param)*np.min(param) == 0:
+                out_of_range = True
+
+            else:
+                x1 = np.sum((vv.transpose() - pc_param[0])*pc_param[1], -1)
+                xxx = np.min(x1), np.max(x1)
+                y1 = np.sum((vv.transpose() - pc_param[0])*pc_param[2], -1)
+                yyy = np.min(y1), np.max(y1)
+
+                xmin, xmax, xsize = pc_param[3]
+                ymin, ymax, ysize = pc_param[4]
+                xxx = [int((xxx[0]-xmin)//xsize), int((xxx[1]-xmin)//xsize)]
+                yyy = [int((yyy[0]-ymin)//ysize), int((yyy[1]-ymin)//ysize)]
+
+                ss = self.ans_points.shape
+                
+                if xxx[0] < 0: xxx[0] = 0
+                if yyy[0] < 0: yyy[0] = 0
+                if xxx[1] >= ss[1]: xxx[1] = ss[1]-1
+                if yyy[1] >= ss[0]: yyy[1] = ss[0]-1
+                if xxx[0] > 0: xxx[0] = xxx[0] - 1
+                if yyy[0] > 0: yyy[0] = yyy[0] - 1
+                if xxx[1] < self.ans_points.shape[1]-1:
+                    xxx[1] = xxx[1] + 1
+                if yyy[1] < self.ans_points.shape[0]-1:
+                    yyy[1] = yyy[1] + 1
+
+                subset = np.zeros(ss[:-1], dtype=bool)
+                subset[yyy[0]:yyy[1], xxx[0]:xxx[1]] = True
+
+                ptx = self.ans_points[yyy[0]:yyy[1], :, :]
+                ptx = ptx[:, xxx[0]:xxx[1], :]
+                self.points = ptx.reshape(-1, self.ans_points.shape[-1])
+                self.subset = subset
+
         if out_of_range:
             counts = 0
             elem_ids = np.zeros(len(self.points), dtype=int)-1
             int_points = [None]*len(self.points)
             print("skipping mesh")
         else:
+            print("Chekcing " + str(len(self.points)) + " points")
             counts, elem_ids, int_points = mesh.FindPoints(self.points, warn=False)
             print("FindPoints found " + str(counts) + " points")
         attrs = [ mesh.GetAttribute(id) if id != -1 else -1 for id in elem_ids]
@@ -161,12 +214,10 @@ class PointcloudEvaluator(EvaluatorAgent):
                         for v in zip(*ll_value)])
         else:
             # if expr does not involve Varialbe, evaluate code once
-            # and generate an array 
+            # and generate an array
             val = np.array([eval(code, var_g2)]*len(self.locs))
         return val
 
-
-        
     def eval(self, expr, solvars, phys):
         from petram.sol.bdr_nodal_evaluator import get_emesh_idx
         
@@ -182,17 +233,18 @@ class PointcloudEvaluator(EvaluatorAgent):
 
         if self.counts == 0:
             return None, None, None
-        
+
         val = self.eval_at_points(expr, solvars, phys)
-        
+
         if val is None:
             return None, None, None
 
         shape = self.ans_shape[:-1]
-        attrs = self.masked_attrs.reshape(shape)
-        
-        return self.ans_points,  val,  attrs
 
-        
-    
+        if self.subset is None:
+            attrs = self.masked_attrs.reshape(shape)
+        else:
+            attrs = np.zeros(self.ans_shape[:-1],dtype=int)-1
+            attrs[self.subset] = self.masked_attrs.reshape(self.points.shape[:-1])
 
+        return self.ans_points, val, attrs

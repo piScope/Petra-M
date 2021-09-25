@@ -23,7 +23,9 @@
 | MixedCrossGradIntegrator              | H1     | ND, RT |  V      | $(\vec\{\lambda}\cross\grad u,\vec\{v})$       | $\vec\{\lambda}\cross\grad u$        | 3D         |
 | MixedCrossGradCurlIntegrator          | H1     | ND     |  V      | $(\vec\{\lambda}\times\grad u, \curl\vec\{v})$ | $\curl(\vec\{\lambda}\times\grad u)$ | 3D         |
 | MixedGradDivIntegrator                | H1     | RT     |  V      | $(\vec\{\lambda}\cdot\grad u, \div\vec\{v})$   | $-\grad(\vec\{\lambda}\cdot\grad u)$ | 2D, 3D     |
-| DerivativeIntegrator                  | H1, L2 | H1, L2 |   S     | $(\lambda\frac\{\partial u}\{\partial x_i}, v)$ | | 1D, 2D, 3D|
+| DerivativeIntegrator1                 | H1, L2 | H1, L2 |   S     | $(\lambda\frac\{\partial u}\{\partial x_i}, v)$ | | 1D, 2D, 3D|
+| DerivativeIntegrator2                 | H1, L2 | H1, L2 |   S     | $(\lambda\frac\{\partial u}\{\partial x_i}, v)$ | | 1D, 2D, 3D|
+| DerivativeIntegrator3                 | H1, L2 | H1, L2 |   S     | $(\lambda\frac\{\partial u}\{\partial x_i}, v)$ | | 1D, 2D, 3D|
 | ConvectionIntegrator                  | H1     | H1     | V       | $(\vec\{\lambda}\cdot\grad u, v)$               | | 1D, 2D, 3D|
 | GroupConvectionIntegrator             | H1     | H1     | V       | $(\alpha\vec\{\lambda}\cdot\grad u, v)$         | | 1D, 2D, 3D|
 | BoundaryMassIntegrator                | H1, L2 | H1, L2 |   S     | $(\lambda\,u,v)$                                | | 1D, 2D, 3D|

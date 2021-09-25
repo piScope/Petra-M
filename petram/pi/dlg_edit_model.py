@@ -35,7 +35,7 @@ class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
         item = self.topwindow.model.GetItem(indices)
         txt = self.topwindow.model.GetItemText(indices)
 
-        if item.has_ns():
+        if item.has_ns() or item.has_nsref():
             info = item.get_info_str()
             if info != "":
                 txt = txt + "(" + info + ")"
@@ -161,7 +161,8 @@ class DlgEditModel(SimpleFramePlus):
         self._opened_dlg = None
         self._enable = True
         self.SetSize((600, 400))
-
+        
+        wx.CallAfter(self.CentreOnParent)
         #hbox = wx.BoxSizer(wx.HORIZONTAL)
         #self.GetSizer().Add(hbox, 0, wx.EXPAND|wx.ALL,5)
         #button=wx.Button(self, wx.ID_ANY, "Close")
@@ -199,60 +200,75 @@ class DlgEditModel(SimpleFramePlus):
             for xxxx in mm.get_possible_child_menu():
 
                 submenu, cls = xxxx
-                txt = cls.fancy_menu_name()
-                txt2 = cls.fancy_tree_name()
+                if cls is not None:
+                    txt = cls.fancy_menu_name()
+                    txt2 = cls.fancy_tree_name()
 
-                def add_func(evt, cls=cls, indices=indices, tree=tree,
-                             namebase=txt2, model=self.model):
-                    parent = model.GetItem(indices)
+                    def add_func(evt, cls=cls, indices=indices, tree=tree,
+                                 namebase=txt2, model=self.model):
+                        parent = model.GetItem(indices)
 
-                    # build stop is a flag for precedual construction of geom/mesh
-                    if hasattr(parent, '_build_stop'):
-                        before, after = parent.build_stop
-                    elif hasattr(parent.parent, 'build_stop'):
-                        before, after = parent.parent.build_stop
-                    else:
-                        before, after = None, None
+                        # build stop is a flag for precedual construction of geom/mesh
+                        if hasattr(parent, '_build_stop'):
+                            before, after = parent.build_stop
+                        elif hasattr(parent.parent, 'build_stop'):
+                            before, after = parent.parent.build_stop
+                        else:
+                            before, after = None, None
 
-                    try:
-                        name = parent.add_item(namebase, cls,
-                                               before=before, after=after)
-                    except:
-                        dialog.showtraceback(parent=self,
-                                             txt="Failed to add child",
-                                             title='Error',
-                                             traceback=traceback.format_exc())
-                        return
+                        try:
+                            name = parent.add_item(namebase, cls,
+                                                   before=before, after=after)
+                        except:
+                            dialog.showtraceback(parent=self,
+                                                 txt="Failed to add child",
+                                                 title='Error',
+                                                 traceback=traceback.format_exc())
+                            return
 
-                    child = parent[name]
-                    child.on_created_in_tree()
-                    viewer = self.GetParent()
-                    viewer.model.scripts.helpers.rebuild_ns()
-                    engine = viewer.engine
-                    model.GetItem(indices)[name].postprocess_after_add(engine)
-                    tree.RefreshItems()
+                        child = parent[name]
+                        try:
+                            child.on_created_in_tree()
+                        except:
+                            del parent[name]
+                            dialog.showtraceback(parent=self,
+                                                 txt="Failed to add child",
+                                                 title='Error',
+                                                 traceback=traceback.format_exc())
+                            return
 
-                    old_item = tree.GetItemByIndex(parent.GetIndices())
-                    tree.Expand(old_item)
-                    tree.SelectItem(old_item, select=False)
+                        viewer = self.GetParent()
+                        viewer.model.scripts.helpers.rebuild_ns()
+                        engine = viewer.engine
+                        model.GetItem(indices)[name].postprocess_after_add(engine)
+                        tree.RefreshItems()
 
-                    new_item = tree.GetItemByIndex(child.GetIndices())
-                    tree.SelectItem(new_item)
-                    evt.Skip()
+                        viewer.engine.run_mesh_extension_prep(reset=True)
 
+                        old_item = tree.GetItemByIndex(parent.GetIndices())
+                        tree.Expand(old_item)
+                        tree.SelectItem(old_item, select=False)
+
+                        new_item = tree.GetItemByIndex(child.GetIndices())
+                        tree.SelectItem(new_item)
+                        evt.Skip()
+                else:
+                    add_func = None
                 if len(submenu) != 0:
                     if submenu == "!":
-                        menus = menus+[('Add '+txt, add_func, None), ]
+                        if add_func is not None:
+                            menus = menus+[('Add '+txt, add_func, None), ]
                         menus = menus+[('!', None, None), ]
                     else:
                         menus = menus+[('+'+submenu, None, None), ]
-                        menus = menus+[('Add '+txt, add_func, None), ]
+                        if add_func is not None:                        
+                            menus = menus+[('Add '+txt, add_func, None), ]
                 else:
                     menus = menus+[('Add '+txt, add_func, None), ]
-            for t, m, m2 in mm.get_special_menu():
+            for t, m, m2 in mm.get_special_menu(e):
                 menus = menus+[(t, m, m2), ]
             menus = menus + [('---', None, None)]
-            if mm.has_ns() and not mm.hide_ns_menu:
+            if (mm.has_ns() or mm.has_nsref()) and not mm.hide_ns_menu:
                 if mm.ns_name is not None:
                     menus.append(("Delete NS.",  self.OnDelNS, None))
                     if hasattr(mm, '_global_ns'):
@@ -518,7 +534,7 @@ class DlgEditModel(SimpleFramePlus):
 
             if mm.has_4th_panel:
                 if self.nb.GetPageCount() == 3:
-                    self.nb.AddPage(self.p4, "Time Dep.")
+                    self.nb.AddPage(self.p4, "Time Dep./Adv.")
                 self.p4sizer.Add(p4panel, 1, wx.EXPAND | wx.ALL, 1)
                 p4panel.SetValue(mm.get_panel4_value())
                 p4panel.Show()
@@ -600,7 +616,7 @@ class DlgEditModel(SimpleFramePlus):
 
             if mm.has_4th_panel:
                 if self.nb.GetPageCount() == 3:
-                    self.nb.AddPage(self.p4, "Time Dep.")
+                    self.nb.AddPage(self.p4, "Time Dep./Adv.")
                 self.p4sizer.Add(p4panel, 1, wx.EXPAND | wx.ALL, 1)
                 p4panel.SetValue(mm.get_panel4_value())
                 p4panel.Show()
@@ -626,11 +642,38 @@ class DlgEditModel(SimpleFramePlus):
             self.p1.Layout()
 
         self._focus_idx = None
+        
         from petram.model import Bdry, Domain, Pair
         from petram.phys.phys_model import PhysModule
+        
         viewer = self.GetParent()
         engine = viewer.engine
-        if hasattr(mm, '_sel_index'):
+        
+        if isinstance(mm, PhysModule):
+            if not mm.enabled:
+                viewer.highlight_none()
+                viewer._dom_bdr_sel = ([], [], [], [])
+            else:
+                if not hasattr(mm, '_phys_sel_index') or mm.sel_index == 'all':
+                    engine.assign_sel_index(mm)
+                if hasattr(mm, '_phys_sel_index'):
+                    # need this if in case mesh is not loaded....
+                    if mm.dim == 3:
+                        viewer.change_panel_button('domain')
+                        viewer.highlight_domain(mm._phys_sel_index)
+                        viewer._dom_bdr_sel = (mm._phys_sel_index, [], [], [])
+                    elif mm.dim == 2:
+                        viewer.change_panel_button('face')
+                        viewer.highlight_face(mm._phys_sel_index)
+                        viewer._dom_bdr_sel = ([], mm._phys_sel_index, [], [])
+                    elif mm.dim == 1:
+                        viewer.change_panel_button('edge')
+                        viewer.highlight_edge(mm._phys_sel_index)
+                        viewer._dom_bdr_sel = ([], [], mm._phys_sel_index, [],)
+                    else:
+                        pass
+                    
+        elif hasattr(mm, '_sel_index'):
             self._focus_idx = 0
             if not mm.enabled:
                 viewer.highlight_none()
@@ -677,29 +720,7 @@ class DlgEditModel(SimpleFramePlus):
                     viewer._dom_bdr_sel = ([], [], mm._sel_index, [],)
                 else:
                     pass
-        elif isinstance(mm, PhysModule):
-            if not mm.enabled:
-                viewer.highlight_none()
-                viewer._dom_bdr_sel = ([], [], [], [])
-            else:
-                if not hasattr(mm, '_phys_sel_index') or mm.sel_index == 'all':
-                    engine.assign_sel_index(mm)
-                if hasattr(mm, '_phys_sel_index'):
-                    # need this if in case mesh is not loaded....
-                    if mm.dim == 3:
-                        viewer.change_panel_button('domain')
-                        viewer.highlight_domain(mm._phys_sel_index)
-                        viewer._dom_bdr_sel = (mm._phys_sel_index, [], [], [])
-                    elif mm.dim == 2:
-                        viewer.change_panel_button('face')
-                        viewer.highlight_face(mm._phys_sel_index)
-                        viewer._dom_bdr_sel = ([], mm._phys_sel_index, [], [])
-                    elif mm.dim == 1:
-                        viewer.change_panel_button('edge')
-                        viewer.highlight_edge(mm._phys_sel_index)
-                        viewer._dom_bdr_sel = ([], [], mm._phys_sel_index, [],)
-                    else:
-                        pass
+                
         elif isinstance(mm, AUX_Operator) or isinstance(mm, AUX_Variable):
             if not mm.enabled:
                 viewer.highlight_none()
@@ -725,8 +746,10 @@ class DlgEditModel(SimpleFramePlus):
                             [], [], mm2._phys_sel_index, [],)
                     else:
                         pass
+                    
         else:
             pass
+        
         if evt is not None:
             mm.onItemSelChanged(evt)
             evt.Skip()
@@ -759,7 +782,7 @@ class DlgEditModel(SimpleFramePlus):
         self.panels[mm.fullname()][2].update_label(mm.panel3_param())
         self.panels[mm.fullname()][3].update_label(mm.panel4_param())
 
-    def import_selected_panel_value(self):
+    def import_selected_panel_value(self, evt=None):
         if self.tree.GetSelection() is None:
             return
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
@@ -771,7 +794,7 @@ class DlgEditModel(SimpleFramePlus):
         if len(p1children) > 0:
             elp1 = p1children[0].GetWindow()
             v1 = elp1.GetValue()
-            viewer_update = mm.import_panel1_value(v1)
+            viewer_update = mm.import_panel1_value(v1) or viewer_update
             try:
                 phys = mm.get_root_phys()
             except:
@@ -783,7 +806,7 @@ class DlgEditModel(SimpleFramePlus):
             if len(p2children) > 0:
                 elp2 = p2children[0].GetWindow()
                 v2 = elp2.GetValue()
-                viewer_update = mm.import_panel2_value(v2)
+                viewer_update = mm.import_panel2_value(v2) or viewer_update
                 elp2.SetValue(mm.get_panel2_value())
 
         if mm.has_3rd_panel:
@@ -791,7 +814,7 @@ class DlgEditModel(SimpleFramePlus):
             if len(p3children) > 0:
                 elp3 = p3children[0].GetWindow()
                 v3 = elp3.GetValue()
-                viewer_update = mm.import_panel3_value(v3)
+                viewer_update = mm.import_panel3_value(v3) or viewer_update
                 elp3.SetValue(mm.get_panel3_value())
 
         if mm.has_4th_panel:
@@ -799,22 +822,28 @@ class DlgEditModel(SimpleFramePlus):
             if len(p4children) > 0:
                 elp4 = p4children[0].GetWindow()
                 v4 = elp4.GetValue()
-                viewer_update = mm.import_panel4_value(v4)
+                viewer_update = mm.import_panel4_value(v4) or viewer_update
                 elp4.SetValue(mm.get_panel4_value())
 
         if phys is not None:
             viewer = self.GetParent()
             try:
+                viewer.engine.run_mesh_extension_prep(reset=True)
                 engine = viewer.engine.assign_sel_index(phys)
             except:
                 traceback.print_exc()
-
+        
         if viewer_update:
-            mm.update_after_ELChanged(self)
+             mm.update_after_ELChanged(self)
+             if evt is not None:
+                 mm.update_after_ELChanged2(evt)
+             wx.CallAfter(self.show_panel, mm)
+                 
         self.tree.RefreshItems()
+        return viewer_update
 
     def OnEL_Changed(self, evt):
-        self.import_selected_panel_value()
+        viewer_update=self.import_selected_panel_value(evt)
         evt.Skip()
 
     def OnEL_Changing(self, evt):
@@ -1188,3 +1217,11 @@ class DlgEditModel(SimpleFramePlus):
         dlg.Raise()
         self._opened_dlg = dlg
         parent.Enable(False)
+
+    def show_progress_bar(self, message, title='In progress', count=5):
+        dlg = dialog.progressbar(self, message, title, count)
+        dlg.Show()
+        wx.GetApp().Yield()
+
+        return dlg
+        

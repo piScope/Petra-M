@@ -8,7 +8,7 @@
 '''
 from collections import OrderedDict
 import traceback
-from collections import MutableMapping
+from collections.abc import MutableMapping
 import six
 import os
 import numpy as np
@@ -17,7 +17,7 @@ from weakref import WeakKeyDictionary
 
 from functools import reduce
 
-from petram.namespace_mixin import NS_mixin
+from petram.namespace_mixin import NS_mixin, NSRef_mixin
 
 def validate_sel(value, obj, w):
     g = obj._global_ns
@@ -70,8 +70,8 @@ class Restorable(object):
         raise NotImplementedError(
              "you must specify the _restore method with the Restorable type")
 
-
-class RestorableOrderedDict(MutableMapping, Restorable, object):
+from abc import ABC
+class RestorableOrderedDict(ABC, MutableMapping, Restorable, object):
      def __init__(self, *args, **kwargs):
          self._contents = OrderedDict(*args, **kwargs)
          Restorable.__init__(self)
@@ -90,8 +90,15 @@ class RestorableOrderedDict(MutableMapping, Restorable, object):
          
      def __getstate__(self):
          st = [(x, self.__dict__[x]) for x in self.__dict__ if not x.startswith('_')]
-#         st.append(('_parent', self._parent))
-#         return [ (key, value) for key, value in six.items(self._contents) ], st
+
+         # note
+         #   we save _sel_index so that model_proc.pmfm has this
+         #   informaiton, this way, evaluator does not need to re-run
+         #   assign_sel_index, which requires loading base mesh (which is slow)
+         
+         if hasattr(self, '_sel_index'):
+             st.append(('_sel_index', self._sel_index))
+
          return [ (key, value) for key, value in self._contents.items() ], st
       
      def _restore(self, restoration_data):
@@ -150,6 +157,7 @@ class ModelDict(WeakKeyDictionary):
     def __iter__(self):
         return [reduce(lambda x, y: x[y], [self.root()] + hook().names)
                 for hook in self]
+    
 
 class Model(RestorableOrderedDict):
     can_delete = True
@@ -356,7 +364,7 @@ class Model(RestorableOrderedDict):
     def get_possible_child_menu(self):
         return [('', cls) for cls in self.get_possible_child()]
     
-    def get_special_menu(self):
+    def get_special_menu(self, evt):
         return []
 
     def add_item(self, txt, cls,  **kwargs):
@@ -372,20 +380,21 @@ class Model(RestorableOrderedDict):
             
         m = []
         for k in self.keys():
-            ll = 0
-            while ll < len(k):
-               if not k[ll].isdigit(): ll = ll+1
+            ll = len(k)
+            while ll >= 0:
+               if k[ll-1].isdigit(): ll = ll-1
                else: break
 
             name = k[:ll]
             if name == txt:
                 if len(k) > len(name):
-                    m.append(int(k[len(name):]))
+                    m.append(int(k[ll:]))
 
         if len(m) == 0:
            name = txt+str(1)
         else:
            name = txt + str(max(m)+1)
+
         obj = cls(**kwargs)
         done = False
         if obj.mustbe_firstchild:
@@ -640,6 +649,9 @@ class Model(RestorableOrderedDict):
     
     def has_ns(self):
         return isinstance(self, NS_mixin)
+    
+    def has_nsref(self):
+        return isinstance(self, NSRef_mixin)
 
     def add_node(self, name = '', cls = ''):
         ''' 
@@ -699,7 +711,7 @@ class Model(RestorableOrderedDict):
             script.append(self._script_name + '.'+attr + ' = ' +
                               value.__repr__())
             
-        if self.has_ns() and self.ns_name is not None:
+        if (self.has_ns() or self.has_nsref()) and self.ns_name is not None:
             script.append(self._script_name + '.ns_name = "' +
                           self.ns_name + '"')
 
@@ -802,28 +814,30 @@ class Model(RestorableOrderedDict):
                        'except:',
                        '    myid = 0', 
                        '    use_parallel=False',
-                       'from mfem.common.arg_parser import ArgParser',
-                       'parser = ArgParser(description="PetraM sciprt")',
-                       'parser.add_argument("-s", "--force-serial", ',
+                       '',
+                       'if __name__=="__main__":',
+                       '    from mfem.common.arg_parser import ArgParser',
+                       '    parser = ArgParser(description="PetraM sciprt")',
+                       '    parser.add_argument("-s", "--force-serial", ',
                        '                     action = "store_true", ',
                        '                     default = False,', 
                        '                     help="Use serial model even if nproc > 1.")',
-                       'parser.add_argument("-p", "--force-parallel", ',
+                       '    parser.add_argument("-p", "--force-parallel", ',
                        '                     action = "store_true", ',
                        '                     default = False,',  
                        '                     help="Use parallel model even if nproc = 1.")',
-                       'parser.add_argument("-d", "--debug-param", ',
+                       '    parser.add_argument("-d", "--debug-param", ',
                        '                     action = "store", ',
                        '                     default = 1, type=int) ',
-                       'args = parser.parse_args()', 
-                       'if args.force_serial: use_parallel=False',
-                       'if args.force_parallel: use_parallel=True',
+                       '    args = parser.parse_args()',
                        '',
-                       'import  petram.mfem_config as mfem_config',
-                       'mfem_config.use_parallel = use_parallel',
-                       'if (myid == 0): parser.print_options(args)'
+                       '    if args.force_serial: use_parallel=False',
+                       '    if args.force_parallel: use_parallel=True',
                        '',
-                       'debug_level=args.debug_param'])
+                       '    import  petram.mfem_config as mfem_config',
+                       '    mfem_config.use_parallel = use_parallel',
+                       '    debug_level=args.debug_param'])        
+        
 
         script.append('')
         self.generate_import_section(script)
@@ -838,7 +852,12 @@ class Model(RestorableOrderedDict):
         script.append(' '*4 + 'return obj1')
 
         script.append('')                      
-        script.append('if __name__ == "__main__":')
+        script.extend(['if __name__ == "__main__":',
+                       '    if (myid == 0): parser.print_options(args)'
+                       '',])
+
+        
+        script.append('')                                             
         main_script = self.generate_main_script()
         for x in main_script:
             script.append(' '*4 + x)
@@ -867,6 +886,12 @@ class Model(RestorableOrderedDict):
     
     def figure_data_name(self):
         return self.name()
+
+    def update_after_ELChanged2(self, evt):
+        pass
+    
+    def update_after_ELChanged(self, dlg):
+        pass
 
 class Bdry(Model):
     can_delete = True
@@ -993,10 +1018,8 @@ class Pair(Model):
             ret = np.array(self._src_index);
             ret = list(ret[np.in1d(ret, choice)])
             self._src_index = ret
-        
             
         return self._sel_index
-
    
 class Domain(Model):
     can_delete = True

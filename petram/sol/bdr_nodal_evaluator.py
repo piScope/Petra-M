@@ -108,12 +108,13 @@ def get_emesh_idx(obj, expr, solvars, phys):
            (n in g and isinstance(g[n], Variable))):
            for nn in g[n].dependency:
               idx = g[nn].get_emesh_idx(idx, g=g)
-           idx = g[n].get_emesh_idx(idx, g=g)
+
+           idx.extend(g[n].get_emesh_idx(idx, g=g))
            
     if len(idx) == 0:
         # if expression has no emehs dependence return 0 (use emesh = 0)
         idx = [0]
-    return idx
+    return list(set(idx))
        
     
 def eval_at_nodals(obj, expr, solvars, phys):
@@ -164,17 +165,17 @@ def eval_at_nodals(obj, expr, solvars, phys):
        if (n in g and isinstance(g[n], Variable)):
            if not g[n] in obj.knowns:
               obj.knowns[g[n]] = (
-                  g[n].nodal_values(iele = obj.ieles,
-                                    ibele = obj.ibeles,
-                                    elattr = obj.elattr, 
-                                    el2v = obj.elvert2facevert,
-                                    locs  = obj.locs,
-                                    elvertloc = obj.elvertloc,
-                                    wverts = obj.wverts,
-                                    mesh = obj.mesh()[obj.emesh_idx],
-                                    iverts_f = obj.iverts_f,
-                                    g  = g,
-                                    knowns = obj.knowns))
+                  g[n].nodal_values(iele=obj.ieles,
+                                    ibele=obj.ibeles,
+                                    elattr=obj.elattr, 
+                                    el2v=obj.elvert2facevert,
+                                    locs=obj.locs,
+                                    elvertloc=obj.elvertloc,
+                                    wverts=obj.wverts,
+                                    mesh=obj.mesh()[obj.emesh_idx],
+                                    iverts_f=obj.iverts_f,
+                                    g=g,
+                                    knowns=obj.knowns))
            #ll[n] = self.knowns[g[n]]
            ll_name.append(name_translation[n])
            ll_value.append(obj.knowns[g[n]])
@@ -224,9 +225,19 @@ class BdrNodalEvaluator(EvaluatorAgent):
             ibdrs = ibdrs[::self.decimate]
 
         self.ibeles = np.array(ibdrs)
+
+        def get_vertices_array(i):
+            arr = getelement(i).GetVerticesArray()
+            if len(arr) == 3:
+                return arr
+            elif len(arr) == 4:
+                x = arr[:-1]
+                y = np.array([arr[0], arr[2], arr[3]])
+                return np.vstack([x, y])
+            
+        # we handle quad as two triangles
+        iverts = np.vstack([get_vertices_array(i) for i in ibdrs])
         
-        iverts = np.stack([getelement(i).GetVerticesArray()
-                           for i in ibdrs])
         self.iverts = iverts
         if len(self.iverts) == 0: return
 
@@ -270,6 +281,7 @@ class BdrNodalEvaluator(EvaluatorAgent):
                 return self.locs, val, idx
         else:
             from petram.sol.nodal_refinement import refine_surface_data
+
             ptx, data, ridx = refine_surface_data(self.mesh()[self.emesh_idx],
                                                   self.ibeles,
                                                   val, self.iverts_inv,

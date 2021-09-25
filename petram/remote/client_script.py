@@ -5,10 +5,73 @@ import datetime
 import os 
 import shlex 
 import socket
+import base64
+import traceback
 import subprocess as sp
 
 base_remote_path = '~/myscratch/mfem_batch'
 
+def communicate_with_timeout(p,
+                             maxtimeout=np.inf,
+                             timeout=2,
+                             progdlg=None,
+                             verbose=False):
+
+    import wx
+    if progdlg is not None:
+        value =progdlg.GetValue()
+    time = 0
+    cancelled = False
+    timeout_expired = False
+    while True:
+        #print("communicating", time)
+        try:
+            p.wait(timeout=timeout)
+        except sp.TimeoutExpired:
+            time = time + timeout
+            wx.GetApp().Yield()
+            if progdlg is not None:
+                if progdlg:
+                    flag, skipped = progdlg.Update(value)
+                    cancelled = not flag
+                else:
+                    #print("widget deleted")
+                    cancelled = True
+                if cancelled:
+                    p.kill()
+                    return b"", b"", False, True
+            if time > maxtimeout:
+                timeout_expired = True
+                p.kill()
+                return b"", b"", True, False
+            else:
+                continue
+        break
+    outs, errs = p.communicate()
+    if errs is not None: print(errs.decode())
+    
+    if verbose:
+        if outs is not None: print(outs.decode())
+    
+    return outs, errs, timeout_expired, cancelled
+
+def launch_ssh_command(model, command, verbose=True):
+    param = model.param
+    hosto = param.eval('host')
+    host = hosto.getvar('server')
+    user = hosto.getvar('user')
+    opts = hosto.get_multiplex_opts()
+
+    opts = ' '.join(opts)
+    command = ("ssh -x " + opts + " -oPasswordAuthentication=no -oPreferredAuthentications=publickey " + user+'@' + host + " '" + command + "'")
+    
+    if verbose:
+        print("Executing on host (ssh): " + command)
+    
+    p= sp.Popen(command, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
+    return p
+    
+                        
 def wdir_from_datetime():
     import datetime, socket
     txt = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
@@ -60,8 +123,8 @@ def clean_remote_dir(model):
 
     return True
 
-
-def prepare_remote_dir(model, txt = '', dirbase = base_remote_path):
+def prepare_remote_dir(model, txt='', dirbase=base_remote_path,
+                       progdlg=None):
     model_dir = model.owndir()
     param = model.param
     if txt  == '':
@@ -71,15 +134,26 @@ def prepare_remote_dir(model, txt = '', dirbase = base_remote_path):
     else:
         rwdir = os.path.join(dirbase, txt)
  
-    try:
-        host = param.eval('host')
-        host.Execute('mkdir -p ' + rwdir)
-    except:
-        assert  False, "Failed to make remote directory"
-    param.eval('remote')['rwdir'] =  rwdir
+    host = param.eval('host')
+    hostname = host.getvar('server')
+    user = host.getvar('user')
+    
+    #p = host.Execute('mkdir -p ' + rwdir, nowait=True)
+    command = 'mkdir -p ' + rwdir
+    p = launch_ssh_command(model, command)
+    #command = ("ssh -x -o PasswordAuthentication=no -o PreferredAuthentications=publickey " + user+'@' + host + " '" + command + "'")
+    #p= sp.Popen(command, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)    
+    
+    ret = communicate_with_timeout(p, timeout=2, progdlg=progdlg)
+    _outs, _errs, timeout, cancelled = ret
 
+    if timeout or cancelled:
+        return True
+    
+    param.eval('remote')['rwdir'] = rwdir
+    return False
 
-def send_file(model, skip_mesh = False):
+def send_file(model, progdlg, skip_mesh = False):
     model_dir = model.owndir()
     param = model.param
 
@@ -91,15 +165,29 @@ def send_file(model, skip_mesh = False):
     rwdir = remote['rwdir']
     mfem_model = param.eval('mfem_model')
 
-    host.PutFile(os.path.join(sol_dir, 'model.pmfm'), rwdir + '/model.pmfm')
+    p = host.PutFile(os.path.join(sol_dir, 'model.pmfm'),
+                     rwdir + '/model.pmfm',
+                     nowait=True)
+    ret = communicate_with_timeout(p, timeout=2, progdlg=progdlg)
+    _outs, _errs, timeout, cancelled = ret    
+    if timeout or cancelled:
+        return True
 
-    if skip_mesh: return
+    if skip_mesh:
+        return False
     for od in mfem_model.walk():
-        if not od.is_enabled(): continue
+        if not od.is_enabled():
+            continue
         if hasattr(od, 'use_relative_path'):
             path = od.get_real_path()
             dpath = rwdir+'/'+os.path.basename(od.path)
-            host.PutFile(path, dpath)
+            p = host.PutFile(path, dpath, nowait=True)
+            ret = communicate_with_timeout(p, timeout=2, progdlg=progdlg)
+            _outs, _errs, timeout, cancelled = ret                
+            if timeout or cancelled:
+                return True
+
+    return False
 
 def retrieve_files(model, rhs=False, matrix = False, sol_dir = None):
     model_dir = model.owndir()
@@ -142,28 +230,49 @@ def retrieve_files(model, rhs=False, matrix = False, sol_dir = None):
     if matrix: get_files(host, 'matrix')
     if rhs: get_files(host, 'rhs')
  
-def get_job_queue(model=None, host = None, user = None):
-    if model is not None:
-        param = model.param
-        hosto = param.eval('host')
-        host = hosto.getvar('server')
-        user = hosto.getvar('user')
-    #command = "ssh " + user+'@' + host + " 'printf $PetraM'"
-    #p = sp.Popen(command, shell=True,  stdout=sp.PIPE)
-    #lines = p.stdout.readlines()
-    #PetraM = lines[-1].decode('utf-8').strip()
+def get_job_queue(model, host=None, user=None,
+                  progdlg=None):
 
-    command = "ssh " + user+'@' + host + " 'cat $PetraM/etc/queue_config'", 
-    p= sp.Popen(command, shell=True, stdout=sp.PIPE)
-    lines = [x.decode('utf-8') for x in p.stdout.readlines()]
-    return interpret_job_queue_file(lines)
+    '''
+    param = model.param
+    hosto = param.eval('host')
+    host = hosto.getvar('server')
+    user = hosto.getvar('user')
+    '''
+    #command = ("ssh -o PasswordAuthentication=no -o PreferredAuthentications=publickey " +
+    #           user+'@' + host + " 'cat $PetraM/etc/queue_config'" )
+    #p= sp.Popen(command, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
+    
+    command = 'cat $PetraM/etc/queue_config'
+    p = launch_ssh_command(model, command)    
+    ret = communicate_with_timeout(p, maxtimeout=30,
+                                   timeout=2, progdlg=progdlg)
+    outs, errs, timeout, cancelled = ret
+
+    if timeout:
+        return False, None
+    if cancelled:
+        return False, None
+    
+    lines = [x.strip() for x in outs.decode('utf-8').split('\n')]
+    
+    try:
+        value = interpret_job_queue_file(lines)
+    except BaseException:
+        traceback.print_exc()        
+        return False, None
+    return True, value
 
 def interpret_job_queue_file(lines):
     lines = [x.strip() for x in lines if not x.startswith("#")
              if len(x.strip()) != 0]
     q = {'type': lines[0], 'queues':[]}
     for l in lines[1:]:
-        if l.startswith('QUEUE'):
+        if l.startswith('KEYWORD'):
+            if not 'keywords' in q:
+                q['keywords'] = []
+            q['keywords'].append(l.split(':')[1])
+        elif l.startswith('QUEUE'):
             q['queues'].append({'name':l.split(':')[1]})
         else:
             data = ':'.join(l.split(':')[1:])
@@ -171,12 +280,11 @@ def interpret_job_queue_file(lines):
             q['queues'][-1][param] = data
     return q
     
-def submit_job(model):
+def submit_job(model, progdlg=None):
     param = model.param
     host = param.eval('host')
     remote = param.eval('remote') 
     rwdir = remote['rwdir']
-
     hostname = host.getvar('server')
     user = host.getvar('user')
     #p= sp.Popen("ssh " + user+'@' + hostname + " 'printf $PetraM'",
@@ -189,22 +297,39 @@ def submit_job(model):
     o = str(remote["num_openmp"])
     q = str(remote["queue"])
 
+    lk = []
+    for k, v in remote["log_keywords"]:
+       if v: lk.append(k.strip())
+    lk = ','.join(lk)
+    
+    lt = str(remote["log_txt"])
+    lt = "'".join(lt.split('"'))
+    
+    nt = str(remote["notification"])
+
+    lk = base64.b64encode(lk.encode()).decode()    
+    lt = base64.b64encode(lt.encode()).decode()
+
     q1 = q.strip().split("(")[0]
     q2 = "" if q.find("(") == -1 else "(".join(q.strip().split("(")[1:])[:-1]
     ## replace short/dev -> short_dev
     if q2 != "":
         q2 = "_".join(q2.split("/"))
     
-    exe = '$PetraM/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q1
+    exe = ('$PetraM/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q1
+           + ' -L ' + lt + ' -K ' + lk + ' -M ' + nt)
     if q2 != "":
        exe = exe +  ' -V ' + q2        
 
-    # we use force_ssh so that submission script is not influcence
-    # by the current enviroment. (it matters when client and server
-    # is runningn on the same machine)
-    p = host.Execute('cd '+rwdir+';'+exe, force_ssh=True)
-    if p.stdout is not None:
-         print(''.join(p.stdout.readlines()))
+    command = 'cd '+rwdir+';'+exe
+    p = launch_ssh_command(model, command)    
+    ret = communicate_with_timeout(p, timeout=2, progdlg=progdlg, verbose=True)
+    _outs, _errs, timeout, cancelled = ret
+
+    if timeout or cancelled:
+        return True
+    return False
+
 
 
 

@@ -78,13 +78,13 @@ class WF_common(object):
                        real = real)
             
         else:
-            coeff = VCoeff(ll, f_name,  self.get_root_phys().ind_vars,
+            coeff = VCoeff(ll, f_name[0],  self.get_root_phys().ind_vars,
                              self._local_ns, self._global_ns,
                              real = real)
             kwargs['vec'] = True
-            
         return self.restrict_coeff(coeff, engine, **kwargs)
 
+    
 class WF_WeakDomainBilinConstraint(WF_common, Domain, WeakBilinIntegration):
     has_3rd_panel = True
     _has_4th_panel = True                
@@ -99,6 +99,14 @@ class WF_WeakDomainBilinConstraint(WF_common, Domain, WeakBilinIntegration):
         v['sel_readonly'] = False
         v['sel_index'] = []
         return v
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'WeakContribution'
+
+    @classmethod
+    def fancy_menu_name(self):
+        return 'WeakContribution'
      
 class WF_WeakDomainLinConstraint(WF_common, Domain, WeakLinIntegration):
     has_3rd_panel = True
@@ -113,7 +121,14 @@ class WF_WeakDomainLinConstraint(WF_common, Domain, WeakLinIntegration):
         v['sel_readonly'] = False
         v['sel_index'] = []
         return v
-    
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'WeakLinearContribution'
+     
+    @classmethod
+    def fancy_menu_name(self):
+        return 'WeakLinearContribution'
         
 class WF_WeakBdryBilinConstraint(WF_common, Bdry, WeakBilinIntegration):
     has_3rd_panel = True        
@@ -128,6 +143,14 @@ class WF_WeakBdryBilinConstraint(WF_common, Bdry, WeakBilinIntegration):
         v['sel_readonly'] = False
         v['sel_index'] = []
         return v
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'WeakContribution'
+
+    @classmethod
+    def fancy_menu_name(self):
+        return 'WeakContribution'
      
 class WF_WeakBdryLinConstraint(WF_common, Bdry, WeakLinIntegration):
     has_3rd_panel = True        
@@ -142,6 +165,14 @@ class WF_WeakBdryLinConstraint(WF_common, Bdry, WeakLinIntegration):
         v['sel_readonly'] = False
         v['sel_index'] = []
         return v
+     
+    @classmethod
+    def fancy_tree_name(self):
+        return 'WeakLinerContribution'
+     
+    @classmethod
+    def fancy_menu_name(self):
+        return 'WeakLinearContribution'
      
 class WF_WeakEdgeBilinConstraint(WF_common, Edge, WeakBilinIntegration):
     has_3rd_panel = True        

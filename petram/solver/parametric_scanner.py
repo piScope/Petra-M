@@ -1,20 +1,34 @@
 from __future__ import print_function
 
 from itertools import product
+import os
 import numpy as np
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('ParametricScanner')
 dprint0 = debug.regular_print('ParametricScanner', True)
 format_memory_usage = debug.format_memory_usage
 
+import petram.helper.pickle_wrapper as pickle
+
 class DefaultParametricScanner(object):
     def __init__(self, data = None):
         if data is None: data = []
-        self._data = data
         self.idx = 0
-        self.max = len(data)
         self.target = None
+        self.set_data(data)
 
+    def set_data_from_model(self, model):
+        '''
+        this is called after __init__.
+        model is passed. so that it can be set using   
+        model tree
+        '''
+        pass
+    
+    def set_data(self, data):
+        self._data = data
+        self.max = len(data)
+    
     def __iter__(self): return self
 
     def __next__(self):
@@ -23,11 +37,12 @@ class DefaultParametricScanner(object):
             raise StopIteration
 
         data = self._data[self.idx]
-        dprint0("Entering next parameter:", data, "(" +
+        dprint0("==== Entering next parameter:", data, "(" +
                 str(self.idx+1)+ "/" + str(self.max) + ")")
         dprint1(format_memory_usage())
 
         self.apply_param(data)
+
         self.idx = self.idx +1
         return self.idx
 
@@ -52,7 +67,25 @@ class DefaultParametricScanner(object):
     def len(self):
         return self.max
 
-    def set_model(self, data):     
+    def save_scanner_data(self, solver):
+        solver_name = solver.fullpath()
+        data = self.list_data()
+        dprint1("saving parameter", os.getcwd())
+        try:
+            from mpi4py import MPI
+        except ImportError:
+            from petram.helper.dummy_mpi import MPI
+        myid = MPI.COMM_WORLD.rank
+
+        if myid == 0:
+            fid = open("parametric_data_"+solver_name, "wb")
+            dd = {"name": solver_name, "data":data}
+            pickle.dump(dd, fid)
+            fid.close()
+
+        MPI.COMM_WORLD.Barrier()
+
+    def set_model(self, data):
         raise NotImplementedError(
              "set model for parametric scanner needs to be given in subclass")
 
@@ -68,11 +101,13 @@ class DefaultParametricScanner(object):
 class SimpleScanner(DefaultParametricScanner):
     '''
     Scan("freq", [3e9, 4e9, 5e9])
-    Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90])      # parameters are expanded to run all combination
+    # parameters are expanded to run all combination
+    Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90])
     Scan("freq", [3e9, 4e9, 5e9], "phase", [0, 90, 180], product = False)
-    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = 3)  # 1D scan 
-    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = (3,4)) # 2D scan 
-
+    # 1D scan
+    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = 3)
+    # 2D scan
+    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = (3,4)) 
     '''
     def __init__(self, *args, **kwargs):
         use_product = kwargs.pop('product', True)

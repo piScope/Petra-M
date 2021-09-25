@@ -14,6 +14,7 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
 
 '''
 class SolverBase(Model):
+    can_rename = True
     def onItemSelChanged(self, evt):
         '''
         GUI response when model object is selected in
@@ -38,14 +39,15 @@ class SolverBase(Model):
         if not isinstance(value, str): return value
         ll = {} if ll is None else ll 
         gg = self.root()['General']._global_ns.copy()
-        return eval(value, gg, ll)    
+        return eval(value, gg, ll)
 
 class SolveStep(SolverBase):
     has_2nd_panel = False    
     def attribute_set(self, v):
         v['phys_model']   = ''
         v['init_setting']   = ''
-        v['postprocess_sol']   = ''        
+        v['postprocess_sol']   = ''
+        v['dwc_name'] = ''
         v['use_dwc_pp']   = False
         v['dwc_pp_arg']   = ''
         v['use_geom_gen'] = False
@@ -55,15 +57,16 @@ class SolveStep(SolverBase):
         return v
     
     def panel1_param(self):
-        ret = ["args.",   self.dwc_pp_arg,   0, {},]
-        value = self.dwc_pp_arg
+        ret = [["dwc",   self.dwc_name,   0, {}],
+               ["args.",   self.dwc_pp_arg,   0, {}]]
+        value = [self.dwc_name, self.dwc_pp_arg]
         return [["Initial value setting",   self.init_setting,   0, {},],
                 ["Postporcess solution",    self.postprocess_sol,   0, {},],
                 ["trial phys.",self.phys_model, 0, {},],
                 [None,  self.use_geom_gen,  3, {"text":"run geometry generator"}],
                 [None,  self.use_mesh_gen,  3, {"text":"run mesh generator"}],
-                [None, [False, [value]], 27, [{'text':'Use DWC (postprocess)'},
-                                              {'elp': [ret]}]],]
+                [None, [False, value], 27, [{'text':'Use DWC (postprocess)'},
+                                              {'elp': ret}]],]
 
 #                ["initialize solution only",
 #                 self.init_only,  3, {"text":""}], ]
@@ -73,7 +76,7 @@ class SolveStep(SolverBase):
         return (self.init_setting, self.postprocess_sol, self.phys_model,
                 self.use_geom_gen,
                 self.use_mesh_gen,
-                [self.use_dwc_pp, [self.dwc_pp_arg,]])
+                [self.use_dwc_pp, [self.dwc_name, self.dwc_pp_arg,]])
 
     def import_panel1_value(self, v):
         self.init_setting    = v[0]
@@ -84,21 +87,23 @@ class SolveStep(SolverBase):
         if self.use_geom_gen:
             self.use_mesh_gen = True
         self.use_dwc_pp   = v[5][0]
-        self.dwc_pp_arg   = v[5][1][0]
+        self.dwc_name   = v[5][1][0]
+        self.dwc_pp_arg   = v[5][1][1]        
         
 #        self.init_only    = v[2]
         
     def get_possible_child(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
+        from petram.solver.solver_controls import DWCCall
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
   
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [StdSolver, StdMeshAdaptSolver, TimeDomain, SetVar]
+            return [StdSolver, StdMeshAdaptSolver, TimeDomain, DWCCall, SetVar]
         except:
-            return [StdSolver, TimeDomain, SetVar]
+            return [StdSolver, TimeDomain, DWCCall, SetVar]
 
     
     def get_phys(self):
@@ -121,7 +126,6 @@ class SolveStep(SolverBase):
         #  phys for X and col of M
         #
         phys_root = self.root()['Phys']
-        ret = []
         phys_test = self.get_phys()
         for n in self.phys_model.split(','):
             n = n.strip()
@@ -284,8 +288,9 @@ class SolveStep(SolverBase):
         if self.use_dwc_pp:
             engine.call_dwc(self.get_phys_range(),
                             method="postprocess",
-                            callername = self.name(),
-                            args = self.dwc_pp_arg)
+                            callername=self.name(),
+                            dwcname=self.dwc_name,
+                            args=self.dwc_pp_arg)
 
         
 class Solver(SolverBase):
@@ -429,7 +434,7 @@ class SolverInstance(object):
         
     def save_solution(self, ksol = 0, skip_mesh = False, 
                       mesh_only = False, save_parmesh=False):
-                      
+
         engine = self.engine
         phys_target = self.get_phys()
 

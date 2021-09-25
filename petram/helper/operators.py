@@ -19,6 +19,10 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints("Operators")
 rprint = debug.regular_print('Operators')
 
+from petram.phys.phys_model  import PhysConstant, PhysVectorConstant, PhysMatrixConstant            
+from petram.phys.coefficient import complex_coefficient_from_real_and_imag        
+from petram.helper.variables import NativeCoefficientGenBase
+
 class Operator(object):
     def __repr__(self):
         return self.__class__.__name__ + "("+",".join(self.sel)+")"
@@ -34,51 +38,13 @@ class Operator(object):
         self._transpose = False
         self._trial_ess_tdof = None
         self._test_ess_tdof = None
+        self._c_coeff = None   # coefficient 
         
     def __call__(self, *args, **kwargs):
         return self.assemble(*args, **kwargs )
     
     def assemble(self, fes):
         raise NotImplementedError("Subclass needs to implement this")
-
-    ''' 
-    def get_restriction_array(self, fes):
-        mesh = fes.GetMesh()
-        intArray = mfem.intArray
-
-        if self._sel_mode == 'domain':
-            size = np.max(mesh.GetAttributeArray())
-        else:
-            size = np.max(mesh.GetBdrAttributeArray())
-
-        if size == 0: return None
-
-        if self._sel[0] == "all":
-            arr = [1]*size
-        else:
-            if len(self._sel) > 0:
-                size = np.max((size, np.max(self._sel)))
-            arr = [0]*size           
-            for k in self._sel: arr[k-1] = 1
-        return intArray(arr)
-    
-    def restrict_coeff(self, coeff, fes, vec = False, matrix=False):
-        if self._sel == 'all': 
-           return coeff
-
-        arr = self.get_restriction_array(fes)
-        
-        if arr is None:
-           # this could happen when local mesh does not have Bdr/Domain attribute
-           return coeff
-        
-        if vec:
-            return mfem.VectorRestrictedCoefficient(coeff, arr)
-        elif matrix:
-            return mfem.MatrixRestrictedCoefficient(coeff, arr)           
-        else:
-            return mfem.RestrictedCoefficient(coeff, arr)
-    '''
 
     def process_kwargs(self, engine, kwargs):
         '''
@@ -91,11 +57,11 @@ class Operator(object):
         self._sel   = kwargs.pop('sel', self._sel)
         self._ssel  = kwargs.pop('src', self._ssel)        
         if fes1 is not None:
-           if isinstance(fes1, 'str'):
+           if isinstance(fes1, str):
                fes1 = engine.fespaces[fes]
            self._fes1 = weakref.ref(fes1)        
         if fes2 is not None:
-           if isinstance(fes2, 'str'):
+           if isinstance(fes2, str):
                fes2 = engine.fespaces[fes]
            self._fes2 = weakref.ref(fes2)        
 
@@ -108,6 +74,37 @@ class Operator(object):
     @property
     def sel_mode(self):
         return self._sel_mode
+
+    def convert_mat_to_operator(self, mat):
+        '''
+        a utility routine to convert locally assembled mat
+        to linear operator
+        '''
+        is_complex = np.iscomplexobj(mat)
+        m_coo = mat.tocoo()
+        row = m_coo.row
+        col = m_coo.col
+        col = np.unique(col)
+
+        from scipy.sparse import coo_matrix, csr_matrix
+        if use_parallel:
+            if is_complex:
+                m1 = csr_matrix(mat.real, dtype=float)
+                m2 = csr_matrix(mat.imag, dtype=float) 
+            else:
+                m1 = csr_matrix(mat.real, dtype=float)
+                m2 = None
+            from mfem.common.chypre import CHypreMat
+            start_col = self.fes1.GetMyTDofOffset()
+            end_col = self.fes1.GetMyTDofOffset() + self.fes1.GetTrueVSize()
+            col_starts = [start_col, end_col, mat.shape[1]]
+            
+            M = CHypreMat(m1, m2, col_starts=col_starts)
+        else:
+            from petram.helper.block_matrix import convert_to_ScipyCoo
+
+            M = convert_to_ScipyCoo(coo_matrix(mat, dtype=mat.dtype))
+     
 
 class LoopIntegral(Operator):
     def assemble(self, *args, **kwargs):
@@ -479,7 +476,6 @@ class DeltaM(Operator):
                     d = mfem.DeltaCoefficient(x, y, z, w)
                 elif sdim == 2:
                     x, y = pt
-                    print("DeltaCoefficient call", type(x), type(y), type(x))
                     d = mfem.DeltaCoefficient(x, y, w)
                 elif sdim == 1:
                     x = pt                              
@@ -591,10 +587,12 @@ class Projection(Operator):
                 else:
                     assert False, "unsupported mode"
                 idx2 = np.unique(self.fes2.GetMesh().GetAttributeArray()) 
-            else:
-                idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
+            else:  # boundary mode
+                if dim1 == dim2:
+                    idx1 = np.unique(self.fes1.GetMesh().GetBdrAttributeArray())
+                elif dim1 == dim2-1:
+                    idx1 = np.unique(self.fes1.GetMesh().GetAttributeArray())
                 idx2 = np.unique(self.fes2.GetMesh().GetBdrAttributeArray())
-
             if use_parallel:
                 idx1 = list(idx1)
                 idx2 = list(idx2)
@@ -691,7 +689,8 @@ class Projection(Operator):
         # matrix to transfer unknown from trail to test
         M, row, col = pm(idx2, idx1, self.fes2, [], fes2=self.fes1,
                          trans1=trans2, trans2=trans1,
-                         mode=projmode, tol=tol, filldiag=False)
+                         mode=projmode, tol=tol, filldiag=False,
+                         old_mapping = False)
         return M
         
 # for now we assemble matrix whcih mapps essentials too...        
@@ -702,11 +701,276 @@ class Projection(Operator):
                
 class Gradient(Operator):               
     '''
-
+    Operator to compute Gradient
+    input (domain) should be H1
+    output (range) should be ND
 
     '''
-    pass
+    def assemble(self, *args, **kwargs):
+        engine = self._engine()        
+        self.process_kwargs(engine, kwargs)
+        
+        if len(args)>0: self._sel_mode = args[0]
+        if len(args)>1: self._sel = args[1]
 
+        if not self.fes1.FEColl().Name().startswith('ND'):
+           assert False, "range should be ND"           
+        if not self.fes2.FEColl().Name().startswith('H1'):
+           assert False, "domain should be H1"
+
+        dim1 = self.fes1.GetMesh().Dimension()
+        dim2 = self.fes2.GetMesh().Dimension()
+
+        if use_parallel:
+            import mfem.par as mfem
+            DiscreteLinearOperator = mfem.ParDiscreteLinearOperator
+        else:
+            import mfem.ser as mfem
+            DiscreteLinearOperator = mfem.DiscreteLinearOperator
+        
+        grad = DiscreteLinearOperator(self.fes2, self.fes1)
+        itp = mfem.GradientInterpolator()
+        grad.AddDomainInterpolator(itp)
+        grad.Assemble();
+        grad.Finalize();
+        
+        from mfem.common.chypre import BF2PyMat
+        
+        M = BF2PyMat(grad)
+
+        return M
+        
+class Curl(Operator):               
+    '''
+    Operator to compute Gradient
+    input (domain) should be H1
+    output (range) should be ND
+
+    '''
+    def assemble(self, *args, **kwargs):
+        engine = self._engine()        
+        self.process_kwargs(engine, kwargs)
+        
+        if len(args)>0: self._sel_mode = args[0]
+        if len(args)>1: self._sel = args[1]
+
+        #if not self.fes1.FEColl().Name().startswith('ND'):
+        #   assert False, "range should be ND"           
+        if not self.fes2.FEColl().Name().startswith('ND'):
+           assert False, "domain should be ND"
+
+        dim1 = self.fes1.GetMesh().Dimension()
+        dim2 = self.fes2.GetMesh().Dimension()
+
+        if use_parallel:
+            import mfem.par as mfem
+            DiscreteLinearOperator = mfem.ParDiscreteLinearOperator
+        else:
+            import mfem.ser as mfem
+            DiscreteLinearOperator = mfem.DiscreteLinearOperator
+        
+        curl = DiscreteLinearOperator(self.fes2, self.fes1)
+        itp = mfem.CurlInterpolator()
+        curl.AddDomainInterpolator(itp)
+        curl.Assemble();
+        curl.Finalize();
+        
+        from mfem.common.chypre import BF2PyMat
+        
+        M = BF2PyMat(curl)
+
+        return M
+        
+class Divergence(Operator):               
+    '''
+    Operator to compute Gradient
+    input (domain) should be RT
+    output (range) should be L2
+
+    '''
+    def assemble(self, *args, **kwargs):
+        engine = self._engine()        
+        self.process_kwargs(engine, kwargs)
+        
+        if len(args)>0: self._sel_mode = args[0]
+        if len(args)>1: self._sel = args[1]
+
+        if not self.fes1.FEColl().Name().startswith('L2'):
+           assert False, "range should be L2"           
+        if not self.fes2.FEColl().Name().startswith('RT'):
+           assert False, "domain should be RT"
+
+        dim1 = self.fes1.GetMesh().Dimension()
+        dim2 = self.fes2.GetMesh().Dimension()
+
+        if use_parallel:
+            import mfem.par as mfem
+            DiscreteLinearOperator = mfem.ParDiscreteLinearOperator
+        else:
+            import mfem.ser as mfem
+            DiscreteLinearOperator = mfem.DiscreteLinearOperator
+        
+        div = DiscreteLinearOperator(self.fes2, self.fes1)
+        itp = mfem.DivergenceInterpolator()
+        div.AddDomainInterpolator(itp)
+        div.Assemble();
+        div.Finalize();
+        
+        from mfem.common.chypre import BF2PyMat
+        
+        M = BF2PyMat(div)
+
+        return M
+     
+class Hcurln(Operator):               
+    '''
+    Operator to compute normal compnent of hcurl on surface
+
+    \int F_test(x) coeff(x) F_trial(x') dx'
+
+    input (domain) should be Hcurl
+    output (range) should be H1/L2
+
+    Usage: 
+       = hcurln(orderinc=1, bdr='all')
+    '''
+    def assemble(self, *args, **kwargs):
+        from petram.helper.hcurl_normal import hcurln
+        
+        engine = self._engine()
+        verbose = kwargs.pop("verbose", False)
+        bdr = kwargs.pop("bdr", 'all')
+        orderinc = kwargs.pop("orderinc", 1)        
+        if bdr != 'all':
+            try:
+                _void = bdr[0]
+            except:
+                bdr = [bdr]
+        self.process_kwargs(engine, kwargs)
+
+        info1 = engine.get_fes_info(self.fes1)
+        emesh1_idx = info1['emesh_idx']
+        info2 = engine.get_fes_info(self.fes2)
+        emesh2_idx = info2['emesh_idx']
+
+        #assert emesh1_idx == emesh2_idx, "HcurlN is performed only on the same mesh"
+            
+        dim1 = self.fes1.GetMesh().Dimension()
+        if not self.fes1.FEColl().Name().startswith('ND'):
+            assert False, "trial(domain) should be ND"
+        if (not self.fes2.FEColl().Name().startswith('L2') and
+            not self.fes2.FEColl().Name().startswith('H1')):
+            assert False, "test(range) should be H1/L2"
+        
+        if dim1 == 3:
+            func = hcurln
+        elif dim1 == 2:
+            func = hcurln
+        elif dim1 == 3:
+            assert False, "unsupported dimension"
+        else:
+            assert False, "unsupported dimension"
+
+        M = func(self.fes1,
+                 self.fes2,
+                 self._c_coeff,
+                 is_complex = self._is_complex,
+                 bdr=bdr,
+                 orderinc=orderinc, 
+                 verbose=verbose)
+
+        return M
+
+class Convolve(Operator):               
+    '''
+    Operator to compute convolution integral in 1D
+
+    \int F_test(x) coeff(x-x', (x+x')/2.) F_trial(x') dx'
+
+    input (domain) should be H1/L2
+    output (range) should be H1
+
+    Usage: 
+       = conv1d(coeff, (optional) support, complex=False, 
+                orderinc=1, zero_support=False, 
+                test_domain='all',
+                trial_domain='all')
+       coeff is a callable defining the convolution kernel. 
+       this function takes two (x-x', x+x'/2) arguments.
+
+       support is a callable, which takes one argment x
+       returning the support of kernel at the given location.
+       
+       coeff can return None to indicate there is no contribution.
+       this can be used as an alternative to using support. In this
+       one can check support using (x+x')/2
+
+       The code skips the numerical integration for those points
+       sitting outside the support or x-x' > support((x+x')/2.0).
+
+       options:
+          orderinc=1 : increase intengration order
+          zero_support=False : use zero support function.
+    '''
+    def assemble(self, *args, **kwargs):
+        from petram.helper.convolve import convolve1d, convolve2d, delta, zero
+        
+        engine = self._engine()
+        is_complex = kwargs.pop("complex", False)
+        orderinc = kwargs.pop("orderinc", 1)
+        verbose = kwargs.pop("verbose", False)
+        zero_support = kwargs.pop("zero_support", False)
+        test_domain = kwargs.pop("test_domain", 'all')
+        trial_domain = kwargs.pop("trial_domain", 'all')        
+        self.process_kwargs(engine, kwargs)
+
+        kernel = delta
+        support = None
+        if len(args)>0: kernel = args[0]
+        if len(args)>1: support = args[1]        
+        if zero_support:
+            support = zero
+
+        info1 = engine.get_fes_info(self.fes1)
+        emesh1_idx = info1['emesh_idx']
+        info2 = engine.get_fes_info(self.fes2)
+        emesh2_idx = info2['emesh_idx']
+
+        assert emesh1_idx == emesh2_idx, "convolution is performed only on the same mesh"
+            
+        dim1 = self.fes1.GetMesh().Dimension()
+        if dim1 == 1:
+            if (not self.fes1.FEColl().Name().startswith('L2') and
+                not self.fes1.FEColl().Name().startswith('H1')):
+               assert False, "trial(domain) should be H1/L2"
+            if (not self.fes2.FEColl().Name().startswith('L2') and
+                not self.fes2.FEColl().Name().startswith('H1')):
+               assert False, "test(range) should be H1/L2"
+            func = convolve1d
+        elif dim1 == 2:
+            func = convolve2d
+        elif dim1 == 3:
+            assert False, "unsupported dimension"
+        else:
+            assert False, "unsupported dimension"
+         
+
+        if len(args) != 0:
+            self._coeff = (kernel, support)
+
+        M = func(self.fes1,
+                 self.fes2,
+                 kernel = kernel,
+                 support = support,
+                 is_complex=is_complex,
+                 orderinc=orderinc,
+                 trial_domain=trial_domain,
+                 test_domain=test_domain,                       
+                 verbose=verbose)
+
+        return M
+     
+        
 
         
     

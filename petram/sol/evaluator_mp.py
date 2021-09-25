@@ -126,59 +126,60 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     self.make_agents(cls, params, **kwargs)
 
                 elif task[0] == 2: # (2, solfiles) = set_solfiles
-                    
                     self.set_solfiles(task[1])
-                    
+                    value = (self.myid, len(self.solfiles), None)
+
                 elif task[0] == 3: # (3, mfem_model) = set_model
                     self.set_model(task[1])
-                    
+
                 elif task[0] == 4: # (4,)  = load_solfiles
                     if self.solfiles is None: continue                    
                     self.load_solfiles()
-                    
+
                 elif task[0] == 5: # (5,)  = phys_path
                     self.phys_path = task[1]
-                    
+
                 elif task[0] == 6: # (6, attr)  = process_geom
                     if self.solfiles is None: continue
                     self.call_preprocesss_geometry(task[1], **task[2])
-                    
+
                 elif task[0] == 7: # (7, expr)  = eval
                     if self.solfiles is None:
                         value = (self.myid, None, None)
                     else:
                         value =  self.eval(task[1], **task[2])
-                        
+
                 elif task[0] == 8: # (8, expr)  = eval_probe
-                    value =  self.eval_probe(task[1], task[2], task[3])
-                    
+                    value = self.eval_probe(task[1], task[2], task[3])
+
                 elif task[0] == 9: # (8, expr)  = make_probe_agents
                     cls = task[1]
                     params = task[2]
                     kwargs = task[3]
                     self.make_probe_agents(cls, params, **kwargs)
                     
-                elif task[0] == 10: # (8, expr)  = eval_pointcloud
-                    value =  self.eval_pointcloud(task[1], **task[2])
-                        
+                elif task[0] == 10: # (10, expr)  = eval_pointcloud
+                    value = self.eval_pointcloud(task[1], **task[2])
+                    
+                elif task[0] == 11: # (11, expr)  = eval_integral
+                    value = self.eval_integral(task[1], **task[2])
+
             except:
                 traceback.print_exc()
+                err = traceback.format_exc()
                 value = (self.myid, None, None)
             finally:
                 self.task_queue.task_done()
-                
+
                 if self.use_profiler:
                     import  pstats                    
                     pr.disable()
                     ps = pstats.Stats(pr,
                                       stream=sys.stdout).sort_stats('cumulative')
-                    ps.print_stats()                    
+                    ps.print_stats()
 
-                if task[0] == 7:
-                    self.result_queue.put(value)
-                if task[0] == 8:
-                    self.result_queue.put(value)
-                if task[0] == 10:
+
+                if task[0] in [2, 7, 8, 10, 11]:
                     self.result_queue.put(value)
                     
                 if self.use_stringio:
@@ -201,7 +202,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             self.solfiles = s
         else:
             self.solfiles = None
-            
+
     def set_model(self, model_path):
         try:
             from petram.engine import SerialEngine
@@ -212,10 +213,16 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             else:
                 s.run_config()            
                 model_path = os.path.join(os.path.dirname(model_path), 'model_proc.pmfm')
-                if (self.myid == 0):
+                if self.myid == 0:
                     s.model.save_to_file(model_path,
-                                meshfile_relativepath = False)
-            
+                                         meshfile_relativepath=False)
+
+            # we don't need this anymore since _emesh_idx is read
+            # from solution (encoded in filename)
+
+            #s.prep_emesh_data_ifneeded()
+            #s.run_mesh_extension_prep()
+
             ### can we skip this (run_config read mesh...)
             #s.run_config()
             ### (we don't need this for sure???)
@@ -264,6 +271,12 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
 
     def eval_pointcloud(self, expr, **kwargs):
         if self.phys_path == '': return None, None, None
+
+        #use_pr = True
+        #import cProfile
+        #if use_pr:
+        #    pr = cProfile.Profile()
+        #    pr.enable()
         
         phys = self.mfem_model()[self.phys_path]
         solvars = self.load_solfiles()
@@ -317,8 +330,37 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             if np.sum(idx) == 0: continue
             attrs[idx] = a[idx]
             data[idx] = c
+
+        #if use_pr:
+        #    path = os.path.expanduser('~/MPChild_profile'+ str(os.getpid()) + '.out')
+        #    pr.dump_stats(path)
+        #    pr.disable()
         return ptx, data, attrs
 
+    def eval_integral(self, expr, **kwargs):
+        phys_path = self.phys_path
+        phys = self.mfem_model()[phys_path]
+        solvars = self.load_solfiles()
+        
+        if solvars is None:
+            return self.myid, None, None
+
+        data = 0.0
+        for key in six.iterkeys(self.agents): # scan over battr
+            evaluators = self.agents[key]
+            for o, solvar in zip(evaluators, solvars): # scan over sol files
+                try:
+                     v = o.eval_integral(expr, solvar, phys, **kwargs)
+                except:
+                     import traceback
+                     return self.myid, None, traceback.format_exc()
+                     
+                if v is None:
+                    v = None
+                data = data + v
+
+        return self.myid, data, 0
+        
     def eval_probe(self, expr, xexpr, probes):
         if self.phys_path == '': return None, None
         
@@ -386,14 +428,25 @@ class EvaluatorMP(Evaluator):
     def set_solfiles(self, solfiles):
         self.solfiles = solfiles
         self.tasks.put((2, solfiles))
+        res = [self.results.get() for x in range(len(self.workers))]
+        for x in range(len(self.workers)):
+            self.results.task_done()
+
+        isnotNone = []
+        for v, c, a in res: # handle (myid, error, message)
+            if c is None and v is not None:
+                continue
+            isnotNone.append(v)
+        if len(isnotNone) == 0:
+            assert False, "solution may not exist"
 
     def make_agents(self, name, params, **kwargs):
         super(EvaluatorMP, self).make_agents(name, params, **kwargs)
         self.tasks.put((1, name, params, kwargs))
-        
+
     def load_solfiles(self, mfem_mode = None):
         self.tasks.put((4, ), join = True)
-        
+
     def set_phys_path(self, phys_path):
         self.tasks.put((5, phys_path))
         
@@ -434,6 +487,10 @@ class EvaluatorMP(Evaluator):
         res = [self.results.get() for x in range(len(self.workers))]
         for x in range(len(self.workers)):
             self.results.task_done()
+
+        for v, c, a in res: # handle (myid, error, message)
+            if c is None and v is not None and a is not None:
+                assert False, a
             
         # sort it so that the data is in the order of workes.rank
         res = [(x[1], x[2]) for x in sorted(res)]
@@ -530,19 +587,47 @@ class EvaluatorMP(Evaluator):
             self.results.task_done()
 
         res = [x for x in res if x[-1] is not None]
+
         if len(res) == 0:
             return None, None, None
+        
+        for v, c, a in res: # handle (myid, error, message)
+            if c is None and v is not None and a is not None:
+                assert False, a
 
         ptx, data, attrs = res[0]
 
         for v, c, a in res[1:]:
             idx = (a != -1)
             if np.sum(idx) == 0: continue
+            #print(a)
+            #print(attrs)
             attrs[idx] = a[idx]
 	    #print(data.shape, c.shape)                                                                                                                         
             data[idx] = c[idx]
 
         return ptx, data, attrs
+
+    def eval_integral(self, expr, **kwargs):
+        self.tasks.put((11, expr, kwargs), join = True)
+
+        res = [self.results.get() for x in range(len(self.workers))]
+        for x in range(len(self.workers)):
+            self.results.task_done()
+
+        res = [x for x in res if x[-1] is not None]
+
+        if len(res) == 0:
+            return None
+
+        v = 0
+        for _myid, vv, _extra in res: # handle (myid, error, message)
+            if vv is not None:
+                v = v + vv
+            else:
+                assert False, _extra
+
+        return v
             
     def eval_probe(self, expr, xexpr, probes):
         self.tasks.put_single((8, expr, xexpr, probes), join = True)
@@ -577,6 +662,9 @@ class EvaluatorMP(Evaluator):
             w.join()
         
         print('joined')
+        
+    def terminate_allnow(self):
+        return self.terminate_all()
 
     
 

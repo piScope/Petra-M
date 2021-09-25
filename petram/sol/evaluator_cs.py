@@ -139,8 +139,17 @@ def wait_for_prompt(p, prompt = '?', verbose = True, withsize=False):
                                    verbose=verbose,
                                    withsize=withsize)
         
-def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
-    if user != '': user = user+'@'
+def start_connection(host='localhost',
+                     num_proc=2,
+                     user='',
+                     soldir='',
+                     ssh_opts=None):
+   
+    if user != '':
+       user = user+'@'
+
+    opts = ssh_opts if ssh_opts is not None else []
+    
     #p= sp.Popen("ssh " + user + host + " 'printf $PetraM'", shell=True,
     #            stdout=sp.PIPE,
     #            universal_newlines = True)    
@@ -149,7 +158,8 @@ def start_connection(host = 'localhost', num_proc = 2, user = '', soldir = ''):
     if soldir != '':
         command = 'cd ' + soldir + ';' + command
     print(command)
-    p = sp.Popen(['ssh', '-t', user + host, command], stdin = sp.PIPE,
+    p = sp.Popen(['ssh'] + opts + ['-t', user + host, command],
+                 stdin = sp.PIPE,
                  stdout=sp.PIPE, stderr=sp.STDOUT,
                  close_fds = ON_POSIX,
                  universal_newlines = True)
@@ -215,20 +225,29 @@ class EvaluatorServer(EvaluatorMP):
 
     
 class EvaluatorClient(Evaluator):
-    def __init__(self, nproc = 2, host = 'localhost',
-                       soldir = '', user = ''):
+    def __init__(self,
+                 nproc=2,
+                 host='localhost',
+                 soldir='',
+                 user='',
+                 ssh_opts=None):
+       
         self.init_done = False        
         self.soldir = soldir
         self.solfiles = None
         self.nproc = nproc
-        self.p = start_connection(host =  host,
-                                  num_proc = nproc,
-                                  user = user,
-                                  soldir = soldir)
+        self.p = start_connection(host=host,
+                                  num_proc=nproc,
+                                  user=user,
+                                  soldir=soldir,
+                                  ssh_opts=ssh_opts)
         self.failed = False
 
     def __del__(self):
         self.terminate_all()
+        if self.p is not None:
+           if self.p.poll() is None:
+               self.p.terminate()
         self.p = None
 
     def __call_server0(self, name, *params, **kparams):
@@ -236,17 +255,21 @@ class EvaluatorClient(Evaluator):
         verbose = kparams.pop("verbose", False)
         force_protocol1 = kparams.pop("force_protocol1", False)
         prompt = kparams.pop("prompt", "?")
+        nowait = kparams.pop("nowait", False)
         command = [name, params, kparams]
         data = binascii.b2a_hex(pickle.dumps(command))
         print("Sending request", command)
         self.p.stdin.write(data.decode('utf-8') + '\n')
         self.p.stdin.flush()
-        
+
+        if nowait:
+           return
         protocol = 1 if force_protocol1 else self.p.evalsvr_protocol
 
         import threading
         print("calling wait for prompt", threading.current_thread())
-        output, alive = wait_for_prompt(self.p, prompt=prompt, 
+        output, alive = wait_for_prompt(self.p,
+                                        prompt=prompt, 
                                         verbose = verbose,
                                         withsize = protocol > 1)
         if not alive:
@@ -265,7 +288,7 @@ class EvaluatorClient(Evaluator):
             print("response", response)
             print("output", output)
             assert False, "Unpickle failed"
-        #print 'output is', result
+        #print('output is', result)
         if result[0] == 'ok':
             return result[1]
         elif result[0] == 'echo':
@@ -316,13 +339,18 @@ class EvaluatorClient(Evaluator):
      
     def eval_pointcloud(self,  *params, **kparams):
         return self.__call_server('eval_pointcloud', *params, **kparams)
+     
+    def eval_integral(self,  *params, **kparams):
+        return self.__call_server('eval_integral', *params, **kparams)
     
     def eval_probe(self,  *params, **kparams):
         return self.__call_server('eval_probe', *params, **kparams)
 
     def terminate_all(self):
         try:
-            ret =  self.__call_server('terminate_all', prompt='byebye', force_protocol1=True)
+            ret = self.__call_server('terminate_all',
+                                      prompt='byebye',
+                                      force_protocol1=True)
             
         except BrokenPipeError:
             ### when server-side client is dead, terminate connection
@@ -335,6 +363,23 @@ class EvaluatorClient(Evaluator):
            if self.p.poll() is None:
                self.p.terminate()
         return ret
+
+    def terminate_allnow(self):
+        try:
+            ret =  self.__call_server('terminate_all',
+                                      nowait=True)
+            
+        except BrokenPipeError:
+            ### when server-side client is dead, terminate connection
+            print("Broken Pipe Error, teminating the connection")
+            self.p.terminate()
+            self.p = None
+            return 
+         
+        if self.p is not None:
+           if self.p.poll() is None:
+               self.p.terminate()
+        return ret     
         
     
 

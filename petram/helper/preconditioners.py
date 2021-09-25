@@ -411,19 +411,22 @@ def mumps(guiname, **kwargs):
     from petram.solver.mumps_model import MUMPSPreconditioner
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
-    silent =  kwargs.pop('silent', False)
+    kwargs = {}
+    if "silent" in kwargs:
+        kwargs['silent'] = kwargs.pop('silent')
     r0 = prc.get_row_by_name(blockname)
     c0 = prc.get_col_by_name(blockname)
     A0 = prc.get_operator_block(r0, c0)
 
     invA0 =  MUMPSPreconditioner(A0, gui=prc.gui[guiname],
                                  engine=prc.engine,
-                                 silent = silent)
+                                 **kwargs)
     return invA0
     
 @prc.block
-def gmres(atol=1e-24, rtol=1e-12, max_num_iter=5,
-          kdim=50, print_level=-1, preconditioner=None, **kwargs):
+def gmres(atol=0.0, rtol=0.0, max_num_iter=5,
+          kdim=50, print_level=-1,
+          preconditioner=None, **kwargs):
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
 
@@ -450,8 +453,9 @@ def gmres(atol=1e-24, rtol=1e-12, max_num_iter=5,
     return gmres
 
 @prc.block
-def fgmres(atol=1e-24, rtol=1e-12, max_num_iter=5,
-          kdim=50, print_level=-1, preconditioner=None, **kwargs):
+def fgmres(atol=0.0, rtol=0.0, max_num_iter=5,
+           kdim=50, print_level=-1,
+           preconditioner=None, **kwargs):
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
 
@@ -478,7 +482,7 @@ def fgmres(atol=1e-24, rtol=1e-12, max_num_iter=5,
     return fgmres
  
 @prc.block
-def pcg(atol=1e-24, rtol=1e-12, max_num_iter=5,
+def pcg(atol=0.0, rtol=0.0, max_num_iter=5,
         print_level=-1, preconditioner=None, **kwargs):
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
@@ -505,7 +509,7 @@ def pcg(atol=1e-24, rtol=1e-12, max_num_iter=5,
     return pcg
 
 @prc.block
-def bicgstab(atol=1e-24, rtol=1e-12, max_num_iter=5,
+def bicgstab(atol=0.0, rtol=0.0, max_num_iter=5,
         print_level=-1, preconditioner=None, **kwargs):
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
