@@ -580,7 +580,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.nb.SetSelection(self.nb.GetPageCount() - 1)
         self.Show()
         self.Layout()
-        self.SetSize((500, 400))
+        self.SetSize((600, 400))
         self.Bind(EDITLIST_CHANGED, self.onEL_Changed)
         self.Bind(EDITLIST_CHANGING, self.onEL_Changing)
         self.Bind(EDITLIST_SETFOCUS, self.onEL_SetFocus)

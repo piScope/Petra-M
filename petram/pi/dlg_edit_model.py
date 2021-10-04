@@ -104,14 +104,27 @@ class DlgEditModel(SimpleFramePlus):
         super(DlgEditModel, self).__init__(parent, id, title, style=style)
 
         self.splitter = wx.SplitterWindow(self, wx.ID_ANY,
-                                          style=wx.SP_NOBORDER | wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
+                                          style=wx.SP_NOBORDER | wx.SP_LIVE_UPDATE | wx.SP_3DSASH )
 
-        self.tree = ModelTree(self.splitter, topwindow=self,
+
+
+        p0 = wx.Panel(self.splitter)
+        p0.SetSizer(wx.BoxSizer(wx.HORIZONTAL))
+        p0sizer = wx.BoxSizer(wx.VERTICAL)
+        p0.GetSizer().Add(p0sizer, 1, wx.EXPAND)
+
+        self.tree = ModelTree(p0, topwindow=self,
                               style=wx.TR_DEFAULT_STYLE | wx.TR_MULTIPLE)
+
+        from ifigure.utils.wx3to4 import wxNamedColour
+        p0.SetBackgroundColour(wxNamedColour('White'))
+
+        p0sizer.Add(self.tree, 1, wx.EXPAND | wx.ALL, 1)
         #self.tree.SetSizeHints(150, -1, maxW=150)
         self.nb = wx.Notebook(self.splitter)
-        self.splitter.SplitVertically(self.tree, self.nb)
+        self.splitter.SplitVertically(p0, self.nb)
         self.splitter.SetMinimumPaneSize(150)
+        wx.CallAfter(self.splitter.SetSashPosition, 150, True)
 
         self.p1 = wx.Panel(self.nb)
         self.p2 = wx.Panel(self.nb)
