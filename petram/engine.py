@@ -492,7 +492,6 @@ class Engine(object):
                     continue
                 node.preprocess_params(self)
 
-
         for k in self.model['InitialValue'].keys():
             init = self.model['InitialValue'][k]
             init.preprocess_params(self)
@@ -1922,7 +1921,7 @@ class Engine(object):
                             verbose=True):
         if verbose:
             dprint1("A (in finalizie_coo_matrix) \n",  M_block)
-            #M_block.save_to_file("M_block")
+            # M_block.save_to_file("M_block")
         if not convert_real:
             if is_complex:
                 M = M_block.get_global_coo(dtype='complex')
@@ -2121,7 +2120,7 @@ class Engine(object):
 
         if not os.path.exists(path):
             return False, None
-        
+
         fid = open(path, 'r')
         line = fid.readline()
         while line:
@@ -2318,9 +2317,15 @@ class Engine(object):
         return
 
     def allocate_fespace(self, phys):
-        #
+        num_fec = len(phys.get_fec())
+
+        count = 0
         for name, elem in phys.get_fec():
             vdim = phys.vdim
+            if hasattr(vdim, '__iter__'):
+                vdim = vdim[count]
+            else:
+                pass
             emesh_idx = phys.emesh_idx
             order = phys.fes_order
 
@@ -2337,23 +2342,7 @@ class Engine(object):
             dprint1("allocate_fespace: " + name)
             is_new, fec, fes = self.get_or_allocate_fecfes(name, emesh_idx, elem,
                                                            order, vdim)
-            #dprint1("debug", fec.Name(), fes.GetMesh().GetNE())
-
-            '''
-            key = (emesh_idx, elem, order, sdim, vdim, isParMesh)
-            if key in self.fecfes_storage:
-                fec, fes = self.fecfes_storage[key]
-            else:
-                fec = getattr(mfem, elem)
-                #if fec is mfem.ND_FECollection:
-                #   mesh.ReorientTetMesh()
-                fec = fec(order, sdim)
-                fes = self.new_fespace(mesh, fec, vdim)
-                mesh.GetEdgeVertexTable()
-                self.fecfes_storage[key] = (fec, fes)
-
-            self.add_fec_fes(name, fec, fes)
-            '''
+            count = count+1
 
     def get_or_allocate_fecfes(self, name, emesh_idx, elem, order, vdim, make_new=True):
         mesh = self.emeshes[emesh_idx]
