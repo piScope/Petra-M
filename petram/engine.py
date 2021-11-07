@@ -1011,7 +1011,7 @@ class Engine(object):
 
         is_complex = phys.is_complex()
 
-        def loop_over_phys_mm(gf, phys):
+        def loop_over_phys_mm(gf, phys, kfes):
             bdrs = []
             c1_arr = []
             c2_arr = []
@@ -1019,6 +1019,9 @@ class Engine(object):
             for mm in phys.walk():
                 if not mm.enabled:
                     continue
+                if len(mm._sel_index) == 0:
+                    continue
+
                 if isinstance(mm, Domain):
                     c = mm.get_init_coeff(self, real=True, kfes=kfes)
                     if c is None:
@@ -1053,12 +1056,12 @@ class Engine(object):
             r_ifes = self.r_ifes(name)
             rgf = self.r_x[r_ifes]
 
-            loop_over_phys_mm(rgf, phys)
+            loop_over_phys_mm(rgf, phys, kfes)
 
             if not is_complex:
                 continue
             igf = self.i_x[r_ifes]
-            loop_over_phys_mm(igf, phys)
+            loop_over_phys_mm(igf, phys, kfes)
             '''
             for mm in phys.walk():
                 if not mm.enabled: continue
@@ -1156,7 +1159,11 @@ class Engine(object):
                     assert False, "Solution file (imag) has different length!!!"
                 igf += soli
 
-        self.sol_extra = self.load_extra_from_file(init_path)
+        check, val = self.load_extra_from_file(init_path)
+        if check:
+            self.sol_extra = val
+        else:
+            dprint1("(warining) extra is not loaded ...")
         # print self.sol_extra
     #
     #  Step 2  fill matrix/rhs elements
@@ -2112,6 +2119,9 @@ class Engine(object):
 
         path = os.path.join(init_path, extrafile_name)
 
+        if not os.path.exists(path):
+            return False, None
+        
         fid = open(path, 'r')
         line = fid.readline()
         while line:
@@ -2133,7 +2143,7 @@ class Engine(object):
             sol_extra[name][name2] = data
             line = fid.readline()
         fid.close()
-        return sol_extra
+        return True, sol_extra
     #
     #  postprocess
     #
@@ -2674,7 +2684,7 @@ class Engine(object):
             self.clear_solmesh_files(header)
 
             name = header+suffix
-            mesh.PrintGZ(name, 8)
+            mesh.PrintGZ(name, 16)
             mesh_names.append(name)
         return mesh_names
 
@@ -3291,7 +3301,7 @@ class ParallelEngine(Engine):
             if mesh is None:
                 continue
             mesh_name = "solparmesh_"+str(k)+"."+smyid
-            mesh.ParPrintToFile(mesh_name, 8)
+            mesh.ParPrintToFile(mesh_name, 16)
         return
 
     def solfile_suffix(self):

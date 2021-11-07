@@ -98,12 +98,15 @@ class SolveStep(SolverBase):
         from petram.solver.solver_controls import DWCCall
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
+        from petram.solver.distance_solver import DistanceSolver
   
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [StdSolver, StdMeshAdaptSolver, TimeDomain, DWCCall, SetVar]
+            return [StdSolver, StdMeshAdaptSolver, TimeDomain, DistanceSolver,
+                    DWCCall, SetVar]
         except:
-            return [StdSolver, TimeDomain, DWCCall, SetVar]
+            return [StdSolver, TimeDomain, DistanceSolver,
+                    DWCCall, SetVar]
 
     
     def get_phys(self):

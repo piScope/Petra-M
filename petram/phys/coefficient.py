@@ -975,7 +975,7 @@ def sum_coefficient(c_arr):
     kind = ''
     for c in c_arr:
         if isinstance(c, mfem.Coefficient):
-            if kind != '' and kind != 'v':
+            if kind != '' and kind != 's':
                 assert False, "can not mix diffenrnt kind of coefficient"
             kind = 's'
         if isinstance(c, mfem.VectorCoefficient):
@@ -983,7 +983,7 @@ def sum_coefficient(c_arr):
                 assert False, "can not mix diffenrnt kind of coefficient"
             kind = 'v'
         if isinstance(c, mfem.MatrixCoefficient):
-            if kind != '' and kind != 'v':
+            if kind != '' and kind != 'm':
                 assert False, "can not mix diffenrnt kind of coefficient"
             kind = 'm'
 
