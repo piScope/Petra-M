@@ -15,22 +15,40 @@ class DistanceSolver(Solver):
 
     def attribute_set(self, v):
         super(DistanceSolver, self).attribute_set(v)
+        v["solver_type"] = "heat flow"
+        v["p_lap_p"] = 20
+        v["self.p_lap_iter"] = 50
+        v["heat_flow_t"] = 1.
+        v["heat_flow_diffuse_iter"] = 1
+        v["log_level"] = 1        
         return v
 
     def panel1_param(self):
         return [  # ["Initial value setting",   self.init_setting,  0, {},],
-            ["physics model",   self.phys_model,  0, {}, ],
-            [None, self.init_only,  3, {"text": "initialize solution only"}],
+            ["physics model", self.phys_model, 0, {}, ],
+            ["method", self.solver_type, 2, {"values": ["heat flow", "p-Laplacian"]}],
+            ["diffusion t (heat flow)", self.heat_flow_t, 300, {}, ],
+            ["diffusion iter. (heat flow)", self.heat_flow_diffuse_iter, 400, {}, ],
+            ["max power (p_Laplacian)", self.p_lap_p, 400, {}, ],
+            ["newton iter(p_Laplacian)", self.p_lap_iter, 400, {}, ],
+            ["log_level(0-1)", self.log_level, 400, {}],
+            [None, self.init_only, 3, {"text": "initialize solution only"}],
             [None,
-             self.clear_wdir,  3, {"text": "clear working directory"}],
+             self.clear_wdir, 3, {"text": "clear working directory"}],
             [None,
-             self.save_parmesh,  3, {"text": "save parallel mesh"}],
+             self.save_parmesh, 3, {"text": "save parallel mesh"}],
             [None,
-             self.use_profiler,  3, {"text": "use profiler"}], ]
+             self.use_profiler, 3, {"text": "use profiler"}], ]
 
     def get_panel1_value(self):
         return (  # self.init_setting,
             self.phys_model,
+            self.solver_type,
+            self.heat_flow_t,
+            self.heat_flow_diffuse_iter,
+            self.p_lap_p,
+            self.p_lap_iter,
+            self.log_level,
             self.init_only,
             self.clear_wdir,
             self.save_parmesh,
@@ -39,10 +57,16 @@ class DistanceSolver(Solver):
     def import_panel1_value(self, v):
         #self.init_setting = str(v[0])
         self.phys_model = str(v[0])
-        self.init_only = v[1]
-        self.clear_wdir = v[2]
-        self.save_parmesh = v[3]
-        self.use_profiler = v[4]
+        self.solver_type = str(v[1])
+        self.heat_flow_t = float(v[2])
+        self.heat_flow_diffuse_iter = int(v[3])
+        self.p_lap_p = int(v[4])
+        self.p_lap_iter = int(v[5])
+        self.log_level = int(v[6])
+        self.init_only = v[7]
+        self.clear_wdir = v[8]
+        self.save_parmesh = v[9]
+        self.use_profiler = v[10]
 
     def get_editor_menus(self):
         return []
@@ -81,12 +105,16 @@ class DistanceSolver(Solver):
         instance.set_blk_mask()
         if return_instance:
             return instance
-
+        
+        if self.init_only:
+            pass
+        else:
+            instance.solve()            
         '''
         instance.configure_probes(self.probe)
         instance.assemble()                    
 
-        if self.init_only:
+
             engine.sol = engine.assembled_blocks[1][0]
             instance.sol = engine.sol
         else:
@@ -95,7 +123,7 @@ class DistanceSolver(Solver):
                 
             
         '''
-        instance.solve()
+
         instance.save_solution(ksol=0,
                                skip_mesh=False,
                                mesh_only=False,
@@ -189,77 +217,46 @@ class DistanceSolverInstance(SolverInstance):
 
         pfes_s = r_x.ParFESpace()
         pmesh = pfes_s.GetParMesh()
-        dx = mfem.dist_solver.AvgElementSize(pmesh)
 
         filt_gf = mfem.ParGridFunction(pfes_s)
 
         # run heat solver
-        '''
-        t_param = 1.0
-        ds = mfem.dist_solver.HeatDistanceSolver(t_param * dx * dx)
-        ds.mooth_steps = 0
-        ds.vis_glvis = False
+        if self.gui.solver_type == "heat flow":
+            t_param = self.gui.heat_flow_t
+            dx = mfem.dist_solver.AvgElementSize(pmesh)
 
-        
-        ls_coeff = mfem.GridFunctionCoefficient(r_x)        
-        filt_gf.ProjectCoefficient(ls_coeff)
-        
-        ls_filt_coeff = mfem.GridFunctionCoefficient(filt_gf)
-        
-        ds.ComputeScalarDistance(ls_filt_coeff, r_x)
-        if do_vector:
-            ds.ComputeVectorDistance(ls_filt_coeff, dr_x)        
+            ds = mfem.dist_solver.HeatDistanceSolver(t_param * dx * dx)
+            ds.mooth_steps = 0
+            ds.vis_glvis = False
 
-        return
-        '''
-        '''
-        filter = mfem.dist_solver.PDEFilter(pmesh, 10 * dx)
-        '''
-        # run PLapSolver
-        p = 20
-        newton_iter = 50
-        ds = mfem.dist_solver.PLapDistanceSolver(
-            p, newton_iter, rtol=1e-10, atol=1e-14)
-        ds.print_level = 1
-        ls_coeff = mfem.GridFunctionCoefficient(r_x)
-        filt_gf.ProjectCoefficient(ls_coeff)
-        ls_filt_coeff = mfem.GridFunctionCoefficient(filt_gf)
+            ls_coeff = mfem.GridFunctionCoefficient(r_x)
+            filt_gf.ProjectCoefficient(ls_coeff)
 
+            ls_filt_coeff = mfem.GridFunctionCoefficient(filt_gf)
+
+            ds.ComputeScalarDistance(ls_filt_coeff, r_x)
+            if do_vector:
+                ds.ComputeVectorDistance(ls_filt_coeff, dr_x)
+        else:
+            p = self.gui.p_lap_p
+            newton_iter = self.gui.p_lap_iter
+            ds = mfem.dist_solver.PLapDistanceSolver(p, newton_iter)
+
+            ls_coeff = mfem.GridFunctionCoefficient(r_x)
+            filt_gf.ProjectCoefficient(ls_coeff)
+            ls_filt_coeff = mfem.GridFunctionCoefficient(filt_gf)
+
+        ds.print_level = self.gui.log_level
         ds.ComputeScalarDistance(ls_filt_coeff, r_x)
         if do_vector:
             ds.ComputeVectorDistance(ls_filt_coeff, dr_x)
 
         return True
-
         '''
-        elif solver_type == 1:
-            p = 10
-            newton_iter = 50
-            ds = mfem.dist_solver.PLapDistanceSolver(p, newton_iter)
-            dist_solver = ds
-
-        else:
-             assert False, "Wrong solver option."
-
-        dist_solver.print_level = 1
-
-        # Smooth-out Gibbs oscillations from the input level set. The smoothing
-        # parameter here is specified to be mesh dependent with length scale dx.
-        filt_gf = mfem.ParGridFunction(pfes_s)
         filter = mfem.dist_solver.PDEFilter(pmesh, 10 * dx)
-
-        ls_coeff = mfem.GridFunctionCoefficient(r_x)
-        if problem != 0:
-            filter.Filter(ls_coeff, filt_gf)
-            t = r_x.GetDataArray()
-            t[:] = filt_gf.GetDataArray()
-        else:
-           filt_gf.ProjectCoefficient(ls_coeff)
-
-        ls_filt_coeff = mfem.GridFunctionCoefficient(filt_gf)
-        $dist_solver.ComputeScalarDistance(ls_filt_coeff, r_x)
-        print(r_x)
         '''
+        # run PLapSolver
+
 
     def save_solution(self, ksol=0, skip_mesh=False,
                       mesh_only=False, save_parmesh=False):
