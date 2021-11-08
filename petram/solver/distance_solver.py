@@ -175,7 +175,7 @@ class DistanceSolverInstance(SolverInstance):
             dx = mfem.dist_solver.AvgElementSize(pmesh)
 
             ds = mfem.dist_solver.HeatDistanceSolver(t_param * dx * dx)
-            ds.mooth_steps = 0
+            ds.smooth_steps = 0
             ds.vis_glvis = False
 
             ls_coeff = mfem.GridFunctionCoefficient(r_x)
