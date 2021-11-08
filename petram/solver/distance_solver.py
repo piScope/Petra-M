@@ -20,15 +20,17 @@ class DistanceSolver(Solver):
         v["p_lap_iter"] = 50
         v["heat_flow_t"] = 1.
         v["heat_flow_diffuse_iter"] = 1
-        v["log_level"] = 1        
+        v["log_level"] = 1
         return v
 
     def panel1_param(self):
         return [  # ["Initial value setting",   self.init_setting,  0, {},],
             ["physics model", self.phys_model, 0, {}, ],
-            ["method", self.solver_type, 1, {"values": ["heat flow", "p-Laplacian"]}],
+            ["method", self.solver_type, 1, {
+                "values": ["heat flow", "p-Laplacian"]}],
             ["diffusion t (heat flow)", self.heat_flow_t, 300, {}, ],
-            ["diffusion iter. (heat flow)", self.heat_flow_diffuse_iter, 400, {}, ],
+            ["diffusion iter. (heat flow)",
+             self.heat_flow_diffuse_iter, 400, {}, ],
             ["max power (p_Laplacian)", self.p_lap_p, 400, {}, ],
             ["newton iter(p_Laplacian)", self.p_lap_iter, 400, {}, ],
             ["log_level(0-1)", self.log_level, 400, {}],
@@ -105,24 +107,11 @@ class DistanceSolver(Solver):
         instance.set_blk_mask()
         if return_instance:
             return instance
-        
+
         if self.init_only:
             pass
         else:
-            instance.solve()            
-        '''
-        instance.configure_probes(self.probe)
-        instance.assemble()                    
-
-
-            engine.sol = engine.assembled_blocks[1][0]
-            instance.sol = engine.sol
-        else:
-            if is_first:
-
-                
-            
-        '''
+            instance.solve()
 
         instance.save_solution(ksol=0,
                                skip_mesh=False,
@@ -157,46 +146,6 @@ class DistanceSolverInstance(SolverInstance):
         return A and isAnew
         '''
         return M[0], True
-
-    def compute_rhs(self, M, B, X):
-        '''
-        M[0] x = B
-        '''
-        return B
-
-    def assemble(self, inplace=True):
-        engine = self.engine
-        phys_target = self.get_phys()
-        phys_range = self.get_phys_range()
-
-        engine.access_idx = 0
-        name = phys_target[0].dep_vars[0]
-        ifes = engine.r_ifes(name)
-        r_x = engin.r_x[ifes]
-
-        # use get_phys to apply essential to all phys in solvestep
-        dprint1("Asembling system matrix",
-                [x.name() for x in phys_target],
-                [x.name() for x in phys_range])
-
-        engine.run_verify_setting(phys_target, self.gui)
-        engine.run_assemble_mat(phys_target, phys_range)
-        engine.run_assemble_b(phys_target)
-        engine.run_fill_X_block()
-
-        self.engine.run_assemble_blocks(self.compute_A,
-                                        self.compute_rhs,
-                                        inplace=inplace)
-        #A, X, RHS, Ae, B, M, names = blocks
-        self.assembled = True
-
-    def assemble_rhs(self):
-        engine = self.engine
-        phys_target = self.get_phys()
-        engine.run_assemble_b(phys_target)
-        B = self.engine.run_update_B_blocks()
-        self.blocks[4] = B
-        self.assembled = True
 
     def solve(self, update_operator=True):
         engine = self.engine
@@ -256,7 +205,6 @@ class DistanceSolverInstance(SolverInstance):
         filter = mfem.dist_solver.PDEFilter(pmesh, 10 * dx)
         '''
         # run PLapSolver
-
 
     def save_solution(self, ksol=0, skip_mesh=False,
                       mesh_only=False, save_parmesh=False):
