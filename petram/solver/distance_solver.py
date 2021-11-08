@@ -17,7 +17,7 @@ class DistanceSolver(Solver):
         super(DistanceSolver, self).attribute_set(v)
         v["solver_type"] = "heat flow"
         v["p_lap_p"] = 20
-        v["self.p_lap_iter"] = 50
+        v["p_lap_iter"] = 50
         v["heat_flow_t"] = 1.
         v["heat_flow_diffuse_iter"] = 1
         v["log_level"] = 1        
@@ -26,7 +26,7 @@ class DistanceSolver(Solver):
     def panel1_param(self):
         return [  # ["Initial value setting",   self.init_setting,  0, {},],
             ["physics model", self.phys_model, 0, {}, ],
-            ["method", self.solver_type, 2, {"values": ["heat flow", "p-Laplacian"]}],
+            ["method", self.solver_type, 1, {"values": ["heat flow", "p-Laplacian"]}],
             ["diffusion t (heat flow)", self.heat_flow_t, 300, {}, ],
             ["diffusion iter. (heat flow)", self.heat_flow_diffuse_iter, 400, {}, ],
             ["max power (p_Laplacian)", self.p_lap_p, 400, {}, ],

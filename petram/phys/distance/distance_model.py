@@ -163,7 +163,7 @@ class Distance(PhysModule):
         v["dim"] = 2
         v["ind_vars"] = 'x, y'
         v["dep_vars_suffix"] = ''
-        v["dep_vars_base_txt"] = 'd'
+        v["dep_vars_base_txt"] = 'dist'
         v["is_complex_valued"] = False
         v["generate_grad_fespace"] = False
         return v
