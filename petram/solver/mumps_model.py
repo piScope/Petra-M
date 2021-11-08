@@ -152,35 +152,6 @@ class MUMPS(LinearSolverModel):
         return solver
 
     def solve(self, engine, A, b):
-        '''
-        if reuse_factor:
-            return self.solve_reuse_factor(engine, A, b)
-        elif engine.is_matrix_distributed:
-
-            if self.central_mat:
-                # in this case, we collect all matrix data to root
-                # and re-define A on the root node
-                dprint1("centralizing distributed matrix")
-                shape =A.shape
-                col = gather_vector(A.col)
-                row = gather_vector(A.row)
-                data = gather_vector(A.data)
-                if myid == 0:
-                    A = scipy.sparse.coo_matrix((data,(row, col)),
-                                                  shape = shape,
-                                                  dtype = A.dtype)
-                dprint1("calling solve_central_matrix")
-                return self.solve_central_matrix(engine, A, b)
-            else:
-            dprint1("calling solve_distributed_matrix")
-            return self.solve_distributed_matrix(engine, A, b)
-        else:
-
-            dprint1("calling solve_central_matrix")
-            ret = self.solve_central_matrix(engine, A, b)
-            return ret
-
-            '''
         solver = self.allocate_solver((A.dtype == 'complex'), engine)
         solver.SetOperator(A, dist=engine.is_matrix_distributed)
         solall = solver.Mult(b, case_base=engine.case_base)
@@ -415,7 +386,7 @@ class MUMPSSolver(LinearSolver):
 
         np.savez("matrix", A=mat)
 
-    def SetOperator(self, A, dist, name=None):
+    def SetOperator(self, A, dist, name=None, ifactor=0):
         try:
             from mpi4py import MPI
         except BaseException:
@@ -566,7 +537,9 @@ class MUMPSSolver(LinearSolver):
         else:
             if not self.silent:
                 dprint1("job8 (restore)")
-            prefix, path = self.split_dir_prefix(gui.factor_path)
+            pathes = gui.factor_path.split(',')
+            prefix, path = self.split_dir_prefix(pathes[ifactor].strip())
+
             s.set_saveparam(prefix, path)
             s.set_oocparam("ooc_", path)
 
@@ -953,7 +926,9 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             if myid == 0:
                 xx = np.atleast_2d(xx).transpose()
 
-        s = self.solver.Mult(xx)
+        
+        s = [solver.Mult(xx) for solver in self.solver]
+        
         if self.row_offset != -1:
             from mpi4py import MPI
             comm = MPI.COMM_WORLD
@@ -961,7 +936,10 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             myid = MPI.COMM_WORLD.rank
 
             if myid == 0:
-                s = s.flatten()
+                #w = [0.8*np.exp(1j*77/180*np.pi), np.exp(-1j*60/180*np.pi)*1.2]
+                w = [1]*len(s)
+                s = [xx.flatten()*w[i] for i, xx in enumerate(s)]
+                s = np.mean(s, 0)
             else:
                 s = None
 
@@ -971,7 +949,8 @@ class MUMPSBlockPreconditioner(mfem.Solver):
                 s = self.complex_to_real(s)
 
         else:
-            s = s.flatten()
+            s = [xx.flatten() for xx in s]
+            s = np.mean(s, 0)            
             if self.is_complex_operator:
                 s = self.complex_to_real(s)
 
@@ -1044,10 +1023,23 @@ class MUMPSBlockPreconditioner(mfem.Solver):
                 self.all_block_size //= 2
             # nicePrint(self.all_block_size)
 
-        self.solver = MUMPSSolver(self.gui, self.engine)
-        self.solver.AllocSolver(self.is_complex_operator,
+        self.solver = []
+        
+        if not self.gui.restore_fac:        
+            solver = MUMPSSolver(self.gui, self.engine)
+            solver.AllocSolver(self.is_complex_operator,
                                 self.gui.use_single_precision)
-        self.solver.SetOperator(gcoo, is_parallel)
+            solver.SetOperator(gcoo, is_parallel)
+            self.solver.append(solver)
+        else:
+            pathes = self.gui.factor_path.split(',')
+            for i in range(len(pathes)):
+                solver = MUMPSSolver(self.gui, self.engine)
+                solver.AllocSolver(self.is_complex_operator,
+                                self.gui.use_single_precision)
+                solver.SetOperator(gcoo, is_parallel, ifactor=i)
+                self.solver.append(solver)
+             
         self.is_parallel = is_parallel
 
         if is_parallel:
@@ -1055,4 +1047,5 @@ class MUMPSBlockPreconditioner(mfem.Solver):
         else:
             self.row_part = [-1, -1]
 
-        self.solver.set_silent(self.silent)
+        for x in self.solver:
+            x.set_silent(self.silent)
