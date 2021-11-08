@@ -936,8 +936,8 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             myid = MPI.COMM_WORLD.rank
 
             if myid == 0:
-                w = [0.8*np.exp(1j*77/180*np.pi), np.exp(-1j*60/180*np.pi)*1.2]
-                #w = [1]*len(s)
+                #w = [0.8*np.exp(1j*77/180*np.pi), np.exp(-1j*60/180*np.pi)*1.2]
+                w = [1]*len(s)
                 s = [xx.flatten()*w[i] for i, xx in enumerate(s)]
                 s = np.mean(s, 0)
             else:
