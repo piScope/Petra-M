@@ -48,6 +48,8 @@ def enum_fes(phys, *args):
 
 
 class Engine(object):
+    max_levels = 10
+
     def __init__(self, modelfile='', model=None):
         if modelfile != '':
             import petram.helper.pickle_wrapper as pickle
@@ -58,19 +60,6 @@ class Engine(object):
         self.data_stack = deque()
         self.set_model(model)
 
-        # (this is called inside set_model) self.initialize_datastorage()
-        '''
-        self.is_assembled = False
-        self.is_initialized = False
-        self.meshes = []
-        self.emeshes = []
-        self.emesh_data = None
-        self.fec = {}        
-        self.fespaces = {}
-        self.fecfes_storage = {}
-        self.pp_extra = {}
-        self.alloc_flag = {}
-        '''
         # mulitlple matrices in equations.
         self._num_matrix = 1
         self._access_idx = -1
@@ -112,9 +101,11 @@ class Engine(object):
         self.meshes = []
         self.emeshes = []
         self.emesh_data = None
-        self.fec = {}
-        self.fespaces = {}
-        self.fecfes_storage = {}
+        # place holder max level 10
+        from petram.helper.hierarchical_finite_element_space import HierarchicalFiniteElementSpace
+        self._fespace_hierarchy = HierarchicalFiniteElementSpace(owner=self)
+        #self._fec_storage = {}
+        #self._fes_storage = {}
         self.pp_extra = {}
         self.alloc_flag = {}
 
@@ -123,9 +114,9 @@ class Engine(object):
                          "meshes",
                          "emeshes",
                          "emesh_data",
-                         "fec",
-                         "fespaces",
-                         "fecfes_storage",
+                         "_fespaces",
+                         "_fes_storage",
+                         "_fec_storage",
                          "pp_extra",
                          "alloc_flag")
 
@@ -357,6 +348,10 @@ class Engine(object):
     @ess_tdofs.setter
     def ess_tdofs(self, v):
         self._ess_tdofs[self._level_idx] = v
+
+    @property
+    def fespaces(self):
+        return self._fespace_hierarchy
 
     '''
     @property
@@ -2423,19 +2418,14 @@ class Engine(object):
             emesh_idx = phys.emesh_idx
             order = phys.fes_order
 
-            #mesh = self.emeshes[phys.emesh_idx]
-            #isParMesh = hasattr(mesh, 'ParPrint')
-            #sdim= mesh.SpaceDimension()
-            #if name.startswith('RT'): vdim = 1
-            #if name.startswith('ND'): vdim = 1
             if elem.startswith('RT'):
                 vdim = 1
             if elem.startswith('ND'):
                 vdim = 1
 
             dprint1("allocate_fespace: " + name)
-            is_new, fec, fes = self.get_or_allocate_fecfes(name, emesh_idx, elem,
-                                                           order, vdim)
+            is_new, fes = self.get_or_allocate_fecfes(name, emesh_idx, elem,
+                                                      order, vdim)
             count = count+1
 
     def get_or_allocate_fecfes(self, name, emesh_idx, elem, order, vdim, make_new=True):
@@ -2447,37 +2437,55 @@ class Engine(object):
         is_new = False
         key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
         dprint1("(emesh_idx, elem, order, dim, sdim, vdim, isParMesh) = " + str(key))
+        print(name)
+        if name in self.fespaces:
+            print(name)
+            fes1 = self.fespaces[name]
+            isFESparallel = hasattr(fes1, 'GroupComm')
+            if isFESparallel == isParMesh:
+                return False, fes1
+        # elif not make_new:
+        #    return False, None
+        dprint1("making a new fec/fes")
+        is_new = True
+        element = elem.split('(')[0].strip()
 
-        if key in self.fecfes_storage:
-            fec, fes = self.fecfes_storage[key]
-        elif not make_new:
-            return False, None, None
+        if "(" in elem:
+            fecdim = dim
         else:
-            dprint1("making a new fec/fes")
-            is_new = True
+            fecdim = dim
+            if elem.startswith('RT'):
+                fecdim = sdim
+            if elem.startswith('ND'):
+                fecdim = sdim
 
-            fec = getattr(mfem, elem.split('(')[0].strip())
-            if "(" in elem:
-                fecdim = dim
-            else:
-                fecdim = dim
-                if elem.startswith('RT'):
-                    fecdim = sdim
-                if elem.startswith('ND'):
-                    fecdim = sdim
+        self.fespaces.new_hierarchy(name,
+                                    parameters=(emesh_idx, element, order, fecdim, vdim))
+        fes1 = self.fespaces[name]
 
-            fec = fec(order, fecdim)
-            fes = self.new_fespace(mesh, fec, vdim)
+        return True, fes1
 
-            mesh.GetEdgeVertexTable()
-            self.fecfes_storage[key] = (fec, fes)
+    # mesh.GetEdgeVertexTable()
+    #        self._fes_storage[key] = fes
+        #self.add_fec_fes(name, fec, fes)
 
-        self.add_fec_fes(name, fec, fes)
-        return is_new, fec, fes
+    # def add_fec_fes(self, name, fec, fes):
+    #    self.fec[name] = fec
+    #    self.fespaces[name] = fes
 
-    def add_fec_fes(self, name, fec, fes):
-        self.fec[name] = fec
-        self.fespaces[name] = fes
+    def add_refined_fespace(self, name, mode, inc=1):
+        '''
+        mode = 'H' or 'P'
+        inc = increment of order
+        '''
+        if mode == 'H':
+            self.fespaces.add_uniformly_refined_level(name)
+
+        elif mode == 'P':
+            self.fespaces.add_order_refined_level(name)
+
+        else:
+            assert False, "Unknown refinement mode"
 
     def get_fes(self, phys, kfes=0, name=None):
         if name is None:
@@ -2533,11 +2541,11 @@ class Engine(object):
                                             info1["dim"])
 
             emesh_idx = info2["emesh_idx"] if mbfdim == 1 else info1["emesh_idx"]
-            is_new, fec, fes = self.get_or_allocate_fecfes(name,
-                                                           emesh_idx,
-                                                           el,
-                                                           order,
-                                                           info2["vdim"])
+            is_new, fes = self.get_or_allocate_fecfes(name,
+                                                      emesh_idx,
+                                                      el,
+                                                      order,
+                                                      info2["vdim"])
             if info2["dim"]-info1["dim"] == 1:  # (ex)volume to surface
                 mode = "boundary"
             elif info2["dim"]-info1["dim"] == 0:
@@ -2672,6 +2680,31 @@ class Engine(object):
     def new_fespace(self, mesh, fec, vdim):
         raise NotImplementedError(
             "you must specify this method in subclass")
+
+    def new_fespace_hierarchy(self, mesh, fes, ownM, ownF):
+        parallel = hasattr(mesh, 'GetComm')
+        if parallel:
+            return mfem.ParFiniteElementSpaceHierarchy(mesh, fes, ownM, ownF)
+        else:
+            return mfem.FiniteElementSpaceHierarchy(mesh, fes, ownM, ownF)
+
+    def new_mesh_from_mesh(self, mesh):
+        parallel = hasattr(mesh, 'GetComm')
+        if parallel:
+            return mfem.ParMesh(mesh)
+        else:
+            return mfem.Mesh(mesh)
+
+    def new_transfer_operator(self, fes1, fes2):
+        '''
+        fes1 : coarse grid
+        fes2 : fine grid
+        '''
+        parallel = hasattr(fes1, 'GroupComm')
+        if parallel:
+            return mfem.TrueTransferOperator(fes1, fes2)
+        else:
+            return mfem.TransferOperator(fes1, fes2)
 
     def eliminate_ess_dof(self, ess_tdof_list, M, B):
         raise NotImplementedError(
@@ -3057,6 +3090,9 @@ class Engine(object):
             assert False, "Direct Wrapper Call Failed"
 
     def get_fes_info(self, fes):
+        return self.fespaces.get_fes_info(fes)
+
+        '''
         # k = emesh_idx, elem, order, sdim, vdim, isParMesh
         for k in self.fecfes_storage:
             if self.fecfes_storage[k][1] == fes:
@@ -3067,6 +3103,7 @@ class Engine(object):
                         'sdim': k[4],
                         'vdim': k[5], }
         return None
+        '''
 
     def variable2vector(self, v, horizontal=False):
         '''
@@ -3127,6 +3164,14 @@ class SerialEngine(Engine):
         if init:
             gf.Assign(0.0)
 
+        idx = self.fespaces.get_fes_emesh_idx(fes)
+        if idx is not None:
+            gf._emesh_idx = idx
+        else:
+            assert False, "new gf is called with unknonw fes"
+
+        return gf
+        '''
         for k in self.fecfes_storage:
             if self.fecfes_storage[k][1] == fes:
                 gf._emesh_idx = k[0]
@@ -3134,6 +3179,7 @@ class SerialEngine(Engine):
         else:
             assert False, "new gf is called with unknonw fes"
         return gf
+        '''
 
     def new_matrix(self, init=True):
         return mfem.SparseMatrix()
@@ -3334,6 +3380,21 @@ class ParallelEngine(Engine):
             gf = mfem.ParGridFunction(gf.ParFESpace())
         if init:
             gf.Assign(0.0)
+
+        if idx is not None:
+            gf._emesh_idx = idx
+        else:
+            assert False, "new gf is called with unknonw fes"
+
+        idx = self.fespaces.get_fes_emesh_idx(fes)
+        if idx is not None:
+            gf._emesh_idx = idx
+        else:
+            assert False, "new gf is called with unknonw fes"
+
+        return gf
+
+        '''
         for k in self.fecfes_storage:
             if self.fecfes_storage[k][1] == fes:
                 gf._emesh_idx = k[0]
@@ -3341,9 +3402,10 @@ class ParallelEngine(Engine):
         else:
             assert False, "new gf is called with unknonw fes"
         return gf
+        '''
 
     def new_fespace(self, mesh, fec, vdim):
-        if mesh.__class__.__name__ == 'ParMesh':
+        if hasattr(mesh, 'GetComm'):
             return mfem.ParFiniteElementSpace(mesh, fec, vdim)
         else:
             return mfem.FiniteElementSpace(mesh, fec, vdim)

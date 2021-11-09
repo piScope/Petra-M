@@ -13,7 +13,7 @@ rprint = debug.regular_print('StdSolver')
 class MGSolver(StdSolver):
     def attribute_set(self, v):
         super(MGSolver, self).attribute_set(v)
-        v["refinement_levels"] = "1"
+        v["refinement_levels"] = "2"
         v["refinement_type"] = "P(order)"
         v["fine_solver"] = ""
         v["coarse_solver"] = ""
@@ -56,8 +56,11 @@ class MGSolver(StdSolver):
         else:
             return [0, 0, 0]
 
+    def get_num_levels(self):
+        return int(self.refinement_levels)
+
     def get_multilevel_setting(self, *args, **kwargs):
-        return [int(x) for x in self.refinement_levels.split(',')]
+        pass
 
     def set_model_level(self, klevel):
         '''

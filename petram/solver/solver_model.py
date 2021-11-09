@@ -192,15 +192,16 @@ class SolveStep(SolverBase):
         raise NotImplementedError(
             "you must specify this method in subclass")
 
-    def prepare_form_sol_variables(self, engine):
+    def prepare_form_sol_variables(self, engine, n_levels=1):
         solvers = self.get_active_solvers()
 
         phys_target = self.get_phys()
         phys_range = self.get_phys_range()
 
         num_matrix = self.get_num_matrix(phys_target)
+        n_levels = np.sum([s.get_num_levels()-1 for s in solvers]) + 1
 
-        engine.set_formblocks(phys_target, phys_range, num_matrix)
+        engine.set_formblocks(phys_target, phys_range, num_matrix, n_levels)
 
         for p in phys_range:
             engine.run_mesh_extension(p)
@@ -232,7 +233,7 @@ class SolveStep(SolverBase):
 
         solvers = self.get_active_solvers()
         for solver in solvers:
-            inits.append(solver.get_custom_init())
+            inits.extend(solver.get_custom_init())
 
         engine.run_apply_init(phys_range, inits=inits)
         '''
@@ -279,6 +280,7 @@ class SolveStep(SolverBase):
         # in run method..
         #   std solver : make sub block matrix and solve
         #   time-domain solver : do step
+
         self.prepare_form_sol_variables(engine)
         self.init(engine)
 
@@ -382,6 +384,9 @@ class Solver(SolverBase):
                                            phys_target))
         return max(num)
     '''
+
+    def get_num_levels(self):
+        return 1
 
     def get_multilevel_setting(self, *args, **kwargs):
         return None
