@@ -71,8 +71,14 @@ class Engine(object):
         self.pp_extra = {}
         self.alloc_flag = {}
         '''
+        # mulitlple matrices in equations.
         self._num_matrix = 1
         self._access_idx = -1
+
+        # multi-level assembly
+        self._num_levels = 1
+        self._level_idx = 0
+
         self._dep_vars = []
         self._isFESvar = []
         self._rdep_vars = []
@@ -142,15 +148,7 @@ class Engine(object):
         for k, n in enumerate(stored_data_names):
             setattr(self, n, data[2][k])
 
-    @property
-    def n_matrix(self):
-        return self._num_matrix
-
-    @n_matrix.setter
-    def n_matrix(self, i):
-        self._num_matrix = i
-
-    def set_formblocks(self, phys_target, phys_range, n_matrix):
+    def set_formblocks(self, phys_target, phys_range, n_matrix, n_levels=1):
         '''
         This version assembles a linear system as follows
 
@@ -173,9 +171,11 @@ class Engine(object):
            [                                                              ],
         where A, B, C and D are in-physics coupling    
         '''
+        print("!!!! Set Formblock")
         from petram.helper.formholder import FormBlock
 
         self.n_matrix = n_matrix
+        self.n_levels = n_levels
         self.collect_dependent_vars(phys_target, phys_range)
         self.collect_dependent_vars(phys_range,  phys_range, range_space=True)
 
@@ -184,29 +184,61 @@ class Engine(object):
         diag = [self.r_fes_vars.index(n) for n in self.fes_vars]
         n_mat = self.n_matrix
 
-        self._matrix_blocks = [None for k in range(n_mat)]
+        #self._matrix_blocks = [None for k in range(n_mat)]
 
-        self._r_a = [FormBlock((n_fes, n_rfes), diag=diag,
-                               new=self.alloc_bf, mixed_new=self.alloc_mbf)
-                     for k in range(n_mat)]
-        self._i_a = [FormBlock((n_fes, n_rfes), diag=diag,
-                               new=self.alloc_bf, mixed_new=self.alloc_mbf)
-                     for k in range(n_mat)]
-        self._r_x = [FormBlock(n_rfes, new=self.alloc_gf)
-                     for k in range(n_mat)]
-        self._i_x = [FormBlock(n_rfes, new=self.alloc_gf)
-                     for k in range(n_mat)]
+        self._initialize_variable_lists(n_levels)
 
-        self.r_b = FormBlock(n_fes, new=self.alloc_lf)
-        self.i_b = FormBlock(n_fes, new=self.alloc_lf)
+        for iii in range(n_levels):
+            self.level_idx = iii
+            self._r_a[iii] = [FormBlock((n_fes, n_rfes), diag=diag,
+                                        new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                              for k in range(n_mat)]
+            self._i_a[iii] = [FormBlock((n_fes, n_rfes), diag=diag,
+                                        new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                              for k in range(n_mat)]
+            self._r_x[iii] = [FormBlock(n_rfes, new=self.alloc_gf)
+                              for k in range(n_mat)]
+            self._i_x[iii] = [FormBlock(n_rfes, new=self.alloc_gf)
+                              for k in range(n_mat)]
+            self.r_b = FormBlock(n_fes, new=self.alloc_lf)
+            self.i_b = FormBlock(n_fes, new=self.alloc_lf)
 
-        self.interps = {}
-        self.projections = {}
-        self.gl_ess_tdofs = {n: [] for n in self.fes_vars}
-        self.ess_tdofs = {n: [] for n in self.fes_vars}
+            self._extras[iii] = [None for i in range(n_mat)]
+            self._aux_ops[iii] = [None for i in range(n_mat)]
 
-        self._extras = [None for i in range(n_mat)]
-        self._aux_ops = [None for i in range(n_mat)]
+        self.level_idx = 0
+
+    def _initialize_variable_lists(self, n_levels):
+        self._r_a = [None]*n_levels
+        self._i_a = [None]*n_levels
+        self._r_b = [None]*n_levels
+        self._i_b = [None]*n_levels
+        self._r_x = [None]*n_levels
+        self._i_x = [None]*n_levels
+        self._extras = [None]*n_levels
+        self._aux_ops = [None]*n_levels
+        self._interps = [dict() for x in range(n_levels)]
+        self._projections = [dict() for x in range(n_levels)]
+        self._gl_ess_tdofs = [{n: [] for n in self.fes_vars}
+                              for x in range(n_levels)]
+        self._ess_tdofs = [{n: [] for n in self.fes_vars}
+                           for x in range(n_levels)]
+
+    @property
+    def n_matrix(self):
+        return self._num_matrix
+
+    @n_matrix.setter
+    def n_matrix(self, i):
+        self._num_matrix = i
+
+    @property
+    def n_levels(self):
+        return self._num_levels
+
+    @n_levels.setter
+    def n_levels(self, i):
+        self._num_levels = i
 
     @property
     def access_idx(self):
@@ -216,61 +248,117 @@ class Engine(object):
     def access_idx(self, i):
         self._access_idx = i
 
-    # bilinearforms
+    @property
+    def level_idx(self):
+        return self._level_idx
+
+    @level_idx.setter
+    def level_idx(self, i):
+        self._level_idx = i
+
+    # bilinearforms (real)
     @property
     def r_a(self):
-        return self._r_a[self._access_idx]
+        return self._r_a[self._level_idx][self._access_idx]
 
     @r_a.setter
     def r_a(self, v):
-        self._r_a[self._access_idx] = v
+        self._r_a[self._level_idx][self._access_idx] = v
+    # bilinearforms (imag)
 
     @property
     def i_a(self):
-        return self._i_a[self._access_idx]
+        return self._i_a[self._level_idx][self._access_idx]
 
     @i_a.setter
     def i_a(self, v):
-        self._i_a[self._access_idx] = v
+        self._i_a[self._level_idx][self._access_idx] = v
 
-    # grid functions
+    # grid functions (real)
     @property
     def r_x(self):
-        return self._r_x[self._access_idx]
+        return self._r_x[self._level_idx][self._access_idx]
 
     @r_x.setter
     def r_x(self, v):
-        self._r_x[self._access_idx] = v
+        self._r_x[self._level_idx][self._access_idx] = v
 
+    # grid functions (imag)
     @property
     def i_x(self):
-        return self._i_x[self._access_idx]
+        return self._i_x[self._level_idx][self._access_idx]
 
     @i_x.setter
     def i_x(self, v):
-        self._i_x[self._access_idx] = v
+        self._i_x[self._level_idx][self._access_idx] = v
 
-    def store_x(self):
-        for k, name in enumerate(self.r_fes_vars):
-            self._r_x_old[name] = self._r_x[0][k]
-            self._i_x_old[name] = self._i_x[0][k]
+    # rhs functions (real)
+    @property
+    def r_b(self):
+        return self._r_b[self._level_idx]
+
+    @r_b.setter
+    def r_b(self, v):
+        self._r_b[self._level_idx] = v
+
+    # rhs functions (imag)
+    @property
+    def i_b(self):
+        return self._i_b[self._level_idx]
+
+    @i_b.setter
+    def i_b(self, v):
+        self._i_b[self._level_idx] = v
 
     @property
     def extras(self):
-        return self._extras[self._access_idx]
+        return self._extras[self._level_idx][self._access_idx]
 
     @extras.setter
     def extras(self, v):
-        self._extras[self._access_idx] = v
+        self._extras[self._level_idx][self._access_idx] = v
 
     @property
     def aux_ops(self):
-        return self._aux_ops[self._access_idx]
+        return self._aux_ops[self._level_idx][self._access_idx]
 
     @aux_ops.setter
     def aux_ops(self, v):
-        self._aux_ops[self._access_idx] = v
+        self._aux_ops[self._level_idx][self._access_idx] = v
 
+    @property
+    def interps(self):
+        return self._interps[self._level_idx]
+
+    @interps.setter
+    def interps(self, v):
+        self._interps[self._level_idx] = v
+
+    @property
+    def projections(self):
+        return self._projections[self._level_idx]
+
+    @projections.setter
+    def projections(self, v):
+        self._projections[self._level_idx] = v
+
+    @property
+    def gl_ess_tdofs(self):
+        return self._gl_ess_tdofs[self._level_idx]
+
+    @gl_ess_tdofs.setter
+    def gl_ess_tdofs(self, v):
+        self._gl_ess_tdofs[self._level_idx] = v
+
+    @property
+    def ess_tdofs(self):
+        return self._ess_tdofs[self._level_idx]
+
+    @ess_tdofs.setter
+    def ess_tdofs(self, v):
+        self._ess_tdofs[self._level_idx] = v
+
+    '''
     @property
     def matvecs(self):
         return self._matrix_block[self._access_idx]
@@ -278,6 +366,12 @@ class Engine(object):
     @matvecs.setter
     def matvecs(self, v):
         self._matrix_block[self._access_idx] = v
+    '''
+
+    def store_x(self):
+        for k, name in enumerate(self.r_fes_vars):
+            self._r_x_old[name] = self._r_x[0][0][k]
+            self._i_x_old[name] = self._i_x[0][0][k]
 
     def set_model(self, model):
         self.model = model

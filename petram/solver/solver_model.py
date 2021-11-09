@@ -101,6 +101,7 @@ class SolveStep(SolverBase):
     def get_possible_child(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
+        from petram.solver.mg_solver_model import MGSolver
         from petram.solver.solver_controls import DWCCall
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
@@ -108,10 +109,10 @@ class SolveStep(SolverBase):
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [StdSolver, StdMeshAdaptSolver, TimeDomain, DistanceSolver,
+            return [StdSolver, StdMeshAdaptSolver, TimeDomain, DistanceSolver, MGSolver,
                     DWCCall, SetVar]
         except:
-            return [StdSolver, TimeDomain, DistanceSolver,
+            return [StdSolver, TimeDomain, DistanceSolver, MGSolver,
                     DWCCall, SetVar]
 
     def get_phys(self):
@@ -160,19 +161,6 @@ class SolveStep(SolverBase):
 
     def get_active_solvers(self):
         return [x for x in self.iter_enabled()]
-
-    '''
-    def get_num_matrix(self, phys_target):
-        num = []
-        for k in self.keys():
-            mm = self[k]
-            if not mm.enabled: continue
-            num.append(self.root()['Phys'].get_num_matrix(mm.get_matrix_weight,
-                                           phys_target))
-        num_matrix = max(num)
-        dprint1("number of matrix", num_matrix)            
-        return num_matrix
-    '''
 
     def get_num_matrix(self, phys_target):
 
@@ -394,6 +382,9 @@ class Solver(SolverBase):
                                            phys_target))
         return max(num)
     '''
+
+    def get_multilevel_setting(self, *args, **kwargs):
+        return None
 
     def get_matrix_weight(self, *args, **kwargs):
         raise NotImplementedError(
