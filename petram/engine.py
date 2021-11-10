@@ -102,13 +102,16 @@ class Engine(object):
         self.emeshes = []
         self.emesh_data = None
         # place holder max level 10
-        from petram.helper.hierarchical_finite_element_space import HierarchicalFiniteElementSpace
-        self._fespace_hierarchy = HierarchicalFiniteElementSpace(owner=self)
         #self._fec_storage = {}
         #self._fes_storage = {}
         self.pp_extra = {}
         self.alloc_flag = {}
-
+        self.initialize_fespaces()
+        
+    def initialize_fespaces(self):
+        from petram.helper.hierarchical_finite_element_space import HierarchicalFiniteElementSpace
+        self._fespace_hierarchy = HierarchicalFiniteElementSpace(owner=self)
+        
     stored_data_names = ("is_assembled",
                          "self.is_initialized",
                          "meshes",
@@ -162,7 +165,6 @@ class Engine(object):
            [                                                              ],
         where A, B, C and D are in-physics coupling    
         '''
-        print("!!!! Set Formblock")
         from petram.helper.formholder import FormBlock
 
         self.n_matrix = n_matrix
@@ -498,7 +500,7 @@ class Engine(object):
         self.run_preprocess()  # this must run when mesh is serial
 
         if use_parallel:
-            # make ParMesh and Par-Extended-Mesh
+            self.initialize_fespaces()            
             self.run_mesh()
             self.emeshes = []
             for k in self.model['Phys'].keys():
@@ -2437,10 +2439,10 @@ class Engine(object):
         is_new = False
         key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
         dprint1("(emesh_idx, elem, order, dim, sdim, vdim, isParMesh) = " + str(key))
-        print(name)
+
         if name in self.fespaces:
-            print(name)
             fes1 = self.fespaces[name]
+            print("found", fes1)
             isFESparallel = hasattr(fes1, 'GroupComm')
             if isFESparallel == isParMesh:
                 return False, fes1
@@ -3313,6 +3315,9 @@ class ParallelEngine(Engine):
 
         dprint1("Loading mesh (parallel)")
 
+        import traceback
+        traceback.print_stack()
+
         self.meshes = []
         self.emeshes = []
         if self.emesh_data is None:
@@ -3381,11 +3386,6 @@ class ParallelEngine(Engine):
         if init:
             gf.Assign(0.0)
 
-        if idx is not None:
-            gf._emesh_idx = idx
-        else:
-            assert False, "new gf is called with unknonw fes"
-
         idx = self.fespaces.get_fes_emesh_idx(fes)
         if idx is not None:
             gf._emesh_idx = idx
@@ -3393,16 +3393,6 @@ class ParallelEngine(Engine):
             assert False, "new gf is called with unknonw fes"
 
         return gf
-
-        '''
-        for k in self.fecfes_storage:
-            if self.fecfes_storage[k][1] == fes:
-                gf._emesh_idx = k[0]
-                break
-        else:
-            assert False, "new gf is called with unknonw fes"
-        return gf
-        '''
 
     def new_fespace(self, mesh, fec, vdim):
         if hasattr(mesh, 'GetComm'):
