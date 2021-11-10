@@ -77,8 +77,8 @@ class HierarchicalFiniteElementSpace(object):
         if (key1, key2) in self._p_storage:
             return self._p_storage[(key1, key2)]
         else:
-            fes1 = self._fec_storage[key1]
-            fes2 = self._fec_storage[key2] 
+            fes1 = self._fes_storage[key1]
+            fes2 = self._fes_storage[key2] 
             P = self._owner.new_transfer_operator(fes1, fes2)
             self._p_storage[(key1, key2)] = P
 
@@ -108,7 +108,8 @@ class HierarchicalFiniteElementSpace(object):
         h.AddLevel(m2, fes2, P, False, False, False)
 
         self._dataset[name].append(key2)
-
+        return len(self._dataset[name])
+    
     def add_order_refined_level(self, name, inc=1):
         emesh_idx, old_refine, element, order, fecdim, vdim = self._dataset[name][-1]
 
@@ -122,9 +123,10 @@ class HierarchicalFiniteElementSpace(object):
         P = self.get_or_allocate_transfer(key1, key2)
         
         h = self.hierarchies[name]
-        h.AddLevel(m2, fes2, P, False, False, False)
+        h.AddLevel(m, fes2, P, False, False, False)
 
         self._dataset[name].append(key2)
+        return len(self._dataset[name])
 
     def get_fes_info(self, fes):
         for key in self._fes_storage:
@@ -149,3 +151,6 @@ class HierarchicalFiniteElementSpace(object):
             return info['emesh_idx']
         else:
             return None
+        
+    def get_fes_levels(self, name):
+        return len(self._dataset[name])

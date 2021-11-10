@@ -2442,7 +2442,6 @@ class Engine(object):
 
         if name in self.fespaces:
             fes1 = self.fespaces[name]
-            print("found", fes1)
             isFESparallel = hasattr(fes1, 'GroupComm')
             if isFESparallel == isParMesh:
                 return False, fes1
@@ -2475,19 +2474,26 @@ class Engine(object):
     #    self.fec[name] = fec
     #    self.fespaces[name] = fes
 
-    def add_refined_fespace(self, name, mode, inc=1):
+    def add_refined_fespace(self, phys, mode, inc=1):
         '''
         mode = 'H' or 'P'
         inc = increment of order
         '''
-        if mode == 'H':
-            self.fespaces.add_uniformly_refined_level(name)
 
-        elif mode == 'P':
-            self.fespaces.add_order_refined_level(name)
+        names = [n for n in phys.dep_vars]
+        for name in names:
+            if mode == 'H':
+                nlevels = self.fespaces.add_uniformly_refined_level(name)
 
-        else:
-            assert False, "Unknown refinement mode"
+            elif mode == 'P':
+                nlevels = self.fespaces.add_order_refined_level(name)
+
+            else:
+                assert False, "Unknown refinement mode"
+        ol = self.level_idx
+        self.level_idx = nlevels-1
+        _void = self.get_true_v_sizes(phys)
+        self.level_idx = ol
 
     def get_fes(self, phys, kfes=0, name=None):
         if name is None:
@@ -3314,9 +3320,6 @@ class ParallelEngine(Engine):
         from petram.mesh.mesh_utils import get_extended_connectivity
 
         dprint1("Loading mesh (parallel)")
-
-        import traceback
-        traceback.print_stack()
 
         self.meshes = []
         self.emeshes = []

@@ -59,8 +59,12 @@ class MGSolver(StdSolver):
     def get_num_levels(self):
         return int(self.refinement_levels)
 
-    def get_multilevel_setting(self, *args, **kwargs):
-        pass
+    def create_multilevel_setting(self, engine):
+        target_phys = self.get_target_phys()
+        for phys in target_phys:
+            dprint1("Adding refined level for " + phys.name())        
+            engine.add_refined_fespace(phys, 'P', inc=1)
+
 
     def set_model_level(self, klevel):
         '''
@@ -104,6 +108,7 @@ class MGSolver(StdSolver):
             if is_first:
                 instance.assemble()
                 is_first = False
+            self.create_multilevel_setting(engine)
             instance.solve()
 
         instance.save_solution(ksol=0,

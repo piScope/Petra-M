@@ -185,7 +185,7 @@ class SolveStep(SolverBase):
                 tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
                 num_matrix = max(tmp, num_matrix)
 
-        dprint1("number of matrix", num_matrix)
+        #dprint1("number of matrix", num_matrix)
         return num_matrix
 
     def get_matrix_weight(self, timestep_config):
