@@ -83,9 +83,7 @@ class Engine(object):
 
         self._r_x_old = {}
         self._i_x_old = {}
-
-        # assembled block [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
-        self.assembled_blocks = [None]*7
+        self._assembled_blocks = [[None]*7, ]
 
         # place holder : key is base physics modules, such as EM3D1...
         #
@@ -107,11 +105,11 @@ class Engine(object):
         self.pp_extra = {}
         self.alloc_flag = {}
         self.initialize_fespaces()
-        
+
     def initialize_fespaces(self):
         from petram.helper.hierarchical_finite_element_space import HierarchicalFiniteElementSpace
         self._fespace_hierarchy = HierarchicalFiniteElementSpace(owner=self)
-        
+
     stored_data_names = ("is_assembled",
                          "self.is_initialized",
                          "meshes",
@@ -142,7 +140,7 @@ class Engine(object):
         for k, n in enumerate(stored_data_names):
             setattr(self, n, data[2][k])
 
-    def set_formblocks(self, phys_target, phys_range, n_matrix, n_levels=1):
+    def set_formblocks(self, phys_target, phys_range, n_matrix):
         '''
         This version assembles a linear system as follows
 
@@ -168,7 +166,7 @@ class Engine(object):
         from petram.helper.formholder import FormBlock
 
         self.n_matrix = n_matrix
-        self.n_levels = n_levels
+
         self.collect_dependent_vars(phys_target, phys_range)
         self.collect_dependent_vars(phys_range,  phys_range, range_space=True)
 
@@ -177,45 +175,49 @@ class Engine(object):
         diag = [self.r_fes_vars.index(n) for n in self.fes_vars]
         n_mat = self.n_matrix
 
-        #self._matrix_blocks = [None for k in range(n_mat)]
+        # assembled block [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
+        if self.level_idx == 0:
+            self._initialize_variable_lists()
+            self.n_levels = 0
+            self._assembled_blocks = [[None]*7, ]
+        else:
+            self.n_levels = self.n_levels + 1
+            self._assembled_blocks.append([None]*7)
 
-        self._initialize_variable_lists(n_levels)
+        self._r_a.append([FormBlock((n_fes, n_rfes), diag=diag,
+                                    new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                          for k in range(n_mat)])
+        self._i_a.append([FormBlock((n_fes, n_rfes), diag=diag,
+                                    new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                          for k in range(n_mat)])
+        self._r_x.append([FormBlock(n_rfes, new=self.alloc_gf)
+                          for k in range(n_mat)])
+        self._i_x.append([FormBlock(n_rfes, new=self.alloc_gf)
+                          for k in range(n_mat)])
+        self._r_b.append(FormBlock(n_fes, new=self.alloc_lf))
+        self._i_b.append(FormBlock(n_fes, new=self.alloc_lf))
 
-        for iii in range(n_levels):
-            self.level_idx = iii
-            self._r_a[iii] = [FormBlock((n_fes, n_rfes), diag=diag,
-                                        new=self.alloc_bf, mixed_new=self.alloc_mbf)
-                              for k in range(n_mat)]
-            self._i_a[iii] = [FormBlock((n_fes, n_rfes), diag=diag,
-                                        new=self.alloc_bf, mixed_new=self.alloc_mbf)
-                              for k in range(n_mat)]
-            self._r_x[iii] = [FormBlock(n_rfes, new=self.alloc_gf)
-                              for k in range(n_mat)]
-            self._i_x[iii] = [FormBlock(n_rfes, new=self.alloc_gf)
-                              for k in range(n_mat)]
-            self.r_b = FormBlock(n_fes, new=self.alloc_lf)
-            self.i_b = FormBlock(n_fes, new=self.alloc_lf)
+        self._extras.append([None for i in range(n_mat)])
+        self._aux_ops.append([None for i in range(n_mat)])
 
-            self._extras[iii] = [None for i in range(n_mat)]
-            self._aux_ops[iii] = [None for i in range(n_mat)]
+        self._interps.append({})
+        self._projections.append({})
+        self._gl_ess_tdofs.append({n: [] for n in self.fes_vars})
+        self._ess_tdofs.append({n: [] for n in self.fes_vars})
 
-        self.level_idx = 0
-
-    def _initialize_variable_lists(self, n_levels):
-        self._r_a = [None]*n_levels
-        self._i_a = [None]*n_levels
-        self._r_b = [None]*n_levels
-        self._i_b = [None]*n_levels
-        self._r_x = [None]*n_levels
-        self._i_x = [None]*n_levels
-        self._extras = [None]*n_levels
-        self._aux_ops = [None]*n_levels
-        self._interps = [dict() for x in range(n_levels)]
-        self._projections = [dict() for x in range(n_levels)]
-        self._gl_ess_tdofs = [{n: [] for n in self.fes_vars}
-                              for x in range(n_levels)]
-        self._ess_tdofs = [{n: [] for n in self.fes_vars}
-                           for x in range(n_levels)]
+    def _initialize_variable_lists(self):
+        self._r_a = []
+        self._i_a = []
+        self._r_b = []
+        self._i_b = []
+        self._r_x = []
+        self._i_x = []
+        self._extras = []
+        self._aux_ops = []
+        self._interps = []
+        self._projections = []
+        self._gl_ess_tdofs = []
+        self._ess_tdofs = []
 
     @property
     def n_matrix(self):
@@ -354,6 +356,14 @@ class Engine(object):
     @property
     def fespaces(self):
         return self._fespace_hierarchy
+
+    @property
+    def assembled_blocks(self):
+        return self._assembled_blocks[self._level_idx]
+
+    @assembled_blocks.setter
+    def assembled_blocks(self, v):
+        self._assembled_blocks[self._level_idx] = v
 
     '''
     @property
@@ -500,7 +510,7 @@ class Engine(object):
         self.run_preprocess()  # this must run when mesh is serial
 
         if use_parallel:
-            self.initialize_fespaces()            
+            self.initialize_fespaces()
             self.run_mesh()
             self.emeshes = []
             for k in self.model['Phys'].keys():
@@ -963,6 +973,7 @@ class Engine(object):
             X = self.assembled_blocks[1]
         else:
             X = self.prepare_X_block()
+
         X = self.fill_X_block(X)
         self.assembled_blocks[1] = X
 
@@ -1773,6 +1784,7 @@ class Engine(object):
                 r = self.r_dep_var_offset(dep_var)
                 if not self.mask_X[k, r]:
                     continue
+
                 if self.r_isFESvar(dep_var):
                     i = self.r_ifes(dep_var)
                     v = convertElement(self.r_x, self.i_x,
@@ -2474,7 +2486,7 @@ class Engine(object):
     #    self.fec[name] = fec
     #    self.fespaces[name] = fes
 
-    def add_refined_fespace(self, phys, mode, inc=1):
+    def prepare_refined_level(self, phys, mode, inc=1):
         '''
         mode = 'H' or 'P'
         inc = increment of order
@@ -2490,10 +2502,6 @@ class Engine(object):
 
             else:
                 assert False, "Unknown refinement mode"
-        ol = self.level_idx
-        self.level_idx = nlevels-1
-        _void = self.get_true_v_sizes(phys)
-        self.level_idx = ol
 
     def get_fes(self, phys, kfes=0, name=None):
         if name is None:

@@ -49,6 +49,9 @@ class SolverBase(Model):
 class SolveStep(SolverBase):
     has_2nd_panel = False
 
+    #
+    # GUI and object parameters
+    #
     def attribute_set(self, v):
         v['phys_model'] = ''
         v['init_setting'] = ''
@@ -115,6 +118,15 @@ class SolveStep(SolverBase):
             return [StdSolver, TimeDomain, DistanceSolver, MGSolver,
                     DWCCall, SetVar]
 
+    @property
+    def solve_error(self):
+        if hasattr(self, "_solve_error"):
+            return self._solve_error
+        return (False, "")
+
+    #
+    # Data access
+    #
     def get_phys(self):
         #
         #  phys for rhs and rows of M
@@ -192,29 +204,9 @@ class SolveStep(SolverBase):
         raise NotImplementedError(
             "you must specify this method in subclass")
 
-    def prepare_form_sol_variables(self, engine, n_levels=1):
-        solvers = self.get_active_solvers()
-
-        phys_target = self.get_phys()
-        phys_range = self.get_phys_range()
-
-        num_matrix = self.get_num_matrix(phys_target)
-        n_levels = np.sum([s.get_num_levels()-1 for s in solvers]) + 1
-
-        engine.set_formblocks(phys_target, phys_range, num_matrix, n_levels)
-
-        for p in phys_range:
-            engine.run_mesh_extension(p)
-
-        engine.run_alloc_sol(phys_range)
-#        engine.run_fill_X_block()
-
-    @property
-    def solve_error(self):
-        if hasattr(self, "_solve_error"):
-            return self._solve_error
-        return (False, "")
-
+    #
+    #   data access for init, postprocess, mesh, and goemetry
+    #
     def get_init_setting(self):
         names = self.init_setting.split(',')
         names = [n.strip() for n in names if n.strip() != '']
@@ -224,6 +216,45 @@ class SolveStep(SolverBase):
         names = self.postprocess_sol.split(',')
         names = [n.strip() for n in names if n.strip() != '']
         return [self.root()['PostProcess'][n] for n in names]
+
+    def call_run_geom_gen(self, engine):
+        name = self.root()['General'].geom_gen
+        gen = self.root()['Geometry'][name]
+        engine.run_geom_gen(gen)
+
+    def call_run_mesh_gen(self, engine):
+        name = self.root()['General'].mesh_gen
+        gen = self.root()['Mesh'][name]
+        engine.run_mesh_gen(gen)
+
+    def check_and_run_geom_mesh_gens(self, engine):
+        flag = False
+        if self.use_mesh_gen:
+            if self.use_geom_gen:
+                self.call_run_geom_gen(engine)
+            self.call_run_mesh_gen(engine)
+            flag = True
+        return flag
+
+    #
+    # Preparation for assembly
+    #
+    def prepare_form_sol_variables(self, engine, n_levels=1):
+        solvers = self.get_active_solvers()
+
+        phys_target = self.get_phys()
+        phys_range = self.get_phys_range()
+
+        num_matrix = self.get_num_matrix(phys_target)
+
+        engine.set_formblocks(phys_target, phys_range, num_matrix)
+
+        for p in phys_range:
+            engine.run_mesh_extension(p)
+
+        engine.run_alloc_sol(phys_range)
+
+#        engine.run_fill_X_block()
 
     def init(self, engine):
         phys_target = self.get_phys()
@@ -249,25 +280,6 @@ class SolveStep(SolverBase):
         engine.run_apply_essential(phys_target, phys_range)
         engine.run_fill_X_block()
 
-    def call_run_geom_gen(self, engine):
-        name = self.root()['General'].geom_gen
-        gen = self.root()['Geometry'][name]
-        engine.run_geom_gen(gen)
-
-    def call_run_mesh_gen(self, engine):
-        name = self.root()['General'].mesh_gen
-        gen = self.root()['Mesh'][name]
-        engine.run_mesh_gen(gen)
-
-    def check_and_run_geom_mesh_gens(self, engine):
-        flag = False
-        if self.use_mesh_gen:
-            if self.use_geom_gen:
-                self.call_run_geom_gen(engine)
-            self.call_run_mesh_gen(engine)
-            flag = True
-        return flag
-
     def run(self, engine, is_first=True):
         dprint1("!!!!! Entering SolveStep :" + self.name() + " !!!!!")
         solvers = self.get_active_solvers()
@@ -276,13 +288,23 @@ class SolveStep(SolverBase):
         if is_first or is_new_mesh:
             engine.preprocess_modeldata()
 
-        # initialize and assemble her
+        # initialize and assemble
         # in run method..
         #   std solver : make sub block matrix and solve
         #   time-domain solver : do step
 
-        self.prepare_form_sol_variables(engine)
-        self.init(engine)
+        # prepare all MG refinement levels here
+
+        flag = True
+        lvl = 0
+        while flag:
+            engine.level_idx = lvl
+            self.prepare_form_sol_variables(engine)
+            self.init(engine)
+
+            lvl = lvl + 1
+            flag = any([s.create_refined_levels(engine, lvl)
+                        for s in solvers])
 
         is_first = True
         for solver in solvers:
@@ -359,9 +381,11 @@ class Solver(SolverBase):
         return [self.root()['InitialValue'][n] for n in names]
         '''
 
-    def get_active_solver(self, mm=None):
+    def get_active_solver(self, mm=None, cls=None):
+        if cls is None:
+            cls = LinearSolverModel
         for x in self.iter_enabled():
-            if isinstance(x, LinearSolverModel):
+            if isinstance(x, cls):
                 return x
 
     def get_num_matrix(self, phys_target=None):
@@ -388,8 +412,8 @@ class Solver(SolverBase):
     def get_num_levels(self):
         return 1
 
-    def get_multilevel_setting(self, *args, **kwargs):
-        return None
+    def create_refined_levels(self, engine, lvl):
+        return False
 
     def get_matrix_weight(self, *args, **kwargs):
         raise NotImplementedError(
@@ -510,12 +534,14 @@ class SolverInstance(object):
             for n, i in zip(probe_names, probe_idx):
                 self.probe.append(Probe(n, i))
 
-    def allocate_linearsolver(self, is_complex, engine):
-        if self.linearsolver_model.accept_complex:
+    def allocate_linearsolver(self, is_complex, engine, solver_model=None):
+        if solver_model is None:
+            solver_model = self.linearsolver_model
+        if solver_model.accept_complex:
             linearsolver = self.linearsolver_model.allocate_solver(
                 is_complex, engine)
         else:
-            linearsolver = self.linearsolver_model.allocate_solver(
+            linearsolver = solver_model.allocate_solver(
                 False, engine)
 
         return linearsolver
