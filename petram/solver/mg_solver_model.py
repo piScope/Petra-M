@@ -1,11 +1,21 @@
-from petram.solver.iterative_model import Iterative
-from petram.solver.solver_model import SolverInstance
 import os
 import numpy as np
+
+from petram.solver.iterative_model import (Iterative,
+                                           IterativeSolver)
+from petram.solver.solver_model import SolverInstance
 
 from petram.model import Model
 from petram.solver.solver_model import Solver, SolverInstance
 from petram.solver.std_solver_model import StdSolver
+
+from petram.mfem_config import use_parallel
+if use_parallel:
+    from petram.helper.mpi_recipes import *
+    import mfem.par as mfem
+else:
+    import mfem.ser as mfem
+
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MGSolver')
 rprint = debug.regular_print('MGSolver')
@@ -268,7 +278,7 @@ class MGInstance(SolverInstance):
                                    format=self.ls_type)
         else:
             XX = None
-        return linearsolver
+        return linearsolver, BB, XX, AA
 
     def assemble_rhs(self):
         assert False, "assemble_rhs is not implemented"
@@ -284,22 +294,96 @@ class MGInstance(SolverInstance):
     def solve(self, update_operator=True):
         engine = self.engine
 
-        solver0 = self.finalize_linear_system(0)
-        solver1 = self.finalize_linear_system(1)
+        ls0, _BB, _XX, _AA = self.finalize_linear_system(0)     # coarse
+        ls1, BB, XX, AA = self.finalize_linear_system(1)     # fine
+
+        print(ls0.solver)
+        print(ls1.solver)
+
+        P_matrix = engine.fill_prolongation_operator(0, ls1.A)
+        prolongations = [P_matrix]
+        smoothers = [ls0.solver, engine.genearate_smoother(0, ls1.A)]
+        operators = [ls0.A, ls1.A]
+
+        print(ls1.A)
+
+        #solall = linearsolver.Mult(BB, case_base=0)
+        mg = MG(operators, smoothers, prolongations)
+
+        # very small value
+        # ls1.solver.SetPreconditioner(mg.solver)
+        #solall = ls1.Mult(BB, XX)
+
+        # transfer looks okay
+        #solall0 = ls0.Mult(_BB, _XX)
+        #P_matrix.Mult(_XX, XX)
+        #print("here", type(_XX), _XX.GetDataArray().shape, XX.GetDataArray().shape)
+        solall = np.transpose(np.vstack([XX.GetDataArray()]))
+        #
+
+        # mg alone seems okay. but smoother destor
+        #mg.solver.Mult(BB[0], XX)
+        #solall = np.transpose(np.vstack([XX.GetDataArray()]))
+
+        class MyPreconditioner(mfem.Solver):
+            def __init__(self):
+                mfem.Solver.__init__(self)
+
+            def Mult(self, x, y):
+                np.save('original_b', _BB[0].GetDataArray())
+                P_matrix.MultTranspose(x, _BB[0])
+                np.save('restricted_b', _BB[0].GetDataArray())
+                ls0.Mult(_BB, _XX)
+                P_matrix.Mult(_XX, y)
+                #print(x, y)
+                #assert False, "faile for now"
+
+            def SetOperator(self, opr):
+                pass
+
+        prc = MyPreconditioner()
+        # write solver here...
+        solver = mfem.FGMRESSolver()
+        solver.SetRelTol(1e-12)
+        solver.SetMaxIter(1)
+        solver.SetPrintLevel(1)
+        solver.SetOperator(ls1.A)
+        solver.SetPreconditioner(prc)
+        solver.Mult(BB[0], XX)
+        solall = np.transpose(np.vstack([XX.GetDataArray()]))
+
         '''
         solall = linearsolver.Mult(BB, x=XX, case_base=0)
 
         #linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         #solall = linearsolver.Mult(BB, case_base=0)
-
+        '''
         if not self.phys_real and self.gui.assemble_real:
-            solall = self.linearsolver_model.real_to_complex(solall, AA)
+            solall = self.linearsolver_models[-1].real_to_complex(solall, AA)
 
-        A.reformat_central_mat(solall, 0, X[0], mask)
+        engine.level_idx = 1
+        A = engine.assembled_blocks[0]
+        X = engine.assembled_blocks[1]
+        A.reformat_central_mat(solall, 0, X[0], self.blk_mask)
+        print(X[0])
         self.sol = X[0]
 
         # store probe signal (use t=0.0 in std_solver)
         for p in self.probe:
             p.append_sol(X[0])
-        '''
+
         return True
+
+
+class MG(IterativeSolver):   # LinearSolver
+    def __init__(self, operators, smoothers, prolongations):
+
+        own_operators = [False]*len(operators)
+        own_smoothers = [False]*len(smoothers)
+        own_prolongations = [False]*len(prolongations)
+
+        mg = mfem.Multigrid(operators, smoothers, prolongations,
+                            own_operators, own_smoothers, own_prolongations)
+        mg.SetCycleType(mfem.Multigrid.CycleType_VCYCLE, 0, 0)
+        self.solver = mg
+        #self.A = operators[-1]

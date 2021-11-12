@@ -142,7 +142,7 @@ class AUX_Operator(Phys):
     def has_extra_DoF(self, kfes):
         return False
      
-    def get_exter_NDoF(self):
+    def get_extra_NDoF(self):
         return 0
      
     def preprocess_params(self, engine):

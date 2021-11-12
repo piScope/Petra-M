@@ -506,6 +506,7 @@ class IterativeSolver(LinearSolver):
 
     @flush_stdout
     def call_mult(self, solver, bb, xx):
+        print(np.sum(bb.GetDataArray()), np.sum(xx.GetDataArray()))
         solver.Mult(bb, xx)
         max_iter = solver.GetNumIterations()
         tol = solver.GetFinalNorm()
@@ -575,7 +576,7 @@ class IterativeSolver(LinearSolver):
         if self.gui.write_mat:
             self. write_mat(A, b, x)
 
-        M = self.M
+        #M = self.M
         solver = self.solver
 
         sol = []

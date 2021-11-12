@@ -413,7 +413,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         raise NotImplementedError(
             "you must specify this method in subclass")
 
-    def get_exter_NDoF(self, kfes=0):
+    def get_extra_NDoF(self, kfes=0):
         return 0
 
     def has_extra_DoF(self, kfes=0):

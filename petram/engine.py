@@ -2503,6 +2503,201 @@ class Engine(object):
             else:
                 assert False, "Unknown refinement mode"
 
+    def genearate_smoother(self, level, blk_opr):
+        assert not isinstance(
+            self, ParallelEngine), "Parallel is not supported"
+
+        self.access_idx = 0
+        P = None
+        diags = []
+        cols = [0]
+        ess_tdofs = []
+        A, _X, _RHS, _Ae,  _B,  _M, _dep_vars = self.assembled_blocks
+        widths = A.get_local_col_widths()
+
+        use_complex_opr = A.complex and (A.shape[0] == blk_opr.NumRowBlocks())
+
+        for dep_var in self.r_dep_vars:
+            offset = self.r_dep_var_offset(dep_var)
+
+            tmp_cols = []
+            tmp_diags = []
+            if self.r_isFESvar(dep_var):
+                ess_tdof = mfem.intArray(self.ess_tdofs[dep_var])
+                ess_tdofs.append(ess_tdofs)
+                opr = A[offset, offset]
+
+                if use_complex_opr:
+                    mat = blk_opr._linked_op[(offset, offset)]
+                    conv = mat.GetConvention()
+                    conv == 1 if mfem.ComplexOperator.HERMITIAN else -1
+                    mat1 = mat._real_operator
+                    mat2 = mat._imag_operator
+                else:
+                    conv = 1
+                    if A.complex:
+                        mat1 = blk_opr.GetBlock(offset*2, offset*2)
+                        mat2 = blk_opr.GetBlock(offset*2 + 1, offset*2 + 1)
+                    else:
+                        mat1 = blk_opr.GetBlock(offset, offset)
+
+                if A.complex:
+                    dd = opr.diagonal()
+                    diag = mfem.Vector(list(dd.real))
+                    print("real", dd.real)
+                    rsmoother = mfem.OperatorChebyshevSmoother(mat1,
+                                                               diag,
+                                                               ess_tdof,
+                                                               2)
+                    dd = opr.diagonal()*conv
+                    diag = mfem.Vector(list(dd.real))
+                    print("imag", dd.imag)
+                    ismoother = mfem.OperatorChebyshevSmoother(mat1,
+                                                               diag,
+                                                               ess_tdof,
+                                                               2)
+                    tmp_cols.append(opr.shape[0])
+                    tmp_cols.append(opr.shape[0])
+                    tmp_diags.append(rsmoother)
+                    tmp_diags.append(ismoother)
+
+                else:
+                    dd = opr.diagonal()
+                    diag = mfem.Vector(list(dd))
+                    smoother = mfem.OperatorChebyshevSmoother(mat1,
+                                                              diag,
+                                                              ess_tdof,
+                                                              2)
+                    tmp_diags.append(smoother)
+                    tmp_cols.append(opr.shape[0])
+
+            else:
+                print("Non FESvar", dep_var, offset)
+                tmp_cols.append(widths[offset])
+                tmp_diags.append(mfem.IdentityOperator(widths[offset]))
+                if A.complex:
+                    tmp_cols.append(widths[offset])
+                    oo = mfem.IdentityOperator(widths[offset])
+                    if conv == -1:
+                        oo2 = mfem.ScaleOperator(oo, -1)
+                        oo2._opr = oo
+                        tmp_diags.append(oo2)
+                    else:
+                        tmp_diags.append(oo)
+
+            if use_complex_opr:
+                tmp_cols = [0] + tmp_cols
+                blockOffsets = mfem.intArray(tmp_cols)
+                blockOffsets.PartialSum()
+                smoother = mfem.BlockDiagonalPreconditioner(blockOffsets)
+                smoother.SetDiagonalBlock(0, tmp_diags[0])
+                smoother.SetDiagonalBlock(1, tmp_diags[1])
+                smoother._smoother = tmp_diags
+                cols.append(tmp_cols[1]*2)
+                diags.append(smoother)
+            else:
+                cols.extend(tmp_cols)
+                diags.extend(tmp_diags)
+
+        co = mfem.intArray(cols)
+        co.PartialSum()
+
+        P = mfem.BlockDiagonalPreconditioner(co)
+        for i, d in enumerate(diags):
+            P.SetDiagonalBlock(i,  d)
+        P._diags = diags
+        P._ess_tdofs = ess_tdofs
+        return P
+
+    def fill_prolongation_operator(self, level, blk_opr):
+        self.access_idx = 0
+        P = None
+        diags = []
+
+        A, _X, _RHS, _Ae,  _B,  _M, _dep_vars = self.assembled_blocks
+        use_complex_opr = A.complex and (A.shape[0] == blk_opr.NumRowBlocks())
+
+        hights = A.get_local_row_heights()
+        widths = A.get_local_col_widths()
+
+        cols = [0]
+        rows = [0]
+
+        for dep_var in self.r_dep_vars:
+            offset = self.r_dep_var_offset(dep_var)
+
+            tmp_cols = []
+            tmp_rows = []
+            tmp_diags = []
+
+            if use_complex_opr:
+                mat = blk_opr._linked_op[(offset, offset)]
+                conv = mat.GetConvention()
+                conv == (1 if mfem.ComplexOperator.HERMITIAN else -1)
+            else:
+                conv = 1
+
+            if self.r_isFESvar(dep_var):
+                h = self.fespaces.get_hierarchy(dep_var)
+                P = h.GetProlongationAtLevel(level)
+                tmp_cols.append(P.Width())
+                tmp_rows.append(P.Height())
+                tmp_diags.append(P)
+                if A.complex:
+                    tmp_cols.append(P.Width())
+                    tmp_rows.append(P.Height())
+                    if conv == -1:
+                        oo2 = mfem.ScaleOperator(P, -1)
+                        oo2._opr = P
+                        tmp_diags.append(oo2)
+                    else:
+                        tmp_diags.append(P)
+            else:
+                tmp_cols.append(widths[offset])
+                tmp_rows.append(widths[offset])
+                tmp_diags.append(mfem.IdentityOperator(widths[offset]))
+
+                if A.complex:
+                    tmp_cols.append(widths[offset])
+                    tmp_rows.append(widths[offset])
+                    oo = mfem.IdentityOperator(widths[offset])
+                    if conv == -1:
+                        oo2 = mfem.ScaleOperator(oo, -1)
+                        oo2._opr = oo
+                        tmp_diags.append(oo2)
+                    else:
+                        tmp_diags.append(oo)
+            if use_complex_opr:
+                tmp_cols = [0] + tmp_cols
+                tmp_rows = [0] + tmp_rows
+                offset_c = mfem.intArray(tmp_cols)
+                offset_r = mfem.intArray(tmp_rows)
+                offset_c.PartialSum()
+                offset_r.PartialSum()
+                smoother = mfem.BlockOperator(offset_r, offset_c)
+                smoother.SetDiagonalBlock(0, tmp_diags[0])
+                smoother.SetDiagonalBlock(1, tmp_diags[1])
+                smoother._smoother = tmp_diags
+                cols.append(tmp_cols[1]*2)
+                rows.append(tmp_rows[1]*2)
+                diags.append(smoother)
+            else:
+                cols.extend(tmp_cols)
+                rows.extend(tmp_rows)
+                diags.extend(tmp_diags)
+
+        ro = mfem.intArray(rows)
+        co = mfem.intArray(cols)
+        ro.PartialSum()
+        co.PartialSum()
+
+        print("prolongation", ro.ToList(), co.ToList(), diags)
+        P = mfem.BlockOperator(ro, co)
+        for i, d in enumerate(diags):
+            P.SetBlock(i, i, d)
+        P._diags = diags
+        return P
+
     def get_fes(self, phys, kfes=0, name=None):
         if name is None:
             name = phys.dep_vars[kfes]

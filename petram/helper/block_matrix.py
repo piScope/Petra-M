@@ -479,6 +479,26 @@ class BlockMatrix(object):
                 if self[i, j] is not None:
                     print(i, j, self[i, j].GetColPartArray())
 
+    def get_local_row_height(self, i):
+        for j in range(self.shape[1]):
+            blk = self.block[i][j]
+            if blk is not None:
+                return blk.shape[0]
+        return None
+
+    def get_local_col_width(self, j):
+        for i in range(self.shape[0]):
+            blk = self.block[i][j]
+            if blk is not None:
+                return blk.shape[1]
+        return None
+
+    def get_local_row_heights(self):
+        return [self.get_local_row_height(i) for i in range(self.shape[0])]
+
+    def get_local_col_widths(self):
+        return [self.get_local_col_width(j) for j in range(self.shape[1])]
+
     def save_to_file(self, file):
         for i in range(self.shape[0]):
             for j in range(self.shape[1]):
@@ -1234,6 +1254,7 @@ class BlockMatrix(object):
                     Hermitian = False if symmetric else True
                     gcsr = mfem.ComplexOperator(
                         gcsa, gcsb, False, False, Hermitian)
+
                     gcsr._real_operator = gcsa
                     gcsr._imag_operator = gcsb
 

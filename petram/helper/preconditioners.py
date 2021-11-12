@@ -312,7 +312,6 @@ def mfem_smoother(name, **kwargs):
         smoother = _create_smoother(name, mat)
     return smoother
 
-
 @prc.block
 def GS(**kwargs):
     return mfem_smoother('GS', **kwargs)
