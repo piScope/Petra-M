@@ -478,14 +478,6 @@ class Engine(object):
                     return mm.emesh_idx
         return -1
 
-    '''    
-    def generate_fespace(self, phys):    
-        fecs = phys.get_fecs(self)
-        if (phys.element == 'ND_FECollection'):
-            self.mesh.ReorientTetMesh()
-        self.fespaces[phys] = [self.new_fespace(fec) for fec in fecs]
-    '''
-
     def preprocess_modeldata(self, dir=None):
         '''
         do everything it takes to run a newly built
@@ -639,11 +631,6 @@ class Engine(object):
         idx = self.emesh_data.add_info(info)
 
         phys.emesh_idx = idx
-        # if len(self.emeshes) <= idx:
-        #    m = generate_emesh(self.emeshes, info)
-        #    m.ReorientTetMesh()
-        #    self.emeshes.extend([None]*(1+idx-len(self.emeshes)))
-        #    self.emeshes[idx] = m
         dprint1(phys.name() + ":  emesh index =", idx)
 
     def run_mesh_extension(self, phys):
@@ -658,7 +645,8 @@ class Engine(object):
 
         if len(self.emeshes) <= idx or self.emeshes[idx] is None:
             m = generate_emesh(self.emeshes, info)
-            m.ReorientTetMesh()
+            # 2021 Nov.
+            #m.ReorientTetMesh()
             if len(self.emeshes) <= idx:
                 self.emeshes.extend([None]*(1+idx-len(self.emeshes)))
             self.emeshes[idx] = m
@@ -1249,7 +1237,8 @@ class Engine(object):
                 assert False, "Solution (imag) does not exist:"+fi
 
             m = mfem.Mesh(str(meshname), 1, 1)
-            m.ReorientTetMesh()
+            # 2021. Nov
+            #m.ReorientTetMesh()
             solr = mfem.GridFunction(m, str(fr))
             if solr.Size() != rgf.Size():
                 assert False, "Solution file (real) has different length!!!"
@@ -2151,9 +2140,10 @@ class Engine(object):
                          mesh_only=False,
                          save_parmesh=False):
         if not skip_mesh:
-            mesh_filenames = self.save_mesh()
+            mesh_filenames = self.save_mesh(phys_target)
+            
         if save_parmesh:
-            self.save_parmesh()
+            self.save_parmesh(phys_target)
         if mesh_only:
             return mesh_filenames
 
@@ -2485,7 +2475,6 @@ class Engine(object):
     # def add_fec_fes(self, name, fec, fes):
     #    self.fec[name] = fec
     #    self.fespaces[name] = fes
-
     def prepare_refined_level(self, phys, mode, inc=1):
         '''
         mode = 'H' or 'P'
@@ -2495,208 +2484,13 @@ class Engine(object):
         names = [n for n in phys.dep_vars]
         for name in names:
             if mode == 'H':
-                nlevels = self.fespaces.add_uniformly_refined_level(name)
+                nlevels = self.fespaces.add_uniformly_refined_level(name, self)
 
             elif mode == 'P':
-                nlevels = self.fespaces.add_order_refined_level(name)
+                nlevels = self.fespaces.add_order_refined_level(name, self)
 
             else:
                 assert False, "Unknown refinement mode"
-
-    def genearate_smoother(self, level, blk_opr):
-        assert not isinstance(
-            self, ParallelEngine), "Parallel is not supported"
-
-        self.access_idx = 0
-        P = None
-        diags = []
-        cols = [0]
-        ess_tdofs = []
-        A, _X, _RHS, _Ae,  _B,  _M, _dep_vars = self.assembled_blocks
-        widths = A.get_local_col_widths()
-
-        use_complex_opr = A.complex and (A.shape[0] == blk_opr.NumRowBlocks())
-
-        for dep_var in self.r_dep_vars:
-            offset = self.r_dep_var_offset(dep_var)
-
-            tmp_cols = []
-            tmp_diags = []
-            if self.r_isFESvar(dep_var):
-                ess_tdof = mfem.intArray(self.ess_tdofs[dep_var])
-                ess_tdofs.append(ess_tdofs)
-                opr = A[offset, offset]
-
-                if use_complex_opr:
-                    mat = blk_opr._linked_op[(offset, offset)]
-                    conv = mat.GetConvention()
-                    conv == 1 if mfem.ComplexOperator.HERMITIAN else -1
-                    mat1 = mat._real_operator
-                    mat2 = mat._imag_operator
-                else:
-                    conv = 1
-                    if A.complex:
-                        mat1 = blk_opr.GetBlock(offset*2, offset*2)
-                        mat2 = blk_opr.GetBlock(offset*2 + 1, offset*2 + 1)
-                    else:
-                        mat1 = blk_opr.GetBlock(offset, offset)
-
-                if A.complex:
-                    dd = opr.diagonal()
-                    diag = mfem.Vector(list(dd.real))
-                    print("real", dd.real)
-                    rsmoother = mfem.OperatorChebyshevSmoother(mat1,
-                                                               diag,
-                                                               ess_tdof,
-                                                               2)
-                    dd = opr.diagonal()*conv
-                    diag = mfem.Vector(list(dd.real))
-                    print("imag", dd.imag)
-                    ismoother = mfem.OperatorChebyshevSmoother(mat1,
-                                                               diag,
-                                                               ess_tdof,
-                                                               2)
-                    tmp_cols.append(opr.shape[0])
-                    tmp_cols.append(opr.shape[0])
-                    tmp_diags.append(rsmoother)
-                    tmp_diags.append(ismoother)
-
-                else:
-                    dd = opr.diagonal()
-                    diag = mfem.Vector(list(dd))
-                    smoother = mfem.OperatorChebyshevSmoother(mat1,
-                                                              diag,
-                                                              ess_tdof,
-                                                              2)
-                    tmp_diags.append(smoother)
-                    tmp_cols.append(opr.shape[0])
-
-            else:
-                print("Non FESvar", dep_var, offset)
-                tmp_cols.append(widths[offset])
-                tmp_diags.append(mfem.IdentityOperator(widths[offset]))
-                if A.complex:
-                    tmp_cols.append(widths[offset])
-                    oo = mfem.IdentityOperator(widths[offset])
-                    if conv == -1:
-                        oo2 = mfem.ScaleOperator(oo, -1)
-                        oo2._opr = oo
-                        tmp_diags.append(oo2)
-                    else:
-                        tmp_diags.append(oo)
-
-            if use_complex_opr:
-                tmp_cols = [0] + tmp_cols
-                blockOffsets = mfem.intArray(tmp_cols)
-                blockOffsets.PartialSum()
-                smoother = mfem.BlockDiagonalPreconditioner(blockOffsets)
-                smoother.SetDiagonalBlock(0, tmp_diags[0])
-                smoother.SetDiagonalBlock(1, tmp_diags[1])
-                smoother._smoother = tmp_diags
-                cols.append(tmp_cols[1]*2)
-                diags.append(smoother)
-            else:
-                cols.extend(tmp_cols)
-                diags.extend(tmp_diags)
-
-        co = mfem.intArray(cols)
-        co.PartialSum()
-
-        P = mfem.BlockDiagonalPreconditioner(co)
-        for i, d in enumerate(diags):
-            P.SetDiagonalBlock(i,  d)
-        P._diags = diags
-        P._ess_tdofs = ess_tdofs
-        return P
-
-    def fill_prolongation_operator(self, level, blk_opr):
-        self.access_idx = 0
-        P = None
-        diags = []
-
-        A, _X, _RHS, _Ae,  _B,  _M, _dep_vars = self.assembled_blocks
-        use_complex_opr = A.complex and (A.shape[0] == blk_opr.NumRowBlocks())
-
-        hights = A.get_local_row_heights()
-        widths = A.get_local_col_widths()
-
-        cols = [0]
-        rows = [0]
-
-        for dep_var in self.r_dep_vars:
-            offset = self.r_dep_var_offset(dep_var)
-
-            tmp_cols = []
-            tmp_rows = []
-            tmp_diags = []
-
-            if use_complex_opr:
-                mat = blk_opr._linked_op[(offset, offset)]
-                conv = mat.GetConvention()
-                conv == (1 if mfem.ComplexOperator.HERMITIAN else -1)
-            else:
-                conv = 1
-
-            if self.r_isFESvar(dep_var):
-                h = self.fespaces.get_hierarchy(dep_var)
-                P = h.GetProlongationAtLevel(level)
-                tmp_cols.append(P.Width())
-                tmp_rows.append(P.Height())
-                tmp_diags.append(P)
-                if A.complex:
-                    tmp_cols.append(P.Width())
-                    tmp_rows.append(P.Height())
-                    if conv == -1:
-                        oo2 = mfem.ScaleOperator(P, -1)
-                        oo2._opr = P
-                        tmp_diags.append(oo2)
-                    else:
-                        tmp_diags.append(P)
-            else:
-                tmp_cols.append(widths[offset])
-                tmp_rows.append(widths[offset])
-                tmp_diags.append(mfem.IdentityOperator(widths[offset]))
-
-                if A.complex:
-                    tmp_cols.append(widths[offset])
-                    tmp_rows.append(widths[offset])
-                    oo = mfem.IdentityOperator(widths[offset])
-                    if conv == -1:
-                        oo2 = mfem.ScaleOperator(oo, -1)
-                        oo2._opr = oo
-                        tmp_diags.append(oo2)
-                    else:
-                        tmp_diags.append(oo)
-            if use_complex_opr:
-                tmp_cols = [0] + tmp_cols
-                tmp_rows = [0] + tmp_rows
-                offset_c = mfem.intArray(tmp_cols)
-                offset_r = mfem.intArray(tmp_rows)
-                offset_c.PartialSum()
-                offset_r.PartialSum()
-                smoother = mfem.BlockOperator(offset_r, offset_c)
-                smoother.SetDiagonalBlock(0, tmp_diags[0])
-                smoother.SetDiagonalBlock(1, tmp_diags[1])
-                smoother._smoother = tmp_diags
-                cols.append(tmp_cols[1]*2)
-                rows.append(tmp_rows[1]*2)
-                diags.append(smoother)
-            else:
-                cols.extend(tmp_cols)
-                rows.extend(tmp_rows)
-                diags.extend(tmp_diags)
-
-        ro = mfem.intArray(rows)
-        co = mfem.intArray(cols)
-        ro.PartialSum()
-        co.PartialSum()
-
-        print("prolongation", ro.ToList(), co.ToList(), diags)
-        P = mfem.BlockOperator(ro, co)
-        for i, d in enumerate(diags):
-            P.SetBlock(i, i, d)
-        P._diags = diags
-        return P
 
     def get_fes(self, phys, kfes=0, name=None):
         if name is None:
@@ -2864,7 +2658,8 @@ class Engine(object):
                     [self.max_bdrattr, max(m.GetBdrAttributeArray())])
                 self.max_attr = np.max(
                     [self.max_attr, max(m.GetAttributeArray())])
-            m.ReorientTetMesh()
+            # Test this...(2021/Nov)
+            #m.ReorientTetMesh()
             m.GetEdgeVertexTable()
             get_extended_connectivity(m)
 
@@ -2905,17 +2700,6 @@ class Engine(object):
             return mfem.ParMesh(mesh)
         else:
             return mfem.Mesh(mesh)
-
-    def new_transfer_operator(self, fes1, fes2):
-        '''
-        fes1 : coarse grid
-        fes2 : fine grid
-        '''
-        parallel = hasattr(fes1, 'GroupComm')
-        if parallel:
-            return mfem.TrueTransferOperator(fes1, fes2)
-        else:
-            return mfem.TransferOperator(fes1, fes2)
 
     def eliminate_ess_dof(self, ess_tdof_list, M, B):
         raise NotImplementedError(
@@ -2999,13 +2783,15 @@ class Engine(object):
         if i_x is not None:
             i_x.SaveGZ(fnamei, 8)
 
-    def save_mesh(self):
+    def save_mesh(self, phys_target):
         mesh_names = []
         suffix = self.solfile_suffix()
 
-        for k, mesh in enumerate(self.emeshes):
-            if mesh is None:
-                continue
+        for phys in phys_target:
+            k = phys.emesh_idx
+            name = phys.dep_vars[0]
+
+            mesh = self.fespaces.get_mesh(name)
 
             header = 'solmesh_' + str(k)
             self.clear_solmesh_files(header)
@@ -3013,6 +2799,7 @@ class Engine(object):
             name = header+suffix
             mesh.PrintGZ(name, 16)
             mesh_names.append(name)
+            
         return mesh_names
 
     @property  # ALL dependent variables including Lagrange multipliers
@@ -3405,7 +3192,7 @@ class SerialEngine(Engine):
     def collect_all_ess_tdof(self):
         self.gl_ess_tdofs = self.ess_tdofs
 
-    def save_parmesh(self):
+    def save_parmesh(self, phys_target):
         # serial engine does not do anything
         return
 
@@ -3562,7 +3349,8 @@ class ParallelEngine(Engine):
                             self.meshes[idx] = o.run(target)
 
         for m in self.meshes:
-            m.ReorientTetMesh()
+            # 2021. Nov 
+            #m.ReorientTetMesh()
             m.GetEdgeVertexTable()
             get_extended_connectivity(m)
 
@@ -3631,19 +3419,24 @@ class ParallelEngine(Engine):
         if not save_once or MPI.COMM_WORLD.rank == 0:
             self._pp_extra_update.append(name)
 
-    def save_parmesh(self):
+    def save_parmesh(self, phys_target):
         from mpi4py import MPI
         num_proc = MPI.COMM_WORLD.size
         myid = MPI.COMM_WORLD.rank
         smyid = '{:0>6d}'.format(myid)
 
-        mesh_names = []
-        for k, mesh in enumerate(self.meshes):
-            if mesh is None:
-                continue
-            mesh_name = "solparmesh_"+str(k)+"."+smyid
-            mesh.ParPrintToFile(mesh_name, 16)
-        return
+
+        for phys in phys_target:
+            k = phys.emesh_idx
+            name = phys.dep_vars[0]
+
+            mesh = self.fespaces.get_mesh(name)
+
+            header = 'solparmesh_' + str(k) 
+            self.clear_solmesh_files(header)
+
+            mesh_name = header+'.'+smyid
+            mesh.ParPrintToFile(mesh_name, 16)            
 
     def solfile_suffix(self):
         from mpi4py import MPI

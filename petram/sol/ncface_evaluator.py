@@ -153,11 +153,13 @@ class NCFaceEvaluator(EvaluatorAgent):
         gtype_st = -1
         nele = 0
 
+        p = mfem.DenseMatrix()
+        
         for k, i in enumerate(self.ibeles):
             verts = getvertices(i)            
             gtype = getbasegeom(i)
             iface, ort = getface(i)
-            Trs = mesh.GetFaceElementTransformations(iface)
+            #Trs = mesh.GetFaceElementTransformations(iface)
             
             if gtype != gtype_st:
                 RefG = GR.Refine(gtype, self.refine)
@@ -177,9 +179,19 @@ class NCFaceEvaluator(EvaluatorAgent):
                         y = np.array([eee[0], eee[2], eee[3]])
                         ele.extend([x, y])
                 ele = np.array(ele)
+
+            if mesh.Dimension() == 3:
+                eir = mfem.IntegrationRule(ir.GetNPoints())
+                Transf = mesh.GetBdrFaceTransformations(i)
+                Transf.Loc1.Transform(ir, eir)
+                Transf.Elem1.Transform(eir, p)
+                pt = p.GetDataArray().copy().transpose()
+            elif mesh.Dimension() == 2:                
+                T = gettrans(i)
+                T.Transform(ir, p)
+                pt = p.GetDataArray().copy().transpose()
+                #pt = np.vstack([T.Transform(ir.IntPoint(j)) for j in range(npt)])
                 
-            T = gettrans(i)
-            pt = np.vstack([T.Transform(ir.IntPoint(j)) for j in range(npt)])
             ptx.append(pt)
 
             ridx.append(ele + nele)
@@ -189,7 +201,8 @@ class NCFaceEvaluator(EvaluatorAgent):
                                
             self.elattr1[k] = getattr1(i)
             self.elattr2[k] = getattr2(i)                        
-            
+
+
         self.ptx = np.vstack(ptx)
         self.ridx = np.vstack(ridx)
         self.ifaces = np.hstack(ifaces)

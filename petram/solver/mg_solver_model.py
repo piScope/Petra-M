@@ -60,25 +60,33 @@ class MGSolver(StdSolver):
         super(MGSolver, self).attribute_set(v)
         v["refinement_levels"] = "2"
         v["refinement_type"] = "P(order)"
+        v["presmoother_count"] = "1"
+        v["postsmoother_count"] = "1"
         return v
 
     def panel1_param(self):
         panels = super(MGSolver, self).panel1_param()
         panels.extend([["refinement type", self.refinement_type, 1,
                         {"values": ["P(order)", "H(mesh)"]}],
-                       ["number of levels", "", 0, {}], ])
+                       ["number of levels", "", 0, {}],
+                       ["pre-smoother #count", "", 0, {}],
+                       ["post-smoother #count", "", 0, {}], ])
         return panels
 
     def get_panel1_value(self):
         value = list(super(MGSolver, self).get_panel1_value())
         value.append(self.refinement_type)
         value.append(self.refinement_levels)
+        value.append(self.presmoother_count)
+        value.append(self.postsmoother_count)
         return value
 
     def import_panel1_value(self, v):
-        super(MGSolver, self).import_panel1_value(v[:-2])
-        self.refinement_type = v[-2]
-        self.refinement_levels = v[-1]
+        super(MGSolver, self).import_panel1_value(v[:-4])
+        self.refinement_type = v[-4]
+        self.refinement_levels = v[-3]
+        self.presmoother_count = v[-2]
+        self.postsmoother_count = v[-1]
 
     def allocate_solver_instance(self, engine):
         if self.clear_wdir:
@@ -128,9 +136,10 @@ class MGSolver(StdSolver):
             return False
 
         target_phys = self.get_target_phys()
+        refine_type = self.refinement_type[0]  # P or H
         for phys in target_phys:
             dprint1("Adding refined level for " + phys.name())
-            engine.prepare_refined_level(phys, 'P', inc=1)
+            engine.prepare_refined_level(phys, refine_type, inc=1)
 
         engine.level_idx = lvl
         for phys in target_phys:
@@ -297,18 +306,36 @@ class MGInstance(SolverInstance):
         ls0, _BB, _XX, _AA = self.finalize_linear_system(0)     # coarse
         ls1, BB, XX, AA = self.finalize_linear_system(1)     # fine
 
-        print(ls0.solver)
-        print(ls1.solver)
-
-        P_matrix = engine.fill_prolongation_operator(0, ls1.A)
+        class MyGMRESSolver(mfem.PyGMRESSolver):
+            def __init__(self, *args, **kwags):
+                mfem.PyGMRESSolver.__init__(self, *args, **kwags)
+            def Mult(self, x, y):
+                print('----- MyGMRESSolver.Mult')
+                mfem.PyGMRESSolver.Mult(self, x, y)
+            def MultTranspose(self, x, y):
+                print('MyGMRESSolver.MultTranspose')
+                mfem.PyGMRESSolver.Mult(self, x, y)
+            #def SetOperator(self, x):
+            #     mfem.GMRESSolver.SetOperator(self, x)
+                
+        solver1 = MyGMRESSolver()
+        solver1.SetRelTol(ls0.gui.reltol)
+        solver1.SetAbsTol(0.0)
+        solver1.SetMaxIter(ls0.gui.maxiter)
+        solver1.SetPrintLevel(ls0.gui.log_level)
+        solver1.SetOperator(ls1.A)
+        
+        P_matrix = fill_prolongation_operator(engine, 0, ls1.A)
         prolongations = [P_matrix]
-        smoothers = [ls0.solver, engine.genearate_smoother(0, ls1.A)]
+        #smoothers = [ls0.solver, genearate_smoother(engine, 0, ls1.A)]
+        smoothers = [ls0.solver, solver1]
         operators = [ls0.A, ls1.A]
 
-        print(ls1.A)
-
         #solall = linearsolver.Mult(BB, case_base=0)
-        mg = MG(operators, smoothers, prolongations)
+        mg = MG(operators, smoothers, prolongations,
+                presmoother_count=int(self.gui.presmoother_count),
+                postsmoother_count=int(self.gui.postsmoother_count))
+        
 
         # very small value
         # ls1.solver.SetPreconditioner(mg.solver)
@@ -316,21 +343,56 @@ class MGInstance(SolverInstance):
 
         # transfer looks okay
         #solall0 = ls0.Mult(_BB, _XX)
-        #P_matrix.Mult(_XX, XX)
+        #np.save('saved_block_vector', _XX.GetDataArray())
+
+        '''
+        solall0 = ls0.Mult(_BB, _XX)
+        engine.level_idx = 0
+        A = engine.assembled_blocks[0]
+        X = engine.assembled_blocks[1]
+        solall = np.transpose(np.vstack([_XX.GetDataArray()]))        
+        if not self.phys_real and self.gui.assemble_real:
+            solall = self.linearsolver_models[-1].real_to_complex(solall, _AA)
+
+        A.reformat_central_mat(solall, 0, X[0], self.blk_mask)
+        self.sol = X[0]
+        return True
+        '''
+        #
+
+        # this seems good after removing ReorientTetMesh and 
+        # changed to use H refinement
+        '''
+        solall0 = ls0.Mult(_BB, _XX)
+        P_matrix.Mult(_XX, XX)
+        np.save('saved_block_vector', XX.GetDataArray())        
+        engine.level_idx = 1
+        A = engine.assembled_blocks[0]
+        X = engine.assembled_blocks[1]
+        solall = np.transpose(np.vstack([XX.GetDataArray()]))        
+        if not self.phys_real and self.gui.assemble_real:
+            solall = self.linearsolver_models[-1].real_to_complex(solall, AA)
+
+        A.reformat_central_mat(solall, 0, X[0], self.blk_mask)
+        self.sol = X[0]
+        return True
+        '''
         #print("here", type(_XX), _XX.GetDataArray().shape, XX.GetDataArray().shape)
-        solall = np.transpose(np.vstack([XX.GetDataArray()]))
+        #solall = np.transpose(np.vstack([XX.GetDataArray()]))
         #
 
         # mg alone seems okay. but smoother destor
         #mg.solver.Mult(BB[0], XX)
         #solall = np.transpose(np.vstack([XX.GetDataArray()]))
-
+        '''
         class MyPreconditioner(mfem.Solver):
             def __init__(self):
                 mfem.Solver.__init__(self)
 
             def Mult(self, x, y):
+                print('MyPreconditioner.Mult')                
                 np.save('original_b', _BB[0].GetDataArray())
+                np.save('original_x', x.GetDataArray())                
                 P_matrix.MultTranspose(x, _BB[0])
                 np.save('restricted_b', _BB[0].GetDataArray())
                 ls0.Mult(_BB, _XX)
@@ -341,16 +403,37 @@ class MGInstance(SolverInstance):
             def SetOperator(self, opr):
                 pass
 
+        class MyFGMRESSolver(mfem.FGMRESSolver):
+            def Mult(self, x, y):
+                print('MyFGMRESSolver.Mult')
+                mfem.FGMRESSolver.Mult(self, x, y)
+
         prc = MyPreconditioner()
         # write solver here...
-        solver = mfem.FGMRESSolver()
-        solver.SetRelTol(1e-12)
-        solver.SetMaxIter(1)
+        solver = MyFGMRESSolver()
+        solver.SetRelTol(1e-18)
+        solver.SetAbsTol(0)
+        solver.SetMaxIter(5)
         solver.SetPrintLevel(1)
         solver.SetOperator(ls1.A)
+        solver.SetPreconditioner(mg.solver)
         solver.SetPreconditioner(prc)
         solver.Mult(BB[0], XX)
-        solall = np.transpose(np.vstack([XX.GetDataArray()]))
+        '''
+        '''
+        mg.solver.Mult(BB[0], XX)
+        '''
+        if ls1.gui.maxiter > 0:
+            ls1.solver.SetPreconditioner(mg.solver)
+            solall = ls1.Mult(BB, XX)
+        else:
+            mg.solver.Mult(BB[0], XX)
+            solall = np.transpose(np.vstack([XX.GetDataArray()]))
+        np.save('saved_block_vector_mg', XX.GetDataArray())              
+
+
+        # check fine level linear system...
+        #solall = ls1.Mult(BB, XX)        
 
         '''
         solall = linearsolver.Mult(BB, x=XX, case_base=0)
@@ -365,7 +448,7 @@ class MGInstance(SolverInstance):
         A = engine.assembled_blocks[0]
         X = engine.assembled_blocks[1]
         A.reformat_central_mat(solall, 0, X[0], self.blk_mask)
-        print(X[0])
+
         self.sol = X[0]
 
         # store probe signal (use t=0.0 in std_solver)
@@ -376,7 +459,9 @@ class MGInstance(SolverInstance):
 
 
 class MG(IterativeSolver):   # LinearSolver
-    def __init__(self, operators, smoothers, prolongations):
+    def __init__(self, operators, smoothers, prolongations, 
+                 presmoother_count = 1,
+                 postsmoother_count = 1):
 
         own_operators = [False]*len(operators)
         own_smoothers = [False]*len(smoothers)
@@ -384,6 +469,209 @@ class MG(IterativeSolver):   # LinearSolver
 
         mg = mfem.Multigrid(operators, smoothers, prolongations,
                             own_operators, own_smoothers, own_prolongations)
-        mg.SetCycleType(mfem.Multigrid.CycleType_VCYCLE, 0, 0)
+        mg.SetCycleType(mfem.Multigrid.CycleType_VCYCLE,
+                        presmoother_count, postsmoother_count)
+
         self.solver = mg
         #self.A = operators[-1]
+
+
+
+
+def fill_prolongation_operator(engine, level, blk_opr):
+    engine.access_idx = 0
+    P = None
+    diags = []
+
+    A, _X, _RHS, _Ae,  _B,  _M, _dep_vars = engine.assembled_blocks
+    use_complex_opr = A.complex and (A.shape[0] == blk_opr.NumRowBlocks())
+
+    hights = A.get_local_row_heights()
+    widths = A.get_local_col_widths()
+
+    cols = [0]
+    rows = [0]
+
+    for dep_var in engine.r_dep_vars:
+        offset = engine.r_dep_var_offset(dep_var)
+
+        tmp_cols = []
+        tmp_rows = []
+        tmp_diags = []
+
+        if use_complex_opr:
+            mat = blk_opr._linked_op[(offset, offset)]
+            conv = mat.GetConvention()
+            conv == (1 if mfem.ComplexOperator.HERMITIAN else -1)
+        else:
+            conv = 1
+
+        if engine.r_isFESvar(dep_var):
+            h = engine.fespaces.get_hierarchy(dep_var)
+            P = h.GetProlongationAtLevel(level)
+            tmp_cols.append(P.Width())
+            tmp_rows.append(P.Height())
+            tmp_diags.append(P)
+            if A.complex:
+                tmp_cols.append(P.Width())
+                tmp_rows.append(P.Height())
+                if conv == -1:
+                    oo2 = mfem.ScaleOperator(P, -1)
+                    oo2._opr = P
+                    tmp_diags.append(oo2)
+                else:
+                    tmp_diags.append(P)
+        else:
+            tmp_cols.append(widths[offset])
+            tmp_rows.append(widths[offset])
+            tmp_diags.append(mfem.IdentityOperator(widths[offset]))
+
+            if A.complex:
+                tmp_cols.append(widths[offset])
+                tmp_rows.append(widths[offset])
+                oo = mfem.IdentityOperator(widths[offset])
+                if conv == -1:
+                    oo2 = mfem.ScaleOperator(oo, -1)
+                    oo2._opr = oo
+                    tmp_diags.append(oo2)
+                else:
+                    tmp_diags.append(oo)
+        if use_complex_opr:
+            tmp_cols = [0] + tmp_cols
+            tmp_rows = [0] + tmp_rows
+            offset_c = mfem.intArray(tmp_cols)
+            offset_r = mfem.intArray(tmp_rows)
+            offset_c.PartialSum()
+            offset_r.PartialSum()
+            smoother = mfem.BlockOperator(offset_r, offset_c)
+            smoother.SetDiagonalBlock(0, tmp_diags[0])
+            smoother.SetDiagonalBlock(1, tmp_diags[1])
+            smoother._smoother = tmp_diags
+            cols.append(tmp_cols[1]*2)
+            rows.append(tmp_rows[1]*2)
+            diags.append(smoother)
+        else:
+            cols.extend(tmp_cols)
+            rows.extend(tmp_rows)
+            diags.extend(tmp_diags)
+
+    ro = mfem.intArray(rows)
+    co = mfem.intArray(cols)
+    ro.PartialSum()
+    co.PartialSum()
+
+    P = mfem.BlockOperator(ro, co)
+    for i, d in enumerate(diags):
+        P.SetBlock(i, i, d)
+    P._diags = diags
+    return P        
+
+
+def genearate_smoother(engine, level, blk_opr):
+    from petram.engine import ParallelEngine
+    assert not isinstance(
+        engine, ParallelEngine), "Parallel is not supported"
+
+    engine.access_idx = 0
+    P = None
+    diags = []
+    cols = [0]
+    ess_tdofs = []
+    A, _X, _RHS, _Ae,  _B,  _M, _dep_vars = engine.assembled_blocks
+    widths = A.get_local_col_widths()
+
+    use_complex_opr = A.complex and (A.shape[0] == blk_opr.NumRowBlocks())
+
+    for dep_var in engine.r_dep_vars:
+        offset = engine.r_dep_var_offset(dep_var)
+
+        tmp_cols = []
+        tmp_diags = []
+        if engine.r_isFESvar(dep_var):
+            ess_tdof = mfem.intArray(engine.ess_tdofs[dep_var])
+            ess_tdofs.append(ess_tdofs)
+            opr = A[offset, offset]
+
+            if use_complex_opr:
+                mat = blk_opr._linked_op[(offset, offset)]
+                conv = mat.GetConvention()
+                conv == 1 if mfem.ComplexOperator.HERMITIAN else -1
+                mat1 = mat._real_operator
+                mat2 = mat._imag_operator
+            else:
+                conv = 1
+                if A.complex:
+                    mat1 = blk_opr.GetBlock(offset*2, offset*2)
+                    mat2 = blk_opr.GetBlock(offset*2 + 1, offset*2 + 1)
+                else:
+                    mat1 = blk_opr.GetBlock(offset, offset)
+
+            if A.complex:
+                dd = opr.diagonal()
+                diag = mfem.Vector(list(dd.real))
+                print("real", dd.real)
+                rsmoother = mfem.OperatorChebyshevSmoother(mat1,
+                                                           diag,
+                                                           ess_tdof,
+                                                           2)
+                dd = opr.diagonal()*conv
+                diag = mfem.Vector(list(dd.real))
+                print("imag", dd.imag)
+                ismoother = mfem.OperatorChebyshevSmoother(mat1,
+                                                           diag,
+                                                           ess_tdof,
+                                                           2)
+                tmp_cols.append(opr.shape[0])
+                tmp_cols.append(opr.shape[0])
+                tmp_diags.append(rsmoother)
+                tmp_diags.append(ismoother)
+
+            else:
+                dd = opr.diagonal()
+                diag = mfem.Vector(list(dd))
+                smoother = mfem.OperatorChebyshevSmoother(mat1,
+                                                          diag,
+                                                          ess_tdof,
+                                                          2)
+                tmp_diags.append(smoother)
+                tmp_cols.append(opr.shape[0])
+
+        else:
+            print("Non FESvar", dep_var, offset)
+            tmp_cols.append(widths[offset])
+            tmp_diags.append(mfem.IdentityOperator(widths[offset]))
+            if A.complex:
+                tmp_cols.append(widths[offset])
+                oo = mfem.IdentityOperator(widths[offset])
+                if conv == -1:
+                    oo2 = mfem.ScaleOperator(oo, -1)
+                    oo2._opr = oo
+                    tmp_diags.append(oo2)
+                else:
+                    tmp_diags.append(oo)
+
+        if use_complex_opr:
+            tmp_cols = [0] + tmp_cols
+            blockOffsets = mfem.intArray(tmp_cols)
+            blockOffsets.PartialSum()
+            smoother = mfem.BlockDiagonalPreconditioner(blockOffsets)
+            smoother.SetDiagonalBlock(0, tmp_diags[0])
+            smoother.SetDiagonalBlock(1, tmp_diags[1])
+            smoother._smoother = tmp_diags
+            cols.append(tmp_cols[1]*2)
+            diags.append(smoother)
+        else:
+            cols.extend(tmp_cols)
+            diags.extend(tmp_diags)
+
+    co = mfem.intArray(cols)
+    co.PartialSum()
+
+    P = mfem.BlockDiagonalPreconditioner(co)
+    for i, d in enumerate(diags):
+        P.SetDiagonalBlock(i,  d)
+    P._diags = diags
+    P._ess_tdofs = ess_tdofs
+    return P
+
+
