@@ -309,22 +309,24 @@ class MGInstance(SolverInstance):
         class MyGMRESSolver(mfem.PyGMRESSolver):
             def __init__(self, *args, **kwags):
                 mfem.PyGMRESSolver.__init__(self, *args, **kwags)
+
             def Mult(self, x, y):
                 print('----- MyGMRESSolver.Mult')
                 mfem.PyGMRESSolver.Mult(self, x, y)
+
             def MultTranspose(self, x, y):
                 print('MyGMRESSolver.MultTranspose')
                 mfem.PyGMRESSolver.Mult(self, x, y)
-            #def SetOperator(self, x):
+            # def SetOperator(self, x):
             #     mfem.GMRESSolver.SetOperator(self, x)
-                
+
         solver1 = MyGMRESSolver()
         solver1.SetRelTol(ls0.gui.reltol)
         solver1.SetAbsTol(0.0)
-        solver1.SetMaxIter(ls0.gui.maxiter)
+        solver1.SetMaxIter(50)
         solver1.SetPrintLevel(ls0.gui.log_level)
         solver1.SetOperator(ls1.A)
-        
+
         P_matrix = fill_prolongation_operator(engine, 0, ls1.A)
         prolongations = [P_matrix]
         #smoothers = [ls0.solver, genearate_smoother(engine, 0, ls1.A)]
@@ -335,7 +337,6 @@ class MGInstance(SolverInstance):
         mg = MG(operators, smoothers, prolongations,
                 presmoother_count=int(self.gui.presmoother_count),
                 postsmoother_count=int(self.gui.postsmoother_count))
-        
 
         # very small value
         # ls1.solver.SetPreconditioner(mg.solver)
@@ -360,7 +361,7 @@ class MGInstance(SolverInstance):
         '''
         #
 
-        # this seems good after removing ReorientTetMesh and 
+        # this seems good after removing ReorientTetMesh and
         # changed to use H refinement
         '''
         solall0 = ls0.Mult(_BB, _XX)
@@ -413,27 +414,33 @@ class MGInstance(SolverInstance):
         solver = MyFGMRESSolver()
         solver.SetRelTol(1e-18)
         solver.SetAbsTol(0)
-        solver.SetMaxIter(5)
+        solver.SetMaxIter(1)
         solver.SetPrintLevel(1)
         solver.SetOperator(ls1.A)
         solver.SetPreconditioner(mg.solver)
-        solver.SetPreconditioner(prc)
+        #solver.SetPreconditioner(prc)
+        np.save('initial_x', XX.GetDataArray())        
         solver.Mult(BB[0], XX)
+        solall = np.transpose(np.vstack([XX.GetDataArray()]))
         '''
+        #solall = ls1.Mult(BB, XX)
         '''
+        solall = ls1.Mult(BB, XX)        
         mg.solver.Mult(BB[0], XX)
+
         '''
+        np.save('saved_block_vector_input', BB[0].GetDataArray())
         if ls1.gui.maxiter > 0:
             ls1.solver.SetPreconditioner(mg.solver)
             solall = ls1.Mult(BB, XX)
         else:
             mg.solver.Mult(BB[0], XX)
             solall = np.transpose(np.vstack([XX.GetDataArray()]))
-        np.save('saved_block_vector_mg', XX.GetDataArray())              
 
+        np.save('saved_block_vector_mg', XX.GetDataArray())
 
         # check fine level linear system...
-        #solall = ls1.Mult(BB, XX)        
+        #solall = ls1.Mult(BB, XX)
 
         '''
         solall = linearsolver.Mult(BB, x=XX, case_base=0)
@@ -459,9 +466,9 @@ class MGInstance(SolverInstance):
 
 
 class MG(IterativeSolver):   # LinearSolver
-    def __init__(self, operators, smoothers, prolongations, 
-                 presmoother_count = 1,
-                 postsmoother_count = 1):
+    def __init__(self, operators, smoothers, prolongations,
+                 presmoother_count=1,
+                 postsmoother_count=1):
 
         own_operators = [False]*len(operators)
         own_smoothers = [False]*len(smoothers)
@@ -474,8 +481,6 @@ class MG(IterativeSolver):   # LinearSolver
 
         self.solver = mg
         #self.A = operators[-1]
-
-
 
 
 def fill_prolongation_operator(engine, level, blk_opr):
@@ -564,7 +569,7 @@ def fill_prolongation_operator(engine, level, blk_opr):
     for i, d in enumerate(diags):
         P.SetBlock(i, i, d)
     P._diags = diags
-    return P        
+    return P
 
 
 def genearate_smoother(engine, level, blk_opr):
@@ -673,5 +678,3 @@ def genearate_smoother(engine, level, blk_opr):
     P._diags = diags
     P._ess_tdofs = ess_tdofs
     return P
-
-

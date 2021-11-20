@@ -39,7 +39,7 @@ class HierarchicalFiniteElementSpace(object):
 
     def get_hierarchy(self, name):
         return self._hierarchies[name]
-    
+
     def new_hierarchy(self, name, parameters=None):
 
         emesh_idx, element, order, fecdim, vdim = parameters
@@ -172,14 +172,14 @@ class HierarchicalFiniteElementSpace(object):
         #m = self._refined_mesh_storage[(emesh_idx, 0)]
         return m
 
-    def _new_transfer_operator(self, name, key1, key2, engine, use_matrix_free = False):
+    def _new_transfer_operator(self, name, key1, key2, engine, use_matrix_free=True):
         '''
         fes1 : coarse grid
         fes2 : fine grid
         '''
         fes1 = self._fes_storage[key1]
         fes2 = self._fes_storage[key2]
-        
+
         parallel = hasattr(fes1, 'GroupComm')
         if use_matrix_free:
             if parallel:
@@ -189,15 +189,15 @@ class HierarchicalFiniteElementSpace(object):
 
         else:
             if parallel:
-                PP = mfem.OperatorPtr(mfem.Operator.Hypre_ParCSR)                
+                PP = mfem.OperatorPtr(mfem.Operator.Hypre_ParCSR)
 
                 fes2.GetTransferOperator(fes1, PP)
                 PP.SetOperatorOwner(False)
                 P = PP.Ptr()
                 return P
             else:
-                a1 = mfem.BilinearForm(fes1);
-                a2 = mfem.BilinearForm(fes2);
+                a1 = mfem.BilinearForm(fes1)
+                a2 = mfem.BilinearForm(fes2)
                 a1.AddDomainIntegrator(mfem.VectorFEMassIntegrator())
                 a2.AddDomainIntegrator(mfem.VectorFEMassIntegrator())
                 a1.Assemble()
@@ -209,18 +209,18 @@ class HierarchicalFiniteElementSpace(object):
 
                 ess_bdr = mfem.intArray([1, 0, 1, 1, 0, 1])
                 ess1 = mfem.intArray()
-                ess2 = mfem.intArray()                                
-                #fes1.GetEssentialTrueDofs(ess_bdr, ess1)
-                #fes2.GetEssentialTrueDofs(ess_bdr, ess2)
-                #a1.SetDiagonalPolicy(mfem.Operator.DIAG_ONE)
-                #a2.SetDiagonalPolicy(mfem.Operator.DIAG_ONE)
+                ess2 = mfem.intArray()
+                fes1.GetEssentialTrueDofs(ess_bdr, ess1)
+                fes2.GetEssentialTrueDofs(ess_bdr, ess2)
+                a1.SetDiagonalPolicy(mfem.Operator.DIAG_KEEP)
+                a2.SetDiagonalPolicy(mfem.Operator.DIAG_KEEP)
                 a1.FormSystemMatrix(ess1, M1)
                 a2.FormSystemMatrix(ess2, M2)
 
                 P = mfem.TransferOperator(fes1, fes2)
-                #PP = mfem.OperatorPtr()#mfem.Operator.MFEM_SPARSEMAT)
+                # PP = mfem.OperatorPtr()#mfem.Operator.MFEM_SPARSEMAT)
                 #fes2.GetTransferOperator(fes1, PP)
-                #PP.SetOperatorOwner(False)
+                # PP.SetOperatorOwner(False)
                 #P = PP.Ptr()
                 PPP = mfem.CustomTransfer(P, M1, M2)
                 PPP._linked = (a1, a2, M1, M2, P)
@@ -237,4 +237,3 @@ class HierarchicalFiniteElementSpace(object):
                 PPP._operators = (PP, P2, trf, Pt)
                 return PPP
                 '''
-    

@@ -499,6 +499,7 @@ class IterativeSolver(LinearSolver):
             for j in range(rows):
                 v = bb.GetBlock(j)
                 v.Print('rhs_' + str(i) + '_' + str(j) + suffix)
+                #np.save('rhs_' + str(i) + '_' + str(j) + suffix, v.GetDataArray())
         if x is not None:
             for j in range(rows):
                 xx = x.GetBlock(j)

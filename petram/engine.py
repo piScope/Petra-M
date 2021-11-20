@@ -646,7 +646,7 @@ class Engine(object):
         if len(self.emeshes) <= idx or self.emeshes[idx] is None:
             m = generate_emesh(self.emeshes, info)
             # 2021 Nov.
-            #m.ReorientTetMesh()
+            # m.ReorientTetMesh()
             if len(self.emeshes) <= idx:
                 self.emeshes.extend([None]*(1+idx-len(self.emeshes)))
             self.emeshes[idx] = m
@@ -996,7 +996,7 @@ class Engine(object):
                                self.mask_B)  # solver determins A
         if isAnew:
             # generate Ae and eliminated A
-            A, Ae = self.fill_BCeliminate_matrix(A2,
+            A, Ae = self.fill_BCeliminate_matrix(A2, B,
                                                  inplace=inplace,
                                                  update=update)
         RHS = compute_rhs(M, B, X)          # solver determins RHS
@@ -1238,7 +1238,7 @@ class Engine(object):
 
             m = mfem.Mesh(str(meshname), 1, 1)
             # 2021. Nov
-            #m.ReorientTetMesh()
+            # m.ReorientTetMesh()
             solr = mfem.GridFunction(m, str(fr))
             if solr.Size() != rgf.Size():
                 assert False, "Solution file (real) has different length!!!"
@@ -1791,7 +1791,7 @@ class Engine(object):
                         # May need to allocate zeros...
         return X
 
-    def fill_BCeliminate_matrix(self, A, inplace=True, update=False):
+    def fill_BCeliminate_matrix(self, A, B, inplace=True, update=False, diagpolicy=1):
         nblock1 = A.shape[0]
         nblock2 = A.shape[1]
 
@@ -1810,9 +1810,12 @@ class Engine(object):
                 A.add_empty_square_block(idx1, idx2)
 
             if A[idx1, idx2] is not None:
-                Aee, A[idx1, idx2] = A[idx1, idx2].eliminate_RowsCols(ess_tdof,
-                                                                      inplace=inplace)
+                Aee, A[idx1, idx2], Bnew = A[idx1, idx2].eliminate_RowsCols(B[idx1], ess_tdof,
+                                                                            inplace=inplace,
+                                                                            diagpolicy=diagpolicy)
                 Ae[idx1, idx2] = Aee
+
+                B[idx1] = Bnew
 
                 '''
               note: minor differece between serial/parallel
@@ -2141,7 +2144,7 @@ class Engine(object):
                          save_parmesh=False):
         if not skip_mesh:
             mesh_filenames = self.save_mesh(phys_target)
-            
+
         if save_parmesh:
             self.save_parmesh(phys_target)
         if mesh_only:
@@ -2659,7 +2662,7 @@ class Engine(object):
                 self.max_attr = np.max(
                     [self.max_attr, max(m.GetAttributeArray())])
             # Test this...(2021/Nov)
-            #m.ReorientTetMesh()
+            # m.ReorientTetMesh()
             m.GetEdgeVertexTable()
             get_extended_connectivity(m)
 
@@ -2799,7 +2802,7 @@ class Engine(object):
             name = header+suffix
             mesh.PrintGZ(name, 16)
             mesh_names.append(name)
-            
+
         return mesh_names
 
     @property  # ALL dependent variables including Lagrange multipliers
@@ -3349,8 +3352,8 @@ class ParallelEngine(Engine):
                             self.meshes[idx] = o.run(target)
 
         for m in self.meshes:
-            # 2021. Nov 
-            #m.ReorientTetMesh()
+            # 2021. Nov
+            # m.ReorientTetMesh()
             m.GetEdgeVertexTable()
             get_extended_connectivity(m)
 
@@ -3425,18 +3428,17 @@ class ParallelEngine(Engine):
         myid = MPI.COMM_WORLD.rank
         smyid = '{:0>6d}'.format(myid)
 
-
         for phys in phys_target:
             k = phys.emesh_idx
             name = phys.dep_vars[0]
 
             mesh = self.fespaces.get_mesh(name)
 
-            header = 'solparmesh_' + str(k) 
+            header = 'solparmesh_' + str(k)
             self.clear_solmesh_files(header)
 
             mesh_name = header+'.'+smyid
-            mesh.ParPrintToFile(mesh_name, 16)            
+            mesh.ParPrintToFile(mesh_name, 16)
 
     def solfile_suffix(self):
         from mpi4py import MPI

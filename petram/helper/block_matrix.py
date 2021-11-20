@@ -249,7 +249,11 @@ class ScipyCoo(coo_matrix):
         return (0, self.shape[0], self.shape[0])
     GetPartitioningArray = GetRowPartArray
 
-    def eliminate_RowsCols(self, tdof, inplace=True):
+    def eliminate_RowsCols(self, B, tdof, inplace=True, diagpolicy=0):
+        '''
+        daigpolicy = 0  # DiagOne
+        daigpolicy = 1  # DiagKeep
+        '''
         print("inplace flag off copying matrix")
         # A + Ae style elimination
         idx = np.in1d(self.col, tdof)
@@ -268,19 +272,30 @@ class ScipyCoo(coo_matrix):
 
         if inplace:
             target = self
+            target_b = B.tolil()
         else:
             target = self.copy()
+            target_b = B.copy().tolil()
 
         target.data[idx] = 0
         target.data[idx2] = 0
         target.eliminate_zeros()
         lil2 = target.tolil()
-        lil2[tdof, tdof] = 1.
+
+        if diagpolicy == 0:
+            lil2[tdof, tdof] = 1.
+        else:
+            ddd = lil2.diagonal()[tdof]
+            target_b[tdof, 0] = target_b[tdof, 0].toarray().flatten() * ddd
+
         coo = lil2.tocoo()
         target.data = coo.data
         target.row = coo.row
         target.col = coo.col
-        return Ae2, target
+
+        coo_b = convert_to_ScipyCoo(target_b)
+
+        return Ae2, target, coo_b
 
         '''
         # this one is slower
