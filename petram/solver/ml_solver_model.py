@@ -3,7 +3,8 @@ import numpy as np
 
 from petram.solver.iterative_model import (Iterative,
                                            IterativeSolver)
-from petram.solver.solver_model import SolverInstance
+from petram.solver.solver_model import (SolverBase,
+                                        SolverInstance)
 
 from petram.model import Model
 from petram.solver.solver_model import Solver, SolverInstance
@@ -25,80 +26,100 @@ class CoarseSolver:
     pass
 
 
-class FineSolver:
-    pass
-
-
-class CoarseIterative(Iterative, CoarseSolver):
-    @classmethod
-    def fancy_menu_name(self):
-        return 'Iterative'
-
-    @classmethod
-    def fancy_tree_name(self):
-        return 'Iterative'
-
-    def get_info_str(self):
-        return 'Coarse'
-
-
-class FineIterative(Iterative, FineSolver):
-    @classmethod
-    def fancy_menu_name(self):
-        return 'Iterative'
-
-    @classmethod
-    def fancy_tree_name(self):
-        return 'Iterative'
-
-    def get_info_str(self):
-        return 'Fine'
-
-class Smoother(Iterative, FineSolver):
-    @classmethod
-    def fancy_menu_name(self):
-        return 'Smoother'
-
-    @classmethod
-    def fancy_tree_name(self):
-        return 'Smoother'
-
-    def get_info_str(self):
-        return 'Fine'
+class RefinedLevel(SolverBase):
+    has_2nd_panel = False
     
-
-class MGSolver(StdSolver):
     def attribute_set(self, v):
-        super(MGSolver, self).attribute_set(v)
-        v["refinement_levels"] = "2"
+        super(RefinedLevel, self).attribute_set(v)
+        v["level_inc"] = "1"
         v["refinement_type"] = "P(order)"
         v["presmoother_count"] = "1"
         v["postsmoother_count"] = "1"
         return v
 
     def panel1_param(self):
-        panels = super(MGSolver, self).panel1_param()
+        panels = super(RefinedLevel, self).panel1_param()
         panels.extend([["refinement type", self.refinement_type, 1,
                         {"values": ["P(order)", "H(mesh)"]}],
-                       ["number of levels", "", 0, {}],
+                       ["level increment", "", 0, {}],
                        ["pre-smoother #count", "", 0, {}],
                        ["post-smoother #count", "", 0, {}], ])
         return panels
 
     def get_panel1_value(self):
-        value = list(super(MGSolver, self).get_panel1_value())
+        value = list(super(RefinedLevel, self).get_panel1_value())
         value.append(self.refinement_type)
-        value.append(self.refinement_levels)
+        value.append(self.level_inc)
         value.append(self.presmoother_count)
         value.append(self.postsmoother_count)
         return value
 
     def import_panel1_value(self, v):
-        super(MGSolver, self).import_panel1_value(v[:-4])
+        super(RefinedLevel, self).import_panel1_value(v[:-4])
         self.refinement_type = v[-4]
-        self.refinement_levels = v[-3]
+        self.level_inc = v[-3]
         self.presmoother_count = v[-2]
         self.postsmoother_count = v[-1]
+
+    def get_possible_child(self):
+        from petram.solver.krylov import KrylovSmoother
+        from petram.solver.block_smoother import DiagonalSmoother
+        return [KrylovSmoother, DiagonalSmoother]
+
+from petram.solver.krylov import KrylovModel
+class CoarseIterative(KrylovModel, CoarseSolver):
+    @classmethod
+    def fancy_menu_name(self):
+        return 'Coarse Solver(iterative)'        
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'Iterative'
+
+    def get_info_str(self):
+        return 'Coarsest'
+    
+from petram.solver.mumps_model import MUMPS
+class CoarseDirect(MUMPS, CoarseSolver):
+    @classmethod
+    def fancy_menu_name(self):
+        return 'Coarse Solver(direct)'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'Direct'
+
+    def get_info_str(self):
+        return 'Coarsest'
+    
+
+class MultiLvlSolver(StdSolver):
+    def attribute_set(self, v):
+        super(MultiLvlSolver, self).attribute_set(v)
+        v['merge_real_imag'] = False
+        v['use_block_symmetric'] = False
+        return v
+
+    def panel1_param(self):
+        panels = super(MultiLvlSolver, self).panel1_param()
+        
+        mm = [[None, self.use_block_symmetric, 3,
+               {"text": "block symmetric format"}], ]
+        
+        p2 =   [[None, (self.merge_real_imag, (self.use_block_symmetric,)),
+                  27, ({"text": "Use ComplexOperator"}, {"elp": mm},)], ]
+        panels.extend(p2)
+        return panels
+
+    def get_panel1_value(self):
+        value = list(super(MultiLvlSolver, self).get_panel1_value())
+        value.append( (self.merge_real_imag, [self.use_block_symmetric,]))
+        return value
+
+    def import_panel1_value(self, v):
+        super(MultiLvlSolver, self).import_panel1_value(v[:-1])
+        self.merge_real_imag = bool(v[-1][0])
+        self.use_block_symmetric = bool(v[-1][1][0])
 
     def allocate_solver_instance(self, engine):
         if self.clear_wdir:
@@ -130,13 +151,12 @@ class MGSolver(StdSolver):
         return None
 
     def get_possible_child(self):
-        return FineIterative, CoarseIterative
+        return CoarseDirect, CoarseIterative, RefinedLevel
 
     def get_possible_child_menu(self):
-        choice = [("Coarse Lv. Solver", CoarseIterative),
-                  ("!", None),
-                  ("Fine Lv. Solver", FineIterative),
-                  ("!", None)]
+        choice = [("", CoarseDirect),
+                  ("", CoarseIterative),
+                  ("", RefinedLevel),]
         return choice
 
     def create_refined_levels(self, engine, lvl):

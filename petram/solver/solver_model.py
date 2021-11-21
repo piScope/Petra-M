@@ -5,7 +5,21 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
 
 '''
 
-    Solver : Model Tree Object for solvers such as TimeDependent Solver
+    Solver configurations
+
+
+    (GUI)
+
+    SolveStep:   This level defines the block matrix assembled at one time
+    Solve:       Solver solves a problem (linear or non-lienar or time-dependent or parametric),
+                 using blocks defined in SolveStep
+
+    LinterSolverModel:
+                 LinearSolver solves a linear system.
+                 Preconditioner is a child LinearSolver of LinearSolver
+
+
+    (SolverInstance)
 
     SolverInstance: an actual solver logic comes here
        SolverInstance : base class for standard solver
@@ -105,6 +119,7 @@ class SolveStep(SolverBase):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.mg_solver_model import MGSolver
+        from petram.solver.ml_solver_model import MultiLvlSolver        
         from petram.solver.solver_controls import DWCCall
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
@@ -112,10 +127,12 @@ class SolveStep(SolverBase):
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [StdSolver, StdMeshAdaptSolver, TimeDomain, DistanceSolver, MGSolver,
+            return [StdSolver, StdMeshAdaptSolver, TimeDomain, DistanceSolver,
+                    MGSolver,  MultiLvlSolver,
                     DWCCall, SetVar]
         except:
-            return [StdSolver, TimeDomain, DistanceSolver, MGSolver,
+            return [StdSolver, TimeDomain, DistanceSolver,
+                    MGSolver, MultiLvlSolver,
                     DWCCall, SetVar]
 
     @property
@@ -426,8 +443,9 @@ class Solver(SolverBase):
 
 class SolverInstance(object):
     '''
-    Solver instance is where the logic of solving linear system
-    (time stepping, adaptation, non-linear...) is written.
+    Solver instance is where the logic of solving a PDF usng
+    linearlized matrices (time stepping, adaptation, non-linear...) 
+    is written.
 
     It is not a model object. SolverModel will generate this
     instance to do the actual solve step.

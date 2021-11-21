@@ -494,16 +494,16 @@ class Model(RestorableOrderedDict):
         return None
 
     def get_panel1_value(self):
-        pass
+        return []
 
     def get_panel2_value(self):
         return (self.sel_index_txt,)
     
     def get_panel3_value(self):
-        pass
+        return []
     
     def get_panel4_value(self):
-        pass
+        return []        
 
     def import_panel1_value(self, v):
         '''
