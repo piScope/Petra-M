@@ -92,7 +92,7 @@ class HierarchicalFiniteElementSpace(object):
             self._p_storage[(key1, key2)] = P
         return P
 
-    def add_uniformly_refined_level(self, name, engine):
+    def add_uniformly_refined_level(self, name, engine, inc=1):
 
         emesh_idx, old_refine, element, order, fecdim, vdim = self._dataset[name][-1]
 
@@ -100,9 +100,10 @@ class HierarchicalFiniteElementSpace(object):
         if not (emesh_idx, new_refine) in self._refined_mesh_storage:
             m = self._refined_mesh_storage[(emesh_idx, old_refine)]
             m2 = self._owner.new_mesh_from_mesh(m)
-            m2.UniformRefinement()
+            for i in range(inc):
+                m2.UniformRefinement()
             m2.GetEdgeVertexTable()
-            self._refined_mesh_storage[(emesh_idx, old_refine+1)] = m2
+            self._refined_mesh_storage[(emesh_idx, old_refine+inc)] = m2
         else:
             m2 = self._refined_mesh_storage[(emesh_idx, new_refine)]
 

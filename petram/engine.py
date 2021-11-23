@@ -2487,10 +2487,10 @@ class Engine(object):
         names = [n for n in phys.dep_vars]
         for name in names:
             if mode == 'H':
-                nlevels = self.fespaces.add_uniformly_refined_level(name, self)
+                nlevels = self.fespaces.add_uniformly_refined_level(name, self, inc)
 
             elif mode == 'P':
-                nlevels = self.fespaces.add_order_refined_level(name, self)
+                nlevels = self.fespaces.add_order_refined_level(name, self, inc)
 
             else:
                 assert False, "Unknown refinement mode"

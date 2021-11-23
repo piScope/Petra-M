@@ -1,6 +1,7 @@
 import os
 import numpy as np
 
+from petram.namespace_mixin import NS_mixin
 from petram.solver.iterative_model import (Iterative,
                                            IterativeSolver)
 from petram.solver.solver_model import (SolverBase,
@@ -23,14 +24,49 @@ rprint = debug.regular_print('MGSolver')
 
 
 class CoarseSolver:
-    pass
+    grid_level=0
 
+class FineLevel(NS_mixin):
+    def attribute_set(self, v):
+        super(FineLevel, self).attribute_set(v)
+        v["grid_level"] = 1
+        return v
 
-class RefinedLevel(SolverBase):
+    def get_info_str(self):
+        return 'Lv:'+ str(self.grid_level)
+    
+    def get_special_menu(self, evt):
+        return [["Set level", self.onSetLevel, None, ],]
+
+    def onSetLevel(self, evt):
+        import wx
+        from ifigure.utils.edit_list import DialogEditList
+
+        diag = evt.GetEventObject().GetTopLevelParent()
+
+        list6 = [["New level", self.grid_level, 0],]
+        value = DialogEditList(list6,
+                               modal=True,
+                               style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER,
+                               tip=None,
+                               parent=diag,
+                               title='Set level...')
+        if not value[0]:
+            return
+
+        self.grid_level = int(value[1][0])
+    
+class RefinedLevel(FineLevel, SolverBase):
+    hide_ns_menu = True    
     has_2nd_panel = False
+
+    def __init__(self, *args, **kwags):
+        SolverBase.__init__(self, *args, **kwags)
+        FineLevel.__init__(self, *args, **kwags)        
     
     def attribute_set(self, v):
-        super(RefinedLevel, self).attribute_set(v)
+        v = FineLevel.attribute_set(self, v)        
+        v = SolverBase.attribute_set(self, v)
         v["level_inc"] = "1"
         v["refinement_type"] = "P(order)"
         v["presmoother_count"] = "1"
@@ -65,20 +101,34 @@ class RefinedLevel(SolverBase):
         from petram.solver.krylov import KrylovSmoother
         from petram.solver.block_smoother import DiagonalSmoother
         return [KrylovSmoother, DiagonalSmoother]
+    
+    def get_phys(self):
+        my_solve_step = self.get_solve_root()
+        return my_solve_step.get_phys()
+
+    def get_phys_range(self):
+        my_solve_step = self.get_solve_root()
+        return my_solve_step.get_phys_range()
+    
+    @classmethod
+    def fancy_tree_name(self):
+        return 'Refined'
+    
 
 from petram.solver.krylov import KrylovModel
 class CoarseIterative(KrylovModel, CoarseSolver):
     @classmethod
     def fancy_menu_name(self):
-        return 'Coarse Solver(iterative)'        
+        return 'Coarse Solver(iterative)'
 
     @classmethod
     def fancy_tree_name(self):
         return 'Iterative'
 
     def get_info_str(self):
-        return 'Coarsest'
+        return 'Coarsest:Lv0'
     
+
 from petram.solver.mumps_model import MUMPS
 class CoarseDirect(MUMPS, CoarseSolver):
     @classmethod
@@ -90,9 +140,9 @@ class CoarseDirect(MUMPS, CoarseSolver):
         return 'Direct'
 
     def get_info_str(self):
-        return 'Coarsest'
+        return 'Coarsest:Lv0'
     
-
+    
 class MultiLvlSolver(StdSolver):
     def attribute_set(self, v):
         super(MultiLvlSolver, self).attribute_set(v)
@@ -137,18 +187,27 @@ class MultiLvlSolver(StdSolver):
     def get_num_levels(self):
         return int(self.refinement_levels)
 
-    def set_model_level(self, klevel):
+    def verify_setting(self):
         '''
-        change physcis model setting to assemble operator at
-        differnet level
+        has to have one coarse solver
         '''
-        return None
+        isvalid = True
+        txt = ''
+        txt_long = ''        
+        cs = self.get_coarsest_solvers()
+        if len(cs) != 0:
+            isvalid = False
+            txt = 'Invlid MultiLvlSolver configuration'
+            txt_long = 'Number of active coarse level solver must be one.'
+            
+        levels, klevels = self.get_levels_solver()
 
-    def reset_model_level(self):
-        '''
-        revert physcis model setting to oritinal
-        '''
-        return None
+        
+        if range(len(levels)) != klevels:
+            isvalid = False
+            txt = 'Invlid MultiLvlSolver configuration'
+            txt_long = 'Grid levels are not set properly'
+            
 
     def get_possible_child(self):
         return CoarseDirect, CoarseIterative, RefinedLevel
@@ -159,6 +218,34 @@ class MultiLvlSolver(StdSolver):
                   ("", RefinedLevel),]
         return choice
 
+    def get_coarsest_solvers(self):
+        s = []
+        for x in self:
+            child = self[x]
+            if not child.is_enabled():
+                continue
+            if isinstance(child, CoarseSolver):
+                s.append(child)
+        return s
+
+    def get_level_solvers(self):
+        levels = [self.get_coarsest_solvers()[0]]
+        klevels = [0]
+        for x in self:
+            child = self[x]            
+            if not child.is_enabled():
+                continue
+            if isinstance(child, CoarseSolver):
+                continue
+            if isinstance(child, FineLevel):
+                levels.append(child)
+                klevels.append(child.grid_level)
+
+        idx = np.argsort(klevels)
+        levels = [levels[i] for i in idx]
+        klevels = [int(klevels[i]) for i in idx]
+        return levels, klevels
+
     def create_refined_levels(self, engine, lvl):
         '''
         lvl : refined level number (1, 2, 3, ....)
@@ -167,13 +254,19 @@ class MultiLvlSolver(StdSolver):
         if lvl >= int(self.refinement_levels):
             return False
 
+        levels, klevels = self.get_level_solvers()
+
+        level = levels[lvl]
+        
         target_phys = self.get_target_phys()
-        refine_type = self.refinement_type[0]  # P or H
+        refine_type = level.refinement_type[0]  # P or H
+        refine_inc = level.level_inc
+        
         for phys in target_phys:
             dprint1("Adding refined level for " + phys.name())
-            engine.prepare_refined_level(phys, refine_type, inc=1)
+            engine.prepare_refined_level(phys, refine_type, inc=refine_inc)
 
-        engine.level_idx = lvl
+        engine.level_idx = lvl            
         for phys in target_phys:
             engine.get_true_v_sizes(phys)
 
@@ -185,7 +278,7 @@ class MultiLvlSolver(StdSolver):
         if self.clear_wdir:
             engine.remove_solfiles()
 
-        instance = MGInstance(self, engine)
+        instance = MLInstance(self, engine)
         instance.set_blk_mask()
         if return_instance:
             return instance
@@ -213,7 +306,7 @@ class MultiLvlSolver(StdSolver):
         return is_first
 
 
-class MGInstance(SolverInstance):
+class MLInstance(SolverInstance):
     def __init__(self, gui, engine):
         SolverInstance.__init__(self, gui, engine)
         self.assembled = False
@@ -259,11 +352,11 @@ class MGInstance(SolverInstance):
     def assemble(self, inplace=True):
         engine = self.engine
 
-        engine.level_idx = 0
-        self.do_assemble(inplace)
+        levels, klevels = self.gui.get_level_solvers()
 
-        engine.level_idx = 1
-        self.do_assemble(inplace)
+        for l in klevels:
+           engine.level_idx = l
+           self.do_assemble(inplace)
 
         self.assembled = True
 

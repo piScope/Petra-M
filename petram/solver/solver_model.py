@@ -358,10 +358,12 @@ class Solver(SolverBase):
         return v
 
     def get_phys(self):
-        return self.parent.get_phys()
+        my_solve_step = self.get_solve_root()
+        return my_solve_step.get_phys()
 
     def get_phys_range(self):
-        return self.parent.get_phys_range()
+        my_solve_step = self.get_solve_root()
+        return my_solve_step.get_phys_range()
 
     def get_target_phys(self):
         names = self.phys_model.split(',')
