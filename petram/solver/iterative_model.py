@@ -224,6 +224,9 @@ class Iterative(LinearSolverModel, NS_mixin):
                     return False, "Iterative does not support complex.", "A complex problem must be converted to a real value problem"
         return True, "", ""
 
+    def does_linearsolver_choose_linearsystem_type(self):
+        return True
+
     def linear_system_type(self, assemble_real, phys_real):
         if phys_real:
             if assemble_real:

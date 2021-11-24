@@ -1,4 +1,6 @@
 import os
+import warnings
+
 import numpy as np
 
 from petram.namespace_mixin import NS_mixin
@@ -55,7 +57,12 @@ class FineLevel(NS_mixin):
             return
 
         self.grid_level = int(value[1][0])
-    
+
+class CoarsestLvlSolver:
+    ...
+class FinestLvlSolver:
+    ...    
+
 class RefinedLevel(FineLevel, SolverBase):
     hide_ns_menu = True    
     has_2nd_panel = False
@@ -69,33 +76,25 @@ class RefinedLevel(FineLevel, SolverBase):
         v = SolverBase.attribute_set(self, v)
         v["level_inc"] = "1"
         v["refinement_type"] = "P(order)"
-        v["presmoother_count"] = "1"
-        v["postsmoother_count"] = "1"
         return v
 
     def panel1_param(self):
         panels = super(RefinedLevel, self).panel1_param()
         panels.extend([["refinement type", self.refinement_type, 1,
                         {"values": ["P(order)", "H(mesh)"]}],
-                       ["level increment", "", 0, {}],
-                       ["pre-smoother #count", "", 0, {}],
-                       ["post-smoother #count", "", 0, {}], ])
+                       ["level increment", "", 0, {}],])
         return panels
 
     def get_panel1_value(self):
         value = list(super(RefinedLevel, self).get_panel1_value())
         value.append(self.refinement_type)
         value.append(self.level_inc)
-        value.append(self.presmoother_count)
-        value.append(self.postsmoother_count)
         return value
 
     def import_panel1_value(self, v):
-        super(RefinedLevel, self).import_panel1_value(v[:-4])
-        self.refinement_type = v[-4]
-        self.level_inc = v[-3]
-        self.presmoother_count = v[-2]
-        self.postsmoother_count = v[-1]
+        super(RefinedLevel, self).import_panel1_value(v[:-2])
+        self.refinement_type = v[-2]
+        self.level_inc = v[-1]
 
     def get_possible_child(self):
         from petram.solver.krylov import KrylovSmoother
@@ -116,42 +115,77 @@ class RefinedLevel(FineLevel, SolverBase):
     
 
 from petram.solver.krylov import KrylovModel
-class CoarseIterative(KrylovModel, CoarseSolver):
+class CoarseIterative(KrylovModel, CoarsestLvlSolver):
     @classmethod
     def fancy_menu_name(self):
-        return 'Coarse Solver(iterative)'
+        return 'Kryrov'
 
     @classmethod
     def fancy_tree_name(self):
-        return 'Iterative'
+        return 'Kryrov'
 
     def get_info_str(self):
         return 'Coarsest:Lv0'
-    
 
-from petram.solver.mumps_model import MUMPS
-class CoarseDirect(MUMPS, CoarseSolver):
+from petram.solver.mumps_model import MUMPS2
+class CoarseMUMPS(MUMPS2, CoarsestLvlSolver):
     @classmethod
     def fancy_menu_name(self):
-        return 'Coarse Solver(direct)'
+        return 'MUMPS'
 
     @classmethod
     def fancy_tree_name(self):
         return 'Direct'
 
     def get_info_str(self):
-        return 'Coarsest:Lv0'
+        return 'MUMPS:Lv0'
     
+from petram.solver.strumpack_model import Strumpack
+class CoarseStrumpack(Strumpack, CoarsestLvlSolver):
+    @classmethod
+    def fancy_menu_name(self):
+        return 'STRUMPACK'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'Direct'
+
+    def get_info_str(self):
+        return 'STRUMPACK:Lv0'
+
+from petram.solver.krylov import KrylovModel
+class FineIterative(KrylovModel, FinestLvlSolver):
+    @classmethod
+    def fancy_menu_name(self):
+        return 'Finest level solver'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'Iterative'
+
+    def get_info_str(self):
+        return 'Finest'
+
+                      
+class MultiLvlStationarySolver(StdSolver):
+    @classmethod
+    def fancy_menu_name(self):
+        return 'Stationary'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'Stationary'
     
-class MultiLvlSolver(StdSolver):
     def attribute_set(self, v):
         super(MultiLvlSolver, self).attribute_set(v)
         v['merge_real_imag'] = False
         v['use_block_symmetric'] = False
+        v["presmoother_count"] = "1"
+        v["postsmoother_count"] = "1"
         return v
 
     def panel1_param(self):
-        panels = super(MultiLvlSolver, self).panel1_param()
+        panels = super(MultiLvlStationarySolver, self).panel1_param()
         
         mm = [[None, self.use_block_symmetric, 3,
                {"text": "block symmetric format"}], ]
@@ -159,23 +193,32 @@ class MultiLvlSolver(StdSolver):
         p2 =   [[None, (self.merge_real_imag, (self.use_block_symmetric,)),
                   27, ({"text": "Use ComplexOperator"}, {"elp": mm},)], ]
         panels.extend(p2)
+
+        p3 = [["pre-smoother #count", "", 0, {}],
+              ["post-smoother #count", "", 0, {}], ]
+        panels.extend(p3)
+        
         return panels
 
     def get_panel1_value(self):
-        value = list(super(MultiLvlSolver, self).get_panel1_value())
+        value = list(super(MultiLvlStationarySolver, self).get_panel1_value())
         value.append( (self.merge_real_imag, [self.use_block_symmetric,]))
+        value.append(self.presmoother_count)
+        value.append(self.postsmoother_count)
         return value
 
     def import_panel1_value(self, v):
-        super(MultiLvlSolver, self).import_panel1_value(v[:-1])
-        self.merge_real_imag = bool(v[-1][0])
-        self.use_block_symmetric = bool(v[-1][1][0])
+        super(MultiLvlStationarySolver, self).import_panel1_value(v[:-3])
+        self.merge_real_imag = bool(v[-3][0])
+        self.use_block_symmetric = bool(v[-3][1][0])
+        self.presmoother_count = v[-2]
+        self.postsmoother_count = v[-1]
 
     def allocate_solver_instance(self, engine):
         if self.clear_wdir:
             engine.remove_solfiles()
 
-        instance = StandardSolver(self, engine)
+        instance = MLInstance(self, engine)
         return instance
 
     def get_matrix_weight(self, timestep_config):  # , timestep_weight):
@@ -210,12 +253,14 @@ class MultiLvlSolver(StdSolver):
             
 
     def get_possible_child(self):
-        return CoarseDirect, CoarseIterative, RefinedLevel
+        return CoarseMUMPS, CoarseStrumpack, CoarseIterative, RefinedLevel, FineIterative
 
     def get_possible_child_menu(self):
-        choice = [("", CoarseDirect),
-                  ("", CoarseIterative),
-                  ("", RefinedLevel),]
+        choice = [("CoarseSolver", CoarseMUMPS),
+                  ("", CoarseStrumpack),
+                  ("!", CoarseIterative),
+                  ("", RefinedLevel),
+                  ("", FineIterative),]
         return choice
 
     def get_coarsest_solvers(self):
@@ -272,13 +317,37 @@ class MultiLvlSolver(StdSolver):
 
         return True
 
+    def linear_system_type(self):
+        assemble_real = self.assemble_real
+        phys_real = self.is_allphys_real()
+        
+        if phys_real:
+            if assemble_real:
+                dprint1("Use assemble-real is only for complex value problem !!!!")
+                return 'blk_interleave'
+            else:
+                return 'blk_interleave'
+
+        # below phys is complex
+
+        # merge_real_imag -> complex operator
+        if self.merge_real_imag and self.use_block_symmetric:
+            return 'blk_merged_s'
+        elif self.merge_real_imag and not self.use_block_symmetric:
+            return 'blk_merged'
+        elif assemble_real:
+            return 'blk_interleave'
+        else:
+            assert False, "complex problem must assembled using complex operator or expand as real value problem"
+        # return None
+    
     @debug.use_profiler
     def run(self, engine, is_first=True, return_instance=False):
         dprint1("Entering run (is_first=", is_first, ")", self.fullpath())
         if self.clear_wdir:
             engine.remove_solfiles()
 
-        instance = MLInstance(self, engine)
+        instance = self.allocate_solver_instance(engine)
         instance.set_blk_mask()
         if return_instance:
             return instance
@@ -304,7 +373,8 @@ class MultiLvlSolver(StdSolver):
 
         dprint1(debug.format_memory_usage())
         return is_first
-
+    
+MultiLvlSolver = MultiLvlStationarySolver
 
 class MLInstance(SolverInstance):
     def __init__(self, gui, engine):
@@ -315,6 +385,24 @@ class MLInstance(SolverInstance):
     @property
     def blocks(self):
         return self.engine.assembled_blocks
+
+    @property
+    def ls_type(self):
+        warnings.warn("using ls_type of MLInstance is not recommended.", RuntimeWarning)
+        return  self.gui.get_root_solver().get_linearsystem_from_modeltree()        
+        
+    @ls_type.setter
+    def ls_type(self):
+        assert False, "can not set ls_type of MLInstance. It is given by model tree object"
+
+    @property
+    def phys_real(self):
+        phys_target = self.get_phys()
+        phys_range = self.get_phys_range()
+        
+        ans = all([not p.is_complex()
+                   for p in phys_target + phys_range])
+        return ans
 
     def compute_A(self, M, B, X, mask_M, mask_B):
         '''
@@ -360,35 +448,24 @@ class MLInstance(SolverInstance):
 
         self.assembled = True
 
-    def set_linearsolver_model(self):
-        fine_solver = self.gui.get_active_solver(cls=FineSolver)
-        if fine_solver is None:
-            assert False, "Fine level solver is not chosen"
-        coarse_solver = self.gui.get_active_solver(cls=CoarseSolver)
-        if coarse_solver is None:
-            assert False, "Coarse level solver is not chosen"
 
-        phys_target = self.get_phys()
-
-        self.linearsolver_models = [coarse_solver, fine_solver]
-        self.phys_real = all([not p.is_complex() for p in phys_target])
-        ls_type1 = coarse_solver.linear_system_type(self.gui.assemble_real,
-                                                    self.phys_real)
-        ls_type2 = fine_solver.linear_system_type(self.gui.assemble_real,
-                                                  self.phys_real)
-        if ls_type1 != ls_type2:
-            assert False, "Fine/Coarse solvers must assmelbe the same linear system type"
-        self.ls_type = ls_type1
-
+    def is_iterative(self):
+        '''
+        Note: this flag has an implication in matrix format.
+           direct : use a direct solver. Matrix is formed in the form solver requires.
+           iterative : form a matrix in MFEM block matrix.
+        '''
+        levels, klevels = self.gui.get_level_solvers()
+        check = [x.is_iterative() for x in levels]
+        return np.any(check)
+        
     def finalize_linear_system(self, level):
         engine = self.engine
-
         engine.level_idx = level
-        solver_model = self.linearsolver_models[level]
-        # if not self.assembled:
-        #    assert False, "assmeble must have been called"
+        ls_type = self.gui.get_root_solver().get_linearsystem_from_modeltree()
 
         A, X, RHS, Ae, B, M, depvars = self.blocks
+        
         mask = self.blk_mask
         engine.copy_block_mask(mask)
 
@@ -397,23 +474,48 @@ class MLInstance(SolverInstance):
         AA = engine.finalize_matrix(A, mask, not self.phys_real,
                                     format=self.ls_type)
         BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
-                                 format=self.ls_type)
+                                 format=ls_type)
 
-        linearsolver = self.allocate_linearsolver(self.gui.is_complex(),
-                                                  self.engine,
-                                                  solver_model=solver_model)
 
-        linearsolver.SetOperator(AA,
-                                 dist=engine.is_matrix_distributed,
-                                 name=depvars)
-
-        if linearsolver.is_iterative:
+        if self.is_iterative():
             XX = engine.finalize_x(X[0], RHS, mask, not self.phys_real,
-                                   format=self.ls_type)
+                                   format=ls_type)
         else:
             XX = None
-        return linearsolver, BB, XX, AA
+            
+        return BB, XX, AA
 
+    def finalize_linear_systems(self):
+        levels, klevels = self.gui.get_level_solvers()
+
+        finalized_ls = []
+        for k in klevels:
+            BB, XX, AA = self.finalize_linear_system(k)
+            finalized_ls.append((BB, XX, AA))
+
+        self.finalized_ls = finalized_ls
+
+    def create_solvers(self):
+        levels, klevels = self.gui.get_level_solvers()
+
+        solvers = []
+        for solver_model in levels:
+            solvers.append(solver_model.allocate_solvder())
+
+        mask = self.blk_mask
+        engine.copy_block_mask(mask)
+
+        depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
+            
+        solver.SetOperator(AA,
+                           dist=engine.is_matrix_distributed,
+                           name=depvars)
+
+    def create_prolongations(self):
+        P_matrix = fill_prolongation_operator(engine, 0, ls1.A)
+        prolongations = [P_matrix]
+        return prolongations
+        
     def assemble_rhs(self):
         assert False, "assemble_rhs is not implemented"
         '''
@@ -427,10 +529,15 @@ class MLInstance(SolverInstance):
 
     def solve(self, update_operator=True):
         engine = self.engine
+        
+        self.finalize_linear_systems()
 
-        ls0, _BB, _XX, _AA = self.finalize_linear_system(0)     # coarse
-        ls1, BB, XX, AA = self.finalize_linear_system(1)     # fine
+        smoothers = self.create_solvers()
+        prolongations = self.create_prolongations()
 
+        operators = [x[-1] for x in self.finalized_ls]
+
+        '''
         class MyGMRESSolver(mfem.PyGMRESSolver):
             def __init__(self, *args, **kwags):
                 mfem.PyGMRESSolver.__init__(self, *args, **kwags)
@@ -456,13 +563,20 @@ class MLInstance(SolverInstance):
         prolongations = [P_matrix]
         #smoothers = [ls0.solver, genearate_smoother(engine, 0, ls1.A)]
         smoothers = [ls0.solver, solver1]
+
         operators = [ls0.A, ls1.A]
-
+        '''
         #solall = linearsolver.Mult(BB, case_base=0)
-        mg = MG(operators, smoothers, prolongations,
-                presmoother_count=int(self.gui.presmoother_count),
-                postsmoother_count=int(self.gui.postsmoother_count))
+        if len(smoother) > 1:
+            coarsest = None
+            mg = MG(operators, smoothers, prolongations,
+                    presmoother_count=int(self.gui.presmoother_count),
+                    postsmoother_count=int(self.gui.postsmoother_count))
 
+        else:
+            coarsest = smoother[0]
+
+        finest = self.get_active_solver(cls=FinestSolver)
         # very small value
         # ls1.solver.SetPreconditioner(mg.solver)
         #solall = ls1.Mult(BB, XX)
@@ -555,9 +669,13 @@ class MLInstance(SolverInstance):
 
         '''
         np.save('saved_block_vector_input', BB[0].GetDataArray())
-        if ls1.gui.maxiter > 0:
-            ls1.solver.SetPreconditioner(mg.solver)
+        if finest is not None:
+            finest.create_solver()
+            finest.solver.SetOperator(self.finalized_ls[-1][-1])
+            finest.solver.SetPreconditioner(mg.solver)
             solall = ls1.Mult(BB, XX)
+        elif coarsest is not None:
+            coarsest.solver.Mult(BB[0], XX)                      
         else:
             mg.solver.Mult(BB[0], XX)
             solall = np.transpose(np.vstack([XX.GetDataArray()]))

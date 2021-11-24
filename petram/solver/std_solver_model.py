@@ -88,8 +88,6 @@ class StdSolver(Solver):
             return [1, 0, 0]
         else:
             return [0, 0, 0]
-
-        
     
     @debug.use_profiler
     def run(self, engine, is_first = True, return_instance=False):

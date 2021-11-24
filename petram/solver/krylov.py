@@ -137,28 +137,14 @@ class KrylovModel(LinearSolverModel, NS_mixin):
     def verify_setting(self):
         return True, "", ""
 
+    def allocate_solver(self, is_complex=False, engine=None):
+        raise NotImplementedError(
+            "you must specify this method in subclass")
+        
     def linear_system_type(self, assemble_real, phys_real):
-        return None
-        if phys_real:
-            if assemble_real:
-                dprint1("Use assemble-real is only for complex value problem !!!!")
-                return 'blk_interleave'
-            else:
-                return 'blk_interleave'
-
-        # below phys is complex
-
-        # merge_real_imag -> complex operator
-        if self.merge_real_imag and self.use_block_symmetric:
-            return 'blk_merged_s'
-        elif self.merge_real_imag and not self.use_block_symmetric:
-            return 'blk_merged'
-        elif assemble_real:
-            return 'blk_interleave'
-        else:
-            assert False, "complex problem must assembled using complex operator or expand as real value problem"
-        # return None
-
+        raise NotImplementedError(
+            "you must specify this method in subclass")
+        
     def real_to_complex(self, solall, M):
         if self.merge_real_imag:
             return self.real_to_complex_merged(solall, M)
@@ -241,15 +227,61 @@ class KrylovModel(LinearSolverModel, NS_mixin):
             pass
         return choice
 
+    @classmethod
+    def fancy_menu_name(self):
+        return 'KrylovSolver'
 
-class IterativeSolver(LinearSolver):
+    @classmethod
+    def fancy_tree_name(self):
+        return 'Krylov'
+
+    def get_info_str(self):
+        return 'Solver'
+
+    def does_linearsolver_choose_linearsystem_type(self):
+        return False
+
+    def supported_linear_system_type(self):
+        return ["blk_interleave",
+                "blk_merged_s",
+                "blk_merged",]
+
+class KrylovSmoother(KrylovModel):
+    @classmethod
+    def fancy_menu_name(self):
+        return 'KrylovSmoother'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'Krylov'
+
+    def get_info_str(self):
+        return 'Smoother'
+    
+    def get_possible_child(self):
+        from petram.solver.mumps_model import MUMPS
+        from petram.solver.block_smoother import DiagonalPreconditioner
+        
+        return KrylovModel, MUMPS, DiagonalPreconditioner
+
+    def get_possible_child_menu(self):
+        from petram.solver.mumps_model import MUMPS
+        from petram.solver.block_smoother import DiagonalPreconditioner
+        
+        choice = [("Preconditioner", KrylovSmoother),
+                  ("", MUMPS),
+                  ("!", DiagonalPreconditioner),]
+        return choice
+
+
+class KrylovLinearSolver(LinearSolver):
     is_iterative = True
 
-    def __init__(self, gui, engine, maxiter, abstol, reltol, kdim):
-        self.maxiter = maxiter
-        self.abstol = abstol
-        self.reltol = reltol
-        self.kdim = kdim
+    def __init__(self, gui, engine):
+        self.maxiter = gui.maxiter
+        self.abstol = gui.abstol
+        self.reltol = gui.reltol
+        self.kdim = gui.kdim
         LinearSolver.__init__(self, gui, engine)
 
     def SetOperator(self, opr, dist=False, name=None):
@@ -258,25 +290,11 @@ class IterativeSolver(LinearSolver):
 
         from petram.solver.linearsystem_reducer import LinearSystemReducer
         if use_parallel:
-            if self.gui.use_ls_reducer:
-                self.reducer = LinearSystemReducer(opr, name)
-                self.M_reduced = self.make_preconditioner(self.reducer.A,
-                                                          name=self.reducer.Aname,
-                                                          parallel=True)
-                solver = self.make_solver(self.reducer.A,
-                                          self.M_reduced,
-                                          use_mpi=True)
-                self.reducer.set_solver(solver)
-            else:
-                self.M = self.make_preconditioner(self.A, parallel=True)
-                self.solver = self.make_solver(self.A, self.M, use_mpi=True)
+             self.M = self.make_preconditioner(self.A, parallel=True)
+             self.solver = self.make_solver(self.A, self.M, use_mpi=True)
         else:
-            if self.gui.use_ls_reducer:
-                dprint1("Linear system reducer is not implemented in serial")
             self.M = self.make_preconditioner(self.A)
             self.solver = self.make_solver(self.A, self.M)
-
-            self.reducer = None
 
     def Mult(self, b, x=None, case_base=0):
         if use_parallel:
@@ -512,40 +530,3 @@ class IterativeSolver(LinearSolver):
         sol = np.transpose(np.vstack(sol))
         return sol
     
-    @classmethod
-    def fancy_menu_name(self):
-        return 'KrylovSolver'
-
-    @classmethod
-    def fancy_tree_name(self):
-        return 'Krylov'
-
-    def get_info_str(self):
-        return 'Solver'
-
-class KrylovSmoother(KrylovModel):
-    @classmethod
-    def fancy_menu_name(self):
-        return 'KrylovSmoother'
-
-    @classmethod
-    def fancy_tree_name(self):
-        return 'Krylov'
-
-    def get_info_str(self):
-        return 'Smoother'
-    
-    def get_possible_child(self):
-        from petram.solver.mumps_model import MUMPS
-        from petram.solver.block_smoother import DiagonalPreconditioner
-        
-        return KrylovModel, MUMPS, DiagonalPreconditioner
-
-    def get_possible_child_menu(self):
-        from petram.solver.mumps_model import MUMPS
-        from petram.solver.block_smoother import DiagonalPreconditioner
-        
-        choice = [("Preconditioner", KrylovSmoother),
-                  ("", MUMPS),
-                  ("!", DiagonalPreconditioner),]
-        return choice

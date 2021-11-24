@@ -35,10 +35,10 @@ class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
         item = self.topwindow.model.GetItem(indices)
         txt = self.topwindow.model.GetItemText(indices)
 
-        if item.has_ns() or item.has_nsref():
-            info = item.get_info_str()
-            if info != "":
-                txt = txt + "(" + info + ")"
+        #if item.has_ns() or item.has_nsref():
+        info = item.get_info_str()
+        if info != "":
+            txt = txt + "(" + info + ")"
         if hasattr(item, 'isGeom') and hasattr(item, '_newobjs'):
             if len(item._newobjs) < 10:
                txt = txt + '('+','.join(item._newobjs) + ')'

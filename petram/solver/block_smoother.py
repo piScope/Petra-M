@@ -42,6 +42,13 @@ class BlockSmoother(LinearSolverModel, NS_mixin):
     def fancy_tree_name(self):
         return 'BlockPreconditioner'        
 
+    def does_linearsolver_choose_linearsystem_type(self):
+        return False
+
+    def supported_linear_system_type(self):
+        return ["blk_interleave",
+                "blk_merged_s",
+                "blk_merged",]
 
 class DiagonalPreconditioner(BlockSmoother):
     @classmethod
@@ -123,5 +130,9 @@ class DiagonalSmoother(BlockSmoother):
     @classmethod
     def fancy_tree_name(self):
         return 'DiagonalSmoother'
+
+class DiagonalLinearSolver(LinearSolver):
+    is_iterative = True
+    
 
     

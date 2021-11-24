@@ -24,7 +24,7 @@ def convert2int(txt):
         assert False, "can not convert to float. Input text is " + txt
 
 
-class MUMPS(LinearSolverModel):
+class MUMPSBase(LinearSolverModel):
     has_2nd_panel = False
     accept_complex = True
     is_iterative = False
@@ -95,7 +95,7 @@ class MUMPS(LinearSolverModel):
         self.use_single_precision = v[19]
 
     def attribute_set(self, v):
-        v = super(MUMPS, self).attribute_set(v)
+        v = super(MUMPSBase, self).attribute_set(v)
 
         v['log_level'] = 0
         '''
@@ -138,13 +138,6 @@ class MUMPS(LinearSolverModel):
         v['s'] = None
         return v
 
-    def linear_system_type(self, assemble_real, phys_real):
-        if phys_real:
-            return 'coo'
-        if assemble_real:
-            return 'coo_real'
-        return 'coo'
-
     def allocate_solver(self, is_complex=False, engine=None):
         # engine not used
         solver = MUMPSSolver(self, engine)
@@ -175,7 +168,29 @@ class MUMPS(LinearSolverModel):
             self.s.finish()
         self.s = None
 
+class MUMPS(MUMPSBase):
+    def does_linearsolver_choose_linearsystem_type(self):
+        return True
+    
+    def linear_system_type(self, assemble_real, phys_real):
+        if phys_real:
+            return 'coo'
+        if assemble_real:
+            return 'coo_real'
+        return 'coo'
 
+class MUMPS2(MUMPSBase):
+    '''
+    This one is to use MUMPS in iterative solver
+    '''
+    def does_linearsolver_choose_linearsystem_type(self):
+        return False
+    
+    def supported_linear_system_type(self):
+        return ["blk_interleave",
+                "blk_merged_s",
+                "blk_merged",]
+        
 class MUMPSSolver(LinearSolver):
     is_iterative = False
 

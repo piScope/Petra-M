@@ -190,6 +190,9 @@ class Strumpack(LinearSolverModel):
 
         return v
 
+    def does_linearsolver_choose_linearsystem_type(self):
+        return True
+    
     def linear_system_type(self, assemble_real, phys_real):
         if phys_real:
             return 'blk_interleave'
