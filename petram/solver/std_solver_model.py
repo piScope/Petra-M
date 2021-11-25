@@ -11,6 +11,14 @@ class StdSolver(Solver):
     can_delete = True
     has_2nd_panel = False
 
+    @classmethod
+    def fancy_menu_name(self):
+        return 'Stationary'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'Stationary'
+    
     def attribute_set(self, v):
         super(StdSolver, self).attribute_set(v)
         return v

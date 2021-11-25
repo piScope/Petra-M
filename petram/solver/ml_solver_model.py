@@ -24,10 +24,6 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MGSolver')
 rprint = debug.regular_print('MGSolver')
 
-
-class CoarseSolver:
-    grid_level=0
-
 class FineLevel(NS_mixin):
     def attribute_set(self, v):
         super(FineLevel, self).attribute_set(v)
@@ -59,7 +55,8 @@ class FineLevel(NS_mixin):
         self.grid_level = int(value[1][0])
 
 class CoarsestLvlSolver:
-    ...
+    grid_level=0    
+
 class FinestLvlSolver:
     ...    
 
@@ -170,7 +167,7 @@ class FineIterative(KrylovModel, FinestLvlSolver):
 class MultiLvlStationarySolver(StdSolver):
     @classmethod
     def fancy_menu_name(self):
-        return 'Stationary'
+        return 'Stationary(MultiLevel)'
 
     @classmethod
     def fancy_tree_name(self):
@@ -269,7 +266,7 @@ class MultiLvlStationarySolver(StdSolver):
             child = self[x]
             if not child.is_enabled():
                 continue
-            if isinstance(child, CoarseSolver):
+            if isinstance(child, CoarsestLvlSolver):
                 s.append(child)
         return s
 
@@ -280,7 +277,7 @@ class MultiLvlStationarySolver(StdSolver):
             child = self[x]            
             if not child.is_enabled():
                 continue
-            if isinstance(child, CoarseSolver):
+            if isinstance(child, CoarsestLvlSolver):
                 continue
             if isinstance(child, FineLevel):
                 levels.append(child)
@@ -296,10 +293,10 @@ class MultiLvlStationarySolver(StdSolver):
         lvl : refined level number (1, 2, 3, ....)
               1 means "AFTER" 1 refinement
         '''
-        if lvl >= int(self.refinement_levels):
-            return False
-
         levels, klevels = self.get_level_solvers()
+        
+        if lvl >= len(klevels):
+            return False
 
         level = levels[lvl]
         
@@ -394,15 +391,6 @@ class MLInstance(SolverInstance):
     @ls_type.setter
     def ls_type(self):
         assert False, "can not set ls_type of MLInstance. It is given by model tree object"
-
-    @property
-    def phys_real(self):
-        phys_target = self.get_phys()
-        phys_range = self.get_phys_range()
-        
-        ans = all([not p.is_complex()
-                   for p in phys_target + phys_range])
-        return ans
 
     def compute_A(self, M, B, X, mask_M, mask_B):
         '''

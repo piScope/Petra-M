@@ -144,6 +144,35 @@ class SolveStep(SolverBase):
                     #MGSolver,
                     StdSolver,
                     DWCCall, SetVar]
+        
+    def get_possible_child_menu(self):
+        #from solver.solinit_model import SolInit
+        from petram.solver.std_solver_model import StdSolver
+        from petram.solver.mg_solver_model import MGSolver
+        from petram.solver.ml_solver_model import MultiLvlStationarySolver        
+        from petram.solver.solver_controls import DWCCall
+        from petram.solver.timedomain_solver_model import TimeDomain
+        from petram.solver.set_var import SetVar
+        from petram.solver.distance_solver import DistanceSolver
+
+        try:
+            from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
+            return [("", StdSolver),
+                    ("", MultiLvlStationarySolver),
+                    ("", TimeDomain),
+                    ("extra", DistanceSolver),
+                    ("", StdMeshAdaptSolver), 
+                    #MGSolver,
+                    ("", DWCCall),
+                    ("!", SetVar)]
+        except:
+            return [("", StdSolver),
+                    ("", MultiLvlStationarySolver),
+                    ("", TimeDomain),
+                    ("extra", DistanceSolver),
+                    #MGSolver,
+                    ("", DWCCall),
+                    ("!", SetVar)]
 
     @property
     def solve_error(self):
@@ -274,14 +303,14 @@ class SolveStep(SolverBase):
     #
     def verify_setting(self):
         try:
-            self.get_linearsystem_from_modeltree()
+            self.get_linearsystem_type_from_modeltree()
 
         except:
             return False, "Can not select linear system type consistently"
 
         return True, "", ""
 
-    def get_linearsystem_from_modeltree(self):
+    def get_linearsystem_type_from_modeltree(self):
         '''
         find appropriate linear system type from model tree. this supports
         two ways to choose linear system type.
@@ -290,14 +319,25 @@ class SolveStep(SolverBase):
         '''
         ls_selected = None
         ls_candidates = None
-        
+
+        def collect_assemble_real(top):
+            tmp = []
+            for x in top.iter_enabled():
+                if hasattr('x', 'assemble_real'):
+                    tmp.append(x.assemble_real)
+            if True in tmp and False in tmp:
+                assert False, "Assemble real is not selected consistently"
+            return (True in tmp)
+                
         for x in self.walk():
             if not x.is_enabled():
                 continue
             if isinstance(x, LinearSolverModel):
                 if x.does_linearsolver_choose_linearsystem_type():
-                    tmp = s.linear_system_type(self.assemble_real,
-                                       self.phys_real)            
+                    assemble_real =  collect_assemble_real(top)
+                    phys_real = self.is_allphys_real()
+                    
+                    tmp = s.linear_system_type(assemble_real, phys_real)            
                     if ls_selected is None:
                         ls_selected = tmp
                     elif ls_selected == tmp:
@@ -541,9 +581,8 @@ class SolverInstance(ABC):
         self.linearsolver = None      # Actual LinearSolver
         self.probe = []
         self.linearsolver_model = None
-        self.phys_real = True
         self._ls_type = ''
-
+        self.phys_real = self.gui.parent.is_allphys_real()
         if not gui.init_only:
             self.set_linearsolver_model()
 
@@ -559,7 +598,7 @@ class SolverInstance(ABC):
     @property
     def blocks(self):
         return self.engine.assembled_blocks
-    
+        
     @property
     def ls_type(self):
         return self._ls_type
@@ -619,12 +658,13 @@ class SolverInstance(ABC):
         solver = self.gui.get_active_solver()
         if solver is None:
             assert False, "Linear solver is not chosen"
+            
         phys_target = self.get_phys()
-
         self.linearsolver_model = solver
-        self.phys_real = all([not p.is_complex() for p in phys_target])
-        self.ls_type = solver.linear_system_type(self.gui.assemble_real,
-                                                 self.phys_real)
+
+        if solver.does_linearsolver_choose_linearsystem_type():
+            my_solve_step = self.gui.get_solver_root()
+            self.ls_type = my_solve_step.get_linearsystem_type_from_modeltree()
 
     def configure_probes(self, probe_txt):
         from petram.sol.probe import Probe
