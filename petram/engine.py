@@ -2487,10 +2487,12 @@ class Engine(object):
         names = [n for n in phys.dep_vars]
         for name in names:
             if mode == 'H':
-                nlevels = self.fespaces.add_uniformly_refined_level(name, self, inc)
+                nlevels = self.fespaces.add_uniformly_refined_level(
+                    name, self, inc)
 
             elif mode == 'P':
-                nlevels = self.fespaces.add_order_refined_level(name, self, inc)
+                nlevels = self.fespaces.add_order_refined_level(
+                    name, self, inc)
 
             else:
                 assert False, "Unknown refinement mode"
@@ -2849,6 +2851,10 @@ class Engine(object):
     def masked_dep_var_offset(self, name):
         return [x for i, x in enumerate(self._dep_vars)
                 if self._matrix_blk_mask[0][i]].index(name)
+
+    def masked_dep_var_names(self):
+        return [x for i, x in enumerate(self._dep_vars)
+                if self._matrix_blk_mask[0][i]]
 
     def isFESvar(self, name):
         if not name in self._dep_vars:

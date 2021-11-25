@@ -249,68 +249,9 @@ class Iterative(LinearSolverModel, NS_mixin):
         # return None
 
     def real_to_complex(self, solall, M):
-        if self.merge_real_imag:
-            return self.real_to_complex_merged(solall, M)
-        else:
-            return self.real_to_complex_interleaved(solall, M)
+        from petram.solver.solver_model import convert_realblocks_to_complex
 
-    def real_to_complex_interleaved(self, solall, M):
-        if use_parallel:
-            from mpi4py import MPI
-            myid = MPI.COMM_WORLD.rank
-
-            offset = M.RowOffsets().ToList()
-            of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
-                  for o in offset]
-            if myid != 0:
-                return
-
-        else:
-            offset = M.RowOffsets()
-            of = offset.ToList()
-
-        rows = M.NumRowBlocks()
-        s = solall.shape
-        nb = rows // 2
-        i = 0
-        pt = 0
-        result = np.zeros((s[0] // 2, s[1]), dtype='complex')
-        for j in range(nb):
-            l = of[i + 1] - of[i]
-            result[pt:pt + l, :] = (solall[of[i]:of[i + 1], :]
-                                    + 1j * solall[of[i + 1]:of[i + 2], :])
-            i = i + 2
-            pt = pt + l
-
-        return result
-
-    def real_to_complex_merged(self, solall, M):
-        if use_parallel:
-            from mpi4py import MPI
-            myid = MPI.COMM_WORLD.rank
-
-            offset = M.RowOffsets().ToList()
-            of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
-                  for o in offset]
-            if myid != 0:
-                return
-
-        else:
-            offset = M.RowOffsets()
-            of = offset.ToList()
-        dprint1(of)
-        rows = M.NumRowBlocks()
-        s = solall.shape
-        i = 0
-        pt = 0
-        result = np.zeros((s[0] // 2, s[1]), dtype='complex')
-        for i in range(rows):
-            l = of[i + 1] - of[i]
-            w = int(l // 2)
-            result[pt:pt + w, :] = (solall[of[i]:of[i] + w, :]
-                                    + 1j * solall[(of[i] + w):of[i + 1], :])
-            pt = pt + w
-        return result
+        return convert_realblocks_to_complex(solall, M, self.merge_real_imag)
 
     def allocate_solver(self, is_complex=False, engine=None):
         solver = IterativeSolver(self, engine, int(self.maxiter),

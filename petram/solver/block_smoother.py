@@ -28,19 +28,24 @@ else:
     import mfem.ser as mfem
     default_kind = 'scipy'
 
+
 class BlockSmoother(LinearSolverModel, NS_mixin):
     hide_ns_menu = True
     has_2nd_panel = False
     accept_complex = False
     always_new_panel = False
-    
+
+    def __init__(self, *args, **kwargs):
+        LinearSolverModel.__init__(self, *args, **kwargs)
+        NS_mixin.__init__(self, *args, **kwargs)
+
     @classmethod
     def fancy_menu_name(self):
         return 'BlockPreconditioner'
 
     @classmethod
     def fancy_tree_name(self):
-        return 'BlockPreconditioner'        
+        return 'BlockPreconditioner'
 
     def does_linearsolver_choose_linearsystem_type(self):
         return False
@@ -48,7 +53,12 @@ class BlockSmoother(LinearSolverModel, NS_mixin):
     def supported_linear_system_type(self):
         return ["blk_interleave",
                 "blk_merged_s",
-                "blk_merged",]
+                "blk_merged", ]
+
+    def real_to_complex(self, solall, M=None):
+        raise NotImplementedError(
+            "bug. this method sould not be called")
+
 
 class DiagonalPreconditioner(BlockSmoother):
     @classmethod
@@ -68,7 +78,7 @@ class DiagonalPreconditioner(BlockSmoother):
         return [[None, [False, [''], [[], ]], 27, [{'text': 'advanced mode'},
                                                    {'elp': [
                                                        ['preconditioner', '', 0, None], ]},
-                                                   {'elp': [smp1, ]}], ],]
+                                                   {'elp': [smp1, ]}], ], ]
 
     def get_panel1_value(self):
         # this will set _mat_weight
@@ -109,20 +119,95 @@ class DiagonalPreconditioner(BlockSmoother):
         return v
 
     def get_possible_child(self):
-        from petram.solver.mumps_model import MUMPS
+        from petram.solver.mumps_model import MUMPSPreconditionerModel
         from petram.solver.krylov import KrylovModel, KrylovSmoother
-        return KrylovSmoother, MUMPS
-
+        return KrylovSmoother, MUMPSPreconditionerModel
 
     def get_possible_child_menu(self):
-        from petram.solver.mumps_model import MUMPS
+        from petram.solver.mumps_model import MUMPSPreconditionerModel
         from petram.solver.krylov import KrylovModel, KrylovSmoother
         choice = [("Blocks", KrylovSmoother),
-                  ("!", MUMPS),]
+                  ("!", MUMPSPreconditionerModel), ]
         return choice
-    
 
-class DiagonalSmoother(BlockSmoother):
+    def prepare_solver(self, opr, engine):
+        def get_operator_block(r, c):
+            # if linked_op exists (= op is set from python).
+            # try to get it
+            # print(self.opr._linked_op)
+            if hasattr(opr, "_linked_op"):
+                try:
+                    return opr._linked_op[(r, c)]
+                except KeyError:
+                    return None
+            else:
+                blk = opr.GetBlock(r, c)
+                if use_parallel:
+                    return mfem.Opr2HypreParMat(blk)
+                else:
+                    return mfem.Opr2SparseMat(blk)
+
+        names = engine.masked_dep_var_names()
+
+        if self.adv_mode:
+            expr = self.adv_prc
+            gen = eval(expr, self._global_ns)
+            gen.set_param(A, names, engine, self)
+            M = gen()
+
+        else:
+            prcs_gui = dict(self.preconditioners)
+
+            ls_type = self.get_solve_root().get_linearsystem_type_from_modeltree()
+
+            if ls_type == 'blk_interleave':
+                names = sum([[n, n] for n in names], [])
+
+            import petram.helper.preconditioners as prcs
+
+            g = prcs.DiagonalPrcGen(
+                opr=opr, engine=engine, gui=self, name=names)
+            M = g()
+
+            pc_block = {}
+
+            for k, n in enumerate(names):
+                prctxt = prcs_gui[n][1] if use_parallel else prcs_gui[n][0]
+                if prctxt == "None":
+                    continue
+                if prctxt.find("(") == -1:
+                    prctxt = prctxt + "()"
+                prcargs = "(".join(prctxt.split("(")[-1:])
+
+                nn = prctxt.split("(")[0]
+
+                if not n in pc_block:
+                    # make a new one
+                    if not nn in self:
+                        try:
+                            blkgen = getattr(prcs, nn)
+                        except BaseException:
+                            if nn in self._global_ns:
+                                blkgen = self._global_ns[nn]
+                            else:
+                                raise
+
+                        blkgen.set_param(g, n)
+                        blk = eval("blkgen(" + prcargs)
+                    else:
+                        rr = engine.masked_dep_var_offset(n)
+                        cc = engine.masked_r_dep_var_offset(n)
+                        A = get_operator_block(rr, cc)
+                        blk = self[nn].prepare_solver(A, engine)
+
+                    M.SetDiagonalBlock(k, blk)
+                    pc_block[n] = blk
+                else:
+                    M.SetDiagonalBlock(k, pc_block[n])
+        return M
+
+
+class DiagonalSmoother(DiagonalPreconditioner):
     @classmethod
     def fancy_menu_name(self):
         return 'DiagonalSmoother'
@@ -130,9 +215,3 @@ class DiagonalSmoother(BlockSmoother):
     @classmethod
     def fancy_tree_name(self):
         return 'DiagonalSmoother'
-
-class DiagonalLinearSolver(LinearSolver):
-    is_iterative = True
-    
-
-    

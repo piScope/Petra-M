@@ -168,10 +168,11 @@ class MUMPSBase(LinearSolverModel):
             self.s.finish()
         self.s = None
 
+
 class MUMPS(MUMPSBase):
     def does_linearsolver_choose_linearsystem_type(self):
         return True
-    
+
     def linear_system_type(self, assemble_real, phys_real):
         if phys_real:
             return 'coo'
@@ -179,18 +180,64 @@ class MUMPS(MUMPSBase):
             return 'coo_real'
         return 'coo'
 
-class MUMPS2(MUMPSBase):
+
+class MUMPSMFEMSolverModel(MUMPSBase):
     '''
     This one is to use MUMPS in iterative solver
+    It creates MUMPSBlockPreconditioner
     '''
+    @classmethod
+    def fancy_menu_name(self):
+        return 'MUMPS'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'MUMPS'
+
     def does_linearsolver_choose_linearsystem_type(self):
         return False
-    
+
     def supported_linear_system_type(self):
         return ["blk_interleave",
                 "blk_merged_s",
-                "blk_merged",]
-        
+                "blk_merged", ]
+
+    def prepare_solver(self, opr, engine):
+        solver = MUMPSBlockPreconditioner(opr,
+                                          gui=self,
+                                          engine=engine,)
+        solver.SetOperator(opr)
+        return solver
+
+
+class MUMPSPreconditionerModel(MUMPSBase):
+    '''
+    This one is to use MUMPS in iterative solver
+    It creates MUMPSPreconditioner
+    '''
+    @classmethod
+    def fancy_menu_name(self):
+        return 'MUMPS'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'MUMPS'
+
+    def does_linearsolver_choose_linearsystem_type(self):
+        return False
+
+    def supported_linear_system_type(self):
+        return ["blk_interleave",
+                "blk_merged_s",
+                "blk_merged", ]
+
+    def prepare_solver(self, opr, engine):
+        prc = MUMPSPreconditioner(opr,
+                                  gui=self,
+                                  engine=engine)
+        return prc
+
+
 class MUMPSSolver(LinearSolver):
     is_iterative = False
 
@@ -941,9 +988,8 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             if myid == 0:
                 xx = np.atleast_2d(xx).transpose()
 
-        
         s = [solver.Mult(xx) for solver in self.solver]
-        
+
         if self.row_offset != -1:
             from mpi4py import MPI
             comm = MPI.COMM_WORLD
@@ -965,7 +1011,7 @@ class MUMPSBlockPreconditioner(mfem.Solver):
 
         else:
             s = [xx.flatten() for xx in s]
-            s = np.mean(s, 0)            
+            s = np.mean(s, 0)
             if self.is_complex_operator:
                 s = self.complex_to_real(s)
 
@@ -1039,11 +1085,11 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             # nicePrint(self.all_block_size)
 
         self.solver = []
-        
-        if not self.gui.restore_fac:        
+
+        if not self.gui.restore_fac:
             solver = MUMPSSolver(self.gui, self.engine)
             solver.AllocSolver(self.is_complex_operator,
-                                self.gui.use_single_precision)
+                               self.gui.use_single_precision)
             solver.SetOperator(gcoo, is_parallel)
             self.solver.append(solver)
         else:
@@ -1051,10 +1097,10 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             for i in range(len(pathes)):
                 solver = MUMPSSolver(self.gui, self.engine)
                 solver.AllocSolver(self.is_complex_operator,
-                                self.gui.use_single_precision)
+                                   self.gui.use_single_precision)
                 solver.SetOperator(gcoo, is_parallel, ifactor=i)
                 self.solver.append(solver)
-             
+
         self.is_parallel = is_parallel
 
         if is_parallel:

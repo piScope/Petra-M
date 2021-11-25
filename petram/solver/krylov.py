@@ -69,7 +69,7 @@ class KrylovModel(LinearSolverModel, NS_mixin):
                                   ], ],
                 [None, self.write_mat, 3, {"text": "write matrix"}],
                 [None, self.assert_no_convergence, 3,
-                    {"text": "check converegence"}],]
+                    {"text": "check converegence"}], ]
 
     def get_panel1_value(self):
         # this will set _mat_weight
@@ -120,31 +120,23 @@ class KrylovModel(LinearSolverModel, NS_mixin):
         return v
 
     def get_possible_child(self):
-        from petram.solver.mumps_model import MUMPS
+        from petram.solver.mumps_model import MUMPSMFEMSolverModel as MUMPS
         from petram.solver.block_smoother import DiagonalPreconditioner
-        
+
         return KrylovModel, MUMPS, DiagonalPreconditioner
 
     def get_possible_child_menu(self):
-        from petram.solver.mumps_model import MUMPS
+        from petram.solver.mumps_model import MUMPSMFEMSolverModel as MUMPS
         from petram.solver.block_smoother import DiagonalPreconditioner
-        
+
         choice = [("Preconditioner", KrylovSmoother),
                   ("", MUMPS),
-                  ("!", DiagonalPreconditioner),]
+                  ("!", DiagonalPreconditioner), ]
         return choice
-    
+
     def verify_setting(self):
         return True, "", ""
 
-    def allocate_solver(self, is_complex=False, engine=None):
-        raise NotImplementedError(
-            "you must specify this method in subclass")
-        
-    def linear_system_type(self, assemble_real, phys_real):
-        raise NotImplementedError(
-            "you must specify this method in subclass")
-        
     def real_to_complex(self, solall, M):
         if self.merge_real_imag:
             return self.real_to_complex_merged(solall, M)
@@ -209,23 +201,50 @@ class KrylovModel(LinearSolverModel, NS_mixin):
             pt = pt + w
         return result
 
-    def allocate_solver(self, is_complex=False, engine=None):
-        solver = IterativeSolver(self, engine, int(self.maxiter),
-                                 self.abstol, self.reltol, int(self.kdim))
-        # solver.AllocSolver(datatype)
+    def prepare_preconditioner(self, opr, engine):
+        for x in self.iter_enabled():
+            if isinstace(x, LinearSolverModel):
+                return x.prepare_solver(opr, engine)
+
+    def do_prepare_solver(self, opr, engine):
+        self.solver_type = str(v[0][0])
+        idx = choices_a.index(self.solver_type)
+        vv = v[0][idx + 1]
+        self.log_level = int(vv[0])
+        self.maxiter = int(vv[1])
+        self.reltol = vv[2]
+        self.abstol = vv[3]
+
+        if len(vv) > 4:
+            self.kdim = int(vv[4])
+
+        self.write_mat = bool(v[1])
+        self.assert_no_convergence = bool(v[2])
+
+        cls = getattr(mfem, self.solver_type + 'Solver')
+        args = (MPI.COMM_WORLD,) if use_parallel else ()
+
+        solver = cls(*args)
+        solver.SetAbsTol(self.abstol)
+        solver.SetRelTol(self.reltol)
+        solver.SetMaxIter(self.maxiter)
+        solver.SetPrintLevel(self.log_level)
+        if self.solver_type in ['GMRES', 'FGMRES']:
+            solver.SetKDim(int(self.kdim))
+
+        solver.iterative_mode = False
+        solver.SetOperator(opr)
+
+        M = self.prepare_preconditioner(opr, engine)
+        if M is not None:
+            solver.SetPreconditioner(M)
         return solver
 
-    def get_possible_child(self):
-        '''
-        Preconditioners....
-        '''
-        choice = []
-        try:
-            from petram.solver.mumps_model import MUMPS
-            choice.append(MUMPS)
-        except ImportError:
-            pass
-        return choice
+    def prepare_solver(self, opr, engine):
+        solver = self.prepare_solver(opr, engine)
+        solver.iterative_mode = True
+
+        return solver
 
     @classmethod
     def fancy_menu_name(self):
@@ -244,7 +263,8 @@ class KrylovModel(LinearSolverModel, NS_mixin):
     def supported_linear_system_type(self):
         return ["blk_interleave",
                 "blk_merged_s",
-                "blk_merged",]
+                "blk_merged", ]
+
 
 class KrylovSmoother(KrylovModel):
     @classmethod
@@ -257,21 +277,12 @@ class KrylovSmoother(KrylovModel):
 
     def get_info_str(self):
         return 'Smoother'
-    
-    def get_possible_child(self):
-        from petram.solver.mumps_model import MUMPS
-        from petram.solver.block_smoother import DiagonalPreconditioner
-        
-        return KrylovModel, MUMPS, DiagonalPreconditioner
 
-    def get_possible_child_menu(self):
-        from petram.solver.mumps_model import MUMPS
-        from petram.solver.block_smoother import DiagonalPreconditioner
-        
-        choice = [("Preconditioner", KrylovSmoother),
-                  ("", MUMPS),
-                  ("!", DiagonalPreconditioner),]
-        return choice
+    def prepare_solver(self, opr, engine):
+        solver = self.prepare_solver(opr, engine)
+        solver.iterative_mode = False
+
+        return solver
 
 
 class KrylovLinearSolver(LinearSolver):
@@ -290,8 +301,8 @@ class KrylovLinearSolver(LinearSolver):
 
         from petram.solver.linearsystem_reducer import LinearSystemReducer
         if use_parallel:
-             self.M = self.make_preconditioner(self.A, parallel=True)
-             self.solver = self.make_solver(self.A, self.M, use_mpi=True)
+            self.M = self.make_preconditioner(self.A, parallel=True)
+            self.solver = self.make_solver(self.A, self.M, use_mpi=True)
         else:
             self.M = self.make_preconditioner(self.A)
             self.solver = self.make_solver(self.A, self.M)
@@ -529,4 +540,3 @@ class KrylovLinearSolver(LinearSolver):
             sol.append(xx.GetDataArray().copy())
         sol = np.transpose(np.vstack(sol))
         return sol
-    
