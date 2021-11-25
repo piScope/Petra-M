@@ -195,7 +195,7 @@ class MultiLvlStationarySolver(StdSolver):
 
     def attribute_set(self, v):
         super(MultiLvlSolver, self).attribute_set(v)
-        v['merge_real_imag'] = False
+        v['merge_real_imag'] = True
         v['use_block_symmetric'] = False
         v["presmoother_count"] = "1"
         v["postsmoother_count"] = "1"
@@ -705,7 +705,7 @@ class MLInstance(SolverInstance):
         '''
         if not self.phys_real:
             from petram.solver.solver_model import convert_realblocks_to_complex
-            merge_real_imag = self.ls_type in ["blk_merge", "blk_merge_s"]
+            merge_real_imag = self.ls_type in ["blk_merged", "blk_merged_s"]
             solall = convert_realblocks_to_complex(solall, AA, merge_real_imag)
 
         engine.level_idx = len(self.finalized_ls)-1
