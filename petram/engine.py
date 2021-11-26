@@ -107,8 +107,8 @@ class Engine(object):
         self.initialize_fespaces()
 
     def initialize_fespaces(self):
-        from petram.helper.hierarchical_finite_element_space import HierarchicalFiniteElementSpace
-        self._fespace_hierarchy = HierarchicalFiniteElementSpace(owner=self)
+        from petram.helper.hierarchical_finite_element_spaces import HierarchicalFiniteElementSpaces
+        self._fespace_hierarchy = HierarchicalFiniteElementSpaces(owner=self)
 
     stored_data_names = ("is_assembled",
                          "self.is_initialized",
@@ -2077,8 +2077,7 @@ class Engine(object):
     def recover_sol(self, sol, access_idx=0):
 
         self.access_idx = access_idx
-        # nicePrint(self.r_fes_vars)
-        # nicePrint(self.fes_vars)
+
         for k, s in enumerate(sol):
             if s is None:
                 continue  # None=linear solver didnot solve this value, so no update
@@ -2087,7 +2086,6 @@ class Engine(object):
             ridx = self.r_dep_var_offset(name)
             s = s.toarray()
             X = self.r_x.get_matvec(r_ifes)
-            #nicePrint("size", s.shape, X.Size())
 
             X.Assign(s.flatten().real)
             self.X2x(X, self.r_x[r_ifes])

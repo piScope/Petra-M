@@ -218,12 +218,14 @@ class KrylovModel(LinearSolverModel, NS_mixin):
         if self.solver_type in ['GMRES', 'FGMRES']:
             solver.SetKDim(int(self.kdim))
 
-        solver.iterative_mode = False
+        solver.iterative_mode = True
         solver.SetOperator(opr)
 
         M = self.prepare_preconditioner(opr, engine)
+
         if M is not None:
             solver.SetPreconditioner(M)
+            solver._prc = M
         return solver
 
     def prepare_solver(self, opr, engine):
@@ -264,10 +266,16 @@ class KrylovSmoother(KrylovModel):
     def get_info_str(self):
         return 'Smoother'
 
+    def attribute_set(self, v):
+        v = KrylovModel.attribute_set(self, v)
+        v['log_level'] = -1
+        v['abstol'] = 0.0
+        v['assert_no_convergence'] = False
+        return v
+
     def prepare_solver(self, opr, engine):
         solver = self.do_prepare_solver(opr, engine)
         solver.iterative_mode = False
-
         return solver
 
     def prepare_solver_with_multtranspose(self, opr, engine):
@@ -283,7 +291,8 @@ class KrylovSmoother(KrylovModel):
             # def SetOperator(self, x):
             #     mfem.GMRESSolver.SetOperator(self, x)
 
-        solver = MyGMRESSolver()
+        args = (MPI.COMM_WORLD,) if use_parallel else ()
+        solver = MyGMRESSolver(*args)
         solver.SetAbsTol(self.abstol)
         solver.SetRelTol(self.reltol)
         solver.SetMaxIter(self.maxiter)

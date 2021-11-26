@@ -689,6 +689,51 @@ class BlockMatrix(object):
 
         return ret, P2
 
+    def reformat_distributed_mat(self, mat, ksol, ret, mask):
+        '''
+        reformat distributed matrix into blockmatrix (columne vector)
+        '''
+        L = []
+        idx = 0
+        imask = [x for x in range(len(mask[0])) if mask[0][x]]
+        jmask = [x for x in range(len(mask[1])) if mask[1][x]]
+
+        for j in jmask:
+            for i in imask:
+                if self[i, j] is not None:
+                    if self.kind == 'scipy':
+                        l = self[i, j].shape[1]
+                    else:
+                        part = self[i, j].GetColPartArray()
+                        l = part[1] - part[0]
+                    ref = self[i, j]
+                    break
+            L.append(l)
+            v = mat[idx:idx + l, ksol]
+            idx = idx + l
+
+            ret.set_element_from_distributed_mat(v, j, 0, ref)
+        return ret
+
+    def set_element_from_distributed_mat(self, v, i, j, ref):
+        if self.kind == 'scipy':
+            self[i, j] = v.reshape(-1, 1)
+        else:
+            from mpi4py import MPI
+            comm = MPI.COMM_WORLD
+
+            if ref.isHypre:
+                v = np.ascontiguousarray(v)
+                if np.iscomplexobj(v):
+                    rv = ToHypreParVec(v.real)
+                    iv = ToHypreParVec(v.imag)
+                    self[i, j] = chypre.CHypreVec(rv, iv)
+                else:
+                    rv = ToHypreParVec(v)
+                    self[i, j] = chypre.CHypreVec(rv, None)
+            else:
+                assert False, "bug. this mode is not supported"
+
     def reformat_central_mat(self, mat, ksol, ret, mask):
         '''
         reformat central matrix into blockmatrix (columne vector)

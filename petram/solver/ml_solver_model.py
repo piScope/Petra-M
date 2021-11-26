@@ -729,7 +729,7 @@ class MLInstance(SolverInstance):
         engine.level_idx = len(self.finalized_ls)-1
         A = engine.assembled_blocks[0]
         X = engine.assembled_blocks[1]
-        A.reformat_central_mat(solall, 0, X[0], self.blk_mask)
+        A.reformat_distributed_mat(solall, 0, X[0], self.blk_mask)
 
         self.sol = X[0]
 

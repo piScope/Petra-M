@@ -6,7 +6,7 @@ else:
     import mfem.ser as mfem
 
 
-class HierarchicalFiniteElementSpace(object):
+class HierarchicalFiniteElementSpaces(object):
     '''
     obj.fespaces[name] : returns fes using level_idx
 

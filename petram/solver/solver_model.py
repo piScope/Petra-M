@@ -325,9 +325,6 @@ class SolveStep(SolverBase):
         ls_candidates = None
 
         def make_assertion(cond, message):
-            print("selected ls", ls_selected)
-            print("candidate ls", ls_candidates)
-
             if not cond:
                 print("selected ls", ls_selected)
                 print("candidate ls", ls_candidates)
@@ -351,7 +348,7 @@ class SolveStep(SolverBase):
                     phys_real = self.is_allphys_real()
 
                     tmp = x.linear_system_type(assemble_real, phys_real)
-                    print("here", tmp, ls_selected)
+
                     if ls_selected is None:
                         ls_selected = tmp
                     elif ls_selected == tmp:
@@ -899,11 +896,11 @@ def real_to_complex_interleaved(solall, M):
         from mpi4py import MPI
         myid = MPI.COMM_WORLD.rank
 
-        offset = M.RowOffsets().ToList()
-        of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
-              for o in offset]
-        if myid != 0:
-            return
+        of = M.RowOffsets().ToList()
+        # of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
+        #      for o in offset]
+        # if myid != 0:
+        #    return
 
     else:
         offset = M.RowOffsets()
@@ -931,20 +928,21 @@ def real_to_complex_merged(solall, M):
         from mpi4py import MPI
         myid = MPI.COMM_WORLD.rank
 
-        offset = M.RowOffsets().ToList()
-        of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
-              for o in offset]
-        if myid != 0:
-            return
+        of = M.RowOffsets().ToList()
+        # of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
+        #      for o in offset]
+        # if myid != 0:
+        #    return
 
     else:
         offset = M.RowOffsets()
         of = offset.ToList()
-    dprint1(of)
+
     rows = M.NumRowBlocks()
     s = solall.shape
     i = 0
     pt = 0
+
     result = np.zeros((s[0] // 2, s[1]), dtype='complex')
     for i in range(rows):
         l = of[i + 1] - of[i]
