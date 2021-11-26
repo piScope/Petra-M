@@ -54,6 +54,7 @@ class FineIterative(Iterative, FineSolver):
     def get_info_str(self):
         return 'Fine'
 
+
 class Smoother(Iterative, FineSolver):
     @classmethod
     def fancy_menu_name(self):
@@ -65,7 +66,7 @@ class Smoother(Iterative, FineSolver):
 
     def get_info_str(self):
         return 'Fine'
-    
+
 
 class MGSolver(StdSolver):
     def attribute_set(self, v):
@@ -506,6 +507,7 @@ def fill_prolongation_operator(engine, level, blk_opr):
     hights = A.get_local_row_heights()
     widths = A.get_local_col_widths()
 
+    print(hights, widths)
     cols = [0]
     rows = [0]
 

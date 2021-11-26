@@ -872,6 +872,7 @@ class MUMPSPreconditioner(mfem.PyOperator):
             if myid == 0:
                 xx = np.atleast_2d(xx).transpose()
 
+        print("xx shape", xx.shape)
         s = self.solver.Mult(xx)
 
         if self.row_part[0] != -1:

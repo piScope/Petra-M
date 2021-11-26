@@ -619,12 +619,12 @@ class SolverInstance(ABC):
         return self._phys_real
 
     @ls_type.setter
-    def ls_type(self, v):
+    def ls_type(self, _v):
         warnings.warn(
             "Setting ls_type does not have any effect.", RuntimeWarning)
 
     @phys_real.setter
-    def phys_real(self, v):
+    def phys_real(self, _v):
         warnings.warn(
             "Setting phys_real does not have any effect.", RuntimeWarning)
 
@@ -820,6 +820,13 @@ class LinearSolverModel(SolverBase):
             "bug. this method sould not be called")
 
     def prepare_solver(self):
+        '''
+        this method create LinearSolver. This should return MFEM LinearOperator
+        '''
+        raise NotImplementedError(
+            "bug. this method sould not be called")
+
+    def prepare_solver_with_multtranspose(self):
         '''
         this method create LinearSolver. This should return MFEM LinearOperator
         '''

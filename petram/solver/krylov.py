@@ -108,7 +108,6 @@ class KrylovModel(LinearSolverModel, NS_mixin):
     def attribute_set(self, v):
         v = super(KrylovModel, self).attribute_set(v)
         v['solver_type'] = 'GMRES'
-        v['solver_type_prefix'] = ''
         v['log_level'] = 0
         v['maxiter'] = 200
         v['reltol'] = 1e-7
@@ -271,259 +270,27 @@ class KrylovSmoother(KrylovModel):
 
         return solver
 
+    def prepare_solver_with_multtranspose(self, opr, engine):
+        class MyGMRESSolver(mfem.PyGMRESSolver):
+            def __init__(self, *args, **kwags):
+                mfem.PyGMRESSolver.__init__(self, *args, **kwags)
 
-class KrylovLinearSolver(LinearSolver):
-    is_iterative = True
+            def Mult(self, x, y):
+                mfem.PyGMRESSolver.Mult(self, x, y)
 
-    def __init__(self, gui, engine):
-        self.maxiter = gui.maxiter
-        self.abstol = gui.abstol
-        self.reltol = gui.reltol
-        self.kdim = gui.kdim
-        LinearSolver.__init__(self, gui, engine)
+            def MultTranspose(self, x, y):
+                mfem.PyGMRESSolver.Mult(self, x, y)
+            # def SetOperator(self, x):
+            #     mfem.GMRESSolver.SetOperator(self, x)
 
-    def SetOperator(self, opr, dist=False, name=None):
-        self.Aname = name
-        self.A = opr
+        solver = MyGMRESSolver()
+        solver.SetAbsTol(self.abstol)
+        solver.SetRelTol(self.reltol)
+        solver.SetMaxIter(self.maxiter)
+        solver.SetPrintLevel(self.log_level)
+        if self.solver_type in ['GMRES', 'FGMRES']:
+            solver.SetKDim(int(self.kdim))
 
-        from petram.solver.linearsystem_reducer import LinearSystemReducer
-        if use_parallel:
-            self.M = self.make_preconditioner(self.A, parallel=True)
-            self.solver = self.make_solver(self.A, self.M, use_mpi=True)
-        else:
-            self.M = self.make_preconditioner(self.A)
-            self.solver = self.make_solver(self.A, self.M)
-
-    def Mult(self, b, x=None, case_base=0):
-        if use_parallel:
-            return self.solve_parallel(self.A, b, x)
-        else:
-            return self.solve_serial(self.A, b, x)
-
-    def make_solver(self, A, M, use_mpi=False):
-        maxiter = int(self.maxiter)
-        atol = self.abstol
-        rtol = self.reltol
-        kdim = int(self.kdim)
-        printit = 1
-
-        args = (MPI.COMM_WORLD,) if use_mpi else ()
-
-        if self.gui.solver_type.startswith("Nested"):
-            solver_type = self.gui.solver_type.split(" ")[-1]
-            nested = True
-        else:
-            solver_type = self.gui.solver_type
-            nested = False
-        cls = getattr(mfem, solver_type + 'Solver')
-
-        solver = cls(*args)
-        if solver_type in ['GMRES', 'FGMRES']:
-            solver.SetKDim(kdim)
-
-        if nested:
-            inner_solver_type = self.gui.solver_type_in
-            if inner_solver_type != "MUMPS":
-                cls = getattr(mfem, inner_solver_type + 'Solver')
-                inner_solver = cls(*args)
-                inner_solver.SetAbsTol(0.0)
-                inner_solver.SetRelTol(0.0)
-                inner_solver.SetMaxIter(self.gui.maxiter_in)
-                inner_solver.SetPrintLevel(self.gui.log_level_in)
-                if inner_solver_type in ['GMRES', 'FGMRES']:
-                    inner_solver.SetKDim(int(self.gui.kdim_in))
-                inner_solver.iterative_mode = False
-                inner_solver.SetOperator(A)
-                inner_solver.SetPreconditioner(M)
-                # return inner_solver
-                prc = inner_solver
-            else:
-                from petram.solver.mumps_model import MUMPSBlockPreconditioner
-                prc = MUMPSBlockPreconditioner(A, gui=self.gui[self.gui.mumps_in],
-                                               engine=self.engine)
-
-        else:
-            prc = M
-        solver._prc = prc
-        solver.SetPreconditioner(prc)
-        solver.SetOperator(A)
-
-        solver.SetAbsTol(atol)
-        solver.SetRelTol(rtol)
-        solver.SetMaxIter(maxiter)
-        solver.SetPrintLevel(self.gui.log_level)
-
+        solver.iterative_mode = False
+        solver.SetOperator(opr)
         return solver
-
-    def make_preconditioner(self, A, name=None, parallel=False):
-        name = self.Aname if name is None else name
-
-        if self.gui.adv_mode:
-            expr = self.gui.adv_prc
-            gen = eval(expr, self.gui._global_ns)
-            gen.set_param(A, name, self.engine, self.gui)
-            M = gen()
-
-        else:
-            prcs_gui = dict(self.gui.preconditioners)
-            #assert not self.gui.parent.is_complex(), "can not solve complex"
-            if self.gui.parent.is_converted_from_complex() and not self.gui.merge_real_imag:
-                name = sum([[n, n] for n in name], [])
-
-            import petram.helper.preconditioners as prcs
-
-            g = prcs.DiagonalPrcGen(
-                opr=A, engine=self.engine, gui=self.gui, name=name)
-            M = g()
-
-            pc_block = {}
-
-            for k, n in enumerate(name):
-                prctxt = prcs_gui[n][1] if parallel else prcs_gui[n][0]
-                if prctxt == "None":
-                    continue
-                if prctxt.find("(") == -1:
-                    prctxt = prctxt + "()"
-                prcargs = "(".join(prctxt.split("(")[-1:])
-
-                nn = prctxt.split("(")[0]
-
-                if not n in pc_block:
-                    # make a new one
-                    dprint1(nn)
-                    try:
-                        blkgen = getattr(prcs, nn)
-                    except BaseException:
-                        if nn in self.gui._global_ns:
-                            blkgen = self.gui._global_ns[nn]
-                        else:
-                            raise
-
-                    blkgen.set_param(g, n)
-                    blk = eval("blkgen(" + prcargs)
-
-                    M.SetDiagonalBlock(k, blk)
-                    pc_block[n] = blk
-                else:
-                    M.SetDiagonalBlock(k, pc_block[n])
-        return M
-
-    def write_mat(self, A, b, x, suffix=""):
-        def get_block(Op, i, j):
-            try:
-                return Op._linked_op[(i, j)]
-            except KeyError:
-                return None
-
-        offset = A.RowOffsets()
-        rows = A.NumRowBlocks()
-        cols = A.NumColBlocks()
-
-        for i in range(cols):
-            for j in range(rows):
-                m = get_block(A, i, j)
-                if m is None:
-                    continue
-                m.Print('matrix_' + str(i) + '_' + str(j))
-        for i, bb in enumerate(b):
-            for j in range(rows):
-                v = bb.GetBlock(j)
-                v.Print('rhs_' + str(i) + '_' + str(j) + suffix)
-                #np.save('rhs_' + str(i) + '_' + str(j) + suffix, v.GetDataArray())
-        if x is not None:
-            for j in range(rows):
-                xx = x.GetBlock(j)
-                xx.Print('x_' + str(i) + '_' + str(j) + suffix)
-
-    @flush_stdout
-    def call_mult(self, solver, bb, xx):
-        print(np.sum(bb.GetDataArray()), np.sum(xx.GetDataArray()))
-        solver.Mult(bb, xx)
-        max_iter = solver.GetNumIterations()
-        tol = solver.GetFinalNorm()
-
-        dprint1("convergence check (max_iter, tol) ", max_iter, " ", tol)
-        if self.gui.assert_no_convergence:
-            if not solver.GetConverged():
-                self.gui.set_solve_error(
-                    (True, "No Convergence: " + self.gui.name()))
-                assert False, "No convergence"
-
-    def solve_parallel(self, A, b, x=None):
-        if self.gui.write_mat:
-            self. write_mat(A, b, x, "." + smyid)
-
-        sol = []
-
-        # solve the problem and gather solution to head node...
-        # may not be the best approach
-
-        from petram.helper.mpi_recipes import gather_vector
-        offset = A.RowOffsets()
-        for bb in b:
-            rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
-            #rowstarts = np.hstack((0, np.cumsum(rows)))
-            dprint1("row offset", offset.ToList())
-            if x is None:
-                xx = mfem.BlockVector(offset)
-                xx.Assign(0.0)
-            else:
-                xx = x
-
-            if self.gui.use_ls_reducer:
-                try:
-                    self.reducer.Mult(bb, xx, self.gui.assert_no_convergence)
-                except debug.ConvergenceError:
-                    self.gui.set_solve_error(
-                        (True, "No Convergence: " + self.gui.name()))
-                    assert False, "No convergence"
-            else:
-                self.call_mult(self.solver, bb, xx)
-
-            s = []
-            for i in range(offset.Size() - 1):
-                v = xx.GetBlock(i).GetDataArray()
-                if self.gui.merge_real_imag:
-                    w = int(len(v) // 2)
-                    vv1 = gather_vector(v[:w])
-                    vv2 = gather_vector(v[w:])
-                    vv = np.hstack((vv1, vv2))
-                else:
-                    vv = gather_vector(v)
-                if myid == 0:
-                    s.append(vv)
-                else:
-                    pass
-            if myid == 0:
-                sol.append(np.hstack(s))
-
-        if myid == 0:
-            sol = np.transpose(np.vstack(sol))
-            return sol
-        else:
-            return None
-
-    def solve_serial(self, A, b, x=None):
-        if self.gui.write_mat:
-            self. write_mat(A, b, x)
-
-        #M = self.M
-        solver = self.solver
-
-        sol = []
-
-        for bb in b:
-            if x is None:
-                xx = mfem.Vector(bb.Size())
-                xx.Assign(0.0)
-            else:
-                xx = x
-                # for j in range(cols):
-                #   print x.GetBlock(j).Size()
-                #   print x.GetBlock(j).GetDataArray()
-                #assert False, "must implement this"
-            self.call_mult(solver, bb, xx)
-
-            sol.append(xx.GetDataArray().copy())
-        sol = np.transpose(np.vstack(sol))
-        return sol

@@ -114,14 +114,13 @@ class RefinedLevel(FineLevel, SolverBase):
         return my_solve_step.get_phys_range()
 
     def prepare_solver(self, opr, engine):
-        for x in self.walk():
-            if not x.enabled:
-                continue
-            if isinstance(x, KrylovModel):
-                x.solver_type_prefix = 'Py'
-
-        for x in self.iter_enabled():
-            return x.prepare_solver(opr, engine)
+        if self.smoother_count[1] == 0:
+            for x in self.iter_enabled():
+                return x.prepare_solver(opr, engine)
+        else:
+            for x in self.iter_enabled():
+                return x.prepare_solver_with_multtranspose(opr, engine)
+            # return x.prepare_solver(opr, engine)
 
     @classmethod
     def fancy_tree_name(self):
@@ -360,6 +359,9 @@ class MultiLvlStationarySolver(StdSolver):
               1 means "AFTER" 1 refinement
         '''
         levels = self.get_level_solvers()
+        for l in levels:
+            l.smoother_count = (int(self.presmoother_count),
+                                int(self.postsmoother_count))
 
         if lvl >= len(levels):
             return False
@@ -521,7 +523,13 @@ class MLInstance(SolverInstance):
             s = solver_model.prepare_solver(opr, engine)
             solvers.append(s)
 
-        return solvers
+        finest = self.gui.get_active_solver(cls=FinestLvlSolver)
+        if finest is not None:
+            opr = self.finalized_ls[lvl][-1]
+            finestsolver = finest.prepare_solver(opr, engine)
+        else:
+            finestsolver = None
+        return solvers, finestsolver
 
     def create_prolongations(self):
         engine = self.engine
@@ -554,7 +562,7 @@ class MLInstance(SolverInstance):
 
         self.finalize_linear_systems()
 
-        smoothers = self.create_solvers()
+        smoothers, finestsolver = self.create_solvers()
         prolongations = self.create_prolongations()
 
         operators = [x[-1] for x in self.finalized_ls]
@@ -590,15 +598,13 @@ class MLInstance(SolverInstance):
         '''
         #solall = linearsolver.Mult(BB, case_base=0)
         if len(smoothers) > 1:
-            coarsest = None
-            mg = MG(operators, smoothers, prolongations,
-                    presmoother_count=int(self.gui.presmoother_count),
-                    postsmoother_count=int(self.gui.postsmoother_count))
+            mg = generate_MG(operators, smoothers, prolongations,
+                             presmoother_count=int(self.gui.presmoother_count),
+                             postsmoother_count=int(self.gui.postsmoother_count))
 
         else:
-            coarsest = smoothers[0]
+            mg = None
 
-        finest = self.gui.get_active_solver(cls=FinestLvlSolver)
         # very small value
         # ls1.solver.SetPreconditioner(mg.solver)
         #solall = ls1.Mult(BB, XX)
@@ -692,16 +698,16 @@ class MLInstance(SolverInstance):
         '''
         BB, XX, AA = self.finalized_ls[-1]
         np.save('saved_block_vector_input', BB[0].GetDataArray())
-        if finest is not None:
-            finest.create_solver()
-            finest.solver.SetOperator(self.finalized_ls[-1][-1])
-            finest.solver.SetPreconditioner(mg.solver)
-            solall = ls1.Mult(BB, XX)
-        elif coarsest is not None:
-            coarsest.Mult(BB[0], XX)
+        if finestsolver is not None:
+            finestsolver.SetPreconditioner(mg)
+            finestsolver.Mult(BB[0], XX)
+            solall = np.transpose(np.vstack([XX.GetDataArray()]))
+        elif mg is not None:
+            mg.Mult(BB[0], XX)
             solall = np.transpose(np.vstack([XX.GetDataArray()]))
         else:
-            mg.solver.Mult(BB[0], XX)
+            # this makes sense if coarsest smoother is direct solver
+            smoothers[0].Mult(BB[0], XX)
             solall = np.transpose(np.vstack([XX.GetDataArray()]))
 
         np.save('saved_block_vector_mg', XX.GetDataArray())
@@ -734,22 +740,20 @@ class MLInstance(SolverInstance):
         return True
 
 
-class MG(IterativeSolver):   # LinearSolver
-    def __init__(self, operators, smoothers, prolongations,
-                 presmoother_count=1,
-                 postsmoother_count=1):
+def generate_MG(operators, smoothers, prolongations,
+                presmoother_count=1,
+                postsmoother_count=1):
 
-        own_operators = [False]*len(operators)
-        own_smoothers = [False]*len(smoothers)
-        own_prolongations = [False]*len(prolongations)
+    own_operators = [False]*len(operators)
+    own_smoothers = [False]*len(smoothers)
+    own_prolongations = [False]*len(prolongations)
 
-        mg = mfem.Multigrid(operators, smoothers, prolongations,
-                            own_operators, own_smoothers, own_prolongations)
-        mg.SetCycleType(mfem.Multigrid.CycleType_VCYCLE,
-                        presmoother_count, postsmoother_count)
+    mg = mfem.Multigrid(operators, smoothers, prolongations,
+                        own_operators, own_smoothers, own_prolongations)
+    mg.SetCycleType(mfem.Multigrid.CycleType_VCYCLE,
+                    presmoother_count, postsmoother_count)
 
-        self.solver = mg
-        #self.A = operators[-1]
+    return mg
 
 
 def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
@@ -761,7 +765,12 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
 
     widths = [XX.BlockSize(i) for i in range(XX.NumBlocks())]
 
-    print("widths", widths)
+    if not phys_real:
+        if use_complex_opr:
+            widths = [x//2 for x in widths]
+        else:
+            widths = [widths[i*2] for i in range(len(widths)//2)]
+
     cols = [0]
     rows = [0]
 
