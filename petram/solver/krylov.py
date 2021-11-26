@@ -108,6 +108,7 @@ class KrylovModel(LinearSolverModel, NS_mixin):
     def attribute_set(self, v):
         v = super(KrylovModel, self).attribute_set(v)
         v['solver_type'] = 'GMRES'
+        v['solver_type_prefix'] = ''
         v['log_level'] = 0
         v['maxiter'] = 200
         v['reltol'] = 1e-7
@@ -203,24 +204,10 @@ class KrylovModel(LinearSolverModel, NS_mixin):
 
     def prepare_preconditioner(self, opr, engine):
         for x in self.iter_enabled():
-            if isinstace(x, LinearSolverModel):
+            if isinstance(x, LinearSolverModel):
                 return x.prepare_solver(opr, engine)
 
     def do_prepare_solver(self, opr, engine):
-        self.solver_type = str(v[0][0])
-        idx = choices_a.index(self.solver_type)
-        vv = v[0][idx + 1]
-        self.log_level = int(vv[0])
-        self.maxiter = int(vv[1])
-        self.reltol = vv[2]
-        self.abstol = vv[3]
-
-        if len(vv) > 4:
-            self.kdim = int(vv[4])
-
-        self.write_mat = bool(v[1])
-        self.assert_no_convergence = bool(v[2])
-
         cls = getattr(mfem, self.solver_type + 'Solver')
         args = (MPI.COMM_WORLD,) if use_parallel else ()
 
@@ -241,7 +228,7 @@ class KrylovModel(LinearSolverModel, NS_mixin):
         return solver
 
     def prepare_solver(self, opr, engine):
-        solver = self.prepare_solver(opr, engine)
+        solver = self.do_prepare_solver(opr, engine)
         solver.iterative_mode = True
 
         return solver
@@ -279,7 +266,7 @@ class KrylovSmoother(KrylovModel):
         return 'Smoother'
 
     def prepare_solver(self, opr, engine):
-        solver = self.prepare_solver(opr, engine)
+        solver = self.do_prepare_solver(opr, engine)
         solver.iterative_mode = False
 
         return solver

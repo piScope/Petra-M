@@ -114,6 +114,12 @@ class RefinedLevel(FineLevel, SolverBase):
         return my_solve_step.get_phys_range()
 
     def prepare_solver(self, opr, engine):
+        for x in self.walk():
+            if not x.enabled:
+                continue
+            if isinstance(x, KrylovModel):
+                x.solver_type_prefix = 'Py'
+
         for x in self.iter_enabled():
             return x.prepare_solver(opr, engine)
 
@@ -182,6 +188,12 @@ class FineIterative(KrylovModel, FinestLvlSolver):
 
     def get_possible_child_menu(self):
         return []
+
+    def prepare_solver(self, opr, engine):
+        solver = self.do_prepare_solver(opr, engine)
+        solver.iterative_mode = True
+
+        return solver
 
 
 class MultiLvlStationarySolver(StdSolver):
@@ -745,9 +757,6 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
     P = None
     diags = []
 
-    print("level", level)
-    print(XX, AA)
-    print(type(XX))
     use_complex_opr = ls_type in ['blk_merged', 'blk_merged_s']
 
     widths = [XX.BlockSize(i) for i in range(XX.NumBlocks())]
@@ -764,7 +773,7 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
         tmp_diags = []
 
         if use_complex_opr:
-            mat = blk_opr._linked_op[(offset, offset)]
+            mat = AA._linked_op[(offset, offset)]
             conv = mat.GetConvention()
             conv == (1 if mfem.ComplexOperator.HERMITIAN else -1)
         else:

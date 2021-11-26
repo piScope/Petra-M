@@ -325,6 +325,9 @@ class SolveStep(SolverBase):
         ls_candidates = None
 
         def make_assertion(cond, message):
+            print("selected ls", ls_selected)
+            print("candidate ls", ls_candidates)
+
             if not cond:
                 print("selected ls", ls_selected)
                 print("candidate ls", ls_candidates)
@@ -333,7 +336,7 @@ class SolveStep(SolverBase):
         def collect_assemble_real(top):
             tmp = []
             for x in top.iter_enabled():
-                if hasattr('x', 'assemble_real'):
+                if hasattr(x, 'assemble_real'):
                     tmp.append(x.assemble_real)
             if True in tmp and False in tmp:
                 assert False, "Assemble real is not selected consistently"
@@ -344,23 +347,26 @@ class SolveStep(SolverBase):
                 continue
             if isinstance(x, LinearSolverModel):
                 if x.does_linearsolver_choose_linearsystem_type():
-                    assemble_real = collect_assemble_real(top)
+                    assemble_real = collect_assemble_real(self)
                     phys_real = self.is_allphys_real()
 
-                    tmp = s.linear_system_type(assemble_real, phys_real)
+                    tmp = x.linear_system_type(assemble_real, phys_real)
+                    print("here", tmp, ls_selected)
                     if ls_selected is None:
                         ls_selected = tmp
                     elif ls_selected == tmp:
                         pass
                     else:
                         make_assertion(
-                            False, "Can not select linear system type consistently.")
+                            False, "Can not select linear system type consistently.(A)")
                 else:
+                    tmp = x.supported_linear_system_type()
+                    if tmp == 'ANY':
+                        continue
                     if ls_candidates is None:
-                        ls_candidates = set(x.supported_linear_system_type())
+                        ls_candidates = set(tmp)
                     else:
-                        ls_candidates = ls_candidates & set(
-                            x.supported_linear_system_type())
+                        ls_candidates = ls_candidates & set(tmp)
 
             if isinstance(x, Solver):
                 if x.does_solver_choose_linearsystem_type():
@@ -371,13 +377,13 @@ class SolveStep(SolverBase):
                         pass
                     else:
                         make_assertion(
-                            False, "Can not select linear system type consistently.")
+                            False, "Can not select linear system type consistently. (B)")
                 else:
                     pass
 
         if ls_candidates is not None:
             make_assertion(ls_selected in ls_candidates,
-                           "Can not select linear system type consistently.")
+                           "Can not select linear system type consistently. (C)")
 
         if ls_selected is None:
             make_assertion(
@@ -613,12 +619,12 @@ class SolverInstance(ABC):
         return self._phys_real
 
     @ls_type.setter
-    def ls_type(self):
+    def ls_type(self, v):
         warnings.warn(
             "Setting ls_type does not have any effect.", RuntimeWarning)
 
     @phys_real.setter
-    def phys_real(self):
+    def phys_real(self, v):
         warnings.warn(
             "Setting phys_real does not have any effect.", RuntimeWarning)
 

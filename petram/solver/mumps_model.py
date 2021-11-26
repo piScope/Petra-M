@@ -171,7 +171,18 @@ class MUMPSBase(LinearSolverModel):
 
 class MUMPS(MUMPSBase):
     def does_linearsolver_choose_linearsystem_type(self):
-        return True
+        from petram.solver.solver_model import Solver
+
+        # for the sake of backword compabitibiliy. it is true only when
+        # it is the top level linearsolver
+
+        if isinstance(self.parent, Solver):
+            return True
+        else:
+            return False
+
+    def supported_linear_system_type(self):
+        return 'ANY'
 
     def linear_system_type(self, assemble_real, phys_real):
         if phys_real:

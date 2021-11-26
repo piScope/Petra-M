@@ -236,6 +236,7 @@ class Iterative(LinearSolverModel, NS_mixin):
                 return 'blk_interleave'
 
         # below phys is complex
+        print("assemble_real", assemble_real)
 
         # merge_real_imag -> complex operator
         if self.merge_real_imag and self.use_block_symmetric:
