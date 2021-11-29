@@ -8,7 +8,13 @@ class CommWorld(object):
     def Barrier(self):
         pass
     def bcast(self, *args, **kwargs):
-        pass
+        return args[0]
+
+    def gather(self, *args, **kwargs):
+        return [args[0]]
+    
+    def allgather(self, *args, **kwargs):
+        return [args[0]]
     
 class MPIclass(object):
     def __init__(self, *args, **kwargs):
