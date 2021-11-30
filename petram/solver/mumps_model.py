@@ -655,7 +655,7 @@ class MUMPSSolver(LinearSolver):
 
             if not self.silent:
                 dprint1("job2")
-            s.set_icntl(24, 0)
+            s.set_icntl(24, 1)
             s.set_icntl(13, 0)
             s.set_icntl(5, 0)
 
@@ -787,6 +787,7 @@ class MUMPSSolver(LinearSolver):
         if nproc > 1:
             nrhs = MPI.COMM_WORLD.bcast(nrhs)
 
+        distributed_rhs = distributed_rhs and use_parallel            
         if distributed_rhs:
             s.set_icntl(20, 10)
 
@@ -834,7 +835,6 @@ class MUMPSSolver(LinearSolver):
                 bstack = self.make_vector_entries(bstack)
                 s.set_rhs(self.data_array(bstack))
 
-        distributed_sol = distributed_sol and use_parallel
         if distributed_sol:
             lsol_loc, isol_loc, sol_loc = self.set_distributed_sol(s, nrhs)
             nicePrint(lsol_loc, isol_loc, sol_loc)
@@ -872,8 +872,6 @@ class MUMPSSolver(LinearSolver):
         rsol = None
         isol = None
         sol_extra = None
-
-        print("sol loc", sol_loc)
 
         if distributed_sol:
             sol = self.redistributed_array(
@@ -1113,9 +1111,11 @@ class MUMPSBlockPreconditioner(mfem.Solver):
         return y2
 
     def Mult(self, x, y):
-        try:
+        if use_parallel:
+            from petram.helper.mpi_recipes import (gather_vector,
+                                                   allgather_vector)
             from mpi4py import MPI
-        except BaseException:
+        else:
             from petram.helper.dummy_mpi import MPI
         myid = MPI.COMM_WORLD.rank
         nproc = MPI.COMM_WORLD.size
@@ -1129,9 +1129,9 @@ class MUMPSBlockPreconditioner(mfem.Solver):
         if self.row_offset == -1:
             irhs_loc = None
             xx = np.atleast_2d(vec).transpose()
-            distributed_rhs = True
+            distributed_rhs = False
         else:
-            distributed_rhs = True
+            distributed_rhs = False
             irhs_loc = self.irhs_loc
             if distributed_rhs:
                 xx = np.atleast_2d(vec).transpose()
@@ -1144,7 +1144,7 @@ class MUMPSBlockPreconditioner(mfem.Solver):
 
         s = [solver.Mult(xx,
                          irhs_loc=irhs_loc,
-                         distributed_sol=True,
+                         distributed_sol=use_parallel,
                          distributed_rhs=distributed_rhs)
              for solver in self.solver]
 
