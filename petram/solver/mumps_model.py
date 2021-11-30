@@ -1,3 +1,4 @@
+from petram.mfem_config import use_parallel
 from .solver_model import LinearSolverModel, LinearSolver
 from petram.helper.matrix_file import write_matrix, write_vector, write_coo_matrix
 import os
@@ -8,18 +9,6 @@ import weakref
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MUMPSModel')
 
-from petram.mfem_config import use_parallel
-if use_parallel:
-    from petram.helper.mpi_recipes import *
-    from mfem.common.parcsr_extra import *
-    import mfem.par as mfem
-    from mfem.common.mpi_debug import nicePrint
-else:
-    import mfem.ser as mfem
-    def nicePrint(*x):
-        print(x)
-        
-from petram.ext.mumps.mumps_solve import i_array    
 
 def convert2float(txt):
     try:
@@ -476,6 +465,8 @@ class MUMPSSolver(LinearSolver):
 
         must be called after Factorization
         '''
+        from petram.ext.mumps.mumps_solve import i_array
+
         n_pivots = s.get_info(23)
 
         sol_loc = np.zeros(n_pivots * nrhs, dtype=self._data_type())
@@ -489,6 +480,8 @@ class MUMPSSolver(LinearSolver):
         return n_pivots, isol_loc, sol_loc
 
     def read_rhs_distribution(self, s):
+        from petram.ext.mumps.mumps_solve import i_array
+
         lrhs_loc = s.get_info(23)
 
         irhs_loc = np.empty(lrhs_loc, dtype=self._int_type())
@@ -506,9 +499,11 @@ class MUMPSSolver(LinearSolver):
         sol[isol_loc] is distributed so that the local sol index
         is irhs_loc
         '''
+        from petram.mfem_config import use_parallel
         if not use_parallel:
             assert False, "should not come here in serial"
 
+        from mpi4py import MPI
         from petram.helper.mpi_recipes import alltoall_vector
 
         nprc = MPI.COMM_WORLD.size
@@ -530,7 +525,7 @@ class MUMPSSolver(LinearSolver):
         irhs = alltoall_vector(irhshit, int)
         sol2 = np.hstack(sol2)
         _hoge1, idx1 = np.unique(np.hstack(irhs), return_index=True)
-        _hoge2, idx2 = np.unique(np.hstack(irhs_loc), return_inverse=True)        
+        _hoge2, idx2 = np.unique(np.hstack(irhs_loc), return_inverse=True)
 
         assert np.all(_hoge1 == _hoge2), "fail here"
         return sol2[idx1][idx2]
@@ -646,7 +641,7 @@ class MUMPSSolver(LinearSolver):
             s.set_cntl(4, convert2float(gui.cntl4))
 
         self.set_ordering_flag(s)
-        
+
         MPI.COMM_WORLD.Barrier()
         if not gui.restore_fac:
             if not self.silent:
@@ -662,7 +657,7 @@ class MUMPSSolver(LinearSolver):
                 dprint1("job2")
             s.set_icntl(24, 0)
             s.set_icntl(13, 0)
-            s.set_icntl(5, 0)                        
+            s.set_icntl(5, 0)
 
             s.set_job(2)
             s.run()
@@ -767,6 +762,9 @@ class MUMPSSolver(LinearSolver):
             from mpi4py import MPI
         except BaseException:
             from petram.helper.dummy_mpi import MPI
+
+        from petram.ext.mumps.mumps_solve import i_array
+
         myid = MPI.COMM_WORLD.rank
         nproc = MPI.COMM_WORLD.size
 
@@ -790,21 +788,24 @@ class MUMPSSolver(LinearSolver):
             nrhs = MPI.COMM_WORLD.bcast(nrhs)
 
         if distributed_rhs:
-            s.set_icntl(20, 11)
+            s.set_icntl(20, 10)
 
             irhs_loc_read = self.read_rhs_distribution(s)
-            rhs_loc = self.redistributed_array(b.flatten(), irhs_loc, irhs_loc_read)
+            rhs_loc = self.redistributed_array(
+                b.flatten(), irhs_loc, irhs_loc_read)
             '''
             rhs_loc = b.flatten()
             rhs_loc = rhs_loc.astype(self._data_type(), copy=False)
-            irhs_loc_read = irhs_loc.astype(dtype=self._int_type())*0+434            
+            irhs_loc_read = irhs_loc.astype(dtype=self._int_type())
             '''
             nicePrint("irhs_read", irhs_loc_read)
+            '''
             if myid == 0:
                 irhs_loc_read = irhs_loc_read.astype(dtype=self._int_type())
             else:
-                irhs_loc_read = irhs_loc_read.astype(dtype=self._int_type())*0+434
-            #print("irhc_loc from mfem", irhs_loc)            
+                irhs_loc_read = irhs_loc_read.astype(dtype=self._int_type())
+            '''
+            #print("irhc_loc from mfem", irhs_loc)
 
             rhs_locc = self.data_array(list(rhs_loc))
             irhs_locc = i_array(irhs_loc_read)
@@ -812,23 +813,20 @@ class MUMPSSolver(LinearSolver):
             lrhs_loc = len(rhs_loc)
             nloc_rhs = lrhs_loc * nrhs
 
-            print("irhs_loc range", np.min(irhs_loc_read), np.max(irhs_loc_read))
+            print("irhs_loc range", np.min(
+                irhs_loc_read), np.max(irhs_loc_read))
             nicePrint(list(irhs_loc_read))
-            nicePrint(len(rhs_loc), len(irhs_loc_read), nloc_rhs, lrhs_loc, irhs_locc, rhs_locc)
+            nicePrint(len(rhs_loc), len(irhs_loc_read),
+                      nloc_rhs, lrhs_loc, irhs_locc, rhs_locc)
             s.set_nrhs_lrhs_irhs_rhs_loc(
                 nloc_rhs, lrhs_loc, irhs_locc, rhs_locc)
-            '''
-            s.set_icntl(20, 0)
+
+            tmp = MPI.COMM_WORLD.gather(lrhs_loc, root=0)
             if myid == 0:
-                s.set_lrhs_nrhs(3894, b.shape[1])
-                hoge = np.zeros(3894, dtype=self._data_type())                            
-                s.set_rhs(self.data_array(hoge))
-            '''
-            #s.set_lrhs_nrhs(18939, b.shape[1])
-            #hoge = np.zeros(18939, dtype=self._data_type())
-            # s.set_rhs(self.data_array(hoge))
+                rhs_total = np.sum(tmp)
+
         else:
-            irhs_loc_read = self.read_rhs_distribution(s)            
+            irhs_loc_read = self.read_rhs_distribution(s)
             s.set_icntl(20, 0)
             if myid == 0:
                 s.set_lrhs_nrhs(b.shape[0], b.shape[1])
@@ -837,10 +835,13 @@ class MUMPSSolver(LinearSolver):
                 s.set_rhs(self.data_array(bstack))
 
         distributed_sol = distributed_sol and use_parallel
-        
         if distributed_sol:
             lsol_loc, isol_loc, sol_loc = self.set_distributed_sol(s, nrhs)
             nicePrint(lsol_loc, isol_loc, sol_loc)
+        else:
+            if distributed_rhs and myid == 0:
+                rhs = np.empty(rhs_total, dtype=self._data_type())
+                s.set_rhs(self.data_array(rhs))
 
         if self.silent:
             s.set_icntl(1, -1)
@@ -865,16 +866,18 @@ class MUMPSSolver(LinearSolver):
         info1 = s.get_info(1)
         info2 = s.get_info(2)
         if info1 != 0:
-            assert False, "MUMPS call (job3) failed. Check error log (info1/info2)" + str(info1) + " " + str(info2)
+            assert False, "MUMPS call (job3) failed. Check error log (info1/info2)" + str(
+                info1) + " " + str(info2)
 
         rsol = None
         isol = None
         sol_extra = None
-        
+
         print("sol loc", sol_loc)
-        
+
         if distributed_sol:
-            sol = self.redistributed_array(sol_loc.flatten(), isol_loc, irhs_loc)
+            sol = self.redistributed_array(
+                sol_loc.flatten(), isol_loc, irhs_loc)
         else:
             if myid == 0:
                 if self.is_complex:
@@ -886,6 +889,17 @@ class MUMPSSolver(LinearSolver):
             else:
                 sol = None
         return sol
+
+
+if use_parallel:
+    import mfem.par as mfem
+    from mfem.common.mpi_debug import nicePrint
+else:
+    import mfem.ser as mfem
+
+    def nicePrint(*args):
+        print(*args)
+
 
 class MUMPSPreconditioner(mfem.PyOperator):
     def __init__(self, A0, gui=None, engine=None, silent=True, **kwargs):
@@ -1115,13 +1129,13 @@ class MUMPSBlockPreconditioner(mfem.Solver):
         if self.row_offset == -1:
             irhs_loc = None
             xx = np.atleast_2d(vec).transpose()
-            distributed_rhs = True            
+            distributed_rhs = True
         else:
             distributed_rhs = True
-            irhs_loc = self.irhs_loc            
+            irhs_loc = self.irhs_loc
             if distributed_rhs:
                 xx = np.atleast_2d(vec).transpose()
-                print("xx shape", xx.shape) 
+                print("xx shape", xx.shape)
             else:
                 xx = gather_vector(vec)
                 if myid == 0:
@@ -1164,7 +1178,8 @@ class MUMPSBlockPreconditioner(mfem.Solver):
     def SetOperator(self, opr):
         if use_parallel:
             from mpi4py import MPI
-            from petram.helper.mpi_recipes import gather_vector
+            from petram.helper.mpi_recipes import (gather_vector,
+                                                   allgather_vector)
             nprc = MPI.COMM_WORLD.size
             myid = MPI.COMM_WORLD.rank
             smyid = '{:0>6d}'.format(myid)
@@ -1228,7 +1243,8 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             myblockstart = tmp[myid]
 
             # this is 1-based index
-            self.irhs_loc = np.arange(myblockstart+1, myblockstart+myblocksize+1, dtype=int)
+            self.irhs_loc = np.arange(
+                myblockstart+1, myblockstart+myblocksize+1, dtype=int)
             print("irhs_loc in set operator", self.irhs_loc)
             # nicePrint(self.all_block_size)
         else:
