@@ -244,7 +244,7 @@ class SolveStep(SolverBase):
 
         solvers = self.get_active_solvers()
         for solver in solvers:
-            inits.append(solver.get_custom_init())
+            inits.extend(solver.get_custom_init())
 
         engine.run_apply_init(phys_range, inits=inits)
         '''

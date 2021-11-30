@@ -94,7 +94,7 @@ class DistanceSolver(Solver):
 
         phys = self.parent.get_phys()
         init = CustomInitSetting(phys, value=[1.0, ])
-        return init
+        return [init,]
 
     @debug.use_profiler
     def run(self, engine, is_first=True, return_instance=False):
