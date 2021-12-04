@@ -159,8 +159,9 @@ class DiagonalPreconditioner(BlockSmoother):
             prcs_gui = dict(self.preconditioners)
 
             ls_type = self.get_solve_root().get_linearsystem_type_from_modeltree()
+            phys_real = self.get_solve_root().is_allphys_real()
 
-            if ls_type == 'blk_interleave':
+            if ls_type == 'blk_interleave' and not phys_real:
                 names = sum([[n, n] for n in names], [])
 
             import petram.helper.preconditioners as prcs

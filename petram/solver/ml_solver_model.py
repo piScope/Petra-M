@@ -1,6 +1,6 @@
 from petram.solver.strumpack_model import Strumpack
 from petram.solver.mumps_model import MUMPSMFEMSolverModel
-from petram.solver.krylov import KrylovModel
+from petram.solver.krylov import KrylovModel, StationaryRefinementModel
 import os
 import warnings
 
@@ -144,6 +144,19 @@ class CoarseIterative(KrylovModel, CoarsestLvlSolver):
         return 'Coarsest:Lv0'
 
 
+class CoarseRefinement(StationaryRefinementModel, CoarsestLvlSolver):
+    @classmethod
+    def fancy_menu_name(self):
+        return 'Refinement'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'Refinement'
+
+    def get_info_str(self):
+        return 'Coarsest:Lv0'
+
+
 class CoarseMUMPS(MUMPSMFEMSolverModel, CoarsestLvlSolver):
     @classmethod
     def fancy_menu_name(self):
@@ -178,6 +191,31 @@ class FineIterative(KrylovModel, FinestLvlSolver):
     @classmethod
     def fancy_tree_name(self):
         return 'Iterative'
+
+    def get_info_str(self):
+        return 'Finest'
+
+    def get_possible_child(self):
+        return []
+
+    def get_possible_child_menu(self):
+        return []
+
+    def prepare_solver(self, opr, engine):
+        solver = self.do_prepare_solver(opr, engine)
+        solver.iterative_mode = True
+
+        return solver
+
+
+class FineRefinement(StationaryRefinementModel, FinestLvlSolver):
+    @classmethod
+    def fancy_menu_name(self):
+        return 'Finest level solver'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'Refinement'
 
     def get_info_str(self):
         return 'Finest'
@@ -312,14 +350,22 @@ class MultiLvlStationarySolver(StdSolver):
         return isvalid, txt, txt_long
 
     def get_possible_child(self):
-        return CoarseMUMPS, CoarseStrumpack, CoarseIterative, RefinedLevel, FineIterative
+        return (CoarseMUMPS,
+                CoarseStrumpack,
+                CoarseRefinement,
+                CoarseIterative,
+                RefinedLevel,
+                FineIterative,
+                FineRefinement)
 
     def get_possible_child_menu(self):
         choice = [("CoarseSolver", CoarseMUMPS),
                   ("", CoarseStrumpack),
-                  ("!", CoarseIterative),
+                  ("", CoarseIterative),
+                  ("!", CoarseRefinement),
                   ("", RefinedLevel),
-                  ("", FineIterative), ]
+                  ("FineSolver", FineIterative),
+                  ("!", FineRefinement), ]
         return choice
 
     def get_coarsest_solvers(self):
@@ -548,14 +594,6 @@ class MLInstance(SolverInstance):
 
     def assemble_rhs(self):
         assert False, "assemble_rhs is not implemented"
-        '''
-        engine = self.engine
-        phys_target = self.get_phys()
-        engine.run_assemble_b(phys_target)
-        B = self.engine.run_update_B_blocks()
-        self.blocks[4] = B
-        self.assembled = True
-        '''
 
     def solve(self, update_operator=True):
         engine = self.engine
@@ -567,35 +605,6 @@ class MLInstance(SolverInstance):
 
         operators = [x[-1] for x in self.finalized_ls]
 
-        '''
-        class MyGMRESSolver(mfem.PyGMRESSolver):
-            def __init__(self, *args, **kwags):
-                mfem.PyGMRESSolver.__init__(self, *args, **kwags)
-
-            def Mult(self, x, y):
-                print('----- MyGMRESSolver.Mult')
-                mfem.PyGMRESSolver.Mult(self, x, y)
-
-            def MultTranspose(self, x, y):
-                print('MyGMRESSolver.MultTranspose')
-                mfem.PyGMRESSolver.Mult(self, x, y)
-            # def SetOperator(self, x):
-            #     mfem.GMRESSolver.SetOperator(self, x)
-
-        solver1 = MyGMRESSolver()
-        solver1.SetRelTol(ls0.gui.reltol)
-        solver1.SetAbsTol(0.0)
-        solver1.SetMaxIter(50)
-        solver1.SetPrintLevel(ls0.gui.log_level)
-        solver1.SetOperator(ls1.A)
-
-        P_matrix = fill_prolongation_operator(engine, 0, ls1.A)
-        prolongations = [P_matrix]
-        #smoothers = [ls0.solver, genearate_smoother(engine, 0, ls1.A)]
-        smoothers = [ls0.solver, solver1]
-
-        operators = [ls0.A, ls1.A]
-        '''
         #solall = linearsolver.Mult(BB, case_base=0)
         if len(smoothers) > 1:
             mg = generate_MG(operators, smoothers, prolongations,
@@ -605,99 +614,8 @@ class MLInstance(SolverInstance):
         else:
             mg = None
 
-        # very small value
-        # ls1.solver.SetPreconditioner(mg.solver)
-        #solall = ls1.Mult(BB, XX)
-
-        # transfer looks okay
-        #solall0 = ls0.Mult(_BB, _XX)
-        #np.save('saved_block_vector', _XX.GetDataArray())
-
-        '''
-        solall0 = ls0.Mult(_BB, _XX)
-        engine.level_idx = 0
-        A = engine.assembled_blocks[0]
-        X = engine.assembled_blocks[1]
-        solall = np.transpose(np.vstack([_XX.GetDataArray()]))        
-        if not self.phys_real and self.gui.assemble_real:
-            solall = self.linearsolver_models[-1].real_to_complex(solall, _AA)
-
-        A.reformat_central_mat(solall, 0, X[0], self.blk_mask)
-        self.sol = X[0]
-        return True
-        '''
-        #
-
-        # this seems good after removing ReorientTetMesh and
-        # changed to use H refinement
-        '''
-        solall0 = ls0.Mult(_BB, _XX)
-        P_matrix.Mult(_XX, XX)
-        np.save('saved_block_vector', XX.GetDataArray())        
-        engine.level_idx = 1
-        A = engine.assembled_blocks[0]
-        X = engine.assembled_blocks[1]
-        solall = np.transpose(np.vstack([XX.GetDataArray()]))        
-        if not self.phys_real and self.gui.assemble_real:
-            solall = self.linearsolver_models[-1].real_to_complex(solall, AA)
-
-        A.reformat_central_mat(solall, 0, X[0], self.blk_mask)
-        self.sol = X[0]
-        return True
-        '''
-        #print("here", type(_XX), _XX.GetDataArray().shape, XX.GetDataArray().shape)
-        #solall = np.transpose(np.vstack([XX.GetDataArray()]))
-        #
-
-        # mg alone seems okay. but smoother destor
-        #mg.solver.Mult(BB[0], XX)
-        #solall = np.transpose(np.vstack([XX.GetDataArray()]))
-        '''
-        class MyPreconditioner(mfem.Solver):
-            def __init__(self):
-                mfem.Solver.__init__(self)
-
-            def Mult(self, x, y):
-                print('MyPreconditioner.Mult')                
-                np.save('original_b', _BB[0].GetDataArray())
-                np.save('original_x', x.GetDataArray())                
-                P_matrix.MultTranspose(x, _BB[0])
-                np.save('restricted_b', _BB[0].GetDataArray())
-                ls0.Mult(_BB, _XX)
-                P_matrix.Mult(_XX, y)
-                #print(x, y)
-                #assert False, "faile for now"
-
-            def SetOperator(self, opr):
-                pass
-
-        class MyFGMRESSolver(mfem.FGMRESSolver):
-            def Mult(self, x, y):
-                print('MyFGMRESSolver.Mult')
-                mfem.FGMRESSolver.Mult(self, x, y)
-
-        prc = MyPreconditioner()
-        # write solver here...
-        solver = MyFGMRESSolver()
-        solver.SetRelTol(1e-18)
-        solver.SetAbsTol(0)
-        solver.SetMaxIter(1)
-        solver.SetPrintLevel(1)
-        solver.SetOperator(ls1.A)
-        solver.SetPreconditioner(mg.solver)
-        #solver.SetPreconditioner(prc)
-        np.save('initial_x', XX.GetDataArray())        
-        solver.Mult(BB[0], XX)
-        solall = np.transpose(np.vstack([XX.GetDataArray()]))
-        '''
-        #solall = ls1.Mult(BB, XX)
-        '''
-        solall = ls1.Mult(BB, XX)        
-        mg.solver.Mult(BB[0], XX)
-
-        '''
         BB, XX, AA = self.finalized_ls[-1]
-        np.save('saved_block_vector_input', BB[0].GetDataArray())
+
         if finestsolver is not None:
             finestsolver.SetPreconditioner(mg)
             finestsolver.Mult(BB[0], XX)
@@ -710,17 +628,71 @@ class MLInstance(SolverInstance):
             smoothers[0].Mult(BB[0], XX)
             solall = np.transpose(np.vstack([XX.GetDataArray()]))
 
-        np.save('saved_block_vector_mg', XX.GetDataArray())
+        if not self.phys_real:
+            from petram.solver.solver_model import convert_realblocks_to_complex
+            merge_real_imag = self.ls_type in ["blk_merged", "blk_merged_s"]
+            solall = convert_realblocks_to_complex(solall, AA, merge_real_imag)
 
-        # check fine level linear system...
-        #solall = ls1.Mult(BB, XX)
+        engine.level_idx = len(self.finalized_ls)-1
+        A = engine.assembled_blocks[0]
+        X = engine.assembled_blocks[1]
+        A.reformat_distributed_mat(solall, 0, X[0], self.blk_mask)
 
+        self.sol = X[0]
+
+        # store probe signal (use t=0.0 in std_solver)
+        for p in self.probe:
+            p.append_sol(X[0])
+
+        return True
+
+    def solve(self, update_operator=True):
         '''
-        solall = linearsolver.Mult(BB, x=XX, case_base=0)
+        test version calls one V cycle written in Python
+        '''
+        engine = self.engine
 
-        #linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
+        self.finalize_linear_systems()
+
+        smoothers, finestsolver = self.create_solvers()
+        prolongations = self.create_prolongations()
+
+        operators = [x[-1] for x in self.finalized_ls]
+
         #solall = linearsolver.Mult(BB, case_base=0)
+        if len(smoothers) > 1:
+            mg = SimpleMGMG(operators, smoothers, prolongations,
+                            presmoother_count=int(self.gui.presmoother_count),
+                            postsmoother_count=int(self.gui.postsmoother_count))
+
+        else:
+            mg = None
+
+        BB, XX, AA = self.finalized_ls[-1]
+
+        if finestsolver is not None:
+            finestsolver.SetPreconditioner(mg)
+            finestsolver.Mult(BB[0], XX)
+            solall = np.transpose(np.vstack([XX.GetDataArray()]))
+        elif mg is not None:
+            mg.Mult(BB[0], XX)
+            solall = np.transpose(np.vstack([XX.GetDataArray()]))
+        else:
+            # this makes sense if coarsest smoother is direct solver
+            smoothers[0].Mult(BB[0], XX)
+            solall = np.transpose(np.vstack([XX.GetDataArray()]))
+
         '''
+        mult_one_cycle(BB[0], XX,
+                   operators,
+                   smoothers,
+                   prolongations,
+                   presmoother_count=1,
+                   postsmoother_count=1)
+        '''
+
+        solall = np.transpose(np.vstack([XX.GetDataArray()]))
+
         if not self.phys_real:
             from petram.solver.solver_model import convert_realblocks_to_complex
             merge_real_imag = self.ls_type in ["blk_merged", "blk_merged_s"]
@@ -754,6 +726,78 @@ def generate_MG(operators, smoothers, prolongations,
                     presmoother_count, postsmoother_count)
 
     return mg
+
+
+class SimpleMG(mfem.PyIterativeSolver):
+    def __init__(self, operators, smoothers, prolongations,
+                 presmoother_count=1, postsmoother_count=1):
+        self.operators = operators
+        self.smoothers = smoothers
+        self.prolongations = prolongations
+        self.presmoother_count = presmoother_count
+        self.postsmoother_count = postsmoother_count
+
+    def Mult(self, x, y):
+        mult_one_cycle(x, y,
+                       self.operators,
+                       self.smoothers,
+                       self.prolongations,
+                       presmoother_count=self.presmoother_count,
+                       postsmoother_count=self.postsmoother_count)
+
+
+def mult_one_cycle(x, y,
+                   operators,
+                   smoothers,
+                   prolongations,
+                   presmoother_count=1,
+                   postsmoother_count=1):
+
+    err = mfem.Vector(x.Size())
+    err *= 0.0
+    y0 = mfem.Vector(x.Size())
+    y0 *= 0.0
+    y *= 0.0
+
+    print("smoother at fine level")
+    operators[-1].Mult(y, err)
+    err *= -1
+    err += x
+    smoothers[-1].Mult(err, y0)
+    y += y0
+
+    print("error at fine level: ", y.Norml2())
+    operators[0].Mult(y, err)
+    err *= -1
+    err += x
+
+    err2 = mfem.Vector(operators[0].Width())
+    y2 = mfem.Vector(operators[0].Width())
+    prolongations[0].MultTranspose(err, err2)
+
+    print("calling mumps")
+
+    print("error from fine level", err2.Norml2())
+    smoothers[0].Mult(err2, y2)
+    print(y2.Norml2())
+    tmp = mfem.Vector(y2.Size())
+    tmp *= 0
+    operators[0].Mult(y2, tmp)
+    tmp -= err2
+    print("MUMPS linear inverse error: ", tmp.Norml2())
+
+    tmp = mfem.Vector(y.Size())
+    prolongations[0].Mult(y2, tmp)
+    y += tmp
+
+    return
+    # post smooth
+    err *= 0
+    operators[-1].Mult(y, err)
+    err *= -1
+    err += x
+    smoothers[-1].Mult(err, y0)
+    y += y0
 
 
 def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):

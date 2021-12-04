@@ -1806,6 +1806,7 @@ class Engine(object):
             ess_tdof = self.ess_tdofs[name]
             idx1 = self.dep_var_offset(name)
             idx2 = self.r_dep_var_offset(name)
+
             if A[idx1, idx2] is None:
                 A.add_empty_square_block(idx1, idx2)
 
@@ -1817,14 +1818,14 @@ class Engine(object):
 
                 B[idx1] = Bnew
 
-                '''
-              note: minor differece between serial/parallel
+            '''
+            note: minor differece between serial/parallel
  
-              Aee in serial ana parallel are not equal. The definition of Aee in MFEM is
-                  A_original = Aee + A, where A_diag is set to one for Esseential DoF
-              In the serial mode, Aee_diag is not properly set. But this element
-              does not impact the final RHS.
-              '''
+            Aee in serial ana parallel are not equal. The definition of Aee in MFEM is
+            A_original = Aee + A, where A_diag is set to one for Esseential DoF
+            In the serial mode, Aee_diag is not properly set. But this element
+            does not impact the final RHS.
+            '''
 
             for j in range(nblock2):
                 if j == idx2:

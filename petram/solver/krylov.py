@@ -279,20 +279,66 @@ class KrylovSmoother(KrylovModel):
         return solver
 
     def prepare_solver_with_multtranspose(self, opr, engine):
-        class MyGMRESSolver(mfem.PyGMRESSolver):
-            def __init__(self, *args, **kwags):
-                mfem.PyGMRESSolver.__init__(self, *args, **kwags)
+        '''
+        This is called from multi-level refinement
+        '''
+        class MyPySolver(mfem.PyIterativeSolver):
+            def __init__(self, solver_type):
+                args = (MPI.COMM_WORLD,) if use_parallel else ()
+                cls = getattr(mfem, solver_type + 'Solver')
+                self.s1 = cls(*args)
+                self.s2 = cls(*args)
+                mfem.PyIterativeSolver.__init__(self, *args)
+
+            def SetAbsTol(self, tol):
+                self.s1.SetAbsTol(tol)
+                self.s2.SetAbsTol(tol)
+
+            def SetRelTol(self, tol):
+                self.s1.SetRelTol(tol)
+                self.s2.SetRelTol(tol)
+
+            def SetMaxIter(self, iter):
+                self.s1.SetMaxIter(iter)
+                self.s2.SetMaxIter(iter)
+
+            def SetPrintLevel(self, lvl):
+                self.s1.SetPrintLevel(lvl)
+                self.s2.SetPrintLevel(lvl)
+
+            def SetKDim(self, d):
+                self.s1.SetKDim(d)
+                self.s2.SetKDim(d)
+
+            def SetOperator(self, opr):
+                self.s1.SetOperator(opr)
+                opr2 = mfem.TransposeOperator(opr)
+                self.s2.SetOperator(opr2)
+                self._oprs = (opr, opr2)
+
+            def SetPreconditioner(self, opr):
+                self.s1.SetPreconditioner()
+                opr2 = mfem.TransposeOperator(opr)
+                self.s2.SetPreconditioner(opr2)
+                self._prcs = (opr, opr2)
 
             def Mult(self, x, y):
-                mfem.PyGMRESSolver.Mult(self, x, y)
+                self.s1.Mult(x, y)
 
             def MultTranspose(self, x, y):
-                mfem.PyGMRESSolver.Mult(self, x, y)
-            # def SetOperator(self, x):
-            #     mfem.GMRESSolver.SetOperator(self, x)
+                self.s1.Mult(x, y)
+
+            @property
+            def iterative_mode(self):
+                return self.s1.iterative_mode
+
+            @iterative_mode.setter
+            def iterative_mode(self, v):
+                self.s1.iterative_mode = v
+                self.s2.iterative_mode = v
 
         args = (MPI.COMM_WORLD,) if use_parallel else ()
-        solver = MyGMRESSolver(*args)
+        solver = MyPySolver(self.solver_type)
         solver.SetAbsTol(self.abstol)
         solver.SetRelTol(self.reltol)
         solver.SetMaxIter(self.maxiter)
@@ -302,4 +348,110 @@ class KrylovSmoother(KrylovModel):
 
         solver.iterative_mode = False
         solver.SetOperator(opr)
+        return solver
+
+
+class StationaryRefinementModel(KrylovModel):
+    hide_ns_menu = True
+    has_2nd_panel = False
+    accept_complex = False
+    always_new_panel = False
+
+    def panel1_param(self):
+        p1 = [["log_level", -1, 400, {}],
+              ["max  iter.", 200, 400, {}],
+              ["rel. tol", 1e-7, 300, {}],
+              ["abs. tol.", 1e-7, 300, {}], ]
+        return p1
+
+    def get_panel1_value(self):
+        # this will set _mat_weight
+        from petram.solver.solver_model import SolveStep
+        p = self.parent
+        while not isinstance(p, SolveStep):
+            p = p.parent
+            if p is None:
+                assert False, "Solver is not under SolveStep"
+
+        single1 = [int(self.log_level), int(self.maxiter),
+                   self.reltol, self.abstol]
+        return single1
+
+    def import_panel1_value(self, v):
+        self.log_level = int(v[0])
+        self.maxiter = int(v[1])
+        self.reltol = v[2]
+        self.abstol = v[3]
+
+    def attribute_set(self, v):
+        v = super(StationaryRefinementModel, self).attribute_set(v)
+        v['log_level'] = 0
+        v['maxiter'] = 200
+        v['reltol'] = 1e-7
+        v['abstol'] = 1e-7
+        v['printit'] = 1
+        v['write_mat'] = False
+        v['assert_no_convergence'] = False
+        return v
+
+    def do_prepare_solver(self, opr, engine):
+        cls = mfem.SLISolver
+        args = (MPI.COMM_WORLD,) if use_parallel else ()
+
+        solver = cls(*args)
+        solver.SetAbsTol(self.abstol)
+        solver.SetRelTol(self.reltol)
+        solver.SetMaxIter(self.maxiter)
+        solver.SetPrintLevel(self.log_level)
+
+        solver.iterative_mode = True
+        solver.SetOperator(opr)
+
+        M = self.prepare_preconditioner(opr, engine)
+
+        if M is not None:
+            solver.SetPreconditioner(M)
+            solver._prc = M
+        return solver
+
+    def prepare_solver(self, opr, engine):
+        solver = self.do_prepare_solver(opr, engine)
+        solver.iterative_mode = True
+
+        return solver
+
+    @classmethod
+    def fancy_menu_name(self):
+        return 'StationaryRefinement'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'Refinement'
+
+    def get_info_str(self):
+        return 'Refinement'
+
+    def does_linearsolver_choose_linearsystem_type(self):
+        return False
+
+    def supported_linear_system_type(self):
+        return ["blk_interleave",
+                "blk_merged_s",
+                "blk_merged", ]
+
+
+class StationaryRefinementSmoother(StationaryRefinementModel):
+    def get_info_str(self):
+        return 'Smoother'
+
+    def attribute_set(self, v):
+        v = KrylovModel.attribute_set(self, v)
+        v['log_level'] = -1
+        v['abstol'] = 0.0
+        v['assert_no_convergence'] = False
+        return v
+
+    def prepare_solver(self, opr, engine):
+        solver = self.do_prepare_solver(opr, engine)
+        solver.iterative_mode = False
         return solver
