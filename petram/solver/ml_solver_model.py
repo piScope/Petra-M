@@ -659,11 +659,19 @@ class MLInstance(SolverInstance):
 
         operators = [x[-1] for x in self.finalized_ls]
 
+        lvl = engine.level_idx
+        engine.level_idx = 0
+        esstdofs0 = engine.gl_ess_tdofs['E']
+        engine.level_idx = 1
+        esstdofs1 = engine.gl_ess_tdofs['E']
+        engine.level_idx = lvl
+
         #solall = linearsolver.Mult(BB, case_base=0)
         if len(smoothers) > 1:
-            mg = SimpleMGMG(operators, smoothers, prolongations,
-                            presmoother_count=int(self.gui.presmoother_count),
-                            postsmoother_count=int(self.gui.postsmoother_count))
+            mg = SimpleMG(operators, smoothers, prolongations,
+                          ess_tdofs=(esstdofs0, esstdofs1),
+                          presmoother_count=int(self.gui.presmoother_count),
+                          postsmoother_count=int(self.gui.postsmoother_count))
 
         else:
             mg = None
@@ -681,15 +689,6 @@ class MLInstance(SolverInstance):
             # this makes sense if coarsest smoother is direct solver
             smoothers[0].Mult(BB[0], XX)
             solall = np.transpose(np.vstack([XX.GetDataArray()]))
-
-        '''
-        mult_one_cycle(BB[0], XX,
-                   operators,
-                   smoothers,
-                   prolongations,
-                   presmoother_count=1,
-                   postsmoother_count=1)
-        '''
 
         solall = np.transpose(np.vstack([XX.GetDataArray()]))
 
@@ -730,74 +729,102 @@ def generate_MG(operators, smoothers, prolongations,
 
 class SimpleMG(mfem.PyIterativeSolver):
     def __init__(self, operators, smoothers, prolongations,
+                 ess_tdofs=None,
                  presmoother_count=1, postsmoother_count=1):
         self.operators = operators
         self.smoothers = smoothers
         self.prolongations = prolongations
         self.presmoother_count = presmoother_count
         self.postsmoother_count = postsmoother_count
+        self.ess_tdofs = ess_tdofs
+
+        if use_parallel:
+            from mpi4py import MPI
+            args = (MPI.COMM_WORLD,)
+        else:
+            args = tuple()
+        mfem.PyIterativeSolver.__init__(self, *args)
 
     def Mult(self, x, y):
-        mult_one_cycle(x, y,
-                       self.operators,
-                       self.smoothers,
-                       self.prolongations,
-                       presmoother_count=self.presmoother_count,
-                       postsmoother_count=self.postsmoother_count)
+        self.mult_one_cycle(x, y,
+                            self.operators,
+                            self.smoothers,
+                            self.prolongations,
+                            presmoother_count=self.presmoother_count,
+                            postsmoother_count=self.postsmoother_count)
 
+    def mult_one_cycle(self, x, y,
+                       operators,
+                       smoothers,
+                       prolongations,
+                       presmoother_count=1,
+                       postsmoother_count=1):
 
-def mult_one_cycle(x, y,
-                   operators,
-                   smoothers,
-                   prolongations,
-                   presmoother_count=1,
-                   postsmoother_count=1):
+        err = mfem.Vector(x.Size())
+        y0 = mfem.Vector(x.Size())
+        #y0 *= 0.0
+        #y *= 0.0
+        print("")
+        print("Entering Cycle")
+        print("")
+        print("RHS on essential",
+              np.sum(np.abs(x.GetDataArray()[self.ess_tdofs[0]])))
+        print("!!!!! Entering fine level (pre)")
+        operators[-1].Mult(y, err)
+        err *= -1
+        err += x
+        print("  error before pre-smooth:", y.Norml2())
+        smoothers[-1].Mult(err, y0)
+        y += y0
 
-    err = mfem.Vector(x.Size())
-    err *= 0.0
-    y0 = mfem.Vector(x.Size())
-    y0 *= 0.0
-    y *= 0.0
+        print("error after pre-smooth: ", y.Norml2())
+        operators[-1].Mult(y, err)
+        err *= -1
+        err += x
+        print("  residual at fine level", err.Norml2())
+        print("  error on essential at fine level(1)",
+              np.sum(np.abs(err.GetDataArray()[self.ess_tdofs[0]])))
 
-    print("smoother at fine level")
-    operators[-1].Mult(y, err)
-    err *= -1
-    err += x
-    smoothers[-1].Mult(err, y0)
-    y += y0
+        print("!!!!! Entering coarse level")
+        err2 = mfem.Vector(operators[0].Width())
+        y2 = mfem.Vector(operators[0].Width())
+        prolongations[0].MultTranspose(err, err2)
 
-    print("error at fine level: ", y.Norml2())
-    operators[0].Mult(y, err)
-    err *= -1
-    err += x
+        print("  calling mumps")
 
-    err2 = mfem.Vector(operators[0].Width())
-    y2 = mfem.Vector(operators[0].Width())
-    prolongations[0].MultTranspose(err, err2)
+        print("  Error from fine level", err2.Norml2())
 
-    print("calling mumps")
+        print("  error on essential at coarse level",
+              np.sum(np.abs(err.GetDataArray()[self.ess_tdofs[0]])))
 
-    print("error from fine level", err2.Norml2())
-    smoothers[0].Mult(err2, y2)
-    print(y2.Norml2())
-    tmp = mfem.Vector(y2.Size())
-    tmp *= 0
-    operators[0].Mult(y2, tmp)
-    tmp -= err2
-    print("MUMPS linear inverse error: ", tmp.Norml2())
+        smoothers[0].Mult(err2, y2)
+        print("  L2 norm of correction", y2.Norml2())
+        tmp = mfem.Vector(y2.Size())
+        tmp *= 0
+        operators[0].Mult(y2, tmp)
+        tmp -= err2
+        print("  MUMPS linear inverse error: ", tmp.Norml2())
 
-    tmp = mfem.Vector(y.Size())
-    prolongations[0].Mult(y2, tmp)
-    y += tmp
+        tmp = mfem.Vector(y.Size())
+        prolongations[0].Mult(y2, tmp)
 
-    return
-    # post smooth
-    err *= 0
-    operators[-1].Mult(y, err)
-    err *= -1
-    err += x
-    smoothers[-1].Mult(err, y0)
-    y += y0
+        print("!!!!! Entering fine level (post)")
+        print("  correction on essential",
+              np.sum(np.abs(tmp.GetDataArray()[self.ess_tdofs[1]])))
+        tmp.GetDataArray()[self.ess_tdofs[1]] = 0
+        y += tmp
+
+        # post smooth
+        #y0 *= 0
+        print("  error before post-smooth:", y.Norml2())
+        operators[-1].Mult(y, err)
+        err *= -1
+        err += x
+        smoothers[-1].Mult(err, y0)
+        y += y0
+
+        print("  error after post-smooth:", y.Norml2())
+        print("Exiting Cycle\n")
 
 
 def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
