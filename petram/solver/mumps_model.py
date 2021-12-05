@@ -634,7 +634,6 @@ class MUMPSSolver(LinearSolver):
                 self.irhs_loc = None
                 self.N_global = None
 
-            # s.set_icntl(24, 1) # Null detection (somehow this needs in serial solver)
         # blr
         if gui.use_blr:
             s.set_icntl(35, 1)
@@ -669,6 +668,7 @@ class MUMPSSolver(LinearSolver):
             # threshold for static pivoting
             s.set_cntl(4, convert2float(gui.cntl4))
 
+        s.set_icntl(24, 0)  # No Null detection
         self.set_ordering_flag(s)
 
         MPI.COMM_WORLD.Barrier()

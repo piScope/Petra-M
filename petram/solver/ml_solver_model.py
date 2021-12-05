@@ -646,7 +646,7 @@ class MLInstance(SolverInstance):
 
         return True
 
-    def solve(self, update_operator=True):
+    def _solve(self, update_operator=True):
         '''
         test version calls one V cycle written in Python
         '''
