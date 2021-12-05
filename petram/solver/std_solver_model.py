@@ -220,7 +220,8 @@ class StandardSolver(SolverInstance):
             XX = None
         
         solall = linearsolver.Mult(BB, x=XX, case_base=0)
-        
+        if solall is not None:
+            dprint1("solall.shape", solall.shape)
         #linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         #solall = linearsolver.Mult(BB, case_base=0)
             

@@ -258,7 +258,8 @@ class MUMPSSolver(LinearSolver):
     def __init__(self, *args, **kwargs):
         super(MUMPSSolver, self).__init__(*args, **kwargs)
         self.silent = False
-
+        self.keep_sol_distributed = False
+        
     @staticmethod
     def split_dir_prefix(txt):
         txt = os.path.abspath(os.path.expanduser(txt))
@@ -839,7 +840,9 @@ class MUMPSSolver(LinearSolver):
                 bstack = self.make_vector_entries(bstack)
                 s.set_rhs(self.data_array(bstack))
 
-        distributed_sol = use_parallel and nproc > 1
+        distributed_sol = (use_parallel and
+                           nproc > 1 and
+                           self.keep_sol_distributed)
 
         if distributed_sol:
             lsol_loc, isol_loc, sol_loc = self.set_distributed_sol(s, nrhs)
@@ -952,6 +955,7 @@ class MUMPSPreconditioner(mfem.PyOperator):
             self.solver.AllocSolver(self.is_complex_operator,
                                     self.gui.use_single_precision)
             self.solver.SetOperator(coo_opr, False)
+            self.solver.keep_sol_distributed = True            
             self.row_part = [-1, -1]
 
         else:
@@ -982,6 +986,7 @@ class MUMPSPreconditioner(mfem.PyOperator):
             self.solver.AllocSolver(self.is_complex_operator,
                                     self.gui.use_single_precision)
             self.solver.SetOperator(gcoo, True)
+            self.solver.keep_sol_distributed = True
             self.is_parallel = True
 
         self.solver.set_silent(self.silent)
@@ -1268,6 +1273,7 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             solver.AllocSolver(self.is_complex_operator,
                                self.gui.use_single_precision)
             solver.SetOperator(gcoo, is_parallel)
+            solver.keep_sol_distributed = True
             self.solver.append(solver)
         else:
             pathes = self.gui.factor_path.split(',')
@@ -1276,6 +1282,7 @@ class MUMPSBlockPreconditioner(mfem.Solver):
                 solver.AllocSolver(self.is_complex_operator,
                                    self.gui.use_single_precision)
                 solver.SetOperator(gcoo, is_parallel, ifactor=i)
+                solver.keep_sol_distributed = True
                 self.solver.append(solver)
 
         self.is_parallel = is_parallel
