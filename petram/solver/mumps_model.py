@@ -600,7 +600,7 @@ class MUMPSSolver(LinearSolver):
             self.irhs_loc = np.unique(row)
             self.N_global = np.sum(
                 MPI.COMM_WORLD.allgather(len(self.irhs_loc)))
-            print("hoge", self.N_global)
+
         else:
             A = A.tocoo(False)  # .astype('complex')
             import petram.ext.mumps.mumps_solve as mumps_solve

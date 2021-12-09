@@ -1879,6 +1879,41 @@ class Engine(object):
 
         return RHS
 
+    def collect_local_ess_TDofs(self, opr, format, is_complex):
+        '''
+        Find essential TDoFs index in solution block vector
+
+        this method assumes format is either (blk_interleave, blk_merged, blk_merged_s)
+        '''
+        nblock1 = opr.NumColBlocks()
+        nblock2 = opr.NumRowBlocks()
+
+        offsets1 = opr.ColOffsets().ToList()
+        offsets2 = opr.RowOffsets().ToList()
+
+        print(nblock1, offsets1)
+
+        ret = []
+
+        for name in self.gl_ess_tdofs:
+            # we do elimination only for the varialbes to be solved
+            if not name in self._dep_vars:
+                continue
+
+            ess_tdof = np.array(self.ess_tdofs[name], dtype=int)
+            idx = self.dep_var_offset(name)
+
+            if is_complex and format == 'blk_interleave':
+                o1 = offsets1[2*idx]
+                ret.append(ess_tdof + o1)
+                o2 = offsets1[2*idx+1]
+                ret.append(ess_tdof + o2)
+            else:
+                o1 = offsets1[idx]
+                ret.append(ess_tdof + o1)
+
+        return np.hstack(ret)
+
     def apply_interp(self, A=None, RHS=None):
         ''''
         without interpolation, matrix become

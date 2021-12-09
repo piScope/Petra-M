@@ -69,7 +69,7 @@ class FinestLvlSolver:
 
 class RefinedLevel(FineLevel, SolverBase):
     hide_ns_menu = True
-    has_2nd_panel = False
+    has_2nd_panel = True
 
     def __init__(self, *args, **kwags):
         SolverBase.__init__(self, *args, **kwags)
@@ -80,25 +80,64 @@ class RefinedLevel(FineLevel, SolverBase):
         v = SolverBase.attribute_set(self, v)
         v["level_inc"] = "1"
         v["refinement_type"] = "P(order)"
+        v["extra_constraints1"] = ""
+        v["extra_constraints2"] = ""
+        v["select_extra_constreint"] = False
+        v["unselect_extra_constreint"] = False
+        v["use_domain_refinement"] = False
         return v
 
     def panel1_param(self):
         panels = super(RefinedLevel, self).panel1_param()
+
+        mm = [["constraints", "", 0, {}], ]
+
+        p2 = [None, (self.select_extra_constreint, (self.extra_constraints1,)),
+              27, ({"text": "Enable contributions"}, {"elp": mm},)]
+        p3 = [None, (self.unselect_extra_constreint, (self.extra_constraints2,)),
+              27, ({"text": "Disable contributions"}, {"elp": mm},)]
+
         panels.extend([["refinement type", self.refinement_type, 1,
                         {"values": ["P(order)", "H(mesh)"]}],
-                       ["level increment", "", 0, {}], ])
+                       ["level increment", "", 0, {}],
+                       p2, p3])
         return panels
 
     def get_panel1_value(self):
         value = list(super(RefinedLevel, self).get_panel1_value())
         value.append(self.refinement_type)
         value.append(self.level_inc)
+        v2 = (self.select_extra_constreint, (self.extra_constraints1,))
+        v3 = (self.unselect_extra_constreint, (self.extra_constraints2,))
+        value.append(v2)
+        value.append(v3)
+
         return value
 
     def import_panel1_value(self, v):
-        super(RefinedLevel, self).import_panel1_value(v[:-2])
-        self.refinement_type = v[-2]
-        self.level_inc = v[-1]
+        super(RefinedLevel, self).import_panel1_value(v[:-4])
+        self.refinement_type = v[-4]
+        self.level_inc = v[-3]
+        self.select_extra_constreint = v[-2][0]
+        self.extra_constraints1 = v[-2][1][0]
+        self.unselect_extra_constreint = v[-1][0]
+        self.extra_constraints2 = v[-1][1][0]
+
+    def panel2_param(self):
+        mm = [["constraints", "", 0, {}], ]
+        p2 = [None, (self.use_domain_refinement, (self._sel_index,)),
+              27, ({"text": "Resrict domain (H-only)"}, {"elp": mm},)]
+
+        return [p2, ]
+
+    def get_panel2_value(self):
+        txt = ",".join([str(x) for x in self._sel_index])
+        v1 = (self.use_domain_refinement, (txt,))
+        return (v1,)
+
+    def import_panel2_value(self, v):
+        self.use_domain_refinement = v[0][0]
+        self._sel_index = [x for x in v[0][1][0].split(',')]
 
     def get_possible_child(self):
         from petram.solver.krylov import KrylovSmoother
@@ -646,7 +685,7 @@ class MLInstance(SolverInstance):
 
         return True
 
-    def _solve(self, update_operator=True):
+    def solve(self, update_operator=True):
         '''
         test version calls one V cycle written in Python
         '''
@@ -659,16 +698,17 @@ class MLInstance(SolverInstance):
 
         operators = [x[-1] for x in self.finalized_ls]
 
-        offsets0 = operators[0].RowOffsets().ToList()
-        offsets1 = operators[1].RowOffsets().ToList()
+        #offsets0 = operators[0].RowOffsets().ToList()
+        #offsets1 = operators[1].RowOffsets().ToList()
 
         lvl = engine.level_idx
+        is_complex = not self.phys_real
         engine.level_idx = 0
-        tmp = np.array(engine.gl_ess_tdofs['E'], dtype=int)
-        esstdofs0 = np.hstack((tmp, tmp+offsets0[1]))
+        esstdofs0 = engine.collect_local_ess_TDofs(
+            operators[0], self.ls_type, is_complex)
         engine.level_idx = 1
-        tmp = np.array(engine.gl_ess_tdofs['E'], dtype=int)
-        esstdofs1 = np.hstack((tmp, tmp+offsets1[1]))
+        esstdofs1 = engine.collect_local_ess_TDofs(
+            operators[1], self.ls_type, is_complex)
         engine.level_idx = lvl
 
         #solall = linearsolver.Mult(BB, case_base=0)
