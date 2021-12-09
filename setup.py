@@ -17,7 +17,7 @@ with open(path.join(here, 'README.md')) as f:
 setup(
     name='PetraM_Base',
 
-    version='1.7.2',
+    version='1.7.3',
 
     description='PetraM base package',
     long_description=long_description,
@@ -41,7 +41,8 @@ setup(
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
     install_requires=[],
     extras_require={},
-    package_data={'petram': ['data/icon/*.png', 'data/*Ops']}, #, '':['data/*.mesh']},
+    # , '':['data/*.mesh']},
+    package_data={'petram': ['data/icon/*.png', 'data/*Ops']},
     data_files=[],
     entry_points={},
 )

@@ -186,7 +186,7 @@ class CoarseStrumpack(Strumpack, CoarsestLvlSolver):
 class FineIterative(KrylovModel, FinestLvlSolver):
     @classmethod
     def fancy_menu_name(self):
-        return 'Finest level solver'
+        return 'Kryrov'
 
     @classmethod
     def fancy_tree_name(self):
@@ -211,7 +211,7 @@ class FineIterative(KrylovModel, FinestLvlSolver):
 class FineRefinement(StationaryRefinementModel, FinestLvlSolver):
     @classmethod
     def fancy_menu_name(self):
-        return 'Finest level solver'
+        return 'StationaryRefinement'
 
     @classmethod
     def fancy_tree_name(self):
@@ -595,7 +595,7 @@ class MLInstance(SolverInstance):
     def assemble_rhs(self):
         assert False, "assemble_rhs is not implemented"
 
-    def solve(self, update_operator=True):
+    def _solve(self, update_operator=True):
         engine = self.engine
 
         self.finalize_linear_systems()
@@ -659,11 +659,16 @@ class MLInstance(SolverInstance):
 
         operators = [x[-1] for x in self.finalized_ls]
 
+        offsets0 = operators[0].RowOffsets().ToList()
+        offsets1 = operators[1].RowOffsets().ToList()
+
         lvl = engine.level_idx
         engine.level_idx = 0
-        esstdofs0 = engine.gl_ess_tdofs['E']
+        tmp = np.array(engine.gl_ess_tdofs['E'], dtype=int)
+        esstdofs0 = np.hstack((tmp, tmp+offsets0[1]))
         engine.level_idx = 1
-        esstdofs1 = engine.gl_ess_tdofs['E']
+        tmp = np.array(engine.gl_ess_tdofs['E'], dtype=int)
+        esstdofs1 = np.hstack((tmp, tmp+offsets1[1]))
         engine.level_idx = lvl
 
         #solall = linearsolver.Mult(BB, case_base=0)
@@ -763,67 +768,98 @@ class SimpleMG(mfem.PyIterativeSolver):
         err = mfem.Vector(x.Size())
         y0 = mfem.Vector(x.Size())
         #y0 *= 0.0
-        #y *= 0.0
+        y *= 0.0
+        print(self.ess_tdofs[0])
+        print(self.ess_tdofs[1])
         print("")
         print("Entering Cycle")
         print("")
-        print("RHS on essential",
-              np.sum(np.abs(x.GetDataArray()[self.ess_tdofs[0]])))
+        print("residual on essential at entry",
+              np.sum(np.abs(x.GetDataArray()[self.ess_tdofs[1]])))
+        print("Initial guess of correction on essential",
+              np.sum(np.abs(y.GetDataArray()[self.ess_tdofs[1]])))
         print("!!!!! Entering fine level (pre)")
+        '''
         operators[-1].Mult(y, err)
         err *= -1
         err += x
-        print("  error before pre-smooth:", y.Norml2())
-        smoothers[-1].Mult(err, y0)
+
+        print("  error before pre-smooth:",
+              np.sum(np.abs(err.GetDataArray()[self.ess_tdofs[0]])))
+        '''
+        print("    - L2 before pre-smooth", x.Norml2())
+        smoothers[-1].iterative_mode = False
+        #smoothers[-1].Mult(err, y0)
+        smoothers[-1].Mult(x, y0)
+        print("    - L2 before after-smooth", y0.Norml2())
         y += y0
 
-        print("error after pre-smooth: ", y.Norml2())
+        print("  correction after pre-smooth:",
+              np.sum(np.abs(y0.GetDataArray()[self.ess_tdofs[1]])))
+
         operators[-1].Mult(y, err)
         err *= -1
         err += x
-        print("  residual at fine level", err.Norml2())
-        print("  error on essential at fine level(1)",
-              np.sum(np.abs(err.GetDataArray()[self.ess_tdofs[0]])))
+        print("  residual at fine level after pre-smooth",
+              np.sum(np.abs(err.GetDataArray()[self.ess_tdofs[1]])))
 
         print("!!!!! Entering coarse level")
         err2 = mfem.Vector(operators[0].Width())
+        err2.Assign(0.0)
         y2 = mfem.Vector(operators[0].Width())
         prolongations[0].MultTranspose(err, err2)
+        # (zeroing before MUMPS)  <--- this works
+        #err2.GetDataArray()[self.ess_tdofs[0]] = 0.0
+        print("  error on essential at coarse level",
+              np.sum(np.abs(err2.GetDataArray()[self.ess_tdofs[0]])))
 
         print("  calling mumps")
-
-        print("  Error from fine level", err2.Norml2())
-
-        print("  error on essential at coarse level",
-              np.sum(np.abs(err.GetDataArray()[self.ess_tdofs[0]])))
-
+        print("    - Norminf before mumps", err2.Normlinf())
         smoothers[0].Mult(err2, y2)
-        print("  L2 norm of correction", y2.Norml2())
-        tmp = mfem.Vector(y2.Size())
-        tmp *= 0
-        operators[0].Mult(y2, tmp)
-        tmp -= err2
-        print("  MUMPS linear inverse error: ", tmp.Norml2())
+        print("    - Norminf after-mumps", y2.Normlinf())
+        print("  correction on essential at coarse level",
+              np.sum(np.abs(y2.GetDataArray()[self.ess_tdofs[0]])))
 
+        tmp = mfem.Vector(y2.Size())
+        operators[0].Mult(y2, tmp)
+        #tmp -= err2
+        print("  MUMPS linear inverse error (L2): ", tmp.Norml2())
+
+        # (zeroing after MUMPS but coase level)   <--- this works
+        #y2.GetDataArray()[self.ess_tdofs[0]] = 0.0
         tmp = mfem.Vector(y.Size())
         prolongations[0].Mult(y2, tmp)
 
         print("!!!!! Entering fine level (post)")
-        print("  correction on essential",
+        # (zeroing after MUMPS after prolongation)
+        tmp.GetDataArray()[self.ess_tdofs[1]] = 0.0  # <--- does not works
+        print("  correction on essential i finelevel",
               np.sum(np.abs(tmp.GetDataArray()[self.ess_tdofs[1]])))
-        tmp.GetDataArray()[self.ess_tdofs[1]] = 0
         y += tmp
 
         # post smooth
-        #y0 *= 0
-        print("  error before post-smooth:", y.Norml2())
+        print("  correcrted solution on essential at fine level",
+              np.sum(np.abs(y.GetDataArray()[self.ess_tdofs[1]])))
+
         operators[-1].Mult(y, err)
         err *= -1
         err += x
-        smoothers[-1].Mult(err, y0)
-        y += y0
 
-        print("  error after post-smooth:", y.Norml2())
+        print("  residual on essential at fine level",
+              np.sum(np.abs(err.GetDataArray()[self.ess_tdofs[1]])))
+        print("    - L2 before after-smooth", err.Norml2())
+        smoothers[-1].Mult(err, y0)
+        print("    - L2 before after-smooth", y0.Norml2())
+
+        # (zeroing the essentials of final correction)
+        # y0.GetDataArray()[self.ess_tdofs[1]] = 0.0   <--- does not works
+        print("  correction on essential at fine level",
+              np.sum(np.abs(y0.GetDataArray()[self.ess_tdofs[1]])))
+
+        y += y0
+        print("  final correction on essential at fine level",
+              np.sum(np.abs(y.GetDataArray()[self.ess_tdofs[1]])))
+        print("  finial norm of correction (L2): ", y.Norml2())
         print("Exiting Cycle\n")
 
 

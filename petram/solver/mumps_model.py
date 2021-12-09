@@ -61,7 +61,7 @@ class MUMPSBase(LinearSolverModel):
                 ["scaling strategy (ICNTL8)", self.icntl8, 0, {}],
                 ["write inverse", self.write_inv, 3, {"text": ""}],
                 ["use float32", self.use_single_precision, 3, {"text": ""}],
-                ["use distributed RHS", self.use_dist_rhs, 3, {"text": ""}], ]
+                ["use dist, RHS (only for MLsolver)", self.use_dist_rhs, 3, {"text": ""}], ]
 
     def get_panel1_value(self):
         return (int(self.log_level), self.ordering, self.out_of_core,
@@ -259,7 +259,7 @@ class MUMPSSolver(LinearSolver):
         super(MUMPSSolver, self).__init__(*args, **kwargs)
         self.silent = False
         self.keep_sol_distributed = False
-        
+
     @staticmethod
     def split_dir_prefix(txt):
         txt = os.path.abspath(os.path.expanduser(txt))
@@ -598,8 +598,9 @@ class MUMPSSolver(LinearSolver):
             self.dataset = (A.data, row, col)
 
             self.irhs_loc = np.unique(row)
-            self.N_global = MPI.COMM_WORLD.allgather(len(self.irhs_loc))
-
+            self.N_global = np.sum(
+                MPI.COMM_WORLD.allgather(len(self.irhs_loc)))
+            print("hoge", self.N_global)
         else:
             A = A.tocoo(False)  # .astype('complex')
             import petram.ext.mumps.mumps_solve as mumps_solve
@@ -803,7 +804,16 @@ class MUMPSSolver(LinearSolver):
         if nproc > 1:
             nrhs = MPI.COMM_WORLD.bcast(nrhs)
 
-        distributed_rhs = self.gui.use_dist_rhs and use_parallel and nproc > 1
+        distributed_rhs = (self.gui.use_dist_rhs and
+                           use_parallel and
+                           nproc > 1)
+        # this one keep it from crashing if a user choose
+        # distributed RHS with std_solver.
+        # For now, we don't do this but add a note in GUI panel.
+        # distributed_rhs = (self.gui.use_dist_rhs and
+        #                   use_parallel and
+        #                   nproc > 1 and
+        #                   self.keep_sol_distributed )
 
         if distributed_rhs:
             s.set_icntl(20, 10)
@@ -842,7 +852,7 @@ class MUMPSSolver(LinearSolver):
 
         distributed_sol = (use_parallel and
                            nproc > 1 and
-                           self.keep_sol_distributed)
+                           self.keep_sol_distributed)  # if not std_solver
 
         if distributed_sol:
             lsol_loc, isol_loc, sol_loc = self.set_distributed_sol(s, nrhs)
@@ -955,7 +965,7 @@ class MUMPSPreconditioner(mfem.PyOperator):
             self.solver.AllocSolver(self.is_complex_operator,
                                     self.gui.use_single_precision)
             self.solver.SetOperator(coo_opr, False)
-            self.solver.keep_sol_distributed = True            
+            self.solver.keep_sol_distributed = True
             self.row_part = [-1, -1]
 
         else:
