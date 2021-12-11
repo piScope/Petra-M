@@ -5,6 +5,7 @@ if use_parallel:
 else:
     import mfem.ser as mfem
 
+import numpy as np    
 
 class HierarchicalFiniteElementSpaces(object):
     '''
@@ -91,9 +92,25 @@ class HierarchicalFiniteElementSpaces(object):
             P = self._new_transfer_operator(name, key1, key2, engine)
             self._p_storage[(key1, key2)] = P
         return P
+    
+    def add_same_level(self, name, engine):
+        emesh_idx, old_refine, element, order, fecdim, vdim = self._dataset[name][-1]
 
-    def add_uniformly_refined_level(self, name, engine, inc=1):
+        m2 = self._refined_mesh_storage[(emesh_idx, old_refine)]
+        fec = self.get_or_allocate_fec(element, order, fecdim)
 
+        key1 = (emesh_idx, old_refine, element, order, fecdim, vdim)
+
+        fes1 = self.get_or_allocate_fes(*key1)
+        P = self.get_or_allocate_transfer(name, key1, key1, engine)
+
+        h = self._hierarchies[name]
+        h.AddLevel(m2, fes1, P, False, False, False)
+
+        self._dataset[name].append(key1)
+        return len(self._dataset[name])
+        
+    def add_mesh_refined_level(self, name, engine, inc=1, refine_dom=None):
         emesh_idx, old_refine, element, order, fecdim, vdim = self._dataset[name][-1]
 
         new_refine = old_refine+1
@@ -101,7 +118,13 @@ class HierarchicalFiniteElementSpaces(object):
             m = self._refined_mesh_storage[(emesh_idx, old_refine)]
             m2 = self._owner.new_mesh_from_mesh(m)
             for i in range(inc):
-                m2.UniformRefinement()
+                if refine_dom is None:
+                    m2.UniformRefinement()
+                else:
+                    attr = m2.GetAttributeArray()
+                    idx = list(np.where(np.in1d(attr, refine_dom))[0])
+                    idx0 = mfem.intArray(idx)
+                    m2.GeneralRefinement(idx0)  # this is parallel refinement
             m2.GetEdgeVertexTable()
             self._refined_mesh_storage[(emesh_idx, old_refine+inc)] = m2
         else:
@@ -183,7 +206,9 @@ class HierarchicalFiniteElementSpaces(object):
 
         parallel = hasattr(fes1, 'GroupComm')
         if use_matrix_free:
-            if parallel:
+            if key1 == key2:
+                return mfem.IdentityOperator(fes1.GetTrueVSize())
+            elif parallel:
                 return mfem.TrueTransferOperator(fes1, fes2)
             else:
                 return mfem.TransferOperator(fes1, fes2)
@@ -197,6 +222,8 @@ class HierarchicalFiniteElementSpaces(object):
                 P = PP.Ptr()
                 return P
             else:
+                assert False, "Should not come here"
+                '''
                 a1 = mfem.BilinearForm(fes1)
                 a2 = mfem.BilinearForm(fes2)
                 a1.AddDomainIntegrator(mfem.VectorFEMassIntegrator())
@@ -225,16 +252,5 @@ class HierarchicalFiniteElementSpaces(object):
                 #P = PP.Ptr()
                 PPP = mfem.CustomTransfer(P, M1, M2)
                 PPP._linked = (a1, a2, M1, M2, P)
-                return PPP
-                '''
-                PP = mfem.OperatorPtr(mfem.Operator.ANY_TYPE)                
-                fes2.GetTransferOperator(fes1, PP);
-                P2 = PP.Ptr()
-                trf = mfem.InterpolationGridTransfer(fes1, fes2)
-                P = trf.ForwardOperator()
-                Pt = trf.BackwardOperator()
-
-                PPP = mfem.CustomTransfer(P2, Pt)
-                PPP._operators = (PP, P2, trf, Pt)
                 return PPP
                 '''

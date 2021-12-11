@@ -1688,12 +1688,18 @@ class Engine(object):
                 if update and not self.mask_M[k, r, c]:
                     continue
 
-                # t1,t2,t3,t4 = (vertical, horizontal, diag, rhs).
+                # t1, t2, t3, t4 = (vertical, horizontal, diag, rhs).
                 t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]
+                
+                ifes = self.r_ifes(dep_name)
+                x = self.r_x[ifes] 
+                
+                T1 = self.t1_2_T1(t1, r_x)
+                T2 = self.t2_2_T2(t2, r_x)
 
                 if r1 != -1:
-                    M[k][r1, c1] = t1 if M[k][r1, c1] is None else M[k][r1, c1]+t1
-                M[k][r, c] = t2 if M[k][r, c] is None else M[k][r, c]+t2
+                    M[k][r1, c1] = t1 if M[k][r1, c1] is None else M[k][r1, c1]+T1
+                M[k][r, c] = t2 if M[k][r, c] is None else M[k][r, c]+T2
                 #M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3
                 M[k][r, c1] = t3 if M[k][r, c1] is None else M[k][r, c1]+t3
 
@@ -1839,7 +1845,9 @@ class Engine(object):
                     continue
                 if A[j, idx2] is None:
                     continue
+                print("A", A[j, idx2].shape)
                 SM = A.get_squaremat_from_right(j, idx2)
+                print("SM", SM.shape)
                 SM.setDiag(gl_ess_tdof)
 
                 Ae[j, idx2] = A[j, idx2].dot(SM)
@@ -2512,7 +2520,7 @@ class Engine(object):
     # def add_fec_fes(self, name, fec, fes):
     #    self.fec[name] = fec
     #    self.fespaces[name] = fes
-    def prepare_refined_level(self, phys, mode, inc=1):
+    def prepare_refined_level(self, phys, mode, inc=1, refine_dom=None):
         '''
         mode = 'H' or 'P'
         inc = increment of order
@@ -2520,9 +2528,12 @@ class Engine(object):
 
         names = [n for n in phys.dep_vars]
         for name in names:
-            if mode == 'H':
-                nlevels = self.fespaces.add_uniformly_refined_level(
-                    name, self, inc)
+            if inc == 0:
+                nlevels = self.fespaces.add_same_level(name, self)
+            
+            elif mode == 'H':
+                nlevels = self.fespaces.add_mesh_refined_level(
+                    name, self, inc, refine_dom)
 
             elif mode == 'P':
                 nlevels = self.fespaces.add_order_refined_level(
@@ -3330,6 +3341,28 @@ class SerialEngine(Engine):
             P = fes.GetConformingProlongation()
             x.SetSize(P.Height())
             P.Mult(X, x)
+
+    def t1_2_T1(self, t1, x):
+        print(type(t1), t1.shape)
+        fes = x.FESpace()
+        if not fes.Conforming():
+            #P = fes.GetConformingProlongation()
+            R = fes.GetConformingRestriction()
+            print(R)            
+            R.Mult(t1, T1)
+        else:
+            return t1
+
+    def t2_2_T2(self, t1, x):
+        fes = x.FESpace()
+        if not fes.Conforming():
+            #P = fes.GetConformingProlongation()
+            R = fes.GetConformingRestriction()
+            R.Mult(t2, T2)
+        else:
+            return t2
+
+            
 
     def run_geom_gen(self, gen):
         gen.generate_final_geometry()

@@ -161,6 +161,24 @@ class RefinedLevel(FineLevel, SolverBase):
                 return x.prepare_solver_with_multtranspose(opr, engine)
             # return x.prepare_solver(opr, engine)
 
+    def adjust_physics(self, phys):
+        print(phys)
+        names = [x.strip() for x in self.extra_constraints1.split(',')]
+        if self.select_extra_constreint:
+            for o in phys.walk():
+                fname = o.fullname()                
+                for n in names:
+                    if fname.find(n) != -1:
+                        o.enabled = True
+                        
+        names = [x.strip() for x in self.extra_constraints2.split(',')]
+        if self.unselect_extra_constreint:
+            for o in phys.walk():
+                fname = o.fullname()                
+                for n in names:
+                    if fname.find(n) != -1:
+                        o.enabled = False
+
     @classmethod
     def fancy_tree_name(self):
         return 'Refined'
@@ -456,10 +474,17 @@ class MultiLvlStationarySolver(StdSolver):
         target_phys = self.get_target_phys()
         refine_type = level.refinement_type[0]  # P or H
         refine_inc = int(level.level_inc)
+        if level.use_domain_refinement:
+            refine_dom = [int(x) for x in level._sel_index]
+        else:
+            refine_dom = None
 
         for phys in target_phys:
             dprint1("Adding refined level for " + phys.name())
-            engine.prepare_refined_level(phys, refine_type, inc=refine_inc)
+            level.adjust_physics(phys)
+            engine.prepare_refined_level(phys, refine_type,
+                                         inc=refine_inc,
+                                         refine_dom=refine_dom)
 
         engine.level_idx = lvl
         for phys in target_phys:
@@ -809,8 +834,6 @@ class SimpleMG(mfem.PyIterativeSolver):
         y0 = mfem.Vector(x.Size())
         #y0 *= 0.0
         y *= 0.0
-        print(self.ess_tdofs[0])
-        print(self.ess_tdofs[1])
         print("")
         print("Entering Cycle")
         print("")
