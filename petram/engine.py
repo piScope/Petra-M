@@ -1690,16 +1690,16 @@ class Engine(object):
 
                 # t1, t2, t3, t4 = (vertical, horizontal, diag, rhs).
                 t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]
-                
+
                 ifes = self.r_ifes(dep_name)
-                x = self.r_x[ifes] 
-                
-                T1 = self.t1_2_T1(t1, r_x)
-                T2 = self.t2_2_T2(t2, r_x)
+                x = self.r_x[ifes]
+
+                T1 = self.t1_2_T1(t1, x)
+                T2 = self.t2_2_T2(t2, x)
 
                 if r1 != -1:
-                    M[k][r1, c1] = t1 if M[k][r1, c1] is None else M[k][r1, c1]+T1
-                M[k][r, c] = t2 if M[k][r, c] is None else M[k][r, c]+T2
+                    M[k][r1, c1] = T1 if M[k][r1, c1] is None else M[k][r1, c1]+T1
+                M[k][r, c] = T2 if M[k][r, c] is None else M[k][r, c]+T2
                 #M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3
                 M[k][r, c1] = t3 if M[k][r, c1] is None else M[k][r, c1]+t3
 
@@ -2530,7 +2530,7 @@ class Engine(object):
         for name in names:
             if inc == 0:
                 nlevels = self.fespaces.add_same_level(name, self)
-            
+
             elif mode == 'H':
                 nlevels = self.fespaces.add_mesh_refined_level(
                     name, self, inc, refine_dom)
@@ -3315,8 +3315,11 @@ class SerialEngine(Engine):
         if not fes.Conforming():
             P = fes.GetConformingProlongation()
             R = fes.GetConformingRestriction()
-            B.SetSize(P.Width())
-            P.MultTranspose(b, B)
+            if R is not None:
+                B.SetSize(P.Width())
+                P.MultTranspose(b, B)
+            else:
+                B.NewDataAndSize(b.GetData(), b.Size())
         else:
             B.NewDataAndSize(b.GetData(), b.Size())
         return B
@@ -3327,8 +3330,11 @@ class SerialEngine(Engine):
         if not fes.Conforming():
             #P = fes.GetConformingProlongation()
             R = fes.GetConformingRestriction()
-            X.SetSize(R.Height())
-            R.Mult(x, X)
+            if R is not None:
+                X.SetSize(R.Height())
+                R.Mult(x, X)
+            else:
+                X.NewDataAndSize(x.GetData(), x.Size())
         else:
             X.NewDataAndSize(x.GetData(), x.Size())
         return X
@@ -3339,30 +3345,37 @@ class SerialEngine(Engine):
             pass
         else:
             P = fes.GetConformingProlongation()
-            x.SetSize(P.Height())
-            P.Mult(X, x)
+            if P is not None:
+                x.SetSize(P.Height())
+                P.Mult(X, x)
 
     def t1_2_T1(self, t1, x):
-        print(type(t1), t1.shape)
         fes = x.FESpace()
         if not fes.Conforming():
-            #P = fes.GetConformingProlongation()
             R = fes.GetConformingRestriction()
-            print(R)            
-            R.Mult(t1, T1)
+            if R is not None:
+                from mfem.common.sparse_utils import sparsemat_to_scipycsr
+                R2 = sparsemat_to_scipycsr(R, float)
+                T1 = R2.dot(t1)
+                return T1
+            else:
+                return t1
         else:
             return t1
 
-    def t2_2_T2(self, t1, x):
+    def t2_2_T2(self, t2, x):
         fes = x.FESpace()
         if not fes.Conforming():
-            #P = fes.GetConformingProlongation()
             R = fes.GetConformingRestriction()
-            R.Mult(t2, T2)
+            if R is not None:
+                from mfem.common.sparse_utils import sparsemat_to_scipycsr
+                R2 = sparsemat_to_scipycsr(R, float)
+                T2 = t2.dot(R2.transpose())
+                return T2
+            else:
+                return t2
         else:
             return t2
-
-            
 
     def run_geom_gen(self, gen):
         gen.generate_final_geometry()
@@ -3776,6 +3789,18 @@ class ParallelEngine(Engine):
         P = fes.GetProlongationMatrix()
         x.SetSize(P.Height())
         P.Mult(X, x)
+
+    def t1_2_T1(self, t1, x):
+        '''
+        Extra is already restricted (LF2PyVec/BF2PyMat calls ParallelAssemble)
+        '''
+        return t1
+
+    def t2_2_T2(self, t2, x):
+        '''
+        Extra is already restricted (LF2PyVec/BF2PyMat calls ParallelAssemble)
+        '''
+        return t2
 
     def run_geom_gen(self, gen):
         from mpi4py import MPI
