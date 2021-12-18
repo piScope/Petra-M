@@ -1845,9 +1845,8 @@ class Engine(object):
                     continue
                 if A[j, idx2] is None:
                     continue
-                print("A", A[j, idx2].shape)
+
                 SM = A.get_squaremat_from_right(j, idx2)
-                print("SM", SM.shape)
                 SM.setDiag(gl_ess_tdof)
 
                 Ae[j, idx2] = A[j, idx2].dot(SM)
@@ -3313,7 +3312,6 @@ class SerialEngine(Engine):
         fes = b.FESpace()
         B = mfem.Vector()
         if not fes.Conforming():
-            P = fes.GetConformingProlongation()
             R = fes.GetConformingRestriction()
             if R is not None:
                 B.SetSize(P.Width())
@@ -3328,7 +3326,6 @@ class SerialEngine(Engine):
         fes = x.FESpace()
         X = mfem.Vector()
         if not fes.Conforming():
-            #P = fes.GetConformingProlongation()
             R = fes.GetConformingRestriction()
             if R is not None:
                 X.SetSize(R.Height())
