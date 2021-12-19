@@ -94,7 +94,10 @@ class GMRES(LinearSolverModel):
         v['preconditioners'] = []        
         v['write_mat'] = False        
         return v
-    
+
+    def does_linearsolver_choose_linearsystem_type(self):
+        return True
+     
     def verify_setting(self):
         if not self.parent.assemble_real:
             for phys in self.get_phys():
@@ -106,7 +109,6 @@ class GMRES(LinearSolverModel):
         #if not phys_complex: return 'block'
         return 'blk_interleave'
         #return None
-
 
     def real_to_complex(self, solall, M):
         if use_parallel:
