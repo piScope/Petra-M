@@ -473,6 +473,15 @@ class Model(RestorableOrderedDict):
         self[name] = obj
         return name
 
+    def panel2_tabname(self):
+        return "Selection"
+
+    def panel3_tabname(self):
+        return "Init/NL."
+
+    def panel4_tabname(self):
+        return "Time Dep./Adv."
+
     def panel1_param(self):
         return []
 

@@ -253,6 +253,8 @@ class ScipyCoo(coo_matrix):
         '''
         daigpolicy = 0  # DiagOne
         daigpolicy = 1  # DiagKeep
+
+        Note: policy is controled from engine::filL_BCeliminate_matrix
         '''
         print("inplace flag off copying matrix")
         # A + Ae style elimination
@@ -289,8 +291,9 @@ class ScipyCoo(coo_matrix):
         lil2 = target.tolil()
         lil2[tdof, tdof] = diagA
 
-        if diagpolicy == 1:
-            target_b[tdof, 0] = target_b[tdof, 0].toarray().flatten() * diagA
+        # if diagpolicy == 1:
+        # target_b[tdof, 0] = target_b[tdof, 0].toarray().flatten() * diagA
+        target_b[tdof, 0] = diagA
 
         coo = lil2.tocoo()
         target.data = coo.data
@@ -301,9 +304,23 @@ class ScipyCoo(coo_matrix):
 
         return Ae2, target, coo_b
 
+    def get_elements(self, tdof):
+        slil = self.tolil()
+        value = slil[tdof, :].toarray()
+        return value
+
+    def set_elements(self, tdof, m):
+        slil = self.tolil()
+        slil[tdof, :1] = m
+        coo = slil.tocoo()
+        self.data = coo.data
+        self.row = coo.row
+        self.col = coo.col
+
     def copy_element(self, tdof, m):
         mlil = m.tolil()
         value = mlil[tdof, 0].toarray()
+
         slil = self.tolil()
         slil[tdof, :1] = value
         coo = slil.tocoo()

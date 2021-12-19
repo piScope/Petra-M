@@ -972,6 +972,9 @@ class Engine(object):
 
         in parallel, inplace = False makes sure that blocks in A and RHS  
         are not shared by M, B, X
+
+        daigpolicy = 0  # DiagOne
+        daigpolicy = 1  # DiagKeep
         '''
         if update:
             M = self.assembled_blocks[5]
@@ -999,6 +1002,7 @@ class Engine(object):
             A, Ae = self.fill_BCeliminate_matrix(A2, B,
                                                  inplace=inplace,
                                                  update=update)
+
         RHS = compute_rhs(M, B, X)          # solver determins RHS
 
         # for m in M:
@@ -1797,7 +1801,9 @@ class Engine(object):
                         # May need to allocate zeros...
         return X
 
-    def fill_BCeliminate_matrix(self, A, B, inplace=True, update=False, diagpolicy=0):
+    def fill_BCeliminate_matrix(self, A, B, inplace=True, update=False):
+        diagpolicy = self.get_diagpolicy()
+
         nblock1 = A.shape[0]
         nblock2 = A.shape[1]
 
@@ -1867,9 +1873,8 @@ class Engine(object):
                     AeX[idx, 0].resetRow(gl_ess_tdof)
 
             RHS = RHS - AeX
-
         except:
-            print("RHS", RHS)
+
             print("Ae", Ae)
             print("X", X)
             raise
@@ -1882,7 +1887,10 @@ class Engine(object):
             ridx = self.r_dep_var_offset(name)
             gl_ess_tdof = self.gl_ess_tdofs[name]
             ess_tdof = self.ess_tdofs[name]
-            RHS[idx].copy_element(gl_ess_tdof, X[ridx])
+
+            x1 = X[ridx].get_elements(gl_ess_tdof)
+            x2 = RHS[idx].get_elements(gl_ess_tdof)
+            RHS[idx].set_elements(gl_ess_tdof, x1*x2)
 
         return RHS
 
@@ -3187,6 +3195,15 @@ class Engine(object):
     def run_mesh_gen(self, gen):
         raise NotImplementedError(
             "you must specify this method in subclass")
+
+    def get_diagpolicy(self):
+        policy = self.model.root()['General'].diagpolicy
+        if policy == 'one':
+            return 0
+        elif policy == 'keep':
+            return 1
+        else:
+            assert False, "unknow diag polcy: " + policy
 
 
 class SerialEngine(Engine):

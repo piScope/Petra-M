@@ -192,7 +192,7 @@ class Strumpack(LinearSolverModel):
 
     def does_linearsolver_choose_linearsystem_type(self):
         return True
-    
+
     def linear_system_type(self, assemble_real, phys_real):
         if phys_real:
             return 'blk_interleave'
@@ -572,17 +572,17 @@ class StrumpackSolver(LinearSolver):
 
             sys.stdout.flush()
             sys.stderr.flush()
-            dprint1("callring reorder")
+            dprint1("calling reorder")
             ret = self.spss.reorder()
             if ret != ST.STRUMPACK_SUCCESS:
                 assert False, "error during recordering (Strumpack)"
 
-            dprint1("callring factor")
+            dprint1("calling factor")
             ret = self.spss.factor()
             if ret != ST.STRUMPACK_SUCCESS:
                 assert False, "error during factor (Strumpack)"
 
-            dprint1("callring solve")
+            dprint1("calling solve")
             ret = self.spss.solve(bbv, xxv, 0)
             if ret != ST.STRUMPACK_SUCCESS:
                 assert False, "error during solve phase (Strumpack)"
