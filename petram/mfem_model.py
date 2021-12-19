@@ -97,6 +97,7 @@ class MFEM_PhysRoot(Model):
             g = {}
         for k, v in enumerate(solsets):
             mesh, soldict = v
+            print("her", mesh)
 
             get_extended_connectivity(mesh[0])
             get_reverse_connectivity(mesh[0])

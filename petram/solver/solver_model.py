@@ -734,7 +734,7 @@ class SolverInstance(ABC):
         ...
 
 
-class TimeDependentSolverInstance(ABC):
+class TimeDependentSolverInstance(SolverInstance):
     def __init__(self, gui, engine):
         self.st = 0.0
         self.et = 1.0

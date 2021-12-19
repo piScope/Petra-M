@@ -1797,7 +1797,7 @@ class Engine(object):
                         # May need to allocate zeros...
         return X
 
-    def fill_BCeliminate_matrix(self, A, B, inplace=True, update=False, diagpolicy=1):
+    def fill_BCeliminate_matrix(self, A, B, inplace=True, update=False, diagpolicy=0):
         nblock1 = A.shape[0]
         nblock2 = A.shape[1]
 
@@ -2184,7 +2184,9 @@ class Engine(object):
                          mesh_only=False,
                          save_parmesh=False):
         if not skip_mesh:
+            m1 = [self.save_mesh0(), ]
             mesh_filenames = self.save_mesh(phys_target)
+            mesh_filenames = m1 + mesh_filenames
 
         if save_parmesh:
             self.save_parmesh(phys_target)
@@ -2831,6 +2833,16 @@ class Engine(object):
         r_x.SaveGZ(fnamer, 8)
         if i_x is not None:
             i_x.SaveGZ(fnamei, 8)
+
+    def save_mesh0(self):
+        mesh_names = []
+        suffix = self.solfile_suffix()
+        mesh = self.emeshes[0]
+        header = 'solmesh_0'
+        self.clear_solmesh_files(header)
+        name = header+suffix
+        mesh.PrintGZ(name, 16)
+        return name
 
     def save_mesh(self, phys_target):
         mesh_names = []
