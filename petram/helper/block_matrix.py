@@ -885,8 +885,7 @@ class BlockMatrix(object):
         else:
             from mfem.common.chypre import SquareCHypreMat
             #print("rp", "cp", rp, cp, shape, gsize)
-            rp = [rp[0], rp[1], gsize]
-            self[r, c] = SquareCHypreMat(rp, real=True)
+            self[r, c] = SquareCHypreMat(gsize, rp, real=True)
 
     def get_global_offsets(self, convert_real=False,
                            interleave=True):

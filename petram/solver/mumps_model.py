@@ -143,8 +143,13 @@ class MUMPSBase(LinearSolverModel):
 
     def allocate_solver(self, is_complex=False, engine=None):
         # engine not used
-        solver = MUMPSSolver(self, engine)
-        solver.AllocSolver(is_complex, self.use_single_precision)
+        ls_type = self.get_solve_root().get_linearsystem_type_from_modeltree()
+
+        if ls_type.startswith('blk'):
+            solver = MUMPSBlockSolver(self, engine)
+        else:
+            solver = MUMPSSolver(self, engine)
+            solver.AllocSolver(is_complex, self.use_single_precision)
         return solver
 
     def solve(self, engine, A, b):
@@ -179,7 +184,8 @@ class MUMPS(MUMPSBase):
         # for the sake of backword compabitibiliy. it is true only when
         # it is the top level linearsolver
 
-        if isinstance(self.parent, Solver):
+#        if isinstance(self.parent, Solver):
+        if self.parent.parent is self.get_solve_root():
             return True
         else:
             return False
@@ -1083,7 +1089,10 @@ class MUMPSBlockPreconditioner(mfem.Solver):
         self.engine = engine
         self.silent = silent
         self.is_complex_operator = False
-        self._opr = weakref.ref(opr)
+        if opr is not None:
+            self._opr = weakref.ref(opr)
+        else:
+            self._opr = None
         self.irhs_loc = None
         super(MUMPSBlockPreconditioner, self).__init__()
 
@@ -1261,18 +1270,6 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             self.mpi_block_size = np.sum(
                 self.all_block_size, 0)   # size for each mpi
 
-            '''
-            tmp = np.cumsum(np.hstack([0, self.mpi_block_size]))
-
-            myblocksize = self.mpi_block_size[myid]
-            myblockstart = tmp[myid]
-
-            # this is 1-based index
-            self.irhs_loc = np.arange(
-                myblockstart+1, myblockstart+myblocksize+1, dtype=int)
-            print("irhs_loc in set operator", self.irhs_loc)
-            '''
-            # nicePrint(self.all_block_size)
         else:
             self.irhs_loc = None
 
@@ -1304,3 +1301,44 @@ class MUMPSBlockPreconditioner(mfem.Solver):
 
         for x in self.solver:
             x.set_silent(self.silent)
+
+
+class MUMPSBlockSolver(LinearSolver):
+    '''
+    MUMPS LinearSolverInstance which internally uses BlockSolver
+
+    This is used from DerivedValue solver in TimeDependent solver.
+
+    Not recommended to use in future, since it collect solution in
+    root node.
+    '''
+    is_iterative = True
+
+    def __init__(self, *args, **kwargs):
+        super(MUMPSBlockSolver, self).__init__(*args, **kwargs)
+        self.silent = False
+        self.keep_sol_distributed = False
+
+    def SetOperator(self, A, dist, name=None, ifactor=0):
+        solver = MUMPSBlockPreconditioner(A,
+                                          gui=self.gui,
+                                          engine=self.engine,)
+        solver.SetOperator(A)
+        self._solver = solver
+
+    def Mult(self, b, x=None, case_base=0):
+        self._solver.Mult(b[0], x)
+
+        if use_parallel:
+            from mpi4py import MPI
+            from petram.helper.mpi_recipes import (gather_vector,
+                                                   allgather_vector)
+            myid = MPI.COMM_WORLD.rank
+
+            xx = gather_vector(x.GetDataArray())
+            if myid == 0:
+                xx = np.atleast_2d(xx).transpose()
+        else:
+            xx = x.GetDataArray().copy().reshape(-1, 1)
+
+        return xx

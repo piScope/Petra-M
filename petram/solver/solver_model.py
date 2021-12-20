@@ -354,6 +354,7 @@ class SolveStep(SolverBase):
                     elif ls_selected == tmp:
                         pass
                     else:
+                        print(ls_selected, tmp)
                         make_assertion(
                             False, "Can not select linear system type consistently.(A)")
                 else:
@@ -602,7 +603,7 @@ class SolverInstance(ABC):
         self.linearsolver_model = None
 
         self._ls_type = self.gui.get_solve_root().get_linearsystem_type_from_modeltree()
-        self._phys_real = self.gui.parent.is_allphys_real()
+        self._phys_real = self.gui.get_solve_root().is_allphys_real()
 
         if not gui.init_only:
             self.set_linearsolver_model()

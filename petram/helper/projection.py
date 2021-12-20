@@ -45,7 +45,7 @@ def fes_mapping(element1, order1, dim1, dim2):
     msg = ("mapping not supported from " + element1 +
            " dim: "+str(dim1) + " " + str(dim2))
     if dim1 == dim2:
-        ret = element1, order1, 1
+        ret = element1, order1, 2
 
     elif element1.startswith("ND"):
         if dim1 == 3 and dim2 == 2:

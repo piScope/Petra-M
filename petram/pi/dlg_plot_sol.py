@@ -325,7 +325,7 @@ class DlgPlotSol(SimpleFramePlus):
             button = wx.Button(p, wx.ID_ANY, "Apply")
             #ibutton.Bind(wx.EVT_BUTTON, self.onInteg)
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)
-            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)            
+            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
             #hbox.Add(ibutton, 0, wx.ALL,1)
@@ -1136,12 +1136,12 @@ class DlgPlotSol(SimpleFramePlus):
                             cls=cls, expr=expr, expr_x=expr_x,
                             force_float=(not value[4]))
 
-    #@run_in_piScope_thread
+    # @run_in_piScope_thread
     def onExportR1Edge(self, evt):
         remote, base, subs = self.get_current_choices()
         value = self.elps['Edge'] .GetValue()
         refine = int(value[6])
-        
+
         all_data = []
         for s in subs:
             if s.strip() == '':
@@ -1165,17 +1165,18 @@ class DlgPlotSol(SimpleFramePlus):
                 data = {'vertices': verts, 'data': cdata}
 
                 if data_x is not None:
-                    cxdata = np.hstack([c.flatten() for v, c, a in data_x]).flatten()
-                    xverts = np.hstack([v.flatten() for v, c, a in data_x]).flatten()
+                    cxdata = np.hstack([c.flatten()
+                                        for v, c, a in data_x]).flatten()
+                    xverts = np.hstack([v.flatten()
+                                        for v, c, a in data_x]).flatten()
                     data['xvertices'] = xverts
                     data['xdata'] = cxdata
 
             all_data.append((s, data))
-            
+
         self.post_threadend(self.export_to_piScope_shell,
                             all_data, 'edge_data')
 
-        
     def onExportR2Edge(self, evt):
         wx.CallAfter(
             dialog.showtraceback,
@@ -1184,7 +1185,7 @@ class DlgPlotSol(SimpleFramePlus):
             title='Error',
             traceback='Exporing all time slice for frequency \ndomain analysis is not available')
         wx.CallAfter(self.set_title_no_status)
-        
+
     def make_plot_edge(self, data, battrs,
                        data_x=None, cls=None,
                        expr='', expr_x='', force_float=False):
@@ -2719,7 +2720,7 @@ class DlgPlotSol(SimpleFramePlus):
                          traceback=''.join(traceback.format_exception_only(
                              sys.exc_info()[0], sys.exc_info()[1])))
             wx.CallAfter(self.set_title_no_status)
-            return None
+            return None, None
 
         try:
             if model.variables.getvar('remote_soldir') is None:
