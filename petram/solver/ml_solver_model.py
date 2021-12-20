@@ -889,13 +889,13 @@ class SimpleMG(mfem.PyIterativeSolver):
         print("  MUMPS linear inverse error (L2): ", tmp.Norml2())
 
         # (zeroing after MUMPS but coase level)   <--- this works
-        #y2.GetDataArray()[self.ess_tdofs[0]] = 0.0
+        y2.GetDataArray()[self.ess_tdofs[0]] = 0.0
         tmp = mfem.Vector(y.Size())
         prolongations[0].Mult(y2, tmp)
 
         print("!!!!! Entering fine level (post)")
         # (zeroing after MUMPS after prolongation)
-        tmp.GetDataArray()[self.ess_tdofs[1]] = 0.0  # <--- does not works
+        #tmp.GetDataArray()[self.ess_tdofs[1]] = 0.0  # <--- does not works
         print("  correction on essential i finelevel",
               np.sum(np.abs(tmp.GetDataArray()[self.ess_tdofs[1]])))
         y += tmp
