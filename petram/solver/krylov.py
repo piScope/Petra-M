@@ -317,10 +317,10 @@ class KrylovSmoother(KrylovModel):
                 self._oprs = (opr, opr2)
 
             def SetPreconditioner(self, opr):
-                self.s1.SetPreconditioner()
-                opr2 = mfem.TransposeOperator(opr)
-                self.s2.SetPreconditioner(opr2)
-                self._prcs = (opr, opr2)
+                self.s1.SetPreconditioner(opr)
+                #opr2 = mfem.TransposeOperator(opr)
+                # self.s2.SetPreconditioner(opr2)
+                self._prcs = (opr, )
 
             def Mult(self, x, y):
                 self.s1.Mult(x, y)
@@ -345,6 +345,10 @@ class KrylovSmoother(KrylovModel):
         solver.SetPrintLevel(self.log_level)
         if self.solver_type in ['GMRES', 'FGMRES']:
             solver.SetKDim(int(self.kdim))
+
+        M = self.prepare_preconditioner(opr, engine)
+        if M is not None:
+            solver.SetPreconditioner(M)
 
         solver.iterative_mode = False
         solver.SetOperator(opr)

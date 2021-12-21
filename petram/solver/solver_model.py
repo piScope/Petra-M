@@ -354,7 +354,6 @@ class SolveStep(SolverBase):
                     elif ls_selected == tmp:
                         pass
                     else:
-                        print(ls_selected, tmp)
                         make_assertion(
                             False, "Can not select linear system type consistently.(A)")
                 else:

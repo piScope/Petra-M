@@ -1132,7 +1132,6 @@ class Engine(object):
                 gf.ProjectCoefficient(cc)
 
             if len(c2_arr) > 0:
-                print(bdrs)
                 attrs = mfem.intArray(bdrs)
                 cc = sum_coefficient(c2_arr)
                 name = gf.FESpace().FEColl().Name()
@@ -1906,8 +1905,6 @@ class Engine(object):
         offsets1 = opr.ColOffsets().ToList()
         offsets2 = opr.RowOffsets().ToList()
 
-        print(nblock1, offsets1)
-
         ret = []
 
         for name in self.gl_ess_tdofs:
@@ -1923,6 +1920,11 @@ class Engine(object):
                 ret.append(ess_tdof + o1)
                 o2 = offsets1[2*idx+1]
                 ret.append(ess_tdof + o2)
+            elif is_complex and format.startswith('blk_merged'):
+                o1 = offsets1[idx]
+                size = offsets1[idx+1]-offsets1[idx]
+                ret.append(ess_tdof + o1)
+                ret.append(ess_tdof + o1 + size//2)
             else:
                 o1 = offsets1[idx]
                 ret.append(ess_tdof + o1)

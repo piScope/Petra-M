@@ -212,17 +212,15 @@ class HierarchicalFiniteElementSpaces(object):
             elif parallel:
                 return mfem.TrueTransferOperator(fes1, fes2)
             else:
-                if not fes1.Conforming():
-                    P1 = fes1.GetConformingProlongation()
 
+                P1 = None if fes1.Conforming() else fes1.GetConformingProlongation()
                 if P1 is None:
                     P1 = mfem.IdentityOperator(fes1.GetTrueVSize())
 
-                if not fes2.Conforming():
-                    R2 = fes2.GetConformingRestriction()
-
+                R2 = None if fes2.Conforming() else fes2.GetConformingRestriction()
                 if R2 is None:
                     R2 = mfem.IdentityOperator(fes2.GetTrueVSize())
+
                 Opr1 = mfem.TransferOperator(fes1, fes2)
                 opr = mfem.TripleProductOperator(
                     R2, Opr1, P1, False, False, False)

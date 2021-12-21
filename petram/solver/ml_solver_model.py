@@ -74,6 +74,7 @@ class RefinedLevel(FineLevel, SolverBase):
     def __init__(self, *args, **kwags):
         SolverBase.__init__(self, *args, **kwags)
         FineLevel.__init__(self, *args, **kwags)
+        self.smoother_count = None
 
     def attribute_set(self, v):
         v = FineLevel.attribute_set(self, v)
@@ -903,8 +904,8 @@ class SimpleMG(mfem.PyIterativeSolver):
         err2.GetDataArray()[self.ess_tdofs[0]] = 0.0
 
         if self.debug:
-            print("    - error on essential given to a coarse level",
-                  np.sum(np.abs(err2.GetDataArray()[self.ess_tdofs[lvl2]])))
+            dprint1("    - error on essential given to a coarse level",
+                    np.sum(np.abs(err2.GetDataArray()[self.ess_tdofs[lvl2]])))
 
         # calling lower levels
         #   cycle max = 1 (V-cycle)
@@ -1014,10 +1015,11 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
         if use_complex_opr:
             mat = AA._linked_op[(offset, offset)]
             conv = mat.GetConvention()
-            conv == (1 if mfem.ComplexOperator.HERMITIAN else -1)
+            conv = (1 if mfem.ComplexOperator.HERMITIAN else -1)
         else:
             conv = 1
 
+        print("convetion", conv)
         if engine.r_isFESvar(dep_var):
             h = engine.fespaces.get_hierarchy(dep_var)
             P = h.GetProlongationAtLevel(level)
@@ -1027,12 +1029,14 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
             if not phys_real:
                 tmp_cols.append(P.Width())
                 tmp_rows.append(P.Height())
-                if conv == -1:
-                    oo2 = mfem.ScaleOperator(P, -1)
-                    oo2._opr = P
-                    tmp_diags.append(oo2)
-                else:
-                    tmp_diags.append(P)
+                # if conv == -1:
+                #    oo2 = mfem.ScaledOperator(P, -1)
+                #    oo2._opr = P
+                #    oo3 = mfem.TransposeOperator(oo2)
+                #    oo3._opr = oo2
+                #    tmp_diags.append(oo3)
+                # else:
+                tmp_diags.append(P)
         else:
             tmp_cols.append(widths[offset])
             tmp_rows.append(widths[offset])
@@ -1042,12 +1046,13 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
                 tmp_cols.append(widths[offset])
                 tmp_rows.append(widths[offset])
                 oo = mfem.IdentityOperator(widths[offset])
-                if conv == -1:
-                    oo2 = mfem.ScaleOperator(oo, -1)
-                    oo2._opr = oo
-                    tmp_diags.append(oo2)
-                else:
-                    tmp_diags.append(oo)
+                # if conv == -1:
+                #    oo2 = mfem.ScaledOperator(oo, -1)
+                #    oo2._opr = oo
+                #    tmp_diags.append(oo2)
+                # else:
+                tmp_diags.append(oo)
+
         if use_complex_opr:
             tmp_cols = [0] + tmp_cols
             tmp_rows = [0] + tmp_rows
