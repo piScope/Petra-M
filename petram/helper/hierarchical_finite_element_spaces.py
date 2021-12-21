@@ -5,7 +5,8 @@ if use_parallel:
 else:
     import mfem.ser as mfem
 
-import numpy as np    
+import numpy as np
+
 
 class HierarchicalFiniteElementSpaces(object):
     '''
@@ -92,7 +93,7 @@ class HierarchicalFiniteElementSpaces(object):
             P = self._new_transfer_operator(name, key1, key2, engine)
             self._p_storage[(key1, key2)] = P
         return P
-    
+
     def add_same_level(self, name, engine):
         emesh_idx, old_refine, element, order, fecdim, vdim = self._dataset[name][-1]
 
@@ -109,7 +110,7 @@ class HierarchicalFiniteElementSpaces(object):
 
         self._dataset[name].append(key1)
         return len(self._dataset[name])
-        
+
     def add_mesh_refined_level(self, name, engine, inc=1, refine_dom=None):
         emesh_idx, old_refine, element, order, fecdim, vdim = self._dataset[name][-1]
 
@@ -211,7 +212,22 @@ class HierarchicalFiniteElementSpaces(object):
             elif parallel:
                 return mfem.TrueTransferOperator(fes1, fes2)
             else:
-                return mfem.TransferOperator(fes1, fes2)
+                if not fes1.Conforming():
+                    P1 = fes1.GetConformingProlongation()
+
+                if P1 is None:
+                    P1 = mfem.IdentityOperator(fes1.GetTrueVSize())
+
+                if not fes2.Conforming():
+                    R2 = fes2.GetConformingRestriction()
+
+                if R2 is None:
+                    R2 = mfem.IdentityOperator(fes2.GetTrueVSize())
+                Opr1 = mfem.TransferOperator(fes1, fes2)
+                opr = mfem.TripleProductOperator(
+                    R2, Opr1, P1, False, False, False)
+                opr._linked_opr = (R2, Opr1, P1)
+                return opr
 
         else:
             if parallel:
@@ -223,34 +239,3 @@ class HierarchicalFiniteElementSpaces(object):
                 return P
             else:
                 assert False, "Should not come here"
-                '''
-                a1 = mfem.BilinearForm(fes1)
-                a2 = mfem.BilinearForm(fes2)
-                a1.AddDomainIntegrator(mfem.VectorFEMassIntegrator())
-                a2.AddDomainIntegrator(mfem.VectorFEMassIntegrator())
-                a1.Assemble()
-                a2.Assemble()
-                M1 = mfem.SparseMatrix()
-                M2 = mfem.SparseMatrix()
-
-                engine.level_idx = 0
-
-                ess_bdr = mfem.intArray([1, 0, 1, 1, 0, 1])
-                ess1 = mfem.intArray()
-                ess2 = mfem.intArray()
-                fes1.GetEssentialTrueDofs(ess_bdr, ess1)
-                fes2.GetEssentialTrueDofs(ess_bdr, ess2)
-                a1.SetDiagonalPolicy(mfem.Operator.DIAG_KEEP)
-                a2.SetDiagonalPolicy(mfem.Operator.DIAG_KEEP)
-                a1.FormSystemMatrix(ess1, M1)
-                a2.FormSystemMatrix(ess2, M2)
-
-                P = mfem.TransferOperator(fes1, fes2)
-                # PP = mfem.OperatorPtr()#mfem.Operator.MFEM_SPARSEMAT)
-                #fes2.GetTransferOperator(fes1, PP)
-                # PP.SetOperatorOwner(False)
-                #P = PP.Ptr()
-                PPP = mfem.CustomTransfer(P, M1, M2)
-                PPP._linked = (a1, a2, M1, M2, P)
-                return PPP
-                '''

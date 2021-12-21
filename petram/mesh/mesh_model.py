@@ -806,8 +806,10 @@ class Mesh3D(MeshGenerator):
         mesh = hex_box_mesh(self.xlength, self.xnsegs, self.ylength, self.ynsegs, self.zlength, self.znsegs,
                             filename='', refine=self.refine == 1, fix_orientation=self.fix_orientation,
                             sdim=3, x0=self.mesh_x0)
+
         if self.enforce_ncmesh:
             mesh.EnsureNCMesh()
+
         self.parent.sdim = mesh.SpaceDimension()
         self._mesh_char = format_mesh_characteristic(mesh)
 

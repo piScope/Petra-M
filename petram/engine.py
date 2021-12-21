@@ -3343,7 +3343,7 @@ class SerialEngine(Engine):
         if not fes.Conforming():
             P = fes.GetConformingProlongation()
             #R = fes.GetConformingRestriction()
-            #if R is not None:
+            # if R is not None:
             if P is not None:
                 B.SetSize(P.Width())
                 P.MultTranspose(b, B)
