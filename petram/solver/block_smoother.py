@@ -200,7 +200,6 @@ class DiagonalPreconditioner(BlockSmoother):
                         cc = engine.masked_r_dep_var_offset(n)
                         A = get_operator_block(rr, cc)
                         blk = self[nn].prepare_solver(A, engine)
-
                     M.SetDiagonalBlock(k, blk)
                     pc_block[n] = blk
                 else:

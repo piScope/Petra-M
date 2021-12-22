@@ -866,7 +866,7 @@ class SimpleMG(mfem.PyIterativeSolver):
         err.Assign(x)
 
         y0 = mfem.Vector(x.Size())
-        y *= 0.0
+        y.Assign(0.0)
 
         if self.debug:
             dprint1("   -  Entering pre-smooth level", lvl)
@@ -901,7 +901,7 @@ class SimpleMG(mfem.PyIterativeSolver):
         y2 = mfem.Vector(lvl2_width)
 
         # (zeroing the error sent to the lower level)   <--- this works
-        err2.GetDataArray()[self.ess_tdofs[0]] = 0.0
+        err2.GetDataArray()[self.ess_tdofs[lvl2]] = 0.0
 
         if self.debug:
             dprint1("    - error on essential given to a coarse level",
@@ -1012,14 +1012,13 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
         tmp_rows = []
         tmp_diags = []
 
-        if use_complex_opr:
-            mat = AA._linked_op[(offset, offset)]
-            conv = mat.GetConvention()
-            conv = (1 if mfem.ComplexOperator.HERMITIAN else -1)
-        else:
-            conv = 1
+        # if use_complex_opr:
+        #    mat = AA._linked_op[(offset, offset)]
+        #    conv = mat.GetConvention()
+        #    conv = (1 if mfem.ComplexOperator.HERMITIAN else -1)
+        # else:
+        #    conv = 1
 
-        print("convetion", conv)
         if engine.r_isFESvar(dep_var):
             h = engine.fespaces.get_hierarchy(dep_var)
             P = h.GetProlongationAtLevel(level)
@@ -1032,9 +1031,7 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
                 # if conv == -1:
                 #    oo2 = mfem.ScaledOperator(P, -1)
                 #    oo2._opr = P
-                #    oo3 = mfem.TransposeOperator(oo2)
-                #    oo3._opr = oo2
-                #    tmp_diags.append(oo3)
+                #    tmp_diags.append(oo2)
                 # else:
                 tmp_diags.append(P)
         else:
@@ -1084,7 +1081,7 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
     return P
 
 
-def genearate_smoother(engine, level, blk_opr):
+def generate_smoother(engine, level, blk_opr):
     from petram.engine import ParallelEngine
     assert not isinstance(
         engine, ParallelEngine), "Parallel is not supported"

@@ -187,7 +187,7 @@ class KrylovModel(LinearSolverModel, NS_mixin):
         else:
             offset = M.RowOffsets()
             of = offset.ToList()
-        dprint1(of)
+
         rows = M.NumRowBlocks()
         s = solall.shape
         i = 0
