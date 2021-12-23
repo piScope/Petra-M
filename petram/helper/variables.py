@@ -203,6 +203,16 @@ class Variable():
             return self() / other()
         return self() / other
 
+    def __truediv__(self, other):
+        if isinstance(other, Variable):
+            return self() / other()
+        return self() / other
+
+    def __floordiv__(self, other):
+        if isinstance(other, Variable):
+            return self() // other()
+        return self() // other
+
     def __radd__(self, other):
         if isinstance(other, Variable):
             return self() + other()
@@ -222,6 +232,16 @@ class Variable():
         if isinstance(other, Variable):
             return other() / self()
         return other / self()
+
+    def __rtruediv__(self, other):
+        if isinstance(other, Variable):
+            return other() / self()
+        return other / self()
+
+    def __rfloordiv__(self, other):
+        if isinstance(other, Variable):
+            return other() // self()
+        return other // self()
 
     def __divmod__(self, other):
         if isinstance(other, Variable):
@@ -625,7 +645,7 @@ class DomainVariable(Variable):
             idx = []
         for domains in self.domains.keys():
             expr = self.domains[domains]
-            if isinstance(expr, Variable):            
+            if isinstance(expr, Variable):
                 gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
                 idx.extend(expr.get_emesh_idx(idx=idx, g=gdomain))
         return idx
