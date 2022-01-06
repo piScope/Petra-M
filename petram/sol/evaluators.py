@@ -163,7 +163,7 @@ class EvaluatorCommon(Evaluator):
                 gf_var = solvars[0][name]
                 break
 
-            if gf_var is not None:
+            if gf_var is not None and hasattr(gf_var, "deriv_args"):
                 gf_real, gf_imag = gf_var.deriv_args
                 eidx = gf_real._emesh_idx if gf_real is not None else gf_imag._emesh_idx
                 phys_root[phys]._emesh_idx = eidx

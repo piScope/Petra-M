@@ -338,7 +338,6 @@ class SolveStep(SolverBase):
             if True in tmp and False in tmp:
                 assert False, "Assemble real is not selected consistently"
             return (True in tmp)
-
         for x in self.walk():
             if not x.is_enabled():
                 continue

@@ -1348,9 +1348,13 @@ class GFScalarVariable(GridFunctionVariable):
             if gf is None:
                 return None
             if ndim == 1 or ndim == 2:
-                if gf.VectorDim() > 1:
+                if isVector:
                     def func(i, ir, vals, tr, in_gf=gf):
-                        in_gf.GetValues(i, ir, vals, tr, vdim=self.comp - 1)
+                        in_gf.GetVectorValues(i, ir, vals, tr)
+                    return func
+                elif gf.VectorDim() > 1:
+                    def func(i, ir, vals, tr, in_gf=gf):
+                        in_gf.GetValues(i, ir, vals, tr, self.comp - 1)
                     return func
                 else:
                     def func(i, ir, vals, tr, in_gf=gf):
@@ -1364,10 +1368,13 @@ class GFScalarVariable(GridFunctionVariable):
         getvalr = get_method(self.gfr, ndim, isVector)
         getvali = get_method(self.gfi, ndim, isVector)
 
+        print(ifaces, gtypes)
         for i, gtype, in zip(ifaces, gtypes):
             ir = irs[gtype]
             getvalr(i, ir, d, p)  # side = 2 (automatic?)
+            print(d.Width(), d.Height())
             v = d.GetDataArray().copy()
+            print(v)
             if isVector:
                 v = v[self.comp - 1, :]
 

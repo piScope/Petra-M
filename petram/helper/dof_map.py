@@ -73,13 +73,15 @@ methods['Dom'] = {'N': 'GetNE',
                   'Vertices': 'GetElementVertices',
                   'Transformation': 'GetElementTransformation',
                   'Element': 'GetFE',
-                  'VDofs': 'GetElementVDofs'}
+                  'VDofs': 'GetElementVDofs',
+                  'VDofTransformation': 'GetElementVDofTransformation'}
 methods['Bdr'] = {'N': 'GetNBE',
                   'AttributeArray': 'GetBdrAttributeArray',
                   'Vertices': 'GetBdrElementVertices',
                   'Transformation': 'GetBdrElementTransformation',
                   'Element': 'GetBE',
-                  'VDofs': 'GetBdrElementVDofs'}
+                  'VDofs': 'GetBdrElementVDofs',
+                  'VDofTransformation': 'GetBdrElementVDofTransformation'}
 
 
 def notrans(xyz):
@@ -213,21 +215,31 @@ def get_shape(fes, ibdr, mode='Bdr'):
     GetTrans = getattr(fes, methods[mode]['Transformation'])
     GetElement = getattr(fes, methods[mode]['Element'])
     GetVDofs = getattr(fes, methods[mode]['VDofs'])
+    GetVDofTrans = getattr(fes, methods[mode]['VDofTransformation'])
 
     ret = [None]*len(ibdr)
+
+    # this is to make sure that IntegraitonPoint in Eltrans is
+    # set once...
+    tr1 = GetTrans(0)
+    el = GetElement(0)
+    nodes1 = el.GetNodes()
+    doftrans = GetVDofTrans(0)
+    tr1.SetIntPoint(nodes1.IntPoint(0))
+
     for iii, k1 in enumerate(ibdr):
         tr1 = GetTrans(k1)
+        el = GetElement(k1)
+        nodes1 = el.GetNodes()
 
         weight = tr1.Weight() if use_weight else 1
 
-        el = GetElement(k1)
-        nodes1 = el.GetNodes()
         v = mfem.Vector(nodes1.GetNPoints())
         shape = [None]*nodes1.GetNPoints()
         for idx in range(len(shape)):
             el.CalcShape(nodes1.IntPoint(idx), v)
-            shape[idx] = v.GetDataArray()[idx]
-        ret[iii] = np.array(shape)*weight
+            shape[idx] = v.GetDataArray()[idx]*weight
+        ret[iii] = np.array(shape)
 
     return ret
 
@@ -238,19 +250,45 @@ def get_vshape(fes, ibdr, mode='Bdr'):
     GetTrans = getattr(fes, methods[mode]['Transformation'])
     GetElement = getattr(fes, methods[mode]['Element'])
     GetVDofs = getattr(fes, methods[mode]['VDofs'])
+    GetVDofTrans = getattr(fes, methods[mode]['VDofTransformation'])
+
+    # this is to make sure that IntegraitonPoint in Eltrans is
+    # set once...
+    tr1 = GetTrans(0)
+    el = GetElement(0)
+    nodes1 = el.GetNodes()
+    doftrans = GetVDofTrans(0)
+    tr1.SetIntPoint(nodes1.IntPoint(0))
+
+    v0 = mfem.Vector(tr1.GetSpaceDim())
 
     ret = [None]*len(ibdr)
+
+    use_weight = True
     for iii, k1 in enumerate(ibdr):
         tr1 = GetTrans(k1)
         el = GetElement(k1)
         nodes1 = el.GetNodes()
+        doftrans = GetVDofTrans(k1)
+
         m = mfem.DenseMatrix(nodes1.GetNPoints(),
                              tr1.GetSpaceDim())
         shape = [None]*nodes1.GetNPoints()
+
+        vv = mfem.Vector(nodes1.GetNPoints())
+
         for idx in range(len(shape)):
             tr1.SetIntPoint(nodes1.IntPoint(idx))
             el.CalcVShape(tr1, m)
-            shape[idx] = m.GetDataArray()[idx, :].copy()
+
+            if doftrans is not None:
+                vv.Assign(0.0)
+                vv[idx] = 1
+                doftrans.InvTransformPrimal(vv)
+                m.MultTranspose(vv, v0)
+                shape[idx] = v0.GetDataArray().copy()
+            else:
+                shape[idx] = m.GetDataArray()[idx, :].copy()
         ret[iii] = shape
     return ret
 

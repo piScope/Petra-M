@@ -108,9 +108,7 @@ class Solsets(object):
         fix_orientation = False  #false
         generate_edge = 1       #1
         refine = 0              #1
-
-        print("setting", fix_orientation, generate_edge, refine)
-
+        
         for meshes, solf, in solfiles:
             idx = [fname2idx(x) for x in meshes]
             meshes = {

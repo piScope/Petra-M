@@ -789,10 +789,13 @@ def generate_MG(operators, smoothers, prolongations,
 
     own_operators = [False]*len(operators)
     own_smoothers = [False]*len(smoothers)
-    own_prolongations = [False]*len(prolongations)
+    own_prolongations = mfem.boolArray([False]*len(prolongations))
 
-    mg = mfem.Multigrid(operators, smoothers, prolongations,
+    ops = mfem.OperatorPtrArray(operators)
+    # mg = mfem.Multigrid(operators, smoothers, prolongations,
+    mg = mfem.Multigrid(ops, smoothers, prolongations,
                         own_operators, own_smoothers, own_prolongations)
+
     mg.SetCycleType(mfem.Multigrid.CycleType_VCYCLE,
                     presmoother_count, postsmoother_count)
 
@@ -914,6 +917,9 @@ class SimpleMG(mfem.PyIterativeSolver):
         x2 = mfem.Vector(lvl2_width)
         x2.Assign(0.0)
         err2_L2 = err2.Norml2()
+        if use_parallel:
+            err2_L2 = np.sqrt(
+                np.sum([x**2 for x in MPI.COMM_WORLD.allgather(err2_L2)]))
         rel_improve0 = 1.0
         for i in range(self.cycle_max):
             self.perform_one_cycle(err2, y2, lvl=lvl2)
@@ -921,6 +927,11 @@ class SimpleMG(mfem.PyIterativeSolver):
             tmp = mfem.Vector(x2.Size())
             self.operators[lvl2].Mult(y2, tmp)
             err2 -= tmp
+            err2norm = err2.Norml2()
+            if use_parallel:
+                err2norm = np.sqrt(
+                    np.sum([x**2 for x in MPI.COMM_WORLD.allgather(err2norm)]))
+
             rel_improve = err2.Norml2()/err2_L2
 
             if self.debug:
@@ -1123,14 +1134,12 @@ def generate_smoother(engine, level, blk_opr):
             if A.complex:
                 dd = opr.diagonal()
                 diag = mfem.Vector(list(dd.real))
-                print("real", dd.real)
                 rsmoother = mfem.OperatorChebyshevSmoother(mat1,
                                                            diag,
                                                            ess_tdof,
                                                            2)
                 dd = opr.diagonal()*conv
                 diag = mfem.Vector(list(dd.real))
-                print("imag", dd.imag)
                 ismoother = mfem.OperatorChebyshevSmoother(mat1,
                                                            diag,
                                                            ess_tdof,
