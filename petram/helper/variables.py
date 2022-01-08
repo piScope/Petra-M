@@ -1334,11 +1334,13 @@ class GFScalarVariable(GridFunctionVariable):
         ndim = self.gfr.FESpace().GetMesh().Dimension()
 
         isVector = False
-        if (name.startswith('RT') or
-                name.startswith('ND')):
+        if name.startswith('RT'):
             d = mfem.DenseMatrix()
             p = mfem.DenseMatrix()
             isVector = True
+        elif name.startswith('ND'):
+            d = mfem.Vector()
+            p = mfem.DenseMatrix()
         else:
             d = mfem.Vector()
             p = mfem.DenseMatrix()
@@ -1348,11 +1350,9 @@ class GFScalarVariable(GridFunctionVariable):
             if gf is None:
                 return None
             if ndim == 1 or ndim == 2:
-                if isVector:
-                    def func(i, ir, vals, tr, in_gf=gf):
-                        in_gf.GetVectorValues(i, ir, vals, tr)
-                    return func
-                elif gf.VectorDim() > 1:
+                #if isVector:
+                #    def func(i, ir, vals, tr, in_gf=gf):
+                if gf.VectorDim() > 1:
                     def func(i, ir, vals, tr, in_gf=gf):
                         in_gf.GetValues(i, ir, vals, tr, self.comp - 1)
                     return func
@@ -1372,7 +1372,6 @@ class GFScalarVariable(GridFunctionVariable):
         for i, gtype, in zip(ifaces, gtypes):
             ir = irs[gtype]
             getvalr(i, ir, d, p)  # side = 2 (automatic?)
-            print(d.Width(), d.Height())
             v = d.GetDataArray().copy()
             print(v)
             if isVector:

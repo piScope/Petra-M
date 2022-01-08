@@ -421,7 +421,7 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                     # need this for mapping ND on edge
                     # we may need to come back here to handle the case
                     # where the edge segment is randomly oriented....
-                    if newk2[d][1]*newk1[k][1] < 0:
+                    if (newk2[d][1]+0.5)*(newk1[k][1]+0.5) < 0:
                         value *= -1
                     map[newk1[k][2]-rstart,
                         newk2[d][2]] = value
