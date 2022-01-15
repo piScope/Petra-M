@@ -42,7 +42,8 @@ def eval_element_center(fe, trans):
     ptx = [trans.Transform(ip) for ip in nodes]
 
     return np.mean(np.vstack(ptx), 0)
-                       
+
+
 def get_rule(fe1o, fe2, trans, orderinc=1, verbose=True):
     fe2o = fe2.GetOrder()
 
@@ -101,6 +102,7 @@ def eval_coeff(coeff, T, ip, MV):
     else:
         assert False, "unsupported type of coefficient: " + str(type(coeff[0]))
 
+
 def get_inv_doftrans(doftrans, sign1):
     Msign = np.diag(sign1.flatten())
     if doftrans is not None:
@@ -111,44 +113,46 @@ def get_inv_doftrans(doftrans, sign1):
             vv[i] = 1
             doftrans.InvTransformPrimal(vv)
             Mdoftrans[:, i] = vv.GetDataArray()
-            
+
         #if myid == 1: print(Mdoftrans.astype(int))
-        return  Mdoftrans.dot(Msign)
+        return Mdoftrans.dot(Msign)
     else:
         return Msign
-    
+
+
 def check_inv_doftrans(doftrans):
     Mdoftrans = np.zeros((doftrans.Size(), doftrans.Size()))
-    vv = mfem.Vector(doftrans.Size())    
+    vv = mfem.Vector(doftrans.Size())
     for i in range(doftrans.Size()):
         vv.Assign(0)
         vv[i] = 1
         doftrans.InvTransformPrimal(vv)
         Mdoftrans[:, i] = vv.GetDataArray()
     print(Mdoftrans)
-    Mdoftrans = np.zeros((doftrans.Size(), doftrans.Size()))    
+    Mdoftrans = np.zeros((doftrans.Size(), doftrans.Size()))
     for i in range(doftrans.Size()):
         vv.Assign(0)
         vv[i] = 1
         doftrans.TransformPrimal(vv)
         Mdoftrans[:, i] = vv.GetDataArray()
     print(Mdoftrans)
-    Mdoftrans = np.zeros((doftrans.Size(), doftrans.Size()))        
+    Mdoftrans = np.zeros((doftrans.Size(), doftrans.Size()))
     for i in range(doftrans.Size()):
         vv.Assign(0)
         vv[i] = 1
         doftrans.InvTransformDual(vv)
         Mdoftrans[:, i] = vv.GetDataArray()
     print(Mdoftrans)
-    
-    Mdoftrans = np.zeros((doftrans.Size(), doftrans.Size()))        
+
+    Mdoftrans = np.zeros((doftrans.Size(), doftrans.Size()))
     for i in range(doftrans.Size()):
         vv.Assign(0)
         vv[i] = 1
         doftrans.TransformDual(vv)
         Mdoftrans[:, i] = vv.GetDataArray()
     print(Mdoftrans)
-    
+
+
 def map_ir(fe1, eltrans, coeff1,
            shape1, dim2, sdim2, locnors2,
            sign1, Mdoftrans, MV, th=1e-7):
@@ -210,14 +214,14 @@ def map_ir(fe1, eltrans, coeff1,
         eltrans.SetIntPoint(ip)
         fe1.CalcVShape(eltrans, shape1)
 
-        #if doftrans is not None:
+        # if doftrans is not None:
         s1 = shape1.GetDataArray().transpose().dot(Mdoftrans)
-        #else:
+        # else:
         #    s1 = shape1.GetDataArray().transpose().dot(Msign)
 
         cc = eval_coeff(coeff1, eltrans, ip, MV)
-        
-        val = nor.dot(cc.dot(s1))#*sign1
+
+        val = nor.dot(cc.dot(s1))  # *sign1
         # shape1.GetDataArray().transpose())) * sign1   #/ww
 
         res.append(val)
@@ -230,7 +234,7 @@ def hcurln(fes1, fes2, coeff,
            is_complex=False, bdr='all', orderinc=1, verbose=False):
 
     mat, rstart = get_empty_map(fes2, fes1, is_complex=is_complex)
-    mat2, rstart = get_empty_map(fes2, fes1, is_complex=is_complex)    
+    mat2, rstart = get_empty_map(fes2, fes1, is_complex=is_complex)
 
     from petram.helper.element_map import map_element
 
@@ -264,13 +268,12 @@ def hcurln(fes1, fes2, coeff,
     if USE_PARALLEL:
         # this is global TrueDoF (offset is not subtracted)
         P = fes1.Dof_TrueDof_Matrix()
-        P = ToScipyCoo(P).tocsr()
-        VDoFtoGTDoF1 = P.indices
-        P1mat = P
-        P = fes2.Dof_TrueDof_Matrix()
-        P = ToScipyCoo(P).tocsr()
-        VDoFtoGTDoF2 = P.indices
-        P2mat = P        
+        P1mat = ToScipyCoo(P).tocsr()
+        #VDoFtoGTDoF1 = P.indices
+        #P = fes2.Dof_TrueDof_Matrix()
+        #P = ToScipyCoo(P).tocsr()
+        #VDoFtoGTDoF2 = P.indices
+        #P2mat = P
 
     vdofs1_senddata = []
 
@@ -383,16 +386,16 @@ def hcurln(fes1, fes2, coeff,
     max_misalignment = -np.inf
     for rank, i_fe1s in enumerate(i_fe1_arr):
         locnorss = locnor_arr[rank]
-        
+
         sign_dict = {}
-        
+
         for k, i_fe1 in enumerate(i_fe1s):
             fe1 = fes1.GetFE(i_fe1)
             nd1 = fe1.GetDof()
             eltrans = fes1.GetElementTransformation(i_fe1)
             doftrans = fes1.GetElementDofTransformation(i_fe1)
             #ctr = eval_element_center(fe1, eltrans)
-            
+
             locnors2 = locnorss[k]
             shape1.SetSize(nd1, sdim1)
             vdofs1 = fes1.GetElementVDofs(i_fe1)
@@ -406,19 +409,21 @@ def hcurln(fes1, fes2, coeff,
             if USE_PARALLEL:
                 #  After DofTransformation is introduced we can not use GetGlobalTDofNumber, because
                 #  element local DoF could be linked with two TrueDoFs in neighber processes
-                #  We construct submatrix of Prolongation to construct element matrix 
+                #  We construct submatrix of Prolongation to construct element matrix
                 #  in TrueDof space
-                
-                vv1 = [P1mat.indices[P1mat.indptr[ii]:P1mat.indptr[ii+1]] for ii in vdofs1]
-                vv3 = [P1mat.data[P1mat.indptr[ii]:P1mat.indptr[ii+1]] for ii in vdofs1]
+
+                vv1 = [P1mat.indices[P1mat.indptr[ii]:P1mat.indptr[ii+1]]
+                       for ii in vdofs1]
+                vv3 = [P1mat.data[P1mat.indptr[ii]:P1mat.indptr[ii+1]]
+                       for ii in vdofs1]
                 ngtof = np.sum([len(x) for x in vv3])
                 sub_p = np.zeros((nd1, ngtof))
                 k1 = 0
                 k2 = 0
                 for gtofs, weights in zip(vv1, vv3):
                     for g, w in zip(gtofs, weights):
-                       sub_p[k1, k2] = w
-                       k2 = k2 + 1
+                        sub_p[k1, k2] = w
+                        k2 = k2 + 1
                     k1 = k1 + 1
 
                 vdofs1 = np.hstack(vv1).flatten()
@@ -428,7 +433,6 @@ def hcurln(fes1, fes2, coeff,
                                        shape1, dim2, sdim2,
                                        locnors2, dof_sign1,
                                        mat_doftrans, MV)
-
 
             vdofs1_arr[rank].append(np.array(vdofs1))
             data1_arr[rank].append(res)
@@ -448,23 +452,15 @@ def hcurln(fes1, fes2, coeff,
     dprint1("Max misalignment: ", max_misalignment)
 
     shared_data = []
-    dof_loc = {}
+
     for rank, i_el2s in enumerate(el2_arr):
         for k, i_el2 in enumerate(i_el2s):
             vdofs1 = vdofs1_arr[rank][k]
-            
+
             fe2 = fes2.GetFE(i_el2)
-            eltrans2 = fes2.GetElementTransformation(i_el2)            
+            eltrans2 = fes2.GetElementTransformation(i_el2)
             vdofs2 = fes2.GetElementVDofs(i_el2)
             vdofs2 = [-1 - x if x < 0 else x for x in vdofs2]
-
-            nodes = fe2.GetNodes()
-            for ip, vdof2 in zip(nodes, vdofs2):
-                if USE_PARALLEL:
-                    vv = fes2.GetGlobalTDofNumber(vdof2)
-                else:
-                    vv = vdof2
-                dof_loc[vv] = eltrans2.Transform(ip)
 
             d1 = data1_arr[rank][k]
             d2 = data2_arr[rank][k]
@@ -475,7 +471,7 @@ def hcurln(fes1, fes2, coeff,
                 # prepare data for not-owned DoFs, which will be shared later
                 vdofs22 = [fes2.GetLocalTDofNumber(ii) for ii in vdofs2]
                 vdofs22g = [fes2.GetGlobalTDofNumber(ii) for ii in vdofs2]
-                
+
                 kkk = 0
                 for v2, v2g in zip(vdofs22, vdofs22g):
                     if v2 < 0:
@@ -484,53 +480,12 @@ def hcurln(fes1, fes2, coeff,
             else:
                 vdofs22 = vdofs2
 
-            '''
-            if USE_PARALLEL:
-                myoffset = fes2.GetMyTDofOffset()                
-                mmm = mm[np.where(np.array(vdofs22) >= 0)[0], :]
-                vdofs222 = [x for x in vdofs22 if x >= 0]
-                vdofs22g = [fes2.GetGlobalTDofNumber(ii)-myoffset for ii in vdofs2 if fes2.GetLocalTDofNumber(ii) >= 0]
-                print(vdofs22g, vdofs222)
-            else:
-                vdofs222 = vdofs2
-                mmm = mm
-            '''
-            '''
-            for i, ltdof2 in enumerate(vdofs22):
-                if ltdof2 < 0:
-                    continue
-                tmp = mat2[ltdof2, vdofs1] + mm[i, :]
-
-                if myid == 1 and ltdof2 == 57:
-                    for hoge, iiiii in enumerate(vdofs1):
-                        if iiiii == 618:
-                          print("mat2", mat2[57, 618], mm[i, hoge])
-                mat2[ltdof2,  vdofs1] = tmp
-                if myid == 1 and ltdof2 == 57:
-                    for hoge, iiiii in enumerate(vdofs1):
-                        if iiiii == 618:
-                          print("mat2(after)", mat2[57, 618])
-            '''
             for i, ltdof2 in enumerate(vdofs22):
                 if ltdof2 < 0:
                     continue
                 for j, gtdof1 in enumerate(vdofs1):
-                     mat[ltdof2, gtdof1] = mat[ltdof2, gtdof1] + mm[i, j]                      
-            
-            '''
-            for k, vv in enumerate(vdofs1):
-                if USE_PARALLEL:
-                    mmm = mm[np.where(np.array(vdofs22) >= 0)[0], :]
-                    vdofs222 = [x for x in vdofs22 if x >= 0]
-                else:
-                    vdofs222 = vdofs2
-                    mmm = mm
-                #print(vdofs222, vv)
-                #print("dest", mat[vdofs222, vv])
-                #print("data", mmm[:, [k]])
-                tmp = mat[vdofs222, vv] + mmm[:, [k]]
-                mat[vdofs222, vv] = tmp.flatten()
-            '''    
+                    mat[ltdof2, gtdof1] = mat[ltdof2, gtdof1] + mm[i, j]
+
     if USE_PARALLEL:
         #nicePrint("shared data", shared_data)
         for source_id in range(nprc):
@@ -545,9 +500,6 @@ def hcurln(fes1, fes2, coeff,
 
     from scipy.sparse import coo_matrix, csr_matrix
 
-    smyid = '{:0>6d}'.format(myid)
-    np.save('mat.'+smyid, mat)
-    
     if USE_PARALLEL:
         if is_complex:
             m1 = csr_matrix(mat.real, dtype=float)
@@ -557,16 +509,12 @@ def hcurln(fes1, fes2, coeff,
             m2 = None
         from mfem.common.chypre import CHypreMat
 
-        print(mat.shape)
-        if myid == 0:
-            np.save("sub_parallel", mat[2, :])
         start_col = fes1.GetMyTDofOffset()
         end_col = fes1.GetMyTDofOffset() + fes1.GetTrueVSize()
         col_starts = [start_col, end_col, mat.shape[1]]
         M = CHypreMat(m1, m2, col_starts=col_starts)
     else:
         from petram.helper.block_matrix import convert_to_ScipyCoo
-        np.save("sub_serial", mat[12, :])
         M = convert_to_ScipyCoo(coo_matrix(mat, dtype=mat.dtype))
 
     return M
