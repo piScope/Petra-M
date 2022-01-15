@@ -472,29 +472,17 @@ def hcurln(fes1, fes2, coeff,
             mm = d2.transpose().dot(d1)
 
             if USE_PARALLEL:
+                # prepare data for not-owned DoFs, which will be shared later
                 vdofs22 = [fes2.GetLocalTDofNumber(ii) for ii in vdofs2]
                 vdofs22g = [fes2.GetGlobalTDofNumber(ii) for ii in vdofs2]
                 
-                #vv1 = [P2mat.indices[P2mat.indptr[ii]:P2mat.indptr[ii+1]] for ii in vdofs2]
-                #vv3 = [P2mat.data[P2mat.indptr[ii]:P2mat.indptr[ii+1]] for ii in vdofs2]
-                #vdofs33 = [fes2.GetGlobalScalarTDofNumber(ii) for ii in vdofs2]
-                #if myid == 2:
-                #    print(vdofs22)
-                #    print("global Tdfos", vdofs22g)                    
-                #    print("global 2", np.hstack(vv1))
-                #    print("global 3", vdofs33)                                        
-                #    print(np.hstack(vv3))                
-                
-                #vdofs22g = [VDoFtoGTDoF2[ii] for ii in vdofs2]
                 kkk = 0
-                # for v2, v2g in zip(vdofs22, vdofs22g):
                 for v2, v2g in zip(vdofs22, vdofs22g):
                     if v2 < 0:
                         shared_data.append([v2g, mm[kkk, :], vdofs1])
                     kkk = kkk + 1
             else:
                 vdofs22 = vdofs2
-            #    vdofs22g = vdofs2
 
             '''
             if USE_PARALLEL:
@@ -529,10 +517,6 @@ def hcurln(fes1, fes2, coeff,
                 for j, gtdof1 in enumerate(vdofs1):
                      mat[ltdof2, gtdof1] = mat[ltdof2, gtdof1] + mm[i, j]                      
             
-            #print(mat, mmm)
-            #print("shapes", mat[vdofs222, vdofs1].shape, mmm.shape)
-            #mat[vdofs222, vdofs1] = tmp
-
             '''
             for k, vv in enumerate(vdofs1):
                 if USE_PARALLEL:
@@ -556,11 +540,11 @@ def hcurln(fes1, fes2, coeff,
                 if v2g >= myoffset and v2g < myoffset + mat.shape[0]:
                     i = v2g - myoffset
                     for j, gtdof1 in enumerate(vdofs1):
-                         mat[i, gtdof1] = mat[i, gtdof1] + elmat[j]
+                        mat[i, gtdof1] = mat[i, gtdof1] + elmat[j]
                     #mat[i, vdofs1] = mat[i, vdofs1] + elmat
 
     from scipy.sparse import coo_matrix, csr_matrix
-    
+
     smyid = '{:0>6d}'.format(myid)
     np.save('mat.'+smyid, mat)
     
