@@ -28,6 +28,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         v['mesh_gen'] = ''
         v['geom_gen'] = ''
         v['diagpolicy'] = 'one'
+        v['savegz'] = 'on'
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
 
@@ -61,13 +62,15 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         return "Extra."
 
     def panel2_param(self):
-        return [["DiagPolicy", None, 1, {"values": ["one", "keep"]}], ]
+        return [["DiagPolicy", None, 1, {"values": ["one", "keep"]}],
+                ["File compression", None, 1, {"values": ["on", "off"]}], ]
 
     def get_panel2_value(self):
-        return (self.diagpolicy,)
+        return (self.diagpolicy, self.savegz)
 
     def import_panel2_value(self, v):
         self.diagpolicy = v[0]
+        self.savegz = v[1]
 
     def run(self):
         import petram.debug

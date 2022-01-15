@@ -1241,7 +1241,7 @@ class Engine(object):
 
             m = mfem.Mesh(str(meshname), 1, 1)
             # 2021. Nov
-            # m.ReorientTetMesh()
+            #m.ReorientTetMesh()
             solr = mfem.GridFunction(m, str(fr))
             if solr.Size() != rgf.Size():
                 assert False, "Solution file (real) has different length!!!"
@@ -2128,7 +2128,6 @@ class Engine(object):
         return s, e
 
     def recover_sol(self, sol, access_idx=0):
-
         self.access_idx = access_idx
 
         for k, s in enumerate(sol):
@@ -2141,6 +2140,7 @@ class Engine(object):
             X = self.r_x.get_matvec(r_ifes)
 
             X.Assign(s.flatten().real)
+
             self.X2x(X, self.r_x[r_ifes])
             if self.i_x[r_ifes] is not None:
                 X = self.i_x.get_matvec(r_ifes)
@@ -2720,7 +2720,7 @@ class Engine(object):
                 self.max_attr = np.max(
                     [self.max_attr, max(m.GetAttributeArray())])
             # Test this...(2021/Nov)
-            # m.ReorientTetMesh()
+            #m.ReorientTetMesh()
             m.GetEdgeVertexTable()
             get_extended_connectivity(m)
 
@@ -2840,9 +2840,14 @@ class Engine(object):
         fnamer = fnamer+suffix
         fnamei = fnamei+suffix
 
-        r_x.SaveGZ(fnamer, 8)
-        if i_x is not None:
-            i_x.SaveGZ(fnamei, 8)
+        if self.get_savegz():
+            r_x.SaveGZ(fnamer, 8)
+            if i_x is not None:
+                i_x.SaveGZ(fnamei, 8)
+        else:
+            r_x.Save(fnamer, 8)
+            if i_x is not None:
+                i_x.Save(fnamei, 8)
 
     def save_mesh0(self):
         mesh_names = []
@@ -2851,7 +2856,11 @@ class Engine(object):
         header = 'solmesh_0'
         self.clear_solmesh_files(header)
         name = header+suffix
-        mesh.PrintGZ(name, 16)
+
+        if self.get_savegz():
+            mesh.PrintGZ(name, 16)
+        else:
+            mesh.Print(name, 16)
         return name
 
     def save_mesh(self, phys_target):
@@ -2868,7 +2877,11 @@ class Engine(object):
             self.clear_solmesh_files(header)
 
             name = header+suffix
-            mesh.PrintGZ(name, 16)
+
+            if self.get_savegz():
+                mesh.PrintGZ(name, 16)
+            else:
+                mesh.Print(name, 16)
             mesh_names.append(name)
 
         return mesh_names
@@ -3207,6 +3220,12 @@ class Engine(object):
         else:
             assert False, "unknow diag polcy: " + policy
 
+    def get_savegz(self):
+        val = self.model.root()['General'].savegz
+        if val == 'on':
+            return True
+        return False
+
 
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
@@ -3469,7 +3488,7 @@ class ParallelEngine(Engine):
 
         for m in self.meshes:
             # 2021. Nov
-            # m.ReorientTetMesh()
+            #m.ReorientTetMesh()
             m.GetEdgeVertexTable()
             get_extended_connectivity(m)
 
