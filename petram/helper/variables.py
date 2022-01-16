@@ -1368,12 +1368,10 @@ class GFScalarVariable(GridFunctionVariable):
         getvalr = get_method(self.gfr, ndim, isVector)
         getvali = get_method(self.gfi, ndim, isVector)
 
-        print(ifaces, gtypes)
         for i, gtype, in zip(ifaces, gtypes):
             ir = irs[gtype]
             getvalr(i, ir, d, p)  # side = 2 (automatic?)
             v = d.GetDataArray().copy()
-            print(v)
             if isVector:
                 v = v[self.comp - 1, :]
 

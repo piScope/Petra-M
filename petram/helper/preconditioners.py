@@ -288,7 +288,7 @@ def mfem_smoother(name, **kwargs):
 
     if isinstance(mat, mfem.ComplexOperator):
         conv = mat.GetConvention()
-        print(conv, conv == mfem.ComplexOperator.HERMITIAN)
+
         blockOffsets = mfem.intArray()
         blockOffsets.SetSize(3)
         blockOffsets[0] = 0

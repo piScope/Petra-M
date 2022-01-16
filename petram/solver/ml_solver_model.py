@@ -1160,7 +1160,6 @@ def generate_smoother(engine, level, blk_opr):
                 tmp_cols.append(opr.shape[0])
 
         else:
-            print("Non FESvar", dep_var, offset)
             tmp_cols.append(widths[offset])
             tmp_diags.append(mfem.IdentityOperator(widths[offset]))
             if A.complex:

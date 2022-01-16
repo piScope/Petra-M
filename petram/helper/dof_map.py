@@ -510,9 +510,8 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
     if use_parallel:
         P = fes1.Dof_TrueDof_Matrix()
         from mfem.common.parcsr_extra import ToScipyCoo
-        P = ToScipyCoo(P).tocsr()
+        P1mat = ToScipyCoo(P).tocsr()
         # this is global TrueDoF (offset is not subtracted)
-        VDoFtoGTDoF = P.indices
         external_entry = []
         gtdof_check = []
 
@@ -527,10 +526,13 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
             # subvdofs1.append(r[1])
         else:
             rr = r[0] if r[0] >= 0 else -1-r[0]
-            gtdof = VDoFtoGTDoF[rr]
-            if not gtdof in gtdof_check:
-                external_entry.append((gtdof, c, value))
-                gtdof_check.append(gtdof)
+            gtdofs = P1mat.indices[P1mat.indptr[rr]:P1mat.indptr[rr+1]]
+            weights = P1mat.data[P1mat.indptr[rr]:P1mat.indptr[rr+1]]
+            for gtdof, w in zip(gtdofs, weights):
+                if not gtdof in gtdof_check:
+                    external_entry.append((gtdof, c, value*w))
+                    gtdof_check.append(gtdof)
+
         return num_entry
 
     tdof = sorted(tdof)
@@ -545,11 +547,6 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
         pto2 = pto2all[k2]
         newk2 = k2all[k2]
         sh2 = sh2all[k2]
-
-        # if myid == 1: print newk1[:,2], newk1[:,1], rstart
-        # if myid == 1:
-        #    x = [r if r >= 0 else -1-r for r in newk1[:,1]]
-        #    print [VDoFtoGTDoF[r] for r in x]
 
         #dprint1(len(np.unique(newk1[:,2])) == len(newk1[:,2]))
         for k, p in enumerate(pt1):
@@ -1030,7 +1027,7 @@ def map_point_h1(idx1, idx2, fes1, fes2=None, trans1=None,
         from mfem.common.parcsr_extra import ToScipyCoo
         P = ToScipyCoo(P).tocsr()
 
-        # this is global TrueDoF (offset is not subtracted)
+        # this is global TrueDoF (offset is not subtracted # this is okay for scalar)
         VDoFtoGTDoF = P.indices
         gtdofs1 = [VDoFtoGTDoF[x] if x >= 0 else -1 for x in vdofs1]
         gtdofs2 = [VDoFtoGTDoF[x] if x >= 0 else -1 for x in vdofs2]
