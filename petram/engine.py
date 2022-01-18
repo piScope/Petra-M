@@ -2466,7 +2466,7 @@ class Engine(object):
                 if not node.enabled:
                     continue
                 if node.has_essential:
-                    if not node.use_essential_elimination():
+                    if node.use_essential_elimination():
                         index1 = index1 + node.get_essential_idx(k)
                     else:
                         index2 = index2 + node.get_essential_idx(k)

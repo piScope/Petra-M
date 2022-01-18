@@ -936,7 +936,7 @@ class Model(RestorableOrderedDict):
         pass
 
     def use_essential_elimination(self):
-        return False
+        return True
 
 
 class Bdry(Model):
