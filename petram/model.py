@@ -935,6 +935,9 @@ class Model(RestorableOrderedDict):
     def update_after_ELChanged(self, dlg):
         pass
 
+    def use_essential_elimination(self):
+        return False
+
 
 class Bdry(Model):
     can_delete = True
@@ -943,6 +946,8 @@ class Bdry(Model):
     def attribute_set(self, v):
         v = super(Bdry, self).attribute_set(v)
         v['sel_readonly'] = True
+        v['esse_elim_txt'] = True
+
         return v
 
     def get_possible_child(self):
@@ -953,6 +958,9 @@ class Bdry(Model):
                                                 'setfocus_event': True,
                                                 'validator': validate_sel2,
                                                 'validator_param': self}]]
+
+    def use_essential_elimination(self):
+        return self.esse_elim_txt
 
 
 class Pair(Model):

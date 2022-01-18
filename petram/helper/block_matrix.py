@@ -269,6 +269,7 @@ class ScipyCoo(coo_matrix):
             diagA = self.diagonal()[tdof]
 
         aidx = np.logical_or(idx, idx2)
+        #aidx = []
         AeCol = self.col[aidx]
         AeRow = self.row[aidx]
         AeData = self.data[aidx]

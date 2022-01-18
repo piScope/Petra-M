@@ -51,6 +51,7 @@ class AUX_Operator(Phys):
         v['src_var'] = 0  # (index)
         v['use_symmetric'] = False
         v['use_anti_symmetric'] = False
+        v['no_elimination'] = False
         v['use_conj'] = False
         v['coeff_type'] = 'Scalar'
         v = self.vt_oprt.attribute_set(v)
@@ -87,7 +88,8 @@ class AUX_Operator(Phys):
         ll2 = self.vt_oprt.panel_param(self)
         ll3 = [["symmetric",  self.use_symmetric,        3, {"text": ""}],
                ["anti-symmetric",  self.use_anti_symmetric,   3, {"text": ""}],
-               ["use  conjugate",  self.use_conj,             3, {"text": ""}], ]
+               ["use  conjugate",  self.use_conj,             3, {"text": ""}],
+               ["use as ess. Dof",  self.no_elimination,   3, {"text": ""}], ]
 
         return ll1 + ll2 + ll3
 
@@ -100,10 +102,11 @@ class AUX_Operator(Phys):
 
         self.src_var = self.get_root_phys().dep_vars.index(str(v[1]))
         self.coeff_type = str(v[2])
-        self.vt_oprt.import_panel_value(self, v[3:-3])
-        self.use_symmetric = v[-3]
-        self.use_anti_symmetric = v[-2]
-        self.use_conj = v[-1]
+        self.vt_oprt.import_panel_value(self, v[3:-4])
+        self.use_symmetric = v[-4]
+        self.use_anti_symmetric = v[-3]
+        self.use_conj = v[-2]
+        self.no_elimination = v[-1]
 
     def get_panel1_value(self):
         if self.paired_var is None:
@@ -129,7 +132,8 @@ class AUX_Operator(Phys):
         if expr.strip().startswith('='):
             expr = expr.strip()[1:]
         v1.extend([val, expr])
-        v3 = [self.use_symmetric, self.use_anti_symmetric, self.use_conj]
+        v3 = [self.use_symmetric, self.use_anti_symmetric,
+              self.use_conj, self.no_elimination]
         return v1 + v3
 
     def panel2_param(self):
@@ -146,6 +150,14 @@ class AUX_Operator(Phys):
 
     def get_extra_NDoF(self):
         return 0
+
+    def verify_setting(self):
+        policy = self.root()['General'].diagpolicy
+        if policy == 'keep' and self.no_elimination:
+            return (False, "DiagKeep with AUX Ebssential",
+                    "Diag Policy is not one but used as essential")
+        else:
+            return True, "", ""
 
     def preprocess_params(self, engine):
         self.vt_oprt.preprocess_params(self)

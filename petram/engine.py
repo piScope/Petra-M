@@ -75,6 +75,7 @@ class Engine(object):
         self._risFESvar = []
         self._risFESvar_grouped = []
         self._rfes_vars = []
+        self._aux_essential = []
 
         self.max_bdrattr = -1
         self.max_attr = -1
@@ -793,8 +794,8 @@ class Engine(object):
         self.mask_X = np.array([not update]*L*self.n_matrix,
                                dtype=bool).reshape(-1, L)
 
-        self.gl_ess_tdofs = {n: [] for n in self.fes_vars}
-        self.ess_tdofs = {n: [] for n in self.fes_vars}
+        self.gl_ess_tdofs = {n: ([],[]) for n in self.fes_vars}
+        self.ess_tdofs = {n: ([], []) for n in self.fes_vars}
 
         for phys in phys_range:
             self.gather_essential_tdof(phys)
@@ -1061,7 +1062,7 @@ class Engine(object):
         true_v_sizes = self.get_true_v_sizes(phys)
 
         flags = self.get_essential_bdr_flag(phys)
-        self.get_essential_bdr_tofs(phys, flags)
+        self.get_essential_bdr_tdofs(phys, flags)
 
         # this loop alloates GridFunctions
         for j in range(self.n_matrix):
@@ -1241,7 +1242,7 @@ class Engine(object):
 
             m = mfem.Mesh(str(meshname), 1, 1)
             # 2021. Nov
-            #m.ReorientTetMesh()
+            # m.ReorientTetMesh()
             solr = mfem.GridFunction(m, str(fr))
             if solr.Size() != rgf.Size():
                 assert False, "Solution file (real) has different length!!!"
@@ -1510,7 +1511,8 @@ class Engine(object):
                 for kfes, name in enumerate(names):
                     if not mm.has_extra_DoF2(kfes, phys2, self.access_idx):
                         continue
-                    gl_ess_tdof = self.gl_ess_tdofs[name]
+                    gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
+                    gl_ess_tdof = gl_ess_tdof1 + gl_ess_tdof2
                     tmp = mm.add_extra_contribution(self,
                                                     ess_tdof=gl_ess_tdof,
                                                     kfes=kfes,
@@ -1559,6 +1561,9 @@ class Engine(object):
         updated_name = []
         allmm = [mm for phys in phys_target for mm in phys.walk()
                  if mm.is_enabled()]
+
+        self._aux_essential = []
+
         for phys1 in phys_target:
             names = phys1.dep_vars
             for kfes1, name1 in enumerate(names):
@@ -1579,13 +1584,18 @@ class Engine(object):
                                                trial_ess_tdof=gl_ess_tdof2)
                             key = (name1, name2, mm.fullpath())
                             self.aux_ops[key] = op
+                            if mm.no_elimination:
+                                idx1 = self.dep_var_offset(name1)
+                                idx2 = self.r_dep_var_offset(name2)
+                                self._aux_essential.append((idx1, idx2))
                             updated_name.append(key)
         return updated_name
 
     def assemble_interp(self, phys):
         names = phys.dep_vars
         for name in names:
-            gl_ess_tdof = self.gl_ess_tdofs[name]
+            gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
+            gl_ess_tdof = gl_ess_tdof1 + gl_ess_tdof2
             kfes = names.index(name)
             interp = []
             for mm in phys.walk():
@@ -1813,8 +1823,8 @@ class Engine(object):
             if not name in self._dep_vars:
                 continue
 
-            gl_ess_tdof = self.gl_ess_tdofs[name]
-            ess_tdof = self.ess_tdofs[name]
+            gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
+            ess_tdof1, ess_tdof2 = self.ess_tdofs[name]
             idx1 = self.dep_var_offset(name)
             idx2 = self.r_dep_var_offset(name)
 
@@ -1822,9 +1832,13 @@ class Engine(object):
                 A.add_empty_square_block(idx1, idx2)
 
             if A[idx1, idx2] is not None:
-                Aee, A[idx1, idx2], Bnew = A[idx1, idx2].eliminate_RowsCols(B[idx1], ess_tdof,
+                Aee, A[idx1, idx2], Bnew = A[idx1, idx2].eliminate_RowsCols(B[idx1], ess_tdof1,
                                                                             inplace=inplace,
                                                                             diagpolicy=diagpolicy)
+                A[idx1, idx2] = A[idx1, idx2].resetRow(
+                    gl_ess_tdof2, inplace=inplace)
+                A[idx1, idx2].setDiag(gl_ess_tdof2)
+
                 Ae[idx1, idx2] = Aee
 
                 B[idx1] = Bnew
@@ -1837,13 +1851,16 @@ class Engine(object):
             In the serial mode, Aee_diag is not properly set. But this element
             does not impact the final RHS.
             '''
-
             for j in range(nblock2):
                 if j == idx2:
                     continue
                 if A[idx1, j] is None:
                     continue
-                A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof, inplace=inplace)
+
+                A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof1, inplace=inplace)
+                if not (idx1, j) in self._aux_essential:
+                    A[idx1, j] = A[idx1, j].resetRow(
+                        gl_ess_tdof2, inplace=inplace)
 
             for j in range(nblock1):
                 if j == idx1:
@@ -1852,10 +1869,10 @@ class Engine(object):
                     continue
 
                 SM = A.get_squaremat_from_right(j, idx2)
-                SM.setDiag(gl_ess_tdof)
+                SM.setDiag(gl_ess_tdof1)
 
                 Ae[j, idx2] = A[j, idx2].dot(SM)
-                A[j, idx2] = A[j, idx2].resetCol(gl_ess_tdof, inplace=inplace)
+                A[j, idx2] = A[j, idx2].resetCol(gl_ess_tdof1, inplace=inplace)
 
         return A, Ae
 
@@ -1867,9 +1884,9 @@ class Engine(object):
                     continue
 
                 idx = self.dep_var_offset(name)
-                gl_ess_tdof = self.gl_ess_tdofs[name]
+                gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
                 if AeX[idx, 0] is not None:
-                    AeX[idx, 0].resetRow(gl_ess_tdof)
+                    AeX[idx, 0].resetRow(gl_ess_tdof1)
 
             RHS = RHS - AeX
         except:
@@ -1884,12 +1901,12 @@ class Engine(object):
 
             idx = self.dep_var_offset(name)
             ridx = self.r_dep_var_offset(name)
-            gl_ess_tdof = self.gl_ess_tdofs[name]
-            ess_tdof = self.ess_tdofs[name]
+            gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
+            ess_tdof1, ess_tdof2 = self.ess_tdofs[name]
 
-            x1 = X[ridx].get_elements(gl_ess_tdof)
-            x2 = RHS[idx].get_elements(gl_ess_tdof)
-            RHS[idx].set_elements(gl_ess_tdof, x1*x2)
+            x1 = X[ridx].get_elements(gl_ess_tdof1)
+            x2 = RHS[idx].get_elements(gl_ess_tdof1)
+            RHS[idx].set_elements(gl_ess_tdof1, x1*x2)
 
         return RHS
 
@@ -1912,7 +1929,8 @@ class Engine(object):
             if not name in self._dep_vars:
                 continue
 
-            ess_tdof = np.array(self.ess_tdofs[name], dtype=int)
+            # collecto only essentials which are eliminated
+            ess_tdof = np.array(self.ess_tdofs[name][0], dtype=int)
             idx = self.dep_var_offset(name)
 
             if is_complex and format == 'blk_interleave':
@@ -2435,33 +2453,48 @@ class Engine(object):
 
     def gather_essential_tdof(self, phys):
         flags = self.get_essential_bdr_flag(phys)
-        self.get_essential_bdr_tofs(phys, flags)
+        self.get_essential_bdr_tdofs(phys, flags)
 
     def get_essential_bdr_flag(self, phys):
         flag = []
         for k,  name in enumerate(phys.dep_vars):
             fes = self.fespaces[name]
-            index = []
+            index1 = []    # with elimination
+            index2 = []    # w/o elimination
             for node in phys.walk():
                 # if not isinstance(node, Bdry): continue
                 if not node.enabled:
                     continue
                 if node.has_essential:
-                    index = index + node.get_essential_idx(k)
-            ess_bdr = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
-            for kk in index:
-                ess_bdr[kk-1] = 1
-            flag.append((name, ess_bdr))
+                    if not node.use_essential_elimination():
+                        index1 = index1 + node.get_essential_idx(k)
+                    else:
+                        index2 = index2 + node.get_essential_idx(k)
+            ess_bdr1 = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
+            ess_bdr2 = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
+            for kk in index1:
+                ess_bdr1[kk-1] = 1
+            for kk in index2:
+                ess_bdr2[kk-1] = 1
+            flag.append((name, ess_bdr1, ess_bdr2))
         dprint1("esse flag", flag)
         return flag
 
-    def get_essential_bdr_tofs(self, phys, flags):
-        for name, ess_bdr in flags:
+    def get_essential_bdr_tdofs(self, phys, flags):
+        for name, ess_bdr1, ess_bdr2 in flags:
             ess_tdof_list = mfem.intArray()
-            ess_bdr = mfem.intArray(ess_bdr)
+            ess_bdr1 = mfem.intArray(ess_bdr1)
             fespace = self.fespaces[name]
-            fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list)
-            self.ess_tdofs[name] = ess_tdof_list.ToList()
+            fespace.GetEssentialTrueDofs(ess_bdr1, ess_tdof_list)
+            ess_tdofs1 = ess_tdof_list.ToList()
+
+            ess_tdof_list = mfem.intArray()
+            ess_bdr2 = mfem.intArray(ess_bdr2)
+            fespace = self.fespaces[name]
+            fespace.GetEssentialTrueDofs(ess_bdr2, ess_tdof_list)
+            ess_tdofs2 = ess_tdof_list.ToList()
+            self.ess_tdofs[name] = (ess_tdofs1, ess_tdofs2)
+
             #print(name, len(self.ess_tdofs[name]))
         return
 
@@ -2720,7 +2753,7 @@ class Engine(object):
                 self.max_attr = np.max(
                     [self.max_attr, max(m.GetAttributeArray())])
             # Test this...(2021/Nov)
-            #m.ReorientTetMesh()
+            # m.ReorientTetMesh()
             m.GetEdgeVertexTable()
             get_extended_connectivity(m)
 
@@ -3488,7 +3521,7 @@ class ParallelEngine(Engine):
 
         for m in self.meshes:
             # 2021. Nov
-            #m.ReorientTetMesh()
+            # m.ReorientTetMesh()
             m.GetEdgeVertexTable()
             get_extended_connectivity(m)
 
@@ -3582,12 +3615,12 @@ class ParallelEngine(Engine):
         smyid = '{:0>6d}'.format(myid)
         return "."+smyid
 
+    '''
     def fill_block_matrix_fespace(self, blocks, mv,
                                   gl_ess_tdof, interp,
                                   offset, convert_real=False):
-        '''
-        fill block matrix for the left hand side
-        '''
+        # fill block matrix for the left hand side
+
         from mpi4py import MPI
         myid = MPI.COMM_WORLD.rank
 
@@ -3664,62 +3697,6 @@ class ParallelEngine(Engine):
             if t3 is not None:
                 M[idx1,   idx1] = t3
     '''
-    def fill_block_rhs_fespace(self, blocks, mv, interp, offset):
-        from mpi4py import MPI
-        myid     = MPI.COMM_WORLD.rank
-
-        M, B,  Me = blocks
-        if len(mv) == 6:
-            r_X, r_B, r_A, i_X, i_B, i_A = mv
-            is_complex = True
-        else:
-            r_X, r_B, r_A = mv; i_B = None
-            is_complex = False
-
-        b1 = chypre.MfemVec2PyVec(r_B, i_B)
-
-        P, nonzeros, zeros = interp
-        if P is not None:
-           b1 = P.conj().dot(b1)
-           P.conj() # to set P back
-        B[offset] = b1
-
-        all_extras = [(key, self.extras[phys][key])  for phys in self.extras
-                       for key in self.extras[phys]]
-                      
-        for key, v in all_extras:
-            dep_var, extra_name = key
-            idx0 = self.dep_var_offset(dep_var)
-            idx1 = self.dep_var_offset(extra_name)                      
-            t1, t2, t3, t4, t5 = v[0]
-            mm = v[1]
-            kk = mm_list.index(mm.fullname())
-            if t4 is None: continue
-            try:
-               void = len(t4)
-               t4 = t4
-            except:
-               raise ValueError("This is not supported")
-               t4 = np.zeros(t2.M())+t4
-            B[idx1] = t4
-
-    def fill_block_from_mixed(self, loc, m, interp1, interp2):
-        if loc[2]  == -1:
-           m = m.transpose()
-        if loc[3]  == -1:
-           m = m.conj()
-       
-        # should fix here
-        P1, nonzeros, zeros = interp1[1]
-        P2, nonzeros, zeros = interp2[1]
-
-        if P1 is not None:
-           m = P1.dot(m)
-        if P2 is not None:
-           m = m.dot(P2.conj().transpose())        
-           P2.conj() # set P2 back...
-        return m
-    '''
 
     def split_sol_array_fespace(self, sol, P):
         sol0 = sol[0, 0]
@@ -3735,17 +3712,19 @@ class ParallelEngine(Engine):
         #    fes = self.fespaces[name]
 
         for name in self.ess_tdofs:
-            tdof = self.ess_tdofs[name]
-            fes = self.fespaces[name]
-            data = (np.array(tdof) +
-                    fes.GetMyTDofOffset()).astype(np.int32)
+            tdof1, tdof2 = self.ess_tdofs[name]
+            myoffset = self.fespaces[name].GetMyTDofOffset()
+            data1 = (np.array(tdof1) + myoffset).astype(np.int32)
+            data2 = (np.array(tdof2) + myoffset).astype(np.int32)
 
-            gl_ess_tdof = allgather_vector(data, MPI.INT)
+            gl_ess_tdof1 = allgather_vector(data1, MPI.INT)
+            gl_ess_tdof2 = allgather_vector(data2, MPI.INT)
             MPI.COMM_WORLD.Barrier()
             #gl_ess_tdofs.append((name, gl_ess_tdof))
             # TO-DO intArray must accept np.int32
-            tmp = [int(x) for x in gl_ess_tdof]
-            self.gl_ess_tdofs[name] = tmp
+            gtdofs1 = [int(x) for x in gl_ess_tdof1]
+            gtdofs2 = [int(x) for x in gl_ess_tdof2]
+            self.gl_ess_tdofs[name] = (gtdofs1, gtdofs2)
 
     def mkdir(self, path):
         from mpi4py import MPI
