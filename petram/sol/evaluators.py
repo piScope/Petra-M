@@ -308,7 +308,7 @@ def build_evaluator(params,
     if name != 'Probe':  #probe evaluator does not load solfiles.
         evaluator.set_solfiles(solfiles)
         evaluator.load_solfiles()
-        
+
     evaluator.make_agents(name, params, **kwargs)
     
     return evaluator

@@ -2729,7 +2729,8 @@ class DlgPlotSol(SimpleFramePlus):
                 probes = self.remote_sols[0:2]
 
             self.evaluators['Probe'].set_phys_path(phys_path)
-            return self.evaluators['Probe'].eval_probe(expr, xexpr, probes)
+            data = self.evaluators['Probe'].eval_probe(expr, xexpr, probes)
+            return data[1], data[2]
         except BaseException:
             wx.CallAfter(dialog.showtraceback,
                          parent=self,

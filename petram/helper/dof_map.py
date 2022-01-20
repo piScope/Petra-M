@@ -218,6 +218,8 @@ def get_shape(fes, ibdr, mode='Bdr'):
     GetVDofTrans = getattr(fes, methods[mode]['VDofTransformation'])
 
     ret = [None]*len(ibdr)
+    if len(ibdr) == 0:
+        return ret
 
     # this is to make sure that IntegraitonPoint in Eltrans is
     # set once...
@@ -252,6 +254,10 @@ def get_vshape(fes, ibdr, mode='Bdr'):
     GetVDofs = getattr(fes, methods[mode]['VDofs'])
     GetVDofTrans = getattr(fes, methods[mode]['VDofTransformation'])
 
+    ret = [None]*len(ibdr)
+    if len(ibdr) == 0:
+        return ret
+
     # this is to make sure that IntegraitonPoint in Eltrans is
     # set once...
     tr1 = GetTrans(0)
@@ -261,8 +267,6 @@ def get_vshape(fes, ibdr, mode='Bdr'):
     tr1.SetIntPoint(nodes1.IntPoint(0))
 
     v0 = mfem.Vector(tr1.GetSpaceDim())
-
-    ret = [None]*len(ibdr)
 
     use_weight = True
     for iii, k1 in enumerate(ibdr):
