@@ -751,7 +751,6 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         else:
             assert False, "Unknown coefficient type: " + str(type(coeff[0]))
 
-        dprint1("coeff here", coeff, integrator)
         itg = integrator(*coeff)
         itg._linked_coeff = coeff  # make sure that coeff is not GCed.
 
