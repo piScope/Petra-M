@@ -341,12 +341,12 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                     mesh.bdr_attributes.ToList()),
                 engine.max_bdrattr)
 
-        #print("get_restriction_array", self, self._sel_index, size)
         arr = [0] * size
         if idx is None:
             idx = self._sel_index
         for k in idx:
             arr[k - 1] = 1
+
         return intArray(arr)
 
     def restrict_coeff(self, coeff, engine, vec=False, matrix=False,
@@ -751,7 +751,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         else:
             assert False, "Unknown coefficient type: " + str(type(coeff[0]))
 
-        #dprint1("coeff here", coeff)
+        dprint1("coeff here", coeff, integrator)
         itg = integrator(*coeff)
         itg._linked_coeff = coeff  # make sure that coeff is not GCed.
 

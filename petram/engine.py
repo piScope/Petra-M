@@ -794,7 +794,7 @@ class Engine(object):
         self.mask_X = np.array([not update]*L*self.n_matrix,
                                dtype=bool).reshape(-1, L)
 
-        self.gl_ess_tdofs = {n: ([],[]) for n in self.fes_vars}
+        self.gl_ess_tdofs = {n: ([], []) for n in self.fes_vars}
         self.ess_tdofs = {n: ([], []) for n in self.fes_vars}
 
         for phys in phys_range:
@@ -2529,7 +2529,9 @@ class Engine(object):
 
         is_new = False
         key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
-        dprint1("(emesh_idx, elem, order, dim, sdim, vdim, isParMesh) = " + str(key))
+        dkey = ("emesh_idx", "elem", "order",
+                "dim", "sdim", "vdim", "isParMesh")
+        dprint1("Allocate/Reuse fec/fes:", {d: v for d, v in zip(dkey, key)})
 
         if name in self.fespaces:
             fes1 = self.fespaces[name]
@@ -2625,6 +2627,8 @@ class Engine(object):
 
             from petram.helper.projection import simple_projection, fes_mapping
 
+            '''
+            transpose = False
             if info2["dim"] >= info1["dim"]:
                 transpose = False
             else:
@@ -2635,11 +2639,12 @@ class Engine(object):
                 fes1 = fes2
                 fes2 = _fes2
                 transpose = True
-
+            '''
             el, order, mbfdim = fes_mapping(info2["element"], info2["order"], info2["dim"],
                                             info1["dim"])
 
-            emesh_idx = info2["emesh_idx"] if mbfdim == 1 else info1["emesh_idx"]
+            #emesh_idx = info2["emesh_idx"] if mbfdim == 1 else info1["emesh_idx"]
+            emesh_idx = info1["emesh_idx"]
             is_new, fes = self.get_or_allocate_fecfes(name,
                                                       emesh_idx,
                                                       el,
@@ -2650,21 +2655,25 @@ class Engine(object):
             elif info2["dim"]-info1["dim"] == 0:
                 mode = "domain"
             else:
-                assert False, "should not come here."
+                mode = "domain"
+                #assert False, "should not come here."
 
-            p = simple_projection(fes2, fes, mode)   # fes2 (row) -> fes (col)
+            # fes2  -> fes (intermediate space using fes1's mesh)
+            p = simple_projection(fes2, fes, mode)
 
             self.projections[name] = p
+            '''
             if transpose:
-                # first 1 is flag to apply projecton from righg
+                # first -1 is flag to apply projecton from right
                 proj = (-1, name)
                 fes2 = fes
                 return self.new_mixed_bf(fes1, fes2), proj
             else:
-                # first 1 is flag to apply projecton from left. .A_ij = A_ij*Map
-                proj = (1, name)
-                fes2 = fes
-                return self.new_mixed_bf(fes2, fes1), proj
+            '''
+            # first 1 is flag to apply projecton from left. A_ij = A_ij*Map
+            proj = (1, name)
+            fes2 = fes
+            return self.new_mixed_bf(fes2, fes1), proj
         else:
             proj = 1
             return self.new_mixed_bf(fes2, fes1), proj
@@ -2750,6 +2759,7 @@ class Engine(object):
             if len(m.GetBdrAttributeArray()) > 0:
                 self.max_bdrattr = np.max(
                     [self.max_bdrattr, max(m.GetBdrAttributeArray())])
+            if len(m.GetAttributeArray()) > 0:
                 self.max_attr = np.max(
                     [self.max_attr, max(m.GetAttributeArray())])
             # Test this...(2021/Nov)
@@ -3505,6 +3515,7 @@ class ParallelEngine(Engine):
                         if len(smesh.GetBdrAttributeArray()) > 0:
                             self.max_bdrattr = np.max([self.max_bdrattr,
                                                        max(smesh.GetBdrAttributeArray())])
+                        if len(smesh.GetAttributeArray()) > 0:
                             self.max_attr = np.max([self.max_attr,
                                                     max(smesh.GetAttributeArray())])
                         if smesh.GetNE() < MPI.COMM_WORLD.size*3:

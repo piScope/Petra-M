@@ -54,8 +54,8 @@ def fes_mapping(element1, order1, dim1, dim2):
             ret = "L2_FECollection", order1-1, 2
         elif dim1 == 2 and dim2 == 3:
             ret = "ND_FECollection", order1, 1
-        elif dim1 == dim2:
-            ret = "ND_FECollection", order1, 1
+#        elif dim1 == dim2:
+#            ret = "ND_FECollection", order1, 1
         else:
             assert False, msg
 
@@ -64,8 +64,8 @@ def fes_mapping(element1, order1, dim1, dim2):
             ret = "L2_FECollection", order1 - 1, 2
         elif dim1 == 2 and dim2 == 1:
             ret = "L2_FECollection", order1 - 1, 2
-        elif dim1 == dim2:
-            ret = "RT_FECollection", order1, 1
+#        elif dim1 == dim2:
+#            ret = "RT_FECollection", order1, 1
         else:
             assert False, msg
 
