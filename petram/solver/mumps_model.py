@@ -543,6 +543,10 @@ class MUMPSSolver(LinearSolver):
         sol2 = alltoall_vector(solsend, sol.dtype)
         irhs = alltoall_vector(irhshit, int)
         sol2 = np.hstack(sol2)
+
+        irhs = [] if len(irhs) == 0 else np.hstack(irhs)
+        irhs_loc = [] if len(irhs_loc) == 0 else np.hstack(irhs_loc)
+
         _hoge1, idx1 = np.unique(np.hstack(irhs), return_index=True)
         _hoge2, idx2 = np.unique(np.hstack(irhs_loc), return_inverse=True)
 
