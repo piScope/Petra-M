@@ -191,6 +191,12 @@ class Engine(object):
         self._i_a.append([FormBlock((n_fes, n_rfes), diag=diag,
                                     new=self.alloc_bf, mixed_new=self.alloc_mbf)
                           for k in range(n_mat)])
+        self._r_at.append([FormBlock((n_fes, n_rfes), diag=diag,
+                                     new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                           for k in range(n_mat)])
+        self._i_at.append([FormBlock((n_fes, n_rfes), diag=diag,
+                                     new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                           for k in range(n_mat)])
         self._r_x.append([FormBlock(n_rfes, new=self.alloc_gf)
                           for k in range(n_mat)])
         self._i_x.append([FormBlock(n_rfes, new=self.alloc_gf)
@@ -209,6 +215,8 @@ class Engine(object):
     def _initialize_variable_lists(self):
         self._r_a = []
         self._i_a = []
+        self._r_at = []
+        self._i_at = []
         self._r_b = []
         self._i_b = []
         self._r_x = []
@@ -269,6 +277,24 @@ class Engine(object):
     @i_a.setter
     def i_a(self, v):
         self._i_a[self._level_idx][self._access_idx] = v
+
+    # bilinearforms transposed contribution (real)
+    @property
+    def r_at(self):
+        return self._r_at[self._level_idx][self._access_idx]
+
+    @r_at.setter
+    def r_at(self, v):
+        self._r_at[self._level_idx][self._access_idx] = v
+    # bilinearforms transposed contribution (imag)
+
+    @property
+    def i_at(self):
+        return self._i_at[self._level_idx][self._access_idx]
+
+    @i_at.setter
+    def i_at(self, v):
+        self._i_at[self._level_idx][self._access_idx] = v
 
     # grid functions (real)
     @property
@@ -831,14 +857,15 @@ class Engine(object):
 
             self.r_a.set_no_allocator()
             self.i_a.set_no_allocator()
+            self.r_at.set_no_allocator()
+            self.i_at.set_no_allocator()
 
-            for r, c, form in self.r_a:
-                r1 = self.dep_var_offset(self.fes_vars[r])
-                c1 = self.r_dep_var_offset(self.r_fes_vars[c])
-                if self.mask_M[j, r1, c1]:
-                    form.Assemble()
+            rcforms = ([(r, c, form) for r, c, form in self.r_a] +
+                       [(r, c, form) for r, c, form in self.i_a] +
+                       [(r, c, form) for r, c, form in self.r_at] +
+                       [(r, c, form) for r, c, form in self.i_at])
 
-            for r, c, form in self.i_a:
+            for r, c, form in rcforms:
                 r1 = self.dep_var_offset(self.fes_vars[r])
                 c1 = self.r_dep_var_offset(self.r_fes_vars[c])
                 if self.mask_M[j, r1, c1]:
@@ -1439,8 +1466,10 @@ class Engine(object):
 
         for idx in renewflag:
             self.r_a.renew(idx)
+            self.r_at.renew(idx)
             if is_complex:
                 self.i_a.renew(idx)
+                self.i_at.renew(idx)
 
         for mm in phys.walk():
             if not mm.enabled:
@@ -1454,34 +1483,44 @@ class Engine(object):
 
             for loc in loc_list:
                 r, c, is_trans, is_conj = loc
+
+                is_trans = (is_trans < 0)
+                is_conj = (is_conj == -1)
+
                 if isinstance(r, int):
                     idx1 = phys_offset + r
                     idx2 = rphys_offset + c
                 else:
                     idx1 = self.ifes(r)
                     idx2 = self.r_ifes(c)
-                if loc[2] < 0:
-                    idx1, idx2 = idx2, idx1
 
-                if not fillflag[(idx1, idx2)]:
+                if is_trans:
+                    idx1_rec, idx2_rec = idx2, idx1
+                else:
+                    idx1_rec, idx2_rec = idx1, idx2
+
+                if not fillflag[(idx1_rec, idx2_rec)]:
                     continue
-                ridx1 = self.dep_var_offset(self.fes_vars[idx1])
-                ridx2 = self.r_dep_var_offset(self.r_fes_vars[idx2])
+                ridx1 = self.dep_var_offset(self.fes_vars[idx1_rec])
+                ridx2 = self.r_dep_var_offset(self.r_fes_vars[idx2_rec])
                 self.mask_M[self.access_idx, ridx1, ridx2] = True
 
-                bf = self.r_a[idx1, idx2]
-
-                # ToDo fix this bool logic...;D
-                is_trans = (is_trans == -1)
-                is_conj = (is_conj == -1)
-
+                # real part
+                if is_trans:
+                    bfr = self.r_at[idx1, idx2]
+                else:
+                    bfr = self.r_a[idx1, idx2]
                 mm.add_mix_contribution2(
-                    self, bf, r, c, is_trans, is_conj, real=True)
+                    self, bfr, r, c, False, is_conj, real=True)
 
+                # imag part
                 if is_complex:
-                    bf = self.i_a[idx1, idx2]
+                    if is_trans:
+                        bfi = self.i_at[idx1, idx2]
+                    else:
+                        bfi = self.i_a[idx1, idx2]
                     mm.add_mix_contribution2(
-                        self, bf, r, c, is_trans, is_conj, real=False)
+                        self, bfi, r, c, False, is_conj, real=False)
 
     def update_bf(self):
         fes_vars = self.fes_vars
@@ -1489,6 +1528,7 @@ class Engine(object):
             self.access_idx = j
             for name in self.fes_vars:
                 ifes = self.ifes(name)
+
                 projs = self.r_a.get_projections(ifes, ifes)
                 fes = self.fespaces[name]
                 for p in projs:
@@ -1498,6 +1538,16 @@ class Engine(object):
                 for p in projs:
                     ia = self.i_a[ifes, ifes, p]
                     ia.Update(fes)
+
+                projs = self.r_at.get_projections(ifes, ifes)
+                fes = self.fespaces[name]
+                for p in projs:
+                    rat = self.r_at[ifes, ifes, p]
+                    rat.Update(fes)
+                projs = self.i_at.get_projections(ifes, ifes)
+                for p in projs:
+                    iat = self.i_at[ifes, ifes, p]
+                    iat.Update(fes)
 
     def fill_coupling(self, coupling, phys_target):
         raise NotImplementedError("Coupling is not supported")
@@ -1675,6 +1725,8 @@ class Engine(object):
 
             self.r_a.generateMatVec(self.a2A, self.a2Am)
             self.i_a.generateMatVec(self.a2A, self.a2Am)
+            self.r_at.generateMatVec(self.a2A, self.a2Am)
+            self.i_at.generateMatVec(self.a2A, self.a2Am)
 
             for i, j in product(range(nfes), range(nrfes)):
                 r = self.dep_var_offset(self.fes_vars[i])
@@ -1683,11 +1735,19 @@ class Engine(object):
                 if update and not self.mask_M[k, r, c]:
                     continue
 
-                m = convertElement(self.r_a, self.i_a,
-                                   i, j, MfemMat2PyMat,
-                                   projections=self.projections)
+                m1 = convertElement(self.r_a, self.i_a,
+                                    i, j, MfemMat2PyMat,
+                                    projections=self.projections)
+                if m1 is not None:
+                    M[k][r, c] = m1 if M[k][r, c] is None else M[k][r, c] + m1
 
-                M[k][r, c] = m if M[k][r, c] is None else M[k][r, c] + m
+                m2 = convertElement(self.r_at, self.i_at,
+                                    i, j, MfemMat2PyMat,
+                                    projections=self.projections)
+
+                if m2 is not None:
+                    m2t = m2.transpose()
+                    M[k][c, r] = m2t if M[k][c, r] is None else M[k][c, r] + m2t
 
             for extra_name, dep_name, kfes in self.extras.keys():
                 r = self.dep_var_offset(extra_name)
@@ -1728,26 +1788,7 @@ class Engine(object):
                 M[k][r, c] = m if M[k][r, c] is None else M[k][r, c]+m
 
         self.fill_B_blocks(B, update=update)
-        '''
-        self.access_idx = 0
-        self.r_b.generateMatVec(self.b2B)
-        self.i_b.generateMatVec(self.b2B)            
-        for i in range(nfes):
-            r = self.dep_var_offset(self.fes_vars[i])
-            if update and not self.mask_B[r]: continue            
 
-            v = convertElement(self.r_b, self.i_b,
-                                      i, 0, MfemVec2PyVec)
-            B[r] = v
-            
-        self.access_idx = 0            
-        for extra_name, dep_name in self.extras.keys():
-            r = self.dep_var_offset(extra_name)
-            if update and not self.mask_B[r]: continue
-            
-            t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name)]            
-            B[r] = t4
-        '''
         return M, B, M_changed
 
     def fill_B_blocks(self, B, update=False):
@@ -1890,7 +1931,6 @@ class Engine(object):
 
             RHS = RHS - AeX
         except:
-
             print("Ae", Ae)
             print("X", X)
             raise
@@ -2201,7 +2241,7 @@ class Engine(object):
             '''
         for k in ret:
             tmp = {x: ret[k][x].flatten() for x in ret[k]}
-            dprint1("extra", tmp)
+            #dprint1("extra", tmp)
         return ret
 
     #
@@ -2477,7 +2517,7 @@ class Engine(object):
             for kk in index2:
                 ess_bdr2[kk-1] = 1
             flag.append((name, ess_bdr1, ess_bdr2))
-        dprint1("esse flag", flag)
+
         return flag
 
     def get_essential_bdr_tdofs(self, phys, flags):
@@ -2608,6 +2648,7 @@ class Engine(object):
         return self.new_bf(fes)
 
     def alloc_mbf(self, idx1, idx2):  # row col
+
         name1 = self.fes_vars[idx1]
         name2 = self.r_fes_vars[idx2]
         fes1 = self.fespaces[name1]
@@ -3625,89 +3666,6 @@ class ParallelEngine(Engine):
         myid = MPI.COMM_WORLD.rank
         smyid = '{:0>6d}'.format(myid)
         return "."+smyid
-
-    '''
-    def fill_block_matrix_fespace(self, blocks, mv,
-                                  gl_ess_tdof, interp,
-                                  offset, convert_real=False):
-        # fill block matrix for the left hand side
-
-        from mpi4py import MPI
-        myid = MPI.COMM_WORLD.rank
-
-        if len(mv) == 6:
-            r_X, r_B, r_A, i_X, i_B, i_A = mv
-            is_complex = True
-        else:
-            r_X, r_B, r_A = mv
-            i_A = None
-            is_complex = False
-
-        M, B, Me = blocks
-
-        A1 = chypre.MfemMat2PyMat(r_A, i_A)
-        M[offset, offset] = A1
-        A1 = M[offset, offset]
-        # use the same as in the serial
-        #M.set_element(r_A, i_A, offset, offset)
-        #A1 = M[offset, offset]
-
-        A1.setDiag(gl_ess_tdof, 1.0)  # fix diagonal since they are set 1+1j
-        P, nonzeros, zeros = interp
-
-        if P is not None:
-            dprint1("P is not None")
-            A1 = A1.rap(P.transpose())
-            # comment this when making final matrix smaller
-            A1.setDiag(zeros, 1.0)
-
-        M[offset, offset] = A1
-        all_extras = [(key, self.extras[phys][key]) for phys in self.extras
-                      for key in self.extras[phys]]
-
-        for key, v in all_extras:
-            dep_var, extra_name = key
-            idx0 = self.dep_var_offset(dep_var)
-            idx1 = self.dep_var_offset(extra_name)
-            t1, t2, t3, t4, t5 = v[0]
-            mm = v[1]
-            kk = mm_list.index(mm.fullname())
-            if (isinstance(t1, chypre.CHypreMat) or
-                    isinstance(t2, chypre.CHypreMat)):
-                if t1 is not None:
-                    dprint1("t1, shape", t1.shape)
-                if t2 is not None:
-                    dprint1("t2, shape", t2.shape)
-                if P is not None:
-                    if t1 is not None:
-                        t1 = P.conj().dot(t1)
-                        P.conj()
-                    if t2 is not None:
-                        t2 = P.dot(t2)
-            elif isinstance(t1, chypre.CHypreVec):  # 1D array
-                if P is not None:
-                    if t1 is not None:
-                        t1 = P.conj().dot(t1)
-                        P.conj()
-                    if t2 is not None:
-                        t2 = P.dot(t2)
-                # this should be taken care in finalization
-                # for x in ess_tdof_list:
-                #    t1.set_element(x, 0.0)
-                #from petram.helper.chypre_to_pymatrix import Vec2MatH, Vec2MatV
-                #t1 = Vec2MatV(t1, is_complex)
-                #t2 = Vec2MatH(t2, is_complex)
-            else:
-                pass
-            #nicePrint('t2', t2[0].GetRowPartArray(), t2[0].GetColPartArray())
-
-            if t1 is not None:
-                M[idx0,   idx1] = t1
-            if t2 is not None:
-                M[idx1,   idx0] = t2.transpose()
-            if t3 is not None:
-                M[idx1,   idx1] = t3
-    '''
 
     def split_sol_array_fespace(self, sol, P):
         sol0 = sol[0, 0]

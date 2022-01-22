@@ -547,8 +547,8 @@ class MUMPSSolver(LinearSolver):
         irhs = [] if len(irhs) == 0 else np.hstack(irhs)
         irhs_loc = [] if len(irhs_loc) == 0 else np.hstack(irhs_loc)
 
-        _hoge1, idx1 = np.unique(np.hstack(irhs), return_index=True)
-        _hoge2, idx2 = np.unique(np.hstack(irhs_loc), return_inverse=True)
+        _hoge1, idx1 = np.unique(irhs, return_index=True)
+        _hoge2, idx2 = np.unique(irhs_loc, return_inverse=True)
 
         assert np.all(_hoge1 == _hoge2), "fail here"
         return sol2[idx1][idx2]
