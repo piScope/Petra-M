@@ -312,6 +312,7 @@ def mfem_smoother(name, **kwargs):
         smoother = _create_smoother(name, mat)
     return smoother
 
+
 @prc.block
 def GS(**kwargs):
     return mfem_smoother('GS', **kwargs)
@@ -365,6 +366,39 @@ def Taubin(**kwargs):
 @prc.block
 def FIR(**kwargs):
     return mfem_smoother('FIR', **kwargs)
+
+
+@prc.block
+def schwarz(**kwargs):
+    assert use_parallel, "Schwarz smoother supports only parallel mode"
+
+    prc = kwargs.pop('prc')
+    blockname = kwargs.pop('blockname')
+
+    fes = prc.get_test_fespace(blockname)
+    pmesh = fes.GetParMesh()
+
+    row = prc.get_row_by_name(blockname)
+    col = prc.get_col_by_name(blockname)
+    mat = prc.get_operator_block(row, col)
+
+    if isinstance(mat, mfem.ComplexOperator):
+        conv = mat.GetConvention()
+
+        m_r = mat._real_operator    # HypreParMatrix
+        m_i = mat._imag_operator    # HypreParMatrix
+
+        s = fes.GlobalTrueVSize()
+        AZ = mfem.ComplexHypreParMatrix(m_r, m_i, False, False, conv)
+        #AZ = mfem.ComplexHypreParMatrix(m_r, None, False, False, conv)
+        M = mfem.ComplexSchwarzSmoother(pmesh, 0, fes, AZ)
+        M._linked_obj = (pmesh, fes, AZ)
+
+    else:
+        M = mfem.SchwarzSmoother(pmesh, 0, fes, mat)
+        M._linked_obj = (pmesh, fes, mat)
+
+    return M
 
 
 @prc.block

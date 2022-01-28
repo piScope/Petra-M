@@ -869,7 +869,7 @@ class Engine(object):
                 r1 = self.dep_var_offset(self.fes_vars[r])
                 c1 = self.r_dep_var_offset(self.r_fes_vars[c])
                 if self.mask_M[j, r1, c1]:
-                    form.Assemble()
+                    form.Assemble(0)
 
             self.extras = {}
             updated_extra = []

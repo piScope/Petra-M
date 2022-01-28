@@ -25,6 +25,7 @@ else:
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MGSolver')
+
 rprint = debug.regular_print('MGSolver')
 
 
@@ -61,6 +62,9 @@ class FineLevel(NS_mixin):
 
 class CoarsestLvlSolver:
     grid_level = 0
+
+    def __init__(self):
+        self.is_preconditioner = True
 
 
 class FinestLvlSolver:
@@ -189,6 +193,11 @@ class RefinedLevel(FineLevel, SolverBase):
 
 
 class CoarseIterative(KrylovModel, CoarsestLvlSolver):
+
+    def __init__(self, *args, **kwargs):
+        KrylovModel.__init__(self, *args, **kwargs)
+        CoarsestLvlSolver.__init__(self)
+
     @classmethod
     def fancy_menu_name(self):
         return 'Kryrov'
@@ -200,8 +209,20 @@ class CoarseIterative(KrylovModel, CoarsestLvlSolver):
     def get_info_str(self):
         return 'Coarsest:Lv0'
 
+    def prepare_solver(self, opr, engine):
+        solver = self.do_prepare_solver(opr, engine)
+
+        if self.is_preconditioner:
+            solver.iterative_mode = False
+
+        return solver
+
 
 class CoarseRefinement(StationaryRefinementModel, CoarsestLvlSolver):
+    def __init__(self, *args, **kwargs):
+        StationaryRefinementModel.__init__(self, *args, **kwargs)
+        CoarsestLvlSolver.__init__(self)
+
     @classmethod
     def fancy_menu_name(self):
         return 'Refinement'
@@ -215,6 +236,10 @@ class CoarseRefinement(StationaryRefinementModel, CoarsestLvlSolver):
 
 
 class CoarseMUMPS(MUMPSMFEMSolverModel, CoarsestLvlSolver):
+    def __init__(self, *args, **kwargs):
+        MUMPSMFEMSolverModel.__init__(self, *args, **kwargs)
+        CoarsestLvlSolver.__init__(self)
+
     @classmethod
     def fancy_menu_name(self):
         return 'MUMPS'
@@ -626,14 +651,18 @@ class MLInstance(SolverInstance):
     def create_solvers(self):
         engine = self.engine
         levels = self.gui.get_level_solvers()
+        finest = self.gui.get_active_solver(cls=FinestLvlSolver)
+
+        if finest is None and len(levels) == 1:
+            levels[0][1].is_preconditioner = False
 
         solvers = []
         for lvl, solver_model in enumerate(levels):
+            engine.level_idx = lvl
             opr = self.finalized_ls[lvl][-1]
             s = solver_model.prepare_solver(opr, engine)
             solvers.append(s)
 
-        finest = self.gui.get_active_solver(cls=FinestLvlSolver)
         if finest is not None:
             opr = self.finalized_ls[lvl][-1]
             finestsolver = finest.prepare_solver(opr, engine)
@@ -842,6 +871,7 @@ class SimpleMG(mfem.PyIterativeSolver):
                         np.sum(np.abs(x.GetDataArray()[self.ess_tdofs[0]])))
                 dprint1("    - NormInf before level0 solve", x.Normlinf())
 
+            y.Assign(0.0)
             self.smoothers[0].Mult(x, y)
 
             if self.debug:
@@ -932,7 +962,7 @@ class SimpleMG(mfem.PyIterativeSolver):
                 err2norm = np.sqrt(
                     np.sum([x**2 for x in MPI.COMM_WORLD.allgather(err2norm)]))
 
-            rel_improve = err2.Norml2()/err2_L2
+            rel_improve = err2norm/err2_L2
 
             if self.debug:
                 dprint1(str(i)+" th cycle checking cycle error lvl = :" + str(lvl))
