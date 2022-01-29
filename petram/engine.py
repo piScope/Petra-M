@@ -2217,7 +2217,7 @@ class Engine(object):
             # when init_only with fixed initial is chosen
             return ret
 
-        print_flat = []
+        print_flag = []
         for extra_name, dep_name, kfes in self.extras.keys():
             data = sol_extra[extra_names.index(extra_name)]
             t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]
