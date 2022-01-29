@@ -177,6 +177,7 @@ class Model(RestorableOrderedDict):
     always_new_panel = True
     can_rename = False
     unique_child = False
+    extra_diagnostic_print = False
 
     @classmethod
     def fancy_menu_name(cls):

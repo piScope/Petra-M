@@ -2217,12 +2217,15 @@ class Engine(object):
             # when init_only with fixed initial is chosen
             return ret
 
+        print_flat = []
         for extra_name, dep_name, kfes in self.extras.keys():
             data = sol_extra[extra_names.index(extra_name)]
             t1, t2, t3, t4, t5 = self.extras[(extra_name, dep_name, kfes)]
             mm_path = self.extras_mm[(extra_name, dep_name, kfes)]
             mm = self.model[mm_path]
             ret[extra_name] = {}
+            if mm.extra_diagnostic_print:
+                print_flag.append(extra_name)
 
             if not t5:
                 continue
@@ -2241,7 +2244,8 @@ class Engine(object):
             '''
         for k in ret:
             tmp = {x: ret[k][x].flatten() for x in ret[k]}
-            #dprint1("extra", tmp)
+            tmp2 = {x: ret[k][x].flatten() for x in ret[k] if x in print_flag}
+            dprint1("extra (diagnostic)", tmp2)
         return ret
 
     #
