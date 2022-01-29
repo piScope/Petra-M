@@ -382,6 +382,9 @@ def schwarz(**kwargs):
     col = prc.get_col_by_name(blockname)
     mat = prc.get_operator_block(row, col)
 
+    iter = kwargs.pop('iter', 1)
+    theta = kwargs.pop('theta', 1)    
+
     if isinstance(mat, mfem.ComplexOperator):
         conv = mat.GetConvention()
 
@@ -392,6 +395,8 @@ def schwarz(**kwargs):
         AZ = mfem.ComplexHypreParMatrix(m_r, m_i, False, False, conv)
         #AZ = mfem.ComplexHypreParMatrix(m_r, None, False, False, conv)
         M = mfem.ComplexSchwarzSmoother(pmesh, 0, fes, AZ)
+        M.SetDumpingParam(theta)
+        M.SetNumSmoothSteps(iter)        
         M._linked_obj = (pmesh, fes, AZ)
 
     else:
