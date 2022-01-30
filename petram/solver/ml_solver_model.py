@@ -330,7 +330,11 @@ class MultiLvlStationarySolver(StdSolver):
         v['use_block_symmetric'] = False
         v["presmoother_count"] = "1"
         v["postsmoother_count"] = "1"
+        v["cycle_max"] = "2"
         v['assemble_real'] = True
+        v["debug_cycle_level"] = False
+        v["debug_residuals"] = False
+
         return v
 
     def panel1_param(self):
@@ -344,7 +348,8 @@ class MultiLvlStationarySolver(StdSolver):
         panels.extend(p2)
 
         p3 = [["pre-smoother #count", "", 0, {}],
-              ["post-smoother #count", "", 0, {}], ]
+              ["post-smoother #count", "", 0, {}],
+              ["cycle max (V:1, W;2)", "", 0, {}], ]
         panels.extend(p3)
 
         return panels
@@ -354,14 +359,16 @@ class MultiLvlStationarySolver(StdSolver):
         value.append((self.merge_real_imag, [self.use_block_symmetric, ]))
         value.append(self.presmoother_count)
         value.append(self.postsmoother_count)
+        value.append(self.cycle_max)
         return value
 
     def import_panel1_value(self, v):
-        super(MultiLvlStationarySolver, self).import_panel1_value(v[:-3])
-        self.merge_real_imag = bool(v[-3][0])
-        self.use_block_symmetric = bool(v[-3][1][0])
-        self.presmoother_count = v[-2]
-        self.postsmoother_count = v[-1]
+        super(MultiLvlStationarySolver, self).import_panel1_value(v[:-4])
+        self.merge_real_imag = bool(v[-4][0])
+        self.use_block_symmetric = bool(v[-4][1][0])
+        self.presmoother_count = v[-3]
+        self.postsmoother_count = v[-2]
+        self.cycle_max = v[-1]
 
     def allocate_solver_instance(self, engine):
         if self.clear_wdir:
@@ -772,7 +779,9 @@ class MLInstance(SolverInstance):
                           ess_tdofs=ess_tdofs_arr,
                           presmoother_count=int(self.gui.presmoother_count),
                           postsmoother_count=int(self.gui.postsmoother_count),
-                          debug=False, cycle_max=2)
+                          debug1=self.gui.debug_cycle_level,
+                          debug2=self.gui.debug_residuals,
+                          cycle_max=int(self.gui.cycle_max),)
 
         else:
             mg = None
@@ -834,7 +843,7 @@ def generate_MG(operators, smoothers, prolongations,
 class SimpleMG(mfem.PyIterativeSolver):
     def __init__(self, operators, smoothers, prolongations,
                  ess_tdofs=None, presmoother_count=1, postsmoother_count=1,
-                 debug=True, cycle_max=1):
+                 debug1=True, debug2=True, cycle_max=1):
         self.operators = operators
         self.smoothers = smoothers
         self.prolongations = prolongations
@@ -842,7 +851,9 @@ class SimpleMG(mfem.PyIterativeSolver):
         self.postsmoother_count = postsmoother_count
         self.ess_tdofs = ess_tdofs
 
-        self.debug = debug
+        self.debug1 = debug1
+        self.debug2 = debug2
+
         self.cycle_rel_tol = 0.01
         self.cycle_max = cycle_max
 
@@ -854,7 +865,28 @@ class SimpleMG(mfem.PyIterativeSolver):
         mfem.PyIterativeSolver.__init__(self, *args)
 
     def Mult(self, x, y):
-        self.perform_one_cycle(x, y)
+        '''
+        call cycle_max times of perform_one_cycle
+        '''
+        y.Assign(0.0)
+
+        lvl = len(self.ess_tdofs)-1
+
+        correction = mfem.Vector(y.Size())
+        correction.Assign(0.0)
+        err = mfem.Vector(x.Size())
+        err.Assign(x)
+        tmp = mfem.Vector(x.Size())
+
+        for i in range(self.cycle_max):
+            self.perform_one_cycle(err, correction)
+
+            self.operators[lvl].Mult(correction, tmp)
+            tmp *= -1
+            tmp += err
+            err.Assign(tmp)
+
+            y += correction
 
     def perform_one_cycle(self, x, y, lvl=None):
 
@@ -862,11 +894,11 @@ class SimpleMG(mfem.PyIterativeSolver):
             # start from finest level
             lvl = len(self.ess_tdofs)-1
 
-        if self.debug:
+        if self.debug1:
             dprint1("========\n")
             dprint1("Entering Cycle lvl =  ", lvl)
         if lvl == 0:
-            if self.debug:
+            if self.debug2:
                 dprint1("    - error on essential at level = 0",
                         np.sum(np.abs(x.GetDataArray()[self.ess_tdofs[0]])))
                 dprint1("    - NormInf before level0 solve", x.Normlinf())
@@ -874,7 +906,7 @@ class SimpleMG(mfem.PyIterativeSolver):
             y.Assign(0.0)
             self.smoothers[0].Mult(x, y)
 
-            if self.debug:
+            if self.debug2:
                 dprint1("    - NormInf after level0 solve", y.Normlinf())
                 dprint1("    - correction on essential at coarse level",
                         np.sum(np.abs(y.GetDataArray()[self.ess_tdofs[0]])))
@@ -884,12 +916,12 @@ class SimpleMG(mfem.PyIterativeSolver):
                 tmp -= x
                 dprint1("    - level0 linear inverse error (L2): ", tmp.Norml2())
 
-            if self.debug:
+            if self.debug1:
                 dprint1("Exiting Cycle lvl =  ", lvl)
                 dprint1("========\n")
             return
 
-        if self.debug:
+        if self.debug2:
             dprint1("")
             dprint1("  - residual on essential at the start of level",
                     np.sum(np.abs(x.GetDataArray()[self.ess_tdofs[1]])))
@@ -901,13 +933,16 @@ class SimpleMG(mfem.PyIterativeSolver):
         y0 = mfem.Vector(x.Size())
         y.Assign(0.0)
 
-        if self.debug:
-            dprint1("   -  Entering pre-smooth level", lvl)
         for jjj in range(self.presmoother_count):
+            if self.debug1:
+                txt = str(jjj) + '/' + str(self.presmoother_count)
+                dprint1("   -  Performing pre-smooth " +
+                        txt + " : level = " + str(lvl))
+
             self.smoothers[lvl].iterative_mode = False
             y0.Assign(0.0)
 
-            if self.debug:
+            if self.debug2:
                 dprint1("    - resdidual on essential before presmooth",
                         np.sum(np.abs(err.GetDataArray()[self.ess_tdofs[lvl]])))
 
@@ -918,11 +953,11 @@ class SimpleMG(mfem.PyIterativeSolver):
             err *= -1
             err += x
 
-            if self.debug:
+            if self.debug2:
                 dprint1("    - residual on essential after pre-smooth",
                         np.sum(np.abs(err.GetDataArray()[self.ess_tdofs[lvl]])))
 
-        if self.debug:
+        if self.debug2:
             dprint1(
                 "  correction (L2) before adding prolonged correction: ", y.Norml2())
 
@@ -936,7 +971,7 @@ class SimpleMG(mfem.PyIterativeSolver):
         # (zeroing the error sent to the lower level)   <--- this works
         err2.GetDataArray()[self.ess_tdofs[lvl2]] = 0.0
 
-        if self.debug:
+        if self.debug2:
             dprint1("    - error on essential given to a coarse level",
                     np.sum(np.abs(err2.GetDataArray()[self.ess_tdofs[lvl2]])))
 
@@ -964,13 +999,14 @@ class SimpleMG(mfem.PyIterativeSolver):
 
             rel_improve = err2norm/err2_L2
 
-            if self.debug:
+            if self.debug2:
                 dprint1(str(i)+" th cycle checking cycle error lvl = :" + str(lvl))
                 dprint1("correction L2/ rel_improve", y2.Norml2(), rel_improve)
+                dprint1("change of improvement", np.abs(
+                    np.abs(rel_improve0/rel_improve)-1))
 
             if rel_improve < self.cycle_rel_tol:
                 break
-            #dprint1("change of improvement", np.abs(np.abs(rel_improve0/rel_improve)-1))
             if np.abs(np.abs(rel_improve0/rel_improve)-1) < 0.1:
                 break
             rel_improve0 = rel_improve
@@ -985,21 +1021,24 @@ class SimpleMG(mfem.PyIterativeSolver):
         # tmp.GetDataArray()[self.ess_tdofs[1]] = 0.0  # <--- does not works
         y += y0
 
-        if self.debug:
-            dprint1("   -  Entering post-smooth level", lvl)
+        if self.debug2:
             dprint1("    - correction on essential prolonged from lower level",
                     np.sum(np.abs(y0.GetDataArray()[self.ess_tdofs[lvl]])))
             dprint1(
                 "    - correction (L2) after adding prolonged correction: ", y.Norml2())
 
         for jjj in range(self.postsmoother_count):
+            if self.debug1:
+                txt = str(jjj) + '/' + str(self.postsmoother_count)
+                dprint1("   -  Performing post-smooth " +
+                        txt + " : level = " + str(lvl))
 
             # compute error
             self.operators[lvl].Mult(y, err)
             err *= -1
             err += x
 
-            if self.debug:
+            if self.debug2:
                 dprint1("    - residual on essential before postsmooth",
                         np.sum(np.abs(err.GetDataArray()[self.ess_tdofs[lvl]])))
                 dprint1("    - residual L2 before before postsmooth", err.Norml2())
@@ -1010,12 +1049,12 @@ class SimpleMG(mfem.PyIterativeSolver):
             # y0.GetDataArray()[self.ess_tdofs[1]] = 0.0   <--- does not works
             y += y0
 
-            if self.debug:
+            if self.debug2:
                 dprint1("    - correction on essential",
                         np.sum(np.abs(y0.GetDataArray()[self.ess_tdofs[lvl]])))
                 dprint1("    - correction norm (L2) after postsmooth", y0.Norml2())
 
-        if self.debug:
+        if self.debug2:
             self.operators[lvl].Mult(y, err)
             err *= -1
             err += x
@@ -1024,6 +1063,7 @@ class SimpleMG(mfem.PyIterativeSolver):
                     np.sum(np.abs(y.GetDataArray()[self.ess_tdofs[lvl]])))
             dprint1("  - finial norm of correction (L2): ", y.Norml2())
             dprint1("  - final residual L2", err.Norml2())
+        if self.debug1:
             dprint1("Exiting Cycle lvl =  ", lvl)
             dprint1("========\n")
 
