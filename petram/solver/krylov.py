@@ -207,6 +207,7 @@ class KrylovModel(LinearSolverModel, NS_mixin):
             if isinstance(x, LinearSolverModel):
                 return x.prepare_solver(opr, engine)
 
+
     def do_prepare_solver(self, opr, engine):
         cls = getattr(mfem, self.solver_type + 'Solver')
         args = (MPI.COMM_WORLD,) if use_parallel else ()

@@ -214,6 +214,8 @@ class CoarseIterative(KrylovModel, CoarsestLvlSolver):
 
         if self.is_preconditioner:
             solver.iterative_mode = False
+        else:
+            solver.iterative_mode = True
 
         return solver
 
@@ -661,7 +663,7 @@ class MLInstance(SolverInstance):
         finest = self.gui.get_active_solver(cls=FinestLvlSolver)
 
         if finest is None and len(levels) == 1:
-            levels[0][1].is_preconditioner = False
+            levels[0].is_preconditioner = False
 
         solvers = []
         for lvl, solver_model in enumerate(levels):
