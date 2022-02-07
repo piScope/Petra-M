@@ -3537,6 +3537,7 @@ class ParallelEngine(Engine):
 
         dprint1("Loading mesh (parallel)")
 
+        self.base_meshes = []
         self.meshes = []
         self.emeshes = []
         if self.emesh_data is None:
@@ -3548,6 +3549,7 @@ class ParallelEngine(Engine):
                         if isinstance(parent[g], MFEMMesh) and parent[g].enabled]
             for idx, child in enumerate(children):
                 self.meshes.append(None)
+                self.base_meshes.append(None)
                 if not child.enabled:
                     continue
                 target = None
@@ -3555,6 +3557,7 @@ class ParallelEngine(Engine):
                     o = child[k]
                     if not o.enabled:
                         continue
+                    dprint1(k)
                     if o.isMeshGenerator:
                         smesh = o.run()
                         if len(smesh.GetBdrAttributeArray()) > 0:
@@ -3568,12 +3571,18 @@ class ParallelEngine(Engine):
                                 smesh.GetNE()//1000+1, 1)
                         else:
                             parts = None
-                        self.meshes[idx] = mfem.ParMesh(
+                        self.base_meshes[idx] = mfem.ParMesh(
                             MPI.COMM_WORLD, smesh, parts)
+                        self.meshes[idx] = self.base_meshes[idx]
                         target = self.meshes[idx]
+
+                        dprint1("here", target, target.GetNE())
+                        #self.base_meshes[idx] = self.meshes[idx]
                     else:
                         if hasattr(o, 'run') and target is not None:
+                            target = self.new_mesh_from_mesh(target)
                             self.meshes[idx] = o.run(target)
+                            target = self.meshes[idx]
 
         for m in self.meshes:
             # 2021. Nov

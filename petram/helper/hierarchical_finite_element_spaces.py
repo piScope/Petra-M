@@ -178,8 +178,19 @@ class HierarchicalFiniteElementSpaces(object):
                         'order': order,
                         'dim': m.Dimension(),
                         'sdim': m.SpaceDimension(),
-                        'vdim': vdim, }
+                        'vdim': vdim,
+                        'fecdim': fecdim}
         return None
+
+    def get_fes_from_info(self, info):
+        emesh_idx = info['emesh_idx']
+        refine = info['refine']
+        element = info['element']
+        order = info['order']
+        vdim = info['vdim']
+        fecdim = info['fecdim']
+        key = emesh_idx, refine, element, order, fecdim, vdim
+        return self._fes_storage[key]
 
     def get_fes_emesh_idx(self, fes):
         info = self.get_fes_info(fes)
@@ -191,9 +202,9 @@ class HierarchicalFiniteElementSpaces(object):
     def get_fes_levels(self, name):
         return len(self._dataset[name])
 
-    def get_mesh(self, name):
+    def get_mesh(self, name, ref_level=0):
         emesh_idx, refine, element, order, fecdim, vdim = self._dataset[name][-1]
-        m = self._refined_mesh_storage[(emesh_idx, refine)]
+        m = self._refined_mesh_storage[(emesh_idx, refine-ref_level)]
         #m = self._refined_mesh_storage[(emesh_idx, 0)]
         return m
 

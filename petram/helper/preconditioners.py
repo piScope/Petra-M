@@ -87,6 +87,9 @@ if use_parallel:
 else:
     import mfem.ser as mfem
 
+import petram.debug
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('Preconditioner')
+
 
 class PreconditionerBlock(object):
     def __init__(self, func):
@@ -150,7 +153,9 @@ class PrcCommon(object):
         return self.get_operator_block(r, c)
 
     def get_test_fespace(self, name):
-        return self.engine.fespaces[name]
+        fes = self.engine.fespaces[name]
+
+        return fes
 
 
 class PrcGenBase(PrcCommon):
@@ -376,14 +381,27 @@ def schwarz(**kwargs):
     blockname = kwargs.pop('blockname')
 
     fes = prc.get_test_fespace(blockname)
-    pmesh = fes.GetParMesh()
+    fes_info = prc.engine.fespaces.get_fes_info(fes)
+
+    use_basemesh = kwargs.pop('basemesh', -1)
+    if use_basemesh == -1:
+        target = kwargs.pop('ref', fes_info['refine'])
+        ref_level = fes_info['refine'] - target
+        fes_info['refine'] = target
+        fes0 = prc.engine.fespaces.get_fes_from_info(fes_info)
+        pmesh = fes0.GetParMesh()
+    else:
+        pmesh = prc.engine.base_meshes[fes_info['emesh_idx']]
+        ref_level = use_basemesh
+
+    dprint1(pmesh, pmesh.GetNE(), ref_level)
 
     row = prc.get_row_by_name(blockname)
     col = prc.get_col_by_name(blockname)
     mat = prc.get_operator_block(row, col)
 
     iter = kwargs.pop('iter', 1)
-    theta = kwargs.pop('theta', 1)    
+    theta = kwargs.pop('theta', 1)
 
     if isinstance(mat, mfem.ComplexOperator):
         conv = mat.GetConvention()
@@ -394,13 +412,13 @@ def schwarz(**kwargs):
         s = fes.GlobalTrueVSize()
         AZ = mfem.ComplexHypreParMatrix(m_r, m_i, False, False, conv)
         #AZ = mfem.ComplexHypreParMatrix(m_r, None, False, False, conv)
-        M = mfem.ComplexSchwarzSmoother(pmesh, 0, fes, AZ)
+        M = mfem.ComplexSchwarzSmoother(pmesh, ref_level, fes, AZ)
         M.SetDumpingParam(theta)
-        M.SetNumSmoothSteps(iter)        
+        M.SetNumSmoothSteps(iter)
         M._linked_obj = (pmesh, fes, AZ)
 
     else:
-        M = mfem.SchwarzSmoother(pmesh, 0, fes, mat)
+        M = mfem.SchwarzSmoother(pmesh, ref_level, fes, mat)
         M._linked_obj = (pmesh, fes, mat)
 
     return M
