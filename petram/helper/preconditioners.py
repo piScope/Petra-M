@@ -394,7 +394,7 @@ def schwarz(**kwargs):
         pmesh = prc.engine.base_meshes[fes_info['emesh_idx']]
         ref_level = use_basemesh
 
-    dprint1(pmesh, pmesh.GetNE(), ref_level)
+    #dprint1(pmesh, pmesh.GetNE(), ref_level)
 
     row = prc.get_row_by_name(blockname)
     col = prc.get_col_by_name(blockname)

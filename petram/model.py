@@ -321,6 +321,19 @@ class Model(RestorableOrderedDict):
             p = p._parent
         return True
 
+    def gather_enebled_flags(self, parent):
+        enabled = {}
+        for o in parent.walk():
+            fname = o.fullname()
+            enabled[fname] = o.enabled
+        return enabled
+
+    def apply_enebled_flags(self, parent, enabled):
+        for o in parent.walk():
+            fname = o.fullname()
+            if fname in enabled:
+                o.enabled = enabled[fname]
+
     @property
     def parent(self):
         return self._parent

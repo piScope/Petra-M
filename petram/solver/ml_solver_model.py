@@ -90,6 +90,10 @@ class RefinedLevel(FineLevel, SolverBase):
         v["select_extra_constreint"] = False
         v["unselect_extra_constreint"] = False
         v["use_domain_refinement"] = False
+        v["presmoother_count"] = "default"
+        v["postsmoother_count"] = "default"
+        v["cycle_max"] = "default"
+
         return v
 
     def panel1_param(self):
@@ -101,11 +105,15 @@ class RefinedLevel(FineLevel, SolverBase):
               27, ({"text": "Enable contributions"}, {"elp": mm},)]
         p3 = [None, (self.unselect_extra_constreint, (self.extra_constraints2,)),
               27, ({"text": "Disable contributions"}, {"elp": mm},)]
+        p4 = [["pre-smoother #count", "", 0, {}],
+              ["post-smoother #count", "", 0, {}],
+              ["cycle max (V:1, W;2)", "", 0, {}], ]
 
         panels.extend([["refinement type", self.refinement_type, 1,
                         {"values": ["P(order)", "H(mesh)"]}],
                        ["level increment", "", 0, {}],
                        p2, p3])
+        panels.extend(p4)
         return panels
 
     def get_panel1_value(self):
@@ -114,19 +122,27 @@ class RefinedLevel(FineLevel, SolverBase):
         value.append(self.level_inc)
         v2 = (self.select_extra_constreint, (self.extra_constraints1,))
         v3 = (self.unselect_extra_constreint, (self.extra_constraints2,))
+        v4 = [self.presmoother_count,
+              self.postsmoother_count,
+              self.cycle_max]
+
         value.append(v2)
         value.append(v3)
+        value.extend(v4)
 
         return value
 
     def import_panel1_value(self, v):
-        super(RefinedLevel, self).import_panel1_value(v[:-4])
-        self.refinement_type = v[-4]
-        self.level_inc = v[-3]
-        self.select_extra_constreint = v[-2][0]
-        self.extra_constraints1 = v[-2][1][0]
-        self.unselect_extra_constreint = v[-1][0]
-        self.extra_constraints2 = v[-1][1][0]
+        super(RefinedLevel, self).import_panel1_value(v[:-7])
+        self.refinement_type = v[-7]
+        self.level_inc = v[-6]
+        self.select_extra_constreint = v[-5][0]
+        self.extra_constraints1 = v[-5][1][0]
+        self.unselect_extra_constreint = v[-4][0]
+        self.extra_constraints2 = v[-4][1][0]
+        self.presmoother_count = v[-3]
+        self.postsmoother_count = v[-2]
+        self.cycle_max = v[-1]
 
     def panel2_param(self):
         mm = [["constraints", "", 0, {}], ]
@@ -174,6 +190,7 @@ class RefinedLevel(FineLevel, SolverBase):
                 for n in names:
                     if fname.find(n) != -1:
                         o.enabled = True
+                        dprint1("!!!!! enabling", fname)
 
         names = [x.strip() for x in self.extra_constraints2.split(',')]
         if self.unselect_extra_constreint:
@@ -182,6 +199,7 @@ class RefinedLevel(FineLevel, SolverBase):
                 for n in names:
                     if fname.find(n) != -1:
                         o.enabled = False
+                        dprint1("!!!!!disabling", fname)
 
     @classmethod
     def fancy_tree_name(self):
@@ -425,7 +443,7 @@ class MultiLvlStationarySolver(StdSolver):
             txt = 'Invlid MultiLvlSolver configuration'
             txt_long = 'Number of active coarse level solver must be one.'
 
-        levels, klevels = self._get_level_solvers()
+        levels, klevels, setting = self._get_level_solvers()
 
         if list(range(len(levels))) != klevels:
             isvalid = False
@@ -472,23 +490,42 @@ class MultiLvlStationarySolver(StdSolver):
     def _get_level_solvers(self):
         levels = [self.get_coarsest_solvers()[0]]
         klevels = [0]
+
+        level_setting = {}
+
         for x in self:
             child = self[x]
             if not child.is_enabled():
                 continue
             if isinstance(child, CoarsestLvlSolver):
                 continue
-            if isinstance(child, FineLevel):
+            if isinstance(child, RefinedLevel):
                 levels.append(child)
                 klevels.append(child.grid_level)
+
+                presmoother_count = int(self.presmoother_count
+                                        if child.presmoother_count.lower() == 'default'
+                                        else child.presmooth_count)
+                postsmoother_count = int(self.postsmoother_count
+                                         if child.postsmoother_count.lower() == 'default'
+                                         else child.presmooth_count)
+                cycle_max = int(self.cycle_max
+                                if child.cycle_max.lower() == 'default'
+                                else child.cycle_max)
+
+                level_setting[child.grid_level] = (
+                    presmoother_count, postsmoother_count, cycle_max)
 
         idx = np.argsort(klevels)
         levels = [levels[i] for i in idx]
         klevels = [int(klevels[i]) for i in idx]
-        return levels, klevels
+        return levels, klevels, level_setting
 
     def get_level_solvers(self):
         return self._get_level_solvers()[0]
+
+    def get_level_setting(self):
+        return self._get_level_solvers()[-1]
 
     def create_refined_levels(self, engine, lvl):
         '''
@@ -611,11 +648,21 @@ class MLInstance(SolverInstance):
 
         levels = self.gui.get_level_solvers()
 
+        enabled_flag = engine.model.gather_enebled_flags(engine.model['Phys'])
+
         for l, lvl in enumerate(levels):
             engine.level_idx = l
+
+            if isinstance(lvl, RefinedLevel):
+                for phys in self.get_phys():
+                    lvl.adjust_physics(phys)
+                engine.assign_sel_index()
+
             self.do_assemble(inplace)
 
         self.assembled = True
+
+        engine.model.apply_enebled_flags(engine.model['Phys'], enabled_flag)
 
     @property
     def is_iterative(self):
@@ -776,14 +823,23 @@ class MLInstance(SolverInstance):
                 ess_tdofs_arr.append(esstdofs0)
 
             #solall = linearsolver.Mult(BB, case_base=0)
+            level_setting = self.gui.get_level_setting()
 
-            mg = SimpleMG(operators, smoothers, prolongations,
-                          ess_tdofs=ess_tdofs_arr,
-                          presmoother_count=int(self.gui.presmoother_count),
-                          postsmoother_count=int(self.gui.postsmoother_count),
-                          debug1=self.gui.debug_cycle_level,
-                          debug2=self.gui.debug_residuals,
-                          cycle_max=int(self.gui.cycle_max),)
+            presmoother_count = {
+                key: level_setting[key][0] for key in level_setting}
+            postsmoother_count = {
+                key: level_setting[key][1] for key in level_setting}
+            cycle_max = {key: level_setting[key][2] for key in level_setting}
+
+            mg = PyMG(operators,
+                      smoothers,
+                      prolongations,
+                      ess_tdofs=ess_tdofs_arr,
+                      presmoother_count=presmoother_count,
+                      postsmoother_count=postsmoother_count,
+                      cycle_max=cycle_max,
+                      debug1=self.gui.debug_cycle_level,
+                      debug2=self.gui.debug_residuals)
 
         else:
             mg = None
@@ -842,7 +898,7 @@ def generate_MG(operators, smoothers, prolongations,
     return mg
 
 
-class SimpleMG(mfem.PyIterativeSolver):
+class PyMG(mfem.PyIterativeSolver):
     def __init__(self, operators, smoothers, prolongations,
                  ess_tdofs=None, presmoother_count=1, postsmoother_count=1,
                  debug1=True, debug2=True, cycle_max=1):
@@ -880,7 +936,7 @@ class SimpleMG(mfem.PyIterativeSolver):
         err.Assign(x)
         tmp = mfem.Vector(x.Size())
 
-        for i in range(self.cycle_max):
+        for i in range(self.cycle_max[lvl]):
             self.perform_one_cycle(err, correction)
 
             self.operators[lvl].Mult(correction, tmp)
@@ -935,9 +991,9 @@ class SimpleMG(mfem.PyIterativeSolver):
         y0 = mfem.Vector(x.Size())
         y.Assign(0.0)
 
-        for jjj in range(self.presmoother_count):
+        for jjj in range(self.presmoother_count[lvl]):
             if self.debug1:
-                txt = str(jjj) + '/' + str(self.presmoother_count)
+                txt = str(jjj) + '/' + str(self.presmoother_count[lvl])
                 dprint1("   -  Performing pre-smooth " +
                         txt + " : level = " + str(lvl))
 
@@ -988,7 +1044,7 @@ class SimpleMG(mfem.PyIterativeSolver):
             err2_L2 = np.sqrt(
                 np.sum([x**2 for x in MPI.COMM_WORLD.allgather(err2_L2)]))
         rel_improve0 = 1.0
-        for i in range(self.cycle_max):
+        for i in range(self.cycle_max[lvl]):
             self.perform_one_cycle(err2, y2, lvl=lvl2)
             x2 += y2
             tmp = mfem.Vector(x2.Size())
@@ -1029,9 +1085,9 @@ class SimpleMG(mfem.PyIterativeSolver):
             dprint1(
                 "    - correction (L2) after adding prolonged correction: ", y.Norml2())
 
-        for jjj in range(self.postsmoother_count):
+        for jjj in range(self.postsmoother_count[lvl]):
             if self.debug1:
-                txt = str(jjj) + '/' + str(self.postsmoother_count)
+                txt = str(jjj) + '/' + str(self.postsmoother_count[lvl])
                 dprint1("   -  Performing post-smooth " +
                         txt + " : level = " + str(lvl))
 

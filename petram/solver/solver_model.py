@@ -447,6 +447,8 @@ class SolveStep(SolverBase):
 
         flag = True
         lvl = 0
+        enabled_flag = engine.model.gather_enebled_flags(engine.model['Phys'])
+
         while flag:
             engine.level_idx = lvl
             self.prepare_form_sol_variables(engine)
@@ -455,6 +457,8 @@ class SolveStep(SolverBase):
             lvl = lvl + 1
             flag = any([s.create_refined_levels(engine, lvl)
                         for s in solvers])
+
+        engine.model.apply_enebled_flags(engine.model['Phys'], enabled_flag)
 
         is_first = True
         for solver in solvers:
