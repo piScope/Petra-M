@@ -61,9 +61,10 @@ def launch_ssh_command(model, command, verbose=True):
     host = hosto.getvar('server')
     user = hosto.getvar('user')
     opts = hosto.get_multiplex_opts()
+    aopts = hosto.get_auth_opts(no_password=True)
 
     opts = ' '.join(opts)
-    command = ("ssh -x " + opts + " -oPasswordAuthentication=no -oPreferredAuthentications=publickey " + user+'@' + host + " '" + command + "'")
+    command = ("ssh -x " + opts + aopts + user+'@' + host + " '" + command + "'")
     
     if verbose:
         print("Executing on host (ssh): " + command)
