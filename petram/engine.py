@@ -3576,7 +3576,6 @@ class ParallelEngine(Engine):
                         self.meshes[idx] = self.base_meshes[idx]
                         target = self.meshes[idx]
 
-                        dprint1("here", target, target.GetNE())
                         #self.base_meshes[idx] = self.meshes[idx]
                     else:
                         if hasattr(o, 'run') and target is not None:
