@@ -1007,8 +1007,7 @@ class PhysModule(Phys):
         RT
         '''
 
-    @property
-    def fes_order(self):
+    def fes_order(self, idx):
         self.vt_order.preprocess_params(self)
         return self.order
 

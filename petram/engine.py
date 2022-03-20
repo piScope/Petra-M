@@ -2553,7 +2553,7 @@ class Engine(object):
             else:
                 pass
             emesh_idx = phys.emesh_idx
-            order = phys.fes_order
+            order = phys.fes_order(count)
 
             if elem.startswith('RT'):
                 vdim = 1
