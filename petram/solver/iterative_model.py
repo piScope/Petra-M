@@ -224,6 +224,9 @@ class Iterative(LinearSolverModel, NS_mixin):
                     return False, "Iterative does not support complex.", "A complex problem must be converted to a real value problem"
         return True, "", ""
 
+    def does_linearsolver_choose_linearsystem_type(self):
+        return True
+
     def linear_system_type(self, assemble_real, phys_real):
         if phys_real:
             if assemble_real:
@@ -499,6 +502,7 @@ class IterativeSolver(LinearSolver):
             for j in range(rows):
                 v = bb.GetBlock(j)
                 v.Print('rhs_' + str(i) + '_' + str(j) + suffix)
+                #np.save('rhs_' + str(i) + '_' + str(j) + suffix, v.GetDataArray())
         if x is not None:
             for j in range(rows):
                 xx = x.GetBlock(j)
@@ -506,6 +510,7 @@ class IterativeSolver(LinearSolver):
 
     @flush_stdout
     def call_mult(self, solver, bb, xx):
+        #print(np.sum(bb.GetDataArray()), np.sum(xx.GetDataArray()))
         solver.Mult(bb, xx)
         max_iter = solver.GetNumIterations()
         tol = solver.GetFinalNorm()
@@ -575,7 +580,7 @@ class IterativeSolver(LinearSolver):
         if self.gui.write_mat:
             self. write_mat(A, b, x)
 
-        M = self.M
+        #M = self.M
         solver = self.solver
 
         sol = []

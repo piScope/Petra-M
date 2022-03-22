@@ -94,7 +94,7 @@ class DistanceSolver(Solver):
 
         phys = self.parent.get_phys()
         init = CustomInitSetting(phys, value=[1.0, ])
-        return [init,]
+        return [init, ]
 
     @debug.use_profiler
     def run(self, engine, is_first=True, return_instance=False):
@@ -124,6 +124,12 @@ class DistanceSolver(Solver):
         dprint1(debug.format_memory_usage())
         return is_first
 
+    def does_solver_choose_linearsystem_type(self):
+        return True
+
+    def get_linearsystem_type_from_solvermodel(self):
+        return 'blk_interleave'
+
 
 class DistanceSolverInstance(SolverInstance):
     def __init__(self, gui, engine):
@@ -145,7 +151,11 @@ class DistanceSolverInstance(SolverInstance):
 
         return A and isAnew
         '''
-        return M[0], True
+        assert False, "not supposed to come here"
+        # return M[0], True
+
+    def compute_rhs(self, M, B, X):
+        assert False, "not supposed to come here"
 
     def solve(self, update_operator=True):
         engine = self.engine

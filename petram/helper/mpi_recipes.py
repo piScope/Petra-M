@@ -26,6 +26,8 @@ def mpi_type_flag(d):
         return 7
     elif d == MPI.BOOL:
         return 8
+    elif d == MPI.FLOAT:
+        return 9
     else:
         assert False, "unsupporte data type"
 
@@ -33,20 +35,22 @@ def mpi_type_flag(d):
 def mpi_type_from_flag(d):
     if d == 1:
         return MPI.LONG
-    if d == 2:
+    elif d == 2:
         return MPI.INT
-    if d == 3:
+    elif d == 3:
         return MPI.SHORT
-    if d == 4:
+    elif d == 4:
         return MPI.LONG_DOUBLE
-    if d == 5:
+    elif d == 5:
         return MPI.DOUBLE
-    if d == 6:
+    elif d == 6:
         return MPI.COMPLEX
-    if d == 7:
+    elif d == 7:
         return MPI.DOUBLE_COMPLEX
-    if d == 8:
+    elif d == 8:
         return MPI.BOOL
+    elif d == 9:
+        return MPI.FLOAT
     assert False, "unsupporte data type"
 
 
@@ -61,6 +65,8 @@ def mpi_type_to_dtype(mpi_dtype):
         return np.float128
     if mpi_dtype == MPI.DOUBLE:
         return np.float64
+    if mpi_dtype == MPI.FLOAT:
+        return np.float32
     if mpi_dtype == MPI.DOUBLE_COMPLEX:
         return np.complex128
     if mpi_dtype == MPI.COMPLEX:

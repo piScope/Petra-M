@@ -55,6 +55,28 @@ class MeshGenerator(Mesh):
     isMeshGenerator = True
     isRefinement = False
 
+    def attribute_set(self, v):
+        v = super(MeshGenerator, self).attribute_set(v)
+        v['enforce_ncmesh'] = False
+        return v
+
+    def panel1_param(self):
+        panels = super(MeshGenerator, self).panel1_param()
+
+        p1 = [None, False, 3, {"text": "EnforceNCMesh"}]
+
+        panels.append(p1)
+        return panels
+
+    def get_panel1_value(self):
+        values = super(MeshGenerator, self).get_panel1_value()
+        values.append(self.enforce_ncmesh)
+        return values
+
+    def import_panel1_value(self, v):
+        super(MeshGenerator, self).import_panel1_value(v[:-1])
+        self.enforce_ncmesh = v[-1]
+
     def run_serial(self, mesh=None):
         # By default this will call run. Sub-classes can re-implement this.
         m = self.run(mesh=mesh)
@@ -341,27 +363,35 @@ class MeshFile(MeshGenerator):
         if not hasattr(self, "_mesh_char"):
             self._mesh_char = ''
         wc = "ANY|*|MFEM|*.mesh|GMSH|*.gmsh"
-        ret = [["Path", self.path, 45, {'wildcard': wc}],
-               ["",
-                "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir.",
-                2,
-                None],
-               [None, self.generate_edges == 1,
-                3, {"text": "Generate edges"}],
-               [None, self.refine == 1, 3, {"text": "Refine"}],
-               [None, self.fix_orientation, 3, {"text": "FixOrientation"}],
-               [None, self._mesh_char, 2, None], ]
-        return ret
+        p1 = [["Path", self.path, 45, {'wildcard': wc}],
+              ["",
+               "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir.",
+               2,
+               None],
+              [None, self.generate_edges == 1,
+               3, {"text": "Generate edges"}],
+              [None, self.refine == 1, 3, {"text": "Refine"}],
+              [None, self.fix_orientation, 3, {"text": "FixOrientation"}],
+              [None, self._mesh_char, 2, None], ]
+
+        p2 = MeshGenerator.panel1_param(self)
+        return p1[:-1] + p2 + p1[-1:]
 
     def get_panel1_value(self):
-        return (self.path, None, self.generate_edges,
-                self.refine, self.fix_orientation, None)
+        v1 = [self.path, None, self.generate_edges,
+              self.refine, self.fix_orientation, None]
+
+        v2 = MeshGenerator.get_panel1_value(self)
+
+        return v1[:-1] + v2 + v1[-1:]
 
     def import_panel1_value(self, v):
         self.path = str(v[0])
         self.generate_edges = 1 if v[2] else 0
         self.refine = 1 if v[3] else 0
         self.fix_orientation = v[4]
+
+        MeshGenerator.import_panel1_value(self, v[4:-1])
 
     def use_relative_path(self):
         self._path_bk = self.path
@@ -370,7 +400,7 @@ class MeshFile(MeshGenerator):
             self.path = os.path.basename(self.get_real_path())
         except AssertionError as error:
             if error.args[0].startswith("Mesh file does not exist :"):
-               pass
+                pass
         except BaseException:
             raise
 
@@ -429,6 +459,10 @@ class MeshFile(MeshGenerator):
         args = (path, self.generate_edges, self.refine, self.fix_orientation)
 
         mesh = mfem.Mesh(*args)
+
+        if self.enforce_ncmesh:
+            mesh.EnsureNCMesh()
+
         self.parent.sdim = mesh.SpaceDimension()
         self._mesh_char = format_mesh_characteristic(mesh)
         try:
@@ -479,22 +513,23 @@ class Mesh1D(MeshGenerator):
             except BaseException:
                 return False
 
-        return [["Length", self.length_txt, 0, {"validator": check_float_array}],
-                ["N segments", self.nsegs_txt, 0, {
-                    "validator": check_int_array}],
-                ["x0", self.mesh_x0_txt, 0, {"validator": check_float}],
-                [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
-                [None, self._mesh_char, 2, None], ]
+        p1 = [["Length", self.length_txt, 0, {"validator": check_float_array}],
+              ["N segments", self.nsegs_txt, 0, {
+                  "validator": check_int_array}],
+              ["x0", self.mesh_x0_txt, 0, {"validator": check_float}],
+              [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
+              [None, self._mesh_char, 2, None], ]
+
+        return p1
 
     def get_panel1_value(self):
-        return (self.length_txt, self.nsegs_txt, self.mesh_x0_txt, None, None)
+        v1 = [self.length_txt, self.nsegs_txt, self.mesh_x0_txt, None, None]
+        return v1
 
     def import_panel1_value(self, v):
         self.length_txt = str(v[0])
         self.nsegs_txt = str(v[1])
         self.mesh_x0_txt = str(v[2])
-
-        success = self.eval_strings()
 
     def eval_strings(self):
         g = self._global_ns.copy()
@@ -578,20 +613,26 @@ class Mesh2D(MeshGenerator):
             except BaseException:
                 return False
 
-        return [["Length(x)", self.xlength_txt, 0, {"validator": check_float_array}],
-                ["N segments(x)", self.xnsegs_txt, 0, {
-                    "validator": check_int_array}],
-                ["Length(y)", self.ylength_txt, 0, {
-                    "validator": check_float_array}],
-                ["N segments(y)", self.ynsegs_txt, 0, {
-                    "validator": check_int_array}],
-                ["x0", self.mesh_x0_txt, 0, {"validator": check_float_array}],
-                [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
-                [None, self._mesh_char, 2, None], ]
+        p1 = [["Length(x)", self.xlength_txt, 0, {"validator": check_float_array}],
+              ["N segments(x)", self.xnsegs_txt, 0, {
+                  "validator": check_int_array}],
+              ["Length(y)", self.ylength_txt, 0, {
+                  "validator": check_float_array}],
+              ["N segments(y)", self.ynsegs_txt, 0, {
+                  "validator": check_int_array}],
+              ["x0", self.mesh_x0_txt, 0, {"validator": check_float_array}],
+              [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
+              [None, self._mesh_char, 2, None], ]
+
+        p2 = MeshGenerator.panel1_param(self)
+        return p1[:-2] + p2 + p1[-2:]
 
     def get_panel1_value(self):
-        return (self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
-                self.mesh_x0_txt, None, None)
+        v1 = [self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
+              self.mesh_x0_txt, None, None]
+        v2 = MeshGenerator.get_panel1_value(self)
+
+        return v1[:-2] + v2 + v1[-2:]
 
     def import_panel1_value(self, v):
         self.xlength_txt = str(v[0])
@@ -600,7 +641,7 @@ class Mesh2D(MeshGenerator):
         self.ynsegs_txt = str(v[3])
         self.mesh_x0_txt = str(v[4])
 
-        success = self.eval_strings()
+        MeshGenerator.import_panel1_value(self, v[4:-2])
 
     def eval_strings(self):
         g = self._global_ns.copy()
@@ -636,6 +677,8 @@ class Mesh2D(MeshGenerator):
                                    fix_orientation=self.fix_orientation,
                                    sdim=2, x0=self.mesh_x0)
 
+        if self.enforce_ncmesh:
+            mesh.EnsureNCMesh()
         self.parent.sdim = mesh.SpaceDimension()
         self._mesh_char = format_mesh_characteristic(mesh)
 
@@ -691,24 +734,31 @@ class Mesh3D(MeshGenerator):
             except BaseException:
                 return False
 
-        return [["Length(x)", self.xlength_txt, 0, {"validator": check_float_array}],
-                ["N segments(x)", self.xnsegs_txt, 0, {
-                    "validator": check_int_array}],
-                ["Length(y)", self.ylength_txt, 0, {
-                    "validator": check_float_array}],
-                ["N segments(y)", self.ynsegs_txt, 0, {
-                    "validator": check_int_array}],
-                ["Length(z)", self.zlength_txt, 0, {
-                    "validator": check_float_array}],
-                ["N segments(z)", self.znsegs_txt, 0, {
-                    "validator": check_int_array}],
-                ["x0", self.mesh_x0_txt, 0, {"validator": check_float_array}],
-                [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
-                [None, self._mesh_char, 2, None], ]
+        p1 = [["Length(x)", self.xlength_txt, 0, {"validator": check_float_array}],
+              ["N segments(x)", self.xnsegs_txt, 0, {
+                  "validator": check_int_array}],
+              ["Length(y)", self.ylength_txt, 0, {
+                  "validator": check_float_array}],
+              ["N segments(y)", self.ynsegs_txt, 0, {
+                  "validator": check_int_array}],
+              ["Length(z)", self.zlength_txt, 0, {
+                  "validator": check_float_array}],
+              ["N segments(z)", self.znsegs_txt, 0, {
+                  "validator": check_int_array}],
+              ["x0", self.mesh_x0_txt, 0, {"validator": check_float_array}],
+              [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
+              [None, self._mesh_char, 2, None], ]
+
+        p2 = MeshGenerator.panel1_param(self)
+
+        return p1[:-2] + p2 + p1[-2:]
 
     def get_panel1_value(self):
-        return (self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
-                self.zlength_txt, self.znsegs_txt, self.mesh_x0_txt, None, None)
+        v1 = [self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
+              self.zlength_txt, self.znsegs_txt, self.mesh_x0_txt, None, None]
+        v2 = MeshGenerator.get_panel1_value(self)
+
+        return v1[:-2] + v2 + v1[-2:]
 
     def import_panel1_value(self, v):
         self.xlength_txt = str(v[0])
@@ -719,7 +769,7 @@ class Mesh3D(MeshGenerator):
         self.znsegs_txt = str(v[5])
         self.mesh_x0_txt = str(v[6])
 
-        success = self.eval_strings()
+        MeshGenerator.import_panel1_value(self, v[6:-2])
 
     def eval_strings(self):
         g = self._global_ns.copy()
@@ -756,6 +806,10 @@ class Mesh3D(MeshGenerator):
         mesh = hex_box_mesh(self.xlength, self.xnsegs, self.ylength, self.ynsegs, self.zlength, self.znsegs,
                             filename='', refine=self.refine == 1, fix_orientation=self.fix_orientation,
                             sdim=3, x0=self.mesh_x0)
+
+        if self.enforce_ncmesh:
+            mesh.EnsureNCMesh()
+
         self.parent.sdim = mesh.SpaceDimension()
         self._mesh_char = format_mesh_characteristic(mesh)
 

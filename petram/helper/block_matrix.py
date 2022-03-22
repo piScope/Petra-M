@@ -249,62 +249,79 @@ class ScipyCoo(coo_matrix):
         return (0, self.shape[0], self.shape[0])
     GetPartitioningArray = GetRowPartArray
 
-    def eliminate_RowsCols(self, tdof, inplace=True):
+    def eliminate_RowsCols(self, B, tdof, inplace=True, diagpolicy=1):
+        '''
+        daigpolicy = 0  # DiagOne
+        daigpolicy = 1  # DiagKeep
+
+        Note: policy is controled from engine::filL_BCeliminate_matrix
+        '''
         print("inplace flag off copying matrix")
         # A + Ae style elimination
         idx = np.in1d(self.col, tdof)
         idx2 = np.in1d(self.row, tdof)
-        diag = self.diagonal()[tdof] - 1
+
+        if diagpolicy == 0:
+            diagAe = self.diagonal()[tdof] - 1
+            diagA = 1
+        else:
+            diagAe = 0
+            diagA = self.diagonal()[tdof]
 
         aidx = np.logical_or(idx, idx2)
+        #aidx = []
         AeCol = self.col[aidx]
         AeRow = self.row[aidx]
         AeData = self.data[aidx]
         Ae2 = coo_matrix((AeData, (AeRow, AeCol)),
                          shape=self.shape, dtype=self.dtype)
         Ae2c = Ae2.tocsr()
-        Ae2c[tdof, tdof] = diag
+        Ae2c[tdof, tdof] = diagAe
         Ae2 = Ae2c.tocoo()
 
         if inplace:
             target = self
+            target_b = B.tolil()
         else:
             target = self.copy()
+            target_b = B.copy().tolil()
 
         target.data[idx] = 0
         target.data[idx2] = 0
         target.eliminate_zeros()
         lil2 = target.tolil()
-        lil2[tdof, tdof] = 1.
+        lil2[tdof, tdof] = diagA
+
+        # if diagpolicy == 1:
+        # target_b[tdof, 0] = target_b[tdof, 0].toarray().flatten() * diagA
+        target_b[tdof, 0] = diagA
+
         coo = lil2.tocoo()
         target.data = coo.data
         target.row = coo.row
         target.col = coo.col
-        return Ae2, target
 
-        '''
-        # this one is slower
-        # tdof is list
-        lil[tdof, :] = 0
-        Ae = lil_matrix(self.shape, dtype=self.dtype)
-        Ae[:, tdof] = lil[:,tdof]
-        lil[:,tdof] = 0.0
-        lil[tdof, tdof] = 1.
-        coo = lil.tocoo()
+        coo_b = convert_to_ScipyCoo(target_b)
+
+        return Ae2, target, coo_b
+
+    def get_elements(self, tdof):
+        slil = self.tolil()
+        value = slil[tdof, :].toarray()
+        return value
+
+    def set_elements(self, tdof, m):
+        slil = self.tolil()
+        slil[tdof, :1] = m
+        coo = slil.tocoo()
         self.data = coo.data
         self.row = coo.row
         self.col = coo.col
-        self.eliminate_zeros()
-
-        Ae = Ae.tocoo()
-        print "Ae-Ae2"
-        print Ae-Ae2
-        return Ae
-        '''
 
     def copy_element(self, tdof, m):
         mlil = m.tolil()
         value = mlil[tdof, 0].toarray()
+
         slil = self.tolil()
         slil[tdof, :1] = value
         coo = slil.tocoo()
@@ -478,6 +495,26 @@ class BlockMatrix(object):
             for j in range(self.shape[1]):
                 if self[i, j] is not None:
                     print(i, j, self[i, j].GetColPartArray())
+
+    def get_local_row_height(self, i):
+        for j in range(self.shape[1]):
+            blk = self.block[i][j]
+            if blk is not None:
+                return blk.shape[0]
+        return None
+
+    def get_local_col_width(self, j):
+        for i in range(self.shape[0]):
+            blk = self.block[i][j]
+            if blk is not None:
+                return blk.shape[1]
+        return None
+
+    def get_local_row_heights(self):
+        return [self.get_local_row_height(i) for i in range(self.shape[0])]
+
+    def get_local_col_widths(self):
+        return [self.get_local_col_width(j) for j in range(self.shape[1])]
 
     def save_to_file(self, file):
         for i in range(self.shape[0]):
@@ -654,6 +691,51 @@ class BlockMatrix(object):
 
         return ret, P2
 
+    def reformat_distributed_mat(self, mat, ksol, ret, mask):
+        '''
+        reformat distributed matrix into blockmatrix (columne vector)
+        '''
+        L = []
+        idx = 0
+        imask = [x for x in range(len(mask[0])) if mask[0][x]]
+        jmask = [x for x in range(len(mask[1])) if mask[1][x]]
+
+        for j in jmask:
+            for i in imask:
+                if self[i, j] is not None:
+                    if self.kind == 'scipy':
+                        l = self[i, j].shape[1]
+                    else:
+                        part = self[i, j].GetColPartArray()
+                        l = part[1] - part[0]
+                    ref = self[i, j]
+                    break
+            L.append(l)
+            v = mat[idx:idx + l, ksol]
+            idx = idx + l
+
+            ret.set_element_from_distributed_mat(v, j, 0, ref)
+        return ret
+
+    def set_element_from_distributed_mat(self, v, i, j, ref):
+        if self.kind == 'scipy':
+            self[i, j] = v.reshape(-1, 1)
+        else:
+            from mpi4py import MPI
+            comm = MPI.COMM_WORLD
+
+            if ref.isHypre:
+                v = np.ascontiguousarray(v)
+                if np.iscomplexobj(v):
+                    rv = ToHypreParVec(v.real)
+                    iv = ToHypreParVec(v.imag)
+                    self[i, j] = chypre.CHypreVec(rv, iv)
+                else:
+                    rv = ToHypreParVec(v)
+                    self[i, j] = chypre.CHypreVec(rv, None)
+            else:
+                assert False, "bug. this mode is not supported"
+
     def reformat_central_mat(self, mat, ksol, ret, mask):
         '''
         reformat central matrix into blockmatrix (columne vector)
@@ -804,8 +886,7 @@ class BlockMatrix(object):
         else:
             from mfem.common.chypre import SquareCHypreMat
             #print("rp", "cp", rp, cp, shape, gsize)
-            rp = [rp[0], rp[1], gsize]
-            self[r, c] = SquareCHypreMat(rp, real=True)
+            self[r, c] = SquareCHypreMat(gsize, rp, real=True)
 
     def get_global_offsets(self, convert_real=False,
                            interleave=True):
@@ -1234,6 +1315,7 @@ class BlockMatrix(object):
                     Hermitian = False if symmetric else True
                     gcsr = mfem.ComplexOperator(
                         gcsa, gcsb, False, False, Hermitian)
+
                     gcsr._real_operator = gcsa
                     gcsr._imag_operator = gcsb
 

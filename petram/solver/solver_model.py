@@ -1,11 +1,27 @@
+from abc import ABC, abstractmethod
 import numpy as np
+import warnings
 from petram.model import Model
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
 
 '''
 
-    Solver : Model Tree Object for solvers such as TimeDependent Solver
+    Solver configurations
+
+
+    (GUI)
+
+    SolveStep:   This level defines the block matrix assembled at one time
+    Solve:       Solver solves a problem (linear or non-lienar or time-dependent or parametric),
+                 using blocks defined in SolveStep
+
+    LinterSolverModel:
+                 LinearSolver solves a linear system.
+                 Preconditioner is a child LinearSolver of LinearSolver
+
+
+    (SolverInstance)
 
     SolverInstance: an actual solver logic comes here
        SolverInstance : base class for standard solver
@@ -30,6 +46,9 @@ class SolverBase(Model):
         self.get_solve_root()._solve_error = value
 
     def get_solve_root(self):
+        '''
+        return a model directly under Solver section such as SolveStep
+        '''
         obj = self
         solver_root = self.root()['Solver']
 
@@ -49,6 +68,9 @@ class SolverBase(Model):
 class SolveStep(SolverBase):
     has_2nd_panel = False
 
+    #
+    # GUI and object parameters
+    #
     def attribute_set(self, v):
         v['phys_model'] = ''
         v['init_setting'] = ''
@@ -101,6 +123,8 @@ class SolveStep(SolverBase):
     def get_possible_child(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
+        from petram.solver.mg_solver_model import MGSolver
+        from petram.solver.ml_solver_model import MultiLvlStationarySolver
         from petram.solver.solver_controls import DWCCall
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
@@ -108,12 +132,59 @@ class SolveStep(SolverBase):
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [StdSolver, StdMeshAdaptSolver, TimeDomain, DistanceSolver,
+            return [MultiLvlStationarySolver,
+                    TimeDomain,
+                    DistanceSolver,
+                    StdSolver,
+                    StdMeshAdaptSolver,
+                    # MGSolver,
                     DWCCall, SetVar]
         except:
-            return [StdSolver, TimeDomain, DistanceSolver,
+            return [MultiLvlStationarySolver,
+                    TimeDomain,
+                    DistanceSolver,
+                    # MGSolver,
+                    StdSolver,
                     DWCCall, SetVar]
 
+    def get_possible_child_menu(self):
+        #from solver.solinit_model import SolInit
+        from petram.solver.std_solver_model import StdSolver
+        from petram.solver.mg_solver_model import MGSolver
+        from petram.solver.ml_solver_model import MultiLvlStationarySolver
+        from petram.solver.solver_controls import DWCCall
+        from petram.solver.timedomain_solver_model import TimeDomain
+        from petram.solver.set_var import SetVar
+        from petram.solver.distance_solver import DistanceSolver
+
+        try:
+            from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
+            return [("", StdSolver),
+                    ("", MultiLvlStationarySolver),
+                    ("", TimeDomain),
+                    ("extra", DistanceSolver),
+                    ("", StdMeshAdaptSolver),
+                    # MGSolver,
+                    ("", DWCCall),
+                    ("!", SetVar)]
+        except:
+            return [("", StdSolver),
+                    ("", MultiLvlStationarySolver),
+                    ("", TimeDomain),
+                    ("extra", DistanceSolver),
+                    # MGSolver,
+                    ("", DWCCall),
+                    ("!", SetVar)]
+
+    @property
+    def solve_error(self):
+        if hasattr(self, "_solve_error"):
+            return self._solve_error
+        return (False, "")
+
+    #
+    # Data access
+    #
     def get_phys(self):
         #
         #  phys for rhs and rows of M
@@ -161,19 +232,6 @@ class SolveStep(SolverBase):
     def get_active_solvers(self):
         return [x for x in self.iter_enabled()]
 
-    '''
-    def get_num_matrix(self, phys_target):
-        num = []
-        for k in self.keys():
-            mm = self[k]
-            if not mm.enabled: continue
-            num.append(self.root()['Phys'].get_num_matrix(mm.get_matrix_weight,
-                                           phys_target))
-        num_matrix = max(num)
-        dprint1("number of matrix", num_matrix)            
-        return num_matrix
-    '''
-
     def get_num_matrix(self, phys_target):
 
         num = []
@@ -197,14 +255,141 @@ class SolveStep(SolverBase):
                 tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
                 num_matrix = max(tmp, num_matrix)
 
-        dprint1("number of matrix", num_matrix)
+        #dprint1("number of matrix", num_matrix)
         return num_matrix
 
     def get_matrix_weight(self, timestep_config):
         raise NotImplementedError(
             "you must specify this method in subclass")
 
-    def prepare_form_sol_variables(self, engine):
+    def is_allphys_real(self):
+        phys_target = self.get_phys()
+        phys_range = self.get_phys_range()
+
+        phys_real = all([not p.is_complex()
+                         for p in phys_target + phys_range])
+        return phys_real
+    #
+    #   data access for init, postprocess, mesh, and goemetry
+    #
+
+    def get_init_setting(self):
+        names = self.init_setting.split(',')
+        names = [n.strip() for n in names if n.strip() != '']
+        return [self.root()['InitialValue'][n] for n in names]
+
+    def get_pp_setting(self):
+        names = self.postprocess_sol.split(',')
+        names = [n.strip() for n in names if n.strip() != '']
+        return [self.root()['PostProcess'][n] for n in names]
+
+    def call_run_geom_gen(self, engine):
+        name = self.root()['General'].geom_gen
+        gen = self.root()['Geometry'][name]
+        engine.run_geom_gen(gen)
+
+    def call_run_mesh_gen(self, engine):
+        name = self.root()['General'].mesh_gen
+        gen = self.root()['Mesh'][name]
+        engine.run_mesh_gen(gen)
+
+    def check_and_run_geom_mesh_gens(self, engine):
+        flag = False
+        if self.use_mesh_gen:
+            if self.use_geom_gen:
+                self.call_run_geom_gen(engine)
+            self.call_run_mesh_gen(engine)
+            flag = True
+        return flag
+    #
+    #  verify
+    #
+
+    def verify_setting(self):
+        try:
+            self.get_linearsystem_type_from_modeltree()
+
+        except:
+            return False, "Can not select linear system type consistently"
+
+        return True, "", ""
+
+    def get_linearsystem_type_from_modeltree(self):
+        '''
+        find appropriate linear system type from model tree. this supports
+        two ways to choose linear system type.
+           1) LinearSolverModel has an interface to choose the type (old way)
+           2) SolverModel has an interface to choose the type (new way)
+        '''
+        ls_selected = None
+        ls_candidates = None
+
+        def make_assertion(cond, message):
+            if not cond:
+                print("selected ls", ls_selected)
+                print("candidate ls", ls_candidates)
+                assert cond, message
+
+        def collect_assemble_real(top):
+            tmp = []
+            for x in top.iter_enabled():
+                if hasattr(x, 'assemble_real'):
+                    tmp.append(x.assemble_real)
+            if True in tmp and False in tmp:
+                assert False, "Assemble real is not selected consistently"
+            return (True in tmp)
+        for x in self.walk():
+            if not x.is_enabled():
+                continue
+            if isinstance(x, LinearSolverModel):
+                if x.does_linearsolver_choose_linearsystem_type():
+                    assemble_real = collect_assemble_real(self)
+                    phys_real = self.is_allphys_real()
+
+                    tmp = x.linear_system_type(assemble_real, phys_real)
+
+                    if ls_selected is None:
+                        ls_selected = tmp
+                    elif ls_selected == tmp:
+                        pass
+                    else:
+                        make_assertion(
+                            False, "Can not select linear system type consistently.(A)")
+                else:
+                    tmp = x.supported_linear_system_type()
+                    if tmp == 'ANY':
+                        continue
+                    if ls_candidates is None:
+                        ls_candidates = set(tmp)
+                    else:
+                        ls_candidates = ls_candidates & set(tmp)
+
+            if isinstance(x, Solver):
+                if x.does_solver_choose_linearsystem_type():
+                    tmp = x.get_linearsystem_type_from_solvermodel()
+                    if ls_selected is None:
+                        ls_selected = tmp
+                    elif ls_selected == tmp:
+                        pass
+                    else:
+                        make_assertion(
+                            False, "Can not select linear system type consistently. (B)")
+                else:
+                    pass
+
+        if ls_candidates is not None:
+            make_assertion(ls_selected in ls_candidates,
+                           "Can not select linear system type consistently. (C)")
+
+        if ls_selected is None:
+            make_assertion(
+                False, "Model tree does not choose linear system type")
+        return ls_selected
+
+    #
+    # Preparation for assembly
+    #
+    def prepare_form_sol_variables(self, engine, n_levels=1):
         solvers = self.get_active_solvers()
 
         phys_target = self.get_phys()
@@ -218,23 +403,8 @@ class SolveStep(SolverBase):
             engine.run_mesh_extension(p)
 
         engine.run_alloc_sol(phys_range)
+
 #        engine.run_fill_X_block()
-
-    @property
-    def solve_error(self):
-        if hasattr(self, "_solve_error"):
-            return self._solve_error
-        return (False, "")
-
-    def get_init_setting(self):
-        names = self.init_setting.split(',')
-        names = [n.strip() for n in names if n.strip() != '']
-        return [self.root()['InitialValue'][n] for n in names]
-
-    def get_pp_setting(self):
-        names = self.postprocess_sol.split(',')
-        names = [n.strip() for n in names if n.strip() != '']
-        return [self.root()['PostProcess'][n] for n in names]
 
     def init(self, engine):
         phys_target = self.get_phys()
@@ -260,25 +430,6 @@ class SolveStep(SolverBase):
         engine.run_apply_essential(phys_target, phys_range)
         engine.run_fill_X_block()
 
-    def call_run_geom_gen(self, engine):
-        name = self.root()['General'].geom_gen
-        gen = self.root()['Geometry'][name]
-        engine.run_geom_gen(gen)
-
-    def call_run_mesh_gen(self, engine):
-        name = self.root()['General'].mesh_gen
-        gen = self.root()['Mesh'][name]
-        engine.run_mesh_gen(gen)
-
-    def check_and_run_geom_mesh_gens(self, engine):
-        flag = False
-        if self.use_mesh_gen:
-            if self.use_geom_gen:
-                self.call_run_geom_gen(engine)
-            self.call_run_mesh_gen(engine)
-            flag = True
-        return flag
-
     def run(self, engine, is_first=True):
         dprint1("!!!!! Entering SolveStep :" + self.name() + " !!!!!")
         solvers = self.get_active_solvers()
@@ -287,12 +438,27 @@ class SolveStep(SolverBase):
         if is_first or is_new_mesh:
             engine.preprocess_modeldata()
 
-        # initialize and assemble her
+        # initialize and assemble
         # in run method..
         #   std solver : make sub block matrix and solve
         #   time-domain solver : do step
-        self.prepare_form_sol_variables(engine)
-        self.init(engine)
+
+        # prepare all MG refinement levels here
+
+        flag = True
+        lvl = 0
+        enabled_flag = engine.model.gather_enebled_flags(engine.model['Phys'])
+
+        while flag:
+            engine.level_idx = lvl
+            self.prepare_form_sol_variables(engine)
+            self.init(engine)
+
+            lvl = lvl + 1
+            flag = any([s.create_refined_levels(engine, lvl)
+                        for s in solvers])
+
+        engine.model.apply_enebled_flags(engine.model['Phys'], enabled_flag)
 
         is_first = True
         for solver in solvers:
@@ -329,10 +495,12 @@ class Solver(SolverBase):
         return v
 
     def get_phys(self):
-        return self.parent.get_phys()
+        my_solve_step = self.get_solve_root()
+        return my_solve_step.get_phys()
 
     def get_phys_range(self):
-        return self.parent.get_phys_range()
+        my_solve_step = self.get_solve_root()
+        return my_solve_step.get_phys_range()
 
     def get_target_phys(self):
         names = self.phys_model.split(',')
@@ -369,45 +537,59 @@ class Solver(SolverBase):
         return [self.root()['InitialValue'][n] for n in names]
         '''
 
-    def get_active_solver(self, mm=None):
+    def get_active_solver(self, mm=None, cls=None):
+        if cls is None:
+            cls = LinearSolverModel
         for x in self.iter_enabled():
-            if isinstance(x, LinearSolverModel):
+            if isinstance(x, cls):
                 return x
+
+    def get_active_solvers(self, mm=None, cls=None):
+        if cls is None:
+            cls = LinearSolverModel
+
+        solvers = []
+        for x in self.iter_enabled():
+            if isinstance(x, cls):
+                solvers.append(x)
+        return solvers
 
     def get_num_matrix(self, phys_target=None):
         raise NotImplementedError(
             "bug should not need this method")
 
-    '''
-    @property
-    def has_num_matrix(self):
-        return True
-    
-    def get_num_matrix(self, phys_target=None):
-        solver_root = self.get_solve_root()
-        num = []
-        for k in solver_root.keys():
-            mm = solver_root[k]
-            if not mm.enabled: continue
-            if not mm.has_num_matrix: continue
-            num.append(self.root()['Phys'].get_num_matrix(mm.get_matrix_weight,
-                                           phys_target))
-        return max(num)
-    '''
+    def get_num_levels(self):
+        return 1
 
+    def create_refined_levels(self, engine, lvl):
+        '''
+        create refined levels and return True if it is created.
+        default False (no refined level)
+        '''
+        return False
+
+    def does_solver_choose_linearsystem_type(self):
+        return False
+
+    def get_linearsystem_type_from_solvermodel(self):
+        raise NotImplementedError(
+            "bug should not need this method")
+
+    @abstractmethod
     def get_matrix_weight(self, *args, **kwargs):
         raise NotImplementedError(
-            "you must specify this method in subclass")
+            "bug should not need this method")
 
+    @abstractmethod
     def run(self, engine, is_first=True):
-        raise NotImplementedError(
-            "you must specify this method in subclass")
+        ...
 
 
-class SolverInstance(object):
+class SolverInstance(ABC):
     '''
-    Solver instance is where the logic of solving linear system
-    (time stepping, adaptation, non-linear...) is written.
+    Solver instance is where the logic of solving a PDF usng
+    linearlized matrices (time stepping, adaptation, non-linear...) 
+    is written.
 
     It is not a model object. SolverModel will generate this
     instance to do the actual solve step.
@@ -421,11 +603,30 @@ class SolverInstance(object):
         self.linearsolver = None      # Actual LinearSolver
         self.probe = []
         self.linearsolver_model = None
-        self.phys_real = True
-        self.ls_type = ''
+
+        self._ls_type = self.gui.get_solve_root().get_linearsystem_type_from_modeltree()
+        self._phys_real = self.gui.get_solve_root().is_allphys_real()
 
         if not gui.init_only:
             self.set_linearsolver_model()
+
+    @property
+    def ls_type(self):
+        return self._ls_type
+
+    @property
+    def phys_real(self):
+        return self._phys_real
+
+    @ls_type.setter
+    def ls_type(self, _v):
+        warnings.warn(
+            "Setting ls_type does not have any effect.", RuntimeWarning)
+
+    @phys_real.setter
+    def phys_real(self, _v):
+        warnings.warn(
+            "Setting phys_real does not have any effect.", RuntimeWarning)
 
     def get_phys(self):
         return self.gui.get_phys()
@@ -492,12 +693,9 @@ class SolverInstance(object):
         solver = self.gui.get_active_solver()
         if solver is None:
             assert False, "Linear solver is not chosen"
-        phys_target = self.get_phys()
 
+        phys_target = self.get_phys()
         self.linearsolver_model = solver
-        self.phys_real = all([not p.is_complex() for p in phys_target])
-        self.ls_type = solver.linear_system_type(self.gui.assemble_real,
-                                                 self.phys_real)
 
     def configure_probes(self, probe_txt):
         from petram.sol.probe import Probe
@@ -514,28 +712,29 @@ class SolverInstance(object):
             for n, i in zip(probe_names, probe_idx):
                 self.probe.append(Probe(n, i))
 
-    def allocate_linearsolver(self, is_complex, engine):
-        if self.linearsolver_model.accept_complex:
+    def allocate_linearsolver(self, is_complex, engine, solver_model=None):
+        if solver_model is None:
+            solver_model = self.linearsolver_model
+        if solver_model.accept_complex:
             linearsolver = self.linearsolver_model.allocate_solver(
                 is_complex, engine)
         else:
-            linearsolver = self.linearsolver_model.allocate_solver(
+            linearsolver = solver_model.allocate_solver(
                 False, engine)
 
         return linearsolver
 
+    @abstractmethod
     def solve(self):
-        raise NotImplementedError(
-            "you must specify this method in subclass")
+        ...
 
+    @abstractmethod
     def compute_rhs(self, M, B, X):
-        raise NotImplementedError(
-            "you must specify this method in subclass")
+        ...
 
+    @abstractmethod
     def compute_A(self, M, B, X, mask_M, mask_B):
-        # must return A and isAnew
-        raise NotImplementedError(
-            "you must specify this method in subclass")
+        ...
 
 
 class TimeDependentSolverInstance(SolverInstance):
@@ -588,21 +787,21 @@ class TimeDependentSolverInstance(SolverInstance):
     def solve(self):
         assert False, "time dependent solver does not have solve method. call step"
 
+    @abstractmethod
     def step(self):
-        raise NotImplementedError(
-            "you must specify this method in subclass")
+        ...
 
 
 '''
-
     LinearSolverModel : Model Tree Object for linear solver
     LinearSolver : an interface to actual solver
-
-
 '''
 
 
 class LinearSolverModel(SolverBase):
+    '''
+    Model tree object for a linear solver
+    '''
     is_iterative = True
 
     def get_phys(self):
@@ -611,36 +810,66 @@ class LinearSolverModel(SolverBase):
     def get_phys_range(self):
         return self.parent.get_phys_range()
 
+    def allocate_solver(self, is_complex=False, engine=None):
+        '''
+        this method create LinearSolverInstance
+
+        LinearSolverInstance is intermediate obect to prepare LinearSolver
+        '''
+        raise NotImplementedError(
+            "bug. this method sould not be called")
+
+    def prepare_solver(self):
+        '''
+        this method create LinearSolver. This should return MFEM LinearOperator
+        '''
+        raise NotImplementedError(
+            "bug. this method sould not be called")
+
+    def prepare_solver_with_multtranspose(self):
+        '''
+        this method create LinearSolver. This should return MFEM LinearOperator
+        '''
+        raise NotImplementedError(
+            "bug. this method sould not be called")
+
+    @abstractmethod
+    def real_to_complex(self, solall, M=None):
+        ...
+
+    @abstractmethod
+    def does_linearsolver_choose_linearsystem_type(self):
+        '''
+        determins how linearsolvermodel informs the type of linear system to assemble.
+
+        if True: 
+            linear_system_type should be implemented.
+        if False:
+            supported_linear_system_type
+        '''
+
     def linear_system_type(self, assemble_real, phys_real):
         '''
         ls_type: coo  (matrix in coo format : DMUMP or ZMUMPS)
                  coo_real  (matrix in coo format converted from complex 
                             matrix : DMUMPS)
-                 # below is a plan...
-                 blk (matrix made mfem:block operator)
-                 blk_real (matrix made mfem:block operator for complex
-                             problem)
-                          (unknowns are in the order of  R_fes1, R_fes2,... I_fes1, Ifes2...)
-                 blk_interleave (unknowns are in the order of  R_fes1, I_fes1, R_fes2, I_fes2,...)
-                 None(not supported)
+                 blk_interleave (R_fes1, I_fes1, R_fes2, I_fes2,..., I is skipped if real)
+                 blk_merged_s (Block operator using ComplexOperator, block_symmetric format)
+                 blk_merged   (Block operator using ComplexOperator, asymetric format)
+
+        return None if the model does not specify the linear system type.
         '''
         raise NotImplementedError(
-            "you must specify this method in subclass")
+            "bug. this method sould not be called")
 
-    def allocate_solver(self, is_complex=False, engine=None):
+    def supported_linear_system_type(self):
         raise NotImplementedError(
-            "you must specify this method in subclass")
-
-    def real_to_complex(self, solall, M=None):
-        # method called when real value solver is used for complex value problem
-        raise NotImplementedError(
-            "you must specify this method in subclass")
+            "bug. this method sould not be called")
 
 
-class LinearSolver(object):
+class LinearSolver(ABC):
     '''
     LinearSolver is an interface to linear solvers such as MUMPS.
-    It is generated by SolverInstan.
     '''
     is_iterative = True
 
@@ -648,13 +877,80 @@ class LinearSolver(object):
         self.gui = gui
         self.engine = engine
 
+    @abstractmethod
     def SetOperator(self, opr, dist=False, name=None):
-        # opr : operator (matrix)
-        # dist: disributed matrix or not
-        # name: name of variables in block operator
-        raise NotImplementedError(
-            "you must specify this method in subclass")
+        ...
 
+    @abstractmethod
     def Mult(self, b, case_base=0):
-        raise NotImplementedError(
-            "you must specify this method in subclass")
+        ...
+
+
+def convert_realblocks_to_complex(solall, M, merge_real_imag):
+    if merge_real_imag:
+        return real_to_complex_merged(solall, M)
+    else:
+        return real_to_complex_interleaved(solall, M)
+
+
+def real_to_complex_interleaved(solall, M):
+    from petram.mfem_config import use_parallel
+    if use_parallel:
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
+
+        of = M.RowOffsets().ToList()
+        # of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
+        #      for o in offset]
+        # if myid != 0:
+        #    return
+
+    else:
+        offset = M.RowOffsets()
+        of = offset.ToList()
+
+    rows = M.NumRowBlocks()
+    s = solall.shape
+    nb = rows // 2
+    i = 0
+    pt = 0
+    result = np.zeros((s[0] // 2, s[1]), dtype='complex')
+    for j in range(nb):
+        l = of[i + 1] - of[i]
+        result[pt:pt + l, :] = (solall[of[i]:of[i + 1], :]
+                                + 1j * solall[of[i + 1]:of[i + 2], :])
+        i = i + 2
+        pt = pt + l
+
+    return result
+
+
+def real_to_complex_merged(solall, M):
+    from petram.mfem_config import use_parallel
+    if use_parallel:
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
+
+        of = M.RowOffsets().ToList()
+        # of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
+        #      for o in offset]
+        # if myid != 0:
+        #    return
+
+    else:
+        offset = M.RowOffsets()
+        of = offset.ToList()
+
+    rows = M.NumRowBlocks()
+    s = solall.shape
+    i = 0
+    pt = 0
+
+    result = np.zeros((s[0] // 2, s[1]), dtype='complex')
+    for i in range(rows):
+        l = of[i + 1] - of[i]
+        w = int(l // 2)
+        result[pt:pt + w, :] = (solall[of[i]:of[i] + w, :]
+                                + 1j * solall[(of[i] + w):of[i + 1], :])
+        pt = pt + w
+    return result

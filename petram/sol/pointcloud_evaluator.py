@@ -146,6 +146,7 @@ class PointcloudEvaluator(EvaluatorAgent):
 
         self.elem_ids = elem_ids
         self.masked_attrs = attrs
+
         self.int_points = int_points
         self.counts = counts
 

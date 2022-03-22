@@ -24,7 +24,8 @@ class ProbeEvaluator(EvaluatorAgent):
     def eval_probe(self, expr, xexpr, probe_files, phys):
         from petram.helper.variables import Variable, var_g
         from petram.sol.probe import load_probes
-        
+
+        #print("probe_files", probe_files)
         path = probe_files[0]
         path = os.path.expanduser(path)        
         probes = probe_files[1]

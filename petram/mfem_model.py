@@ -13,7 +13,7 @@ dprint1, dprint2, dprint3 = debug.init_dprints('MFEMModel')
 
 class MFEM_GeneralRoot(Model, NS_mixin):
     can_delete = False
-    has_2nd_panel = False
+    has_2nd_panel = True
 
     def __init__(self, *args, **kwargs):
         Model.__init__(self, *args, **kwargs)
@@ -27,6 +27,8 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         v['dwc_object_name'] = ''
         v['mesh_gen'] = ''
         v['geom_gen'] = ''
+        v['diagpolicy'] = 'one'
+        v['savegz'] = 'on'
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
 
@@ -55,6 +57,20 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         self.dwc_object_name = str(v[4])
         import petram.debug
         petram.debug.debug_default_level = int(self.debug_level)
+
+    def panel2_tabname(self):
+        return "Extra."
+
+    def panel2_param(self):
+        return [["DiagPolicy", None, 1, {"values": ["one", "keep"]}],
+                ["File compression", None, 1, {"values": ["on", "off"]}], ]
+
+    def get_panel2_value(self):
+        return (self.diagpolicy, self.savegz)
+
+    def import_panel2_value(self, v):
+        self.diagpolicy = v[0]
+        self.savegz = v[1]
 
     def run(self):
         import petram.debug

@@ -37,6 +37,13 @@ else:
 rules = {}
 
 
+def eval_element_center(fe, trans):
+    nodes = fe.GetNodes()
+    ptx = [trans.Transform(ip) for ip in nodes]
+
+    return np.mean(np.vstack(ptx), 0)
+
+
 def get_rule(fe1o, fe2, trans, orderinc=1, verbose=True):
     fe2o = fe2.GetOrder()
 
@@ -50,49 +57,105 @@ def get_rule(fe1o, fe2, trans, orderinc=1, verbose=True):
 
     ir = rules[(fe2.GetGeomType(), order)]
     if verbose:
-        dprint1("Order, N Points", order, ir.GetNPoints())
+        dprint1("Order/N Points: ", order, "/", ir.GetNPoints())
     return ir
 
+
 ref_shapes = {}
-ref_shapes["tri"] = [np.array(x, dtype=float) for x in [[0, 0], [1, 0], [0, 1]]] 
-ref_shapes["quad"] = [np.array(x, dtype=float) for x in [[0, 0], [1, 0], [1, 1], [0, 1]]] 
+ref_shapes["tri"] = [np.array(x, dtype=float)
+                     for x in [[0, 0], [1, 0], [0, 1]]]
+ref_shapes["quad"] = [np.array(x, dtype=float)
+                      for x in [[0, 0], [1, 0], [1, 1], [0, 1]]]
 ref_shapes["tet"] = [np.array(x, dtype=float) for x in
-                    [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]] 
+                     [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]]
 ref_shapes["hex"] = [np.array(x, dtype=float) for x in
-                    [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1],
-                     [1, 1, 0], [1, 0, 1], [0, 1, 1], [1, 1, 1]]] 
+                     [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1],
+                      [1, 1, 0], [1, 0, 1], [0, 1, 1], [1, 1, 1]]]
+
 
 def eval_coeff(coeff, T, ip, MV):
     if isinstance(coeff[0], mfem.MatrixCoefficient):
-         coeff[0].Eval(MV[1], T, ip)
-         if coeff[1] is None:
-             return MV[1].GetDataArray()         
-         else:
-             d = MV[1].GetDataArray().copy()
-             coeff[1].Eval(MV[1], T, ip)
-             d = d + 1j*MV[1].GetDataArray().copy()
-             return d
+        coeff[0].Eval(MV[1], T, ip)
+        if coeff[1] is None:
+            return MV[1].GetDataArray()
+        else:
+            d = MV[1].GetDataArray().copy()
+            coeff[1].Eval(MV[1], T, ip)
+            d = d + 1j*MV[1].GetDataArray().copy()
+            return d
     elif isinstance(coeff[0], mfem.VectorCoefficient):
-         coeff[0].Eval(MV[0], T, ip)
-         if coeff[1] is None:
-             return MV[0].GetDataArray()         
-         else:
-             d = MV[0].GetDataArray().copy()
-             coeff[1].Eval(MV[0], T, ip)
-             d = d + 1j*MV[0].GetDataArray().copy()
-             return d
+        coeff[0].Eval(MV[0], T, ip)
+        if coeff[1] is None:
+            return MV[0].GetDataArray()
+        else:
+            d = MV[0].GetDataArray().copy()
+            coeff[1].Eval(MV[0], T, ip)
+            d = d + 1j*MV[0].GetDataArray().copy()
+            return d
     elif isinstance(coeff[0], mfem.Coefficient):
-         value = coeff[0].Eval(T, ip)
-         if coeff[1] is None:
-             return np.array(value)
-         else:
-             value = value + 1j*coeff[1].Eval(T, ip)
-             return np.array(value)
+        value = coeff[0].Eval(T, ip)
+        if coeff[1] is None:
+            return np.array(value)
+        else:
+            value = value + 1j*coeff[1].Eval(T, ip)
+            return np.array(value)
     else:
         assert False, "unsupported type of coefficient: " + str(type(coeff[0]))
 
+
+def get_inv_doftrans(doftrans, sign1):
+    Msign = np.diag(sign1.flatten())
+    if doftrans is not None:
+        Mdoftrans = np.zeros((doftrans.Size(), doftrans.Size()))
+        vv = mfem.Vector(doftrans.Size())
+        for i in range(doftrans.Size()):
+            vv.Assign(0)
+            vv[i] = 1
+            doftrans.InvTransformPrimal(vv)
+            Mdoftrans[:, i] = vv.GetDataArray()
+
+        #if myid == 1: print(Mdoftrans.astype(int))
+        return Mdoftrans.dot(Msign)
+    else:
+        return Msign
+
+
+def check_inv_doftrans(doftrans):
+    Mdoftrans = np.zeros((doftrans.Size(), doftrans.Size()))
+    vv = mfem.Vector(doftrans.Size())
+    for i in range(doftrans.Size()):
+        vv.Assign(0)
+        vv[i] = 1
+        doftrans.InvTransformPrimal(vv)
+        Mdoftrans[:, i] = vv.GetDataArray()
+    print(Mdoftrans)
+    Mdoftrans = np.zeros((doftrans.Size(), doftrans.Size()))
+    for i in range(doftrans.Size()):
+        vv.Assign(0)
+        vv[i] = 1
+        doftrans.TransformPrimal(vv)
+        Mdoftrans[:, i] = vv.GetDataArray()
+    print(Mdoftrans)
+    Mdoftrans = np.zeros((doftrans.Size(), doftrans.Size()))
+    for i in range(doftrans.Size()):
+        vv.Assign(0)
+        vv[i] = 1
+        doftrans.InvTransformDual(vv)
+        Mdoftrans[:, i] = vv.GetDataArray()
+    print(Mdoftrans)
+
+    Mdoftrans = np.zeros((doftrans.Size(), doftrans.Size()))
+    for i in range(doftrans.Size()):
+        vv.Assign(0)
+        vv[i] = 1
+        doftrans.TransformDual(vv)
+        Mdoftrans[:, i] = vv.GetDataArray()
+    print(Mdoftrans)
+
+
 def map_ir(fe1, eltrans, coeff1,
-           shape1, dim2, sdim2, locnors2, sign1, MV, th=1e-7):
+           shape1, dim2, sdim2, locnors2,
+           sign1, Mdoftrans, MV, th=1e-7):
 
     g1 = fe1.GetGeomType()
     ip = mfem.IntegrationPoint()
@@ -106,7 +169,7 @@ def map_ir(fe1, eltrans, coeff1,
                        in itertools.permutations(range(len(s)), 2)]
         elif g1 == 4 or g1 == 5:
             s = ref_shapes['tet'] if g1 == 4 else ref_shapes['hex']
-            options = [pp[0]*s[i] + pp[1]*s[j] + (1-pp[0]-pp[1])*s[k] for i, j, k 
+            options = [pp[0]*s[i] + pp[1]*s[j] + (1-pp[0]-pp[1])*s[k] for i, j, k
                        in itertools.permutations(range(len(s)), 3)]
         else:
             print(pp)
@@ -114,11 +177,14 @@ def map_ir(fe1, eltrans, coeff1,
         return options
 
     d_misalginment = []
+
     for data in locnors2:
         pp = data[:dim2]
         p = data[dim2:dim2 + sdim2]
         nor = data[dim2 + sdim2:]
+
         options = get_options(g1, *pp)
+
         dd = []
 
         pxs = []
@@ -128,15 +194,14 @@ def map_ir(fe1, eltrans, coeff1,
             elif g1 == 4 or g1 == 5:
                 ip.Set3(*o)
             else:
-                assert False, "geometry type: " + str(g1) + " is not supported."
+                assert False, "geometry type: " + \
+                    str(g1) + " is not supported."
             px = eltrans.Transform(ip)
             pxs.append(px)
             dd.append(np.sum((p - px)**2))
-        
+
         assert np.min(dd) < np.max(dd) * \
             th, "point not found: " + str(np.min(dd))
-
-        fe1.CalcVShape(eltrans, shape1)
 
         kk = np.argmin(dd)
         if g1 == 2 or g1 == 3:
@@ -145,12 +210,19 @@ def map_ir(fe1, eltrans, coeff1,
             ip.Set3(*options[kk])
         else:
             assert False, "geometry type: " + str(g1) + " is not supported."
-               
+        #if myid == 1: print("location", pxs[kk])
+        eltrans.SetIntPoint(ip)
+        fe1.CalcVShape(eltrans, shape1)
+
+        # if doftrans is not None:
+        s1 = shape1.GetDataArray().transpose().dot(Mdoftrans)
+        # else:
+        #    s1 = shape1.GetDataArray().transpose().dot(Msign)
+
         cc = eval_coeff(coeff1, eltrans, ip, MV)
 
-        #ww = eltrans.Weight()
-        val = nor.dot(cc.dot(
-                shape1.GetDataArray().transpose())) * sign1  # /ww
+        val = nor.dot(cc.dot(s1))  # *sign1
+        # shape1.GetDataArray().transpose())) * sign1   #/ww
 
         res.append(val)
         d_misalginment.append(np.min(dd))
@@ -162,6 +234,7 @@ def hcurln(fes1, fes2, coeff,
            is_complex=False, bdr='all', orderinc=1, verbose=False):
 
     mat, rstart = get_empty_map(fes2, fes1, is_complex=is_complex)
+    mat2, rstart = get_empty_map(fes2, fes1, is_complex=is_complex)
 
     from petram.helper.element_map import map_element
 
@@ -195,11 +268,12 @@ def hcurln(fes1, fes2, coeff,
     if USE_PARALLEL:
         # this is global TrueDoF (offset is not subtracted)
         P = fes1.Dof_TrueDof_Matrix()
-        P = ToScipyCoo(P).tocsr()
-        VDoFtoGTDoF1 = P.indices
-        P = fes2.Dof_TrueDof_Matrix()
-        P = ToScipyCoo(P).tocsr()
-        VDoFtoGTDoF2 = P.indices
+        P1mat = ToScipyCoo(P).tocsr()
+        #VDoFtoGTDoF1 = P.indices
+        #P = fes2.Dof_TrueDof_Matrix()
+        #P = ToScipyCoo(P).tocsr()
+        #VDoFtoGTDoF2 = P.indices
+        #P2mat = P
 
     vdofs1_senddata = []
 
@@ -207,6 +281,7 @@ def hcurln(fes1, fes2, coeff,
 
     el2_2_node = {}
     el2_2_el1 = {}
+
     for d in elmap_r:
         for x in list(elmap_r[d]):
             el2_2_node[x] = d
@@ -240,7 +315,7 @@ def hcurln(fes1, fes2, coeff,
             iface = mesh1.GetBdrElementEdgeIndex(i_bdr)
             transs = mesh1.GetFaceElementTransformations(iface)
             i_el1 = transs.Elem1No
-            assert  transs.Elem2No == -1, "boundary must be exterior for this operator"
+            assert transs.Elem2No == -1, "boundary must be exterior for this operator"
             fe1 = fes1.GetFE(i_el1)
             fe1o_arr[rank].append(fe1.GetOrder())
             i_fe1_arr[rank].append(i_el1)
@@ -304,79 +379,112 @@ def hcurln(fes1, fes2, coeff,
     vdofs1_arr = [list() for x in range(nprc)]
     data1_arr = [list() for x in range(nprc)]
 
-    # space to compute the coefficient           
-    MV = [mfem.Vector(sdim1), 
+    # space to compute the coefficient
+    MV = [mfem.Vector(sdim1),
           mfem.DenseMatrix(sdim1, sdim1)]
 
     max_misalignment = -np.inf
     for rank, i_fe1s in enumerate(i_fe1_arr):
         locnorss = locnor_arr[rank]
+
+        sign_dict = {}
+
         for k, i_fe1 in enumerate(i_fe1s):
             fe1 = fes1.GetFE(i_fe1)
             nd1 = fe1.GetDof()
             eltrans = fes1.GetElementTransformation(i_fe1)
+            doftrans = fes1.GetElementDofTransformation(i_fe1)
+            #ctr = eval_element_center(fe1, eltrans)
+
             locnors2 = locnorss[k]
             shape1.SetSize(nd1, sdim1)
             vdofs1 = fes1.GetElementVDofs(i_fe1)
+
             dof_sign1 = np.array([[1 if vv >= 0 else -1
                                    for vv in vdofs1], ])
-
             vdofs1 = [-1 - x if x < 0 else x for x in vdofs1]
+
+            mat_doftrans = get_inv_doftrans(doftrans, dof_sign1)
+
             if USE_PARALLEL:
-                vdofs1 = [VDoFtoGTDoF1[i] for i in vdofs1]
+                #  After DofTransformation is introduced we can not use GetGlobalTDofNumber, because
+                #  element local DoF could be linked with two TrueDoFs in neighber processes
+                #  We construct submatrix of Prolongation to construct element matrix
+                #  in TrueDof space
+
+                vv1 = [P1mat.indices[P1mat.indptr[ii]:P1mat.indptr[ii+1]]
+                       for ii in vdofs1]
+                vv3 = [P1mat.data[P1mat.indptr[ii]:P1mat.indptr[ii+1]]
+                       for ii in vdofs1]
+                ngtof = np.sum([len(x) for x in vv3])
+                sub_p = np.zeros((nd1, ngtof))
+                k1 = 0
+                k2 = 0
+                for gtofs, weights in zip(vv1, vv3):
+                    for g, w in zip(gtofs, weights):
+                        sub_p[k1, k2] = w
+                        k2 = k2 + 1
+                    k1 = k1 + 1
+
+                vdofs1 = np.hstack(vv1).flatten()
+                mat_doftrans = mat_doftrans.dot(sub_p)
 
             res, misalignment = map_ir(fe1, eltrans, coeff,
-                                       shape1, dim2, sdim2, locnors2, dof_sign1, MV)
+                                       shape1, dim2, sdim2,
+                                       locnors2, dof_sign1,
+                                       mat_doftrans, MV)
 
             vdofs1_arr[rank].append(np.array(vdofs1))
             data1_arr[rank].append(res)
+
             max_misalignment = np.max([max_misalignment, np.max(misalignment)])
             # res.shape = (#Npoints, #DoF1)
 
-    
     if USE_PARALLEL:
         vdofs1_arr = alltoall_vectorv(vdofs1_arr, int)  # transfer to mesh2
         if is_complex:
-            data1_arr = alltoall_vectorv(data1_arr, complex)  # transfer to mesh2
+            data1_arr = alltoall_vectorv(
+                data1_arr, complex)  # transfer to mesh2
         else:
             data1_arr = alltoall_vectorv(data1_arr, float)  # transfer to mesh2
-        max_misalignment = np.max(MPI.COMM_WORLD.gather(max_misalignment, root=0))
+        max_misalignment = np.max(
+            MPI.COMM_WORLD.gather(max_misalignment, root=0))
     dprint1("Max misalignment: ", max_misalignment)
 
     shared_data = []
+
     for rank, i_el2s in enumerate(el2_arr):
         for k, i_el2 in enumerate(i_el2s):
-            fe2 = fes2.GetFE(i_el2)
             vdofs1 = vdofs1_arr[rank][k]
+
+            fe2 = fes2.GetFE(i_el2)
+            eltrans2 = fes2.GetElementTransformation(i_el2)
             vdofs2 = fes2.GetElementVDofs(i_el2)
             vdofs2 = [-1 - x if x < 0 else x for x in vdofs2]
 
             d1 = data1_arr[rank][k]
             d2 = data2_arr[rank][k]
+
             mm = d2.transpose().dot(d1)
 
             if USE_PARALLEL:
+                # prepare data for not-owned DoFs, which will be shared later
                 vdofs22 = [fes2.GetLocalTDofNumber(ii) for ii in vdofs2]
-                vdofs22g = [VDoFtoGTDoF2[ii] for ii in vdofs2]
+                vdofs22g = [fes2.GetGlobalTDofNumber(ii) for ii in vdofs2]
+
                 kkk = 0
-                # for v2, v2g in zip(vdofs22, vdofs22g):
                 for v2, v2g in zip(vdofs22, vdofs22g):
                     if v2 < 0:
                         shared_data.append([v2g, mm[kkk, :], vdofs1])
                     kkk = kkk + 1
+            else:
+                vdofs22 = vdofs2
 
-            for k, vv in enumerate(vdofs1):
-                if USE_PARALLEL:
-                    mmm = mm[np.where(np.array(vdofs22) >= 0)[0], :]
-                    vdofs222 = [x for x in vdofs22 if x >= 0]
-                else:
-                    vdofs222 = vdofs2
-                    mmm = mm
-                #print(vdofs222, vv)
-                #print("dest", mat[vdofs222, vv])
-                #print("data", mmm[:, [k]])
-                tmp = mat[vdofs222, vv] + mmm[:, [k]]
-                mat[vdofs222, vv] = tmp.flatten()
+            for i, ltdof2 in enumerate(vdofs22):
+                if ltdof2 < 0:
+                    continue
+                for j, gtdof1 in enumerate(vdofs1):
+                    mat[ltdof2, gtdof1] = mat[ltdof2, gtdof1] + mm[i, j]
 
     if USE_PARALLEL:
         #nicePrint("shared data", shared_data)
@@ -386,7 +494,9 @@ def hcurln(fes1, fes2, coeff,
             for v2g, elmat, vdofs1 in data:
                 if v2g >= myoffset and v2g < myoffset + mat.shape[0]:
                     i = v2g - myoffset
-                    mat[i, vdofs1] = mat[i, vdofs1] + elmat
+                    for j, gtdof1 in enumerate(vdofs1):
+                        mat[i, gtdof1] = mat[i, gtdof1] + elmat[j]
+                    #mat[i, vdofs1] = mat[i, vdofs1] + elmat
 
     from scipy.sparse import coo_matrix, csr_matrix
 
@@ -398,13 +508,13 @@ def hcurln(fes1, fes2, coeff,
             m1 = csr_matrix(mat.real, dtype=float)
             m2 = None
         from mfem.common.chypre import CHypreMat
+
         start_col = fes1.GetMyTDofOffset()
         end_col = fes1.GetMyTDofOffset() + fes1.GetTrueVSize()
         col_starts = [start_col, end_col, mat.shape[1]]
         M = CHypreMat(m1, m2, col_starts=col_starts)
     else:
         from petram.helper.block_matrix import convert_to_ScipyCoo
-
         M = convert_to_ScipyCoo(coo_matrix(mat, dtype=mat.dtype))
 
     return M

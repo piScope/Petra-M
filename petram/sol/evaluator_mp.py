@@ -119,10 +119,11 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
 
                 #print("got task", task[0], self.myid, self.rank)
                 if task[0] == 1: # (1, cls, param) = make_agents
-                    if self.solfiles is None: continue                    
                     cls = task[1]
                     params = task[2]
                     kwargs = task[3]
+                    if self.solfiles is None and cls != 'Probe':
+                        continue
                     self.make_agents(cls, params, **kwargs)
 
                 elif task[0] == 2: # (2, solfiles) = set_solfiles
@@ -151,6 +152,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
 
                 elif task[0] == 8: # (8, expr)  = eval_probe
                     value = self.eval_probe(task[1], task[2], task[3])
+                    value = (self.myid, value[0], value[1])
 
                 elif task[0] == 9: # (8, expr)  = make_probe_agents
                     cls = task[1]
@@ -632,10 +634,12 @@ class EvaluatorMP(Evaluator):
     def eval_probe(self, expr, xexpr, probes):
         self.tasks.put_single((8, expr, xexpr, probes), join = True)
         res = self.results.get()# for x in range(len(self.workers))]
+
         self.results.task_done()
         return res
 
     def make_probe_agents(self, name, params, **kwargs):
+        print("make_probe_agents")
         super(EvaluatorMP, self).make_agents(name, params, **kwargs)
         self.tasks.put((9, name, params, kwargs))
     

@@ -118,7 +118,7 @@ class Coeff2D_PointValue(Coeff2D_Point):
         if kfes != 0: return False       
         return True
      
-    def get_exter_NDoF(self):
+    def get_extra_NDoF(self):
         x, y, s = self.vt.make_value_or_expression(self)    
         return len(x)
      

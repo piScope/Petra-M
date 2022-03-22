@@ -203,6 +203,16 @@ class Variable():
             return self() / other()
         return self() / other
 
+    def __truediv__(self, other):
+        if isinstance(other, Variable):
+            return self() / other()
+        return self() / other
+
+    def __floordiv__(self, other):
+        if isinstance(other, Variable):
+            return self() // other()
+        return self() // other
+
     def __radd__(self, other):
         if isinstance(other, Variable):
             return self() + other()
@@ -222,6 +232,16 @@ class Variable():
         if isinstance(other, Variable):
             return other() / self()
         return other / self()
+
+    def __rtruediv__(self, other):
+        if isinstance(other, Variable):
+            return other() / self()
+        return other / self()
+
+    def __rfloordiv__(self, other):
+        if isinstance(other, Variable):
+            return other() // self()
+        return other // self()
 
     def __divmod__(self, other):
         if isinstance(other, Variable):
@@ -625,7 +645,7 @@ class DomainVariable(Variable):
             idx = []
         for domains in self.domains.keys():
             expr = self.domains[domains]
-            if isinstance(expr, Variable):            
+            if isinstance(expr, Variable):
                 gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
                 idx.extend(expr.get_emesh_idx(idx=idx, g=gdomain))
         return idx
@@ -1314,11 +1334,13 @@ class GFScalarVariable(GridFunctionVariable):
         ndim = self.gfr.FESpace().GetMesh().Dimension()
 
         isVector = False
-        if (name.startswith('RT') or
-                name.startswith('ND')):
+        if name.startswith('RT'):
             d = mfem.DenseMatrix()
             p = mfem.DenseMatrix()
             isVector = True
+        elif name.startswith('ND'):
+            d = mfem.Vector()
+            p = mfem.DenseMatrix()
         else:
             d = mfem.Vector()
             p = mfem.DenseMatrix()
@@ -1328,9 +1350,11 @@ class GFScalarVariable(GridFunctionVariable):
             if gf is None:
                 return None
             if ndim == 1 or ndim == 2:
+                #if isVector:
+                #    def func(i, ir, vals, tr, in_gf=gf):
                 if gf.VectorDim() > 1:
                     def func(i, ir, vals, tr, in_gf=gf):
-                        in_gf.GetValues(i, ir, vals, tr, vdim=self.comp - 1)
+                        in_gf.GetValues(i, ir, vals, tr, self.comp - 1)
                     return func
                 else:
                     def func(i, ir, vals, tr, in_gf=gf):

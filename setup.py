@@ -17,7 +17,7 @@ with open(path.join(here, 'README.md')) as f:
 setup(
     name='PetraM_Base',
 
-    version='1.6.8',
+    version='1.8.3',
 
     description='PetraM base package',
     long_description=long_description,
@@ -34,14 +34,15 @@ setup(
         'Intended Audience :: Developers',
         'Topic :: Scientific/Engineering :: Physics',
         'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
-        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.6',
     ],
 
     keywords='MFEM physics',
     packages=find_packages(exclude=['contrib', 'docs', 'tests']),
     install_requires=[],
     extras_require={},
-    package_data={'petram': ['data/icon/*.png', 'data/*Ops']}, #, '':['data/*.mesh']},
+    # , '':['data/*.mesh']},
+    package_data={'petram': ['data/icon/*.png', 'data/*Ops']},
     data_files=[],
     entry_points={},
 )

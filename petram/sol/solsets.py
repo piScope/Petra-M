@@ -105,13 +105,18 @@ class Solsets(object):
         self.set = []
         import mfem.ser as mfem
 
-        fix_orientation = False
-
+        fix_orientation = False  #false
+        generate_edge = 1       #1
+        refine = 0              #1
+        
         for meshes, solf, in solfiles:
             idx = [fname2idx(x) for x in meshes]
             meshes = {
                 i: mfem.Mesh(
-                    str(x), 1, refine, fix_orientation) for i, x in zip(
+                    str(x),
+                    generate_edge,
+                    refine,
+                    fix_orientation) for i, x in zip(
                     idx, meshes)}
             meshes = MeshDict(meshes)  # to make dict weakref-able
             # what is this refine = 0 !?

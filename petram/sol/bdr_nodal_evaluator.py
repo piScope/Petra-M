@@ -135,7 +135,7 @@ def eval_at_nodals(obj, expr, solvars, phys):
     names = code.co_names
 
     g = {}
-    #print solvars.keys()
+
     for key in phys._global_ns.keys():
        g[key] = phys._global_ns[key]
     for key in solvars.keys():

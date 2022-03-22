@@ -237,12 +237,13 @@ class EvaluatorSingle(EvaluatorCommon):
 
     def eval_probe(self, expr, xexpr, probes):
         if self.phys_path == '':
-            return None, None
+            return None, None, None
 
         phys = self.mfem_model()[self.phys_path]
 
         evaluator = self.agents[1][0]
-        return evaluator.eval_probe(expr, xexpr, probes, phys)
+        xval, val = evaluator.eval_probe(expr, xexpr, probes, phys)
+        return (0, xval, val)
 
     def terminate_allnow(self):
         pass

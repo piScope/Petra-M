@@ -204,6 +204,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.remote_sols = None
 
         self._plot_thread = None
+        self.use_profiler = False  # debug
 
         text = 'all'
         mfem_model = parent.model.param.getvar('mfem_model')
@@ -286,6 +287,7 @@ class DlgPlotSol(SimpleFramePlus):
             ebutton = wx.Button(p, wx.ID_ANY, "Export")
             button = wx.Button(p, wx.ID_ANY, "Apply")
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)
+            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
             hbox.AddStretchSpacer()
@@ -325,7 +327,7 @@ class DlgPlotSol(SimpleFramePlus):
             button = wx.Button(p, wx.ID_ANY, "Apply")
             #ibutton.Bind(wx.EVT_BUTTON, self.onInteg)
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)
-            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)            
+            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
             #hbox.Add(ibutton, 0, wx.ALL,1)
@@ -581,7 +583,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.nb.SetSelection(self.nb.GetPageCount() - 1)
         self.Show()
         self.Layout()
-        self.SetSize((600, 400))
+        self.SetSize((700, 500))
         self.Bind(EDITLIST_CHANGED, self.onEL_Changed)
         self.Bind(EDITLIST_CHANGING, self.onEL_Changing)
         self.Bind(EDITLIST_SETFOCUS, self.onEL_SetFocus)
@@ -594,6 +596,9 @@ class DlgPlotSol(SimpleFramePlus):
         self.evaluators = {}
         self.solfiles = {}
         self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
+
+    def name(self):
+        return 'dlg_plot_sol'
 
     def onClose(self, evt):
         super(DlgPlotSol, self).onClose(evt)
@@ -1136,12 +1141,12 @@ class DlgPlotSol(SimpleFramePlus):
                             cls=cls, expr=expr, expr_x=expr_x,
                             force_float=(not value[4]))
 
-    #@run_in_piScope_thread
+    # @run_in_piScope_thread
     def onExportR1Edge(self, evt):
         remote, base, subs = self.get_current_choices()
         value = self.elps['Edge'] .GetValue()
         refine = int(value[6])
-        
+
         all_data = []
         for s in subs:
             if s.strip() == '':
@@ -1165,17 +1170,18 @@ class DlgPlotSol(SimpleFramePlus):
                 data = {'vertices': verts, 'data': cdata}
 
                 if data_x is not None:
-                    cxdata = np.hstack([c.flatten() for v, c, a in data_x]).flatten()
-                    xverts = np.hstack([v.flatten() for v, c, a in data_x]).flatten()
+                    cxdata = np.hstack([c.flatten()
+                                        for v, c, a in data_x]).flatten()
+                    xverts = np.hstack([v.flatten()
+                                        for v, c, a in data_x]).flatten()
                     data['xvertices'] = xverts
                     data['xdata'] = cxdata
 
-            all_data.append((s, data))
-            
+            all_data.append({"subdirs": s, "data": data})
+
         self.post_threadend(self.export_to_piScope_shell,
                             all_data, 'edge_data')
 
-        
     def onExportR2Edge(self, evt):
         wx.CallAfter(
             dialog.showtraceback,
@@ -1184,7 +1190,7 @@ class DlgPlotSol(SimpleFramePlus):
             title='Error',
             traceback='Exporing all time slice for frequency \ndomain analysis is not available')
         wx.CallAfter(self.set_title_no_status)
-        
+
     def make_plot_edge(self, data, battrs,
                        data_x=None, cls=None,
                        expr='', expr_x='', force_float=False):
@@ -1423,6 +1429,7 @@ class DlgPlotSol(SimpleFramePlus):
         remote, base, subs = self.get_current_choices()
 
         cdata = []
+        subdirs = []
         for s in subs:
             if s.strip() == '':
                 continue
@@ -1440,8 +1447,10 @@ class DlgPlotSol(SimpleFramePlus):
 
             verts, cc, adata = data[0]
             cdata.append(cc)
+            subdirs.append(s)
 
-        data = {'vertices': verts, 'data': cdata, 'index': adata}
+        data = {'vertices': verts, 'data': cdata, 'index': adata,
+                'subdirs': subdirs}
         self.post_threadend(self.export_to_piScope_shell,
                             data, 'bdr_data')
 
@@ -1530,20 +1539,11 @@ class DlgPlotSol(SimpleFramePlus):
         else:
             cls = None
 
-        # def eval_pointcloud(self
-        expr = str(value[0]).strip()
-        attrs = str(value[2])
-        phys_path = value[3]
-        pc_mode = value[1][0]
-        if pc_mode == 'XYZ':
-            pc_value = value[1][1]
-        elif pc_mode == 'Line':
-            pc_value = value[1][2]
+        flag, dataset = self.call_eval_pointcloud(value)
+
+        if flag > 0:
+            ptx, data, attrs_out, attrs, pc_param = dataset
         else:
-            return
-        ptx, data, attrs_out, attrs, pc_param = self.eval_pointcloud(
-            expr, attrs, phys_path, pc_mode, pc_value, mode='plot')
-        if data is None:
             return
 
         if pc_mode == 'XYZ':
@@ -1564,6 +1564,55 @@ class DlgPlotSol(SimpleFramePlus):
     def onExportPoints(self, evt):
         value = self.elps['Points'] .GetValue()
 
+        flag, dataset = self.call_eval_pointcloud(value)
+
+        if flag > 0:
+            ptx, data, attrs_out, attrs, pc_param = dataset
+        else:
+            return
+
+        data = {'vertices': ptx, 'data': data, 'attrs': attrs_out}
+        self.export_to_piScope_shell(data, 'point_data')
+
+    @run_in_piScope_thread
+    def onExportR1Points(self, evt):
+        value = self.elps['Points'] .GetValue()
+
+        remote, base, subs = self.get_current_choices()
+        ret = []
+        for s in subs:
+            if s.strip() == '':
+                continue
+            if remote:
+                self.config['cs_soldir'] = base
+                self.config['cs_solsubdir'] = s
+            else:
+                self.local_soldir = base
+                self.local_solsubdir = s
+                self.load_sol_if_needed()
+
+            flag, dataset = self.call_eval_pointcloud(value)
+            if flag > 0:
+                ptx, data, attrs_out, attrs, pc_param = dataset
+                ret.append({'subdir': s, 'vertices': ptx,
+                            'data': data, 'attrs': attrs_out})
+            else:
+                assert False, "pointcloud evaluation failed"
+
+        self.post_threadend(self.export_to_piScope_shell,
+                            ret, 'point_data')
+
+    def onExportR2Points(self, evt):
+        wx.CallAfter(
+            dialog.showtraceback,
+            parent=self,
+            txt='Not Yet Implemented',
+            title='Error',
+            traceback='Exporing all time point for frequency \ndomain analysis is not available')
+        wx.CallAfter(self.set_title_no_status)
+
+    def call_eval_pointcloud(self, value):
+        # def eval_pointcloud(self
         expr = str(value[0]).strip()
         attrs = str(value[2])
         phys_path = value[3]
@@ -1573,16 +1622,12 @@ class DlgPlotSol(SimpleFramePlus):
         elif pc_mode == 'Line':
             pc_value = value[1][2]
         else:
-            return
+            return -1, None
         ptx, data, attrs_out, attrs, pc_param = self.eval_pointcloud(
-            expr, attrs, phys_path, pc_mode, pc_value)
+            expr, attrs, phys_path, pc_mode, pc_value, mode='plot')
         if data is None:
-            return
-
-        #print("final data for ", expr, ptx, data, attrs)
-
-        data = {'vertices': ptx, 'data': data, 'attrs': attrs_out}
-        self.export_to_piScope_shell(data, 'point_data')
+            return -1, None
+        return 1, (ptx, data, attrs_out, attrs, pc_param)
 
     def make_plot_point(
             self,
@@ -1622,6 +1667,9 @@ class DlgPlotSol(SimpleFramePlus):
         viewer.lighting(light=0.5)
         viewer.update(True)
 
+#    to time this routine, we turn on this decorator
+#    from petram.debug import use_profiler
+#    @use_profiler
     def eval_pointcloud(
             self,
             expr,
@@ -1997,7 +2045,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.onSliceCommon(evt, mode='export')
 
     @run_in_piScope_thread
-    def onExportR1Slice(self, evt):
+    def onxportR1Slice(self, evt):
         remote, base, subs = self.get_current_choices()
 
         dataset = []
@@ -2016,7 +2064,7 @@ class DlgPlotSol(SimpleFramePlus):
             if data is None:
                 assert False, "returned value is None ???"
 
-            dataset.append(data)
+            dataset.append({"subdir", s, "data", data})
 
         self.post_threadend(self.export_to_piScope_shell,
                             dataset, 'slice_data')
@@ -2719,7 +2767,7 @@ class DlgPlotSol(SimpleFramePlus):
                          traceback=''.join(traceback.format_exception_only(
                              sys.exc_info()[0], sys.exc_info()[1])))
             wx.CallAfter(self.set_title_no_status)
-            return None
+            return None, None
 
         try:
             if model.variables.getvar('remote_soldir') is None:
@@ -2728,7 +2776,8 @@ class DlgPlotSol(SimpleFramePlus):
                 probes = self.remote_sols[0:2]
 
             self.evaluators['Probe'].set_phys_path(phys_path)
-            return self.evaluators['Probe'].eval_probe(expr, xexpr, probes)
+            data = self.evaluators['Probe'].eval_probe(expr, xexpr, probes)
+            return data[1], data[2]
         except BaseException:
             wx.CallAfter(dialog.showtraceback,
                          parent=self,
