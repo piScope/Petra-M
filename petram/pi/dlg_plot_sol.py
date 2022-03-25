@@ -787,7 +787,7 @@ class DlgPlotSol(SimpleFramePlus):
         def extract_trailing_digits(txt):
             return txt[len(txt.rstrip(digits)):]
         sorted_subs = [x[1] for x in sorted([(int(extract_trailing_digits(x)), x)
-                                             for x in v if len(x) != 0])]
+                       for x in v if len(extract_trailing_digits(x)) != 0])]
         if '' in v:
             sorted_subs = [''] + sorted_subs
 
