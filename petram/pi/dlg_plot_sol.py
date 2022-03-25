@@ -583,7 +583,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.nb.SetSelection(self.nb.GetPageCount() - 1)
         self.Show()
         self.Layout()
-        self.SetSize((700, 500))
+        self.SetSize((850, 500))
         self.Bind(EDITLIST_CHANGED, self.onEL_Changed)
         self.Bind(EDITLIST_CHANGING, self.onEL_Changing)
         self.Bind(EDITLIST_SETFOCUS, self.onEL_SetFocus)
@@ -783,9 +783,9 @@ class DlgPlotSol(SimpleFramePlus):
             remote = False
 
         from string import digits
-
         def extract_trailing_digits(txt):
             return txt[len(txt.rstrip(digits)):]
+
         sorted_subs = [x[1] for x in sorted([(int(extract_trailing_digits(x)), x)
                        for x in v if len(extract_trailing_digits(x)) != 0])]
         if '' in v:
