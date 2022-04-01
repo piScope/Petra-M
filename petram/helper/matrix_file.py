@@ -74,8 +74,13 @@ def write_vector(file, bb):
         bb.SaveToFile(file+smyid, 8)
     else:
         fid = open(file+smyid, "w")
-        for k, x in enumerate(bb):
-            fid.write(str(k) + ' ' + str(x) +'\n')
+        if np.iscomplexobj(bb):
+            for k, x in enumerate(bb):
+                fid.write(str(k) + ' ' + "{0:.8g}".format(x.real) + ' ' +
+                          "{0:.8g}".format(x.imag) + '\n')
+        else:
+            for k, x in enumerate(bb):
+                fid.write(str(k) + ' ' + "{0:.8g}".format(x) + '\n')
         fid.close()
 
 def write_coo_matrix(file, A):
@@ -106,11 +111,11 @@ def write_coo_matrix(file, A):
     data = A.data[idx]    
 
     if is_complex:
-        txt = [' '.join([str(int(r)), str(int(c)), "{0:.5g}".format(a.real),
-               "{0:.5g}".format(a.imag)]) for r,c,a in zip(row, col, data)]
+        txt = [' '.join([str(int(r)), str(int(c)), "{0:.8g}".format(a.real),
+               "{0:.8g}".format(a.imag)]) for r,c,a in zip(row, col, data)]
         fid.write('\n'.join(txt) + "\n")
     else:
-        txt = [' '.join([str(int(r)), str(int(c)), "{0:.5g}".format(a.real),
-               "{0:.5g}".format(a.imag)]) for r,c,a in zip(row, col, data)]
+        txt = [' '.join([str(int(r)), str(int(c)), "{0:.8g}".format(a.real),
+               "{0:.8g}".format(a.imag)]) for r,c,a in zip(row, col, data)]
         fid.write('\n'.join(txt) + "\n")
     fid.close()

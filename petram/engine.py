@@ -3314,6 +3314,9 @@ class Engine(object):
             return True
         return False
 
+    def get_partitiong_method(self):
+        return self.model.root()['General'].partitioning
+
 
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
@@ -3566,11 +3569,22 @@ class ParallelEngine(Engine):
                         if len(smesh.GetAttributeArray()) > 0:
                             self.max_attr = np.max([self.max_attr,
                                                     max(smesh.GetAttributeArray())])
-                        if smesh.GetNE() < MPI.COMM_WORLD.size*3:
-                            parts = smesh.GeneratePartitioning(
-                                smesh.GetNE()//1000+1, 1)
+
+                        p_method = self.get_partitiong_method()
+                        if p_method == 'by_attribute':
+                            attr = list(mesh.GetAttributeAtray())
+                            attr_array = mfem.intArray(attr)
+                            parts = attr_array.GetData()
                         else:
-                            parts = None
+                            if p_method != 'auto':
+                                dprint1(
+                                    "Unkown partitioning method, fallback to auto !!!")
+                            if smesh.GetNE() < MPI.COMM_WORLD.size*3:
+                                parts = smesh.GeneratePartitioning(
+                                    smesh.GetNE()//1000+1, 1)
+                            else:
+                                parts = None
+
                         self.base_meshes[idx] = mfem.ParMesh(
                             MPI.COMM_WORLD, smesh, parts)
                         self.meshes[idx] = self.base_meshes[idx]
