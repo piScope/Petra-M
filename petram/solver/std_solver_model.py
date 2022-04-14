@@ -37,6 +37,7 @@ class StdSolver(Solver):
              self.save_parmesh,  3, {"text": "save parallel mesh"}],
             [None,
              self.use_profiler,  3, {"text": "use profiler"}],
+            [None, self.skip_solve,  3, {"text": "skip linear solve"}],
             [None, self.load_sol,  3, {"text": "load sol file (linear solver is not called)"}],
             [None, self.sol_file,  0, None],]
 
@@ -49,6 +50,7 @@ class StdSolver(Solver):
             self.assemble_real,
             self.save_parmesh,
             self.use_profiler,
+            self.skip_solve,
             self.load_sol,
             self.sol_file)
 
@@ -60,8 +62,9 @@ class StdSolver(Solver):
         self.assemble_real = v[3]
         self.save_parmesh = v[4]
         self.use_profiler = v[5]
-        self.load_sol = v[6]
-        self.sol_file = v[7]
+        self.skip_solve = v[6]
+        self.load_sol = v[7]
+        self.sol_file = v[8]
 
     def get_editor_menus(self):
         return []
@@ -224,6 +227,8 @@ class StandardSolver(SolverInstance):
         else:
             linearsolver = self.linearsolver
 
+        linearsolver.skip_solve = self.gui.skip_solve
+
         if update_operator:
             linearsolver.SetOperator(AA,
                                      dist=engine.is_matrix_distributed,
@@ -255,8 +260,18 @@ class StandardSolver(SolverInstance):
         return True
 
     def load_sol(self, solfile):
+        from petram.mfem_config import use_parallel
+        if use_parallel:
+            from mpi4py import MPI
+        else:
+            from petram.helper.dummy_mpi import MPI
+        myid = MPI.COMM_WORLD.rank
 
-        solall = np.load(solfile)
+        if myid == 0:
+            solall = np.load(solfile)
+        else:
+            solall = None
+
         A, X, RHS, Ae, B, M, depvars = self.blocks
         mask = self.blk_mask
         A.reformat_central_mat(solall, 0, X[0], mask)

@@ -491,6 +491,7 @@ class Solver(SolverBase):
         #v['init_setting']   = ''
         v['use_profiler'] = False
         v['probe'] = ''
+        v['skip_solve'] = False
         v['load_sol'] = False
         v['sol_file'] = ''
         super(Solver, self).attribute_set(v)
@@ -878,6 +879,7 @@ class LinearSolver(ABC):
     def __init__(self, gui, engine):
         self.gui = gui
         self.engine = engine
+        self._skip_solve = False
 
     @abstractmethod
     def SetOperator(self, opr, dist=False, name=None):
@@ -886,7 +888,12 @@ class LinearSolver(ABC):
     @abstractmethod
     def Mult(self, b, case_base=0):
         ...
-
+    @property
+    def skip_solve(self):
+        return self._skip_solve
+    @skip_solve.setter
+    def skip_solve(self, val):
+        self._skip_solve = val
 
 def convert_realblocks_to_complex(solall, M, merge_real_imag):
     if merge_real_imag:

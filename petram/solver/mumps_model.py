@@ -646,6 +646,10 @@ class MUMPSSolver(LinearSolver):
                 self.irhs_loc = None
                 self.N_global = None
 
+        if self.skip_solve:
+            print("skip solve is on.... returning")
+            return
+
         # blr
         if gui.use_blr:
             s.set_icntl(35, 1)
@@ -817,6 +821,12 @@ class MUMPSSolver(LinearSolver):
         distributed_rhs = (self.gui.use_dist_rhs and
                            use_parallel and
                            nproc > 1)
+
+        if self.skip_solve:
+            assert not distributed_rhs, "distributed RHS is not supported for skip solve"
+            print("skip solve is on, returning zero")
+            return b*0.
+
         # this one keep it from crashing if a user choose
         # distributed RHS with std_solver.
         # For now, we don't do this but add a note in GUI panel.
