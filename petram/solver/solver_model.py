@@ -491,6 +491,8 @@ class Solver(SolverBase):
         #v['init_setting']   = ''
         v['use_profiler'] = False
         v['probe'] = ''
+        v['load_sol'] = False
+        v['sol_file'] = ''
         super(Solver, self).attribute_set(v)
         return v
 
