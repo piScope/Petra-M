@@ -3571,8 +3571,9 @@ class ParallelEngine(Engine):
                                                     max(smesh.GetAttributeArray())])
 
                         p_method = self.get_partitiong_method()
-                        if p_method == 'by_attribute':
-                            attr = list(mesh.GetAttributeAtray())
+
+                        if p_method == 'by attribute':
+                            attr = list(smesh.GetAttributeArray()-1)
                             attr_array = mfem.intArray(attr)
                             parts = attr_array.GetData()
                         else:

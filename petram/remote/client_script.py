@@ -154,7 +154,7 @@ def prepare_remote_dir(model, txt='', dirbase=base_remote_path,
     param.eval('remote')['rwdir'] = rwdir
     return False
 
-def send_file(model, progdlg, skip_mesh = False):
+def send_file(model, progdlg, skip_mesh = False, subdir=''):
     model_dir = model.owndir()
     param = model.param
 
@@ -162,8 +162,10 @@ def send_file(model, progdlg, skip_mesh = False):
     host = param.eval('host')
     sol = param.eval('sol')
     sol_dir = sol.owndir()
-
+    
     rwdir = remote['rwdir']
+    if subdir != '':
+        rwdir = rwdir+'/'+subdir
     mfem_model = param.eval('mfem_model')
 
     p = host.PutFile(os.path.join(sol_dir, 'model.pmfm'),
@@ -231,8 +233,7 @@ def retrieve_files(model, rhs=False, matrix = False, sol_dir = None):
     if matrix: get_files(host, 'matrix')
     if rhs: get_files(host, 'rhs')
  
-def get_job_queue(model, host=None, user=None,
-                  progdlg=None):
+def get_job_queue(model, host=None, user=None, progdlg=None, configext=''):
 
     '''
     param = model.param
@@ -244,7 +245,7 @@ def get_job_queue(model, host=None, user=None,
     #           user+'@' + host + " 'cat $PetraM/etc/queue_config'" )
     #p= sp.Popen(command, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
     
-    command = 'cat $PetraM/etc/queue_config'
+    command = 'cat $PetraM/etc/queue_config'+configext
     p = launch_ssh_command(model, command)    
     ret = communicate_with_timeout(p, maxtimeout=30,
                                    timeout=2, progdlg=progdlg)
@@ -281,7 +282,7 @@ def interpret_job_queue_file(lines):
             q['queues'][-1][param] = data
     return q
     
-def submit_job(model, progdlg=None):
+def submit_job(model, progdlg=None, sh_command="$PetraM/bin/launch_petram.sh"):
     param = model.param
     host = param.eval('host')
     remote = param.eval('remote') 
@@ -316,8 +317,8 @@ def submit_job(model, progdlg=None):
     ## replace short/dev -> short_dev
     if q2 != "":
         q2 = "_".join(q2.split("/"))
-    
-    exe = ('$PetraM/bin/launch_petram.sh -N '+N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q1
+
+    exe = (sh_command + ' -N '+ N + ' -P ' + n + ' -W ' + w +' -O ' + o + ' -Q ' + q1
            + ' -L ' + lt + ' -K ' + lk + ' -M ' + nt)
     if q2 != "":
        exe = exe +  ' -V ' + q2        

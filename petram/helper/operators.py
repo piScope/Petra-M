@@ -999,6 +999,19 @@ class Convolve(Operator):
         else:
             assert False, "unsupported dimension"
 
+        c_coeff = self._c_coeff
+
+        from petram.phys.phys_model import PhysConstant
+        coeff = 0.
+        if c_coeff[0] is not None:
+            assert isinstance(
+                c_coeff[0], PhysConstant), "projection supports only constant scalr coefficient"
+            coeff += c_coeff[0].value
+        if c_coeff[1] is not None:
+            assert isinstance(
+                c_coeff[1], PhysConstant), "projection supports only constant scalr coefficient"
+            coeff += 1j*c_coeff[1].value
+            
         if len(args) != 0:
             self._coeff = (kernel, support)
 
@@ -1011,5 +1024,7 @@ class Convolve(Operator):
                  trial_domain=trial_domain,
                  test_domain=test_domain,
                  verbose=verbose)
+        
+        M = M*coeff
 
         return M

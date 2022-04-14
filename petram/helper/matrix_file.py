@@ -11,17 +11,17 @@ import numpy as np
 import os
 import six
 
-def read_matvec(file, all = False, verbose=False, complex = False, skip = 0):
-    ''' 
+def read_matvec(file, all=False, verbose=False, complex=False, skip=0):
+    '''
     read matrix/vector file.  
     If all is on, read all files with same basename ('matrix.0000, matrix.0001...')
     '''
-    if not all:  
+    if not all:
         files = [file]
     else:
-        dir  = os.path.dirname(file)
+        dir = os.path.dirname(file)
         base = os.path.basename(file)
-        files= []
+        files = []
         for x in os.listdir(dir):
             if x.find(base) != -1:
                  files.append(x)
@@ -29,20 +29,20 @@ def read_matvec(file, all = False, verbose=False, complex = False, skip = 0):
         files = [os.path.join(dir, f) for f in files]
         if verbose: six.print_(files)
  
-    if len(files) == 0: return
+    if len(files) == 0:
+        return
 
     ret = []
     for file in files:   
-       print(file)
-       fid = open(file, "r")
-       xx = [x.strip().split() for x in fid.readlines()]
-       xx = xx[skip:]
-       if complex:
-           xxx = [[np.complex(x) for x in y] for y in xx]
-       else:
-           xxx = [[np.float(x) for x in y] for y in xx]
-       fid.close()
-       ret.append(np.array(xxx))
+        fid = open(file, "r")
+        xx = [x.strip().split() for x in fid.readlines()]
+        xx = xx[skip:]
+        if complex:
+            xxx = [[np.complex(x) for x in y] for y in xx]
+        else:
+            xxx = [[np.float(x) for x in y] for y in xx]
+        fid.close()
+        ret.append(np.array(xxx))
     return np.vstack(ret)
 
 def write_matrix(file, m):
