@@ -8,7 +8,7 @@ from mfem.common.parcsr_extra import ToScipyCoo
 from petram.helper.dof_map import get_empty_map
 
 import petram.debug
-dprint1, dprint2, dprint3 = petram.debug.init_dprints('convolve1d')
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('convolve')
 
 from petram.mfem_config import use_parallel
 if use_parallel:
