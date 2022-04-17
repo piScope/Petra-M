@@ -232,7 +232,7 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
                         has_contribution = True
                         #if myid == 0: print("check here", x1, x2)
                         val = kernel(x2-x1, (x2+x1)/2.0, w=w)
-                        if coeff is None:
+                        if coeff is not None:
                             val = val* coeff((x2+x1)/2.0)
 
                         #shape_arr *= w*val
@@ -572,7 +572,7 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                         val = kernel(x2-x1, (x2+x1)/2.0, w=w)
                         if val is None:
                             continue
-                        if coeff is None:
+                        if coeff is not  None:
                             val = val* coeff((x2+x1)/2.0)
 
                         tmp_int += np.dot(val, shape_arr)*w

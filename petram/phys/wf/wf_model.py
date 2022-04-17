@@ -261,9 +261,10 @@ class WF(PhysModule):
     '''
     def get_possible_bdry(self):
         from petram.phys.wf.wf_essential import WF_Essential
+        from petram.phys.wf.wf_natural import WF_Natural
         
         bdrs = super(WF, self).get_possible_bdry()
-        return [WF_Essential]+bdrs
+        return [WF_Essential, WF_Natural]+bdrs
     '''
     def get_possible_point(self):
         from petram.phys.wf.wf_constraints import WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint
@@ -285,8 +286,6 @@ class WF(PhysModule):
         from petram.helper.variables import add_surf_normals
         from petram.helper.variables import add_constant
         from petram.helper.variables import GFScalarVariable
-
-
 
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
         suffix = self.dep_vars_suffix
