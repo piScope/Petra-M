@@ -236,7 +236,7 @@ def plot_geometry(viewer, ret, geo_phys='geometrical', lw=0):
 
         elem_idx0 = []
         eelem_idx0 = []
-        array_idx = np.zeros(len(verts))
+        array_idx = np.zeros(len(verts), dtype=int)
 
         for n in ['triangle_x', 'quad_x']:
             if not n in cells:
