@@ -579,6 +579,8 @@ class DlgPlotSol(SimpleFramePlus):
                                '',
                                None]],
                           ])
+            parent.model.variables.setvar('remote_soldir',
+                                          self.config['cs_soldir'])
 
         self.nb.SetSelection(self.nb.GetPageCount() - 1)
         self.Show()
