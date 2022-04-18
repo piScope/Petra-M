@@ -999,6 +999,36 @@ class Convolve(Operator):
         else:
             assert False, "unsupported dimension"
 
+        #
+        # coefficient (we handle constant coefficient separately)
+        #
+        c_coeff = self._c_coeff
+        from petram.phys.phys_model import PhysConstant
+        coeff = 0.
+        function_coeff = [None, None]
+        if c_coeff[0] is not None:
+            if isinstance(c_coeff[0], PhysConstant):
+                coeff += c_coeff[0].value
+            else:
+                function_coeff[0] = c_coeff[0]
+
+        if c_coeff[1] is not None:
+            if isinstance(c_coeff[1], PhysConstant) and function_coeff[0] is None:
+                coeff += 1j*c_coeff[1].value
+            else:
+                function_coeff[1] = c_coeff[1]
+
+        if (function_coeff[0] is not None) or (function_coeff[1] is not None):
+            def eval_coeff(x):
+                value = 0
+                if function_coeff[0] is not None:
+                    value = value + function_coeff[0].EvalValue(x)
+                if function_coeff[1] is not None:
+                    value = value + 1j*function_coeff[1].EvalValue(x)
+                return value
+        else:
+            eval_coeff = None
+
         if len(args) != 0:
             self._coeff = (kernel, support)
 
@@ -1010,6 +1040,10 @@ class Convolve(Operator):
                  orderinc=orderinc,
                  trial_domain=trial_domain,
                  test_domain=test_domain,
-                 verbose=verbose)
+                 verbose=verbose,
+                 coeff=eval_coeff)
+
+        if eval_coeff is None:
+            M = M*coeff
 
         return M

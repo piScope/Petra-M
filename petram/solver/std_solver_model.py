@@ -36,7 +36,11 @@ class StdSolver(Solver):
             [None,
              self.save_parmesh,  3, {"text": "save parallel mesh"}],
             [None,
-             self.use_profiler,  3, {"text": "use profiler"}], ]
+             self.use_profiler,  3, {"text": "use profiler"}],
+            [None, self.skip_solve,  3, {"text": "skip linear solve"}],
+            [None, self.load_sol,  3, {"text": "load sol file (linear solver is not called)"}],
+            [None, self.sol_file,  0, None],]
+
 
     def get_panel1_value(self):
         return (  # self.init_setting,
@@ -45,7 +49,10 @@ class StdSolver(Solver):
             self.clear_wdir,
             self.assemble_real,
             self.save_parmesh,
-            self.use_profiler,)
+            self.use_profiler,
+            self.skip_solve,
+            self.load_sol,
+            self.sol_file)
 
     def import_panel1_value(self, v):
         #self.init_setting = str(v[0])
@@ -55,6 +62,9 @@ class StdSolver(Solver):
         self.assemble_real = v[3]
         self.save_parmesh = v[4]
         self.use_profiler = v[5]
+        self.skip_solve = v[6]
+        self.load_sol = v[7]
+        self.sol_file = v[8]
 
     def get_editor_menus(self):
         return []
@@ -115,6 +125,12 @@ class StdSolver(Solver):
         if self.init_only:
             engine.sol = engine.assembled_blocks[1][0]
             instance.sol = engine.sol
+
+        elif self.load_sol:
+            if is_first:
+                instance.assemble()
+                is_first = False
+            instance.load_sol(self.sol_file)
         else:
             if is_first:
                 instance.assemble()
@@ -211,6 +227,8 @@ class StandardSolver(SolverInstance):
         else:
             linearsolver = self.linearsolver
 
+        linearsolver.skip_solve = self.gui.skip_solve
+
         if update_operator:
             linearsolver.SetOperator(AA,
                                      dist=engine.is_matrix_distributed,
@@ -225,12 +243,37 @@ class StandardSolver(SolverInstance):
         solall = linearsolver.Mult(BB, x=XX, case_base=0)
         if solall is not None:
             dprint1("solall.shape", solall.shape)
+
         #linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         #solall = linearsolver.Mult(BB, case_base=0)
 
         if not self.phys_real and self.gui.assemble_real:
             solall = self.linearsolver_model.real_to_complex(solall, AA)
 
+        A.reformat_central_mat(solall, 0, X[0], mask)
+        self.sol = X[0]
+
+        # store probe signal (use t=0.0 in std_solver)
+        for p in self.probe:
+            p.append_sol(X[0])
+
+        return True
+
+    def load_sol(self, solfile):
+        from petram.mfem_config import use_parallel
+        if use_parallel:
+            from mpi4py import MPI
+        else:
+            from petram.helper.dummy_mpi import MPI
+        myid = MPI.COMM_WORLD.rank
+
+        if myid == 0:
+            solall = np.load(solfile)
+        else:
+            solall = None
+
+        A, X, RHS, Ae, B, M, depvars = self.blocks
+        mask = self.blk_mask
         A.reformat_central_mat(solall, 0, X[0], mask)
         self.sol = X[0]
 

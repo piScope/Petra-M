@@ -8,7 +8,7 @@ from mfem.common.parcsr_extra import ToScipyCoo
 from petram.helper.dof_map import get_empty_map
 
 import petram.debug
-dprint1, dprint2, dprint3 = petram.debug.init_dprints('convolve1d')
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('convolve')
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -104,7 +104,7 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
                orderinc=5, is_complex=False,
                trial_domain='all',
                test_domain='all',
-               verbose=False):
+               verbose=False, coeff=None):
     '''
     fill linear operator for convolution
     \int phi_test(x) func(x-x') phi_trial(x') dx
@@ -232,6 +232,8 @@ def convolve1d(fes1, fes2, kernel=delta, support=None,
                         has_contribution = True
                         #if myid == 0: print("check here", x1, x2)
                         val = kernel(x2-x1, (x2+x1)/2.0, w=w)
+                        if coeff is not None:
+                            val = val* coeff((x2+x1)/2.0)
 
                         #shape_arr *= w*val
                         tmp_int += shape_arr*w*val
@@ -387,7 +389,7 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                orderinc=5, is_complex=False,
                trial_domain='all',
                test_domain='all',
-               verbose=False):
+               verbose=False, coeff=None):
     '''
     fill linear operator for convolution
     \int phi_test(x) func(x-x') phi_trial(x') dx
@@ -570,6 +572,8 @@ def convolve2d(fes1, fes2, kernel=delta, support=None,
                         val = kernel(x2-x1, (x2+x1)/2.0, w=w)
                         if val is None:
                             continue
+                        if coeff is not  None:
+                            val = val* coeff((x2+x1)/2.0)
 
                         tmp_int += np.dot(val, shape_arr)*w
                         has_contribution2 = True
