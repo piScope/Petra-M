@@ -1327,6 +1327,7 @@ class GFScalarVariable(GridFunctionVariable):
 
     def ncedge_values(self, ifaces=None, irs=None,
                       gtypes=None, **kwargs):
+        print("ncedge_values")
         if not self.isDerived:
             self.set_funcs()
 
@@ -1339,8 +1340,9 @@ class GFScalarVariable(GridFunctionVariable):
             p = mfem.DenseMatrix()
             isVector = True
         elif name.startswith('ND'):
-            d = mfem.Vector()
+            d = mfem.DenseMatrix()
             p = mfem.DenseMatrix()
+            isVector = True
         else:
             d = mfem.Vector()
             p = mfem.DenseMatrix()
@@ -1349,8 +1351,8 @@ class GFScalarVariable(GridFunctionVariable):
         def get_method(gf, ndim, isVector):
             if gf is None:
                 return None
-            if ndim == 1 or ndim == 2:
-                #if isVector:
+            if ndim == 1:
+                # if isVector:
                 #    def func(i, ir, vals, tr, in_gf=gf):
                 if gf.VectorDim() > 1:
                     def func(i, ir, vals, tr, in_gf=gf):
@@ -1361,6 +1363,23 @@ class GFScalarVariable(GridFunctionVariable):
                         in_gf.GetValues(i, ir, vals, tr)
                         return
                     return func
+            elif ndim == 2:
+                side = 2
+                if isVector:
+                    def func(i, ir, vals, tr, in_gf=gf):
+                        in_gf.GetFaceVectorValues(i, side, ir, vals, tr)
+                    return func
+                elif gf.VectorDim() > 1:
+                    def func(i, ir, vals, tr, in_gf=gf):
+                        in_gf.GetFaceValues(
+                            i, side, ir, vals, tr, self.comp - 1)
+                    return func
+                else:
+                    def func(i, ir, vals, tr, in_gf=gf):
+                        in_gf.GetFaceValues(i, side, ir, vals, tr)
+                        return
+                    return func
+
             else:
                 assert False, "ndim = 3 is not supported"
             return None
@@ -1382,6 +1401,7 @@ class GFScalarVariable(GridFunctionVariable):
                     vi = vi[self.comp - 1, :]
                 v = v + 1j * vi
             data.append(v)
+
         data = np.hstack(data)
         return data
 

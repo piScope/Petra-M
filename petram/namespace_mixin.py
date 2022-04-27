@@ -285,8 +285,9 @@ class NS_mixin(object):
                        for k in p.attribute_mirror_ns():
                            g[k] = chain[-2]._global_ns[k]                   
                        if (p.ns_string != '' and p.ns_string is not None):
-                           exec(p.ns_string, g, ll)
-                           for k in ll: g[k] = ll[k]
+                           #exec(p.ns_string, g, ll)
+                           #for k in ll: g[k] = ll[k]
+                           exec(p.ns_string, g)
                            
                    except Exception as e:
                        import traceback
