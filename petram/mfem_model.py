@@ -29,6 +29,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         v['geom_gen'] = ''
         v['diagpolicy'] = 'one'
         v['partitioning'] = 'auto'
+        v['autofilldiag'] = 'off'
         v['savegz'] = 'on'
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
@@ -65,15 +66,20 @@ class MFEM_GeneralRoot(Model, NS_mixin):
     def panel2_param(self):
         return [["DiagPolicy", None, 1, {"values": ["one", "keep"]}],
                 ["File compression", None, 1, {"values": ["on", "off"]}],
-                ["Mesh partitioning", None, 1, {"values": ["auto", "by attribute"]}], ]
+                ["Mesh partitioning", None, 1, {
+                    "values": ["auto", "by attribute"]}],
+                ["Autofill emtpy diag rows", None,
+                    1, {"values": ["on", "off"]}],
+                ]
 
     def get_panel2_value(self):
-        return (self.diagpolicy, self.savegz, self.partitioning)
+        return (self.diagpolicy, self.savegz, self.partitioning, self.autofilldiag)
 
     def import_panel2_value(self, v):
         self.diagpolicy = v[0]
         self.savegz = v[1]
         self.partitioning = v[2]
+        self.autofilldiag = v[3]
 
     def run(self):
         import petram.debug

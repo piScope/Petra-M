@@ -1327,7 +1327,6 @@ class GFScalarVariable(GridFunctionVariable):
 
     def ncedge_values(self, ifaces=None, irs=None,
                       gtypes=None, **kwargs):
-        print("ncedge_values")
         if not self.isDerived:
             self.set_funcs()
 

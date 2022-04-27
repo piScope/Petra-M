@@ -1872,6 +1872,9 @@ class Engine(object):
             if A[idx1, idx2] is None:
                 A.add_empty_square_block(idx1, idx2)
 
+            if self.get_autofill_diag():
+                self.fill_empty_diag(A[idx1, idx2])
+
             if A[idx1, idx2] is not None:
                 Aee, A[idx1, idx2], Bnew = A[idx1, idx2].eliminate_RowsCols(B[idx1], ess_tdof1,
                                                                             inplace=inplace,
@@ -3317,6 +3320,9 @@ class Engine(object):
     def get_partitiong_method(self):
         return self.model.root()['General'].partitioning
 
+    def get_autofill_diag(self):
+        return self.model.root()['General'].autofilldiag == 'on'
+
 
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
@@ -3525,6 +3531,19 @@ class SerialEngine(Engine):
 
     def save_processed_model(self):
         self.model.save_to_file('model_proc.pmfm', meshfile_relativepath=False)
+
+    def fill_empty_diag(self, A):
+        '''
+        A is ScipyCoo (this one fully supports complex)
+        '''
+        csr = A.tocsr()
+        zerorows = np.where(np.diff(csr.indptr) == 0)[0]
+        lil = A.tolil()
+        lil[zerorows, zerorows] = 1.0
+        coo = lil.tocoo()
+        A.data = coo.data
+        A.row = coo.row
+        A.col = coo.col
 
 
 class ParallelEngine(Engine):
@@ -3850,3 +3869,17 @@ class ParallelEngine(Engine):
         else:
             pass
         MPI.COMM_WORLD.Barrier()
+
+    def fill_empty_diag(self, A):
+        '''
+        A is CHypre (complex is supported only when imaginary is zero)
+        '''
+        from mpi4py import MPI
+
+        if A[1] is None:
+            A[0].EliminateZeroRows()
+        else:
+            nnz, tnnz = A[1].get_local_true_nnz()
+            tnnz = np.sum(MPI.COMM_WORLD.allgather(tnnz))
+            if tnnz == 0:
+                A[0].EliminateZeroRows()
