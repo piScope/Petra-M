@@ -94,6 +94,8 @@ class Engine(object):
         self.case_base = 0
         self._init_done = []
 
+        self._ppname_postfix = ''
+
     def initialize_datastorage(self):
         self.is_assembled = False
         self.is_initialized = False
@@ -2361,7 +2363,16 @@ class Engine(object):
     #  postprocess
     #
 
+    @property
+    def ppname_postfix(self):
+        return self._ppname_postfix
+
+    @ppname_postfix.setter
+    def ppname_postfix(self, value):
+        self._ppname_postfix = value
+
     def store_pp_extra(self, name, data, save_once=False):
+        name = name + self._ppname_postfix
         self.model._parameters[name] = data
         self._pp_extra_update.append(name)
 
@@ -3684,6 +3695,7 @@ class ParallelEngine(Engine):
     #
     def store_pp_extra(self, name, data, save_once=False):
         from mpi4py import MPI
+        name = name + self._ppname_postfix
         self.model._parameters[name] = data
         if not save_once or MPI.COMM_WORLD.rank == 0:
             self._pp_extra_update.append(name)

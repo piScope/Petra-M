@@ -46,10 +46,6 @@ bilinintegs = get_integrators('BilinearOps')
 linintegs = get_integrators('LinearOps')
 
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
-         guilabel = "lambda", default = 0.0, tip = "coefficient",))]
-
-
-data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
          guilabel = "lambda", default = '1.0', tip = "coefficient",))]
 
 class WeakformIntegrator(PostProcessBase, Vtable_mixin):
@@ -200,7 +196,6 @@ class LinearformIntegrator(WeakformIntegrator):
     
     def run_postprocess(self, engine):
         dprint1("running postprocess: " + self.name())
-
         
         name = self.variables.strip()
         if name not in engine.model._variables:
@@ -297,7 +292,6 @@ class BilinearformIntegrator(WeakformIntegrator):
 
     def run_postprocess(self, engine):
         dprint1("running postprocess: " + self.name())
-
         
         names = [x.strip() for x in self.variables.split(',')]
         if len(names) != 2:
@@ -318,7 +312,6 @@ class BilinearformIntegrator(WeakformIntegrator):
             emesh_idx1[0] != emesh_idx2[0]):
             assert False, "can not perform integration between different extended-mesh"
         emesh_idx = emesh_idx1[0]
-            
 
         fes1 = engine.fespaces[names[0]]
         fes2 = engine.fespaces[names[1]]

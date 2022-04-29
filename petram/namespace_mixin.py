@@ -33,7 +33,7 @@ class NSRef_mixin(object):
         for obj in root.walk():
             if not isinstance(obj, NS_mixin):
                 continue
-            if obj.get_ns_name() == name:
+            if obj.get_ns_name() == name and name is not None:
                 return obj._global_ns
         return  self.root()['General']._global_ns
 
@@ -46,7 +46,7 @@ class NSRef_mixin(object):
         for obj in root.walk():
             if not isinstance(obj, NS_mixin):
                 continue
-            if obj.get_ns_name() == name:
+            if obj.get_ns_name() == name and name is not None:
                 return obj
         return self.root()['General']
     
@@ -191,7 +191,8 @@ class NS_mixin(object):
         set its own default namespace. For example, when
         RF module set freq and omega
         '''
-        return {}
+        from petram.solver.parametric_scanner import Scan
+        return {'Scan': Scan}
                 
     def eval_attribute_expr(self, targets=None):
 
