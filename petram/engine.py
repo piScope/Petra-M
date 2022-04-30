@@ -724,7 +724,7 @@ class Engine(object):
         return self.is_initialized
 
     def run_apply_init0(self, phys_range, mode,
-                        init_value=0.0, init_path=''):
+                        init_value=0.0, init_path='', init_dwc=("", "")):
         # mode
         #  0: zero
         #  1: init to constant
@@ -776,6 +776,8 @@ class Engine(object):
                     self.apply_init_from_file(phys, init_path)
                 elif mode == 4:
                     self.apply_init_from_previous(names)
+                elif mode == 5:
+                    self.apply_init_by_dwc(names, init_dwc)
                 else:
                     raise NotImplementedError(
                         "unknown init mode")
@@ -1288,6 +1290,17 @@ class Engine(object):
         else:
             dprint1("(warining) extra is not loaded ...")
         # print self.sol_extra
+
+    def apply_init_by_dwc(self, names, init_dwc):
+        for n in names:
+            if n not in self._init_done:
+                self._init_done.append(n)
+
+        self.call_dwc(None, method='init', callername=init_dwc[0],
+                      dwcname=init_dwc[1],
+                      args=init_dwc[2],
+                      fesnames=names)
+
     #
     #  Step 2  fill matrix/rhs elements
     #
@@ -3233,19 +3246,26 @@ class Engine(object):
                     assert False, "update mode not supported: mode = "+mode
 
     def call_dwc(self, phys_range, method='', callername='',
-                 dwcname='', args='', **kwargs):
+                 dwcname='', args='', fesnames=None, **kwargs):
 
-        for phys in phys_range:
-            for name in phys.dep_vars:
-                rifes = self.r_ifes(name)
-                if rifes == -1:
-                    continue
-                rgf = self.r_x[rifes]
-                igf = self.i_x[rifes]
-                if igf is None:
-                    kwargs[name] = rgf
-                else:
-                    kwargs[name] = (rgf, igf)
+        names = []
+        if phys_range is not None:
+            for phys in phys_range:
+                for name in phys.dep_vars:
+                    names.append(name)
+        if fesnames is not None:
+            names.extend(fesnames)
+
+        for name in names:
+            rifes = self.r_ifes(name)
+            if rifes == -1:
+                continue
+            rgf = self.r_x[rifes]
+            igf = self.i_x[rifes]
+            if igf is None:
+                kwargs[name] = rgf
+            else:
+                kwargs[name] = (rgf, igf)
 
         g = self.model['General']._global_ns
         if dwcname == '':
