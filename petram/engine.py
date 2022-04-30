@@ -734,53 +734,56 @@ class Engine(object):
         dprint1("run_apply_init0", phys_range, mode)
         for j in range(self.n_matrix):
             self.access_idx = j
-            for phys in phys_range:
-                names = phys.dep_vars
-                if mode == 0:
-                    for name in names:
-                        r_ifes = self.r_ifes(name)
-                        rgf = self.r_x[r_ifes]
-                        igf = self.i_x[r_ifes]
-                        rgf.Assign(0.0)
-                        if igf is not None:
-                            igf.Assign(0.0)
-                        if not name in self._init_done:
-                            self._init_done.append(name)
-                elif mode == 1:
-                    from petram.helper.variables import project_variable_to_gf
+            if mode in [0, 1, 2, 3, 4]:
+                for phys in phys_range:
+                    names = phys.dep_vars
+                    if mode == 0:
+                        for name in names:
+                            r_ifes = self.r_ifes(name)
+                            rgf = self.r_x[r_ifes]
+                            igf = self.i_x[r_ifes]
+                            rgf.Assign(0.0)
+                            if igf is not None:
+                                igf.Assign(0.0)
+                            if not name in self._init_done:
+                                self._init_done.append(name)
+                    elif mode == 1:
+                        from petram.helper.variables import project_variable_to_gf
 
-                    global_ns = phys._global_ns.copy()
-                    for key in self.model.root()._variables:
-                        global_ns[key] = self.model.root()._variables[key]
-                    for name in names:
-                        r_ifes = self.r_ifes(name)
-                        rgf = self.r_x[r_ifes]
-                        igf = self.i_x[r_ifes]
-                        ind_vars = phys.ind_vars
-                        dprint1(
-                            "applying init value to entire discrete space:" + name, init_value)
-                        project_variable_to_gf(init_value,
-                                               ind_vars,
-                                               rgf, igf,
-                                               global_ns=global_ns)
+                        global_ns = phys._global_ns.copy()
+                        for key in self.model.root()._variables:
+                            global_ns[key] = self.model.root()._variables[key]
+                        for name in names:
+                            r_ifes = self.r_ifes(name)
+                            rgf = self.r_x[r_ifes]
+                            igf = self.i_x[r_ifes]
+                            ind_vars = phys.ind_vars
+                            dprint1(
+                                "applying init value to entire discrete space:" + name, init_value)
+                            project_variable_to_gf(init_value,
+                                                   ind_vars,
+                                                   rgf, igf,
+                                                   global_ns=global_ns)
 
-                        # rgf.ProjectCoefficient(rc)
-                        # rgf.Assign(rinit)
-                        # if igf is not None:
-                        #   igf.ProjectCoefficient(ic)
-                        if not name in self._init_done:
-                            self._init_done.append(name)
-                elif mode == 2:  # apply Einit
-                    self.apply_init_from_init_panel(phys)
-                elif mode == 3:
-                    self.apply_init_from_file(phys, init_path)
-                elif mode == 4:
-                    self.apply_init_from_previous(names)
-                elif mode == 5:
-                    self.apply_init_by_dwc(names, init_dwc)
-                else:
-                    raise NotImplementedError(
-                        "unknown init mode")
+                            # rgf.ProjectCoefficient(rc)
+                            # rgf.Assign(rinit)
+                            # if igf is not None:
+                            #   igf.ProjectCoefficient(ic)
+                            if not name in self._init_done:
+                                self._init_done.append(name)
+                    elif mode == 2:  # apply Einit
+                        self.apply_init_from_init_panel(phys)
+                    elif mode == 3:
+                        self.apply_init_from_file(phys, init_path)
+                    elif mode == 4:
+                        self.apply_init_from_previous(names)
+            elif mode == 5:
+                names = []
+                for phys in phys_range:
+                    names.extend(phys.dep_vars)
+                self.apply_init_by_dwc(names, init_dwc)
+            else:
+                raise NotImplementedError("unknown init mode")
 
         self.add_FESvariable_to_NS(phys_range, verbose=True)
 
