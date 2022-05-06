@@ -31,6 +31,7 @@ class Parametric(SolveStep, NS_mixin):
     def panel1_param(self):
         v = self.get_panel1_value()
         return [["Initial value setting",   self.init_setting,  0, {}, ],
+                ["Postporcess solution",    self.postprocess_sol,   0, {}, ],
                 ["trial phys. ",   self.phys_model, 0, {}, ],
                 ["assembly method",  'Full assemble',  4, {"readonly": True,
                                                            "choices": list(assembly_methods)}],
@@ -50,6 +51,7 @@ class Parametric(SolveStep, NS_mixin):
                 txt = k
 
         return (self.init_setting,
+                self.postprocess_sol,
                 self.phys_model,
                 str(txt),
                 str(self.scanner),
@@ -61,7 +63,8 @@ class Parametric(SolveStep, NS_mixin):
 
     def import_panel1_value(self, v):
         self.init_setting = str(v[0])
-        self.phys_model = str(v[1])
+        self.postprocess_sol = v[1]
+        self.phys_model = str(v[2])
         self.assembly_method = assembly_methods[v[-7]]
         self.scanner = v[-6]
         self.save_separate_mesh = v[-5]
@@ -110,6 +113,10 @@ class Parametric(SolveStep, NS_mixin):
 
         return scanner
 
+    def get_default_ns(self):
+        from petram.solver.parametric_scanner import Scan
+        return {'Scan': Scan}
+
     def go_case_dir(self, engine, ksol, mkdir):
         '''
         make case directory and create symlinks
@@ -135,6 +142,8 @@ class Parametric(SolveStep, NS_mixin):
 
     def _run_full_assembly(self, engine, solvers, scanner, is_first=True):
 
+        postprocess = self.get_pp_setting()
+
         for kcase, case in enumerate(scanner):
             is_first = True
 
@@ -156,17 +165,20 @@ class Parametric(SolveStep, NS_mixin):
                 if self.solve_error[0]:
                     dprint1("Parametric failed " + self.name() + ":" +
                             self.solve_error[1])
+
+            engine.run_postprocess(postprocess, name=self.name())
             os.chdir(od)
 
     def _run_rhs_assembly(self, engine, solvers, scanner, is_first=True):
 
         self.prepare_form_sol_variables(engine)
-        self.init(engine)
+#        self.init(engine, skip_essential=True)
 
         l_scan = len(scanner)
 
         all_phys = self.get_phys()
         phys_target = self.get_target_phys()
+        postprocess = self.get_pp_setting()
 
         linearsolver = None
         for ksolver, s in enumerate(solvers):
@@ -179,6 +191,8 @@ class Parametric(SolveStep, NS_mixin):
             for kcase, case in enumerate(scanner):
 
                 if kcase == 0:
+                    if ksolver == 0:
+                        self.init(engine)
                     instance.set_blk_mask()
                     instance.assemble(inplace=False)
                 else:
@@ -225,6 +239,7 @@ class Parametric(SolveStep, NS_mixin):
 
                     XX = None
                     solall = linearsolver.Mult(BB, x=XX, case_base=0)
+
                     if not phys_real and s.assemble_real:
                         oprt = linearsolver.oprt
                         solall = instance.linearsolver_model.real_to_complex(solall,
@@ -250,6 +265,10 @@ class Parametric(SolveStep, NS_mixin):
                         engine.sol = instance.sol
                         instance.save_probe()
 
+                        engine.add_FESvariable_to_NS(self.get_phys())
+                        engine.store_x()
+
+                        engine.run_postprocess(postprocess, name=self.name())
                         os.chdir(od)
 
     def collect_probe_signals(self, dirs, scanner):

@@ -1028,10 +1028,10 @@ class Engine(object):
         # M[0].save_to_file("M0")
         # M[1].save_to_file("M1")
         # X[0].save_to_file("X0")
-
         A2, isAnew = compute_A(M, B, X,
                                self.mask_M,
                                self.mask_B)  # solver determins A
+
         if isAnew:
             # generate Ae and eliminated A
             A, Ae = self.fill_BCeliminate_matrix(A2, B,
@@ -1040,28 +1040,20 @@ class Engine(object):
 
         RHS = compute_rhs(M, B, X)          # solver determins RHS
 
-        # for m in M:
-        #    A.check_shared_id(m)
-        # for x in X:
-        #    B.check_shared_id(x)
-        # RHS.save_to_file("RHSbefore")
-        # M[0].save_to_file("M0there")
-        # Ae.save_to_file("Ae")
-
         RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
-
-        # RHS.save_to_file("RHS")
 
         # A and RHS is modifedy by global DoF coupling P
         A, RHS = self.apply_interp(A, RHS)
+
+        # RHS.save_to_file("RHS")
         # M[0].save_to_file("M0there2")
         # M[1].save_to_file("M1")
         # X[0].save_to_file("X0")
         # RHS.save_to_file("RHS")
 
+        # = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
         self.assembled_blocks = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
 
-        # = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
         return self.assembled_blocks, M_changed
 
     def run_update_B_blocks(self):
@@ -1920,7 +1912,7 @@ class Engine(object):
                     continue
 
                 A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof1, inplace=inplace)
-                if not (idx1, j) in self._aux_essential:
+                if not (idx1, j) in self._aux_essential and len(gl_ess_tdof2) > 0:
                     A[idx1, j] = A[idx1, j].resetRow(
                         gl_ess_tdof2, inplace=inplace)
 
@@ -3571,7 +3563,12 @@ class SerialEngine(Engine):
         A is ScipyCoo (this one fully supports complex)
         '''
         csr = A.tocsr()
+        csr.eliminate_zeros()
         zerorows = np.where(np.diff(csr.indptr) == 0)[0]
+        if len(zerorows) == csr.shape[0]:
+            dprint1(
+                "!!! skipping fill_empty_diag: this diagonal block is compltely zero")
+            return
         lil = A.tolil()
         lil[zerorows, zerorows] = 1.0
         coo = lil.tocoo()
@@ -3910,11 +3907,21 @@ class ParallelEngine(Engine):
         A is CHypre (complex is supported only when imaginary is zero)
         '''
         from mpi4py import MPI
+        nnz0, tnnz0 = A[0].get_local_true_nnz()
+        tnnz0 = np.sum(MPI.COMM_WORLD.allgather(tnnz0))
 
         if A[1] is None:
+            if tnnz0 == 0:
+                dprint1(
+                    "!!! skipping fill_empty_diag: this diagnal block is compltely zero")
+                return
             A[0].EliminateZeroRows()
         else:
             nnz, tnnz = A[1].get_local_true_nnz()
             tnnz = np.sum(MPI.COMM_WORLD.allgather(tnnz))
             if tnnz == 0:
+                if tnnz0 == 0:
+                    dprint1(
+                        "!!! skipping fill_empty_diag: this diagnal block is compltely zero")
+                    return
                 A[0].EliminateZeroRows()

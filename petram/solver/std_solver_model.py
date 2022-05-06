@@ -165,7 +165,7 @@ class StandardSolver(SolverInstance):
 
         return A and isAnew
         '''
-        return M[0], True
+        return M[0], np.any(mask_M[0])
 
     def compute_rhs(self, M, B, X):
         '''
