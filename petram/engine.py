@@ -1912,7 +1912,7 @@ class Engine(object):
                     continue
 
                 A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof1, inplace=inplace)
-                if not (idx1, j) in self._aux_essential:
+                if not (idx1, j) in self._aux_essential and len(gl_ess_tdof2) > 0:
                     A[idx1, j] = A[idx1, j].resetRow(
                         gl_ess_tdof2, inplace=inplace)
 
@@ -3563,7 +3563,12 @@ class SerialEngine(Engine):
         A is ScipyCoo (this one fully supports complex)
         '''
         csr = A.tocsr()
+        csr.eliminate_zeros()
         zerorows = np.where(np.diff(csr.indptr) == 0)[0]
+        if len(zerorows) == csr.shape[0]:
+            dprint1(
+                "!!! skipping fill_empty_diag: this diagonal block is compltely zero")
+            return
         lil = A.tolil()
         lil[zerorows, zerorows] = 1.0
         coo = lil.tocoo()
@@ -3902,11 +3907,21 @@ class ParallelEngine(Engine):
         A is CHypre (complex is supported only when imaginary is zero)
         '''
         from mpi4py import MPI
+        nnz0, tnnz0 = A[0].get_local_true_nnz()
+        tnnz0 = np.sum(MPI.COMM_WORLD.allgather(tnnz0))
 
         if A[1] is None:
+            if tnnz0 == 0:
+                dprint1(
+                    "!!! skipping fill_empty_diag: this diagnal block is compltely zero")
+                return
             A[0].EliminateZeroRows()
         else:
             nnz, tnnz = A[1].get_local_true_nnz()
             tnnz = np.sum(MPI.COMM_WORLD.allgather(tnnz))
             if tnnz == 0:
+                if tnnz0 == 0:
+                    dprint1(
+                        "!!! skipping fill_empty_diag: this diagnal block is compltely zero")
+                    return
                 A[0].EliminateZeroRows()
