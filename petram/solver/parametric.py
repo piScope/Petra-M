@@ -95,9 +95,44 @@ class Parametric(SolveStep, NS_mixin):
         return v
 
     def get_possible_child(self):
+        #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
-        from petram.solver.solver_controls import DWCCall
-        return [StdSolver, DWCCall]
+        from petram.solver.ml_solver_model import MultiLvlStationarySolver
+        from petram.solver.solver_controls import DWCCall, ForLoop
+        from petram.solver.set_var import SetVar
+
+        try:
+            from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
+            return [MultiLvlStationarySolver,
+                    StdSolver,
+                    StdMeshAdaptSolver,
+                    DWCCall, ForLoop, SetVar]
+        except:
+            return [MultiLvlStationarySolver,
+                    StdSolver,
+                    DWCCall, ForLoop, SetVar]
+
+    def get_possible_child_menu(self):
+        #from solver.solinit_model import SolInit
+        from petram.solver.std_solver_model import StdSolver
+        from petram.solver.ml_solver_model import MultiLvlStationarySolver
+        from petram.solver.solver_controls import DWCCall, ForLoop
+        from petram.solver.set_var import SetVar
+
+        try:
+            from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
+            return [("", StdSolver),
+                    ("", MultiLvlStationarySolver),
+                    ("extra", ForLoop),
+                    ("", StdMeshAdaptSolver),
+                    ("", DWCCall),
+                    ("!", SetVar)]
+        except:
+            return [("", StdSolver),
+                    ("", MultiLvlStationarySolver),
+                    ("extra", ForLoop),
+                    ("", DWCCall),
+                    ("!", SetVar)]
 
     def get_scanner(self, nosave=False):
         try:
