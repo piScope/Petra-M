@@ -885,8 +885,8 @@ class BlockMatrix(object):
             self[r, c] = convert_to_ScipyCoo(m)
         else:
             from mfem.common.chypre import SquareCHypreMat
-            #print("rp", "cp", rp, cp, shape, gsize)
-            self[r, c] = SquareCHypreMat(gsize, rp, real=True)
+            m = SquareCHypreMat(gsize, rp, real=True)
+            self[r, c] = m
 
     def get_global_offsets(self, convert_real=False,
                            interleave=True):

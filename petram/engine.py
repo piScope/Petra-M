@@ -1882,10 +1882,13 @@ class Engine(object):
             if A[idx1, idx2] is None:
                 A.add_empty_square_block(idx1, idx2)
 
-            if self.get_autofill_diag():
-                self.fill_empty_diag(A[idx1, idx2])
-
             if A[idx1, idx2] is not None:
+                # note: this check is necessary, since in parallel environment,
+                # add_empty_square_block could not create any block because
+                # locally number or rows is zero.
+                if self.get_autofill_diag():
+                    self.fill_empty_diag(A[idx1, idx2])
+
                 Aee, A[idx1, idx2], Bnew = A[idx1, idx2].eliminate_RowsCols(B[idx1], ess_tdof1,
                                                                             inplace=inplace,
                                                                             diagpolicy=diagpolicy)
@@ -3907,6 +3910,9 @@ class ParallelEngine(Engine):
         A is CHypre (complex is supported only when imaginary is zero)
         '''
         from mpi4py import MPI
+        if A[0] is None:
+            return
+
         nnz0, tnnz0 = A[0].get_local_true_nnz()
         tnnz0 = np.sum(MPI.COMM_WORLD.allgather(tnnz0))
 
@@ -3917,6 +3923,7 @@ class ParallelEngine(Engine):
                 return
             A[0].EliminateZeroRows()
         else:
+
             nnz, tnnz = A[1].get_local_true_nnz()
             tnnz = np.sum(MPI.COMM_WORLD.allgather(tnnz))
             if tnnz == 0:
