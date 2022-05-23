@@ -604,6 +604,16 @@ class Model(RestorableOrderedDict):
             for x in self[k].walk():
                 yield x
 
+    def walk_enabled(self):
+        if not self.enabled:
+            return
+        yield self
+        for k in self.keys():
+            if not self[k].enabled:
+                continue
+            for x in self[k].walk_enabled():
+                yield x
+
     def iter_enabled(self):
         for child in self.values():
             if not child.enabled:

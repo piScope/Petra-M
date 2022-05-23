@@ -111,7 +111,7 @@ class StdSolver(Solver):
 
     @debug.use_profiler
     def run(self, engine, is_first=True, return_instance=False):
-        dprint1("Entering run (is_first=", is_first, ")", self.fullpath())
+        dprint1("Entering run (is_first= ", is_first, ") ", self.fullpath())
         if self.clear_wdir:
             engine.remove_solfiles()
 

@@ -125,7 +125,7 @@ class SolveStep(SolverBase):
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.mg_solver_model import MGSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
-        from petram.solver.solver_controls import DWCCall
+        from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
         from petram.solver.distance_solver import DistanceSolver
@@ -138,6 +138,7 @@ class SolveStep(SolverBase):
                     StdSolver,
                     StdMeshAdaptSolver,
                     # MGSolver,
+                    ForLoop,
                     DWCCall, SetVar]
         except:
             return [MultiLvlStationarySolver,
@@ -145,6 +146,7 @@ class SolveStep(SolverBase):
                     DistanceSolver,
                     # MGSolver,
                     StdSolver,
+                    ForLoop,
                     DWCCall, SetVar]
 
     def get_possible_child_menu(self):
@@ -152,7 +154,7 @@ class SolveStep(SolverBase):
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.mg_solver_model import MGSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
-        from petram.solver.solver_controls import DWCCall
+        from petram.solver.solver_controls import DWCCall, InnerForLoop
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
         from petram.solver.distance_solver import DistanceSolver
@@ -164,7 +166,7 @@ class SolveStep(SolverBase):
                     ("", TimeDomain),
                     ("extra", DistanceSolver),
                     ("", StdMeshAdaptSolver),
-                    # MGSolver,
+                    ("", InnerForLoop),
                     ("", DWCCall),
                     ("!", SetVar)]
         except:
@@ -172,7 +174,7 @@ class SolveStep(SolverBase):
                     ("", MultiLvlStationarySolver),
                     ("", TimeDomain),
                     ("extra", DistanceSolver),
-                    # MGSolver,
+                    ("", InnerForLoop),
                     ("", DWCCall),
                     ("!", SetVar)]
 
@@ -326,8 +328,8 @@ class SolveStep(SolverBase):
 
         def make_assertion(cond, message):
             if not cond:
-                print("selected ls", ls_selected)
-                print("candidate ls", ls_candidates)
+                dprint1("Error: selected ls", ls_selected)
+                dprint1("Error: candidate ls", ls_candidates)
                 assert cond, message
 
         def collect_assemble_real(top):
@@ -431,7 +433,7 @@ class SolveStep(SolverBase):
         engine.run_fill_X_block()
 
     def run(self, engine, is_first=True):
-        dprint1("!!!!! Entering SolveStep :" + self.name() + " !!!!!")
+        dprint1("!!!!! Entering SolveStep " + self.name() + " !!!!!")
         solvers = self.get_active_solvers()
 
         is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
@@ -479,6 +481,7 @@ class SolveStep(SolverBase):
                             callername=self.name(),
                             dwcname=self.dwc_name,
                             args=self.dwc_pp_arg)
+        return False
 
 
 class Solver(SolverBase):
@@ -496,6 +499,12 @@ class Solver(SolverBase):
         v['sol_file'] = ''
         super(Solver, self).attribute_set(v)
         return v
+
+    @property
+    def solve_error(self):
+        if hasattr(self, "_solve_error"):
+            return self._solve_error
+        return (False, "")
 
     def get_phys(self):
         my_solve_step = self.get_solve_root()
@@ -888,12 +897,15 @@ class LinearSolver(ABC):
     @abstractmethod
     def Mult(self, b, case_base=0):
         ...
+
     @property
     def skip_solve(self):
         return self._skip_solve
+
     @skip_solve.setter
     def skip_solve(self, val):
         self._skip_solve = val
+
 
 def convert_realblocks_to_complex(solall, M, merge_real_imag):
     if merge_real_imag:

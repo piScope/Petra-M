@@ -553,7 +553,8 @@ class Engine(object):
         if dir is None:
             from __main__ import __file__ as mainfile
             dir = os.path.dirname(os.path.realpath(mainfile))
-        for node in model.walk():
+
+        for node in model.walk_enabled():
             if node.has_ns() and node.ns_name is not None:
                 node.read_ns_script_data(dir=dir)
         self.build_ns()
@@ -2750,7 +2751,7 @@ class Engine(object):
 
     def build_ns(self):
         errors = []
-        for node in self.model.walk():
+        for node in self.model.walk_enabled():
             if node.has_ns():
                 try:
                     node.eval_ns()
