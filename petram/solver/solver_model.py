@@ -506,6 +506,19 @@ class Solver(SolverBase):
             return self._solve_error
         return (False, "")
 
+    @property
+    def instance(self):
+        if hasattr(self, "_instance"):
+            return self._instance
+        return None
+
+    @instance.setter
+    def instance(self, value):
+        self._instance = value
+
+    def free_instance(self):
+        self._instance = None
+
     def get_phys(self):
         my_solve_step = self.get_solve_root()
         return my_solve_step.get_phys()

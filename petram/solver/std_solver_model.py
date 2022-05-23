@@ -38,9 +38,9 @@ class StdSolver(Solver):
             [None,
              self.use_profiler,  3, {"text": "use profiler"}],
             [None, self.skip_solve,  3, {"text": "skip linear solve"}],
-            [None, self.load_sol,  3, {"text": "load sol file (linear solver is not called)"}],
-            [None, self.sol_file,  0, None],]
-
+            [None, self.load_sol,  3, {
+                "text": "load sol file (linear solver is not called)"}],
+            [None, self.sol_file,  0, None], ]
 
     def get_panel1_value(self):
         return (  # self.init_setting,
@@ -115,7 +115,9 @@ class StdSolver(Solver):
         if self.clear_wdir:
             engine.remove_solfiles()
 
-        instance = StandardSolver(self, engine)
+        instance = StandardSolver(
+            self, engine) if self.instance is None else self.instance
+
         instance.set_blk_mask()
         if return_instance:
             return instance
@@ -133,9 +135,12 @@ class StdSolver(Solver):
             instance.load_sol(self.sol_file)
         else:
             if is_first:
-                instance.assemble()
+                M_changed = instance.assemble()
                 is_first = False
-            instance.solve()
+            else:
+                M_changed = instance.assemble(update=True)
+
+            instance.solve(update_operator=M_changed)
 
         instance.save_solution(ksol=0,
                                skip_mesh=False,
@@ -144,6 +149,8 @@ class StdSolver(Solver):
         engine.sol = instance.sol
 
         instance.save_probe()
+
+        self.instance = instance
 
         dprint1(debug.format_memory_usage())
         return is_first
@@ -173,7 +180,7 @@ class StandardSolver(SolverInstance):
         '''
         return B
 
-    def assemble(self, inplace=True):
+    def assemble(self, inplace=True, update=False):
         engine = self.engine
         phys_target = self.get_phys()
         phys_range = self.get_phys_range()
@@ -183,16 +190,25 @@ class StandardSolver(SolverInstance):
                 [x.name() for x in phys_target],
                 [x.name() for x in phys_range])
 
-        engine.run_verify_setting(phys_target, self.gui)
-        engine.run_assemble_mat(phys_target, phys_range)
-        engine.run_assemble_b(phys_target)
-        engine.run_fill_X_block()
+        if not update:
+            engine.run_verify_setting(phys_target, self.gui)
+        else:
+            engine.set_update_flag('TimeDependent')
 
-        self.engine.run_assemble_blocks(self.compute_A,
-                                        self.compute_rhs,
-                                        inplace=inplace)
+        M_updated = engine.run_assemble_mat(
+            phys_target, phys_range, update=update)
+        B_updated = engine.run_assemble_b(phys_target, update=update)
+
+        engine.run_apply_essential(phys_target, phys_range, update=update)
+        engine.run_fill_X_block(update=update)
+
+        _blocks, M_changed = self.engine.run_assemble_blocks(self.compute_A,
+                                                             self.compute_rhs,
+                                                             inplace=inplace,
+                                                             update=update,)
         #A, X, RHS, Ae, B, M, names = blocks
         self.assembled = True
+        return M_changed
 
     def assemble_rhs(self):
         engine = self.engine

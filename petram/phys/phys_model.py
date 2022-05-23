@@ -664,7 +664,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             ll = [['y(t)', True, 3, {"text": ""}],
                   ['dy/dt', False, 3, {"text": ""}],
                   ['d2y/dt2', False, 3, {"text": ""}],
-                  ['Time Varing Term.', False, 3, {"text": ""}], ]
+                  ['Varing (in time/for loop) Term.', False, 3, {"text": ""}], ]
 #              ['M(t)',     "1", 0],
 #              ['M(t-dt)',  "0", 0],
 #              ['M(t-2dt)', "0", 0],]
