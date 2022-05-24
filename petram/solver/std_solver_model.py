@@ -135,12 +135,14 @@ class StdSolver(Solver):
             instance.load_sol(self.sol_file)
         else:
             if is_first:
-                M_changed = instance.assemble()
+                instance.assemble()
                 is_first = False
             else:
-                M_changed = instance.assemble(update=True)
+                instance.assemble(update=True)
 
-            instance.solve(update_operator=M_changed)
+            update_operator = engine.check_block_matrix_changed(
+                instance.blk_mask)
+            instance.solve(update_operator=update_operator)
 
         instance.save_solution(ksol=0,
                                skip_mesh=False,
@@ -161,6 +163,7 @@ class StandardSolver(SolverInstance):
         SolverInstance.__init__(self, gui, engine)
         self.assembled = False
         self.linearsolver = None
+        self._operator_set = False
 
     @property
     def blocks(self):
@@ -219,6 +222,7 @@ class StandardSolver(SolverInstance):
         self.assembled = True
 
     def solve(self, update_operator=True):
+        update_operator = update_operator or not self._operator_set
         engine = self.engine
 
         # if not self.assembled:
@@ -233,6 +237,7 @@ class StandardSolver(SolverInstance):
         if update_operator:
             AA = engine.finalize_matrix(A, mask, not self.phys_real,
                                         format=self.ls_type)
+
         BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
                                  format=self.ls_type)
 
@@ -249,6 +254,7 @@ class StandardSolver(SolverInstance):
             linearsolver.SetOperator(AA,
                                      dist=engine.is_matrix_distributed,
                                      name=depvars)
+            self._operator_set = True
 
         if linearsolver.is_iterative:
             XX = engine.finalize_x(X[0], RHS, mask, not self.phys_real,

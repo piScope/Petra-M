@@ -114,6 +114,42 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
         names = [n.strip() for n in names if n.strip() != '']
         return [self.root()['PostProcess'][n] for n in names]
 
+    def iter_active_solvers(self, with_control=False):
+        steps = self.get_active_steps(with_control=False)
+        for s in steps:
+            for s2 in s.get_active_solvers():
+                yield s2
+
+    def get_target_phys(self):
+        ret = []
+        for s in self.iter_active_solvers():
+            for item in s.get_target_phys():
+                if item not in ret:
+                    ret.append(item)
+        return ret
+
+    def get_child_solver(self):
+        ret = []
+        for s in self.iter_active_solvers():
+            ret.extend(s.get_child_solver())
+        return ret
+
+    def get_custom_init(self):
+        ret = []
+        for s in self.iter_active_solvers():
+            ret.extend(s.get_custom_init())
+        return ret
+
+    def get_matrix_weight(self, timestep_config):  # , timestep_weight):
+        ret = []
+        s1, s2, s3 = 0, 0, 0
+        for s in self.iter_active_solvers():
+            n1, n2, n3 = s.get_matrix_weight(timestep_config)
+            s1 = max(s1, n1)
+            s2 = max(s2, n2)
+            s3 = max(s3, n3)
+        return s1, s2, s3
+
     def run(self, engine, is_first=True):
         dprint1("!!!!! Entering SolveLoop : (is_first =",
                 is_first, ") " + self.name() + " !!!!!")
@@ -167,41 +203,31 @@ class InnerForLoop(ForLoop):
     Loop supports only standard stationary solver
     '''
 
-    def get_target_phys(self):
-        steps = self.get_active_steps(with_control=False)
-        ret = []
+    def get_active_solvers(self, with_control=False):
+        steps = []
+        for x in self.iter_enabled():
+            if not x.enabled:
+                continue
 
-        for s in steps:
-            ret.extend(s.get_target_phys())
+            if isinstance(x, Break) and with_control:
+                steps.append(x)
+            elif isinstance(x, Continue) and with_control:
+                steps.append(x)
+            elif isinstance(x, DWCCall) and with_control:
+                steps.append(x)
+            elif len(list(x.iter_enabled())) > 0:
+                steps.append(x)
 
-        return ret
+        return steps
 
-    def get_child_solver(self):
-        steps = self.get_active_steps(with_control=False)
-        ret = []
+    def iter_active_solvers(self):
+        solvers = self.get_active_solvers(with_control=False)
+        for s in solvers:
+            yield s
 
-        for s in steps:
-            ret.extend(s.get_child_solver())
-        return ret
-
-    def get_custom_init(self):
-        steps = self.get_active_steps(with_control=False)
-        ret = []
-
-        for s in steps:
-            ret.extend(s.get_custom_init())
-        return ret
-
-    def get_matrix_weight(self, timestep_config):  # , timestep_weight):
-        steps = self.get_active_steps(with_control=False)
-        ret = []
-        s1, s2, s3 = 0, 0, 0
-        for s in steps:
-            n1, n2, n3 = s.get_matrix_weight(timestep_config)
-            s1 = max(s1, n1)
-            s2 = max(s2, n2)
-            s3 = max(s3, n3)
-        return s1, s2, s3
+    def free_instance(self):
+        for s in self.iter_active_solvers():
+            s.free_instance()
 
     def get_num_levels(self):
         return 1

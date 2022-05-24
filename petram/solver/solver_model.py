@@ -472,6 +472,9 @@ class SolveStep(SolverBase):
                         ":" + self.solve_error[1])
                 break
 
+        for solver in solvers:
+            solver.free_instance()
+
         postprocess = self.get_pp_setting()
         engine.run_postprocess(postprocess, name=self.name())
 

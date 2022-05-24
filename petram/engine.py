@@ -3111,6 +3111,16 @@ class Engine(object):
     def copy_block_mask(self, mask):
         self._matrix_blk_mask = mask
 
+    def check_block_matrix_changed(self, mask):
+        from itertools import product
+        R = len(self.dep_vars)
+        C = len(self.r_dep_vars)
+        for k in range(self.n_matrix):
+            for i, j in product(range(R), range(C)):
+                if self.mask_M[k, i, j] and mask[0][j] and mask[1][i]:
+                    return True
+        return False
+
     def collect_dependent_vars(self, phys_target=None, phys_range=None, range_space=False):
         if phys_target is None:
             phys_target = [self.model['Phys'][k] for k in self.model['Phys']
