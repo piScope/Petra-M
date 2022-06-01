@@ -436,6 +436,15 @@ class DWCCall(SolveControl):
     def get_target_phys(self):
         return []
 
+    def get_child_solver(self):
+        return []
+
+    def get_matrix_weight(self, _timestep_config):
+        return []
+
+    def get_custom_init(self):
+        return []
+
     def get_all_phys(self):
         phys_root = self.root()['Phys']
         return [x for x in phys_root.iter_enabled()]
