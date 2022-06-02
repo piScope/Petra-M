@@ -172,8 +172,9 @@ class NCEdgeEvaluator(EvaluatorAgent):
         self.emesh_idx = emesh_idx
         
     def eval(self, expr, solvars, phys, **kwargs):
-        refine = kwargs.pop("refine", 1)        
-        emesh_idx = get_emesh_idx(self, expr, solvars, phys)
+        refine = kwargs.pop("refine", 1)
+        exprs =  kwargs.pop("exprs", [expr])
+        emesh_idx = get_emesh_idx(self, exprs, solvars, phys)
 
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"

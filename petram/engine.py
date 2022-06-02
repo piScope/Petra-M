@@ -554,7 +554,7 @@ class Engine(object):
             from __main__ import __file__ as mainfile
             dir = os.path.dirname(os.path.realpath(mainfile))
 
-        for node in model.walk_enabled():
+        for node in model.walk():
             if node.has_ns() and node.ns_name is not None:
                 node.read_ns_script_data(dir=dir)
         self.build_ns()
@@ -642,8 +642,9 @@ class Engine(object):
 
         for k in self.model['Phys'].keys():
             phys = self.model['Phys'][k]
-            if not phys.enabled:
-                continue
+            # (we do this even disabled physics, until different problem develops)
+            # if not phys.enabled:
+            #     continue
             self.do_run_mesh_extension_prep(phys)
 
     def do_run_mesh_extension_prep(self, phys):
@@ -2751,7 +2752,7 @@ class Engine(object):
 
     def build_ns(self):
         errors = []
-        for node in self.model.walk_enabled():
+        for node in self.model.walk():
             if node.has_ns():
                 try:
                     node.eval_ns()

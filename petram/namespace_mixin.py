@@ -232,6 +232,16 @@ class NS_mixin(object):
 
     def eval_ns(self):
         chain = self.get_ns_chain()
+
+        if not self.is_enabled():
+            # if it is not enabled we use default _global_ns
+            if chain[0] is not self:
+                self._global_ns = chain[0]._global_ns
+                self._local_ns = self.root()._variables
+                return
+            else:
+                assert False, "General should not be disabled"
+
         l = self.get_default_ns()
 
         from petram.helper.variables import var_g
