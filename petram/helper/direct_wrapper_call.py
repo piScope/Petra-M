@@ -41,7 +41,7 @@ class DWC(object):
         '''
         general call
         '''
-        raise NotImplementedError("checkpoint must be implemented by a user")
+        raise NotImplementedError("call must be implemented by a user")
 
     def loopcontrol(self, caller, count, *args, **kwargs):
         raise NotImplementedError("loopcontrol must be implemented by a user")

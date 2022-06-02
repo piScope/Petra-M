@@ -86,7 +86,7 @@ def edge_detect(index):
     ret = np.vstack(store)
     return  ret
 
-def get_emesh_idx(obj, expr, solvars, phys):
+def _get_emesh_idx(obj, expr, solvars, phys, default):
     from petram.helper.variables import Variable, var_g, NativeCoefficientGenBase
     
     st = parser.expr(expr)
@@ -112,11 +112,29 @@ def get_emesh_idx(obj, expr, solvars, phys):
            idx.extend(g[n].get_emesh_idx(idx, g=g))
            
     if len(idx) == 0:
-        # if expression has no emehs dependence return 0 (use emesh = 0)
-        idx = [0]
+        print("default is picked")
+        # if expression has no emehs dependence return default.
+        idx = [default]
     return list(set(idx))
        
-    
+def get_emesh_idx(obj, exprs, solvars, phys):
+    '''
+    handle multiple expressions and find unique set of emesh_idx needed.
+    '''
+    if not isinstance(exprs, list):
+        exprs = [exprs]
+
+    default = -1
+    emesh_idx_list = []
+    for item in exprs:
+         emesh_idx_list.extend(_get_emesh_idx(obj, item, solvars, phys, default=default))
+         default = emesh_idx_list[-1]
+    ret = list(set(emesh_idx_list))
+    if len(ret)==1 and ret[0] == -1:
+        return [0]
+    else:
+        return ret
+
 def eval_at_nodals(obj, expr, solvars, phys):
     '''
     evaluate nodal valus based on preproceessed 

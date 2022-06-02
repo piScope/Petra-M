@@ -111,8 +111,9 @@ class EdgeNodalEvaluator(EvaluatorAgent):
         
             
     def eval(self, expr, solvars, phys, **kwargs):
+        exprs =  kwargs.pop("exprs", [expr])
+        emesh_idx = get_emesh_idx(self, exprs, solvars, phys)
         
-        emesh_idx = get_emesh_idx(self, expr, solvars, phys)
         #print("emesh_idx", emesh_idx)
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"

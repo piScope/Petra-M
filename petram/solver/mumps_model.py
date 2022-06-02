@@ -185,8 +185,15 @@ class MUMPS(MUMPSBase):
         # it is the top level linearsolver
 
 #        if isinstance(self.parent, Solver):
+        from petram.solver.solver_controls import SolveControl
+
         if self.parent.parent is self.get_solve_root():
             return True
+        elif isinstance(self.parent.parent, SolveControl):
+            if self.parent.parent.parent is self.get_solve_root():
+                return True
+            else:
+                return False
         else:
             return False
 

@@ -274,7 +274,11 @@ class WeakBilinIntegration(WeakIntegration):
         mfem_physroot = self.get_root_phys().parent
         names, pnames, pindex = mfem_physroot.dependent_values()
 
-        idx = names.index(str(v[0]).split("(")[0].strip())
+        print(v, names, pnames, pindex)
+        if len(v[0]) == 0:
+            idx = 0
+        else:
+            idx = names.index(str(v[0]).split("(")[0].strip())
         self.paired_var = (pnames[idx], pindex[idx])
         super(WeakBilinIntegration, self).import_panel1_value(v[1:-2])       
         self.use_symmetric = v[-2]

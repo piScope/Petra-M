@@ -553,6 +553,7 @@ class Engine(object):
         if dir is None:
             from __main__ import __file__ as mainfile
             dir = os.path.dirname(os.path.realpath(mainfile))
+
         for node in model.walk():
             if node.has_ns() and node.ns_name is not None:
                 node.read_ns_script_data(dir=dir)
@@ -641,8 +642,9 @@ class Engine(object):
 
         for k in self.model['Phys'].keys():
             phys = self.model['Phys'][k]
-            if not phys.enabled:
-                continue
+            # (we do this even disabled physics, until different problem develops)
+            # if not phys.enabled:
+            #     continue
             self.do_run_mesh_extension_prep(phys)
 
     def do_run_mesh_extension_prep(self, phys):
@@ -3109,6 +3111,16 @@ class Engine(object):
 
     def copy_block_mask(self, mask):
         self._matrix_blk_mask = mask
+
+    def check_block_matrix_changed(self, mask):
+        from itertools import product
+        R = len(self.dep_vars)
+        C = len(self.r_dep_vars)
+        for k in range(self.n_matrix):
+            for i, j in product(range(R), range(C)):
+                if self.mask_M[k, i, j] and mask[0][j] and mask[1][i]:
+                    return True
+        return False
 
     def collect_dependent_vars(self, phys_target=None, phys_range=None, range_space=False):
         if phys_target is None:

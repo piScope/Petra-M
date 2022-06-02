@@ -1156,7 +1156,7 @@ class DlgPlotSol(SimpleFramePlus):
         all_data = []
         for s in subs:
             if s.strip() == '':
-                continue
+                contineu
             if remote:
                 self.config['cs_soldir'] = base
                 self.config['cs_solsubdir'] = s
@@ -1289,10 +1289,13 @@ class DlgPlotSol(SimpleFramePlus):
         else:
             do_merge1 = True
         average = value[7]
+
+        exprs = [expr, expr_x] if expr_x != '' else [expr]
         data, void = self.evaluate_sol_edge(expr, battrs, phys_path,
                                             do_merge1, True,
                                             average=average,
-                                            refine=refine)
+                                            refine=refine,
+                                            exprs=exprs)
         if data is None:
             return None, None, None
 
@@ -1300,7 +1303,8 @@ class DlgPlotSol(SimpleFramePlus):
             data_x, void = self.evaluate_sol_edge(expr_x, battrs, phys_path,
                                                   do_merge1, True,
                                                   average=average,
-                                                  refine=refine)
+                                                  refine=refine,
+                                                  exprs=exprs)
 
             if data_x is None:
                 return None, None, None
