@@ -785,11 +785,12 @@ class DlgPlotSol(SimpleFramePlus):
             remote = False
 
         from string import digits
+
         def extract_trailing_digits(txt):
             return txt[len(txt.rstrip(digits)):]
 
         sorted_subs = [x[1] for x in sorted([(int(extract_trailing_digits(x)), x)
-                       for x in v if len(extract_trailing_digits(x)) != 0])]
+                                             for x in v if len(extract_trailing_digits(x)) != 0])]
         if '' in v:
             sorted_subs = [''] + sorted_subs
 
@@ -899,6 +900,7 @@ class DlgPlotSol(SimpleFramePlus):
             if self.local_soldir is not None:
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
                 if not os.path.exists(npath):  # fall back
+                    sol = model.param.eval('sol')
                     npath = sol.owndir()
                     self.local_soldir = npath
                     self.local_solsubdir = ""

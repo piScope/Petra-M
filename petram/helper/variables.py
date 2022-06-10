@@ -142,7 +142,9 @@ var_g = {'sin': np.sin,
          'sign': np.sign,
          'ones': np.ones,
          'diag': np.diag,
-         'zeros': np.zeros}
+         'zeros': np.zeros,
+         'linspace': np.linspace,
+         'logspace': np.logspace}
 
 
 def check_vectorfe_in_lowdim(gf):
