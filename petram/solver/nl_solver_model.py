@@ -222,9 +222,25 @@ class NonlinearBaseSolver(SolverInstance):
     def blocks(self):
         return self.engine.assembled_blocks
 
-    @property(self):
+    @property
     def kiter(self):
         return self._kiter
+    
+    @property
+    def done(self):
+        return self._done
+
+    def set_damping(self, damping):
+        assert False, "Must be implemented in child"
+
+    def compute_A(self, M, B, X, mask_M, mask_B):
+        assert False, "Must be implemented in subclass"
+
+    def compute_rhs(self, M, B, X):
+        assert False, "Must be implemented in subclass"
+        
+    def assemble_rhs(self):
+        assert False, "assemble_rhs should not be called"
 
     def reset_count(self, maxiter, abstol, reltol):
         self._kiter = 0
@@ -234,23 +250,6 @@ class NonlinearBaseSolver(SolverInstance):
         self._abstol = abstol
         self._done = False
         self._converged = False
-
-    def set_damping(self, damping):
-        assert False, "Must be implemented in child"
-
-    @property
-    def done(self):
-        return self._done
-
-    @property
-    def kiter(self):
-        return self._kiter
-
-    def compute_A(self, M, B, X, mask_M, mask_B):
-        assert False, "Must be implemented in subclass"
-
-    def compute_rhs(self, M, B, X):
-        assert False, "Must be implemented in subclass"
 
     def assemble(self, inplace=True, update=False):
         engine = self.engine
@@ -281,9 +280,6 @@ class NonlinearBaseSolver(SolverInstance):
         #A, X, RHS, Ae, B, M, names = blocks
         self.assembled = True
         return M_changed
-
-    def assemble_rhs(self):
-        assert False, "assemble_rhs should not be called"
 
     def do_solve(self, update_operator=True):
         update_operator = update_operator or not self._operator_set
@@ -380,7 +376,6 @@ class NonlinearBaseSolver(SolverInstance):
             p.append_sol(X[0])
 
         return True
-
 
 class NewtonSolver(NonlinearBaseSolver):
     def __init__(self, gui, engine):
@@ -510,7 +505,7 @@ class FixedPointSolver(NonlinearBaseSolver):
                     assert False, "not supported"
 
                 delta = xdata[idx] - vec
-                norm + 1 = delta * np.conj(delta)
+                norm += delta * np.conj(delta)
                 idx = idx+1
 
         from petram.mfem_config import use_parallel
