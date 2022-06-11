@@ -143,6 +143,15 @@ class Engine(object):
         for k, n in enumerate(stored_data_names):
             setattr(self, n, data[2][k])
 
+    @property
+    def is_matrix_enabled(self, k_matrix):
+        if hasattr(self, "_enabled_matrix"):
+            return self._enabled_matrix[k_matrix]
+        return True
+
+    def set_enabled_matrix(self, enabled_matrix):
+        self._enabled_matrix = enabled_matrix
+
     def set_formblocks(self, phys_target, phys_range, n_matrix):
         '''
         This version assembles a linear system as follows

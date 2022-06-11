@@ -123,6 +123,7 @@ class SolveStep(SolverBase):
     def get_possible_child(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
+        from petram.solver.nl_solver_model import NLSolver
         from petram.solver.mg_solver_model import MGSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
         from petram.solver.solver_controls import DWCCall, ForLoop
@@ -137,6 +138,7 @@ class SolveStep(SolverBase):
                     DistanceSolver,
                     StdSolver,
                     StdMeshAdaptSolver,
+                    NLSolver,
                     # MGSolver,
                     ForLoop,
                     DWCCall, SetVar]
@@ -146,12 +148,14 @@ class SolveStep(SolverBase):
                     DistanceSolver,
                     # MGSolver,
                     StdSolver,
+                    NLSolver,
                     ForLoop,
                     DWCCall, SetVar]
 
     def get_possible_child_menu(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
+        from petram.solver.nl_solver_model import NLSolver
         from petram.solver.mg_solver_model import MGSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
         from petram.solver.solver_controls import DWCCall, InnerForLoop
@@ -163,6 +167,7 @@ class SolveStep(SolverBase):
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
             return [("", StdSolver),
                     ("", MultiLvlStationarySolver),
+                    ("", NLSolver),
                     ("", TimeDomain),
                     ("extra", DistanceSolver),
                     ("", StdMeshAdaptSolver),
@@ -172,6 +177,7 @@ class SolveStep(SolverBase):
         except:
             return [("", StdSolver),
                     ("", MultiLvlStationarySolver),
+                    ("", NLSolver),
                     ("", TimeDomain),
                     ("extra", DistanceSolver),
                     ("", InnerForLoop),

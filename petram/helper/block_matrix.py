@@ -470,6 +470,24 @@ class BlockMatrix(object):
                                                     for j in range(self.shape[1])]))
         return "\nnon-zero elements (nnz)\n" + "\n".join(txt)
 
+    def norm(self):
+        shape = self.shape
+        norm = 0
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                v = self[i, j]
+                if isinstance(v, chypre.CHypreVec):
+                    vec = v.toarray()
+                elif isinstance(v, ScipyCoo):
+                    vec = v
+                else:
+                    assert False, "not supported"
+                norm += np.sum(vec*np.conj(vec))
+
+        if use_parallel:
+            norm = np.sum(allgather(norm))
+        return np.sqrt(norm)
+
     def print_nnz(self):
         print(self.format_nnz())
 
@@ -717,9 +735,12 @@ class BlockMatrix(object):
             ret.set_element_from_distributed_mat(v, j, 0, ref)
         return ret
 
-    def set_element_from_distributed_mat(self, v, i, j, ref):
+    def set_element_from_distributed_mat(self, v, i, j, ref, alpha=1, beta=0):
         if self.kind == 'scipy':
-            self[i, j] = v.reshape(-1, 1)
+            if alpha == 1 and beta == 0:
+                self[i, j] = v.reshape(-1, 1)
+            else:
+                self[i, j] = self[i, j]*beta + alpha * v.reshape(-1, 1)
         else:
             from mpi4py import MPI
             comm = MPI.COMM_WORLD
@@ -727,21 +748,34 @@ class BlockMatrix(object):
             if ref.isHypre:
                 v = np.ascontiguousarray(v)
                 if np.iscomplexobj(v):
-                    rv = ToHypreParVec(v.real)
-                    iv = ToHypreParVec(v.imag)
-                    self[i, j] = chypre.CHypreVec(rv, iv)
+                    if alpha == 1 and beta == 0:
+                        rv = ToHypreParVec(v.real)
+                        iv = ToHypreParVec(v.imag)
+                        self[i, j] = chypre.CHypreVec(rv, iv)
+                    else:
+                        self[i, j] *= beta
+                        self[i, j][0] += v.real*alpha
+                        self[i, j][1] += v.imag*alpha
                 else:
                     rv = ToHypreParVec(v)
-                    self[i, j] = chypre.CHypreVec(rv, None)
+                    if alpha == 1 and beta == 0:
+                        self[i, j] = chypre.CHypreVec(rv, None)
+                    else:
+                        self[i, j] *= beta
+                        self[i, j][0] += alpha*v
             else:
                 assert False, "bug. this mode is not supported"
 
-    def reformat_central_mat(self, mat, ksol, ret, mask):
+    def reformat_central_mat(self, mat, ksol, ret, mask, alpha=1, beta=0):
         '''
         reformat central matrix into blockmatrix (columne vector)
         so that matrix can be multiplied from the right of this
 
         self is a block diagonal matrix
+
+        by default, ret is replaced by a new data
+        with alpha != 1 or beta!=0, it will be set to 
+             old data * beta + new_data * alpha
         '''
         L = []
         idx = 0
@@ -761,7 +795,8 @@ class BlockMatrix(object):
             else:
                 v = None   # slave node (will recive data)
             idx = idx + l
-            ret.set_element_from_central_mat(v, j, 0, ref)
+            ret.set_element_from_central_mat(
+                v, j, 0, ref, alpha=alpha, beta=beta)
         return ret
 
     def set_element_from_central_mat(self, v, i, j, ref):

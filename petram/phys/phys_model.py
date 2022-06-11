@@ -297,6 +297,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         v['timestep_weight'] = ["1", "0", "0"]
         v['isTimeDependent'] = False
         v['isTimeDependent_RHS'] = False
+        v['isGradient'] = False
         v['add_intorder'] = 0
         return v
 
@@ -520,7 +521,21 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     '''
 
     def set_matrix_weight(self, w):
-        self._mat_weight = w
+        '''
+        matrix weight = [y, dy/dt, dy/dt^2, grad(y), grad(dy/dt), grad(dy/dt^2) 
+        '''
+        ww = [0]*6
+        for i, val in enumerate(w):
+            ww[k] = val
+        if self.isGradient:
+            ww[0] = 0
+            ww[1] = 0
+            ww[2] = 0
+        else:
+            ww[4] = 0
+            ww[5] = 0
+            ww[6] = 0
+        self._mat_weight = ww
 
     def get_matrix_weight(self):
         return self._mat_weight
@@ -664,10 +679,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             ll = [['y(t)', True, 3, {"text": ""}],
                   ['dy/dt', False, 3, {"text": ""}],
                   ['d2y/dt2', False, 3, {"text": ""}],
+                  ['Gradient', False, 3, {"text": ""}],
                   ['Varing (in time/for loop) Term.', False, 3, {"text": ""}], ]
-#              ['M(t)',     "1", 0],
-#              ['M(t-dt)',  "0", 0],
-#              ['M(t-2dt)', "0", 0],]
         if self.allow_custom_intorder:
             ll.append(['Increase int. order', '0', 400, ''])
         return ll
@@ -683,7 +696,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             self.timestep_config[0] = value[0]
             self.timestep_config[1] = value[1]
             self.timestep_config[2] = value[2]
-            self.isTimeDependent = value[3]
+            self.isGradient = value[3]
+            self.isTimeDependent = value[4]
 
         if self.allow_custom_intorder:
             self.add_intorder = int(value[-1])
@@ -692,7 +706,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if self.has_essential:
             ret = [self.isTimeDependent]
         else:
-            ret = self.timestep_config[0:3] + [self.isTimeDependent]
+            ret = self.timestep_config[0:3] + \
+                [self.isGradient, self.isTimeDependent]
         if self.allow_custom_intorder:
             ret = ret + [self.add_intorder]
         return ret
