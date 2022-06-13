@@ -31,6 +31,9 @@ class DWC(object):
         elif mode == 'loopcontrol':
             ct = kwargs.pop('count')
             return (ct,), kwargs
+        elif mode == 'nlcheckpoint':
+            ct = kwargs.pop('count')
+            return (ct,), kwargs
         elif mode == 'init':
             return tuple(), kwargs
         else:
@@ -66,6 +69,9 @@ class DWC(object):
         cp = check pioint index
         '''
         raise NotImplementedError("checkpoint must be implemented by a user")
+
+    def nlcheckpoint(self, caller, count, *args, **kwargs):
+        raise NotImplementedError("nlcheckpoint must be implemented by a user")
 
     def init(self, caller, *args, **kwargs):
         '''

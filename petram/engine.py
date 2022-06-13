@@ -46,6 +46,14 @@ def enum_fes(phys, *args):
         yield ([k] + [(None if a[phys] is None else a[phys][k][1])
                       for a in args])
 
+# Number of matrices to handle.
+#   must be even number.
+#    First half is for time-dependent
+#    Second half is for gradient
+
+
+max_matrix_num = 10
+
 
 class Engine(object):
     max_levels = 10
@@ -143,14 +151,27 @@ class Engine(object):
         for k, n in enumerate(stored_data_names):
             setattr(self, n, data[2][k])
 
-    @property
-    def is_matrix_enabled(self, k_matrix):
-        if hasattr(self, "_enabled_matrix"):
-            return self._enabled_matrix[k_matrix]
-        return True
+    #
+    #  active_matrix
+    #
+    def is_matrix_active(self, k_matrix):
+        return self._active_matrix[k_matrix]
 
-    def set_enabled_matrix(self, enabled_matrix):
-        self._enabled_matrix = enabled_matrix
+    def set_active_matrix(self, active_matrix):
+        self._active_matrix = active_matrix
+
+    def activate_matrix(self, k):
+        self._active_matrix[k] = True
+
+    def deactivate_matrix(self, k):
+        self._active_matrix[k] = False
+
+    def iter_active_matrix(self):
+        d = self._active_matrix
+        return [i*d[i] for i in range(len(d)) if d[i]]
+    #
+    #  formblocks
+    #
 
     def set_formblocks(self, phys_target, phys_range, n_matrix):
         '''
@@ -745,6 +766,9 @@ class Engine(object):
         dprint1("run_apply_init0", phys_range, mode)
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             if mode in [0, 1, 2, 3, 4]:
                 for phys in phys_range:
                     names = phys.dep_vars
@@ -809,6 +833,9 @@ class Engine(object):
         dprint1("run_apply_init_autozero", phys_range)
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             for phys in phys_range:
                 names = phys.dep_vars
                 for name in names:
@@ -847,6 +874,9 @@ class Engine(object):
 
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             for phys in phys_target:
                 self.apply_essential(phys, update=update)
 
@@ -868,6 +898,8 @@ class Engine(object):
 
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
 
             for phys in phys_target:
                 self.fill_bf(phys, update)
@@ -934,6 +966,8 @@ class Engine(object):
 
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
 
             self.extras = {}
             updated_extra = []
@@ -1104,6 +1138,9 @@ class Engine(object):
         # this loop alloates GridFunctions
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             is_complex = phys.is_complex()
             for n in phys.dep_vars:
                 r_ifes = self.r_ifes(n)
@@ -1215,6 +1252,8 @@ class Engine(object):
 
             for j in range(self.n_matrix):
                 self.access_idx = j
+                if not self.is_matrix_active(j):
+                    continue
 
                 # if it is not using name defined in init, skip it...
                 if not self.has_rfes(name):
@@ -1547,6 +1586,9 @@ class Engine(object):
         fes_vars = self.fes_vars
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             for name in self.fes_vars:
                 ifes = self.ifes(name)
 
@@ -1728,6 +1770,9 @@ class Engine(object):
             R = len(self.dep_vars)
             C = len(self.r_dep_vars)
             for k in range(self.n_matrix):
+                if not self.is_matrix_active(k):
+                    continue
+
                 for i, j in product(range(R), range(C)):
                     if self.mask_M[k, i, j]:
                         M[k][i, j] = None
@@ -1743,6 +1788,8 @@ class Engine(object):
 
         for k in range(self.n_matrix):
             self.access_idx = k
+            if not self.is_matrix_active(k):
+                continue
 
             self.r_a.generateMatVec(self.a2A, self.a2Am)
             self.i_a.generateMatVec(self.a2A, self.a2Am)
@@ -1847,6 +1894,8 @@ class Engine(object):
 
         for k in range(self.n_matrix):
             self.access_idx = k
+            if not self.is_matrix_active(k):
+                continue
 
             self.r_x.generateMatVec(self.x2X)
             self.i_x.generateMatVec(self.x2X)
@@ -3126,6 +3175,9 @@ class Engine(object):
         R = len(self.dep_vars)
         C = len(self.r_dep_vars)
         for k in range(self.n_matrix):
+            if not self.is_matrix_active(k):
+                continue
+
             for i, j in product(range(R), range(C)):
                 if self.mask_M[k, i, j] and mask[0][j] and mask[1][i]:
                     return True

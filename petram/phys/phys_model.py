@@ -524,17 +524,15 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''
         matrix weight = [y, dy/dt, dy/dt^2, grad(y), grad(dy/dt), grad(dy/dt^2) 
         '''
-        ww = [0]*6
+        from petram.engine import max_matrix_num
+        ww = [0]*max_matrix_num
+
         for i, val in enumerate(w):
-            ww[k] = val
+            ww[i] = val
         if self.isGradient:
-            ww[0] = 0
-            ww[1] = 0
-            ww[2] = 0
+            ww[:(max_matrix_num//2)] = [False]*(max_matrix_num//2)
         else:
-            ww[4] = 0
-            ww[5] = 0
-            ww[6] = 0
+            ww[(max_matrix_num//2):] = [False]*(max_matrix_num//2)
         self._mat_weight = ww
 
     def get_matrix_weight(self):

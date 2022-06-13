@@ -240,18 +240,21 @@ class SolveStep(SolverBase):
     def get_active_solvers(self):
         return [x for x in self.iter_enabled()]
 
-    def get_num_matrix(self, phys_target):
+    def get_num_matrix(self, phys_target, set_active_matrix=False, engine=None):
+        from petram.engine import max_matrix_num
 
         num = []
         num_matrix = 0
         active_solves = [self[k] for k in self if self[k].enabled]
         ###
+
+        all_weights = []
         for phys in phys_target:
             for mm in phys.walk():
                 if not mm.enabled:
                     continue
 
-                ww = [False]*10
+                ww = [False]*max_matrix_num
                 for s in active_solves:
                     w = s.get_matrix_weight(mm.timestep_config)
                     for i, v in enumerate(w):
@@ -263,7 +266,12 @@ class SolveStep(SolverBase):
                 tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
                 num_matrix = max(tmp, num_matrix)
 
-        #dprint1("number of matrix", num_matrix)
+                all_weights.append(mm.get_matrix_weight())
+
+        if set_active_matrix:
+            flag = np.sum(all_weights, 0).astype(bool)
+            engine.set_active_matrix(flag)
+            dprint1("active_matrix flag", flag)
         return num_matrix
 
     def get_matrix_weight(self, timestep_config):
@@ -403,7 +411,9 @@ class SolveStep(SolverBase):
         phys_target = self.get_phys()
         phys_range = self.get_phys_range()
 
-        num_matrix = self.get_num_matrix(phys_target)
+        num_matrix = self.get_num_matrix(phys_target,
+                                         set_active_matrix=True,
+                                         engine=engine)
 
         engine.set_formblocks(phys_target, phys_range, num_matrix)
 
@@ -696,6 +706,17 @@ class SolverInstance(ABC):
 
         self.blk_mask = (mask1, mask2)
         self.engine._matrix_blk_mask = self.blk_mask
+
+    def recover_solution(self, ksol=0):
+        '''
+        bring linear algebra level solution to gridfunction.
+        called when we need a solution vector in gridfucntion vector.
+        '''
+        engine = self.engine
+        phys_target = self.get_phys()
+        sol, sol_extra = engine.split_sol_array(self.sol)
+        engine.recover_sol(sol)
+        extra_data = engine.process_extra(sol_extra)
 
     def save_solution(self, ksol=0, skip_mesh=False,
                       mesh_only=False, save_parmesh=False):

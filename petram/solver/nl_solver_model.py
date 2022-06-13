@@ -3,6 +3,7 @@
   non-linear stationary solver
 
 '''
+import mfem.common.chypre as chypre
 from petram.solver.solver_model import SolverInstance
 import os
 import numpy as np
@@ -11,7 +12,6 @@ from petram.model import Model
 from petram.solver.solver_model import Solver
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('NLSolver')
-rprint = debug.regular_print('StdSolver')
 
 
 class NLSolver(Solver):
@@ -34,9 +34,16 @@ class NLSolver(Solver):
         v["nl_abstol"] = 0.0
         v["nl_damping"] = 0.2
         v["nl_verbose"] = True
+        v['dwc_name'] = ''
+        v['use_dwc_nl'] = False
+        v['dwc_nl_arg'] = ''
+
         return v
 
     def panel1_param(self):
+        ret = [["dwc",   self.dwc_name,   0, {}],
+               ["args.",   self.dwc_nl_arg,   0, {}]]
+        value = [self.dwc_name, self.dwc_nl_arg]
         return [  # ["Initial value setting",   self.init_setting,  0, {},],
             ["physics model",   self.phys_model,  0, {}, ],
             ["Non-linear solver", None, 1, {
@@ -45,6 +52,8 @@ class NLSolver(Solver):
             ["NL rel. tol.", self.nl_reltol, 300, {}],
             ["NL abs. tol.", self.nl_abstol, 300, {}],
             ["NL damping", self.nl_damping, 300, {}],
+            [None, [False, value], 27, [{'text': 'Use DWC (nlcheckpoint)'},
+                                        {'elp': ret}]],
             [None, self.nl_verbose, 3, {
                 "text": "verbose output for non-linear iteration"}],
             [None, self.init_only,  3, {"text": "initialize solution only"}],
@@ -69,6 +78,7 @@ class NLSolver(Solver):
             self.nl_reltol,
             self.nl_abstol,
             self.nl_damping,
+            [self.use_dwc_nl, [self.dwc_name, self.dwc_nl_arg, ]],
             self.nl_verbose,
             self.init_only,
             self.clear_wdir,
@@ -77,7 +87,7 @@ class NLSolver(Solver):
             self.use_profiler,
             self.skip_solve,
             self.load_sol,
-            self.sol_file)
+            self.sol_file,)
 
     def import_panel1_value(self, v):
         #self.init_setting = str(v[0])
@@ -87,16 +97,20 @@ class NLSolver(Solver):
         self.nl_reltol = v[3]
         self.nl_abstol = v[4]
         self.nl_damping = v[5]
-        self.nl_verbose = v[6]
+        self.use_dwc_nl = v[6][0]
+        self.dwc_name = v[6][1][0]
+        self.dwc_nl_arg = v[6][1][1]
 
-        self.init_only = v[7]
-        self.clear_wdir = v[8]
-        self.assemble_real = v[9]
-        self.save_parmesh = v[10]
-        self.use_profiler = v[11]
-        self.skip_solve = v[12]
-        self.load_sol = v[13]
-        self.sol_file = v[14]
+        self.nl_verbose = v[7]
+
+        self.init_only = v[8]
+        self.clear_wdir = v[9]
+        self.assemble_real = v[10]
+        self.save_parmesh = v[11]
+        self.use_profiler = v[12]
+        self.skip_solve = v[13]
+        self.load_sol = v[14]
+        self.sol_file = v[15]
 
     def get_editor_menus(self):
         return []
@@ -145,19 +159,21 @@ class NLSolver(Solver):
 
     def get_matrix_weight(self, timestep_config):  # , timestep_weight):
         # this solver uses y, and grad(y)
+        from petram.engine import max_matrix_num
+        weight = [0]*max_matrix_num
+
         if timestep_config[0]:
+            weight[0] = 1
             if self.nl_scheme == 'Newton':
-                return [1, 0, 0, 1]
-            else:
-                return [1, 0, 0]
-        else:
-            return [0, 0, 0]
+                weight[max_matrix_num//2] = 1
+        return weight
 
     @debug.use_profiler
     def run(self, engine, is_first=True, return_instance=False):
         dprint1("Entering run (is_first= ", is_first, ") ", self.fullpath())
 
         instance = self.allocate_solver_instance(engine)
+        instance.set_verbose(self.nl_verbose)
 
         instance.set_blk_mask()
         if return_instance:
@@ -175,13 +191,12 @@ class NLSolver(Solver):
                 is_first = False
             instance.load_sol(self.sol_file)
         else:
-            kiter = 0
             instance.reset_count(self.nl_maxiter,
                                  self.nl_abstol,
                                  self.nl_reltol)
             instance.set_damping(self.nl_damping)
 
-            while not instance.done():
+            while not instance.done:
                 if is_first:
                     instance.assemble()
                     is_first = False
@@ -191,6 +206,11 @@ class NLSolver(Solver):
                 update_operator = engine.check_block_matrix_changed(
                     instance.blk_mask)
                 instance.solve(update_operator=update_operator)
+
+                if not instance.done:
+                    # we do this only if we are going into the next loop
+                    # since the same is done in save_solution
+                    instance.recover_solution(ksol=0)
 
         instance.save_solution(ksol=0,
                                skip_mesh=False,
@@ -217,6 +237,8 @@ class NonlinearBaseSolver(SolverInstance):
         self._beta = 0.0
         self._done = False
         self._converged = False
+        self._verbose = False
+        self.debug_data = []
 
     @property
     def blocks(self):
@@ -225,10 +247,17 @@ class NonlinearBaseSolver(SolverInstance):
     @property
     def kiter(self):
         return self._kiter
-    
+
     @property
     def done(self):
         return self._done
+
+    @property
+    def verbose(self):
+        return self._verbose
+
+    def set_verbose(self, verbose):
+        self._verbose = verbose
 
     def set_damping(self, damping):
         assert False, "Must be implemented in child"
@@ -238,7 +267,7 @@ class NonlinearBaseSolver(SolverInstance):
 
     def compute_rhs(self, M, B, X):
         assert False, "Must be implemented in subclass"
-        
+
     def assemble_rhs(self):
         assert False, "assemble_rhs should not be called"
 
@@ -250,6 +279,7 @@ class NonlinearBaseSolver(SolverInstance):
         self._abstol = abstol
         self._done = False
         self._converged = False
+        self.debug_data = []
 
     def assemble(self, inplace=True, update=False):
         engine = self.engine
@@ -323,9 +353,6 @@ class NonlinearBaseSolver(SolverInstance):
             XX = None
 
         solall = linearsolver.Mult(BB, x=XX, case_base=0)
-        if solall is not None:
-            dprint1("solall.shape", solall.shape)
-
         #linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         #solall = linearsolver.Mult(BB, case_base=0)
 
@@ -333,15 +360,16 @@ class NonlinearBaseSolver(SolverInstance):
             solall = self.linearsolver_model.real_to_complex(solall, AA)
 
         if solall is not None:
-            sol_norm = np.sqrt(solall*np.conj(solall))
+            sol_norm = np.sum(solall*np.conj(solall))
         from petram.mfem_config import use_parallel
         if use_parallel:
             from mpi4py import MPI
-            if myid == 0:
+            if MPI.COMM_WORLD.rank == 0:
                 sol_norm = MPI.COMM_WORLD.bcast(sol_norm, root=0)
             else:
                 sol_norm = MPI.COMM_WORLD.bcast(None, root=0)
-        self.sol_norm = sol_norm
+            sol_norm = np.sum(sol_norm)
+        self.sol_norm = np.sqrt(sol_norm)
 
         A.reformat_central_mat(
             solall, 0, X[0], mask, alpha=self._alpha, beta=self._beta)
@@ -352,6 +380,15 @@ class NonlinearBaseSolver(SolverInstance):
             p.append_sol(X[0])
 
         self._kiter = self._kiter + 1
+
+    def call_dwc_nliteration(self):
+        if self.gui.use_dwc_nl:
+            self.engine.call_dwc(self.gui.get_phys_range(),
+                                 method="nliteration",
+                                 callername=self.gui.name(),
+                                 dwcname=self.gui.dwc_name,
+                                 args=self.gui.dwc_nl_arg,
+                                 count=self.kiter,)
 
     def load_sol(self, solfile):
         from petram.mfem_config import use_parallel
@@ -377,9 +414,12 @@ class NonlinearBaseSolver(SolverInstance):
 
         return True
 
+
 class NewtonSolver(NonlinearBaseSolver):
     def __init__(self, gui, engine):
         NonlinearBaseSolver.__init__(self, gui, engine)
+        self.norm0 = 0.0
+        self.norm1 = 0.0
 
     def set_damping(self, damping):
         self._alpha = (1.0 - damping)
@@ -389,11 +429,13 @@ class NewtonSolver(NonlinearBaseSolver):
         '''
         return A and isAnew
         '''
+        from petram.engine import max_matrix_num
+
         if self.kiter == 0:
             A = M[0]
         else:
-            A = M[0] + M[3]
-        return A, np.any(mask_M[0]) or np.any(mask_M[3])
+            A = M[0] + M[max_matrix_num//2]
+        return A, np.any(mask_M[0]) or np.any(mask_M[max_matrix_num//2])
 
     def compute_rhs(self, M, B, X):
         '''
@@ -403,10 +445,13 @@ class NewtonSolver(NonlinearBaseSolver):
         return RHS
 
     def assemble(self, inplace=True, update=False):
+        from petram.engine import max_matrix_num
+
         if self.kiter == 0:
-            self.engine.set_enabled_matrix([True, False, False, False])
+            self.engine.deactivate_matrix(max_matrix_num//2)
         else:
-            self.engine.set_enabled_matrix([True, False, False, True])
+            self.engine.activate_matrix(max_matrix_num//2)
+
         NonlinearBaseSolver.assemble(self, inplace=inplace, update=update)
 
     def solve(self, update_operator=True):
@@ -414,15 +459,23 @@ class NewtonSolver(NonlinearBaseSolver):
 
         if self.kiter == 0:
             self.norm0 = X[0].norm()
+
         elif self.kiter == 1:
-            self.norm1 = X[1].norm()
+            self.norm1 = X[0].norm()
+
+        if self.verbose:
+            dprint("calling do_solve", self.kiter)
 
         self.do_solve(update_operator=update_operator)
 
+        if self.verbose:
+            dprint1("calling do_solve... done", self.kiter)
+            dprint1("reference norm", self.norm0, self.norm1, self.sol_norm)
+
         if self.kiter == 1:
-            self.correction0 = sol_norm * self._alpha
+            self.correction0 = self.sol_norm * self._alpha
         else:
-            correction = sol_norm * self._alpha
+            correction = self.sol_norm * self._alpha
             if correction < self.correction0*self._reltol:
                 self._converged = True
                 self._done = True
@@ -431,6 +484,7 @@ class NewtonSolver(NonlinearBaseSolver):
             self._done = True
 
         self.engine.add_FESvariable_to_NS(self.get_phys())
+        self.call_dwc_nliteration()
 
 
 class FixedPointSolver(NonlinearBaseSolver):
@@ -451,31 +505,39 @@ class FixedPointSolver(NonlinearBaseSolver):
         A, X, RHS, Ae, B, M, depvars = self.blocks
 
         if self.kiter == 0:
-            self.norm0 = X[0].norm()
+            self.norm0 = np.abs(X[0].norm())
 
         xdata = self.copy_x(X[0])
         self.do_solve(update_operator=update_operator)
 
         diffnorm = self.diff_norm(X[0], xdata)
-        norm = X[0].norm
+        norm = np.abs(X[0].norm())
+        self.debug_data.append((norm, diffnorm))
 
         if self.kiter == 1:
-            self.correction0 = norm
+            self.correction0 = diffnorm
+            if self.verbose:
+                dprint1("calling do_solve... done", self.kiter)
+                dprint1("reference correction", self.correction0)
+
         else:
-            if diffnorm < self.correction0*self._reltol:
+            print(diffnorm, norm*self._reltol)
+            if diffnorm < norm*self._reltol:
                 self._converged = True
                 self._done = True
-            if abs(norm - self.norm0)/abs(norm + self.norm0) < self._reltol:
-                self._converged = True
-                self._done = True
+
+            dprint1("calling do_solve... done", self.kiter)
+            dprint1("correction norms", self.correction0, self.debug_data)
 
         if self._kiter >= self._maxiter:
             self._done = True
 
         self.engine.add_FESvariable_to_NS(self.get_phys())
+        self.call_dwc_nliteration()
 
     def copy_x(self, X):
         shape = X.shape
+
         xdata = []
         for i in range(shape[0]):
             for j in range(shape[1]):
@@ -487,13 +549,15 @@ class FixedPointSolver(NonlinearBaseSolver):
                 else:
                     assert False, "not supported"
                 xdata.append(vec.copy())
+        from mfem.common.mpi_debug import nicePrint
+
         return xdata
 
     def diff_norm(self, X, xdata):
         shape = X.shape
-        xdata = []
         idx = 0
         norm = 0
+
         for i in range(shape[0]):
             for j in range(shape[1]):
                 v = X[i, j]
@@ -505,10 +569,11 @@ class FixedPointSolver(NonlinearBaseSolver):
                     assert False, "not supported"
 
                 delta = xdata[idx] - vec
-                norm += delta * np.conj(delta)
+                norm += np.sum(delta * np.conj(delta))
                 idx = idx+1
 
         from petram.mfem_config import use_parallel
         if use_parallel:
+            from mpi4py import MPI
             norm = np.sum(np.array(MPI.COMM_WORLD.allgather(norm)))
-        return np.sqrt(norm)
+        return np.abs(np.sqrt(norm))

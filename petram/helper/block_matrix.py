@@ -709,7 +709,7 @@ class BlockMatrix(object):
 
         return ret, P2
 
-    def reformat_distributed_mat(self, mat, ksol, ret, mask):
+    def reformat_distributed_mat(self, mat, ksol, ret, mask, alpha=1, beta=0):
         '''
         reformat distributed matrix into blockmatrix (columne vector)
         '''
@@ -732,7 +732,8 @@ class BlockMatrix(object):
             v = mat[idx:idx + l, ksol]
             idx = idx + l
 
-            ret.set_element_from_distributed_mat(v, j, 0, ref)
+            ret.set_element_from_distributed_mat(
+                v, j, 0, ref, alpha=alpha, beta=beta)
         return ret
 
     def set_element_from_distributed_mat(self, v, i, j, ref, alpha=1, beta=0):
@@ -754,15 +755,18 @@ class BlockMatrix(object):
                         self[i, j] = chypre.CHypreVec(rv, iv)
                     else:
                         self[i, j] *= beta
-                        self[i, j][0] += v.real*alpha
-                        self[i, j][1] += v.imag*alpha
+                        realpart = self[i, j][0].GetDataArray()
+                        realpart += v.real*alpha
+                        imagpart = self[i, j][1].GetDataArray()
+                        imagpart += v.imag*alpha
                 else:
                     rv = ToHypreParVec(v)
                     if alpha == 1 and beta == 0:
                         self[i, j] = chypre.CHypreVec(rv, None)
                     else:
                         self[i, j] *= beta
-                        self[i, j][0] += alpha*v
+                        realpart = self[i, j][0].GetDataArray()
+                        realpart += v*alpha
             else:
                 assert False, "bug. this mode is not supported"
 
@@ -799,7 +803,7 @@ class BlockMatrix(object):
                 v, j, 0, ref, alpha=alpha, beta=beta)
         return ret
 
-    def set_element_from_central_mat(self, v, i, j, ref):
+    def set_element_from_central_mat(self, v, i, j, ref, alpha=1, beta=0):
         '''
         set element using vector in root node
         row partitioning is taken from column partitioning
@@ -809,7 +813,11 @@ class BlockMatrix(object):
             #print("here", type(self[i,j]))
             # if isinstance(self[i,j], ScipyCoo):
             #   print("here", self[i,j].shape, self[i,j])
-            self[i, j] = v.reshape(-1, 1)
+            if alpha == 1 and beta == 0:
+                self[i, j] = v.reshape(-1, 1)
+            else:
+                self[i, j] = self[i, j]*beta + alpha * v.reshape(-1, 1)
+
         else:
             from mpi4py import MPI
             comm = MPI.COMM_WORLD
@@ -825,16 +833,31 @@ class BlockMatrix(object):
 
                 v = np.ascontiguousarray(v[start_col:end_col])
                 if np.iscomplexobj(v):
-                    rv = ToHypreParVec(v.real)
-                    iv = ToHypreParVec(v.imag)
-                    self[i, j] = chypre.CHypreVec(rv, iv)
+                    if alpha == 1 and beta == 0:
+                        rv = ToHypreParVec(v.real)
+                        iv = ToHypreParVec(v.imag)
+                        self[i, j] = chypre.CHypreVec(rv, iv)
+                    else:
+                        self[i, j] *= beta
+                        realpart = self[i, j][0].GetDataArray()
+                        realpart += v.real*alpha
+                        imagpart = self[i, j][1].GetDataArray()
+                        imagpart += v.imag*alpha
                 else:
-                    rv = ToHypreParVec(v)
-                    self[i, j] = chypre.CHypreVec(rv, None)
+                    if alpha == 1 and beta == 0:
+                        rv = ToHypreParVec(v)
+                        self[i, j] = chypre.CHypreVec(rv, None)
+                    else:
+                        self[i, j] *= beta
+                        realpart = self[i, j][0].GetDataArray()
+                        realpart += v*alpha
             else:
                 # slave node gets the copy
                 v = comm.bcast(v)
-                self[i, j] = v.reshape(-1, 1)
+                if alpha == 1 and beta == 0:
+                    self[i, j] = v.reshape(-1, 1)
+                else:
+                    self[i, j] = self[i, j]*beta + alpha * v.reshape(-1, 1)
 
     def get_squaremat_from_right(self, r, c):
         size = self[r, c].shape
