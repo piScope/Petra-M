@@ -63,27 +63,40 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('Variables')
 
 
 class _decorator(object):
-    def float(self, dependency=None):
+    def float(self, dependency=None, grad=None, curl=None, div=None):
         def dec(func):
-            obj = PyFunctionVariable(
-                func, complex=False, dependency=dependency)
+            obj = PyFunctionVariable(func,
+                                     complex=False,
+                                     dependency=dependency,
+                                     grad=grad,
+                                     curl=curl,
+                                     div=div)
             return obj
         return dec
 
-    def complex(self, dependency=None):
+    def complex(self, dependency=None, grad=None, curl=None, div=None):
         def dec(func):
-            obj = PyFunctionVariable(func, complex=True, dependency=dependency)
+            obj = PyFunctionVariable(func,
+                                     complex=True,
+                                     dependency=dependency,
+                                     grad=grad,
+                                     curl=curl,
+                                     div=div)
+
             return obj
         return dec
 
-    def array(self, complex=False, shape=(1,), dependency=None):
+    def array(self, complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None):
         def dec(func):
             # print "inside dec", complex, shape
             obj = PyFunctionVariable(
                 func,
                 complex=complex,
                 shape=shape,
-                dependency=dependency)
+                dependency=dependency,
+                grad=grad,
+                curl=curl,
+                div=div)
             return obj
         return dec
 
@@ -175,12 +188,15 @@ class Variable():
     define everything which we define algebra
     '''
 
-    def __init__(self, complex=False, dependency=None):
+    def __init__(self, complex=False, dependency=None, grad=None, curl=None, div=None):
         self.complex = complex
 
         # dependency stores a list of Finite Element space discrite variable
         # names whose set_point has to be called
         self.dependency = [] if dependency is None else dependency
+        self.div = [] if div is None else div
+        self.curl = [] if curl is None else curl
+        self.grad = [] if grad is None else grad
 
     def __call__(self):
         raise NotImplementedError("Subclass need to implement")
@@ -806,12 +822,16 @@ class DomainVariable(Variable):
 
 
 class PyFunctionVariable(Variable):
-    def __init__(self, func, complex=False, shape=tuple(), dependency=None):
+    def __init__(self, func, complex=False, shape=tuple(), dependency=None,
+                 grad=None, curl=None, div=None):
         super(
             PyFunctionVariable,
-            self).__init__(
-            complex=complex,
-            dependency=dependency)
+            self).__init__(complex=complex,
+                           dependency=dependency,
+                           grad=grad,
+                           curl=curl,
+                           div=div)
+
         self.func = func
         self.t = None
         self.x = (0, 0, 0)
@@ -1095,8 +1115,60 @@ class GridFunctionVariable(Variable):
         self.deriv = deriv if deriv is not None else self._def_deriv
         self.deriv_args = (gf_real, gf_imag)
 
+        self._curl = None
+        self._div = None
+        self._grad = None
+
     def _def_deriv(self, *args):
         return args[0], args[1], None
+
+    def eval_grad(self):
+        if self._grad is None:
+            grad_r = mfem.GradientGridFunctionCoefficient(self.gfr)
+            if self.gfi is not None:
+                grad_i = mfem.GradientVectorGridFunctionCoefficient(self.gfi)
+            else:
+                grad_i = None
+            self._grad_gf = (grad_r, grad_i)
+        v = mfem.Vector()
+        self._grad_gf[0].Eval(v, self.T, self.ip)
+        ret = v.GetDataArray().copy()
+        if self._grad_gf[1] is not None:
+            self._grad_gf[1].Eval(v, self.T, self.ip)
+            ret = ret + 1j*v.GetDataArray()
+        return ret
+
+    def eval_curl(self):
+        if self._curl is None:
+            grad_r = mfem.CurlGridFunctionCoefficient(self.gfr)
+            if self.gfi is not None:
+                curl_i = mfem.CurlVectorGridFunctionCoefficient(self.gfi)
+            else:
+                curl_i = None
+            self._curl_gf = (curl_r, curl_i)
+        v = mfem.Vector()
+        self._curl_gf[0].Eval(v, self.T, self.ip)
+        ret = v.GetDataArray().copy()
+        if self._curl_gf[1] is not None:
+            self._curl_gf[1].Eval(v, self.T, self.ip)
+            ret = ret + 1j*v.GetDataArray()
+        return ret
+
+    def eval_div(self):
+        if self._div is None:
+            div_r = mfem.DivergenceGridFunctionCoefficient(self.gfr)
+            if self.gfi is not None:
+                div_i = mfem.DivergenceVectorGridFunctionCoefficient(self.gfi)
+            else:
+                div_i = None
+            self._div_gf = (div_r, div_i)
+        v = mfem.Vector()
+        self._div_gf[0].Eval(v, self.T, self.ip)
+        ret = v.GetDataArray().copy()
+        if self._div_gf[1] is not None:
+            self._div_gf[1].Eval(v, self.T, self.ip)
+            ret = ret + 1j*v.GetDataArray()
+        return ret
 
     def get_gf_real(self):
         if not self.isGFSet:

@@ -4,6 +4,7 @@
 
 '''
 import mfem.common.chypre as chypre
+import petram.helper.block_matrix as bm
 from petram.solver.solver_model import SolverInstance
 import os
 import numpy as np
@@ -195,8 +196,10 @@ class NLSolver(Solver):
                                  self.nl_abstol,
                                  self.nl_reltol)
             instance.set_damping(self.nl_damping)
-
+            dprint1("Starting non-linear iteration")
             while not instance.done:
+                dprint1("="*72)
+                dprint1("NL iteration step=", instance.kiter)
                 if is_first:
                     instance.assemble()
                     is_first = False
@@ -422,7 +425,7 @@ class NewtonSolver(NonlinearBaseSolver):
         self.norm1 = 0.0
 
     def set_damping(self, damping):
-        self._alpha = (1.0 - damping)
+        self._alpha = -(1.0 - damping)   # note this alpha is negative
         self._beta = 1.0
 
     def compute_A(self, M, B, X, mask_M, mask_B):
@@ -435,13 +438,15 @@ class NewtonSolver(NonlinearBaseSolver):
             A = M[0]
         else:
             A = M[0] + M[max_matrix_num//2]
+
         return A, np.any(mask_M[0]) or np.any(mask_M[max_matrix_num//2])
 
     def compute_rhs(self, M, B, X):
         '''
         RHS = Ax - b
         '''
-        RHS = M[0].dot(self.engine.sol) - B
+        #RHS = M[0].dot(self.engine.sol) - B
+        RHS = M[0].dot(X[0]) - B
         return RHS
 
     def assemble(self, inplace=True, update=False):
@@ -464,24 +469,34 @@ class NewtonSolver(NonlinearBaseSolver):
             self.norm1 = X[0].norm()
 
         if self.verbose:
-            dprint("calling do_solve", self.kiter)
+            dprint1("Linear solve...step=", self.kiter)
 
         self.do_solve(update_operator=update_operator)
 
         if self.verbose:
-            dprint1("calling do_solve... done", self.kiter)
-            dprint1("reference norm", self.norm0, self.norm1, self.sol_norm)
+            dprint1("|X0|, |X1| and [dX| = ",
+                    self.norm0, self.norm1, self.sol_norm)
 
         if self.kiter == 1:
-            self.correction0 = self.sol_norm * self._alpha
+            self.correction0 = self.sol_norm * abs(self._alpha)
+            self.debug_data.append(self.correction0)
         else:
-            correction = self.sol_norm * self._alpha
+            correction = self.sol_norm * abs(self._alpha)
+            self.debug_data.append(correction)
             if correction < self.correction0*self._reltol:
                 self._converged = True
                 self._done = True
+                dprint1("converged (newton) #iter=", self.kiter)
 
         if self._kiter >= self._maxiter:
             self._done = True
+            if not self._converged:
+                dprint1("no convergence (newton interation)")
+
+        if self._done:
+            if self.verbose:            
+                dprint1("reference norms |X0|, |X1|=", self.norm0, self.norm1)
+                dprint1("correction alpha*|dX| = ", self.debug_data)
 
         self.engine.add_FESvariable_to_NS(self.get_phys())
         self.call_dwc_nliteration()
@@ -508,6 +523,9 @@ class FixedPointSolver(NonlinearBaseSolver):
             self.norm0 = np.abs(X[0].norm())
 
         xdata = self.copy_x(X[0])
+
+        if self.verbose:
+            dprint1("Linear solve...step=", self.kiter)
         self.do_solve(update_operator=update_operator)
 
         diffnorm = self.diff_norm(X[0], xdata)
@@ -517,20 +535,24 @@ class FixedPointSolver(NonlinearBaseSolver):
         if self.kiter == 1:
             self.correction0 = diffnorm
             if self.verbose:
-                dprint1("calling do_solve... done", self.kiter)
                 dprint1("reference correction", self.correction0)
 
         else:
-            print(diffnorm, norm*self._reltol)
             if diffnorm < norm*self._reltol:
                 self._converged = True
                 self._done = True
-
-            dprint1("calling do_solve... done", self.kiter)
-            dprint1("correction norms", self.correction0, self.debug_data)
+                dprint1("converged (fixed-point) #iter=", self.kiter)
 
         if self._kiter >= self._maxiter:
             self._done = True
+            if not self._converged:
+                dprint1("no convergence (fixed-point)")
+
+        if self._done:
+            if self.verbose:
+                 dprint1("reference correction", self.correction0)
+                 dprint1("norms", [x[0] for x in self.debug_data])
+                 dprint1("dnorms", [x[1] for x in self.debug_data])
 
         self.engine.add_FESvariable_to_NS(self.get_phys())
         self.call_dwc_nliteration()
@@ -544,8 +566,8 @@ class FixedPointSolver(NonlinearBaseSolver):
                 v = X[i, j]
                 if isinstance(v, chypre.CHypreVec):
                     vec = v.toarray()
-                elif isinstance(v, ScipyCoo):
-                    vec = v
+                elif isinstance(v, bm.ScipyCoo):
+                    vec = v.toarray().flatten()
                 else:
                     assert False, "not supported"
                 xdata.append(vec.copy())
@@ -563,8 +585,8 @@ class FixedPointSolver(NonlinearBaseSolver):
                 v = X[i, j]
                 if isinstance(v, chypre.CHypreVec):
                     vec = v.toarray()
-                elif isinstance(v, ScipyCoo):
-                    vec = v
+                elif isinstance(v, bm.ScipyCoo):
+                    vec = v.toarray().flatten()
                 else:
                     assert False, "not supported"
 

@@ -479,7 +479,7 @@ class BlockMatrix(object):
                 if isinstance(v, chypre.CHypreVec):
                     vec = v.toarray()
                 elif isinstance(v, ScipyCoo):
-                    vec = v
+                    vec = v.toarray()
                 else:
                     assert False, "not supported"
                 norm += np.sum(vec*np.conj(vec))
