@@ -386,12 +386,15 @@ class NonlinearBaseSolver(SolverInstance):
 
     def call_dwc_nliteration(self):
         if self.gui.use_dwc_nl:
-            self.engine.call_dwc(self.gui.get_phys_range(),
-                                 method="nliteration",
-                                 callername=self.gui.name(),
-                                 dwcname=self.gui.dwc_name,
-                                 args=self.gui.dwc_nl_arg,
-                                 count=self.kiter,)
+            converged = self.engine.call_dwc(self.gui.get_phys_range(),
+                                             method="nliteration",
+                                             callername=self.gui.name(),
+                                             dwcname=self.gui.dwc_name,
+                                             args=self.gui.dwc_nl_arg,
+                                             count=self.kiter-1,)
+            if converged:
+                self._done = True
+                self._conveged = True
 
     def load_sol(self, solfile):
         from petram.mfem_config import use_parallel
@@ -425,7 +428,7 @@ class NewtonSolver(NonlinearBaseSolver):
         self.norm1 = 0.0
 
     def set_damping(self, damping):
-        self._alpha = -(1.0 - damping)   # note this alpha is negative
+        self._alpha = 1.0 - damping
         self._beta = 1.0
 
     def compute_A(self, M, B, X, mask_M, mask_B):
@@ -438,7 +441,6 @@ class NewtonSolver(NonlinearBaseSolver):
             A = M[0]
         else:
             A = M[0] + M[max_matrix_num//2]
-
         return A, np.any(mask_M[0]) or np.any(mask_M[max_matrix_num//2])
 
     def compute_rhs(self, M, B, X):
@@ -446,7 +448,7 @@ class NewtonSolver(NonlinearBaseSolver):
         RHS = Ax - b
         '''
         #RHS = M[0].dot(self.engine.sol) - B
-        RHS = M[0].dot(X[0]) - B
+        RHS = B - M[0].dot(X[0])
         return RHS
 
     def assemble(self, inplace=True, update=False):
@@ -472,6 +474,7 @@ class NewtonSolver(NonlinearBaseSolver):
             dprint1("Linear solve...step=", self.kiter)
 
         self.do_solve(update_operator=update_operator)
+        self.engine.add_FESvariable_to_NS(self.get_phys())
 
         if self.verbose:
             dprint1("|X0|, |X1| and [dX| = ",
@@ -486,20 +489,21 @@ class NewtonSolver(NonlinearBaseSolver):
             if correction < self.correction0*self._reltol:
                 self._converged = True
                 self._done = True
-                dprint1("converged (newton) #iter=", self.kiter)
 
         if self._kiter >= self._maxiter:
             self._done = True
-            if not self._converged:
-                dprint1("no convergence (newton interation)")
+
+        self.call_dwc_nliteration()
 
         if self._done:
-            if self.verbose:            
+            if self._converged:
+                dprint1("converged (newton) #iter=", self.kiter)
+            else:
+                dprint1("no convergence (newton interation)")
+
+            if self.verbose:
                 dprint1("reference norms |X0|, |X1|=", self.norm0, self.norm1)
                 dprint1("correction alpha*|dX| = ", self.debug_data)
-
-        self.engine.add_FESvariable_to_NS(self.get_phys())
-        self.call_dwc_nliteration()
 
 
 class FixedPointSolver(NonlinearBaseSolver):
@@ -526,7 +530,9 @@ class FixedPointSolver(NonlinearBaseSolver):
 
         if self.verbose:
             dprint1("Linear solve...step=", self.kiter)
+
         self.do_solve(update_operator=update_operator)
+        self.engine.add_FESvariable_to_NS(self.get_phys())
 
         diffnorm = self.diff_norm(X[0], xdata)
         norm = np.abs(X[0].norm())
@@ -541,21 +547,22 @@ class FixedPointSolver(NonlinearBaseSolver):
             if diffnorm < norm*self._reltol:
                 self._converged = True
                 self._done = True
-                dprint1("converged (fixed-point) #iter=", self.kiter)
 
         if self._kiter >= self._maxiter:
             self._done = True
-            if not self._converged:
-                dprint1("no convergence (fixed-point)")
+
+        self.call_dwc_nliteration()
 
         if self._done:
-            if self.verbose:
-                 dprint1("reference correction", self.correction0)
-                 dprint1("norms", [x[0] for x in self.debug_data])
-                 dprint1("dnorms", [x[1] for x in self.debug_data])
+            if self._converged:
+                dprint1("converged (fixed-point) #iter=", self.kiter)
+            else:
+                dprint1("no convergence (fixed-point interation)")
 
-        self.engine.add_FESvariable_to_NS(self.get_phys())
-        self.call_dwc_nliteration()
+            if self.verbose:
+                dprint1("reference correction", self.correction0)
+                dprint1("norms", [x[0] for x in self.debug_data])
+                dprint1("dnorms", [x[1] for x in self.debug_data])
 
     def copy_x(self, X):
         shape = X.shape
