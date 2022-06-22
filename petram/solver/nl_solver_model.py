@@ -33,7 +33,7 @@ class NLSolver(Solver):
         v["nl_maxiter"] = 10
         v["nl_reltol"] = 0.001
         v["nl_abstol"] = 0.0
-        v["nl_damping"] = 0.2
+        v["nl_damping"] = 1.0
         v["nl_verbose"] = True
         v['dwc_name'] = ''
         v['use_dwc_nl'] = False
@@ -428,7 +428,7 @@ class NewtonSolver(NonlinearBaseSolver):
         self.norm1 = 0.0
 
     def set_damping(self, damping):
-        self._alpha = 1.0 - damping
+        self._alpha = damping
         self._beta = 1.0
 
     def compute_A(self, M, B, X, mask_M, mask_B):
@@ -511,8 +511,8 @@ class FixedPointSolver(NonlinearBaseSolver):
         NonlinearBaseSolver.__init__(self, gui, engine)
 
     def set_damping(self, damping):
-        self._alpha = (1.0 - damping)
-        self._beta = damping
+        self._alpha = damping
+        self._beta = (1.0 - damping)
 
     def compute_A(self, M, B, X, mask_M, mask_B):
         return M[0], np.any(mask_M[0])
