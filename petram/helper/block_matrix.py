@@ -472,9 +472,12 @@ class BlockMatrix(object):
 
     def norm(self):
         shape = self.shape
-        norm = 0
+        assert shape[1] == 1, "multilpe vectors are not supported"
+        norm = [0]*shape[0]
+
         for i in range(shape[0]):
-            for j in range(shape[1]):
+            # for j in range(shape[1]):
+            for j in [0]:
                 v = self[i, j]
                 if isinstance(v, chypre.CHypreVec):
                     vec = v.toarray()
@@ -482,11 +485,29 @@ class BlockMatrix(object):
                     vec = v.toarray()
                 else:
                     assert False, "not supported"
-                norm += np.sum(vec*np.conj(vec))
+                norm[i] += np.abs(np.sum(vec*np.conj(vec)))
 
         if use_parallel:
-            norm = np.sum(allgather(norm))
+            norm = np.sum(allgather(norm), 0)
+
         return np.sqrt(norm)
+
+    def average_norm(self):
+        shape = self.shape
+        assert shape[1] == 1, "multilpe vectors are not supported"
+
+        norm = self.norm()
+        length = [0]*shape[0]
+
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                v = self[i, j]
+                length[i] += np.prod(v.shape)  # shape is (1,x) or (x, 1)
+
+        if use_parallel:
+            length = np.sum(allgather(length), 0)
+
+        return norm/length
 
     def print_nnz(self):
         print(self.format_nnz())

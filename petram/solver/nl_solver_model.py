@@ -283,6 +283,7 @@ class NonlinearBaseSolver(SolverInstance):
         self._done = False
         self._converged = False
         self.debug_data = []
+        self.debug_data2 = []
 
     def assemble(self, inplace=True, update=False):
         engine = self.engine
@@ -362,8 +363,9 @@ class NonlinearBaseSolver(SolverInstance):
         if not self.phys_real and self.gui.assemble_real:
             solall = self.linearsolver_model.real_to_complex(solall, AA)
 
+        '''    
         if solall is not None:
-            sol_norm = np.sum(solall*np.conj(solall))
+            sol_norm = np.abs(np.sum(solall*np.conj(solall)))
         from petram.mfem_config import use_parallel
         if use_parallel:
             from mpi4py import MPI
@@ -373,7 +375,7 @@ class NonlinearBaseSolver(SolverInstance):
                 sol_norm = MPI.COMM_WORLD.bcast(None, root=0)
             sol_norm = np.sum(sol_norm)
         self.sol_norm = np.sqrt(sol_norm)
-
+        '''
         A.reformat_central_mat(
             solall, 0, X[0], mask, alpha=self._alpha, beta=self._beta)
         self.sol = X[0]
@@ -420,16 +422,36 @@ class NonlinearBaseSolver(SolverInstance):
 
         return True
 
+    def copy_x(self, X):
+        shape = X.shape
+
+        xdata = []
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                v = X[i, j]
+                if isinstance(v, chypre.CHypreVec):
+                    vec = v.toarray()
+                elif isinstance(v, bm.ScipyCoo):
+                    vec = v.toarray().flatten()
+                else:
+                    assert False, "not supported"
+                xdata.append(vec.copy())
+        from mfem.common.mpi_debug import nicePrint
+
+        return xdata
+
 
 class NewtonSolver(NonlinearBaseSolver):
     def __init__(self, gui, engine):
         NonlinearBaseSolver.__init__(self, gui, engine)
-        self.norm0 = 0.0
-        self.norm1 = 0.0
+        self.scheme_name = "newton"
 
     def set_damping(self, damping):
         self._alpha = damping
         self._beta = 1.0
+
+    def reset_count(self, maxiter, abstol, reltol):
+        NonlinearBaseSolver.reset_count(self, maxiter, abstol, reltol)
 
     def compute_A(self, M, B, X, mask_M, mask_B):
         '''
@@ -451,6 +473,50 @@ class NewtonSolver(NonlinearBaseSolver):
         RHS = B - M[0].dot(X[0])
         return RHS
 
+    def compute_err(self, X, Xorg):
+        shape = X[0].shape
+        assert shape[1] == 1, "multilpe vectors are not supported"
+
+        x_ave_norm = X[0].average_norm()
+        err = [0]*shape[0]
+        length = [0]*shape[0]
+
+        for i in range(shape[0]):
+            for j in [0]:
+                xorg = Xorg[i]
+                x = X[0][i, j]
+                if isinstance(x, chypre.CHypreVec):
+                    x_vec = x.toarray()
+                elif isinstance(v, ScipyCoo):
+                    x_vec = x.toarray()
+                else:
+                    assert False, "not supported"
+                w = np.abs(x_vec)
+                if x_ave_norm[i] != 0:
+                    thr = x_ave_norm[i]*0.1
+                else:
+                    thr = np.mean(x_ave_norm)*0.1
+                w[w < thr] = thr
+                err_est = np.abs(xorg - x_vec)
+
+                err[i] = np.sum((err_est/w)**2)
+                length[i] = np.prod(x_vec.shape)
+
+        from petram.mfem_config import use_parallel
+        if use_parallel:
+            from mpi4py import MPI
+            allgather = MPI.COMM_WORLD.allgather
+            length = np.sum(allgather(length), 0)
+            err = np.sum(allgather(err), 0)
+
+        err = err/length
+        self.debug_data.append(err)
+
+        err_total = np.sqrt(np.sum(err))/np.sqrt(shape[0])
+
+        self.debug_data2.append(err_total)
+        return err_total
+
     def assemble(self, inplace=True, update=False):
         from petram.engine import max_matrix_num
 
@@ -464,31 +530,28 @@ class NewtonSolver(NonlinearBaseSolver):
     def solve(self, update_operator=True):
         A, X, RHS, Ae, B, M, depvars = self.blocks
 
-        if self.kiter == 0:
-            self.norm0 = X[0].norm()
-
-        elif self.kiter == 1:
-            self.norm1 = X[0].norm()
-
         if self.verbose:
             dprint1("Linear solve...step=", self.kiter)
+
+        Xorg = self.copy_x(X[0])
 
         self.do_solve(update_operator=update_operator)
         self.engine.add_FESvariable_to_NS(self.get_phys())
 
-        if self.verbose:
-            dprint1("|X0|, |X1| and [dX| = ",
-                    self.norm0, self.norm1, self.sol_norm)
-
         if self.kiter == 1:
-            self.correction0 = self.sol_norm * abs(self._alpha)
-            self.debug_data.append(self.correction0)
+            pass
+        elif self.kiter == 2:
+            pass
+            #self.correction0 = abs(self.sol_norm * self._alpha)
+            # self.debug_data.append(self.correction0)
         else:
-            correction = self.sol_norm * abs(self._alpha)
-            self.debug_data.append(correction)
-            if correction < self.correction0*self._reltol:
+            err = self.compute_err(X, Xorg)
+            if err < self._reltol:
                 self._converged = True
                 self._done = True
+            #correction = abs(self.sol_norm * self._alpha)
+            # self.debug_data.append(correction)
+            # if correction < self.correction0*self._reltol:
 
         if self._kiter >= self._maxiter:
             self._done = True
@@ -497,15 +560,34 @@ class NewtonSolver(NonlinearBaseSolver):
 
         if self._done:
             if self._converged:
-                dprint1("converged (newton) #iter=", self.kiter)
+                dprint1("converged ("+self.scheme_name + ") #iter=", self.kiter)
+                dprint1("final error |err| = ", err)
+
             else:
-                dprint1("no convergence (newton interation)")
+                dprint1("no convergence ("+self.scheme_name+" interation)")
 
             if self.verbose:
-                dprint1("reference norms |X0|, |X1|=", self.norm0, self.norm1)
-                dprint1("correction alpha*|dX| = ", self.debug_data)
+                dprint1("err history = ", self.debug_data2)
+                dprint1("err^2 history (decomposition) = ", self.debug_data)
 
 
+class FixedPointSolver(NewtonSolver):
+    def __init__(self, *args, **kwargs):
+        NewtonSolver.__init__(self, *args, **kwargs)
+        self.scheme_name = "fixed-point"
+
+    def compute_A(self, M, B, X, mask_M, mask_B):
+        '''
+        return A and isAnew
+        This mode simply ignore Jacobian
+        '''
+        from petram.engine import max_matrix_num
+
+        A = M[0]
+        return A, np.any(mask_M[0])
+
+
+'''
 class FixedPointSolver(NonlinearBaseSolver):
     def __init__(self, gui, engine):
         NonlinearBaseSolver.__init__(self, gui, engine)
@@ -536,6 +618,7 @@ class FixedPointSolver(NonlinearBaseSolver):
 
         diffnorm = self.diff_norm(X[0], xdata)
         norm = np.abs(X[0].norm())
+        dprint1("norm/dnorm", norm, diffnorm)
         self.debug_data.append((norm, diffnorm))
 
         if self.kiter == 1:
@@ -544,7 +627,7 @@ class FixedPointSolver(NonlinearBaseSolver):
                 dprint1("reference correction", self.correction0)
 
         else:
-            if diffnorm < norm*self._reltol:
+            if np.sum(diffnorm) < np.sum(norm)*self._reltol:
                 self._converged = True
                 self._done = True
 
@@ -564,28 +647,10 @@ class FixedPointSolver(NonlinearBaseSolver):
                 dprint1("norms", [x[0] for x in self.debug_data])
                 dprint1("dnorms", [x[1] for x in self.debug_data])
 
-    def copy_x(self, X):
-        shape = X.shape
-
-        xdata = []
-        for i in range(shape[0]):
-            for j in range(shape[1]):
-                v = X[i, j]
-                if isinstance(v, chypre.CHypreVec):
-                    vec = v.toarray()
-                elif isinstance(v, bm.ScipyCoo):
-                    vec = v.toarray().flatten()
-                else:
-                    assert False, "not supported"
-                xdata.append(vec.copy())
-        from mfem.common.mpi_debug import nicePrint
-
-        return xdata
-
     def diff_norm(self, X, xdata):
         shape = X.shape
         idx = 0
-        norm = 0
+        norm = [0]*shape[0]
 
         for i in range(shape[0]):
             for j in range(shape[1]):
@@ -598,11 +663,12 @@ class FixedPointSolver(NonlinearBaseSolver):
                     assert False, "not supported"
 
                 delta = xdata[idx] - vec
-                norm += np.sum(delta * np.conj(delta))
+                norm[i] += np.sum(delta * np.conj(delta))
                 idx = idx+1
 
         from petram.mfem_config import use_parallel
         if use_parallel:
             from mpi4py import MPI
-            norm = np.sum(np.array(MPI.COMM_WORLD.allgather(norm)))
+            norm = np.sum(np.array(MPI.COMM_WORLD.allgather(norm)), 0)
         return np.abs(np.sqrt(norm))
+'''

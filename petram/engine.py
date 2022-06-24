@@ -2200,7 +2200,7 @@ class Engine(object):
         return X
 
     def finalize_coo_matrix(self, M_block, is_complex, convert_real=False,
-                            verbose=True):
+                            verbose=False):
         if verbose:
             dprint1("A (in finalizie_coo_matrix) \n",  M_block)
             # M_block.save_to_file("M_block")
