@@ -35,6 +35,7 @@ class NLSolver(Solver):
         v["nl_reltol"] = 0.001
         v["nl_abstol"] = 0.0
         v["nl_damping"] = 1.0
+        v["nl_damping_min"] = 0.01
         v["nl_verbose"] = True
         v['dwc_name'] = ''
         v['use_dwc_nl'] = False
@@ -52,8 +53,9 @@ class NLSolver(Solver):
                 "values": ["FixedPoint", "Newton"]}],
             ["Max iteration", self.nl_maxiter, 400, {}],
             ["NL rel. tol.", self.nl_reltol, 300, {}],
-            ["NL abs. tol.", self.nl_abstol, 300, {}],
-            ["NL damping", self.nl_damping, 300, {}],
+ #           ["NL abs. tol.", self.nl_abstol, 300, {}],
+            ["NL inital damping", self.nl_damping, 300, {}],
+            ["NL min damping", self.nl_damping_min, 300, {}],            
             [None, [False, value], 27, [{'text': 'Use DWC (nlcheckpoint)'},
                                         {'elp': ret}]],
             [None, self.nl_verbose, 3, {
@@ -78,8 +80,9 @@ class NLSolver(Solver):
             self.nl_scheme,
             self.nl_maxiter,
             self.nl_reltol,
-            self.nl_abstol,
+#            self.nl_abstol,
             self.nl_damping,
+            self.nl_damping_min,
             [self.use_dwc_nl, [self.dwc_name, self.dwc_nl_arg, ]],
             self.nl_verbose,
             self.init_only,
@@ -97,8 +100,9 @@ class NLSolver(Solver):
         self.nl_scheme = v[1]
         self.nl_maxiter = v[2]
         self.nl_reltol = v[3]
-        self.nl_abstol = v[4]
-        self.nl_damping = v[5]
+        #self.nl_abstol = v[4]
+        self.nl_damping = v[4]
+        self.nl_damping_min = v[5]
         self.use_dwc_nl = v[6][0]
         self.dwc_name = v[6][1][0]
         self.dwc_nl_arg = v[6][1][1]
@@ -176,7 +180,7 @@ class NLSolver(Solver):
 
         instance = self.allocate_solver_instance(engine)
         instance.set_verbose(self.nl_verbose)
-
+        instance.set_tol(self.nl_reltol)
         instance.set_blk_mask()
         if return_instance:
             return instance
@@ -193,10 +197,9 @@ class NLSolver(Solver):
                 is_first = False
             instance.load_sol(self.sol_file)
         else:
-            instance.reset_count(self.nl_maxiter,
-                                 self.nl_abstol,
-                                 self.nl_reltol)
-            instance.set_damping(self.nl_damping)
+            instance.reset_count(self.nl_maxiter)
+            instance.set_damping(self.nl_damping,
+                                 minimum=self.nl_damping_min)
             dprint1("Starting non-linear iteration")
             while not instance.done:
                 dprint1("="*72)
@@ -264,8 +267,11 @@ class NonlinearBaseSolver(SolverInstance):
 
     def set_verbose(self, verbose):
         self._verbose = verbose
+        
+    def set_tol(self, reltol):
+        self._reltol = reltol        
 
-    def set_damping(self, damping):
+    def set_damping(self, damping, minimum=None):
         assert False, "Must be implemented in child"
 
     def compute_A(self, M, B, X, mask_M, mask_B):
@@ -277,12 +283,10 @@ class NonlinearBaseSolver(SolverInstance):
     def assemble_rhs(self):
         assert False, "assemble_rhs should not be called"
 
-    def reset_count(self, maxiter, abstol, reltol):
+    def reset_count(self, maxiter):
         self._kiter = 0
         self._maxiter = maxiter
         self._current_error = (np.infty, np.infty)
-        self._reltol = reltol
-        self._abstol = abstol
         self._done = False
         self._converged = False
         self.debug_data = []
@@ -477,25 +481,25 @@ class NewtonSolver(NonlinearBaseSolver):
         self.scheme_name = "newton"
         self.minimum_damping = 0.05
         self._err_before = 100.
-        #self._new_damping = False
         self._fixed_damping = False
 
-    def reset_count(self, maxiter, abstol, reltol):
-        NonlinearBaseSolver.reset_count(self, maxiter, abstol, reltol)
+    def reset_count(self, maxiter):
+        NonlinearBaseSolver.reset_count(self, maxiter)
         self._err_before = 100.
-        #self._new_damping = False
         self._fixed_damping = False
 
     @property
     def damping(self):
         return self._alpha
 
-    def set_damping(self, damping):
+    def set_damping(self, damping, minimum=None):
         self._alpha = min(damping, 1.0)
         self._beta = 1.0
+        if minimum is not None:
+            self.minimum_damping = minimum
 
-    def reset_count(self, maxiter, abstol, reltol):
-        NonlinearBaseSolver.reset_count(self, maxiter, abstol, reltol)
+    def reset_count(self, maxiter):
+        NonlinearBaseSolver.reset_count(self, maxiter)
 
     def compute_A(self, M, B, X, mask_M, mask_B):
         '''
@@ -516,52 +520,6 @@ class NewtonSolver(NonlinearBaseSolver):
         #RHS = M[0].dot(self.engine.sol) - B
         RHS = B - M[0].dot(X[0])
         return RHS
-
-    '''
-    def compute_err0(self, X, Xorg):
-        shape = X[0].shape
-        assert shape[1] == 1, "multilpe vectors are not supported"
-
-        x_ave_norm = X[0].average_norm()
-        err = [0]*shape[0]
-        length = [0]*shape[0]
-
-        for i in range(shape[0]):
-            for j in [0]:
-                xorg = Xorg[i]
-                x = X[0][i, j]
-                if isinstance(x, chypre.CHypreVec):
-                    x_vec = x.toarray()
-                elif isinstance(v, ScipyCoo):
-                    x_vec = x.toarray()
-                else:
-                    assert False, "not supported"
-                w = np.abs(x_vec)
-                if x_ave_norm[i] != 0:
-                    thr = x_ave_norm[i]*0.1
-                else:
-                    thr = np.mean(x_ave_norm)*0.1
-                w[w < thr] = thr
-                err_est = np.abs(xorg - x_vec)
-
-                err[i] = np.sum((err_est/w)**2)
-                length[i] = np.prod(x_vec.shape)
-
-        from petram.mfem_config import use_parallel
-        if use_parallel:
-            from mpi4py import MPI
-            allgather = MPI.COMM_WORLD.allgather
-            length = np.sum(allgather(length), 0)
-            err = np.sum(allgather(err), 0)
-
-        err = err/length
-        self.debug_data.append(err)
-
-        err_total = np.sqrt(np.sum(err))/np.sqrt(shape[0])
-
-        self.debug_data2.append(err_total)
-        return err_total
-    '''
 
     def compute_err(self, sol, sol_ave_norm, Res):
         '''
@@ -645,10 +603,6 @@ class NewtonSolver(NonlinearBaseSolver):
             if self.kiter == 1:
                 self._err_before = err
                 self._err_guidance = err
-            # elif self._new_damping:
-            #    self._err_before = err
-            #    self._err_guidance = err
-            #    self._new_damping = False
             elif self._fixed_damping:
                 pass
             elif err > self._err_before:
@@ -661,7 +615,6 @@ class NewtonSolver(NonlinearBaseSolver):
                 else:
                     dprint1("new damping (reduced), ref_error, current_error",
                             self.damping, self._err_before, err)
-                    #self._new_damping = True
                     self._err_before = err
                     return
 
@@ -671,6 +624,9 @@ class NewtonSolver(NonlinearBaseSolver):
                 self.set_damping(self.damping*1.2)
                 dprint1("new damping (increased)", self.damping)
 
+#            elif abs((err - self._err_before)/err) < 1e-4:
+#                self._err_before = err
+#                self._done = True
             else:
                 self._err_before = err
 
