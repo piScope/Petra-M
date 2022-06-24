@@ -654,7 +654,8 @@ class NewtonSolver(NonlinearBaseSolver):
                 dprint1("new damping (increased)", self.damping)
             else:
                 self._err_before = err
-
+            self.call_dwc_nliteration()
+            
         if not self._converged and not self._done:
             self.damping_record.append(self.damping)
             self._solbackup = self.copy_x(X[0])
@@ -662,12 +663,10 @@ class NewtonSolver(NonlinearBaseSolver):
             self.do_solve(update_operator=update_operator)
             self.engine.add_FESvariable_to_NS(self.get_phys())
 
-
-
         if self._kiter >= self._maxiter:
             self._done = True
 
-        self.call_dwc_nliteration()
+
         if self._done:
             if self.damping != 1.0 and self.damping > self.minimum_damping:
                 self.set_damping(1.0)
