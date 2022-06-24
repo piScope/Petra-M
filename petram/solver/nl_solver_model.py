@@ -8,6 +8,7 @@ import petram.helper.block_matrix as bm
 from petram.solver.solver_model import SolverInstance
 import os
 import numpy as np
+from scipy.sparse import coo_matrix
 
 from petram.model import Model
 from petram.solver.solver_model import Solver
@@ -363,19 +364,6 @@ class NonlinearBaseSolver(SolverInstance):
         if not self.phys_real and self.gui.assemble_real:
             solall = self.linearsolver_model.real_to_complex(solall, AA)
 
-        '''    
-        if solall is not None:
-            sol_norm = np.abs(np.sum(solall*np.conj(solall)))
-        from petram.mfem_config import use_parallel
-        if use_parallel:
-            from mpi4py import MPI
-            if MPI.COMM_WORLD.rank == 0:
-                sol_norm = MPI.COMM_WORLD.bcast(sol_norm, root=0)
-            else:
-                sol_norm = MPI.COMM_WORLD.bcast(None, root=0)
-            sol_norm = np.sum(sol_norm)
-        self.sol_norm = np.sqrt(sol_norm)
-        '''
         A.reformat_central_mat(
             solall, 0, X[0], mask, alpha=self._alpha, beta=self._beta)
         self.sol = X[0]
@@ -385,7 +373,20 @@ class NonlinearBaseSolver(SolverInstance):
             p.append_sol(X[0])
 
         self._kiter = self._kiter + 1
+        
+    def do_error_estimate(self):
+        '''
+        call do_solve without updating operator
+        '''
+        damping = self.damping
+        self._alpha = 1.0
+        self._beta = 0.0
+        
+        self.do_solve(update_operator=False)
 
+        self.set_damping(damping)        
+        self._kiter = self._kiter - 1
+        
     def call_dwc_nliteration(self):
         if self.gui.use_dwc_nl:
             converged = self.engine.call_dwc(self.gui.get_phys_range(),
@@ -423,6 +424,9 @@ class NonlinearBaseSolver(SolverInstance):
         return True
 
     def copy_x(self, X):
+        '''
+        extract data from X (BlockMatrix)
+        '''
         shape = X.shape
 
         xdata = []
@@ -432,14 +436,36 @@ class NonlinearBaseSolver(SolverInstance):
                 if isinstance(v, chypre.CHypreVec):
                     vec = v.toarray()
                 elif isinstance(v, bm.ScipyCoo):
-                    vec = v.toarray().flatten()
+                    vec = v.toarray()
                 else:
                     assert False, "not supported"
                 xdata.append(vec.copy())
-        from mfem.common.mpi_debug import nicePrint
-
         return xdata
 
+    def copyback_x(self, X, xdata):
+        '''
+        put data back to X (BlockMatrix)
+        '''
+        shape = X.shape
+
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                v = X[i, j]
+                if isinstance(v, chypre.CHypreVec):
+                    if v.isComplex():
+                        v.real.Assign(xdata[i].real)
+                        v.imag.Assign(xdata[i].imag)
+                    else:
+                        v.real.Assign(xdata[i])                        
+                elif isinstance(v, bm.ScipyCoo):
+                    coo = coo_matrix(xdata[i])
+                    v.data = coo.data
+                    v.row = coo.row
+                    v.col = coo.col
+                else:
+                    assert False, "not supported"
+
+        return xdata
 
 class NewtonSolver(NonlinearBaseSolver):
     def __init__(self, gui, engine):
@@ -477,7 +503,8 @@ class NewtonSolver(NonlinearBaseSolver):
         RHS = B - M[0].dot(X[0])
         return RHS
 
-    def compute_err(self, X, Xorg):
+    '''
+    def compute_err0(self, X, Xorg):
         shape = X[0].shape
         assert shape[1] == 1, "multilpe vectors are not supported"
 
@@ -520,7 +547,56 @@ class NewtonSolver(NonlinearBaseSolver):
 
         self.debug_data2.append(err_total)
         return err_total
+    '''
 
+    def compute_err(self, sol, sol_ave_norm, Res):
+        '''
+        sol is list of dense array
+        Res is BlockMatrix
+        '''
+        shape = Res.shape
+        assert shape[1] == 1, "multilpe vectors are not supported"
+
+
+        err = np.zeros(shape[0])
+        length = np.zeros(shape[0])
+
+        for i in range(shape[0]):
+            for j in [0]:
+                res = Res[i]
+                x_vec = sol[i]
+                if isinstance(res, chypre.CHypreVec):
+                    res_vec = res.toarray()
+                elif isinstance(res, bm.ScipyCoo):
+                    res_vec = res.toarray()
+                else:
+                    assert False, "not supported"
+                w = np.abs(x_vec)
+                if sol_ave_norm[i] != 0:
+                    thr = sol_ave_norm[i]*0.1
+                else:
+                    thr = np.mean(sol_ave_norm)*0.1
+                w[w < thr] = thr
+                err_est = np.abs(res_vec)
+
+                err[i] = np.sum((err_est/w)**2)
+                length[i] = np.prod(x_vec.shape)
+
+        from petram.mfem_config import use_parallel
+        if use_parallel:
+            from mpi4py import MPI
+            allgather = MPI.COMM_WORLD.allgather
+            length = np.sum(allgather(length), 0)
+            err = np.sum(allgather(err), 0)
+
+        err = err/length
+        self.debug_data.append(err)
+
+        err_total = np.sqrt(np.sum(err))/np.sqrt(shape[0])
+
+        self.debug_data2.append(err_total)
+        return err_total
+    
     def assemble(self, inplace=True, update=False):
         from petram.engine import max_matrix_num
 
@@ -537,25 +613,24 @@ class NewtonSolver(NonlinearBaseSolver):
         if self.verbose:
             dprint1("Linear solve...step=", self.kiter)
 
-        Xorg = self.copy_x(X[0])
+        if self.kiter > 0:
+            sol_ave_norm = X[0].average_norm()
+            soldata = self.copy_x(X[0])
+            
+            self.do_error_estimate()
+            
+            err = self.compute_err(soldata, sol_ave_norm, X[0])
+            self.copyback_x(X[0], soldata)                        
 
-        self.do_solve(update_operator=update_operator)
-        self.engine.add_FESvariable_to_NS(self.get_phys())
 
-        if self.kiter == 1:
-            pass
-        elif self.kiter == 2:
-            pass
-            #self.correction0 = abs(self.sol_norm * self._alpha)
-            # self.debug_data.append(self.correction0)
-        else:
-            err = self.compute_err(X, Xorg)
             if err < self._reltol:
-                    self._converged = True
-                    self._done = True
-            #correction = abs(self.sol_norm * self._alpha)
-            # self.debug_data.append(correction)
-            # if correction < self.correction0*self._reltol:
+                self._converged = True
+                self._done = True
+        print("X here", X)                
+        if not self._converged:
+            self.do_solve(update_operator=update_operator)
+            self.engine.add_FESvariable_to_NS(self.get_phys())
+
 
         if self._kiter >= self._maxiter:
             self._done = True
