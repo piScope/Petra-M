@@ -626,6 +626,8 @@ class NewtonSolver(NonlinearBaseSolver):
             err = self.compute_err(soldata, sol_ave_norm, X[0])
             self.copyback_x(X[0], soldata)
 
+            if self.verbose:
+                dprint1("estimated error", err)
             if err < self._reltol:
                 self._converged = True
                 self._done = True
@@ -641,23 +643,25 @@ class NewtonSolver(NonlinearBaseSolver):
                     # Let's give up ...(sad face)
                     self._done = True
                 else:
-                    dprint1("new damping, ref_error, current_error",
+                    dprint1("new damping (reduced), ref_error, current_error",
                             self.damping, self._err_before, err)
                     self._err_before = err
                     return
             elif err < self._err_guidance*0.7:
                 self._err_guidance = err
                 self.set_damping(self.damping*1.2)
-                dprint1("new damping", self.damping)
+                dprint1("new damping (increased)", self.damping)
             else:
                 self._err_before = err
 
         if not self._converged and not self._done:
             self.damping_record.append(self.damping)
+            self._solbackup = self.copy_x(X[0])
+            
             self.do_solve(update_operator=update_operator)
             self.engine.add_FESvariable_to_NS(self.get_phys())
 
-            self._solbackup = self.copy_x(X[0])
+
 
         if self._kiter >= self._maxiter:
             self._done = True
