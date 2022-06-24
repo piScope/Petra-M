@@ -396,7 +396,7 @@ class NonlinearBaseSolver(SolverInstance):
                                              count=self.kiter-1,)
             if converged:
                 self._done = True
-                self._conveged = True
+                self._converged = True
 
     def load_sol(self, solfile):
         from petram.mfem_config import use_parallel
@@ -446,6 +446,10 @@ class NewtonSolver(NonlinearBaseSolver):
         NonlinearBaseSolver.__init__(self, gui, engine)
         self.scheme_name = "newton"
 
+    @property
+    def damping(self):
+        return self._alpha
+    
     def set_damping(self, damping):
         self._alpha = damping
         self._beta = 1.0
@@ -547,8 +551,8 @@ class NewtonSolver(NonlinearBaseSolver):
         else:
             err = self.compute_err(X, Xorg)
             if err < self._reltol:
-                self._converged = True
-                self._done = True
+                    self._converged = True
+                    self._done = True
             #correction = abs(self.sol_norm * self._alpha)
             # self.debug_data.append(correction)
             # if correction < self.correction0*self._reltol:
@@ -557,7 +561,12 @@ class NewtonSolver(NonlinearBaseSolver):
             self._done = True
 
         self.call_dwc_nliteration()
-
+        if self._done:
+           if self.damping != 1.0:
+               self.set_damping(1.0)
+               self._done = False
+               self._converged = False
+               
         if self._done:
             if self._converged:
                 dprint1("converged ("+self.scheme_name + ") #iter=", self.kiter)
