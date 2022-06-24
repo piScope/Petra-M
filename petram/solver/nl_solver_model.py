@@ -482,6 +482,7 @@ class NewtonSolver(NonlinearBaseSolver):
         return self._alpha
 
     def set_damping(self, damping):
+        print("set_damping", damping, self._alpha)
         self._alpha = min(damping, 1.0)
         self._beta = 1.0
 
@@ -627,7 +628,7 @@ class NewtonSolver(NonlinearBaseSolver):
             self.copyback_x(X[0], soldata)
 
             if self.verbose:
-                dprint1("estimated error", err)
+                dprint1("estimated error, damping)", err, self.damping)
             if err < self._reltol:
                 self._converged = True
                 self._done = True
