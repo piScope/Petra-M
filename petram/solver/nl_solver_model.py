@@ -243,6 +243,8 @@ class NonlinearBaseSolver(SolverInstance):
         self._converged = False
         self._verbose = False
         self.debug_data = []
+        self.debug_data2 = []
+        self.damping_record = []
 
     @property
     def blocks(self):
@@ -285,6 +287,7 @@ class NonlinearBaseSolver(SolverInstance):
         self._converged = False
         self.debug_data = []
         self.debug_data2 = []
+        self.damping_record = []
 
     def assemble(self, inplace=True, update=False):
         engine = self.engine
@@ -373,7 +376,7 @@ class NonlinearBaseSolver(SolverInstance):
             p.append_sol(X[0])
 
         self._kiter = self._kiter + 1
-        
+
     def do_error_estimate(self):
         '''
         call do_solve without updating operator
@@ -381,12 +384,12 @@ class NonlinearBaseSolver(SolverInstance):
         damping = self.damping
         self._alpha = 1.0
         self._beta = 0.0
-        
+
         self.do_solve(update_operator=False)
 
-        self.set_damping(damping)        
+        self.set_damping(damping)
         self._kiter = self._kiter - 1
-        
+
     def call_dwc_nliteration(self):
         if self.gui.use_dwc_nl:
             converged = self.engine.call_dwc(self.gui.get_phys_range(),
@@ -456,7 +459,7 @@ class NonlinearBaseSolver(SolverInstance):
                         v.real.Assign(xdata[i].real)
                         v.imag.Assign(xdata[i].imag)
                     else:
-                        v.real.Assign(xdata[i])                        
+                        v.real.Assign(xdata[i])
                 elif isinstance(v, bm.ScipyCoo):
                     coo = coo_matrix(xdata[i])
                     v.data = coo.data
@@ -467,17 +470,19 @@ class NonlinearBaseSolver(SolverInstance):
 
         return xdata
 
+
 class NewtonSolver(NonlinearBaseSolver):
     def __init__(self, gui, engine):
         NonlinearBaseSolver.__init__(self, gui, engine)
         self.scheme_name = "newton"
+        self.minimum_damping = 0.05
 
     @property
     def damping(self):
         return self._alpha
-    
+
     def set_damping(self, damping):
-        self._alpha = damping
+        self._alpha = min(damping, 1.0)
         self._beta = 1.0
 
     def reset_count(self, maxiter, abstol, reltol):
@@ -557,7 +562,6 @@ class NewtonSolver(NonlinearBaseSolver):
         shape = Res.shape
         assert shape[1] == 1, "multilpe vectors are not supported"
 
-
         err = np.zeros(shape[0])
         length = np.zeros(shape[0])
 
@@ -596,7 +600,7 @@ class NewtonSolver(NonlinearBaseSolver):
 
         self.debug_data2.append(err_total)
         return err_total
-    
+
     def assemble(self, inplace=True, update=False):
         from petram.engine import max_matrix_num
 
@@ -616,36 +620,60 @@ class NewtonSolver(NonlinearBaseSolver):
         if self.kiter > 0:
             sol_ave_norm = X[0].average_norm()
             soldata = self.copy_x(X[0])
-            
-            self.do_error_estimate()
-            
-            err = self.compute_err(soldata, sol_ave_norm, X[0])
-            self.copyback_x(X[0], soldata)                        
 
+            self.do_error_estimate()
+
+            err = self.compute_err(soldata, sol_ave_norm, X[0])
+            self.copyback_x(X[0], soldata)
 
             if err < self._reltol:
                 self._converged = True
                 self._done = True
-        print("X here", X)                
-        if not self._converged:
+
+            if self.kiter == 1:
+                self._err_before = err
+                self._err_guidance = err
+            elif err > self._err_before:
+                self._err_guidance = self._err_before
+                self.copyback_x(X[0], self._solbackup)
+                self.set_damping(self.damping*0.8)
+                if self.damping < self.minimum_damping:
+                    # Let's give up ...(sad face)
+                    self._done = True
+                else:
+                    dprint1("new damping, ref_error, current_error",
+                            self.damping, self._err_before, err)
+                    self._err_before = err
+                    return
+            elif err < self._err_guidance*0.7:
+                self._err_guidance = err
+                self.set_damping(self.damping*1.2)
+                dprint1("new damping", self.damping)
+            else:
+                self._err_before = err
+
+        if not self._converged and not self._done:
+            self.damping_record.append(self.damping)
             self.do_solve(update_operator=update_operator)
             self.engine.add_FESvariable_to_NS(self.get_phys())
 
+            self._solbackup = self.copy_x(X[0])
 
         if self._kiter >= self._maxiter:
             self._done = True
 
         self.call_dwc_nliteration()
         if self._done:
-           if self.damping != 1.0:
-               self.set_damping(1.0)
-               self._done = False
-               self._converged = False
-               
+            if self.damping != 1.0 and self.damping > self.minimum_damping:
+                self.set_damping(1.0)
+                self._done = False
+                self._converged = False
+
         if self._done:
             if self._converged:
                 dprint1("converged ("+self.scheme_name + ") #iter=", self.kiter)
                 dprint1("final error |err| = ", err)
+                dprint1("damping parameters", self.damping_record)
 
             else:
                 dprint1("no convergence ("+self.scheme_name+" interation)")
