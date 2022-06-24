@@ -53,9 +53,9 @@ class NLSolver(Solver):
                 "values": ["FixedPoint", "Newton"]}],
             ["Max iteration", self.nl_maxiter, 400, {}],
             ["NL rel. tol.", self.nl_reltol, 300, {}],
- #           ["NL abs. tol.", self.nl_abstol, 300, {}],
+            #           ["NL abs. tol.", self.nl_abstol, 300, {}],
             ["NL inital damping", self.nl_damping, 300, {}],
-            ["NL min damping", self.nl_damping_min, 300, {}],            
+            ["NL min damping", self.nl_damping_min, 300, {}],
             [None, [False, value], 27, [{'text': 'Use DWC (nlcheckpoint)'},
                                         {'elp': ret}]],
             [None, self.nl_verbose, 3, {
@@ -80,7 +80,7 @@ class NLSolver(Solver):
             self.nl_scheme,
             self.nl_maxiter,
             self.nl_reltol,
-#            self.nl_abstol,
+            #            self.nl_abstol,
             self.nl_damping,
             self.nl_damping_min,
             [self.use_dwc_nl, [self.dwc_name, self.dwc_nl_arg, ]],
@@ -267,9 +267,9 @@ class NonlinearBaseSolver(SolverInstance):
 
     def set_verbose(self, verbose):
         self._verbose = verbose
-        
+
     def set_tol(self, reltol):
-        self._reltol = reltol        
+        self._reltol = reltol
 
     def set_damping(self, damping, minimum=None):
         assert False, "Must be implemented in child"
@@ -675,90 +675,3 @@ class FixedPointSolver(NewtonSolver):
 
         A = M[0]
         return A, np.any(mask_M[0])
-
-
-'''
-class FixedPointSolver(NonlinearBaseSolver):
-    def __init__(self, gui, engine):
-        NonlinearBaseSolver.__init__(self, gui, engine)
-
-    def set_damping(self, damping):
-        self._alpha = damping
-        self._beta = (1.0 - damping)
-
-    def compute_A(self, M, B, X, mask_M, mask_B):
-        return M[0], np.any(mask_M[0])
-
-    def compute_rhs(self, M, B, X):
-        return B
-
-    def solve(self, update_operator=True):
-        A, X, RHS, Ae, B, M, depvars = self.blocks
-
-        if self.kiter == 0:
-            self.norm0 = np.abs(X[0].norm())
-
-        xdata = self.copy_x(X[0])
-
-        if self.verbose:
-            dprint1("Linear solve...step=", self.kiter)
-
-        self.do_solve(update_operator=update_operator)
-        self.engine.add_FESvariable_to_NS(self.get_phys())
-
-        diffnorm = self.diff_norm(X[0], xdata)
-        norm = np.abs(X[0].norm())
-        dprint1("norm/dnorm", norm, diffnorm)
-        self.debug_data.append((norm, diffnorm))
-
-        if self.kiter == 1:
-            self.correction0 = diffnorm
-            if self.verbose:
-                dprint1("reference correction", self.correction0)
-
-        else:
-            if np.sum(diffnorm) < np.sum(norm)*self._reltol:
-                self._converged = True
-                self._done = True
-
-        if self._kiter >= self._maxiter:
-            self._done = True
-
-        self.call_dwc_nliteration()
-
-        if self._done:
-            if self._converged:
-                dprint1("converged (fixed-point) #iter=", self.kiter)
-            else:
-                dprint1("no convergence (fixed-point interation)")
-
-            if self.verbose:
-                dprint1("reference correction", self.correction0)
-                dprint1("norms", [x[0] for x in self.debug_data])
-                dprint1("dnorms", [x[1] for x in self.debug_data])
-
-    def diff_norm(self, X, xdata):
-        shape = X.shape
-        idx = 0
-        norm = [0]*shape[0]
-
-        for i in range(shape[0]):
-            for j in range(shape[1]):
-                v = X[i, j]
-                if isinstance(v, chypre.CHypreVec):
-                    vec = v.toarray()
-                elif isinstance(v, bm.ScipyCoo):
-                    vec = v.toarray().flatten()
-                else:
-                    assert False, "not supported"
-
-                delta = xdata[idx] - vec
-                norm[i] += np.sum(delta * np.conj(delta))
-                idx = idx+1
-
-        from petram.mfem_config import use_parallel
-        if use_parallel:
-            from mpi4py import MPI
-            norm = np.sum(np.array(MPI.COMM_WORLD.allgather(norm)), 0)
-        return np.abs(np.sqrt(norm))
-'''
