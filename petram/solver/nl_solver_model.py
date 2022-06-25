@@ -53,7 +53,6 @@ class NLSolver(Solver):
                 "values": ["FixedPoint", "Newton"]}],
             ["Max iteration", self.nl_maxiter, 400, {}],
             ["NL rel. tol.", self.nl_reltol, 300, {}],
-            #           ["NL abs. tol.", self.nl_abstol, 300, {}],
             ["NL inital damping", self.nl_damping, 300, {}],
             ["NL min damping", self.nl_damping_min, 300, {}],
             [None, [False, value], 27, [{'text': 'Use DWC (nlcheckpoint)'},
@@ -80,7 +79,6 @@ class NLSolver(Solver):
             self.nl_scheme,
             self.nl_maxiter,
             self.nl_reltol,
-            #            self.nl_abstol,
             self.nl_damping,
             self.nl_damping_min,
             [self.use_dwc_nl, [self.dwc_name, self.dwc_nl_arg, ]],
@@ -100,7 +98,6 @@ class NLSolver(Solver):
         self.nl_scheme = v[1]
         self.nl_maxiter = v[2]
         self.nl_reltol = v[3]
-        #self.nl_abstol = v[4]
         self.nl_damping = v[4]
         self.nl_damping_min = v[5]
         self.use_dwc_nl = v[6][0]
@@ -615,7 +612,9 @@ class NewtonSolver(NonlinearBaseSolver):
                 else:
                     dprint1("new damping (reduced), ref_error, current_error",
                             self.damping, self._err_before, err)
-                    self._err_before = err
+
+                    # this is fudge factor to avoid keep reducing damping (not sure I need this)
+                    self._err_before = err*1.02
                     return
 
             elif err < self._err_guidance*0.7 and self.damping < 1.0:
@@ -655,6 +654,7 @@ class NewtonSolver(NonlinearBaseSolver):
 
             else:
                 dprint1("no convergence ("+self.scheme_name+" interation)")
+                dprint1("damping parameters", self.damping_record)
 
             if self.verbose:
                 dprint1("err history = ", self.debug_data2)

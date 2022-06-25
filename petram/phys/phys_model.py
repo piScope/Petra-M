@@ -686,7 +686,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                   ['dy/dt', False, 3, {"text": ""}],
                   ['d2y/dt2', False, 3, {"text": ""}],
                   ['Jacobian', False, 3, {"text": ""}],
-                  ['Varing (in time/for loop) Term.', False, 3, {"text": ""}], ]
+                  ['Varying (in time/for loop) Term.', False, 3, {"text": ""}], ]
         if self.allow_custom_intorder:
             ll.append(['Increase int. order', '0', 400, ''])
         return ll
