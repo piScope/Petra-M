@@ -491,10 +491,10 @@ class Model(RestorableOrderedDict):
         return "Selection"
 
     def panel3_tabname(self):
-        return "Init/NL."
+        return "Init."
 
     def panel4_tabname(self):
-        return "Time Dep./Adv."
+        return "Time Dep./NL."
 
     def panel1_param(self):
         return []
