@@ -36,6 +36,7 @@ class NLSolver(Solver):
         v["nl_abstol"] = 0.0
         v["nl_damping"] = 1.0
         v["nl_damping_min"] = 0.01
+        v["nl_tolthr"] = 0.01
         v["nl_verbose"] = True
         v['dwc_name'] = ''
         v['use_dwc_nl'] = False
@@ -55,7 +56,7 @@ class NLSolver(Solver):
             ["NL rel. tol.", self.nl_reltol, 300, {}],
             ["NL inital damping", self.nl_damping, 300, {}],
             ["NL min damping", self.nl_damping_min, 300, {}],
-            [None, [False, value], 27, [{'text': 'Use DWC (nlcheckpoint)'},
+            [None, [False, value], 27, [{'text': 'Use DWC (nl_start/nl_checkpoint/nl_end)'},
                                         {'elp': ret}]],
             [None, self.nl_verbose, 3, {
                 "text": "verbose output for non-linear iteration"}],
@@ -177,7 +178,7 @@ class NLSolver(Solver):
 
         instance = self.allocate_solver_instance(engine)
         instance.set_verbose(self.nl_verbose)
-        instance.set_tol(self.nl_reltol)
+        instance.set_tol(self.nl_reltol, self.nl_tolthr)
         instance.set_blk_mask()
         if return_instance:
             return instance
@@ -198,6 +199,14 @@ class NLSolver(Solver):
             instance.set_damping(self.nl_damping,
                                  minimum=self.nl_damping_min)
             dprint1("Starting non-linear iteration")
+
+            if self.use_dwc_nl:
+                engine.call_dwc(self.get_phys_range(),
+                                method="nl_start",
+                                callername=self.name(),
+                                dwcname=self.dwc_name,
+                                args=self.dwc_nl_arg)
+
             while not instance.done:
                 dprint1("="*72)
                 dprint1("NL iteration step=", instance.kiter)
@@ -215,6 +224,13 @@ class NLSolver(Solver):
                     # we do this only if we are going into the next loop
                     # since the same is done in save_solution
                     instance.recover_solution(ksol=0)
+
+            if self.use_dwc_nl:
+                engine.call_dwc(self.get_phys_range(),
+                                method="nl_end",
+                                callername=self.name(),
+                                dwcname=self.dwc_name,
+                                args=self.dwc_nl_arg)
 
         instance.save_solution(ksol=0,
                                skip_mesh=False,
@@ -265,10 +281,13 @@ class NonlinearBaseSolver(SolverInstance):
     def set_verbose(self, verbose):
         self._verbose = verbose
 
-    def set_tol(self, reltol):
+    def set_tol(self, reltol, tolthr):
         self._reltol = reltol
+        self._tolthr = tolthr
+        dprint1("NL iteration tolelance/threshold: ",
+                self._reltol, self._tolthr)
 
-    def set_damping(self, damping, minimum=None):
+    def set_damping(self, damping, minimum=None, thr=None):
         assert False, "Must be implemented in child"
 
     def compute_A(self, M, B, X, mask_M, mask_B):
@@ -287,7 +306,7 @@ class NonlinearBaseSolver(SolverInstance):
         self._done = False
         self._converged = False
         self.debug_data = []
-        self.debug_data2 = []
+        self.error_record = []
         self.damping_record = []
 
     def assemble(self, inplace=True, update=False):
@@ -393,15 +412,15 @@ class NonlinearBaseSolver(SolverInstance):
 
     def call_dwc_nliteration(self):
         if self.gui.use_dwc_nl:
-            converged = self.engine.call_dwc(self.gui.get_phys_range(),
-                                             method="nliteration",
-                                             callername=self.gui.name(),
-                                             dwcname=self.gui.dwc_name,
-                                             args=self.gui.dwc_nl_arg,
-                                             count=self.kiter-1,)
-            if converged:
-                self._done = True
-                self._converged = True
+            stopit = self.engine.call_dwc(self.gui.get_phys_range(),
+                                          method="nl_checkpoint",
+                                          callername=self.gui.name(),
+                                          dwcname=self.gui.dwc_name,
+                                          args=self.gui.dwc_nl_arg,
+                                          count=self.kiter-1,)
+            return stopit
+        else:
+            return False
 
     def load_sol(self, solfile):
         from petram.mfem_config import use_parallel
@@ -489,11 +508,13 @@ class NewtonSolver(NonlinearBaseSolver):
     def damping(self):
         return self._alpha
 
-    def set_damping(self, damping, minimum=None):
+    def set_damping(self, damping, minimum=None, thr=None):
         self._alpha = min(damping, 1.0)
         self._beta = 1.0
         if minimum is not None:
             self.minimum_damping = minimum
+        if thr is not None:
+            self.damping_thr = thr
 
     def reset_count(self, maxiter):
         NonlinearBaseSolver.reset_count(self, maxiter)
@@ -541,9 +562,9 @@ class NewtonSolver(NonlinearBaseSolver):
                     assert False, "not supported"
                 w = np.abs(x_vec)
                 if sol_ave_norm[i] != 0:
-                    thr = sol_ave_norm[i]*0.1
+                    thr = sol_ave_norm[i]*self._tolthr
                 else:
-                    thr = np.mean(sol_ave_norm)*0.1
+                    thr = np.mean(sol_ave_norm)*self._tolthr
                 w[w < thr] = thr
                 err_est = np.abs(res_vec)
 
@@ -562,7 +583,7 @@ class NewtonSolver(NonlinearBaseSolver):
 
         err_total = np.sqrt(np.sum(err))/np.sqrt(shape[0])
 
-        self.debug_data2.append(err_total)
+        self.error_record.append(err_total)
         return err_total
 
     def assemble(self, inplace=True, update=False):
@@ -629,7 +650,10 @@ class NewtonSolver(NonlinearBaseSolver):
             else:
                 self._err_before = err
 
-            self.call_dwc_nliteration()
+            stopit = self.call_dwc_nliteration()
+            if stopit:
+                self._done = True
+
             if self._kiter >= self._maxiter:
                 self._done = True
 
@@ -639,7 +663,7 @@ class NewtonSolver(NonlinearBaseSolver):
             self.do_solve(update_operator=update_operator)
             self.engine.add_FESvariable_to_NS(self.get_phys())
 
-        if self._done:
+        if self._done and not stopit:
             if self.damping != 1.0 and self.damping > self.minimum_damping:
                 self.set_damping(1.0)
                 self._done = False
@@ -657,8 +681,34 @@ class NewtonSolver(NonlinearBaseSolver):
                 dprint1("damping parameters", self.damping_record)
 
             if self.verbose:
-                dprint1("err history = ", self.debug_data2)
+                dprint1("err history = ", self.error_record)
                 dprint1("err^2 history (decomposition) = ", self.debug_data)
+
+    def save_probe(self):
+        from petram.mfem_config import use_parallel
+        if use_parallel:
+            from mpi4py import MPI
+        else:
+            from petram.helper.dummy_mpi import MPI
+        myid = MPI.COMM_WORLD.rank
+
+        if myid != 0:
+            return
+
+        from petram.sol.probe import Probe
+
+        p1 = Probe(self.gui.name()+'_error')
+        p2 = Probe(self.gui.name()+'_damping')
+
+        for i, v in enumerate(self.error_record):
+            p1.append_value(v, t=i)
+        for i, v in enumerate(self.damping_record):
+            p2.append_value(v, t=i)
+
+        p1.write_file()
+        p2.write_file()
+
+        NonlinearBaseSolver.save_probe(self)
 
 
 class FixedPointSolver(NewtonSolver):

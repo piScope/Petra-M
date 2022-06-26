@@ -156,6 +156,8 @@ var_g = {'sin': np.sin,
          'ones': np.ones,
          'diag': np.diag,
          'zeros': np.zeros,
+         'nan': np.nan,
+         'inf': np.inf,
          'linspace': np.linspace,
          'logspace': np.logspace}
 

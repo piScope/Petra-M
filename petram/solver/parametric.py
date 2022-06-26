@@ -97,6 +97,7 @@ class Parametric(SolveStep, NS_mixin):
     def get_possible_child(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
+        from petram.solver.nl_solver_model import NLSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
         from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.set_var import SetVar
@@ -106,15 +107,18 @@ class Parametric(SolveStep, NS_mixin):
             return [MultiLvlStationarySolver,
                     StdSolver,
                     StdMeshAdaptSolver,
+                    NLSolver,
                     DWCCall, ForLoop, SetVar]
         except:
             return [MultiLvlStationarySolver,
                     StdSolver,
+                    NLSolver,
                     DWCCall, ForLoop, SetVar]
 
     def get_possible_child_menu(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
+        from petram.solver.nl_solver_model import NLSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
         from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.set_var import SetVar
@@ -123,6 +127,7 @@ class Parametric(SolveStep, NS_mixin):
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
             return [("", StdSolver),
                     ("", MultiLvlStationarySolver),
+                    ("", NLSolver),
                     ("extra", ForLoop),
                     ("", StdMeshAdaptSolver),
                     ("", DWCCall),
@@ -130,6 +135,7 @@ class Parametric(SolveStep, NS_mixin):
         except:
             return [("", StdSolver),
                     ("", MultiLvlStationarySolver),
+                    ("", NLSolver),
                     ("extra", ForLoop),
                     ("", DWCCall),
                     ("!", SetVar)]
@@ -326,6 +332,8 @@ class Parametric(SolveStep, NS_mixin):
         os.chdir(od)
         for p in probes:
             p.write_file()
+            # else:
+            #    dprint1("skipping summarizing probe data for ", p.name)
 
     def set_scanner_physmodel(self, scanner):
         solvers = self.get_active_solvers()

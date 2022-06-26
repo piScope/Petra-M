@@ -2301,7 +2301,9 @@ class DlgPlotSol(SimpleFramePlus):
         v.suptitle(expr)
         if len(xexpr) != 0:
             v.xlabel(xexpr)
-        v.plot(data[0], data[1])
+            v.plot(data[0], data[1])
+        else:
+            v.plot(data[1])
         v.update(True)
 
     def eval_probe(self, mode='plot'):
@@ -2735,11 +2737,6 @@ class DlgPlotSol(SimpleFramePlus):
             return None
 
         try:
-            if model.variables.getvar('remote_soldir') is None:
-                probes = self.local_sols[0:2]
-            else:
-                probes = self.remote_sols[0:2]
-
             self.evaluators['Integral'].set_phys_path(phys_path)
             return self.evaluators['Integral'].eval_integral(expr,
                                                              kind=kind,
@@ -2783,14 +2780,14 @@ class DlgPlotSol(SimpleFramePlus):
             return None, None
 
         try:
-            if model.variables.getvar('remote_soldir') is None:
+            if not self.config['use_cs']:
                 probes = self.local_sols[0:2]
             else:
                 probes = self.remote_sols[0:2]
 
             self.evaluators['Probe'].set_phys_path(phys_path)
             data = self.evaluators['Probe'].eval_probe(expr, xexpr, probes)
-            return data[1], data[2]
+            return data[1], np.transpose(data[2])
         except BaseException:
             wx.CallAfter(dialog.showtraceback,
                          parent=self,

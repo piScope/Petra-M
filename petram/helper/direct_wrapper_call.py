@@ -70,8 +70,27 @@ class DWC(object):
         '''
         raise NotImplementedError("checkpoint must be implemented by a user")
 
-    def nlcheckpoint(self, caller, count, *args, **kwargs):
-        raise NotImplementedError("nlcheckpoint must be implemented by a user")
+    def nl_checkpoint(self, caller, count, *args, **kwargs):
+        '''
+        called during nonlinear iteration loop
+        return value: 
+             False: normal
+             True: emergency stop of iteration
+        '''
+        raise NotImplementedError(
+            "nl_checkpoint must be implemented by a user")
+
+    def nl_start(self, caller, *args, **kwargs):
+        '''
+        called at the begining of non-linear iteration
+        '''
+        raise NotImplementedError("nl_start must be implemented by a user")
+
+    def nl_end(self, caller, *args, **kwargs):
+        '''
+        called at the end of non-linear iteration
+        '''
+        raise NotImplementedError("nl_end must be implemented by a user")
 
     def init(self, caller, *args, **kwargs):
         '''
