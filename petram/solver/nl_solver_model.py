@@ -387,6 +387,12 @@ class NonlinearBaseSolver(SolverInstance):
         if not self.phys_real and self.gui.assemble_real:
             solall = self.linearsolver_model.real_to_complex(solall, AA)
 
+        return solall
+
+    def update_x(self, solall):
+        A, X, RHS, Ae, B, M, depvars = self.blocks
+        mask = self.blk_mask
+
         A.reformat_central_mat(
             solall, 0, X[0], mask, alpha=self._alpha, beta=self._beta)
         self.sol = X[0]
@@ -405,7 +411,8 @@ class NonlinearBaseSolver(SolverInstance):
         self._alpha = 1.0
         self._beta = 0.0
 
-        self.do_solve(update_operator=False)
+        tmp = self.do_solve(update_operator=False)
+        self.update_x(tmp)
 
         self.set_damping(damping)
         self._kiter = self._kiter - 1
@@ -498,6 +505,7 @@ class NewtonSolver(NonlinearBaseSolver):
         self.minimum_damping = 0.05
         self._err_before = 100.
         self._fixed_damping = False
+        self._rollback = False
 
     def reset_count(self, maxiter):
         NonlinearBaseSolver.reset_count(self, maxiter)
@@ -602,12 +610,11 @@ class NewtonSolver(NonlinearBaseSolver):
         if self.verbose:
             dprint1("Linear solve...step=", self.kiter)
 
-        if self.kiter > 0:
+        if self.kiter > 0 and not self._rollback:
             sol_ave_norm = X[0].average_norm()
             soldata = self.copy_x(X[0])
 
             self.do_error_estimate()
-
             err = self.compute_err(soldata, sol_ave_norm, X[0])
             self.copyback_x(X[0], soldata)
 
@@ -618,15 +625,18 @@ class NewtonSolver(NonlinearBaseSolver):
                 self._converged = True
                 self._done = True
 
+            print("hoge?", self.kiter)
             if self.kiter == 1:
                 self._err_before = err
                 self._err_guidance = err
             elif self._fixed_damping:
                 pass
             elif err > self._err_before:
-                self._err_guidance = self._err_before
-                #self.copyback_x(X[0], self._solbackup)
                 self.set_damping(self.damping*0.8)
+                self._err_guidance = self._err_before
+                self.copyback_x(X[0], self._solbackup)
+                self.update_x(self._delta)
+                self._kiter = self._kiter - 1
                 if self.damping < self.minimum_damping:
                     # Let's give up ...(sad face)
                     self._done = True
@@ -635,7 +645,8 @@ class NewtonSolver(NonlinearBaseSolver):
                             self.damping, self._err_before, err)
 
                     # this is fudge factor to avoid keep reducing damping (not sure I need this)
-                    self._err_before = err #*1.02
+                    # self._err_before = err #*1.02
+                    self._rollback = True
                     return
 
             elif err < self._err_guidance*0.7 and self.damping < 1.0:
@@ -644,9 +655,6 @@ class NewtonSolver(NonlinearBaseSolver):
                 self.set_damping(self.damping*1.2)
                 dprint1("new damping (increased)", self.damping)
 
-#            elif abs((err - self._err_before)/err) < 1e-4:
-#                self._err_before = err
-#                self._done = True
             else:
                 self._err_before = err
 
@@ -659,8 +667,11 @@ class NewtonSolver(NonlinearBaseSolver):
 
         if not self._converged and not self._done:
             self.damping_record.append(self.damping)
-            #self._solbackup = self.copy_x(X[0])
-            self.do_solve(update_operator=update_operator)
+
+            self._solbackup = self.copy_x(X[0])
+            self._delta = self.do_solve(update_operator=update_operator)
+            self.update_x(self._delta)
+            self._rollback = False
             self.engine.add_FESvariable_to_NS(self.get_phys())
 
         if self._done and not stopit:
