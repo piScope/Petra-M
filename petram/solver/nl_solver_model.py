@@ -638,8 +638,10 @@ class NewtonSolver(NonlinearBaseSolver):
                 self._err_guidance = err
             elif self._fixed_damping:
                 pass
-            elif err > self._err_before*1.05:
-                self.set_damping(self.damping*0.8)
+            #elif err > self._err_before*1.05:
+            elif err > self._err_guidance*1.05:
+                #self.set_damping(self.damping*0.8)
+                self.set_damping(self.damping*0.7)
                 self._err_guidance = self._err_before
                 self.copyback_x(X[0], self._solbackup)
                 self.update_x(self._delta)
@@ -659,7 +661,8 @@ class NewtonSolver(NonlinearBaseSolver):
             elif err < self._err_guidance*0.7 and self.damping < 1.0:
                 self._err_guidance = err
                 self._err_before = err
-                self.set_damping(self.damping*1.2)
+                self.set_damping(self.damping*1.3)
+#                self.set_damping(self.damping*1.2)
                 dprint1("new damping (increased)", self.damping)
 
             else:
