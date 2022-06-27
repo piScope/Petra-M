@@ -635,7 +635,7 @@ class NewtonSolver(NonlinearBaseSolver):
                             self.damping, self._err_before, err)
 
                     # this is fudge factor to avoid keep reducing damping (not sure I need this)
-                    self._err_before = err*1.02
+                    self._err_before = err #*1.02
                     return
 
             elif err < self._err_guidance*0.7 and self.damping < 1.0:
