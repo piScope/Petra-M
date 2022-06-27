@@ -625,7 +625,6 @@ class NewtonSolver(NonlinearBaseSolver):
                 self._converged = True
                 self._done = True
 
-            print("hoge?", self.kiter)
             if self.kiter == 1:
                 self._err_before = err
                 self._err_guidance = err
