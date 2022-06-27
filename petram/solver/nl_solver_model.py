@@ -508,6 +508,10 @@ class NewtonSolver(NonlinearBaseSolver):
         self._stall_counter = 0
         self.max_stall = 10
 
+        self._dwidth = 0.15
+        self.dwidth1 = 1 + self._dwidth
+        self.dwidth2 = 1 - self._dwidth
+
     def reset_count(self, maxiter):
         NonlinearBaseSolver.reset_count(self, maxiter)
         self._err_before = 100.
@@ -592,7 +596,6 @@ class NewtonSolver(NonlinearBaseSolver):
 
         err_total = np.sqrt(np.sum(err))/np.sqrt(shape[0])
 
-        self.error_record.append(err_total)
         return err_total
 
     def assemble(self, inplace=True, update=False):
@@ -638,11 +641,12 @@ class NewtonSolver(NonlinearBaseSolver):
                 self._err_guidance = err
             elif self._fixed_damping:
                 pass
-            #elif err > self._err_before*1.05:
+            # elif err > self._err_before*1.05:
             elif err > self._err_guidance*1.05:
-                #self.set_damping(self.damping*0.8)
-                self.set_damping(self.damping*0.85)
-#                self.set_damping(self.damping*0.7)
+                # self.set_damping(self.damping*0.8)
+                # self.set_damping(self.damping*0.7)
+                self.set_damping(self.damping*self.dwidth2)
+
                 self._err_guidance = self._err_before
                 self.copyback_x(X[0], self._solbackup)
                 self.update_x(self._delta)
@@ -659,15 +663,17 @@ class NewtonSolver(NonlinearBaseSolver):
                     if self.scheme_name != "fixed-point":
                         return
 
-            elif err < self._err_guidance*0.85 and self.damping < 1.0:
+            elif err < self._err_guidance*self.dwidth2 and self.damping < 1.0:
                 self._err_guidance = err
                 self._err_before = err
-                self.set_damping(self.damping*1.15)
+                self.set_damping(self.damping*self.dwidth1)
 #                self.set_damping(self.damping*1.2)
                 dprint1("new damping (increased)", self.damping)
 
             else:
                 self._err_before = err
+
+            self.error_record.append(err)
 
             stopit = self.call_dwc_nliteration()
             if stopit:
