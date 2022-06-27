@@ -505,7 +505,9 @@ class NewtonSolver(NonlinearBaseSolver):
         self.minimum_damping = 0.05
         self._err_before = 100.
         self._fixed_damping = False
-
+        self._stall_counter = 0
+        self.max_stall = 10
+        
     def reset_count(self, maxiter):
         NonlinearBaseSolver.reset_count(self, maxiter)
         self._err_before = 100.
@@ -623,6 +625,12 @@ class NewtonSolver(NonlinearBaseSolver):
             if err < self._reltol:
                 self._converged = True
                 self._done = True
+            if abs((err - self._err_before)/err) < 1e-3:
+                self._stall_counter = self._stall_counter + 1
+            else:
+                self._stall_counter = 0
+            if self._stall_counter > self.max_stall:
+                self._done = True
 
             if self.kiter == 1:
                 self._err_before = err
@@ -656,6 +664,8 @@ class NewtonSolver(NonlinearBaseSolver):
             else:
                 self._err_before = err
 
+
+        
             stopit = self.call_dwc_nliteration()
             if stopit:
                 self._done = True
