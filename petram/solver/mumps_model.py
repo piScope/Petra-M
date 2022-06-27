@@ -705,7 +705,7 @@ class MUMPSSolver(LinearSolver):
             if info1 < 0:
                 assert False, "MUMPS call (job1) failed. Check error log"
             if info1 > 0:
-                dprint("MUMPS return warning", info1)
+                dprint1("MUMPS return warning", info1)
             if not self.silent:
                 dprint1("job2")
             s.set_icntl(13, 0)
@@ -717,7 +717,7 @@ class MUMPSSolver(LinearSolver):
             if info1 < 0:
                 assert False, "MUMPS call (job2) failed. Check error log"
             if info1 > 0:
-                dprint("MUMPS return warning", info1)
+                dprint1("MUMPS return warning", info1)
             if gui.write_fac:
                 if not self.silent:
                     dprint1("job7 (save)")

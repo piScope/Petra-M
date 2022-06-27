@@ -507,7 +507,7 @@ class NewtonSolver(NonlinearBaseSolver):
         self._fixed_damping = False
         self._stall_counter = 0
         self.max_stall = 10
-        
+
     def reset_count(self, maxiter):
         NonlinearBaseSolver.reset_count(self, maxiter)
         self._err_before = 100.
@@ -630,6 +630,7 @@ class NewtonSolver(NonlinearBaseSolver):
             else:
                 self._stall_counter = 0
             if self._stall_counter > self.max_stall:
+                dprint1("no convergence (stall)")
                 self._done = True
 
             if self.kiter == 1:
@@ -651,7 +652,7 @@ class NewtonSolver(NonlinearBaseSolver):
                             self.damping, self._err_before, err)
 
                     # this is fudge factor to avoid keep reducing damping (not sure I need this)
-                    self._err_before = err #*1.02
+                    self._err_before = err  # *1.02
                     if self.scheme_name != "fixed-point":
                         return
 
@@ -664,8 +665,6 @@ class NewtonSolver(NonlinearBaseSolver):
             else:
                 self._err_before = err
 
-
-        
             stopit = self.call_dwc_nliteration()
             if stopit:
                 self._done = True
