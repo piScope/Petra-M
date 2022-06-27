@@ -602,7 +602,6 @@ class NewtonSolver(NonlinearBaseSolver):
         if self.verbose:
             dprint1("Linear solve...step=", self.kiter)
 
-        skip_dwc = False
         if self.kiter > 0:
             sol_ave_norm = X[0].average_norm()
             soldata = self.copy_x(X[0])
@@ -626,7 +625,7 @@ class NewtonSolver(NonlinearBaseSolver):
                 pass
             elif err > self._err_before:
                 self._err_guidance = self._err_before
-                self.copyback_x(X[0], self._solbackup)
+                #self.copyback_x(X[0], self._solbackup)
                 self.set_damping(self.damping*0.8)
                 if self.damping < self.minimum_damping:
                     # Let's give up ...(sad face)
@@ -636,10 +635,8 @@ class NewtonSolver(NonlinearBaseSolver):
                             self.damping, self._err_before, err)
 
                     # this is fudge factor to avoid keep reducing damping (not sure I need this)
-                    self._err_before = err  # *1.02
-                    self._kiter = self._kiter - 1
-                    skip_dwc = True
-                    # return
+                    self._err_before = err #*1.02
+                    return
 
             elif err < self._err_guidance*0.7 and self.damping < 1.0:
                 self._err_guidance = err
@@ -653,17 +650,16 @@ class NewtonSolver(NonlinearBaseSolver):
             else:
                 self._err_before = err
 
-            if not skip_dwc:
-                stopit = self.call_dwc_nliteration()
-                if stopit:
-                    self._done = True
+            stopit = self.call_dwc_nliteration()
+            if stopit:
+                self._done = True
 
             if self._kiter >= self._maxiter:
                 self._done = True
 
         if not self._converged and not self._done:
             self.damping_record.append(self.damping)
-            self._solbackup = self.copy_x(X[0])
+            #self._solbackup = self.copy_x(X[0])
             self.do_solve(update_operator=update_operator)
             self.engine.add_FESvariable_to_NS(self.get_phys())
 
