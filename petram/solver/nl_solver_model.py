@@ -623,8 +623,8 @@ class NewtonSolver(NonlinearBaseSolver):
             self.copyback_x(X[0], soldata)
 
             if self.verbose:
-                dprint1("estimated error, error, damping)",
-                        err, self._err_before, self.damping)
+                dprint1("estimated error, err_before, err_guidance, damping)",
+                        err, self._err_before, self._err_guidance, self.damping)
             if err < self._reltol:
                 self._converged = True
                 self._done = True
@@ -642,8 +642,8 @@ class NewtonSolver(NonlinearBaseSolver):
             elif self._fixed_damping:
                 pass
 
-            #elif (err > self._err_guidance*1.05 or err > self._err_before*1.05):
-            elif err > self._err_before*self.dwidth1:
+            elif (err > self._err_guidance*1.05 or err > self._err_before*self.dwidth1):
+            #elif err > self._err_before*self.dwidth):
                 # self.set_damping(self.damping*0.8)
                 # self.set_damping(self.damping*0.7)
                 self.set_damping(self.damping*self.dwidth2)
@@ -673,6 +673,7 @@ class NewtonSolver(NonlinearBaseSolver):
 
             else:
                 self._err_before = err
+                self._err_guidance = self._err_guidance*1.02
 
             self.error_record.append(err)
 
