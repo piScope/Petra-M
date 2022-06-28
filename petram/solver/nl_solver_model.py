@@ -642,7 +642,8 @@ class NewtonSolver(NonlinearBaseSolver):
             elif self._fixed_damping:
                 pass
 
-            elif (err > self._err_guidance*1.05 or err > self._err_before*1.05):
+            #elif (err > self._err_guidance*1.05 or err > self._err_before*1.05):
+            elif err > self._err_before*self.dwidth1):
                 # self.set_damping(self.damping*0.8)
                 # self.set_damping(self.damping*0.7)
                 self.set_damping(self.damping*self.dwidth2)
