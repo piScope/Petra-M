@@ -504,7 +504,8 @@ class NewtonSolver(NonlinearBaseSolver):
         self.scheme_name = "newton"
         self.minimum_damping = 0.05
         self._err_before = 100.
-        self._err_guidance = 100.        
+        self._err_guidance = 100.
+        self._err_inc_count = 0
         self._fixed_damping = False
         self._stall_counter = 0
         self.max_stall = 10
@@ -643,7 +644,10 @@ class NewtonSolver(NonlinearBaseSolver):
             elif self._fixed_damping:
                 pass
 
-            elif (err > self._err_guidance*1.05 or err > self._err_before*self.dwidth1):
+            elif (err > self._err_guidance*1.05 or
+                  #err > self._err_before*self.dwidth1 or
+                  err > self._err_before*1.05 or
+                  self._err_inc_count > 4):
             #elif err > self._err_before*self.dwidth):
                 # self.set_damping(self.damping*0.8)
                 # self.set_damping(self.damping*0.7)
@@ -653,6 +657,7 @@ class NewtonSolver(NonlinearBaseSolver):
                 self.copyback_x(X[0], self._solbackup)
                 self.update_x(self._delta)
                 self._kiter = self._kiter - 1
+                self._err_inc_count = 0
                 if self.damping < self.minimum_damping:
                     # Let's give up ...(sad face)
                     self._done = True
@@ -673,8 +678,13 @@ class NewtonSolver(NonlinearBaseSolver):
                 dprint1("new damping (increased)", self.damping)
 
             else:
+                if err > self._err_before:
+                   self._err_inc_count = self._err_inc_count + 1
+                else:
+                   self._err_inc_count = 0
                 self._err_before = err
                 self._err_guidance = self._err_guidance*1.02
+
 
             self.error_record.append(err)
 
