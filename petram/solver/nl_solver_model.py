@@ -647,7 +647,7 @@ class NewtonSolver(NonlinearBaseSolver):
                 # self.set_damping(self.damping*0.7)
                 self.set_damping(self.damping*self.dwidth2)
 
-                self._err_guidance = min([self._err_before, self._err_guidance])
+                self._err_guidance = self._err_guidance*1.05
                 self.copyback_x(X[0], self._solbackup)
                 self.update_x(self._delta)
                 self._kiter = self._kiter - 1
