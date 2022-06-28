@@ -647,7 +647,7 @@ class NewtonSolver(NonlinearBaseSolver):
                 # self.set_damping(self.damping*0.7)
                 self.set_damping(self.damping*self.dwidth2)
 
-                self._err_guidance = self._err_guidance*1.05
+                self._err_guidance = self._err_guidance*self.dwidth1
                 self.copyback_x(X[0], self._solbackup)
                 self.update_x(self._delta)
                 self._kiter = self._kiter - 1
@@ -659,7 +659,7 @@ class NewtonSolver(NonlinearBaseSolver):
                             self.damping, self._err_before, err)
 
                     # this is fudge factor to avoid keep reducing damping (not sure I need this)
-                    self._err_before = err  # *1.02
+                    self._err_before = err   # *1.02
                     if self.scheme_name != "fixed-point":
                         return
 
