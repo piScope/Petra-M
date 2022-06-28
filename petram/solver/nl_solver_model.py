@@ -504,6 +504,7 @@ class NewtonSolver(NonlinearBaseSolver):
         self.scheme_name = "newton"
         self.minimum_damping = 0.05
         self._err_before = 100.
+        self._err_guidance = 100.        
         self._fixed_damping = False
         self._stall_counter = 0
         self.max_stall = 10
