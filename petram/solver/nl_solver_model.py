@@ -724,6 +724,9 @@ class NewtonSolver(NonlinearBaseSolver):
 
         self.residual_record.append(residual)
 
+        if residual < 3e-7:
+            self._done = True
+
         if not self._converged and not self._done:
             self.damping_record.append(self.damping)
 
