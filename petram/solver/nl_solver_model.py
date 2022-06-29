@@ -724,7 +724,7 @@ class NewtonSolver(NonlinearBaseSolver):
 
         self.residual_record.append(residual)
 
-        if residual < 3e-7:
+        if self.kiter > 5 and residual < 3e-7:
             self._done = True
 
         if not self._converged and not self._done:
