@@ -261,6 +261,7 @@ class NonlinearBaseSolver(SolverInstance):
         self.debug_data = []
         self.debug_data2 = []
         self.damping_record = []
+        self.residual_record = []
 
     @property
     def blocks(self):
@@ -600,6 +601,26 @@ class NewtonSolver(NonlinearBaseSolver):
 
         return err_total
 
+    def compute_residual(self, RHS):
+        shape = RHS.shape
+        w = [0]*shape[0]
+        w[0] = 1
+
+        if self.kiter == 0:
+            self._res_sq0 = RHS.average_norm(sq=True)
+            return self._res_sq0
+        if self.kiter == 1:
+            self._res_sq1 = RHS.average_norm(sq=True)
+            self._res_w = (self._res_sq0 + self._res_sq1)/2.0
+            self._res_w = [w if w != 0 else np.mean(self._res_w)
+                           for w in self._res_w]
+            return self._res_sq1
+        if self.kiter > 1:
+            nsq = RHS.normsq()
+            dprint1(np.sqrt(np.sum(w*nsq/self._res_w))/np.sqrt(shape[0]),
+                    self._res_w)
+            return np.sqrt(np.sum(w*nsq/self._res_w))/np.sqrt(shape[0])
+
     def assemble(self, inplace=True, update=False):
         from petram.engine import max_matrix_num
 
@@ -616,7 +637,14 @@ class NewtonSolver(NonlinearBaseSolver):
         if self.verbose:
             dprint1("Linear solve...step=", self.kiter)
 
+        residual = self.compute_residual(B - M[0].dot(X[0]))
+        if self.kiter == 2:
+            self._resitual0 = residual
+        if self.verbose:
+            dprint1("Current residual..", residual)
+
         if self.kiter > 0:
+
             sol_ave_norm = X[0].average_norm()
             soldata = self.copy_x(X[0])
 
@@ -651,6 +679,8 @@ class NewtonSolver(NonlinearBaseSolver):
 
                 self.set_damping(self.damping*self.dwidth2)
                 self._err_guidance = self._err_guidance*self.dwidth1
+                # this makes reduction of damping milder...not sure if this is better....
+                # self._err_guidance = self._err_before
 
                 self.copyback_x(X[0], self._solbackup)
                 self.update_x(self._delta)
@@ -664,8 +694,7 @@ class NewtonSolver(NonlinearBaseSolver):
                     dprint1("new damping (reduced), ref_error, current_error",
                             self.damping, self._err_before, err)
 
-                    # this is fudge factor to avoid keep reducing damping (not sure I need this)
-                    self._err_before = err   # *1.02
+                    self._err_before = err
                     if self.scheme_name != "fixed-point":
                         return
 
@@ -692,6 +721,8 @@ class NewtonSolver(NonlinearBaseSolver):
 
             if self._kiter >= self._maxiter:
                 self._done = True
+
+        self.residual_record.append(residual)
 
         if not self._converged and not self._done:
             self.damping_record.append(self.damping)
@@ -721,6 +752,7 @@ class NewtonSolver(NonlinearBaseSolver):
             if self.verbose:
                 dprint1("err history = ", self.error_record)
                 dprint1("err^2 history (decomposition) = ", self.debug_data)
+                dprint1("residuals", self.residual_record)
 
     def save_probe(self):
         from petram.mfem_config import use_parallel

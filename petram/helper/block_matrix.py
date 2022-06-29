@@ -470,7 +470,7 @@ class BlockMatrix(object):
                                                     for j in range(self.shape[1])]))
         return "\nnon-zero elements (nnz)\n" + "\n".join(txt)
 
-    def norm(self):
+    def normsq(self):
         shape = self.shape
         assert shape[1] == 1, "multilpe vectors are not supported"
         norm = [0]*shape[0]
@@ -490,13 +490,20 @@ class BlockMatrix(object):
         if use_parallel:
             norm = np.sum(allgather(norm), 0)
 
-        return np.sqrt(norm)
+        return norm
 
-    def average_norm(self):
+    def norm(self):
+        return np.sqrt(self.normsq())
+
+    def average_norm(self, sq=False):
         shape = self.shape
         assert shape[1] == 1, "multilpe vectors are not supported"
 
-        norm = self.norm()
+        if sq:
+            norm = self.normsq()
+        else:
+            norm = self.norm()
+
         length = [0]*shape[0]
 
         for i in range(shape[0]):
@@ -507,6 +514,7 @@ class BlockMatrix(object):
         if use_parallel:
             length = np.sum(allgather(length), 0)
 
+        length = np.array(length)
         return norm/length
 
     def print_nnz(self):
