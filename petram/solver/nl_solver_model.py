@@ -36,7 +36,10 @@ class NLSolver(Solver):
         v["nl_abstol"] = 0.0
         v["nl_damping"] = 1.0
         v["nl_damping_min"] = 0.01
+        v["nl_damping_fixed"] = False
         v["nl_tolthr"] = 0.01
+        v["nl_stopcond"] = "error"
+        v["nl_stopresidual"] = "all"
         v["nl_verbose"] = True
         v['dwc_name'] = ''
         v['use_dwc_nl'] = False
@@ -56,6 +59,8 @@ class NLSolver(Solver):
             ["NL rel. tol.", self.nl_reltol, 300, {}],
             ["NL inital damping", self.nl_damping, 300, {}],
             ["NL min damping", self.nl_damping_min, 300, {}],
+            [None, not self.nl_damping_fixed,  3,
+                {"text": "auto adjust damping"}],
             [None, [False, value], 27, [{'text': 'Use DWC (nl_start/nl_checkpoint/nl_end)'},
                                         {'elp': ret}]],
             [None, self.nl_verbose, 3, {
@@ -82,6 +87,7 @@ class NLSolver(Solver):
             self.nl_reltol,
             self.nl_damping,
             self.nl_damping_min,
+            not self.nl_damping_fixed,
             [self.use_dwc_nl, [self.dwc_name, self.dwc_nl_arg, ]],
             self.nl_verbose,
             self.init_only,
@@ -101,20 +107,21 @@ class NLSolver(Solver):
         self.nl_reltol = v[3]
         self.nl_damping = v[4]
         self.nl_damping_min = v[5]
-        self.use_dwc_nl = v[6][0]
-        self.dwc_name = v[6][1][0]
-        self.dwc_nl_arg = v[6][1][1]
+        self.nl_damping_fixed = not v[6]
+        self.use_dwc_nl = v[7][0]
+        self.dwc_name = v[7][1][0]
+        self.dwc_nl_arg = v[7][1][1]
 
-        self.nl_verbose = v[7]
+        self.nl_verbose = v[8]
 
-        self.init_only = v[8]
-        self.clear_wdir = v[9]
-        self.assemble_real = v[10]
-        self.save_parmesh = v[11]
-        self.use_profiler = v[12]
-        self.skip_solve = v[13]
-        self.load_sol = v[14]
-        self.sol_file = v[15]
+        self.init_only = v[9]
+        self.clear_wdir = v[10]
+        self.assemble_real = v[11]
+        self.save_parmesh = v[12]
+        self.use_profiler = v[13]
+        self.skip_solve = v[14]
+        self.load_sol = v[15]
+        self.sol_file = v[16]
 
     def get_editor_menus(self):
         return []
@@ -197,7 +204,8 @@ class NLSolver(Solver):
         else:
             instance.reset_count(self.nl_maxiter)
             instance.set_damping(self.nl_damping,
-                                 minimum=self.nl_damping_min)
+                                 minimum=self.nl_damping_min,
+                                 fixed=self.nl_damping_fixed)
             dprint1("Starting non-linear iteration")
 
             if self.use_dwc_nl:
@@ -288,7 +296,7 @@ class NonlinearBaseSolver(SolverInstance):
         dprint1("NL iteration tolelance/threshold: ",
                 self._reltol, self._tolthr)
 
-    def set_damping(self, damping, minimum=None, thr=None):
+    def set_damping(self, damping, minimum=None, fixed=None):
         assert False, "Must be implemented in child"
 
     def compute_A(self, M, B, X, mask_M, mask_B):
@@ -518,19 +526,18 @@ class NewtonSolver(NonlinearBaseSolver):
     def reset_count(self, maxiter):
         NonlinearBaseSolver.reset_count(self, maxiter)
         self._err_before = 100.
-        self._fixed_damping = False
 
     @property
     def damping(self):
         return self._alpha
 
-    def set_damping(self, damping, minimum=None, thr=None):
+    def set_damping(self, damping, minimum=None, fixed=None):
         self._alpha = min(damping, 1.0)
         self._beta = 1.0
         if minimum is not None:
             self.minimum_damping = minimum
-        if thr is not None:
-            self.damping_thr = thr
+        if fixed is not None:
+            self._fixed_damping = fixed
 
     def reset_count(self, maxiter):
         NonlinearBaseSolver.reset_count(self, maxiter)
@@ -618,7 +625,7 @@ class NewtonSolver(NonlinearBaseSolver):
         if self.kiter > 1:
             nsq = RHS.normsq()
             dprint1(np.sqrt(np.sum(w*nsq/self._res_w))/np.sqrt(shape[0]),
-                    self._res_w)
+                    nsq)
             return np.sqrt(np.sum(w*nsq/self._res_w))/np.sqrt(shape[0])
 
     def assemble(self, inplace=True, update=False):
