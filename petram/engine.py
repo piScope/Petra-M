@@ -678,7 +678,6 @@ class Engine(object):
             self.do_run_mesh_extension_prep(phys)
 
     def do_run_mesh_extension_prep(self, phys):
-        from petram.mesh.mesh_extension import MeshExt, generate_emesh
         from petram.mesh.mesh_model import MFEMMesh
 
         if len(self.emeshes) == 0:
@@ -695,6 +694,15 @@ class Engine(object):
         dprint1(phys.name() + ":  emesh index =", idx)
 
     def run_mesh_extension(self, phys):
+
+        import petram.mesh.partial_mesh
+
+        p_method = self.get_submesh_partitiong_method()
+        if p_method == "auto":
+            petram.mesh.partial_mesh.partition_method = "default"
+        else:
+            petram.mesh.partial_mesh.partition_method = "0"
+
         from petram.mesh.mesh_extension import MeshExt, generate_emesh
         from petram.mesh.mesh_model import MFEMMesh
 
@@ -3421,6 +3429,9 @@ class Engine(object):
 
     def get_partitiong_method(self):
         return self.model.root()['General'].partitioning
+
+    def get_submesh_partitiong_method(self):
+        return self.model.root()['General'].submeshpartitioning
 
     def get_autofill_diag(self):
         return self.model.root()['General'].autofilldiag == 'on'
