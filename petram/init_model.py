@@ -110,6 +110,9 @@ class CustomInitSetting():
         self.init_path = path
         self.init_dwc_name_params = dwc
 
+    def name(self):
+        return self.init_name
+
     def run(self, engine):
         dwcparams = (self.name,
                      self.init_dwc_name_params[0],
