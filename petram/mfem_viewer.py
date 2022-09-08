@@ -438,7 +438,7 @@ class MFEMViewer(BookViewer):
                 sc.load_script(os.path.join(
                     self.model.namespaces.owndir(), file))
             if file.endswith('.dat'):
-                fid = open(os.path.join(dir, file), 'r')
+                fid = open(os.path.join(dir, file), 'rb')
                 data = pickle.load(fid)
                 fid.close()
                 obj = self.model.datasets.add_childobject(
