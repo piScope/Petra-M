@@ -144,6 +144,7 @@ class PostProcess(PostProcessBase, NSRef_mixin):
                     mm.run_postprocess(engine)
                 engine.ppname_postfix = ''
             else:
+                engine.ppname_postfix = ''
                 mm.run_postprocess(engine)
 
     # parameters with validator

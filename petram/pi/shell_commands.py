@@ -1,22 +1,24 @@
 #
-#  petra 
+#  petra
 #
 #   piScope command to start PetraM
 #
 import os
 
+
 class PetraMHelper(object):
     '''
     configurator/helper
     '''
-    def __init__(self, p = None):
+
+    def __init__(self, p=None):
         object.__init__(self)
         self.properties = {'refine': 5}
 
         if p is not None:
             for k in p:
                 if k in self.properties:
-                     self.properties[k] = p[k]
+                    self.properties[k] = p[k]
         for k in self.properties:
             self.set(k, self.properties[k])
 
@@ -29,11 +31,12 @@ class PetraMHelper(object):
         for k in self.properties:
             print(k + ' : ' + str(self.properties[k]))
 
-def petram(reload_scripts = False):
+
+def petram(reload_scripts=False):
     '''
     setup PetraM simulation enveroment
     '''
-    from __main__ import ifig_app    
+    from __main__ import ifig_app
     proj = ifig_app.proj
     if proj.setting.parameters.hasvar('PetraM'):
         model = proj.setting.parameters.eval('PetraM')
@@ -43,7 +46,7 @@ def petram(reload_scripts = False):
             scripts = model.scripts
             from ifigure.mto.hg_support import has_repo
             if has_repo(scripts):
-                scripts.onHGturnoff(evt=None, confirm = False)
+                scripts.onHGturnoff(evt=None, confirm=False)
                 model.param.setvar('remote', None)
             reload_scripts = True
         except:
@@ -60,14 +63,16 @@ def petram(reload_scripts = False):
         proj.setting.parameters.setvar('PetraM', '='+model.get_full_path())
     return PetraMHelper()
 
-def load_petra_model(proj):
 
+def load_petra_model(proj):
 
     model_root = proj.onAddModel()
     model = model_root.add_model('mfem')
-    model.onAddNewNamespace(e = None)
+    model.onAddNewNamespace(e=None)
 
     model.param.setvar('nproc', 2)
+    model.param.setvar('openmp_num_threads', 'auto')
+    model.param.setvar('openblas_num_threads', 1)
     model.add_folder('namespaces')
     model.add_folder('datasets')
     model.add_folder('solutions')
@@ -85,10 +90,9 @@ def load_petra_model(proj):
 
     return model
 
+
 def import_project_scripts(scripts):
     import petram.pi.project_scripts
 
-    path =os.path.dirname(petram.pi.project_scripts.__file__)
+    path = os.path.dirname(petram.pi.project_scripts.__file__)
     scripts.load_script_folder(path, skip_underscore=True)
-
-
