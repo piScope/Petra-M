@@ -365,7 +365,7 @@ class MeshFile(MeshGenerator):
         wc = "ANY|*|MFEM|*.mesh|GMSH|*.gmsh"
         p1 = [["Path", self.path, 45, {'wildcard': wc}],
               ["",
-               "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir.",
+               "note: ~ and environmental variables are expanded. \n    In addition, {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir.",
                2,
                None],
               [None, self.generate_edges == 1,
@@ -419,6 +419,10 @@ class MeshFile(MeshGenerator):
                     continue
                 if hasattr(parent[key], 'get_meshfile_path'):
                     return parent[key].get_meshfile_path()
+        import os
+        path = os.path.expanduser(path)
+        path = os.path.expandvars(path)
+
         if path.find('{mfem}') != -1:
             path = path.replace('{mfem}', PyMFEM_PATH)
         if path.find('{petram}') != -1:
