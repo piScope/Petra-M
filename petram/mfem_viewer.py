@@ -1102,7 +1102,7 @@ class MFEMViewer(BookViewer):
             ncpus = multiprocessing.cpu_count()
             num_threads1 = ncpus//nproc
 
-        os.environ["OPENMP_NUM_THREADS"] = str(num_threads1)
+        os.environ["OMP_NUM_THREADS"] = str(num_threads1)
 
         num_threads2 = self.model.param.getvar('openblas_num_threads')
         if num_threads2 is None:
