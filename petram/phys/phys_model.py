@@ -1228,6 +1228,10 @@ class PhysModule(Phys):
         from petram.mesh.mesh_extension import MeshExtInfo
 
         info = MeshExtInfo(dim=self.dim, base=self.mesh_idx)
+
+
+        if len(self.sel_index) == 0:
+            return None
         if self.sel_index[0] != 'all':
             info.set_selection(self.sel_index)
         else:

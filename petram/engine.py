@@ -688,10 +688,15 @@ class Engine(object):
                                                  self.emeshes[j].Dimension(),
                                                  attrs)
         info = phys.get_mesh_ext_info(self.meshes[phys.mesh_idx])
-        idx = self.emesh_data.add_info(info)
-
-        phys.emesh_idx = idx
-        dprint1(phys.name() + ":  emesh index =", idx)
+        if info is not None:
+            idx = self.emesh_data.add_info(info)
+            phys.emesh_idx = idx
+        elif phys.enabled:
+            assert False, "failed to run mesh extension. check selection of " + \
+                str(phys)
+        else:
+            phys.emesh_idx = 0   # this is when
+        dprint1(phys.name() + ":  emesh index =", phys.emesh_idx)
 
     def run_mesh_extension(self, phys):
 
