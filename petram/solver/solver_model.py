@@ -80,6 +80,7 @@ class SolveStep(SolverBase):
         v['dwc_pp_arg'] = ''
         v['use_geom_gen'] = False
         v['use_mesh_gen'] = False
+        v['use_profiler'] = False
 
         super(SolveStep, self).attribute_set(v)
         return v
@@ -94,6 +95,7 @@ class SolveStep(SolverBase):
                 [None,  self.use_geom_gen,  3, {
                     "text": "run geometry generator"}],
                 [None,  self.use_mesh_gen,  3, {"text": "run mesh generator"}],
+                [None,  self.use_profiler,  3, {"text": "use profiler"}],
                 [None, [False, value], 27, [{'text': 'Use DWC (postprocess)'},
                                             {'elp': ret}]], ]
 
@@ -104,6 +106,7 @@ class SolveStep(SolverBase):
         return (self.init_setting, self.postprocess_sol, self.phys_model,
                 self.use_geom_gen,
                 self.use_mesh_gen,
+                self.use_profiler,
                 [self.use_dwc_pp, [self.dwc_name, self.dwc_pp_arg, ]])
 
     def import_panel1_value(self, v):
@@ -114,9 +117,10 @@ class SolveStep(SolverBase):
         self.use_mesh_gen = v[4]
         if self.use_geom_gen:
             self.use_mesh_gen = True
-        self.use_dwc_pp = v[5][0]
-        self.dwc_name = v[5][1][0]
-        self.dwc_pp_arg = v[5][1][1]
+        self.use_profiler = bool(v[5])
+        self.use_dwc_pp = v[6][0]
+        self.dwc_name = v[6][1][0]
+        self.dwc_pp_arg = v[6][1][1]
 
 #        self.init_only    = v[2]
 
@@ -448,6 +452,7 @@ class SolveStep(SolverBase):
         engine.run_apply_essential(phys_target, phys_range)
         engine.run_fill_X_block()
 
+    @debug.use_profiler
     def run(self, engine, is_first=True):
         dprint1("!!!!! Entering SolveStep " + self.name() + " !!!!!")
         solvers = self.get_active_solvers()

@@ -42,6 +42,7 @@ class Parametric(SolveStep, NS_mixin):
                 [None,  self.use_geom_gen,  3, {
                     "text": "run geometry generator"}],
                 [None,  self.use_mesh_gen,  3, {"text": "run mesh generator"}],
+                [None,  self.use_profiler,  3, {"text": "use profiler"}],
                 ]
 
     def get_panel1_value(self):
@@ -59,22 +60,24 @@ class Parametric(SolveStep, NS_mixin):
                 self.get_inner_solver_names(),
                 self.clear_wdir,
                 self.use_geom_gen,
-                self.use_mesh_gen,)
+                self.use_mesh_gen,
+                self.use_profiler,)
 
     def import_panel1_value(self, v):
         self.init_setting = str(v[0])
         self.postprocess_sol = v[1]
         self.phys_model = str(v[2])
-        self.assembly_method = assembly_methods[v[-7]]
-        self.scanner = v[-6]
-        self.save_separate_mesh = v[-5]
-        self.clear_wdir = v[-3]
-        self.use_geom_gen = v[-2]
-        self.use_mesh_gen = v[-1]
+        self.assembly_method = assembly_methods[v[-8]]
+        self.scanner = v[-7]
+        self.save_separate_mesh = v[-6]
+        self.clear_wdir = v[-4]
+        self.use_geom_gen = v[-3]
+        self.use_mesh_gen = v[-2]
         if self.use_geom_gen:
             self.use_mesh_gen = True
         if self.use_mesh_gen:
             self.assembly_method = 0
+        self.use_profiler = bool(v[-1])
 
     def get_inner_solver_names(self):
         names = [s.name() for s in self.get_active_solvers()]
@@ -345,6 +348,7 @@ class Parametric(SolveStep, NS_mixin):
         scanner.set_phys_models(phys_models)
         return solvers
 
+    @debug.use_profiler
     def run(self, engine, is_first=True):
         #
         # is_first is not used

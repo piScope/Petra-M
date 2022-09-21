@@ -197,7 +197,7 @@ class AUX_Variable(Phys):
 
     def panel4_param(self):
         ll = super(AUX_Variable, self).panel4_param()
-        ll.append(['', False, 3, {"text": "Time dependent (RHS)"}])
+        ll.append(['Varying (in time/for loop) RHS', False, 3, {"text": ""}])
         return ll
 
     def panel4_tip(self):
