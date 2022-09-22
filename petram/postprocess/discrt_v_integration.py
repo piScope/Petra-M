@@ -206,9 +206,6 @@ class LinearformIntegrator(WeakformIntegrator):
         return 'Integration_LF'
 
     def get_operator(self, engine):
-        if engine.ppname_postfix in self.operator_stock:
-            return self.operator_stock[engine.ppname_postfix]
-
         name = self.variables.strip()
         var1 = engine.model._variables[name]
         emesh_idx1 = var1.get_emesh_idx()
@@ -260,7 +257,6 @@ class LinearformIntegrator(WeakformIntegrator):
         from mfem.common.chypre import LF2PyVec
         V = LF2PyVec(lfr, lfi, horizontal=True)
 
-        self.operator_stock[engine.ppname_postfix] = V
         return V
 
     def run_postprocess(self, engine):
@@ -270,7 +266,11 @@ class LinearformIntegrator(WeakformIntegrator):
         if name not in engine.model._variables:
             assert False, name + " is not defined"
 
-        V = self.get_operator(engine)
+        if engine.ppname_postfix in self.operator_stock:
+            V = self.operator_stock[engine.ppname_postfix]
+        else:
+            V = self.get_operator(engine)
+            self.operator_stock[engine.ppname_postfix] = V
 
         var1 = engine.model._variables[name]
         V1 = engine.variable2vector(var1)
