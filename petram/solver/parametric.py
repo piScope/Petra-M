@@ -187,23 +187,23 @@ class Parametric(SolveStep, NS_mixin):
     def _run_full_assembly(self, engine, solvers, scanner, is_first=True):
 
         postprocess = self.get_pp_setting()
-
         for kcase, case in enumerate(scanner):
-            is_first = True
+            is_first0 = True
 
             od = self.go_case_dir(engine, kcase, True)
 
             is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
 
-            if is_new_mesh or kcase == 0:
+            if is_new_mesh or is_first:
                 engine.preprocess_modeldata()
+                is_first = False
 
             self.prepare_form_sol_variables(engine)
 
             self.init(engine)
 
             for ksolver, s in enumerate(solvers):
-                is_first = s.run(engine, is_first=is_first)
+                is_first0 = s.run(engine, is_first=is_first0)
                 engine.add_FESvariable_to_NS(self.get_phys())
                 engine.store_x()
                 if self.solve_error[0]:
@@ -241,10 +241,13 @@ class Parametric(SolveStep, NS_mixin):
                     instance.assemble(inplace=False)
                 else:
                     engine.set_update_flag('ParametricRHS')
-                    for phys in phys_target:
-                        engine.run_update_param(phys)
-                    for phys in phys_range:
-                        engine.run_update_param(phys)
+
+                    done = []
+                    for phys in phys_target + phys_range:
+                        if phys not in done:
+                            engine.run_update_param(phys)
+                            done.append(phys)
+
                     engine.run_apply_essential(phys_target,
                                                phys_range,
                                                update=True)
@@ -294,6 +297,8 @@ class Parametric(SolveStep, NS_mixin):
                         if ksol == 0:
                             instance.save_solution(mesh_only=True,
                                                    save_parmesh=s.save_parmesh)
+                            save_mesh_linkdir = None
+
                         A.reformat_central_mat(solall, ksol, X[0], mask)
                         instance.sol = X[0]
                         for p in instance.probe:
@@ -302,10 +307,16 @@ class Parametric(SolveStep, NS_mixin):
                         od = self.go_case_dir(engine,
                                               ksol,
                                               ksolver == 0)
+
                         instance.save_solution(ksol=ksol,
                                                skip_mesh=False,
                                                mesh_only=False,
-                                               save_parmesh=s.save_parmesh)
+                                               save_parmesh=s.save_parmesh,
+                                               save_mesh_linkdir=save_mesh_linkdir)
+
+                        if save_mesh_linkdir is None:
+                            save_mesh_linkdir = os.getcwd()
+
                         engine.sol = instance.sol
                         instance.save_probe()
 

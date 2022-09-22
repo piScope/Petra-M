@@ -724,7 +724,8 @@ class SolverInstance(ABC):
         extra_data = engine.process_extra(sol_extra)
 
     def save_solution(self, ksol=0, skip_mesh=False,
-                      mesh_only=False, save_parmesh=False):
+                      mesh_only=False, save_parmesh=False,
+                      save_mesh_linkdir = None):
 
         engine = self.engine
         phys_target = self.get_phys()
@@ -741,7 +742,8 @@ class SolverInstance(ABC):
             engine.save_sol_to_file(phys_target,
                                     skip_mesh=skip_mesh,
                                     mesh_only=False,
-                                    save_parmesh=save_parmesh)
+                                    save_parmesh=save_parmesh,
+                                    save_mesh_linkdir=save_mesh_linkdir)
             engine.save_extra_to_file(extra_data)
         #engine.is_initialzied = False
 
