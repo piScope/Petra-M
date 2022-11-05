@@ -64,7 +64,7 @@ def petram(reload_scripts=False):
             ipage = book.add_page()
             book.get_page(ipage).add_axes()
             book.set_keep_data_in_tree(True)
-        # model.scripts.helpers.open_gui()
+
         from petram.mfem_viewer import MFEMViewer
         model.mfembook.Open(MFEMViewer)
         proj.setting.parameters.setvar('PetraM', '='+model.get_full_path())
