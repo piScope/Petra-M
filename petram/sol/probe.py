@@ -151,9 +151,9 @@ class Probe(object):
                 shape2 = max([np.prod(x.shape) for x in self.sig])
                 iscomplex = np.any([np.iscomplexobj(x) for x in self.sig])
                 if iscomplex:
-                    data = np.full((len(self.sig), shape2), np.nan)
+                    data = np.full((len(self.sig), shape2), np.nan, dtype=self.sig[0].dtype)
                 else:
-                    data = np.full((len(self.sig), shape2), np.nan)
+                    data = np.full((len(self.sig), shape2), np.nan, dtype=self.sig[0].dtype)
                 for k, x in enumerate(self.sig):
                     l = np.prod(x.shape)
                     data[k, :l] = x.flatten()
