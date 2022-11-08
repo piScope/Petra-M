@@ -59,8 +59,18 @@ def petram(reload_scripts=False):
         import_project_scripts(scripts)
 
     if model is not None:
-        model.scripts.helpers.open_gui()
+        if not model.has_child('mfembook'):
+            book = model.add_book('mfembook')
+            ipage = book.add_page()
+            book.get_page(ipage).add_axes()
+            book.set_keep_data_in_tree(True)
+
+        from petram.mfem_viewer import MFEMViewer
+        model.mfembook.Open(MFEMViewer)
         proj.setting.parameters.setvar('PetraM', '='+model.get_full_path())
+
+        import wx
+        wx.CallAfter(model.mfembook.find_bookviewer().Raise)
     return PetraMHelper()
 
 

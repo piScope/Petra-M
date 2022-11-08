@@ -937,9 +937,14 @@ class Engine(object):
             self.extras = {}
             updated_extra = []
             for phys in phys_target:
-                self.assemble_extra(phys, phys_range)
-                updated_extra.extend(
-                    self.extra_update_check_M(phys, phys_range))
+                keys_to_update = self.extra_update_check_M(phys, phys_range)
+
+                if update:
+                    self.assemble_extra(phys, phys_range, keys_to_update)
+                else:
+                    self.assemble_extra(phys, phys_range, None)
+
+                updated_extra.extend(keys_to_update)
 
             for extra_name, dep_name, kfes in updated_extra:
                 r = self.dep_var_offset(extra_name)
@@ -975,17 +980,21 @@ class Engine(object):
             # global interpolation (mesh coupling)
             self.assemble_projection(phys)
 
-        self.extras_mm = {}
+        #self.extras_mm = {}
 
         for j in range(self.n_matrix):
             self.access_idx = j
             if not self.is_matrix_active(j):
                 continue
 
-            self.extras = {}
+            # self.extras = {} (we keep old extra and update only where it is needed)
             updated_extra = []
             for phys in phys_target:
-                self.assemble_extra(phys, phys_range)
+                # dprint1("checking extra_updat for B",
+                #        self.extra_update_check_B(phys, phys_target))
+                keys_to_update = self.extra_update_check_B(phys, phys_target)
+
+                self.assemble_extra(phys, phys_range, keys_to_update)
                 updated_extra.extend(
                     self.extra_update_check_M(phys, phys_range))
 
@@ -1628,7 +1637,7 @@ class Engine(object):
     def fill_coupling(self, coupling, phys_target):
         raise NotImplementedError("Coupling is not supported")
 
-    def assemble_extra(self, phys, phys_range):
+    def assemble_extra(self, phys, phys_range, keys_to_update):
         for mm in phys.walk():
             if not mm.enabled:
                 continue
@@ -1637,6 +1646,14 @@ class Engine(object):
                 for kfes, name in enumerate(names):
                     if not mm.has_extra_DoF2(kfes, phys2, self.access_idx):
                         continue
+
+                    dep_var = names[kfes]
+                    extra_name = mm.extra_DoF_name2(kfes)
+                    key = (extra_name, dep_var, kfes)
+
+                    if keys_to_update is not None and key not in keys_to_update:
+                        continue
+
                     gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
                     gl_ess_tdof = gl_ess_tdof1 + gl_ess_tdof2
                     tmp = mm.add_extra_contribution(self,
@@ -1646,10 +1663,7 @@ class Engine(object):
                     if tmp is None:
                         continue
 
-                    dep_var = names[kfes]
-                    extra_name = mm.extra_DoF_name2(kfes)
-                    key = (extra_name, dep_var, kfes)
-                    if key in self.extras:
+                    if key in self.extras and keys_to_update is None:
                         assert False, "extra with key= " + \
                             str(key) + " already exists."
                     self.extras[key] = tmp
@@ -1876,6 +1890,7 @@ class Engine(object):
         from petram.helper.formholder import convertElement
         from mfem.common.chypre import MfemVec2PyVec
 
+        dprint1("fill_B_blocks mask_B", self.mask_B)
         nfes = len(self.fes_vars)
         self.access_idx = 0
         self.r_b.generateMatVec(self.b2B)
@@ -2343,10 +2358,11 @@ class Engine(object):
 
     def save_sol_to_file(self, phys_target, skip_mesh=False,
                          mesh_only=False,
-                         save_parmesh=False):
+                         save_parmesh=False,
+                         save_mesh_linkdir=None):
         if not skip_mesh:
-            m1 = [self.save_mesh0(), ]
-            mesh_filenames = self.save_mesh(phys_target)
+            m1 = [self.save_mesh0(save_mesh_linkdir), ]
+            mesh_filenames = self.save_mesh(phys_target, save_mesh_linkdir)
             mesh_filenames = m1 + mesh_filenames
 
         if save_parmesh:
@@ -3036,7 +3052,7 @@ class Engine(object):
             if i_x is not None:
                 i_x.Save(fnamei, 8)
 
-    def save_mesh0(self):
+    def save_mesh0(self, save_mesh_linkdir=None):
         mesh_names = []
         suffix = self.solfile_suffix()
         mesh = self.emeshes[0]
@@ -3044,18 +3060,29 @@ class Engine(object):
         self.clear_solmesh_files(header)
         name = header+suffix
 
-        if self.get_savegz():
-            mesh.PrintGZ(name, 16)
+        if save_mesh_linkdir is None:
+            if self.get_savegz():
+                mesh.PrintGZ(name, 16)
+            else:
+                mesh.Print(name, 16)
         else:
-            mesh.Print(name, 16)
+            src = os.path.join(save_mesh_linkdir, name)
+            dst = os.path.join(os.getcwd(), name)
+            os.symlink(src, dst)
         return name
 
-    def save_mesh(self, phys_target):
+    def save_mesh(self, phys_target, save_mesh_linkdir=None):
         mesh_names = []
         suffix = self.solfile_suffix()
 
+        done = []
+
         for phys in phys_target:
             k = phys.emesh_idx
+            if k in done:
+                continue
+            done.append(k)
+
             name = phys.dep_vars[0]
 
             mesh = self.fespaces.get_mesh(name)
@@ -3065,10 +3092,16 @@ class Engine(object):
 
             name = header+suffix
 
-            if self.get_savegz():
-                mesh.PrintGZ(name, 16)
+            if save_mesh_linkdir is None:
+                if self.get_savegz():
+                    mesh.PrintGZ(name, 16)
+                else:
+                    mesh.Print(name, 16)
             else:
-                mesh.Print(name, 16)
+                src = os.path.join(save_mesh_linkdir, name)
+                dst = os.path.join(os.getcwd(), name)
+                os.symlink(src, dst)
+
             mesh_names.append(name)
 
         return mesh_names
@@ -3314,14 +3347,15 @@ class Engine(object):
                             mm._update_flag = True
                     if mm.has_essential:
                         mm._update_flag = True
-                    if mm.is_extra_RHSonly():
+                    # if mm.is_extra_RHSonly():
+                    if mm.isTimeDependent_RHS:
                         for kfes, name in enumerate(phys.dep_vars):
-                            if mm.has_extra_DoF(kfes):
+                            if mm.has_extra_DoF2(kfes, phys, 0):
                                 mm._update_flag = True
-                    else:
+                    if mm.isTimeDependent:
                         for kfes, name in enumerate(phys.dep_vars):
-                            if mm.has_extra_DoF(kfes):
-                                assert False, "RHS only parametric is invalid for general extra DoF (is_extra_RHSonly = False)"
+                            if mm.has_extra_DoF2(kfes, phys, 0):
+                                assert False, "RHS only parametric is invalid for general extra DoF"
                     if mm._update_flag:
                         for kfes, name in enumerate(phys.dep_vars):
                             if mm.has_bf_contribution2(kfes, 0):
