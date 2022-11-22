@@ -90,7 +90,7 @@ def load_petra_model(proj):
     import_project_scripts(scripts)
 
     scripts.helpers.reset_model()
-    model.set_guiscript('.scripts.helpers.open_gui')
+    #model.set_guiscript('.scripts.helpers.open_gui')
     model.scripts.helpers.create_ns('global')
 
     param = model.param
@@ -99,7 +99,6 @@ def load_petra_model(proj):
     param.setvar('remote', None)
 
     return model
-
 
 def import_project_scripts(scripts):
     import petram.pi.project_scripts
