@@ -66,7 +66,10 @@ def petram(reload_scripts=False):
             book.set_keep_data_in_tree(True)
 
         from petram.mfem_viewer import MFEMViewer
-        model.mfembook.Open(MFEMViewer)
+        viewer = model.mfembook.Open(MFEMViewer)
+        viewer.isec(0)
+        viewer.threed('on')
+        viewer.view('noclip')
         proj.setting.parameters.setvar('PetraM', '='+model.get_full_path())
 
         import wx
