@@ -1888,3 +1888,19 @@ class MFEMViewer(BookViewer):
 
         self.canvas.toolbar.ClickP1Button(buttonname)
         self.canvas.toolbar.ClickP1Button('select')
+
+    #
+    # undo/redo of show/hide
+    #
+    def collect_hiddens(self):
+        hidden_components = {n:obj.hidden_component for n, obj in self.book.get_page(0).get_axes(0).get_children()}
+        return hidden_components
+
+
+    def set_hiddens(self, hiddens):
+        axes = self.book.get_page(0).get_axes(0)
+        for k in hiddens:
+            obj = axes.get_child(name=k)
+            if obj.hasvar('idxset'):
+                continue
+            obj.hide_component(hiddens[k])
