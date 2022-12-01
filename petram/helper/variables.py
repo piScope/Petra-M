@@ -1142,7 +1142,7 @@ class GridFunctionVariable(Variable):
 
     def eval_curl(self):
         if self._curl is None:
-            grad_r = mfem.CurlGridFunctionCoefficient(self.gfr)
+            curl_r = mfem.CurlGridFunctionCoefficient(self.gfr)
             if self.gfi is not None:
                 curl_i = mfem.CurlVectorGridFunctionCoefficient(self.gfi)
             else:

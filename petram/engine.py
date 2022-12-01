@@ -2020,6 +2020,23 @@ class Engine(object):
 
         return A, Ae
 
+    def eliminateJac(self, Jac):
+        '''
+        eliminate both col/rows from matrix
+
+        '''
+        for name in self.gl_ess_tdofs:
+            if not name in self._dep_vars:
+                continue
+
+            idx1 = self.dep_var_offset(name)
+            idx2 = self.r_dep_var_offset(name)
+
+            gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
+            if Jac[idx1, idx2] is not None:
+                Jac[idx1, idx2].resetRow(gl_ess_tdof1)
+                Jac[idx1, idx2].resetCol(gl_ess_tdof1)
+
     def eliminateBC(self, Ae, X, RHS):
         try:
             AeX = Ae.dot(X)

@@ -344,6 +344,7 @@ class NonlinearBaseSolver(SolverInstance):
                                                              self.compute_rhs,
                                                              inplace=inplace,
                                                              update=update,)
+
         #A, X, RHS, Ae, B, M, names = _blocks
 
         self.assembled = True
@@ -364,7 +365,8 @@ class NonlinearBaseSolver(SolverInstance):
         depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
 
         if update_operator:
-            AA = engine.finalize_matrix(A, mask, not self.phys_real,
+            opr = self.adjust_operator(A, M, mask)   # add Jacobian for Newtown
+            AA = engine.finalize_matrix(opr, mask, not self.phys_real,
                                         format=self.ls_type)
 
         BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
@@ -550,13 +552,8 @@ class NewtonSolver(NonlinearBaseSolver):
         '''
         return A and isAnew
         '''
-        from petram.engine import max_matrix_num
-
-        if self.kiter == 0:
-            A = M[0]
-        else:
-            A = M[0] + M[max_matrix_num//2]
-        return A, np.any(mask_M[0]) or np.any(mask_M[max_matrix_num//2])
+        A = M[0]
+        return A, np.any(mask_M[0])
 
     def compute_rhs(self, M, B, X):
         '''
@@ -638,7 +635,12 @@ class NewtonSolver(NonlinearBaseSolver):
         else:
             self.engine.activate_matrix(max_matrix_num//2)
 
-        NonlinearBaseSolver.assemble(self, inplace=inplace, update=update)
+        M_changed = NonlinearBaseSolver.assemble(
+            self, inplace=inplace, update=update)
+
+        if self.kiter > 0:
+            A, X, RHS, Ae, B, M, depvars = self.blocks
+            self.engine.eliminateJac(M[max_matrix_num//2])
 
     def solve(self, update_operator=True):
         A, X, RHS, Ae, B, M, depvars = self.blocks
@@ -795,18 +797,28 @@ class NewtonSolver(NonlinearBaseSolver):
 
         NonlinearBaseSolver.save_probe(self)
 
+    def adjust_operator(self, A, M, mask):
+        '''
+        Add Jacobian term to operator
+        '''
+        from petram.engine import max_matrix_num
+
+        M = (M[max_matrix_num//2]).get_subblock(mask[0], mask[1])
+
+        if self.kiter == 0:
+            pass
+        else:
+            A = A + M
+        return A
+
 
 class FixedPointSolver(NewtonSolver):
     def __init__(self, *args, **kwargs):
         NewtonSolver.__init__(self, *args, **kwargs)
         self.scheme_name = "fixed-point"
 
-    def compute_A(self, M, B, X, mask_M, mask_B):
-        '''
-        return A and isAnew
-        This mode simply ignore Jacobian
-        '''
-        from petram.engine import max_matrix_num
+    def assemble(self, inplace=True, update=False):
+        NonlinearBaseSolver.assemble(self, inplace=inplace, update=update)
 
-        A = M[0]
-        return A, np.any(mask_M[0])
+    def adjust_operator(self, A, M, mask):
+        return A
