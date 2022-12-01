@@ -344,7 +344,8 @@ class NonlinearBaseSolver(SolverInstance):
                                                              self.compute_rhs,
                                                              inplace=inplace,
                                                              update=update,)
-        #A, X, RHS, Ae, B, M, names = blocks
+        #A, X, RHS, Ae, B, M, names = _blocks
+
         self.assembled = True
         return M_changed
 
@@ -356,6 +357,7 @@ class NonlinearBaseSolver(SolverInstance):
         #    assert False, "assmeble must have been called"
 
         A, X, RHS, Ae, B, M, depvars = self.blocks
+
         mask = self.blk_mask
         engine.copy_block_mask(mask)
 
@@ -366,7 +368,8 @@ class NonlinearBaseSolver(SolverInstance):
                                         format=self.ls_type)
 
         BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
-                                 format=self.ls_type)
+                                 format=self.ls_type,
+                                 use_residual=True)
 
         if self.linearsolver is None:
             linearsolver = self.allocate_linearsolver(
@@ -390,6 +393,7 @@ class NonlinearBaseSolver(SolverInstance):
             XX = None
 
         solall = linearsolver.Mult(BB, x=XX, case_base=0)
+
         #linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         #solall = linearsolver.Mult(BB, case_base=0)
 
@@ -556,11 +560,9 @@ class NewtonSolver(NonlinearBaseSolver):
 
     def compute_rhs(self, M, B, X):
         '''
-        RHS = Ax - b
+        M[0] x = B
         '''
-        #RHS = M[0].dot(self.engine.sol) - B
-        RHS = B - M[0].dot(X[0])
-        return RHS
+        return B
 
     def compute_err(self, sol, sol_ave_norm, Res):
         '''
@@ -610,7 +612,7 @@ class NewtonSolver(NonlinearBaseSolver):
 
     def compute_residual(self, RHS):
         shape = RHS.shape
-        w = [0]*shape[0]
+        w = np.array([0]*shape[0])
         w[0] = 1
 
         if self.kiter == 0:
@@ -722,12 +724,12 @@ class NewtonSolver(NonlinearBaseSolver):
 
             self.error_record.append(err)
 
-            stopit = self.call_dwc_nliteration()
-            if stopit:
-                self._done = True
-
             if self._kiter >= self._maxiter:
                 self._done = True
+
+        stopit = self.call_dwc_nliteration()
+        if stopit:
+            self._done = True
 
         self.residual_record.append(residual)
 
@@ -741,6 +743,9 @@ class NewtonSolver(NonlinearBaseSolver):
             self._delta = self.do_solve(update_operator=update_operator)
             self.update_x(self._delta)
             self.engine.add_FESvariable_to_NS(self.get_phys())
+
+            if self._kiter >= self._maxiter:
+                self._done = True
 
         if self._done and not stopit:
             if self.damping != 1.0 and self.damping > self.minimum_damping:

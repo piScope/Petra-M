@@ -1106,7 +1106,6 @@ class Engine(object):
                                                  update=update)
 
         RHS = compute_rhs(M, B, X)          # solver determins RHS
-
         RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
 
         # A and RHS is modifedy by global DoF coupling P
@@ -2177,7 +2176,8 @@ class Engine(object):
         return M
 
     def finalize_rhs(self,  B_blocks, M_block, X_block,
-                     mask, is_complex, format='coo', verbose=True):
+                     mask, is_complex, format='coo', verbose=True,
+                     use_residual=False):
         #
         #  RHS = B - A[not solved]*X[not solved]
         #
@@ -2185,7 +2185,13 @@ class Engine(object):
         MM = M_block.get_subblock(mask[0], inv_mask)
         XX = X_block.get_subblock(inv_mask, [True])
         xx = MM.dot(XX)
+
         B_blocks = [b.get_subblock(mask[0], [True]) - xx for b in B_blocks]
+
+        if use_residual:
+            M_block_use = M_block.get_subblock(mask[0], mask[1])
+            X_block_use = X_block.get_subblock(mask[1], [True])
+            B_blocks = [b - M_block_use.dot(X_block_use) for b in B_blocks]
 
         if format == 'coo':  # coo either real or complex
             BB = [self.finalize_coo_rhs(
