@@ -528,7 +528,7 @@ class DlgPlotSol(SimpleFramePlus):
                     [None, None, 141, {"alignright": True,
                                        "func": self.OnLoadLocalSol,
                                        "noexpand": True,
-                                       "label": "Reload chocies"}], ]
+                                       "label": "Reload choices"}], ]
             elp2 = [["Number of workers", self.config['mp_worker'], 400, ],
                     ["Sol", "sol", 504, {"choices_cb": self.local_sollist,
                                          "choices": ["sol", ], }],
@@ -538,7 +538,7 @@ class DlgPlotSol(SimpleFramePlus):
                     [None, None, 141, {"alignright": True,
                                        "func": self.OnLoadLocalSol,
                                        "noexpand": True,
-                                       "label": "Reload chocies"}], ]
+                                       "label": "Reload choices"}], ]
             elp3 = [["Server", self.config['cs_server'], 0, ],
                     ["Number of workers", self.config['cs_worker'], 400, ],
                     ["Sol dir.", self.config['cs_soldir'], 504,
