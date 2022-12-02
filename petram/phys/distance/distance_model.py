@@ -175,7 +175,7 @@ class Distance(PhysModule):
         panels = super(Distance, self).panel1_param()
         a, b = self.get_var_suffix_var_name_panel()
         panels.extend([
-            ["indpendent vars.", self.ind_vars, 0, {}],
+            ["independent vars.", self.ind_vars, 0, {}],
             a, b,
             ["derived vars.", ','.join(self.der_vars), 2, {}],
             ["predefined ns vars.", txt_predefined, 2, {}],

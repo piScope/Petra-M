@@ -31,14 +31,14 @@ class Parametric(SolveStep, NS_mixin):
     def panel1_param(self):
         v = self.get_panel1_value()
         return [["Initial value setting",   self.init_setting,  0, {}, ],
-                ["Postporcess solution",    self.postprocess_sol,   0, {}, ],
+                ["Postprocess solution",    self.postprocess_sol,   0, {}, ],
                 ["trial phys. ",   self.phys_model, 0, {}, ],
                 ["assembly method",  'Full assemble',  4, {"readonly": True,
                                                            "choices": list(assembly_methods)}],
                 self.make_param_panel('scanner',  v[2]),
-                ["save separate mesh",  True,  3, {"text": ""}],
                 ["inner solver", '', 2, None],
-                ["clear working dir.", False, 3, {"text": ""}],
+                [None,  True,  3, {"text": "save separate mesh"}],
+                [None, False, 3, {"text": "clear working dir."}],
                 [None,  self.use_geom_gen,  3, {
                     "text": "run geometry generator"}],
                 [None,  self.use_mesh_gen,  3, {"text": "run mesh generator"}],
@@ -56,8 +56,8 @@ class Parametric(SolveStep, NS_mixin):
                 self.phys_model,
                 str(txt),
                 str(self.scanner),
-                self.save_separate_mesh,
                 self.get_inner_solver_names(),
+                self.save_separate_mesh,
                 self.clear_wdir,
                 self.use_geom_gen,
                 self.use_mesh_gen,
@@ -69,7 +69,7 @@ class Parametric(SolveStep, NS_mixin):
         self.phys_model = str(v[2])
         self.assembly_method = assembly_methods[v[-8]]
         self.scanner = v[-7]
-        self.save_separate_mesh = v[-6]
+        self.save_separate_mesh = v[-5]
         self.clear_wdir = v[-4]
         self.use_geom_gen = v[-3]
         self.use_mesh_gen = v[-2]

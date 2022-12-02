@@ -22,7 +22,7 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
 
 
     (SolverInstance)
-
+n
     SolverInstance: an actual solver logic comes here
        SolverInstance : base class for standard solver
        TimeDependentSolverInstance : an actual solver logic comes here
@@ -90,13 +90,13 @@ class SolveStep(SolverBase):
                ["args.",   self.dwc_pp_arg,   0, {}]]
         value = [self.dwc_name, self.dwc_pp_arg]
         return [["Initial value setting",   self.init_setting,   0, {}, ],
-                ["Postporcess solution",    self.postprocess_sol,   0, {}, ],
+                ["Postprocess solution",    self.postprocess_sol,   0, {}, ],
                 ["trial phys.", self.phys_model, 0, {}, ],
                 [None,  self.use_geom_gen,  3, {
                     "text": "run geometry generator"}],
                 [None,  self.use_mesh_gen,  3, {"text": "run mesh generator"}],
                 [None,  self.use_profiler,  3, {"text": "use profiler"}],
-                [None, [False, value], 27, [{'text': 'Use DWC (postprocess)'},
+                [None, [False, value], 27, [{'text': 'use DWC (postprocess)'},
                                             {'elp': ret}]], ]
 
 #                ["initialize solution only",
