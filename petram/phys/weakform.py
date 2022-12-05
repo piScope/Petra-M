@@ -22,7 +22,7 @@ else:
     import mfem.ser as mfem
 
 
-def get_integrators(filename):
+def get_integrators(filename, return_all=False):
     import petram.engine
     fid = open(os.path.join(os.path.dirname(
         petram.engine.__file__), 'data', filename), 'r')
@@ -47,8 +47,13 @@ def get_integrators(filename):
 
     coeffs = [x(l[3]) for l in lines]
     dims = [[int(x.strip()[0]) for x in l[6].split(',')] for l in lines]
+    wf_forms = [l[4] for l in lines]
+    strong_forms = [l[5] for l in lines]
 
-    return list(zip(names, domains, ranges, coeffs, dims))
+    if return_all:
+        return list(zip(names, domains, ranges, coeffs, dims, wf_forms, strong_forms))
+    else:
+        return list(zip(names, domains, ranges, coeffs, dims))
 
 
 bilinintegs = get_integrators('BilinearOps')
@@ -93,9 +98,19 @@ class WeakIntegration(Phys):
              {"style": wx.CB_READONLY, "choices": ["Scalar", "Vector", "Diagonal", "Matrix"]}]
 
         names = [x[0] for x in self.itg_choice()]
-        p2 = ["integrator", names[0], 4,
-              {"style": wx.CB_READONLY, "choices": names,
-               "choices_cb": self.itg_choice_cb}]
+
+        import wx
+        from petram.pi.widget_forms import WidgetForms
+
+        p2 = ["integrator", names[0], 99,
+              {"UI": WidgetForms,
+               "span": (1, 2),
+               "choices": names,
+               "choices_cb": self.itg_choice_cb, }]
+
+        # p2 = ["integrator", names[0], 4,
+        #      {"style": wx.CB_READONLY, "choices": names,
+        #       "choices_cb": self.itg_choice_cb}]
 
         dep_vars = self.get_root_phys().dep_vars
         panels = self.vt_coeff.panel_param(self)
