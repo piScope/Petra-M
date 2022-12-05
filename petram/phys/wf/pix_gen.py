@@ -56,17 +56,17 @@ def generate_pix(data, header):
         ax.cla()
         ax.tick_params(length=0)
         ax.set_axis_off()
-        
+
         txt1 = correct_latex(wf_form)
         if len(strong_form.strip()) > 0:
             txt2 = correct_latex(strong_form)
             #txt2 = "$\\left[\\equiv "+ txt2[1:-1] + "\\right]$"
-            txt2 = "$[\\approx "+ txt2[1:-1] + "]$"
+            txt2 = "$[\\approx " + txt2[1:-1] + "]$"
             #txt2 = "$\\approxeq "+ txt2[1:-1] + "$"
         else:
             txt2 = ""
         print("text", txt1, txt2)
-        
+
         plt.text(0.01, 0.3, txt1)
 
         if txt2 != "":
@@ -78,6 +78,19 @@ def generate_pix(data, header):
         bbox = Bbox.from_extents(
             ed[0, 0]/dpi, ed[0, 1]/dpi, ed[1, 0]/dpi, ed[1, 1]/dpi)
         plt.savefig(filename, dpi=dpi2, format='png', bbox_inches=bbox)
+
+    ax = plt.subplot(111)
+    ax.cla()
+    ax.tick_params(length=0)
+    ax.set_axis_off()
+
+    filename = os.path.join(save_path, header + 'none.png')
+    print('filename', filename)
+    ed = ax.transAxes.transform([(0, 0), (1, 1)])
+    bbox = Bbox.from_extents(
+        ed[0, 0]/dpi, ed[0, 1]/dpi, ed[1, 0]/dpi, ed[1, 1]/dpi)
+    plt.savefig(filename, dpi=dpi2, format='png', bbox_inches=bbox)
+
     ##################################################
 
 

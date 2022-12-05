@@ -102,9 +102,9 @@ class WeakIntegration(Phys):
         import wx
         from petram.pi.widget_forms import WidgetForms
 
-        p2 = ["integrator", names[0], 99,
+        p2 = ["integrator", None, 99,
               {"UI": WidgetForms,
-               "span": (1, 2),
+               #"span": (1, 2),
                "choices": names,
                "choices_cb": self.itg_choice_cb, }]
 

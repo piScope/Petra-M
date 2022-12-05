@@ -26,7 +26,7 @@ class WidgetForms(wx.Panel):
         self.choices_cb = setting['choices_cb']
 
         choices = setting['choices']
-        self._value = choices[0]
+        self._value = None
         self.SetChoices(choices, index=0)
 
         self.Bind(wx.EVT_COMBOBOX, self.onHit, self.bcb)
@@ -59,8 +59,10 @@ class WidgetForms(wx.Panel):
         self.bcb.Clear()
         sel = self.GetValue()
 
-        for x in choices:
+        if len(choices) == 0:
+            choices = ["none"]
 
+        for x in choices:
             if not x in bmp_data:
                 name = os.path.join(img_path, 'form_' + x + '.png')
                 img = Image.open(name)
@@ -76,7 +78,11 @@ class WidgetForms(wx.Panel):
                 bmp_data[x] = bmp
             else:
                 bmp = bmp_data[x]
-            self.bcb.Append(x, bmp, x)
+
+            if x == 'none':
+                self.bcb.Append("no integrator available", bmp, "none")
+            else:
+                self.bcb.Append(x, bmp, x)
 
         if index != -1:
             self.bcb.SetSelection(index)
