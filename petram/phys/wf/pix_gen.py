@@ -5,11 +5,14 @@ from petram.phys.weakform import get_integrators
 #
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import rc
 from matplotlib.transforms import Bbox
 import base64
 import os
 
 import wx
+
+rc("text", usetex=True)
 
 b64encode = base64.urlsafe_b64encode
 
@@ -53,15 +56,21 @@ def generate_pix(data, header):
         ax.cla()
         ax.tick_params(length=0)
         ax.set_axis_off()
-        txt = correct_latex(wf_form)
-
-        print("text", wf_form, txt)
-        plt.text(0.01, 0.3, txt)
-
+        
+        txt1 = correct_latex(wf_form)
         if len(strong_form.strip()) > 0:
-            txt = "[ $\\approxeq$ " + correct_latex(strong_form) + " ]"
+            txt2 = correct_latex(strong_form)
+            #txt2 = "$\\left[\\equiv "+ txt2[1:-1] + "\\right]$"
+            txt2 = "$\\left[\\approx "+ txt2[1:-1] + "\\right]$"
+            #txt2 = "$\\approxeq "+ txt2[1:-1] + "$"
+        else:
+            txt2 = ""
+        print("text", txt1, txt2)
+        
+        plt.text(0.01, 0.3, txt1)
 
-            plt.text(0.51, 0.3, txt)
+        if txt2 != "":
+            plt.text(0.51, 0.3, txt2)
 
         filename = os.path.join(save_path, header + name + '.png')
         print('filename', filename)
