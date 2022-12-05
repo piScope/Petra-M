@@ -45,7 +45,7 @@ def generate_pix(data, header):
         __file__), '..', '..', 'data', 'icon')
 
     dpi = 72
-    dpi2 = dpi*4
+    dpi2 = dpi*8
 
     F = plt.figure(num=None, figsize=(3.5, 0.3), dpi=dpi, facecolor='w')
     x = [0, 1, 1, 0, 0]
@@ -61,7 +61,7 @@ def generate_pix(data, header):
         if len(strong_form.strip()) > 0:
             txt2 = correct_latex(strong_form)
             #txt2 = "$\\left[\\equiv "+ txt2[1:-1] + "\\right]$"
-            txt2 = "$\\left[\\approx "+ txt2[1:-1] + "\\right]$"
+            txt2 = "$[\\approx "+ txt2[1:-1] + "]$"
             #txt2 = "$\\approxeq "+ txt2[1:-1] + "$"
         else:
             txt2 = ""
