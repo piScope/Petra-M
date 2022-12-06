@@ -104,13 +104,9 @@ class WeakIntegration(Phys):
 
         p2 = ["integrator", None, 99,
               {"UI": WidgetForms,
-               #"span": (1, 2),
-               "choices": names,
+               # "span": (1, 2),
+               # "choices": names,
                "choices_cb": self.itg_choice_cb, }]
-
-        # p2 = ["integrator", names[0], 4,
-        #      {"style": wx.CB_READONLY, "choices": names,
-        #       "choices_cb": self.itg_choice_cb}]
 
         dep_vars = self.get_root_phys().dep_vars
         panels = self.vt_coeff.panel_param(self)
