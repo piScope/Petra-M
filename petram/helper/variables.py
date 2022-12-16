@@ -63,9 +63,17 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('Variables')
 
 
 class _decorator(object):
-    def float(self, dependency=None, grad=None, curl=None, div=None):
+    def float(self, dependency=None, grad=None, curl=None, div=None, jit=False):
         def dec(func):
-            obj = PyFunctionVariable(func,
+            if jit:
+                obj = NumbaCoefficientVariable(func,
+                                     complex=False,
+                                     dependency=dependency,
+                                     grad=grad,
+                                     curl=curl,
+                                     div=div)
+            else:
+                obj = PyFunctionVariable(func,
                                      complex=False,
                                      dependency=dependency,
                                      grad=grad,
@@ -74,9 +82,18 @@ class _decorator(object):
             return obj
         return dec
 
-    def complex(self, dependency=None, grad=None, curl=None, div=None):
+    def complex(self, dependency=None, grad=None, curl=None, div=None, jit=False):
         def dec(func):
-            obj = PyFunctionVariable(func,
+            if jit:
+                obj = NumbaCoefficientVariable(func,
+                                     complex=True,
+                                     dependency=dependency,
+                                     grad=grad,
+                                     curl=curl,
+                                     div=div)
+
+            else:
+                obj = PyFunctionVariable(func,
                                      complex=True,
                                      dependency=dependency,
                                      grad=grad,
@@ -86,17 +103,27 @@ class _decorator(object):
             return obj
         return dec
 
-    def array(self, complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None):
+    def array(self, complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, jit=False):
         def dec(func):
             # print "inside dec", complex, shape
-            obj = PyFunctionVariable(
-                func,
-                complex=complex,
-                shape=shape,
-                dependency=dependency,
-                grad=grad,
-                curl=curl,
-                div=div)
+            if jit:
+                obj = NumbaCoefficientVariable(func,
+                                         complex=complex,
+                                         shape=shape,
+                                         dependency=dependency,
+                                         grad=grad,
+                                         curl=curl,
+                                         div=div,)
+
+            else:
+                obj = PyFunctionVariable(func,
+                                         complex=complex,
+                                         shape=shape,
+                                         dependency=dependency,
+                                         grad=grad,
+                                         curl=curl,
+                                         div=div,)
+
             return obj
         return dec
 
@@ -985,7 +1012,7 @@ class PyFunctionVariable(Variable):
 
 
 class CoefficientVariable(Variable):
-    def __init__(self, coeff_gen, l, g=None):
+    def __init__(self, coeff_gen, l, g=None, coeff=None):
         self.coeff = coeff_gen(l, g)
         self.kind = coeff_gen.kind
 
@@ -1103,6 +1130,22 @@ class CoefficientVariable(Variable):
             assert False, "unknown kind of Coefficient. Must be scalar/vector/matrix"
         return call_eval
 
+class NumbaCoefficientVariable(CoefficientVariable):
+    def __init__(self, func, complex=False, shape=tuple(), dependency=None,
+                 grad=None, curl=None, div=None):
+        super(
+            CoefficientVariable,
+            self).__init__(complex=complex,
+                           dependency=dependency,
+                           grad=grad,
+                           curl=curl,
+                           div=div)
+
+        self.func = func
+        self.t = None
+        self.x = (0, 0, 0)
+        self.shape = shape
+     
 
 class GridFunctionVariable(Variable):
     def __init__(self, gf_real, gf_imag=None, comp=1,
