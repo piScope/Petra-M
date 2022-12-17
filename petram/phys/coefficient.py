@@ -37,6 +37,28 @@ def call_nativegen(v, l, g, real, conj, scale):
             return coeff
 
 
+def generate_jitted(txt, jitter, ind_vars, dim, conj, scale, g, l):
+
+    ind_vars = [xx.strip() for xx in ind_vars.split(',')]
+    print(txt, ind_vars)
+    func_txt = ['def _func_(ptx):']
+    for k, xx in enumerate(ind_vars):
+        func_txt.append("   " + xx + " = ptx[" + str(k) + "]")
+    func_txt.append("   _out_ =" + txt)
+    if scale != 1:
+        func_txt.append("   _out_ = _out_ * " + str(scale))
+    if conj:
+        func_txt.append("   _out_ = np.conj(_out_)")
+    func_txt.append("   return array(_out_, dtype=np.complex128)")
+    func_txt = "\n".join(func_txt)
+    print(func_txt)
+    print(g.keys())
+    exec(func_txt, g, l)
+    coeff = jitter(sdim=len(ind_vars), complex=True,
+                   newinterface=True)(l["_func_"])
+    return coeff
+
+
 def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     if isinstance(exprs, str):
         exprs = [exprs]
@@ -96,8 +118,22 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     conj = kwargs.get('conj', False)
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
+    print("matrix exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
+
+        if len(exprs) == 1:
+            # if it is one liner array expression. try mfem.jit
+            coeff = generate_jitted(exprs[0], mfem.jit.matrix,
+                                    ind_vars, dim, conj, scale, g, l)
+            if return_complex:
+                return coeff
+            else:
+                if real:
+                    return coeff.real
+                else:
+                    return coeff.imag
+
         if return_complex:
             kwargs['real'] = True
             c1 = MCoeff(dim, exprs, ind_vars, l, g, **kwargs)
@@ -174,7 +210,7 @@ def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
 
-    #print("matrix exprs", exprs)
+    print("matrix exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
         return DCoeff(dim, exprs, ind_vars, l, g, **kwargs)
@@ -259,7 +295,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
 
-    #print("vector exprs", exprs)
+    print("vector exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
         if return_complex:
@@ -380,7 +416,7 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
 
-    #print("scalar exprs", exprs)
+    print("scalar exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
         if return_complex:
