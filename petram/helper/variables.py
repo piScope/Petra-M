@@ -346,6 +346,9 @@ class Variable():
             self.topo_info = (2, mesh.extended_connectivity['line2surf'])
         if mesh.Dimension() == 1:
             self.topo_info = (1, mesh.extended_connectivity['vert2line'])
+
+    def get_jitted_coefficient(self):
+        return None
     '''
     def make_callable(self):
         raise NotImplementedError("Subclass need to implement")
@@ -1145,7 +1148,45 @@ class NumbaCoefficientVariable(CoefficientVariable):
         self.t = None
         self.x = (0, 0, 0)
         self.shape = shape
-     
+        
+    def get_jitted_coefficient(self, ind_vars):
+
+        from petram.helper.numba_utils import (generate_caller_scalar,
+                                               generate_caller_array,
+                                               generate_signature_scalar,
+                                               generate_signature_array,)
+        sdim = len(ind_vars)
+        
+        if len(shape) == 0:
+            jitter = mfem.jit.scalar
+            def gen_caller(setting):
+                return generate_caller_scalar(setting, 1)
+            def gen_sig(setting):
+                return generate_signature_scalar(setting, 1)
+                
+        elif len(shape) == 1:
+            jitter = mfem.jit.vector
+            def gen_caller(setting):
+                return generate_caller_array(setting, 2)
+            def gen_sig(setting):
+                return generate_signature_array(setting, 2)
+            
+        elif len(shape) == 2:
+            jitter = mfem.jit.matrix
+            def gen_caller(setting):
+                return generate_caller_array(setting, 3)
+            def gen_sig(setting):
+                return generate_signature_array(setting, 3)
+            
+        else:
+            assert False, "unsupported shape"
+
+        wrapper = jitter(sdim=sdim,
+                         complex=self.complex,
+                         interface=(gen_caller, gen_sig))
+
+        return wrapper(self.func)
+        
 
 class GridFunctionVariable(Variable):
     def __init__(self, gf_real, gf_imag=None, comp=1,

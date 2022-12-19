@@ -6,7 +6,8 @@
 from petram.mfem_config import use_parallel
 import abc
 from abc import ABC, abstractmethod
-
+import parser
+    
 import numpy as np
 
 from petram.phys.phys_model import PhysCoefficient
@@ -52,8 +53,15 @@ def generate_jitted(txt, jitter, ind_vars, dim, conj, scale, g, l):
     func_txt.append("   return array(_out_, dtype=np.complex128)")
     func_txt = "\n".join(func_txt)
     print(func_txt)
-    print(g.keys())
+    print(g)
     exec(func_txt, g, l)
+    
+
+    st = parser.expr(txt.strip())
+    code = st.compile('<string>')
+    names = code.co_names
+    print(names)
+    
     coeff = jitter(sdim=len(ind_vars), complex=True,
                    newinterface=True)(l["_func_"])
     return coeff

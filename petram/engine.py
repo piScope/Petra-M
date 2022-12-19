@@ -1524,8 +1524,10 @@ class Engine(object):
             for loc in loc_list:
                 r, c, is_trans, is_conj = loc
                 if isinstance(r, int):
-                    idx1 = phys_offset + r
-                    idx2 = rphys_offset + c
+                    #idx1 = phys_offset + r
+                    #idx2 = rphys_offset + c
+                    idx1 = self.ifes(phys.dep_vars[r])
+                    idx2 = self.r_ifes(phys.dep_vars[c])
                 else:
                     idx1 = self.ifes(r)
                     idx2 = self.r_ifes(c)
@@ -1564,13 +1566,15 @@ class Engine(object):
 
             for loc in loc_list:
                 r, c, is_trans, is_conj = loc
-
+                print(loc)
                 is_trans = (is_trans < 0)
                 is_conj = (is_conj == -1)
 
                 if isinstance(r, int):
-                    idx1 = phys_offset + r
-                    idx2 = rphys_offset + c
+                    #idx1 = phys_offset + r
+                    #idx2 = rphys_offset + c
+                    idx1 = self.ifes(phys.dep_vars[r])
+                    idx2 = self.r_ifes(phys.dep_vars[c])
                 else:
                     idx1 = self.ifes(r)
                     idx2 = self.r_ifes(c)
