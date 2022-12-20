@@ -16,7 +16,8 @@ from petram.phys.phys_model import MatrixPhysCoefficient
 from petram.phys.phys_model import PhysConstant, PhysVectorConstant, PhysMatrixConstant
 from petram.phys.phys_model import Coefficient_Evaluator
 
-from petram.helper.variables import NativeCoefficientGenBase
+from petram.helper.variables import (Variable,
+                                     NativeCoefficientGenBase)
 
 
 def call_nativegen(v, l, g, real, conj, scale):
@@ -50,6 +51,8 @@ def generate_jitted(txt, jitter, ind_vars, conj, scale, g, l):
     for n in names:
         if n in ind_vars:
             continue
+        if not isinstance(g[n], Variable):
+            continue
         dep = g[n].get_jitted_coefficient(ind_vars, l)
         if dep is None:
             return None
@@ -73,6 +76,7 @@ def generate_jitted(txt, jitter, ind_vars, conj, scale, g, l):
         func_txt.append("   _out_ = _out_ * " + str(scale))
     if conj:
         func_txt.append("   _out_ = np.conj(_out_)")
+    #func_txt.append("   print(_out_)")
 
     if jitter == mfem.jit.scalar:
         func_txt.append("   return np.complex128(_out_)")
@@ -81,7 +85,6 @@ def generate_jitted(txt, jitter, ind_vars, conj, scale, g, l):
     func_txt = "\n".join(func_txt)
 
     print(func_txt)
-
     exec(func_txt, g, l)
 
     try:

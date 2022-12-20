@@ -1202,6 +1202,7 @@ class NumbaCoefficientVariable(CoefficientVariable):
         wrapper = jitter(sdim=sdim,
                          complex=self.complex,
                          td=self.td,
+                         shape=self.shape,
                          dependency=dep,
                          interface=(gen_caller, gen_sig))
 
