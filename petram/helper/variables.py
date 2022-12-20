@@ -965,8 +965,9 @@ class PyFunctionVariable(Variable):
 
             kwargs = {n: knowns[g[n]][idx] for n in self.dependency}
             ret[idx] = self.func(*xyz, **kwargs)
+
         ret = np.stack(ret).astype(dtype, copy=False)
-        print("PyFunction return", ret.shape)
+
         return ret
 
     def ncface_values(self, *args, **kwargs):
@@ -1075,21 +1076,21 @@ class CoefficientVariable(Variable):
 
         if mesh.Dimension() == 3:
             if edge_evaluator:
-                 assert False, "EdgeNodal Evaluator does not supported dim=3"
+                assert False, "EdgeNodal Evaluator does not supported dim=3"
             getelement = mesh.GetBdrElement
             gettransformation = mesh.GetBdrElementTransformation
         elif mesh.Dimension() == 2:
             if edge_evaluator:
                 getelement = mesh.GetBdrElement
                 gettransformation = mesh.GetBdrElementTransformation
-            else:            
+            else:
                 getelement = mesh.GetElement
                 gettransformation = mesh.GetElementTransformation
         else:
             if edge_evaluator:
                 getelement = mesh.GetElement
                 gettransformation = mesh.GetElementTransformation
-            else:            
+            else:
                 assert False, "BdrNodal Evaluator does not support dim=1"
 
         call_eval = self.get_call_eval()
@@ -1138,18 +1139,18 @@ class CoefficientVariable(Variable):
             m = mesh.GetFaceTransformation
         elif mesh.Dimension() == 2:
             m = mesh.GetElementTransformation
-            
+
         data = []
         dtype = np.complex if self.complex else np.float
-        
+
         for i, gtype, in zip(ifaces, gtypes):
-            T = m(i)            
+            T = m(i)
             ir = irs[gtype]
             nv = ir.GetNPoints()
 
             for j in range(nv):
                 ip = ir.IntPoint(j)
-                
+
                 if (self.coeff[0] is not None and
                         self.coeff[1] is not None):
                     value = (np.array(call_eval(self.coeff[0], T, ip)) +
@@ -1163,6 +1164,7 @@ class CoefficientVariable(Variable):
                 data.append(value)
 
         ret = np.stack(data).astype(dtype, copy=False)
+
         return ret
 
     def ncedge_values(self, ifaces=None, irs=None, gtypes=None, mesh=None,
@@ -1171,25 +1173,23 @@ class CoefficientVariable(Variable):
         call_eval = self.get_call_eval()
 
         if mesh.Dimension() == 2:
-            m = mesh.GetBdrElementTransformation
+            m = mesh.GetFaceTransformation
         elif mesh.Dimension() == 1:
             m = mesh.GetElementTransformation
         else:
             assert False, "NCEdge Evaluator is not supported for this dimension"
-            
+
         data = []
         dtype = np.complex if self.complex else np.float
 
-        print("here")
         for i, gtype, in zip(ifaces, gtypes):
-            print(i, gtype)
-            T = m(i)            
+            T = m(i)
             ir = irs[gtype]
             nv = ir.GetNPoints()
 
             for j in range(nv):
                 ip = ir.IntPoint(j)
-                
+
                 if (self.coeff[0] is not None and
                         self.coeff[1] is not None):
                     value = (np.array(call_eval(self.coeff[0], T, ip)) +
@@ -1203,9 +1203,42 @@ class CoefficientVariable(Variable):
                 data.append(value)
 
         ret = np.stack(data).astype(dtype, copy=False)
-        print("return shape", ret.shape)
+
         return ret
-    
+
+    def point_values(self, counts=None, locs=None, points=None,
+                     attrs=None, elem_ids=None,
+                     mesh=None, int_points=None, g=None,
+                     knowns=None, **kwargs):
+
+        call_eval = self.get_call_eval()
+
+        data = []
+        dtype = np.complex if self.complex else np.float
+
+        for i in range(len(attrs)):
+            if attrs[i] == -1:
+                continue
+
+            iele = elem_ids[i]
+            T = mesh.GetElementTransformation(iele)
+            ip = int_points[i]
+
+            if (self.coeff[0] is not None and
+                    self.coeff[1] is not None):
+                value = (np.array(call_eval(self.coeff[0], T, ip)) +
+                         1j * np.array(self.coeff[1], T, ip))
+            elif self.coeff[0] is not None:
+                value = np.array(call_eval(self.coeff[0], T, ip))
+            elif self.coeff[1] is not None:
+                value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+            else:
+                assert False, "coeff is (None, None)"
+            data.append(value)
+
+        ret = np.stack(data).astype(dtype, copy=False)
+
+        return ret
 
     def get_call_eval(self):
         if self.kind == "scalar":
@@ -1611,7 +1644,6 @@ class GFScalarVariable(GridFunctionVariable):
             data.append(v)
         data = np.hstack(data)
 
-        print("return value", data.shape)        
         return data
 
     def ncedge_values(self, ifaces=None, irs=None,

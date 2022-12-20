@@ -79,6 +79,7 @@ def eval_on_faces(obj, expr, solvars, phys):
                                        attr2=obj.elattr2,
                                        g=g, knowns=obj.knowns,
                                        mesh=obj.mesh()[obj.emesh_idx]))
+
             ll_name.append(n)
             ll_value.append(obj.knowns[g[n]])
         elif (n in g):
@@ -91,6 +92,7 @@ def eval_on_faces(obj, expr, solvars, phys):
         # if expr does not involve Varialbe, evaluate code once
         # and generate an array
         val = np.array([eval(code, var_g2)]*len(obj.ptx))
+
     return val
 
 

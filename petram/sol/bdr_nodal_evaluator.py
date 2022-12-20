@@ -217,7 +217,7 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False):
                                       g=g,
                                       knowns=obj.knowns,
                                       edge_evaluator=edge_evaluator))
-            #ll[n] = self.knowns[g[n]]
+
             ll_name.append(name_translation[n])
             ll_value.append(obj.knowns[g[n]])
         elif (n in g):
@@ -230,6 +230,7 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False):
         # if expr does not involve Varialbe, evaluate code once
         # and generate an array
         val = np.array([eval(code, var_g2)]*len(obj.locs))
+
     return val
 
 
