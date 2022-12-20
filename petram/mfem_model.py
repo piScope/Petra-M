@@ -32,6 +32,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         v['submeshpartitioning'] = 'auto'
         v['autofilldiag'] = 'off'
         v['savegz'] = 'on'
+        v['allow_fallback_nonjit'] = 'on'
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
 
@@ -73,11 +74,13 @@ class MFEM_GeneralRoot(Model, NS_mixin):
                     "values": ["auto", "safe"]}],
                 ["Autofill emtpy diag rows", None,
                     1, {"values": ["on", "off"]}],
+                ["Allow fallback Python mode coefficient", None,
+                    1, {"values": ["on", "off"]}],
                 ]
 
     def get_panel2_value(self):
         return (self.diagpolicy, self.savegz, self.partitioning, self.submeshpartitioning,
-                self.autofilldiag)
+                self.autofilldiag, self.allow_fallback_nonjit)
 
     def import_panel2_value(self, v):
         self.diagpolicy = v[0]
@@ -85,6 +88,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         self.partitioning = v[2]
         self.submeshpartitioning = v[3]
         self.autofilldiag = v[4]
+        self.allow_fallback_nonjit = v[5]
 
     def run(self):
         import petram.debug

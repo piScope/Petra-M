@@ -63,57 +63,59 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('Variables')
 
 
 class _decorator(object):
-    def float(self, dependency=None, grad=None, curl=None, div=None, jit=False):
+    def float(self, dependency=None, grad=None, curl=None, div=None, jit=False, td=False):
         def dec(func):
             if jit:
                 obj = NumbaCoefficientVariable(func,
-                                     complex=False,
-                                     dependency=dependency,
-                                     grad=grad,
-                                     curl=curl,
-                                     div=div)
+                                               complex=False,
+                                               dependency=dependency,
+                                               grad=grad,
+                                               curl=curl,
+                                               div=div,
+                                               td=td,)
             else:
                 obj = PyFunctionVariable(func,
-                                     complex=False,
-                                     dependency=dependency,
-                                     grad=grad,
-                                     curl=curl,
-                                     div=div)
+                                         complex=False,
+                                         dependency=dependency,
+                                         grad=grad,
+                                         curl=curl,
+                                         div=div)
             return obj
         return dec
 
-    def complex(self, dependency=None, grad=None, curl=None, div=None, jit=False):
+    def complex(self, dependency=None, grad=None, curl=None, div=None, jit=False, td=False):
         def dec(func):
             if jit:
                 obj = NumbaCoefficientVariable(func,
-                                     complex=True,
-                                     dependency=dependency,
-                                     grad=grad,
-                                     curl=curl,
-                                     div=div)
-
+                                               complex=True,
+                                               dependency=dependency,
+                                               grad=grad,
+                                               curl=curl,
+                                               div=div,
+                                               td=td,)
             else:
                 obj = PyFunctionVariable(func,
-                                     complex=True,
-                                     dependency=dependency,
-                                     grad=grad,
-                                     curl=curl,
-                                     div=div)
+                                         complex=True,
+                                         dependency=dependency,
+                                         grad=grad,
+                                         curl=curl,
+                                         div=div)
 
             return obj
         return dec
 
-    def array(self, complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, jit=False):
+    def array(self, complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, jit=False, td=False):
         def dec(func):
             # print "inside dec", complex, shape
             if jit:
                 obj = NumbaCoefficientVariable(func,
-                                         complex=complex,
-                                         shape=shape,
-                                         dependency=dependency,
-                                         grad=grad,
-                                         curl=curl,
-                                         div=div,)
+                                               complex=complex,
+                                               shape=shape,
+                                               dependency=dependency,
+                                               grad=grad,
+                                               curl=curl,
+                                               div=div,
+                                               td=td,)
 
             else:
                 obj = PyFunctionVariable(func,
@@ -347,7 +349,7 @@ class Variable():
         if mesh.Dimension() == 1:
             self.topo_info = (1, mesh.extended_connectivity['vert2line'])
 
-    def get_jitted_coefficient(self):
+    def get_jitted_coefficient(self, *args):
         return None
     '''
     def make_callable(self):
@@ -1133,9 +1135,10 @@ class CoefficientVariable(Variable):
             assert False, "unknown kind of Coefficient. Must be scalar/vector/matrix"
         return call_eval
 
+
 class NumbaCoefficientVariable(CoefficientVariable):
     def __init__(self, func, complex=False, shape=tuple(), dependency=None,
-                 grad=None, curl=None, div=None):
+                 grad=None, curl=None, div=None, td=False):
         super(
             CoefficientVariable,
             self).__init__(complex=complex,
@@ -1148,45 +1151,62 @@ class NumbaCoefficientVariable(CoefficientVariable):
         self.t = None
         self.x = (0, 0, 0)
         self.shape = shape
-        
-    def get_jitted_coefficient(self, ind_vars):
+        self.td = td
+
+    def get_jitted_coefficient(self, ind_vars, locals):
 
         from petram.helper.numba_utils import (generate_caller_scalar,
                                                generate_caller_array,
                                                generate_signature_scalar,
                                                generate_signature_array,)
         sdim = len(ind_vars)
-        
-        if len(shape) == 0:
+
+        if len(self.shape) == 0:
             jitter = mfem.jit.scalar
+
             def gen_caller(setting):
-                return generate_caller_scalar(setting, 1)
+                return generate_caller_scalar(setting, sdim)
+
             def gen_sig(setting):
-                return generate_signature_scalar(setting, 1)
-                
-        elif len(shape) == 1:
+                return generate_signature_scalar(setting, sdim)
+
+        elif len(self.shape) == 1:
             jitter = mfem.jit.vector
+
             def gen_caller(setting):
-                return generate_caller_array(setting, 2)
+                return generate_caller_array(setting, sdim)
+
             def gen_sig(setting):
-                return generate_signature_array(setting, 2)
-            
-        elif len(shape) == 2:
+                return generate_signature_array(setting, sdim)
+
+        elif len(self.shape) == 2:
             jitter = mfem.jit.matrix
+
             def gen_caller(setting):
-                return generate_caller_array(setting, 3)
+                return generate_caller_array(setting, sdim)
+
             def gen_sig(setting):
-                return generate_signature_array(setting, 3)
-            
+                return generate_signature_array(setting, sdim)
+
         else:
             assert False, "unsupported shape"
 
+        dep = []
+        print(self.dependency)
+        for d in self.dependency:
+            dd = locals[d].get_jitted_coefficient(ind_vars, locals)
+            if dd is None:
+                return
+            dep.append(dd)
+
         wrapper = jitter(sdim=sdim,
                          complex=self.complex,
+                         td=self.td,
+                         dependency=dep,
                          interface=(gen_caller, gen_sig))
 
         return wrapper(self.func)
-        
+
 
 class GridFunctionVariable(Variable):
     def __init__(self, gf_real, gf_imag=None, comp=1,
@@ -1621,6 +1641,15 @@ class GFScalarVariable(GridFunctionVariable):
             jj = jj + 1
 
         return data
+
+    def get_jitted_coefficient(self, ind_vars, locals):
+        if not self.isDerived:
+            self.set_funcs()
+
+        if self.func_i is None:
+            return self.func_r
+        else:
+            return (self.func_r, self.func_i)
 
 
 class GFVectorVariable(GridFunctionVariable):

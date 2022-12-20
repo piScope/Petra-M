@@ -2,10 +2,13 @@ import inspect
 
 ###
 ###
-###  scalar function f(x, y, z)
-###  vector/matrixr function f(x, y, z, out)
+# scalar function f(x, y, z)
+# vector/matrixr function f(x, y, z, out)
 ###
 ###
+
+debug = True
+
 
 def make_signature(f, td=False, return_complex=False, shape=None):
     sig = inspect.signature(f)
@@ -23,7 +26,7 @@ def make_signature(f, td=False, return_complex=False, shape=None):
         m = types.void
         l = len(pp)-1
     if td:
-        l = l=1
+        l = l = 1
 
     args = [types.double]*l
     if td:
@@ -49,12 +52,12 @@ def create_caller(l, f, td, scalar=False, vector=False, matrix=False,
         if td:
             sig = mfem.scalar_sig_t
         else:
-            sig = mfem.scalar_sig        
+            sig = mfem.scalar_sig
     if vector:
         if td:
             sig = mfem.vector_sig_t
         else:
-            sig = mfem.vector_sig        
+            sig = mfem.vector_sig
     if matrix:
         if td:
             sig = mfem.matrix_sig_t
@@ -196,10 +199,10 @@ def create_caller(l, f, td, scalar=False, vector=False, matrix=False,
                 else:
                     def s_func(ptx, sdim):
                         return f(ptx[0], ptx[1], ptx[2], out).imag
-                    
-        
+
     from numba import cfunc
     return cfunc(sig)(s_func)
+
 
 def generate_caller_scalar(setting, sdim):
     '''
@@ -233,23 +236,36 @@ def generate_caller_scalar(setting, sdim):
     params_line = '    params = ('
 
     for s, kind, size in zip(setting['iscomplex'], setting['kinds'], setting["sizes"]):
+        if not isinstance(size, tuple):
+            size = (size, )
+
         if s:
             t1 = '    arrr' + \
                 str(count) + ' = farray(data[' + \
-                str(count) + "], ("+str(size) + "), np.float64)"
+                str(count) + "], "+str(size) + ", np.float64)"
             t2 = '    arri' + \
                 str(count) + ' = farray(data[' + \
-                str(count+1) + "], ("+str(size) + "), np.float64)"
+                str(count+1) + "], "+str(size) + ", np.float64)"
+
+            if len(size) == 1 and size[0] == 1:
+                t1 += '[0]'
+                t2 += '[0]'
+
             t3 = '    arr'+str(count) + ' = arrr' + \
                 str(count) + "+1j*arri" + str(count)
 
             text.extend((t1, t2, t3))
             params_line += 'arr'+str(count)+','
             count = count + 2
+
         else:
             t = '    arr' + \
                 str(count) + ' = farray(data[' + \
-                str(count) + "], ("+str(size) + "), np.float64)"
+                str(count) + "], "+str(size) + ", np.float64)"
+
+            if len(size) == 1 and size[0] == 1:
+                t += '[0]'
+
             text.append(t)
 
             params_line += 'arr'+str(count)+','
@@ -265,13 +281,16 @@ def generate_caller_scalar(setting, sdim):
     if setting["td"]:
         return_txt = return_txt + "t, "
     return_txt = return_txt + "*params))"
-    
+
     text.append(return_txt)
-    
+
+    if debug:
+        print('\n'.join(text))
+
     return '\n'.join(text)
 
 
-def generate_caller_array(setting):
+def generate_caller_array(setting, sdim):
     '''
     generate a callder function on the fly
 
@@ -309,15 +328,20 @@ def generate_caller_array(setting):
     params_line = '    params = ('
 
     for s, kind, size in zip(setting['iscomplex'], setting['kinds'], setting["sizes"]):
+        if not isinstance(size, tuple):
+            size = (size, )
+
         if s:
-            if not isinstance(size, tuple):
-                size = (size, )
             t1 = '    arrr' + \
                 str(count) + ' = farray(data[' + \
                 str(count) + "], "+str(size) + ", np.float64)"
             t2 = '    arri' + \
                 str(count) + ' = farray(data[' + \
                 str(count+1) + "], "+str(size) + ", np.float64)"
+            if len(size) == 1 and size[0] == 1:
+                t1 += '[0]'
+                t2 += '[0]'
+
             t3 = '    arr'+str(count) + ' = arrr' + \
                 str(count) + "+1j*arri" + str(count)
 
@@ -325,11 +349,15 @@ def generate_caller_array(setting):
             params_line += 'arr'+str(count)+','
             count = count + 2
         else:
+            if not isinstance(size, tuple):
+                size = (size, )
             t = '    arr' + \
                 str(count) + ' = farray(data[' + \
-                str(count) + "], ("+str(size) + "), np.float64)"
-            text.append(t)
+                str(count) + "]," + str(size) + ", np.float64)"
+            if len(size) == 1 and size[0] == 1:
+                t += '[0]'
 
+            text.append(t)
             params_line += 'arr'+str(count)+','
             count = count + 1
 
@@ -361,6 +389,9 @@ def generate_caller_array(setting):
         idx_text = idx_text + "i"+str(k)+","
     text.append("     " + " "*len(setting["outsize"]) +
                 "out["+idx_text + "]=ret[" + idx_text + "]")
+
+    if debug:
+        print('\n'.join(text))
 
     return '\n'.join(text)
 
@@ -411,7 +442,12 @@ def generate_signature_scalar(setting, sdim):
                 sig += 'types.double[:, :], '
 
     sig = sig + ")"
+
+    if debug:
+        print(sig)
+
     return sig
+
 
 def generate_signature_array(setting, sdim):
     '''
@@ -440,11 +476,12 @@ def generate_signature_array(setting, sdim):
         if setting['outkind'] == 1:
             sig += 'types.float64[:]('
         else:
-            sig += 'types.float64[:,:]'
+            sig += 'types.float64[:,:]('
 
+    print(sdim, setting)
     for i in range(sdim):
         sig += 'types.double, '
-            
+
     if setting['td']:
         sig += 'types.double, '
 
@@ -465,6 +502,8 @@ def generate_signature_array(setting, sdim):
                 sig += 'types.double[:, :], '
 
     sig = sig + ")"
+
+    if debug:
+        print(sig)
+
     return sig
-
-

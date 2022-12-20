@@ -247,6 +247,7 @@ class NS_mixin(object):
         from petram.helper.variables import var_g
         g = var_g.copy()
 
+        g["allow_fallback_nonjit"] = self.root()['General'].allow_fallback_nonjit
         import mfem
         if mfem.mfem_mode == 'serial':
             g['mfem'] = mfem.ser

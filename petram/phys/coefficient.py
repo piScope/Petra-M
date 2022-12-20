@@ -7,7 +7,7 @@ from petram.mfem_config import use_parallel
 import abc
 from abc import ABC, abstractmethod
 import parser
-    
+
 import numpy as np
 
 from petram.phys.phys_model import PhysCoefficient
@@ -38,32 +38,65 @@ def call_nativegen(v, l, g, real, conj, scale):
             return coeff
 
 
-def generate_jitted(txt, jitter, ind_vars, dim, conj, scale, g, l):
+def generate_jitted(txt, jitter, ind_vars, conj, scale, g, l):
 
     ind_vars = [xx.strip() for xx in ind_vars.split(',')]
-    print(txt, ind_vars)
-    func_txt = ['def _func_(ptx):']
+    st = parser.expr(txt.strip())
+    code = st.compile('<string>')
+    names = code.co_names
+
+    dependency = []
+    dep_names = []
+    for n in names:
+        if n in ind_vars:
+            continue
+        dep = g[n].get_jitted_coefficient(ind_vars, l)
+        if dep is None:
+            return None
+        dependency.append(dep)
+        dep_names.append(n)
+
+    f0 = 'def _func_(ptx, '
+    for n in dep_names:
+        f0 += n + ', '
+    f0 += '):'
+
+    func_txt = [f0]
     for k, xx in enumerate(ind_vars):
         func_txt.append("   " + xx + " = ptx[" + str(k) + "]")
     func_txt.append("   _out_ =" + txt)
+    func_txt.append("   if isinstance(_out_, list):")
+    func_txt.append("         _out_ = np.array(_out_)")
+    func_txt.append("   elif isinstance(_out_, tuple):")
+    func_txt.append("         _out_ = np.array(_out_)")
     if scale != 1:
         func_txt.append("   _out_ = _out_ * " + str(scale))
     if conj:
         func_txt.append("   _out_ = np.conj(_out_)")
-    func_txt.append("   return array(_out_, dtype=np.complex128)")
-    func_txt = "\n".join(func_txt)
-    print(func_txt)
-    print(g)
-    exec(func_txt, g, l)
-    
 
-    st = parser.expr(txt.strip())
-    code = st.compile('<string>')
-    names = code.co_names
-    print(names)
-    
-    coeff = jitter(sdim=len(ind_vars), complex=True,
-                   newinterface=True)(l["_func_"])
+    if jitter == mfem.jit.scalar:
+        func_txt.append("   return np.complex128(_out_)")
+    else:
+        func_txt.append("   return _out_.astype(np.complex128)")
+    func_txt = "\n".join(func_txt)
+
+    print(func_txt)
+
+    exec(func_txt, g, l)
+
+    try:
+        coeff = jitter(sdim=len(ind_vars), complex=True,
+                       dependency=dependency)(l["_func_"])
+    except AssertionError:
+        import traceback
+        traceback.print_exc()
+
+        print("Can not JIT coefficient")
+        return None
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+        return None
     return coeff
 
 
@@ -126,15 +159,20 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     conj = kwargs.get('conj', False)
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
-    print("matrix exprs", exprs)
+    #print("matrix exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
 
         if len(exprs) == 1:
             # if it is one liner array expression. try mfem.jit
             coeff = generate_jitted(exprs[0], mfem.jit.matrix,
-                                    ind_vars, dim, conj, scale, g, l)
-            if return_complex:
+                                    ind_vars, conj, scale, g, l)
+            if coeff is None:
+                if g["allow_fallback_nonjit"] == "on":
+                    print("JIT is not possbile continue using Python mode")
+                else:
+                    assert False, "can not jit coefficient"
+            elif return_complex:
                 return coeff
             else:
                 if real:
@@ -218,9 +256,12 @@ def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
 
-    print("matrix exprs", exprs)
+    #print("matrix exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
+        if g["allow_fallback_nonjit"] == "off":
+            print("JIT is not supported in DCoeff")
+            assert False, "can not jit coefficient"
         return DCoeff(dim, exprs, ind_vars, l, g, **kwargs)
     else:
         e = exprs
@@ -303,9 +344,26 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
 
-    print("vector exprs", exprs)
+    #print("vector exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
+        if len(exprs) == 1:
+            # if it is one liner array expression. try mfem.jit
+            coeff = generate_jitted(exprs[0], mfem.jit.vector,
+                                    ind_vars, conj, scale, g, l)
+            if coeff is None:
+                if g["allow_fallback_nonjit"] == "on":
+                    print("JIT is not possbile continue using Python mode")
+                else:
+                    assert False, "can not jit coefficient"
+            elif return_complex:
+                return coeff
+            else:
+                if real:
+                    return coeff.real
+                else:
+                    return coeff.imag
+
         if return_complex:
             kwargs['real'] = True
             c1 = VCoeff(dim, exprs, ind_vars, l, g, **kwargs)
@@ -424,9 +482,26 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
 
-    print("scalar exprs", exprs)
+    #print("scalar exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
+        if len(exprs) == 1:
+            # if it is one liner array expression. try mfem.jit
+            coeff = generate_jitted(exprs[0], mfem.jit.scalar,
+                                    ind_vars, conj, scale, g, l)
+            if coeff is None:
+                if g["allow_fallback_nonjit"] == "on":
+                    print("JIT is not possbile continue using Python mode")
+                else:
+                    assert False, "can not jit coefficient"
+            elif return_complex:
+                return coeff
+            else:
+                if real:
+                    return coeff.real
+                else:
+                    return coeff.imag
+
         if return_complex:
             kwargs['real'] = True
             c1 = SCoeff(exprs, ind_vars, l, g, **kwargs)
