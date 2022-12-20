@@ -1301,6 +1301,8 @@ class NumbaCoefficientVariable(CoefficientVariable):
             def gen_sig(setting):
                 return generate_signature_scalar(setting, sdim)
 
+            kwargs = {}
+
         elif len(self.shape) == 1:
             jitter = mfem.jit.vector
 
@@ -1310,6 +1312,8 @@ class NumbaCoefficientVariable(CoefficientVariable):
             def gen_sig(setting):
                 return generate_signature_array(setting, sdim)
 
+            kwargs = {"shape": self.shape}
+
         elif len(self.shape) == 2:
             jitter = mfem.jit.matrix
 
@@ -1318,6 +1322,8 @@ class NumbaCoefficientVariable(CoefficientVariable):
 
             def gen_sig(setting):
                 return generate_signature_array(setting, sdim)
+
+            kwargs = {"shape": self.shape}
 
         else:
             assert False, "unsupported shape"
@@ -1333,10 +1339,9 @@ class NumbaCoefficientVariable(CoefficientVariable):
         wrapper = jitter(sdim=sdim,
                          complex=self.complex,
                          td=self.td,
-                         shape=self.shape,
                          dependency=dep,
                          interface=(gen_caller, gen_sig),
-                         debug=False)
+                         debug=False, **kwargs)
 
         return wrapper(self.func)
 
