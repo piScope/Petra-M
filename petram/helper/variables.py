@@ -929,7 +929,7 @@ class PyFunctionVariable(Variable):
 
         from petram.helper.right_broadcast import div
         ret = div(ret, wverts)
-        #print("PyFunctionVariable", ret)
+        print("PyFunctionVariable", ret.shape)
         return ret
 
     def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
@@ -966,6 +966,7 @@ class PyFunctionVariable(Variable):
             kwargs = {n: knowns[g[n]][idx] for n in self.dependency}
             ret[idx] = self.func(*xyz, **kwargs)
         ret = np.stack(ret).astype(dtype, copy=False)
+        print("PyFunction return", ret.shape)
         return ret
 
     def ncface_values(self, *args, **kwargs):
@@ -1062,7 +1063,8 @@ class CoefficientVariable(Variable):
 
     def nodal_values(self, iele=None, ibele=None, elattr=None, el2v=None,
                      locs=None, elvertloc=None, wverts=None, mesh=None,
-                     iverts_f=None, g=None, knowns=None, **kwargs):
+                     iverts_f=None, g=None, knowns=None,
+                     edge_evaluator=False, **kwargs):
 
         g = mfem.Geometry()
         size = len(iverts_f)
@@ -1072,13 +1074,23 @@ class CoefficientVariable(Variable):
             return
 
         if mesh.Dimension() == 3:
+            if edge_evaluator:
+                 assert False, "EdgeNodal Evaluator does not supported dim=3"
             getelement = mesh.GetBdrElement
             gettransformation = mesh.GetBdrElementTransformation
         elif mesh.Dimension() == 2:
-            getelement = mesh.GetElement
-            gettransformation = mesh.GetElementTransformation
+            if edge_evaluator:
+                getelement = mesh.GetBdrElement
+                gettransformation = mesh.GetBdrElementTransformation
+            else:            
+                getelement = mesh.GetElement
+                gettransformation = mesh.GetElementTransformation
         else:
-            assert False, "BdrNodal Evaluator is not supported for this dimension"
+            if edge_evaluator:
+                getelement = mesh.GetElement
+                gettransformation = mesh.GetElementTransformation
+            else:            
+                assert False, "BdrNodal Evaluator does not support dim=1"
 
         call_eval = self.get_call_eval()
 
@@ -1122,100 +1134,78 @@ class CoefficientVariable(Variable):
 
         call_eval = self.get_call_eval()
 
-        size = len(locs)
-        ret = np.zeros((size, self.sdim))
-        if ifaces is None:
-            return
-
-        nor = mfem.Vector(self.sdim)
-
         if mesh.Dimension() == 3:
             m = mesh.GetFaceTransformation
         elif mesh.Dimension() == 2:
             m = mesh.GetElementTransformation
-        idx = 0
+            
+        data = []
+        dtype = np.complex if self.complex else np.float
+        
         for i, gtype, in zip(ifaces, gtypes):
+            T = m(i)            
             ir = irs[gtype]
             nv = ir.GetNPoints()
-            T = m(i)
+
             for j in range(nv):
-                T.SetIntPoint(ir.IntPoint(i))
-                mfem.CalcOrtho(T.Jacobian(), nor)
-                ret[idx, :] = nor.GetDataArray().copy()
-                idx = idx + 1
+                ip = ir.IntPoint(j)
+                
+                if (self.coeff[0] is not None and
+                        self.coeff[1] is not None):
+                    value = (np.array(call_eval(self.coeff[0], T, ip)) +
+                             1j * np.array(self.coeff[1], T, ip))
+                elif self.coeff[0] is not None:
+                    value = np.array(call_eval(self.coeff[0], T, ip))
+                elif self.coeff[1] is not None:
+                    value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+                else:
+                    assert False, "coeff is (None, None)"
+                data.append(value)
 
-        from petram.helper.right_broadcast import div
+        ret = np.stack(data).astype(dtype, copy=False)
+        return ret
 
-        ret = div(ret, np.sqrt(np.sum(ret**2, -1)))
-        if self.comp == -1:
-            return ret
-        return ret[:, self.comp - 1]
+    def ncedge_values(self, ifaces=None, irs=None, gtypes=None, mesh=None,
+                      **kwargs):
 
-        name = self.gfr.FESpace().FEColl().Name()
-        ndim = self.gfr.FESpace().GetMesh().Dimension()
+        call_eval = self.get_call_eval()
 
-        isVector = False
-        if (name.startswith('RT') or
-                name.startswith('ND')):
-            d = mfem.DenseMatrix()
-            p = mfem.DenseMatrix()
-            isVector = True
+        if mesh.Dimension() == 2:
+            m = mesh.GetBdrElementTransformation
+        elif mesh.Dimension() == 1:
+            m = mesh.GetElementTransformation
         else:
-            d = mfem.Vector()
-            p = mfem.DenseMatrix()
+            assert False, "NCEdge Evaluator is not supported for this dimension"
+            
         data = []
+        dtype = np.complex if self.complex else np.float
 
-        def get_method(gf, ndim, isVector):
-            if gf is None:
-                return None
-            if ndim == 3:
-                if isVector:
-                    return gf.GetFaceVectorValues
-                elif gf.VectorDim() > 1:
-                    def func(i, side, ir, vals, tr, in_gf=gf):
-                        in_gf.GetFaceValues(
-                            i, side, ir, vals, tr, vdim=self.comp)
-                    return func
-                else:
-                    return gf.GetFaceValues
-            elif ndim == 2:
-                if isVector:
-                    def func(i, side, ir, vals, tr, in_gf=gf):
-                        in_gf.GetVectorValues(i, ir, vals, tr)
-                    return func
-                elif gf.VectorDim() > 1:
-                    def func(i, side, ir, vals, tr, in_gf=gf):
-                        #in_gf.GetValues(i, ir, vals, tr, vdim=self.comp - 1)
-                        in_gf.GetValues(i, ir, vals, tr, self.comp-1)
-                    return func
-                else:
-                    def func(i, side, ir, vals, tr, in_gf=gf):
-                        in_gf.GetValues(i, ir, vals, tr)
-                        return
-                    return func
-            else:
-                assert False, "ndim = 1 has no face"
-            return None
-
-        getvalr = get_method(self.gfr, ndim, isVector)
-        getvali = get_method(self.gfi, ndim, isVector)
-
+        print("here")
         for i, gtype, in zip(ifaces, gtypes):
+            print(i, gtype)
+            T = m(i)            
             ir = irs[gtype]
-            getvalr(i, 2, ir, d, p)  # side = 2 (automatic?)
-            v = d.GetDataArray().copy()
-            if isVector:
-                v = v[self.comp - 1, :]
+            nv = ir.GetNPoints()
 
-            if getvali is not None:
-                getvali(i, 2, ir, d, p)  # side = 2 (automatic?)
-                vi = d.GetDataArray().copy()
-                if isVector:
-                    vi = vi[self.comp - 1, :]
-                v = v + 1j * vi
-            data.append(v)
-        data = np.hstack(data)
-        return data
+            for j in range(nv):
+                ip = ir.IntPoint(j)
+                
+                if (self.coeff[0] is not None and
+                        self.coeff[1] is not None):
+                    value = (np.array(call_eval(self.coeff[0], T, ip)) +
+                             1j * np.array(self.coeff[1], T, ip))
+                elif self.coeff[0] is not None:
+                    value = np.array(call_eval(self.coeff[0], T, ip))
+                elif self.coeff[1] is not None:
+                    value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+                else:
+                    assert False, "coeff is (None, None)"
+                data.append(value)
+
+        ret = np.stack(data).astype(dtype, copy=False)
+        print("return shape", ret.shape)
+        return ret
+    
 
     def get_call_eval(self):
         if self.kind == "scalar":
@@ -1620,6 +1610,8 @@ class GFScalarVariable(GridFunctionVariable):
                 v = v + 1j * vi
             data.append(v)
         data = np.hstack(data)
+
+        print("return value", data.shape)        
         return data
 
     def ncedge_values(self, ifaces=None, irs=None,
@@ -1901,6 +1893,8 @@ class GFVectorVariable(GridFunctionVariable):
                 v = v + 1j * vi
             data.append(v)
         ret = np.hstack(data).transpose()
+
+        print("return value", ret.shape)
         return ret
 
     def point_values(self, counts=None, locs=None, points=None,

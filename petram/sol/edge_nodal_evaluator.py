@@ -125,7 +125,8 @@ class EdgeNodalEvaluator(EvaluatorAgent):
             if self.emesh_idx != emesh_idx[0]:
                  self.preprocess_geometry(self.attrs, emesh_idx=emesh_idx[0])
                  
-        val = eval_at_nodals(self, expr, solvars, phys)
+        val = eval_at_nodals(self, expr, solvars, phys,
+                             edge_evaluator=True)
         if val is None: return None, None, None
 
 #        return self.locs[self.iverts_inv], val[self.iverts_inv, ...]

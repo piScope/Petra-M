@@ -148,7 +148,7 @@ def get_emesh_idx(obj, exprs, solvars, phys):
         return ret
 
 
-def eval_at_nodals(obj, expr, solvars, phys):
+def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False):
     '''
     evaluate nodal valus based on preproceessed 
     geometry data
@@ -183,7 +183,6 @@ def eval_at_nodals(obj, expr, solvars, phys):
     new_names = []
     name_translation = {}
 
-    print(phys)
     for n in names:
         if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
             g[n+"_coeff"] = CoefficientVariable(g[n], g)
@@ -216,7 +215,8 @@ def eval_at_nodals(obj, expr, solvars, phys):
                                       mesh=obj.mesh()[obj.emesh_idx],
                                       iverts_f=obj.iverts_f,
                                       g=g,
-                                      knowns=obj.knowns))
+                                      knowns=obj.knowns,
+                                      edge_evaluator=edge_evaluator))
             #ll[n] = self.knowns[g[n]]
             ll_name.append(name_translation[n])
             ll_value.append(obj.knowns[g[n]])
