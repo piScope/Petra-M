@@ -39,6 +39,17 @@ def call_nativegen(v, l, g, real, conj, scale):
             return coeff
 
 
+class NumbaComplexCoefficient():
+    def __init__(self, coeff):
+        self.coeff = coeff
+
+    def get_real_coefficient(self):
+        return self.coeff.real
+
+    def get_imag_coefficient(self):
+        return self.coeff.imag
+
+
 def generate_jitted(txt, jitter, ind_vars, conj, scale, g, l):
 
     ind_vars = [xx.strip() for xx in ind_vars.split(',')]
@@ -56,6 +67,8 @@ def generate_jitted(txt, jitter, ind_vars, conj, scale, g, l):
         dep = g[n].get_jitted_coefficient(ind_vars, l)
         if dep is None:
             return None
+        if g[n].complex:
+            dep = (dep.real, dep.imag)
         dependency.append(dep)
         dep_names.append(n)
 
@@ -172,11 +185,11 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
                                     ind_vars, conj, scale, g, l)
             if coeff is None:
                 if g["allow_fallback_nonjit"] == "on":
-                    print("JIT is not possbile continue using Python mode")
+                    print("JIT is not possbile. Continuing with Python mode")
                 else:
                     assert False, "can not jit coefficient"
             elif return_complex:
-                return coeff
+                return NumbaComplexCoefficient(coeff)
             else:
                 if real:
                     return coeff.real
@@ -356,11 +369,11 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
                                     ind_vars, conj, scale, g, l)
             if coeff is None:
                 if g["allow_fallback_nonjit"] == "on":
-                    print("JIT is not possbile continue using Python mode")
+                    print("JIT is not possbile. Continuing with Python mode")
                 else:
                     assert False, "can not jit coefficient"
             elif return_complex:
-                return coeff
+                return NumbaComplexCoefficient(coeff)
             else:
                 if real:
                     return coeff.real
@@ -494,11 +507,11 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
                                     ind_vars, conj, scale, g, l)
             if coeff is None:
                 if g["allow_fallback_nonjit"] == "on":
-                    print("JIT is not possbile continue using Python mode")
+                    print("JIT is not possbile. Continuing with Python mode")
                 else:
                     assert False, "can not jit coefficient"
             elif return_complex:
-                return coeff
+                return NumbaComplexCoefficient(coeff)
             else:
                 if real:
                     return coeff.real
