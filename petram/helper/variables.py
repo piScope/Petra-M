@@ -1117,6 +1117,106 @@ class CoefficientVariable(Variable):
 
         return ret
 
+    def ncface_values(self, ifaces=None, irs=None, gtypes=None, mesh=None,
+                      **kwargs):
+
+        call_eval = self.get_call_eval()
+
+        size = len(locs)
+        ret = np.zeros((size, self.sdim))
+        if ifaces is None:
+            return
+
+        nor = mfem.Vector(self.sdim)
+
+        if mesh.Dimension() == 3:
+            m = mesh.GetFaceTransformation
+        elif mesh.Dimension() == 2:
+            m = mesh.GetElementTransformation
+        idx = 0
+        for i, gtype, in zip(ifaces, gtypes):
+            ir = irs[gtype]
+            nv = ir.GetNPoints()
+            T = m(i)
+            for j in range(nv):
+                T.SetIntPoint(ir.IntPoint(i))
+                mfem.CalcOrtho(T.Jacobian(), nor)
+                ret[idx, :] = nor.GetDataArray().copy()
+                idx = idx + 1
+
+        from petram.helper.right_broadcast import div
+
+        ret = div(ret, np.sqrt(np.sum(ret**2, -1)))
+        if self.comp == -1:
+            return ret
+        return ret[:, self.comp - 1]
+
+        name = self.gfr.FESpace().FEColl().Name()
+        ndim = self.gfr.FESpace().GetMesh().Dimension()
+
+        isVector = False
+        if (name.startswith('RT') or
+                name.startswith('ND')):
+            d = mfem.DenseMatrix()
+            p = mfem.DenseMatrix()
+            isVector = True
+        else:
+            d = mfem.Vector()
+            p = mfem.DenseMatrix()
+        data = []
+
+        def get_method(gf, ndim, isVector):
+            if gf is None:
+                return None
+            if ndim == 3:
+                if isVector:
+                    return gf.GetFaceVectorValues
+                elif gf.VectorDim() > 1:
+                    def func(i, side, ir, vals, tr, in_gf=gf):
+                        in_gf.GetFaceValues(
+                            i, side, ir, vals, tr, vdim=self.comp)
+                    return func
+                else:
+                    return gf.GetFaceValues
+            elif ndim == 2:
+                if isVector:
+                    def func(i, side, ir, vals, tr, in_gf=gf):
+                        in_gf.GetVectorValues(i, ir, vals, tr)
+                    return func
+                elif gf.VectorDim() > 1:
+                    def func(i, side, ir, vals, tr, in_gf=gf):
+                        #in_gf.GetValues(i, ir, vals, tr, vdim=self.comp - 1)
+                        in_gf.GetValues(i, ir, vals, tr, self.comp-1)
+                    return func
+                else:
+                    def func(i, side, ir, vals, tr, in_gf=gf):
+                        in_gf.GetValues(i, ir, vals, tr)
+                        return
+                    return func
+            else:
+                assert False, "ndim = 1 has no face"
+            return None
+
+        getvalr = get_method(self.gfr, ndim, isVector)
+        getvali = get_method(self.gfi, ndim, isVector)
+
+        for i, gtype, in zip(ifaces, gtypes):
+            ir = irs[gtype]
+            getvalr(i, 2, ir, d, p)  # side = 2 (automatic?)
+            v = d.GetDataArray().copy()
+            if isVector:
+                v = v[self.comp - 1, :]
+
+            if getvali is not None:
+                getvali(i, 2, ir, d, p)  # side = 2 (automatic?)
+                vi = d.GetDataArray().copy()
+                if isVector:
+                    vi = vi[self.comp - 1, :]
+                v = v + 1j * vi
+            data.append(v)
+        data = np.hstack(data)
+        return data
+
     def get_call_eval(self):
         if self.kind == "scalar":
             def call_eval(c, T, ip):
@@ -1152,6 +1252,14 @@ class NumbaCoefficientVariable(CoefficientVariable):
         self.x = (0, 0, 0)
         self.shape = shape
         self.td = td
+        if len(self.shape) == 0:
+            self.kind = 'scalar'
+        elif len(self.shape) == 1:
+            self.kind = 'vector'
+        elif len(self.shape) == 2:
+            self.kind = 'matrix'
+        else:
+            assert False, "unsupported shape"
 
     def get_jitted_coefficient(self, ind_vars, locals):
 
@@ -1204,9 +1312,17 @@ class NumbaCoefficientVariable(CoefficientVariable):
                          td=self.td,
                          shape=self.shape,
                          dependency=dep,
-                         interface=(gen_caller, gen_sig))
+                         interface=(gen_caller, gen_sig),
+                         debug=False)
 
         return wrapper(self.func)
+
+    def set_coeff(self, ind_vars, locals):
+        coeff = self.get_jitted_coefficient(ind_vars, locals)
+        if self.complex:
+            self.coeff = (coeff.real, coeff.imag)
+        else:
+            self.coeff = (coeff, None)
 
 
 class GridFunctionVariable(Variable):

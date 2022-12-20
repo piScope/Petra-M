@@ -156,7 +156,10 @@ def eval_at_nodals(obj, expr, solvars, phys):
     to be done : obj should be replaced by a dictionary
     '''
 
-    from petram.helper.variables import Variable, var_g, NativeCoefficientGenBase, CoefficientVariable
+    from petram.helper.variables import (Variable,
+                                         var_g,
+                                         NativeCoefficientGenBase,
+                                         NumbaCoefficientVariable,)
 
     if len(obj.iverts) == 0:
         return None
@@ -179,13 +182,19 @@ def eval_at_nodals(obj, expr, solvars, phys):
 
     new_names = []
     name_translation = {}
+
+    print(phys)
     for n in names:
         if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
             g[n+"_coeff"] = CoefficientVariable(g[n], g)
             new_names.append(n+"_coeff")
             name_translation[n+"_coeff"] = n
-
-        if (n in g and isinstance(g[n], Variable)):
+        elif (n in g and isinstance(g[n], NumbaCoefficientVariable)):
+            ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
+            g[n].set_coeff(ind_vars, g)
+            new_names.append(n)
+            name_translation[n] = n
+        elif (n in g and isinstance(g[n], Variable)):
             new_names.extend(g[n].dependency)
             new_names.append(n)
             name_translation[n] = n

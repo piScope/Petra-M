@@ -31,7 +31,10 @@ def eval_on_faces(obj, expr, solvars, phys):
 
     to be done : obj should be replaced by a dictionary
     '''
-    from petram.helper.variables import Variable, var_g
+    from petram.helper.variables import (Variable,
+                                         var_g,
+                                         NativeCoefficientGenBase,
+                                         NumbaCoefficientVariable,)
 
     if len(obj.ifaces) == 0:
         return None
@@ -54,7 +57,11 @@ def eval_on_faces(obj, expr, solvars, phys):
 
     new_names = []
     for n in names:
-        if (n in g and isinstance(g[n], Variable)):
+        if (n in g and isinstance(g[n], NumbaCoefficientVariable)):
+            ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
+            g[n].set_coeff(ind_vars, g)
+            new_names.append(n)
+        elif (n in g and isinstance(g[n], Variable)):
             new_names.extend(g[n].dependency)
             new_names.append(n)
         elif n in g:
