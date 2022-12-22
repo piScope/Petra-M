@@ -152,6 +152,7 @@ class MFEMMesh(Model):
     def get_special_menu(self, evt):
         #menu =[["Reload Mesh", self.reload_mfem_mesh, None,],]
         menu = [["+Mesh parameters...", None, None],
+                ["Plot low quality elements", self.plot_lowqualities, None],
                 ["Compute minSJac", self.compute_scaled_jac, None], ]
         if (self._invalid_data is not None and
                 len(self._invalid_data[0]) > 0):
@@ -268,6 +269,56 @@ class MFEMMesh(Model):
         setup_figure(win)
         win.view('noclip')
         plot_elements(mesh, inverted, refine=10, win=win)
+
+    def plot_lowqualities(self, evt):
+        from petram.mesh.mesh_inspect import plot_elements
+
+        editor = evt.GetEventObject().GetTopLevelParent()
+        viewer = editor.GetParent()
+
+        mesh = viewer.model.variables.getvar('mesh')
+        if mesh is None:
+            return
+        dim = mesh.Dimension()
+        sdim = mesh.SpaceDimension()
+
+        if sdim != dim:
+            return
+
+        import wx
+        from ifigure.utils.edit_list import DialogEditList
+
+        l = [["minimum kappa :", str(1000),  0, {'noexpand': True}], ]
+
+        value = DialogEditList(l, parent=editor,
+                               title="Enter mimimum kappa...",
+                               style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        if not value[0]:
+            return
+        minkappa = float(value[1][0])
+
+        J = mfem.DenseMatrix(sdim, dim)
+
+        def GetElementJacobian(mesh, i):
+            bgeom = mesh.GetElementBaseGeometry(i)
+            T = mesh.GetElementTransformation(i)
+            T.SetIntPoint(mfem.Geometries.GetCenter(bgeom))
+            mfem.Geometries.JacToPerfJac(bgeom, T.Jacobian(), J)
+
+        lowq_elements = []
+        for i in range(mesh.GetNE()):
+            GetElementJacobian(mesh, i)
+            kappa = J.CalcSingularvalue(0) / J.CalcSingularvalue(dim-1)
+            if kappa > minkappa:
+                lowq_elements.append(i)
+
+        print("number of low Q elements: " + str(len(lowq_elements)))
+        from ifigure.interactive import figure
+        from petram.mfem_viewer import setup_figure
+        win = figure()
+        setup_figure(win)
+        win.view('noclip')
+        plot_elements(mesh, lowq_elements, refine=10, win=win)
 
     @property
     def sdim(self):
