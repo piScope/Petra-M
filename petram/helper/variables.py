@@ -63,38 +63,20 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('Variables')
 
 
 class _decorator(object):
-    def float(self, dependency=None, grad=None, curl=None, div=None, jit=False, td=False):
+    def float(self, dependency=None, grad=None, curl=None, div=None, td=False):
         def dec(func):
-            if jit:
-                obj = NumbaCoefficientVariable(func,
-                                               complex=False,
-                                               dependency=dependency,
-                                               grad=grad,
-                                               curl=curl,
-                                               div=div,
-                                               td=td,)
-            else:
-                obj = PyFunctionVariable(func,
-                                         complex=False,
-                                         dependency=dependency,
-                                         grad=grad,
-                                         curl=curl,
-                                         div=div)
+            obj = PyFunctionVariable(func,
+                                     complex=False,
+                                     dependency=dependency,
+                                     grad=grad,
+                                     curl=curl,
+                                      div=div)
             return obj
         return dec
 
-    def complex(self, dependency=None, grad=None, curl=None, div=None, jit=False, td=False):
+    def complex(self, dependency=None, grad=None, curl=None, div=None, td=False):
         def dec(func):
-            if jit:
-                obj = NumbaCoefficientVariable(func,
-                                               complex=True,
-                                               dependency=dependency,
-                                               grad=grad,
-                                               curl=curl,
-                                               div=div,
-                                               td=td,)
-            else:
-                obj = PyFunctionVariable(func,
+            obj = PyFunctionVariable(func,
                                          complex=True,
                                          dependency=dependency,
                                          grad=grad,
@@ -104,21 +86,9 @@ class _decorator(object):
             return obj
         return dec
 
-    def array(self, complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, jit=False, td=False):
+    def array(self, complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, td=False):
         def dec(func):
-            # print "inside dec", complex, shape
-            if jit:
-                obj = NumbaCoefficientVariable(func,
-                                               complex=complex,
-                                               shape=shape,
-                                               dependency=dependency,
-                                               grad=grad,
-                                               curl=curl,
-                                               div=div,
-                                               td=td,)
-
-            else:
-                obj = PyFunctionVariable(func,
+            obj = PyFunctionVariable(func,
                                          complex=complex,
                                          shape=shape,
                                          dependency=dependency,
@@ -129,8 +99,48 @@ class _decorator(object):
             return obj
         return dec
 
+def _decorator_jit(object):
+    def float(self, dependency=None, grad=None, curl=None, div=None, td=False):
+        def dec(func):
+            obj = NumbaCoefficientVariable(func,
+                                               complex=False,
+                                               dependency=dependency,
+                                               grad=grad,
+                                               curl=curl,
+                                               div=div,
+                                               td=td,)
+            return obj
+        return dec
 
+    def complex(self, dependency=None, grad=None, curl=None, div=None, td=False):
+        def dec(func):
+            obj = NumbaCoefficientVariable(func,
+                                               complex=True,
+                                               dependency=dependency,
+                                               grad=grad,
+                                               curl=curl,
+                                               div=div,
+                                               td=td,)
+            return obj
+        return dec
+
+    def array(self, complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, td=False):
+        def dec(func):
+            obj = NumbaCoefficientVariable(func,
+                                               complex=complex,
+                                               shape=shape,
+                                               dependency=dependency,
+                                               grad=grad,
+                                               curl=curl,
+                                               div=div,
+                                               td=td,)
+
+
+            return obj
+        return dec
+    
 variable = _decorator()
+variable.jit = _decorator_jit()
 
 
 def eval_code(co, g, l, flag=None):
@@ -2401,6 +2411,7 @@ class NativeCoefficientGenBase(object):
             else:
                 return rc, None
         else:
+            assert False, "coefficient(jit=True) is not valid anymore. jit is supported by @variable"
             if len(self.dependency) > 0:
                 assert False, "dependency is not supported in numba call"
             if self.td:

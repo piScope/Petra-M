@@ -39,18 +39,9 @@ def call_nativegen(v, l, g, real, conj, scale):
             return coeff
 
 
-class NumbaComplexCoefficient():
-    def __init__(self, coeff):
-        self.coeff = coeff
-
-    def get_real_coefficient(self):
-        return self.coeff.real
-
-    def get_imag_coefficient(self):
-        return self.coeff.imag
-
-
 def generate_jitted(txt, jitter, ind_vars, conj, scale, g, l):
+
+    from petram.phys.numba_coefficient import NumbaCoefficient
 
     ind_vars = [xx.strip() for xx in ind_vars.split(',')]
     st = parser.expr(txt.strip())
@@ -113,7 +104,7 @@ def generate_jitted(txt, jitter, ind_vars, conj, scale, g, l):
         import traceback
         traceback.print_exc()
         return None
-    return coeff
+    return NumbaCoefficient(coeff)
 
 
 def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
