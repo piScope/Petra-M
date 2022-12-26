@@ -155,7 +155,7 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
                 self, exprs, ind_vars, l, g, real=True)
             PyComplexMatrixCoefficient.__init__(self, c1, c2)
 
-        def Eval(self, K, T, ip):
+        def eval(self, T, ip):
             for n, v in self.variables:
                 v.set_point(T, ip, self.g, self.l)
             x = T.Transform(ip)
@@ -340,7 +340,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
                 self, exprs, ind_vars, l, g, real=True)
             PyComplexVectorCoefficient.__init__(self, c1, c2)
 
-        def Eval(self, V, T, ip):
+        def eval(self, T, ip):
             for n, v in self.variables:
                 v.set_point(T, ip, self.g, self.l)
             x = T.Transform(ip)
@@ -475,7 +475,7 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
                 self, exprs, ind_vars, l, g, real=True)
             PyComplexCoefficient.__init__(self, c1, c2)
 
-        def Eval(self, T, ip):
+        def eval(self, T, ip):
             for n, v in self.variables:
                 v.set_point(T, ip, self.g, self.l)
             x = T.Transform(ip)
