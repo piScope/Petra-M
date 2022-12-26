@@ -939,7 +939,7 @@ class PyFunctionVariable(Variable):
 
         from petram.helper.right_broadcast import div
         ret = div(ret, wverts)
-        print("PyFunctionVariable", ret.shape)
+
         return ret
 
     def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
@@ -1339,7 +1339,7 @@ class NumbaCoefficientVariable(CoefficientVariable):
             assert False, "unsupported shape"
 
         dep = []
-        print(self.dependency)
+
         for d in self.dependency:
             dd = locals[d].get_jitted_coefficient(ind_vars, locals)
             if dd is None:
@@ -1941,7 +1941,6 @@ class GFVectorVariable(GridFunctionVariable):
             data.append(v)
         ret = np.hstack(data).transpose()
 
-        print("return value", ret.shape)
         return ret
 
     def point_values(self, counts=None, locs=None, points=None,
@@ -2412,6 +2411,7 @@ class NativeCoefficientGenBase(object):
                 return rc, None
         else:
             assert False, "coefficient(jit=True) is not valid anymore. jit is supported by @variable"
+            '''
             if len(self.dependency) > 0:
                 assert False, "dependency is not supported in numba call"
             if self.td:
@@ -2453,7 +2453,7 @@ class NativeCoefficientGenBase(object):
                 c1 = make_coeff(real=False, imag=False)
                 c2 = None
             return c1, c2
-
+            '''
     def scale_coeff(self, coeff, scale):
         if self.shape is None:
             c2 = mfem.ConstantCoefficient(scale)

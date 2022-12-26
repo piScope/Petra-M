@@ -474,7 +474,6 @@ class Engine(object):
             for k in solk:
                 if not (isinstance(model['Solver'][k], SolveStep) or
                         isinstance(model['Solver'][k], SolveControl)):
-                    print("moving ", k)
                     if box is None:
                         name = model['Solver'].add_item('SolveStep', SolveStep)
                         box = model['Solver'][name]
@@ -1566,7 +1565,7 @@ class Engine(object):
 
             for loc in loc_list:
                 r, c, is_trans, is_conj = loc
-                print(loc)
+
                 is_trans = (is_trans < 0)
                 is_conj = (is_conj == -1)
 

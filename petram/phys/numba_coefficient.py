@@ -13,6 +13,8 @@ if use_parallel:
 else:
     import mfem.ser as mfem
 
+import petram.debug
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('NumbaCoefficient')
 
 class NumbaCoefficient():
     def __init__(self, coeff):
@@ -42,7 +44,7 @@ class NumbaCoefficient():
 
     @property
     def ndim(self):
-        self.mfem_numba_coeff.GetNdim()
+        self.mfem_numba_coeff.GetNDim()
 
     @property
     def shape(self):
@@ -55,7 +57,17 @@ class NumbaCoefficient():
                     self.mfem_numba_coeff.GetHeight(),)
         else:
             assert False, "unsupported dim"
-
+            
+    @property
+    def width(self):
+        return self.mfem_numba_coeff.GetWidth()
+    @property
+    def height(self):
+        return self.mfem_numba_coeff.GetHeight()
+    @property
+    def vdim(self):
+        return self.mfem_numba_coeff.GetVDim()
+    
     def is_matrix(self):
         return self.mfem_numba_coeff.GetNdim() == 2
 
@@ -66,7 +78,8 @@ class NumbaCoefficient():
         '''
         ruturn sum coefficient
         '''
-        assert isinstance(other, NumbaCoefficient), "must be NumbaCoefficient"
+        if not isinstance(other, NumbaCoefficient):
+            return NotImplemented
         assert self.shape == other.shape, "ndim must match to perform sum operation"
 
         func = '\n'.join(['def f(ptx, coeff1, coeff2)',
@@ -104,30 +117,3 @@ class NumbaCoefficient():
             return self() - other()
         return self() - other
 
-
-def GenerateSlaiceNumbaCoefficient(coeff):
-    pass
-
-
-def GenerateNumbaSumCoefficient(coeff1, coeff2):
-    if coeff1.real is None:
-        pass
-    if coeff1.imag is None:
-        pass
-    pass
-
-
-def GenerateNumbaProductCoefficient(coeff):
-    pass
-
-
-def GenerateNumbaPowCoefficient(coeff):
-    pass
-
-
-def GenerateNumbaAdjCoefficient(coeff):
-    pass
-
-
-def GenerateNumbaInvCoefficient(coeff):
-    pass

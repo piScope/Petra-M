@@ -1,6 +1,6 @@
-from __future__ import print_function
-from petram.phys.coefficient import complex_coefficient_from_real_and_imag
-from petram.phys.phys_model import PhysConstant, PhysVectorConstant, PhysMatrixConstant
+from petram.phys.phys_model import (PhysConstant,
+                                    PhysVectorConstant,
+                                    PhysMatrixConstant)
 from petram.helper.variables import NativeCoefficientGenBase
 
 import weakref
