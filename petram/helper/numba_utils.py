@@ -81,10 +81,6 @@ def generate_caller_scalar(setting, sdim):
 
     text.append(return_txt)
 
-    from petram.mfem_config import numba_debug as debug
-    if debug:
-        print('\n'.join(text))
-
     return '\n'.join(text)
 
 
@@ -188,10 +184,6 @@ def generate_caller_array(setting, sdim):
     text.append("     " + " "*len(setting["outsize"]) +
                 "out["+idx_text + "]=ret[" + idx_text + "]")
 
-    from petram.mfem_config import numba_debug as debug
-    if debug:
-        print('\n'.join(text))
-
     return '\n'.join(text)
 
 
@@ -241,10 +233,6 @@ def generate_signature_scalar(setting, sdim):
                 sig += 'types.double[:, :], '
 
     sig = sig + ")"
-
-    from petram.mfem_config import numba_debug as debug
-    if debug:
-        print(sig)
 
     return sig
 
@@ -301,9 +289,5 @@ def generate_signature_array(setting, sdim):
                 sig += 'types.double[:, :], '
 
     sig = sig + ")"
-
-    from petram.mfem_config import numba_debug as debug
-    if debug:
-        print(sig)
 
     return sig

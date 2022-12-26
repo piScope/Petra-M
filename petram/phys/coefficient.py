@@ -34,6 +34,7 @@ from petram.phys.pycomplex_coefficient import (CC_Matrix,
 
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Coefficient')
+from petram.debug import handle_allow_python_function_coefficient
 
 def call_nativegen(v, l, g, real, conj, scale):
     vv = v(l, g)
@@ -102,11 +103,13 @@ def generate_jitted(txt, jitter, ind_vars, conj, scale, g, l, **kwargs):
         func_txt.append("   return _out_.astype(np.complex128)")
     func_txt = "\n".join(func_txt)
 
-    #print(func_txt)
+    from petram.mfem_config import numba_debug
+    if numba_debug:
+        print("(DEBUG) wrapper function\n", func_txt)
     exec(func_txt, g, l)
 
     try:
-        coeff = jitter(sdim=len(ind_vars), complex=True,
+        coeff = jitter(sdim=len(ind_vars), complex=True, debug=numba_debug,
                        dependency=dependency, **kwargs)(l["_func_"])
     except AssertionError:
         import traceback
@@ -187,10 +190,9 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
             coeff = generate_jitted(exprs[0], mfem.jit.matrix,
                                     ind_vars, conj, scale, g, l, shape=(dim, dim))
             if coeff is None:
-                if g["allow_fallback_nonjit"] == "on":
-                    print("JIT is not possbile. Continuing with Python mode")
-                else:
-                    assert False, "can not jit coefficient"
+                msg = "JIT is not possbile. Continuing with Python mode"
+                handle_allow_python_function_coefficient(msg)
+                
             elif return_complex:
                 return coeff
             else:
@@ -366,10 +368,9 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
             coeff = generate_jitted(exprs[0], mfem.jit.vector,
                                     ind_vars, conj, scale, g, l, shape=(dim, ))
             if coeff is None:
-                if g["allow_fallback_nonjit"] == "on":
-                    print("JIT is not possbile. Continuing with Python mode")
-                else:
-                    assert False, "can not jit coefficient"
+                msg = "JIT is not possbile. Continuing with Python mode"
+                handle_allow_python_function_coefficient(msg)
+
             elif return_complex:
                 return coeff
             else:
@@ -500,10 +501,9 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
             coeff = generate_jitted(exprs[0], mfem.jit.scalar,
                                     ind_vars, conj, scale, g, l)
             if coeff is None:
-                if g["allow_fallback_nonjit"] == "on":
-                    print("JIT is not possbile. Continuing with Python mode")
-                else:
-                    assert False, "can not jit coefficient"
+                msg = "JIT is not possbile. Continuing with Python mode"
+                handle_allow_python_function_coefficient(msg)
+
             elif return_complex:
                 return coeff
             else:

@@ -500,9 +500,14 @@ class Engine(object):
                 from petram.mfem_model import MFEM_GeomRoot
             model.insert_item(1, 'Geometry', MFEM_GeomRoot())
 
+        #
+        #  set debug parameters to mfem_config
+        #
         import petram.mfem_config
         if model["General"].debug_numba_jit == 'on':
-             petram.mfem_config.numba_debug = True
+            petram.mfem_config.numba_debug = True
+        petram.mfem_config.allow_python_function_coefficient = model[
+            "General"].allow_fallback_nonjit
 
     def get_mesh(self, idx=0, mm=None):
         if len(self.meshes) == 0:

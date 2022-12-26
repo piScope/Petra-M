@@ -1,4 +1,5 @@
 from __future__ import print_function
+from petram.debug import handle_allow_python_function_coefficient
 from petram.phys.vtable import VtableElement, Vtable
 from petram.helper.variables import Variable, eval_code
 from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
@@ -17,6 +18,7 @@ from abc import abstractmethod
 import petram
 from petram.model import Model, Bdry, Domain
 from petram.namespace_mixin import NS_mixin
+
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Phys')
 
@@ -37,10 +39,11 @@ class PhysConstant(mfem.ConstantCoefficient):
     def __repr__(self):
         return self.__class__.__name__ + "(" + str(self.value) + ")"
 
+
 class PhysVectorConstant(mfem.VectorConstantCoefficient):
     def __init__(self, value):
-        self.value = value
         self._value = mfem.Vector(value)
+        self.value = self._value.GetDataArray()
         mfem.VectorConstantCoefficient.__init__(self, value)
 
     def __repr__(self):
@@ -52,7 +55,7 @@ class PhysMatrixConstant(mfem.MatrixConstantCoefficient):
         v = mfem.Vector(np.transpose(value).flatten())
         m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])
         self._value = (v, m)
-        self.value = value
+        self.value = m.GetDataArray()
         mfem.MatrixConstantCoefficient.__init__(self, m)
 
     def __repr__(self):
@@ -172,6 +175,9 @@ class PhysCoefficient(mfem.PyCoefficient, Coefficient_Evaluator):
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)
         mfem.PyCoefficient.__init__(self)
 
+        handle_allow_python_function_coefficient(
+            "Python function coefficient is created")
+
     def __repr__(self):
         return self.__class__.__name__ + "(PhysCoefficeint)"
 
@@ -199,6 +205,9 @@ class VectorPhysCoefficient(mfem.VectorPyCoefficient, Coefficient_Evaluator):
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)
         mfem.VectorPyCoefficient.__init__(self, sdim)
         self.sdim = sdim
+
+        handle_allow_python_function_coefficient(
+            "Python function coefficient is created")
 
     def __repr__(self):
         return self.__class__.__name__ + "(VectorPhysCoefficeint)"
@@ -231,6 +240,9 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
         self.sdim = sdim
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)
         mfem.MatrixPyCoefficient.__init__(self, sdim)
+
+        handle_allow_python_function_coefficient(
+            "Python function coefficient is created")
 
     def __repr__(self):
         return self.__class__.__name__ + "(MatrixPhysCoefficeint)"
@@ -1229,7 +1241,6 @@ class PhysModule(Phys):
         from petram.mesh.mesh_extension import MeshExtInfo
 
         info = MeshExtInfo(dim=self.dim, base=self.mesh_idx)
-
 
         if len(self.sel_index) == 0:
             return None

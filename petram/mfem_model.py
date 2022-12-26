@@ -32,7 +32,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         v['submeshpartitioning'] = 'auto'
         v['autofilldiag'] = 'off'
         v['savegz'] = 'on'
-        v['allow_fallback_nonjit'] = 'on'
+        v['allow_fallback_nonjit'] = 'allow'
         v['debug_numba_jit'] = 'on'
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
@@ -76,7 +76,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
                 ["Autofill emtpy diag rows", None,
                     1, {"values": ["on", "off"]}],
                 ["Allow fallback Python mode coefficient", None,
-                    1, {"values": ["on", "off"]}],
+                    1, {"values": ["allow", "warn", "error"]}],
                 ["Check numba JIT process", None,
                     1, {"values": ["on", "off"]}],
                 ]
