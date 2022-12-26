@@ -37,25 +37,26 @@ class PhysConstant(mfem.ConstantCoefficient):
     def __repr__(self):
         return self.__class__.__name__ + "(" + str(self.value) + ")"
 
-
 class PhysVectorConstant(mfem.VectorConstantCoefficient):
     def __init__(self, value):
-        self.value = mfem.Vector(value)
-        mfem.VectorConstantCoefficient.__init__(self, self.value)
+        self.value = value
+        self._value = mfem.Vector(value)
+        mfem.VectorConstantCoefficient.__init__(self, value)
 
     def __repr__(self):
-        return self.__class__.__name__ + "(" + str(self.value) + ")"
+        return self.__class__.__name__ + "(" + str(self._value) + ")"
 
 
 class PhysMatrixConstant(mfem.MatrixConstantCoefficient):
     def __init__(self, value):
         v = mfem.Vector(np.transpose(value).flatten())
         m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])
-        self.value = (v, m)
+        self._value = (v, m)
+        self.value = value
         mfem.MatrixConstantCoefficient.__init__(self, m)
 
     def __repr__(self):
-        return self.__class__.__name__ + "(" + str(self.value) + ")"
+        return self.__class__.__name__ + "(" + str(self._value) + ")"
 
 
 def try_eval(exprs, l, g):

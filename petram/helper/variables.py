@@ -1120,7 +1120,7 @@ class CoefficientVariable(Variable):
                 if (self.coeff[0] is not None and
                         self.coeff[1] is not None):
                     value = (np.array(call_eval(self.coeff[0], T, ip)) +
-                             1j * np.array(self.coeff[1], T, ip))
+                             1j * np.array(call_eval(self.coeff[1], T, ip)))
                 elif self.coeff[0] is not None:
                     value = np.array(call_eval(self.coeff[0], T, ip))
                 elif self.coeff[1] is not None:
@@ -1164,7 +1164,7 @@ class CoefficientVariable(Variable):
                 if (self.coeff[0] is not None and
                         self.coeff[1] is not None):
                     value = (np.array(call_eval(self.coeff[0], T, ip)) +
-                             1j * np.array(self.coeff[1], T, ip))
+                             1j * np.array(call_eval(self.coeff[1], T, ip)))
                 elif self.coeff[0] is not None:
                     value = np.array(call_eval(self.coeff[0], T, ip))
                 elif self.coeff[1] is not None:
@@ -1203,7 +1203,7 @@ class CoefficientVariable(Variable):
                 if (self.coeff[0] is not None and
                         self.coeff[1] is not None):
                     value = (np.array(call_eval(self.coeff[0], T, ip)) +
-                             1j * np.array(self.coeff[1], T, ip))
+                             1j * np.array(call_eval(self.coeff[1], T, ip)))
                 elif self.coeff[0] is not None:
                     value = np.array(call_eval(self.coeff[0], T, ip))
                 elif self.coeff[1] is not None:

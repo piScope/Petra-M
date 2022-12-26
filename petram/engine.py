@@ -500,6 +500,10 @@ class Engine(object):
                 from petram.mfem_model import MFEM_GeomRoot
             model.insert_item(1, 'Geometry', MFEM_GeomRoot())
 
+        import petram.mfem_config
+        if model["General"].debug_numba_jit == 'on':
+             petram.mfem_config.numba_debug = True
+
     def get_mesh(self, idx=0, mm=None):
         if len(self.meshes) == 0:
             return None
