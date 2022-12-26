@@ -180,7 +180,7 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
                 else:
                     assert False, "can not jit coefficient"
             elif return_complex:
-                return NumbaComplexCoefficient(coeff)
+                return coeff
             else:
                 if real:
                     return coeff.real
@@ -353,7 +353,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
 
     #print("vector exprs", exprs)
 
-    if any([isinstance(ee, str) for ee in exprs]):
+     if any([isinstance(ee, str) for ee in exprs]):
         if len(exprs) == 1:
             # if it is one liner array expression. try mfem.jit
             coeff = generate_jitted(exprs[0], mfem.jit.vector,
@@ -364,7 +364,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
                 else:
                     assert False, "can not jit coefficient"
             elif return_complex:
-                return NumbaComplexCoefficient(coeff)
+                return coeff
             else:
                 if real:
                     return coeff.real
@@ -502,7 +502,7 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
                 else:
                     assert False, "can not jit coefficient"
             elif return_complex:
-                return NumbaComplexCoefficient(coeff)
+                return coeff
             else:
                 if real:
                     return coeff.real
@@ -973,6 +973,7 @@ class PyComplexMatrixAdjCoefficient(CC_Matrix):
 class PyComplexMatrixSumCoefficient(CC_Matrix):
     def __init__(self, coeff1, coeff2):
         CC_Matrix.__init__(self, coeff1)
+        print(coeff1)
         self.coeff2 = coeff2
 
     def Eval(self, K, T, ip):
@@ -980,6 +981,8 @@ class PyComplexMatrixSumCoefficient(CC_Matrix):
         M2 = self.coeff2.Eval(K, T, ip)
         return M1 + M2
 
+def generate_complex_matrix_sum_coefficient(coeff1, coeff2):
+    pass
 
 class PyComplexVectorSliceScalarCoefficient(CC_Scalar):
     def __init__(self, coeff, slice1):
@@ -1074,6 +1077,7 @@ def PyComplexVectorSliceCoefficient(coeff, slice1):
 
 
 def PyComplexMatrixSliceCoefficient(coeff, slice1, slice2):
+    #if isinstance(
     if len(slice1) == 1 and len(slice2) == 1:
         return PyComplexMatrixSliceScalarCoefficient(
             coeff, slice1[0], slice2[0])

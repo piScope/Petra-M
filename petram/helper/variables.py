@@ -99,7 +99,7 @@ class _decorator(object):
             return obj
         return dec
 
-def _decorator_jit(object):
+class _decorator_jit(object):
     def float(self, dependency=None, grad=None, curl=None, div=None, td=False):
         def dec(func):
             obj = NumbaCoefficientVariable(func,

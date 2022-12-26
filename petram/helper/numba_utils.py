@@ -210,7 +210,7 @@ def generate_caller_scalar(setting, sdim):
 
     ex)
     if setting is
-        {"iscomplex": (True, False), "kinds": (1, 0),
+        {"isdepcomplex": (True, False), "kinds": (1, 0),
                        "output": True, size: (10, 1)}
 
     def _caller(ptx, data):
@@ -235,7 +235,7 @@ def generate_caller_scalar(setting, sdim):
     count = 0
     params_line = '    params = ('
 
-    for s, kind, size in zip(setting['iscomplex'], setting['kinds'], setting["sizes"]):
+    for s, kind, size in zip(setting['isdepcomplex'], setting['kinds'], setting["sizes"]):
         if not isinstance(size, tuple):
             size = (size, )
 
@@ -296,7 +296,7 @@ def generate_caller_array(setting, sdim):
 
     ex)
     if setting is
-        {"iscomplex": (True, False), "kinds": (1, 0),
+        {"isdepcomplex": (True, False), "kinds": (1, 0),
                        "output": True, size: ((3, 3), 1), outsize: (2, 2) }
 
     def _caller(ptx, data, out_):
@@ -327,7 +327,7 @@ def generate_caller_array(setting, sdim):
     count = 0
     params_line = '    params = ('
 
-    for s, kind, size in zip(setting['iscomplex'], setting['kinds'], setting["sizes"]):
+    for s, kind, size in zip(setting['isdepcomplex'], setting['kinds'], setting["sizes"]):
         if not isinstance(size, tuple):
             size = (size, )
 
@@ -405,7 +405,7 @@ def generate_signature_scalar(setting, sdim):
         func(ptx, complex_array, float_scalar)
 
     setting is
-        {"iscomplex": (2, 1), "kinds": (1, 0), "output": 2}
+        {"isdepcomplex": (2, 1), "kinds": (1, 0), "output": 2}
 
     output is
          types.complex128(types.double, types.double, types.complex128[:], types.double,)
@@ -425,7 +425,7 @@ def generate_signature_scalar(setting, sdim):
     if setting['td']:
         sig += 'types.double, '
 
-    for s, kind, in zip(setting['iscomplex'], setting['kinds'],):
+    for s, kind, in zip(setting['isdepcomplex'], setting['kinds'],):
         if s:
             if kind == 0:
                 sig += 'types.complex128,'
@@ -458,7 +458,7 @@ def generate_signature_array(setting, sdim):
         func(ptx, complex_array, float_scalar)
 
     setting is
-        {"iscomplex": (2, 1), "kinds": (1, 0), "output": 2}
+        {"isdepcomplex": (2, 1), "kinds": (1, 0), "output": 2}
 
     output is
          types.complex128[:, :](types.double[:], types.complex128[:], types.double,)
@@ -485,7 +485,7 @@ def generate_signature_array(setting, sdim):
     if setting['td']:
         sig += 'types.double, '
 
-    for s, kind, in zip(setting['iscomplex'], setting['kinds'],):
+    for s, kind, in zip(setting['isdepcomplex'], setting['kinds'],):
         if s:
             if kind == 0:
                 sig += 'types.complex128,'
