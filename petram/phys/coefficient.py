@@ -132,7 +132,7 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
                 return coeff.real
             else:
                 return coeff.imag
-        print("check here", exprs)
+
         if return_complex:
             return MCoeffCC(dim, exprs, ind_vars, l, g, **kwargs)
         else:
@@ -295,7 +295,6 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     #print("vector exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
-        if len(exprs) == 1:
         # if it is one liner array expression. try mfem.jit
         from petram.phys.numba_coefficient import expr_to_numba_coeff
         coeff = expr_to_numba_coeff(exprs, mfem.jit.vector,
