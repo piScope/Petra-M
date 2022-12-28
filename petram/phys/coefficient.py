@@ -124,14 +124,14 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
         if coeff is None:
             msg = "JIT is not possbile. Continuing with Python mode"
             handle_allow_python_function_coefficient(msg)
-
-        elif return_complex:
-            return coeff
         else:
-            if real:
-                return coeff.real
+            if return_complex:
+                return coeff
             else:
-                return coeff.imag
+                if real:
+                    return coeff.real
+                else:
+                    return coeff.imag
 
         if return_complex:
             return MCoeffCC(dim, exprs, ind_vars, l, g, **kwargs)
@@ -303,13 +303,14 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
             msg = "JIT is not possbile. Continuing with Python mode"
             handle_allow_python_function_coefficient(msg)
 
-        elif return_complex:
-            return coeff
         else:
-            if real:
-                return coeff.real
+            if return_complex:
+                return coeff
             else:
-                return coeff.imag
+                if real:
+                    return coeff.real
+                else:
+                    return coeff.imag
 
         if return_complex:
             return VCoeffCC(dim, exprs, ind_vars, l, g, **kwargs)
@@ -436,14 +437,14 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
             if coeff is None:
                 msg = "JIT is not possbile. Continuing with Python mode"
                 handle_allow_python_function_coefficient(msg)
-
-            elif return_complex:
-                return coeff
             else:
-                if real:
-                    return coeff.real
+                if return_complex:
+                    return coeff
                 else:
-                    return coeff.imag
+                    if real:
+                        return coeff.real
+                    else:
+                        return coeff.imag
         else:
             # should not come here
             assert False, "Scalar coefficient can not use mutliple expressions"

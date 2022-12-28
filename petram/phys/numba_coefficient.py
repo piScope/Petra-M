@@ -16,6 +16,9 @@ if use_parallel:
 else:
     import mfem.ser as mfem
 
+from petram.helper.variables import (Variable,
+                                     NativeCoefficientGenBase)
+
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('NumbaCoefficient')
 
@@ -486,9 +489,10 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
 
     for k, ee in enumerate(exprs):
         if isinstance(ee, str):
-            print(ee, ind_vars)
             nbc = _expr_to_numba_coeff(
                 ee, jitter2, ind_vars, conj, scale, g, l, **kwargs)
+            if nbc is None:
+                return None
             deps.append(nbc.mfem_numba_coeff)
             dep_names.append("p"+str(k))
         else:
@@ -499,7 +503,7 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
                 ee = conj(ee)
             consts[k] = ee
     if len(exprs) == 1:
-        return deps[0]
+        return nbc
 
     consts = array(consts)
     ind_vars = [xx.strip() for xx in ind_vars.split(',')]
