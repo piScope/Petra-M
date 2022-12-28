@@ -413,7 +413,6 @@ class PyComplexConstant(PyComplexConstantBase):
         return self.value
 
     def get_real_coefficient(self):
-        print("value here", self.value)
         return PhysConstant(self.value.real)
 
     def get_imag_coefficient(self):
@@ -436,9 +435,9 @@ class PyComplexVectorConstant(PyComplexConstantBase):
         self._vdim = len(value)
         self._kind = "vector"
 
-        vec1 = mfem.Vector(value.real)
-        vec2 = mfem.Vector(value.imag)
-        self.value = vec1.GetDataArray() + 1j*vec2.GetDataArray()
+        vec1 = mfem.Vector(value.real.flatten())
+        vec2 = mfem.Vector(value.imag.flatten())
+        self.value = (vec1.GetDataArray() + 1j*vec2.GetDataArray()).flatten()
 
     def get_imag_coefficient(self):
         return PhysVectorConstant(self.value.imag)
@@ -459,6 +458,20 @@ class PyComplexVectorConstant(PyComplexConstantBase):
         if isinstance(other, PyComplexVectorConstant):
             return PyComplexVectorConstant(self.value + other.value)
         return other.__add__(self)
+
+    def __getitem__(self, slice1):
+        vec = self.value
+        try:
+            _a = slice1[0]
+        except:
+            slice1 = (slice1, )
+
+        if len(slice1) == 1:
+            value = vec[slice1[0]]
+            return PyComplexConstant(value)
+
+        value = vec[slice1]
+        return PyComplexVectorConstant(value.flatten())
 
 
 class PyComplexMatrixConstant(RealImagCoefficientGen):
@@ -682,11 +695,11 @@ class CC_Scalar(CCBase):
         CCBase.__init__(self, "scalar")
 
 
-class CC_Matrix(CCBase):
-    def __init__(self, height, width):
-        CCBase.__init__(self, "matrix", height=height, width=width)
-
-
 class CC_Vector(CCBase):
     def __init__(self, vdim):
         CCBase.__init__(self, "vector", vdim=vdim)
+
+
+class CC_Matrix(CCBase):
+    def __init__(self, height, width):
+        CCBase.__init__(self, "matrix", height=height, width=width)

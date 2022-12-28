@@ -2926,6 +2926,7 @@ class Engine(object):
         #    self.emesh_data = MeshExt()
         self.emeshes = []
 
+
         if meshmodel is None:
             parent = self.model['Mesh']
             children = [parent[g] for g in parent.keys()
@@ -3772,7 +3773,7 @@ class ParallelEngine(Engine):
                     o = child[k]
                     if not o.enabled:
                         continue
-                    dprint1(k)
+                    #dprint1(k)
                     if o.isMeshGenerator:
                         smesh = o.run()
                         if len(smesh.GetBdrAttributeArray()) > 0:

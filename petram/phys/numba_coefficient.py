@@ -31,6 +31,11 @@ class NumbaCoefficient():
             self.real = coeff
             self.imag = None
 
+        if self.ndim == 1:
+            self._V = mfem.Vector(self.shape[0])
+        if self.ndim == 2:
+            self._K = mfem.DenseMatrix(self.shape[0], self.shape[1])
+
     @property
     def complex(self):
         return self.is_complex
@@ -83,6 +88,37 @@ class NumbaCoefficient():
         if self.ndim == 2:
             return "matrix"
         assert False, "unsupported dim"
+        return None
+
+    def eval(self, T, ip):
+        if self.ndim == 0:
+            if self.real is not None:
+                ret = self.coeff1.Eval(T, ip)
+            else:
+                ret = 0
+            if self.imag is not None:
+                ret = ret + 1j * self.imag.Eval(T, ip)
+            return ret
+        if self.ndim == 1:
+            if self.real is not None:
+                self.real.Eval(self._V, T, ip)
+            else:
+                self._V.Assign(0.0)
+            vec = self._V.GetDataArray().copy()
+            if self.imag is not None:
+                self.imag.Eval(self._V, T, ip)
+                vec = vec + 1j * self._V.GetDataArray()
+            return vec
+        if self.ndim == 2:
+            if self.real is not None:
+                self.real.Eval(self._K, T, ip)
+            else:
+                self._K.Assign(0.0)
+            mat = self._K.GetDataArray().copy()
+            if self.imag is not None:
+                self.imag.Eval(self._K, T, ip)
+                mat = mat + 1j * self._K.GetDataArray()
+            return mat
         return None
 
     def is_matrix(self):
@@ -157,7 +193,27 @@ class NumbaCoefficient():
         raise NotImplementedError
 
     def __mul__(self, scale):
-        raise NotImplementedError
+        from petram.mfem_config import numba_debug
+
+        func = '\n'.join(['def f(ptx, val):',
+                          '    return val*scale'])
+
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+        params = {'scale': scale}
+
+        coeff = mfem.jit.matrix(sdim=self.sdim,
+                                complex=self.complex,
+                                dependency=dep,
+                                shape=self.shape,
+                                interface="simple",
+                                params=params,
+                                debug=numba_debug)(l["f"])
+        return NumbaCoefficient(coeff)
 
     def __getitem__(self, arg):
         check = self.kind == 'matrix' or self.kind == 'vector'
@@ -279,7 +335,44 @@ class NumbaCoefficient():
         return NumbaCoefficient(coeff)
 
     def inv(self):
-        raise NotImplementedError
+        from petram.mfem_config import numba_debug
+
+        func = '\n'.join(['def f(ptx, coeff1):',
+                          '    return inv(coeff1)'])
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+
+        coeff = mfem.jit.matrix(sdim=self.sdim,
+                                complex=self.complex,
+                                dependency=dep,
+                                shape=self.shape,
+                                interface="simple",
+                                debug=numba_debug)(l["f"])
+        return NumbaCoefficient(coeff)
 
     def adj(self):
-        raise NotImplementedError
+        from petram.mfem_config import numba_debug
+
+        func = '\n'.join(['def f(ptx, mat):',
+                          '      determinant = det(mat)',
+                          '      mat = inv(mat)',
+                          '      return mat * determinant'])
+
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+
+        coeff = mfem.jit.matrix(sdim=self.sdim,
+                                complex=self.complex,
+                                dependency=dep,
+                                shape=self.shape,
+                                interface="simple",
+                                debug=numba_debug)(l["f"])
+        return NumbaCoefficient(coeff)
