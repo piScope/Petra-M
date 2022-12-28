@@ -553,7 +553,7 @@ class PyComplexCoefficientBase(RealImagCoefficientGen):
         check2 = isinstance(coeff2,
                             (mfem.Coefficient,
                              mfem.VectorCoefficient,
-                             mfem.MatrixCoefficient))
+                             mfem.MatrixCoefficient)) or coeff2 is None
 
         assert check1, "coefficient must be mfem coefficient"
         assert check2, "coefficient must be mfem coefficient"
