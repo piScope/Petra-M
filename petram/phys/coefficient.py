@@ -3,6 +3,7 @@
    coefficient generation funcitons
 
 '''
+from petram.debug import handle_allow_python_function_coefficient
 import parser
 import numpy as np
 
@@ -34,7 +35,7 @@ from petram.phys.pycomplex_coefficient import (CC_Matrix,
 
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Coefficient')
-from petram.debug import handle_allow_python_function_coefficient
+
 
 def call_nativegen(v, l, g, real, conj, scale):
     vv = v(l, g)
@@ -53,75 +54,6 @@ def call_nativegen(v, l, g, real, conj, scale):
                 coeff = v.scale_coeff(coeff, scale)
 
             return coeff
-
-
-def generate_jitted(txt, jitter, ind_vars, conj, scale, g, l, **kwargs):
-    from petram.phys.numba_coefficient import NumbaCoefficient
-
-    ind_vars = [xx.strip() for xx in ind_vars.split(',')]
-    st = parser.expr(txt.strip())
-    code = st.compile('<string>')
-    names = code.co_names
-
-    dependency = []
-    dep_names = []
-    for n in names:
-        if n in ind_vars:
-            continue
-        if not isinstance(g[n], Variable):
-            continue
-        dep = g[n].get_jitted_coefficient(ind_vars, l)
-        if dep is None:
-            return None
-        if g[n].complex:
-            dep = (dep.real, dep.imag)
-        dependency.append(dep)
-        dep_names.append(n)
-
-    f0 = 'def _func_(ptx, '
-    for n in dep_names:
-        f0 += n + ', '
-    f0 += '):'
-
-    func_txt = [f0]
-    for k, xx in enumerate(ind_vars):
-        func_txt.append("   " + xx + " = ptx[" + str(k) + "]")
-    func_txt.append("   _out_ =" + txt)
-    func_txt.append("   if isinstance(_out_, list):")
-    func_txt.append("         _out_ = np.array(_out_)")
-    func_txt.append("   elif isinstance(_out_, tuple):")
-    func_txt.append("         _out_ = np.array(_out_)")
-    if scale != 1:
-        func_txt.append("   _out_ = _out_ * " + str(scale))
-    if conj:
-        func_txt.append("   _out_ = np.conj(_out_)")
-    #func_txt.append("   print(_out_)")
-
-    if jitter == mfem.jit.scalar:
-        func_txt.append("   return np.complex128(_out_)")
-    else:
-        func_txt.append("   return _out_.astype(np.complex128)")
-    func_txt = "\n".join(func_txt)
-
-    from petram.mfem_config import numba_debug
-    if numba_debug:
-        print("(DEBUG) wrapper function\n", func_txt)
-    exec(func_txt, g, l)
-
-    try:
-        coeff = jitter(sdim=len(ind_vars), complex=True, debug=numba_debug,
-                       dependency=dependency, **kwargs)(l["_func_"])
-    except AssertionError:
-        import traceback
-        traceback.print_exc()
-
-        print("Can not JIT coefficient")
-        return None
-    except BaseException:
-        import traceback
-        traceback.print_exc()
-        return None
-    return NumbaCoefficient(coeff)
 
 
 def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
@@ -184,23 +116,23 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     scale = kwargs.get('scale', 1.0)
 
     if any([isinstance(ee, str) for ee in exprs]):
+        # if it is one liner array expression. try mfem.jit
+        from petram.phys.numba_coefficient import expr_to_numba_coeff
 
-        if len(exprs) == 1:
-            # if it is one liner array expression. try mfem.jit
-            coeff = generate_jitted(exprs[0], mfem.jit.matrix,
+        coeff = expr_to_numba_coeff(exprs, mfem.jit.matrix,
                                     ind_vars, conj, scale, g, l, shape=(dim, dim))
-            if coeff is None:
-                msg = "JIT is not possbile. Continuing with Python mode"
-                handle_allow_python_function_coefficient(msg)
-                
-            elif return_complex:
-                return coeff
-            else:
-                if real:
-                    return coeff.real
-                else:
-                    return coeff.imag
+        if coeff is None:
+            msg = "JIT is not possbile. Continuing with Python mode"
+            handle_allow_python_function_coefficient(msg)
 
+        elif return_complex:
+            return coeff
+        else:
+            if real:
+                return coeff.real
+            else:
+                return coeff.imag
+        print("check here", exprs)
         if return_complex:
             return MCoeffCC(dim, exprs, ind_vars, l, g, **kwargs)
         else:
@@ -348,7 +280,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
             Coefficient_Evaluator.__init__(
                 self, exprs, ind_vars, l, g, real=True)
             CC_Vector.__init__(self, dim)
-            
+
         def eval(self, T, ip):
             for n, v in self.variables:
                 v.set_point(T, ip, self.g, self.l)
@@ -364,20 +296,21 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
 
     if any([isinstance(ee, str) for ee in exprs]):
         if len(exprs) == 1:
-            # if it is one liner array expression. try mfem.jit
-            coeff = generate_jitted(exprs[0], mfem.jit.vector,
+        # if it is one liner array expression. try mfem.jit
+        from petram.phys.numba_coefficient import expr_to_numba_coeff
+        coeff = expr_to_numba_coeff(exprs, mfem.jit.vector,
                                     ind_vars, conj, scale, g, l, shape=(dim, ))
-            if coeff is None:
-                msg = "JIT is not possbile. Continuing with Python mode"
-                handle_allow_python_function_coefficient(msg)
+        if coeff is None:
+            msg = "JIT is not possbile. Continuing with Python mode"
+            handle_allow_python_function_coefficient(msg)
 
-            elif return_complex:
-                return coeff
+        elif return_complex:
+            return coeff
+        else:
+            if real:
+                return coeff.real
             else:
-                if real:
-                    return coeff.real
-                else:
-                    return coeff.imag
+                return coeff.imag
 
         if return_complex:
             return VCoeffCC(dim, exprs, ind_vars, l, g, **kwargs)
@@ -498,8 +431,9 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
     if any([isinstance(ee, str) for ee in exprs]):
         if len(exprs) == 1:
             # if it is one liner array expression. try mfem.jit
-            coeff = generate_jitted(exprs[0], mfem.jit.scalar,
-                                    ind_vars, conj, scale, g, l)
+            from petram.phys.numba_coefficient import expr_to_numba_coeff
+            coeff = expr_to_numba_coeff_jitted(exprs[0], mfem.jit.scalar,
+                                               ind_vars, conj, scale, g, l)
             if coeff is None:
                 msg = "JIT is not possbile. Continuing with Python mode"
                 handle_allow_python_function_coefficient(msg)
@@ -511,6 +445,9 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
                     return coeff.real
                 else:
                     return coeff.imag
+        else:
+            # should not come here
+            assert False, "Scalar coefficient can not use mutliple expressions"
 
         if return_complex:
             return SCoeffCC(exprs, ind_vars, l, g, **kwargs)

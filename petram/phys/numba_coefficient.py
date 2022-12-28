@@ -6,8 +6,9 @@
    utility to use NumbaCoefficient more easily
 
 '''
+import parser
 from numpy.linalg import inv, det
-from numpy import array
+from numpy import array, conj, zeros
 from petram.mfem_config import use_parallel
 
 if use_parallel:
@@ -376,3 +377,176 @@ class NumbaCoefficient():
                                 interface="simple",
                                 debug=numba_debug)(l["f"])
         return NumbaCoefficient(coeff)
+
+
+'''
+
+  convert text to numba jittec coefficient
+
+'''
+
+
+def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l, **kwargs):
+
+    ind_vars = [xx.strip() for xx in ind_vars.split(',')]
+    st = parser.expr(txt.strip())
+    code = st.compile('<string>')
+    names = code.co_names
+
+    dependency = []
+    dep_names = []
+    for n in names:
+        if n in ind_vars:
+            continue
+        if not isinstance(g[n], Variable):
+            continue
+        dep = g[n].get_jitted_coefficient(ind_vars, l)
+        if dep is None:
+            return None
+        if g[n].complex:
+            dep = (dep.real, dep.imag)
+        dependency.append(dep)
+        dep_names.append(n)
+
+    f0 = 'def _func_(ptx, '
+    for n in dep_names:
+        f0 += n + ', '
+    f0 += '):'
+
+    func_txt = [f0]
+    for k, xx in enumerate(ind_vars):
+        func_txt.append("   " + xx + " = ptx[" + str(k) + "]")
+    func_txt.append("   _out_ =" + txt)
+    func_txt.append("   if isinstance(_out_, list):")
+    func_txt.append("         _out_ = np.array(_out_)")
+    func_txt.append("   elif isinstance(_out_, tuple):")
+    func_txt.append("         _out_ = np.array(_out_)")
+    if scale != 1:
+        func_txt.append("   _out_ = _out_ * " + str(scale))
+    if conj:
+        func_txt.append("   _out_ = np.conj(_out_)")
+    #func_txt.append("   print(_out_)")
+
+    if jitter == mfem.jit.scalar:
+        func_txt.append("   return np.complex128(_out_)")
+    else:
+        func_txt.append("   return _out_.astype(np.complex128)")
+    func_txt = "\n".join(func_txt)
+
+    from petram.mfem_config import numba_debug
+    if numba_debug:
+        print("(DEBUG) wrapper function\n", func_txt)
+    exec(func_txt, g, l)
+
+    try:
+        coeff = jitter(sdim=len(ind_vars), complex=True, debug=numba_debug,
+                       dependency=dependency, **kwargs)(l["_func_"])
+    except AssertionError:
+        import traceback
+        traceback.print_exc()
+
+        print("Can not JIT coefficient")
+        return None
+    except BaseException:
+        import traceback
+        traceback.print_exc()
+        return None
+    return NumbaCoefficient(coeff)
+
+
+def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
+    '''
+    ## generate a wrapper for multiple inputs
+    def _func_(ptx, p1, p2, out)
+        deps = [p1, p2]
+        count = 0
+        depcount = 0
+        for i0 in range(shape[0]):
+            for i1 in range(shape[1]):
+                if isconst[count]:
+                   value = consts[count]
+                else:
+                   value = deps[depcount]
+                   depcount = depcount + 1
+                out[i0:i1] = value
+                count = count +1
+    '''
+
+    consts = [-1]*len(exprs)
+    isconst = zeros(len(exprs))
+    deps = []
+    dep_names = []
+
+    if len(exprs) > 1:
+        jitter2 = mfem.jit.scalar
+        assert "shape" in kwargs, "multile expression array, but shape is not given"
+        shape = kwargs.pop("shape")
+    else:
+        jitter2 = jitter
+
+    for k, ee in enumerate(exprs):
+        if isinstance(ee, str):
+            print(ee, ind_vars)
+            nbc = _expr_to_numba_coeff(
+                ee, jitter2, ind_vars, conj, scale, g, l, **kwargs)
+            deps.append(nbc.mfem_numba_coeff)
+            dep_names.append("p"+str(k))
+        else:
+            isconst[k] = 1
+            if scale != 1:
+                ee = ee * scale
+            if conj:
+                ee = conj(ee)
+            consts[k] = ee
+    if len(exprs) == 1:
+        return deps[0]
+
+    consts = array(consts)
+    ind_vars = [xx.strip() for xx in ind_vars.split(',')]
+
+    f0 = 'def _func_(ptx, '
+    for n in dep_names:
+        f0 += n + ', '
+    f0 += 'out):'
+
+    func_txt = [f0]
+    func_txt.append("    count = 0")
+    func_txt.append("    depcount = 0")
+    func_txt.append("    deps = [" + ",".join(dep_names) + "]")
+
+    idx_text = ""
+    for k, s in enumerate(shape):
+        func_txt.append("    " + " "*k + "for i" + str(k) +
+                        " in range(" + str(s) + "):")
+        idx_text = idx_text + "i"+str(k)+","
+
+    func_txt.append("     " + " "*len(shape) + "if isconst[count] == 1:")
+    func_txt.append("     " + " "*len(shape) + "    value = consts[count]")
+    func_txt.append("     " + " "*len(shape) + "else:")
+    func_txt.append("     " + " "*len(shape) + "    value = deps[depcount]")
+    func_txt.append("     " + " "*len(shape) + "    depcount = depcount + 1")
+    func_txt.append("     " + " "*len(shape) + "out["+idx_text + "]=value")
+    func_txt.append("     " + " "*len(shape) + "count = count + 1")
+
+    func_txt = "\n".join(func_txt)
+
+    g = globals()
+    l = {}
+    from petram.mfem_config import numba_debug
+    if numba_debug:
+        print("(DEBUG) wrapper function\n", func_txt)
+    exec(func_txt, g, l)
+
+    params = {}
+    params["isconst"] = isconst
+    params["consts"] = consts
+
+    coeff = jitter(sdim=len(ind_vars),
+                   complex=True,
+                   debug=numba_debug,
+                   dependency=deps,
+                   interface="c++",
+                   params=params,
+                   **kwargs)(l["_func_"])
+
+    return NumbaCoefficient(coeff)
