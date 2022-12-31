@@ -494,6 +494,7 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
     else:
         jitter2 = jitter
 
+    nbcs = []
     for k, ee in enumerate(exprs):
         if isinstance(ee, str):
             nbc = _expr_to_numba_coeff(
@@ -502,6 +503,7 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
                 return None
             deps.append(nbc.mfem_numba_coeff)
             dep_names.append("p"+str(k))
+            nbcs.append(nbc)
         else:
             isconst[k] = 1
             if scale != 1:
@@ -555,9 +557,12 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
     coeff = jitter(sdim=len(ind_vars),
                    complex=True,
                    debug=numba_debug,
+                   shape = shape,
                    dependency=deps,
                    interface="c++",
                    params=params,
                    **kwargs)(l["_func_"])
 
-    return NumbaCoefficient(coeff)
+    ret = NumbaCoefficient(coeff)
+    ret._nbc_dependency = nbcs
+    return ret
