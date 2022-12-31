@@ -50,6 +50,12 @@ class NumbaCoefficient():
     def get_imag_coefficient(self):
         return self.imag
 
+    def get_realimag_coefficient(self, real):
+        if real:
+            return self.get_real_coefficient()
+        else:
+            return self.get_imag_coefficient()
+
     @property
     def sdim(self):
         return self.mfem_numba_coeff.SpaceDimension()
@@ -230,13 +236,14 @@ class NumbaCoefficient():
 
         if self.kind == "vector":
             slice1 = arg
+
             try:
                 a = slice1[0]
             except:
                 slice1 = (slice1, )
 
             func = '\n'.join(['def f(ptx, coeff1):',
-                              '    return coeff1[slice1'])
+                              '    return coeff1[slice1]'])
             if numba_debug:
                 print("(DEBUG) numba function\n", func)
             l = {}
@@ -249,8 +256,8 @@ class NumbaCoefficient():
                                         dependency=dep,
                                         params=params,
                                         debug=numba_debug)(l["f"])
-            elif len(slice1) == 1:
-                params = {"slice1": slice1}
+            else:
+                params = {"slice1": array(slice1, dtype=int)}
                 coeff = mfem.jit.vector(sdim=self.sdim,
                                         complex=self.complex,
                                         dependency=dep,
