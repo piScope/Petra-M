@@ -208,7 +208,8 @@ def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
     #print("matrix exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
-        if g["allow_fallback_nonjit"] == "off":
+        from petram.mfem_config import allow_python_function_coefficient
+        if allow_python_function_coefficient != "allow":
             print("JIT is not supported in DCoeff")
             assert False, "can not jit coefficient"
         return DCoeff(dim, exprs, ind_vars, l, g, **kwargs)
@@ -292,7 +293,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
 
-    #print("vector exprs", exprs)
+    print("vector exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
         # if it is one liner array expression. try mfem.jit
@@ -323,7 +324,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
         if isinstance(e[0], NativeCoefficientGenBase):
             if return_complex:
                 c1 = call_nativegen(e[0], l, g, True, conj, scale)
-                c2 = call_nativegen(v, l, g, False, conj, scale)
+                c2 = call_nativegen(e[0], l, g, False, conj, scale)
                 return complex_coefficient_from_real_and_imag(c1, c2)
             else:
                 return call_nativegen(e[0], l, g, real, conj, scale)
@@ -425,8 +426,6 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
     conj = kwargs.get('conj', False)
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
-
-    #print("scalar exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
         if len(exprs) == 1:

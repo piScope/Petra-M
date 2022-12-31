@@ -7,8 +7,10 @@
 
 '''
 import parser
+
 from numpy.linalg import inv, det
-from numpy import array, conj, zeros
+from numpy import conj as npconj
+from numpy import array, zeros
 from petram.mfem_config import use_parallel
 
 if use_parallel:
@@ -405,16 +407,31 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l, **kwargs):
 
     dependency = []
     dep_names = []
+
     for n in names:
         if n in ind_vars:
             continue
-        if not isinstance(g[n], Variable):
-            continue
-        dep = g[n].get_jitted_coefficient(ind_vars, l)
+        if n in l:
+            if isinstance(l[n], Variable):
+                gg = l[n]
+                dep = gg.get_jitted_coefficient(ind_vars, l)
+            else:
+                continue
+        elif n in g:
+            if isinstance(g[n], Variable):
+                gg = g[n]
+                dep = gg.get_jitted_coefficient(ind_vars, l)
+            elif isinstance(g[n], NativeCoefficientGenBase):
+                from petram.phys.coefficient import call_nativegen
+                c1 = call_nativegen(g[n], l, g, True, conj, scale)
+                c2 = call_nativegen(g[n], l, g, False, conj, scale)
+                dep = (c1, c2)
+            else:
+                continue
         if dep is None:
             return None
-        if g[n].complex:
-            dep = (dep.real, dep.imag)
+        # if gg.complex:
+        #    dep = (dep.real, dep.imag)
         dependency.append(dep)
         dep_names.append(n)
 
@@ -509,7 +526,7 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
             if scale != 1:
                 ee = ee * scale
             if conj:
-                ee = conj(ee)
+                ee = npconj(ee)
             consts[k] = ee
     if len(exprs) == 1:
         return nbc
@@ -557,12 +574,11 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
     coeff = jitter(sdim=len(ind_vars),
                    complex=True,
                    debug=numba_debug,
-                   shape = shape,
+                   shape=shape,
                    dependency=deps,
                    interface="c++",
                    params=params,
                    **kwargs)(l["_func_"])
 
     ret = NumbaCoefficient(coeff)
-    ret._nbc_dependency = nbcs
     return ret

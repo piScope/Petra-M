@@ -63,82 +63,132 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('Variables')
 
 
 class _decorator(object):
-    def float(self, dependency=None, grad=None, curl=None, div=None, td=False):
-        def dec(func):
-            obj = PyFunctionVariable(func,
-                                     complex=False,
-                                     dependency=dependency,
-                                     grad=grad,
-                                     curl=curl,
-                                      div=div)
-            return obj
-        return dec
+    @staticmethod
+    def float(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False):
+        '''
+        this form allows for using both
+        @float
+        @float()
+        '''
+        def wrapper(func):
+            def dec(*args, **kwargs):
+                obj = PyFunctionVariable(func,
+                                         complex=False,
+                                         dependency=dependency,
+                                         grad=grad,
+                                         curl=curl,
+                                         div=div)
+                return obj
+            return dec(func)
+        if func:
+            return wrapper(func)
+        else:
+            return wrapper
 
-    def complex(self, dependency=None, grad=None, curl=None, div=None, td=False):
-        def dec(func):
-            obj = PyFunctionVariable(func,
+    @staticmethod
+    def complex(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False):
+        '''
+        this form allows for using both
+        @complex
+        @complex()
+        '''
+        def wrapper(func):
+            def dec(*args, **kwargs):
+                obj = PyFunctionVariable(func,
                                          complex=True,
                                          dependency=dependency,
                                          grad=grad,
                                          curl=curl,
                                          div=div)
 
-            return obj
-        return dec
+                return obj
+            return dec(func)
+        if func:
+            return wrapper(func)
+        else:
+            return wrapper
 
-    def array(self, complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, td=False):
+    @staticmethod
+    def array(complex=False, shape=(1,), dependency=None, grad=None,
+              curl=None, div=None, td=False):
         def dec(func):
             obj = PyFunctionVariable(func,
-                                         complex=complex,
-                                         shape=shape,
-                                         dependency=dependency,
-                                         grad=grad,
-                                         curl=curl,
-                                         div=div,)
-
+                                     complex=complex,
+                                     shape=shape,
+                                     dependency=dependency,
+                                     grad=grad,
+                                     curl=curl,
+                                     div=div,)
             return obj
         return dec
 
+
 class _decorator_jit(object):
-    def float(self, dependency=None, grad=None, curl=None, div=None, td=False):
-        def dec(func):
-            obj = NumbaCoefficientVariable(func,
+
+    @staticmethod
+    def float(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False):
+        '''
+        This form allows to use both with and without ()
+        @float
+        @float()
+        @float(dependency....
+        '''
+        def wrapper(func):
+            def dec(*args, **kwargs):
+                obj = NumbaCoefficientVariable(func,
                                                complex=False,
                                                dependency=dependency,
                                                grad=grad,
                                                curl=curl,
                                                div=div,
                                                td=td,)
-            return obj
-        return dec
+                return obj
+            return dec(func)
+        if func:
+            return wrapper(func)
+        else:
+            return wrapper
 
-    def complex(self, dependency=None, grad=None, curl=None, div=None, td=False):
-        def dec(func):
-            obj = NumbaCoefficientVariable(func,
+    @staticmethod
+    def complex(dependency=None, grad=None, curl=None, div=None, td=False):
+        '''
+        This form allows to use both with and without ()
+        @complex
+        @complex()
+        @complex(dependency....
+        '''
+        def wrapper(func):
+            def dec(func):
+                obj = NumbaCoefficientVariable(func,
                                                complex=True,
                                                dependency=dependency,
                                                grad=grad,
                                                curl=curl,
                                                div=div,
                                                td=td,)
-            return obj
-        return dec
+                return obj
+            return dec(func)
+        if func:
+            return wrapper(func)
+        else:
+            return wrapper
 
-    def array(self, complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, td=False):
+    @staticmethod
+    def array(complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, td=False):
         def dec(func):
             obj = NumbaCoefficientVariable(func,
-                                               complex=complex,
-                                               shape=shape,
-                                               dependency=dependency,
-                                               grad=grad,
-                                               curl=curl,
-                                               div=div,
-                                               td=td,)
-
+                                           complex=complex,
+                                           shape=shape,
+                                           dependency=dependency,
+                                           grad=grad,
+                                           curl=curl,
+                                           div=div,
+                                           td=td,)
 
             return obj
         return dec
-    
+
+
 variable = _decorator()
 variable.jit = _decorator_jit()
 
@@ -2387,12 +2437,15 @@ class NativeCoefficientGenBase(object):
         self.complex = complex
         self.jit = jit
         self.td = False
+        self._generated = None
 
     def __call__(self, l, g=None):
         '''
         call fgen to generate coefficient
 
         '''
+        if self._generated is not None:
+            return self._generated
         m = getattr(self, 'fgen')
         if not self.jit:
             args = []
@@ -2406,54 +2459,14 @@ class NativeCoefficientGenBase(object):
             if self.complex:
                 if len(rc) != 2:
                     assert False, "generator must return real/imag parts"
-                return rc
+                self._generated = rc
+                return self._generated
             else:
-                return rc, None
+                self._generated = rc, None
+                return self._generated
         else:
             assert False, "coefficient(jit=True) is not valid anymore. jit is supported by @variable"
-            '''
-            if len(self.dependency) > 0:
-                assert False, "dependency is not supported in numba call"
-            if self.td:
-                assert False, "time-dependent coefficient is not supported in numba call"
-            # here we compile function
-            from petram.helper.numba_utils import make_signature
-            sdim, sig = make_signature(self.fgen,
-                                       td=self.td,
-                                       return_complex=self.complex,
-                                       shape=self.shape)
 
-            from numba import cfunc
-            func0 = cfunc(sig)(m)
-
-            from petram.helper.numba_utils import create_caller
-
-            def make_coeff(real=False, imag=False):
-                if self.shape is None:
-                    caller = create_caller(sdim, func0, self.td, scalar=True)
-                    c1 = mfem.NumbaFunction(caller, 3).GenerateCoefficient()
-                else:
-                    if len(self.shape) == 1:
-                        caller = create_caller(
-                            sdim, func0, self.td, vector=True)
-                        c1 = mfem.VectorNumbaFunction(
-                            caller, 3, self.shape[0]).GenerateCoefficient()
-                    elif len(self.shape) == 2:
-                        caller = create_caller(
-                            sdim, func0, self.td, matrix=True)
-                        c1 = mfem.MatrixNumbaFunction(
-                            caller, 3, self.shape[0]).GenerateCoefficient()
-                    else:
-                        assert False, "unsupported size"
-                return c1
-            if self.complex:
-                c1 = make_coeff(real=True, imag=False)
-                c2 = make_coeff(real=True, imag=False)
-            else:
-                c1 = make_coeff(real=False, imag=False)
-                c2 = None
-            return c1, c2
-            '''
     def scale_coeff(self, coeff, scale):
         if self.shape is None:
             c2 = mfem.ConstantCoefficient(scale)
