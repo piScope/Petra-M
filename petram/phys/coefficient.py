@@ -432,8 +432,8 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
         if len(exprs) == 1:
             # if it is one liner array expression. try mfem.jit
             from petram.phys.numba_coefficient import expr_to_numba_coeff
-            coeff = expr_to_numba_coeff_jitted(exprs[0], mfem.jit.scalar,
-                                               ind_vars, conj, scale, g, l)
+            coeff = expr_to_numba_coeff(exprs, mfem.jit.scalar,
+                                        ind_vars, conj, scale, g, l,)
             if coeff is None:
                 msg = "JIT is not possbile. Continuing with Python mode"
                 handle_allow_python_function_coefficient(msg)
