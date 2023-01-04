@@ -1852,11 +1852,22 @@ class GFScalarVariable(GridFunctionVariable):
         if not self.isDerived:
             self.set_funcs()
 
+        if isinstance(self.func_r, mfem.VectorCoefficient):
+            v = [0]* self.func_r.GetVDim()
+            v[self.comp-1] = 1
+            c2 = mfem.VectorConstantCoefficient(v)
+            # the value of c2 will be copied.
+            ret1 = mfem.InnerProductCoefficient(self.func_r, c2)
+            if self.func_i is not None:
+                ret2 = mfem.InnerProductCoefficient(self.func_i, c2)
+                return (ret1, ret2)
+            else:
+                return ret1
+
         if self.func_i is None:
             return self.func_r
         else:
             return (self.func_r, self.func_i)
-
 
 class GFVectorVariable(GridFunctionVariable):
     def __repr__(self):

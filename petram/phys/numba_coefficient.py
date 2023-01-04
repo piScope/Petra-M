@@ -58,9 +58,9 @@ class NumbaCoefficient():
         else:
             return self.get_imag_coefficient()
 
-    @property
-    def sdim(self):
-        return self.mfem_numba_coeff.SpaceDimension()
+    # @property
+    # def sdim(self):
+    #    return self.mfem_numba_coeff.SpaceDimension()
 
     @property
     def ndim(self):
@@ -175,22 +175,19 @@ class NumbaCoefficient():
         l = {}
         exec(func, globals(), l)
         if self.ndim == 0:
-            coeff = mfem.jit.scalar(sdim=self.sdim,
-                                    complex=self.complex,
+            coeff = mfem.jit.scalar(complex=self.complex,
                                     dependency=dep,
                                     params=params,
                                     debug=numba_debug)(l["f"])
         elif self.ndim == 1:
-            coeff = mfem.jit.vector(sdim=self.sdim,
-                                    complex=self.complex,
+            coeff = mfem.jit.vector(complex=self.complex,
                                     dependency=dep,
                                     debug=numba_debug,
                                     params=params,
                                     shape=self.shape)(l["f"])
 
         elif self.ndim == 2:
-            coeff = mfem.jit.matrix(sdim=self.sdim,
-                                    complex=self.complex,
+            coeff = mfem.jit.matrix(complex=self.complex,
                                     dependency=dep,
                                     debug=numba_debug,
                                     params=params,
@@ -200,6 +197,24 @@ class NumbaCoefficient():
             assert False, "unsupported dim: dim=" + str(self.ndim)
 
         return NumbaCoefficient(coeff)
+
+    def __sub__(self, other):
+        raise NotImplementedError
+
+    def __div__(self, other):
+        raise NotImplementedError
+
+    def __truediv__(self, other):
+        raise NotImplementedError
+
+    def __pos__(self):
+        raise NotImplementedError
+
+    def __neg__(self, other):
+        raise NotImplementedError
+
+    def __abs__(self, other):
+        raise NotImplementedError
 
     def __pow__(self, exponent):
         raise NotImplementedError
@@ -218,8 +233,7 @@ class NumbaCoefficient():
         dep = (self.mfem_numba_coeff, )
         params = {'scale': scale}
 
-        coeff = mfem.jit.matrix(sdim=self.sdim,
-                                complex=self.complex,
+        coeff = mfem.jit.matrix(complex=self.complex,
                                 dependency=dep,
                                 shape=self.shape,
                                 interface="simple",
@@ -253,15 +267,13 @@ class NumbaCoefficient():
 
             if len(slice1) == 1:
                 params = {"slice1": slice1[0]}
-                coeff = mfem.jit.scalar(sdim=self.sdim,
-                                        complex=self.complex,
+                coeff = mfem.jit.scalar(complex=self.complex,
                                         dependency=dep,
                                         params=params,
                                         debug=numba_debug)(l["f"])
             else:
                 params = {"slice1": array(slice1, dtype=int)}
-                coeff = mfem.jit.vector(sdim=self.sdim,
-                                        complex=self.complex,
+                coeff = mfem.jit.vector(complex=self.complex,
                                         dependency=dep,
                                         params=params,
                                         shape=(len(slice1),),
@@ -297,8 +309,7 @@ class NumbaCoefficient():
                 if numba_debug:
                     print("(DEBUG) numba function\n", func1)
                 exec(func1, globals(), l)
-                coeff = mfem.jit.scalar(sdim=self.sdim,
-                                        complex=self.complex,
+                coeff = mfem.jit.scalar(complex=self.complex,
                                         dependency=dep,
                                         params=params,
                                         debug=numba_debug)(l["f"])
@@ -309,8 +320,7 @@ class NumbaCoefficient():
                     print("(DEBUG) numba function\n", func2)
 
                 exec(func2, globals(), l)
-                coeff = mfem.jit.vector(sdim=self.sdim,
-                                        complex=self.complex,
+                coeff = mfem.jit.vector(complex=self.complex,
                                         dependency=dep,
                                         params=params,
                                         shape=(len(slice2),),
@@ -323,8 +333,7 @@ class NumbaCoefficient():
                     print("(DEBUG) numba function\n", func3)
 
                 exec(func3, globals(), l)
-                coeff = mfem.jit.vector(sdim=self.sdim,
-                                        complex=self.complex,
+                coeff = mfem.jit.vector(complex=self.complex,
                                         dependency=dep,
                                         params=params,
                                         shape=(len(slice1),),
@@ -336,8 +345,7 @@ class NumbaCoefficient():
                 if numba_debug:
                     print("(DEBUG) numba function\n", func4)
                 exec(func4, globals(), l)
-                coeff = mfem.jit.matrix(sdim=self.sdim,
-                                        complex=self.complex,
+                coeff = mfem.jit.matrix(complex=self.complex,
                                         dependency=dep,
                                         params=params,
                                         shape=(len(slice1), len(slice2)),
@@ -359,8 +367,7 @@ class NumbaCoefficient():
 
         dep = (self.mfem_numba_coeff, )
 
-        coeff = mfem.jit.matrix(sdim=self.sdim,
-                                complex=self.complex,
+        coeff = mfem.jit.matrix(complex=self.complex,
                                 dependency=dep,
                                 shape=self.shape,
                                 interface="simple",
@@ -382,8 +389,7 @@ class NumbaCoefficient():
 
         dep = (self.mfem_numba_coeff, )
 
-        coeff = mfem.jit.matrix(sdim=self.sdim,
-                                complex=self.complex,
+        coeff = mfem.jit.matrix(complex=self.complex,
                                 dependency=dep,
                                 shape=self.shape,
                                 interface="simple",
@@ -430,8 +436,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l, **kwargs):
                 continue
         if dep is None:
             return None
-        # if gg.complex:
-        #    dep = (dep.real, dep.imag)
+
         dependency.append(dep)
         dep_names.append(n)
 
@@ -503,6 +508,10 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
     isconst = zeros(len(exprs))
     deps = []
     dep_names = []
+
+    from petram.mfem_config import allow_python_function_coefficient
+    if allow_python_function_coefficient == "always use Python coeff.":
+        return None
 
     if len(exprs) > 1:
         jitter2 = mfem.jit.scalar

@@ -293,7 +293,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
 
-    print("vector exprs", exprs)
+    #print("vector exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
         # if it is one liner array expression. try mfem.jit

@@ -10,7 +10,7 @@ def generate_caller_scalar(setting, sdim):
         {"isdepcomplex": (True, False), "kinds": (1, 0),
                        "output": True, size: (10, 1)}
 
-    def _caller(ptx, data):
+    def _caller(ptx, sdim, data):
         ptx = farray(ptx, (sdim,), np.float64)      # for position
         arr0r = farray(data[0], (10,), np.float64)
         arr0i = farray(data[1], (10,), np.float64)
@@ -24,9 +24,9 @@ def generate_caller_scalar(setting, sdim):
 
     '''
     if setting['td']:
-        text = ['def _caller(ptx, t, data):']
+        text = ['def _caller(ptx, sdim,  t, data):']
     else:
-        text = ['def _caller(ptx, data):']
+        text = ['def _caller(ptx, sdim, data):']
 
     text.append("    ptx = farray(ptx, (sdim,), np.float64)")
     count = 0
@@ -93,7 +93,7 @@ def generate_caller_array(setting, sdim):
         {"isdepcomplex": (True, False), "kinds": (1, 0),
                        "output": True, size: ((3, 3), 1), outsize: (2, 2) }
 
-    def _caller(ptx, data, out_):
+    def _caller(ptx, sdim, data, out_):
         ptx = farray(ptx, (sdim,), np.float64)      # for position
         arr0r = farray(data[0], (3, 3), np.float64)
         arr0i = farray(data[1], (3, 3), np.float64)
@@ -114,9 +114,9 @@ def generate_caller_array(setting, sdim):
 
     '''
     if setting['td']:
-        text = ['def _caller(ptx, t, data, out_):']
+        text = ['def _caller(ptx, sdim, t, data, out_):']
     else:
-        text = ['def _caller(ptx, data, out_):']
+        text = ['def _caller(ptx, sdim, data, out_):']
     text.append("    ptx = farray(ptx, (sdim,), np.float64)")
     count = 0
     params_line = '    params = ('

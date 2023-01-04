@@ -251,5 +251,7 @@ def handle_allow_python_function_coefficient(message):
         dprint1(message)
     elif allow_python_function_coefficient == "ignore":
         pass
+    elif allow_python_function_coefficient == "always use Python coeff.":
+        pass
     elif allow_python_function_coefficient == "error":
         assert False, message

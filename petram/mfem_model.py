@@ -75,8 +75,8 @@ class MFEM_GeneralRoot(Model, NS_mixin):
                     "values": ["auto", "safe"]}],
                 ["Autofill emtpy diag rows", None,
                     1, {"values": ["on", "off"]}],
-                ["Allow fallback Python mode coefficient", None,
-                    1, {"values": ["allow", "warn", "error"]}],
+                ["Fallback Python coefficient", None,
+                    1, {"values": ["allow", "warn", "error", "always use Python coeff."]}],
                 ["Check numba JIT process", None,
                     1, {"values": ["on", "off"]}],
                 ]
