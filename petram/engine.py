@@ -2663,8 +2663,12 @@ class Engine(object):
                         index1 = index1 + node.get_essential_idx(k)
                     else:
                         index2 = index2 + node.get_essential_idx(k)
-            ess_bdr1 = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
-            ess_bdr2 = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
+            if len(self.emeshes[phys.emesh_idx].bdr_attributes.ToList()) > 0:
+                ess_bdr1 = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
+                ess_bdr2 = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
+            else:
+                ess_bdr1 = []
+                ess_bdr2 = []
             for kk in index1:
                 ess_bdr1[kk-1] = 1
             for kk in index2:
