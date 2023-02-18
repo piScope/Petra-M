@@ -5,7 +5,6 @@
 from petram.sol.bdr_nodal_evaluator import get_emesh_idx
 from petram.sol.evaluator_agent import EvaluatorAgent
 import numpy as np
-import parser
 import weakref
 import six
 
@@ -40,8 +39,7 @@ def eval_on_faces(obj, expr, solvars, phys):
         return None
     variables = []
 
-    st = parser.expr(expr)
-    code = st.compile('<string>')
+    code = compile(expr, '<string>', 'eval')
     names = code.co_names
 
     g = {}

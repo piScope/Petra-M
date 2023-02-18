@@ -3,7 +3,6 @@
       a thing to evaluate solution on a boundary
 '''
 import numpy as np
-import parser
 import weakref
 import six
 
@@ -97,8 +96,7 @@ def edge_detect(index):
 def _get_emesh_idx(obj, expr, solvars, phys, default):
     from petram.helper.variables import Variable, var_g, NativeCoefficientGenBase
 
-    st = parser.expr(expr)
-    code = st.compile('<string>')
+    code = compile(expr, '<string>', 'eval')
     names = code.co_names
 
     g = {}
@@ -165,8 +163,7 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False):
         return None
     variables = []
 
-    st = parser.expr(expr)
-    code = st.compile('<string>')
+    code = compile(expr, '<string>', 'eval')
     names = code.co_names
 
     g = {}

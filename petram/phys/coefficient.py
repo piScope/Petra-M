@@ -4,7 +4,6 @@
 
 '''
 from petram.debug import handle_allow_python_function_coefficient
-import parser
 import numpy as np
 
 from petram.mfem_config import use_parallel

@@ -45,7 +45,6 @@
 
 '''
 import numpy as np
-import parser
 import weakref
 import types
 import traceback
@@ -532,8 +531,7 @@ class ExpressionVariable(Variable):
         super(ExpressionVariable, self).__init__(complex=complex)
 
         variables = []
-        st = parser.expr(expr)
-        code = st.compile('<string>')
+        code = compile(expr, '<string>', 'eval')
         names = code.co_names
         self.co = code
         self.names = names

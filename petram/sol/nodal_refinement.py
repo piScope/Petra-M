@@ -7,7 +7,6 @@
 
 '''
 import numpy as np
-import parser
 import weakref
 import six
 from petram.mfem_config import use_parallel

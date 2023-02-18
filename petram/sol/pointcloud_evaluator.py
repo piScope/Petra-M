@@ -1,5 +1,4 @@
 import numpy as np
-import parser
 import scipy
 import six
 import weakref
@@ -176,8 +175,7 @@ class PointcloudEvaluator(EvaluatorAgent):
                                              NumbaCoefficientVariable)
 
         variables = []
-        st = parser.expr(expr)
-        code = st.compile('<string>')
+        code = compile(expr, '<string>', 'eval')
         names = code.co_names
 
         g = {}

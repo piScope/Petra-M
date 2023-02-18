@@ -3,7 +3,6 @@
       a thing to evaluate integral on a boundary/domain
 '''
 import numpy as np
-import parser
 import weakref
 import six
 
@@ -30,8 +29,7 @@ def do_integration(expr, solvars, phys, mesh, kind, attrs,
                                          CoefficientVariable)
     from petram.phys.coefficient import SCoeff
 
-    st = parser.expr(expr)
-    code= st.compile('<string>')
+    code = compile(expr, '<string>', 'eval')
     names = code.co_names
 
     g = {}

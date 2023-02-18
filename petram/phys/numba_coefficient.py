@@ -6,8 +6,6 @@
    utility to use NumbaCoefficient more easily
 
 '''
-import parser
-
 from numpy.linalg import inv, det
 from numpy import conj as npconj
 from numpy import array, zeros
@@ -407,8 +405,7 @@ class NumbaCoefficient():
 def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l, **kwargs):
 
     ind_vars = [xx.strip() for xx in ind_vars.split(',')]
-    st = parser.expr(txt.strip())
-    code = st.compile('<string>')
+    code = compile(txt.strip(), '<string>', 'eval')
     names = code.co_names
 
     dependency = []

@@ -4,7 +4,6 @@ from petram.namespace_mixin import NS_mixin
 from petram.model import Model
 import os
 import numpy as np
-import parser
 import mfem
 from abc import abstractmethod
 
@@ -979,8 +978,7 @@ class DomainRefinement(Mesh):
             return mesh
 
         if self.expression != '':
-            st = parser.expr(self.expression)
-            code = st.compile('<string>')
+            code = compile(self.expression, '<string>', 'eval')
             names = list(code.co_names)
             ns_obj, ns_g = self.find_ns_by_name(self.expression_ns)
 

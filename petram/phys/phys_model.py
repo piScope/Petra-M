@@ -11,7 +11,6 @@ from os.path import dirname, basename, isfile, join
 import warnings
 import glob
 import types
-import parser
 import numbers
 from abc import abstractmethod
 
@@ -124,8 +123,7 @@ class Coefficient_Evaluator(object):
 
         for expr in exprs:
             if isinstance(expr, str):
-                st = parser.expr(expr.strip())
-                code = st.compile('<string>')
+                code = compile(expr.strip(), '<string>', 'eval')
                 names = code.co_names
                 for n in names:
                     if (n in g and isinstance(g[n], NativeCoefficientGenBase)):

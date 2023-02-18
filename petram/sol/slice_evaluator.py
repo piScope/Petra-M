@@ -1,5 +1,4 @@
 import numpy as np
-import parser
 import scipy
 import six
 import weakref
