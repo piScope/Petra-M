@@ -80,8 +80,8 @@ class WidgetSmoother(wx.Panel):
 
         self.pg.Append(SmootherChoiceProperty("E1", choices = HypreSmoother))
 
-        self.pg.SetPageSplitterPosition(0, 0.5) 
-        self.pg.SetPageSplitterPosition(1, 0.5) 
+        #self.pg.SetPageSplitterPosition(0, 0.5) 
+        #self.pg.SetPageSplitterPosition(1, 0.5) 
 
         self.pg.ShowHeader(True)
         sizer2.Add(self.pg, 1, wx.EXPAND|wx.ALL, 1)
