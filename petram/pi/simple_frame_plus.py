@@ -34,9 +34,10 @@ class SimpleFramePlus(FramePlus):
         self.menuBar.Insert(self.menuBar.GetMenuCount(), extra_menu,"MFEM")
         menus = MFEM_menus(parent)
         ret = BuildMenu(extra_menu, menus)
-        if not "wxMac" in wx.PlatformInfo:        
+        if "wxMac" in wx.PlatformInfo:
+            self.SetMenuBar(self.menuBar)
+        else:
             self.SetMenuBar(None)
-
         
     def onResize(self, evt):
         evt.Skip()
