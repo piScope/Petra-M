@@ -73,6 +73,7 @@ def get_phys_constraints(module):
         raise
 
     constraints = {'domain':[], 'bdry':[], 'edge':[], 'pointt':[], 'pair':[]}
+
     for p in paths:
         for f in listdir(p):
             name = basename(f)
@@ -80,6 +81,7 @@ def get_phys_constraints(module):
             if name.startswith('_'):continue
             name = name[:-3]
             mname2 = mname + '.' + name
+
             try:
                 __import__(mname2, locals(), globals())
             except BaseException:
@@ -89,7 +91,9 @@ def get_phys_constraints(module):
             for key in constraints:
                 if hasattr(sys.modules[mname2], key+'_constraints'):
                     m = getattr(sys.modules[mname2], key+'_constraints')
-                    constraints[key].extend(m())
+                    for x in m():
+                        if not x in constraints[key]:
+                            constraints[key].append(x)
                     
     return constraints
 

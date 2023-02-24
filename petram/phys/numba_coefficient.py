@@ -13,11 +13,17 @@ from petram.mfem_config import use_parallel
 
 if use_parallel:
     import mfem.par as mfem
+    from mpi4py import MPI
+    myid = MPI.COMM_WORLD.rank
+
 else:
     import mfem.ser as mfem
+    myid = 0
 
 from petram.helper.variables import (Variable,
                                      NativeCoefficientGenBase)
+
+
 
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('NumbaCoefficient')
@@ -148,6 +154,7 @@ class NumbaCoefficient():
                                                        PyComplexVectorConstant,
                                                        PyComplexMatrixConstant,)
         from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
 
         if not isinstance(other, NumbaCoefficient):
             if isinstance(other, (PhysConstant,
@@ -219,6 +226,7 @@ class NumbaCoefficient():
 
     def __mul__(self, scale):
         from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
 
         func = '\n'.join(['def f(ptx, val):',
                           '    return val*scale'])
@@ -244,6 +252,7 @@ class NumbaCoefficient():
         assert check, "slice is valid for vector and matrix"
 
         from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
 
         coeff = None
         dep = (self.mfem_numba_coeff, )
@@ -355,6 +364,7 @@ class NumbaCoefficient():
 
     def inv(self):
         from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
 
         func = '\n'.join(['def f(ptx, coeff1):',
                           '    return inv(coeff1)'])
@@ -463,6 +473,8 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l, **kwargs):
     func_txt = "\n".join(func_txt)
 
     from petram.mfem_config import numba_debug
+    numba_debug = False if myid != 0 else numba_debug
+
     if numba_debug:
         print("(DEBUG) wrapper function\n", func_txt)
     exec(func_txt, g, l)
@@ -568,7 +580,10 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
 
     g = globals()
     l = {}
+
     from petram.mfem_config import numba_debug
+    numba_debug = False if myid != 0 else numba_debug
+
     if numba_debug:
         print("(DEBUG) wrapper function\n", func_txt)
     exec(func_txt, g, l)

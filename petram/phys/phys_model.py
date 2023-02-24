@@ -1175,6 +1175,16 @@ class PhysModule(Phys):
     def is_complex(self):
         return False
 
+    _possible_constraints = None
+    @classmethod
+    def _set_possible_constraints(cls, name):
+        '''
+        utility to define a possible constraints dynamically expandable.
+        '''
+        from petram.helper.phys_module_util import get_phys_constraints
+        constraints = get_phys_constraints(name)
+        cls._possible_constraints = constraints
+
     def get_possible_domain(self):
         from petram.phys.wf.wf_constraints import WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint
         return [WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint]

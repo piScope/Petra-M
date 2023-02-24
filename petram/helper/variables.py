@@ -149,7 +149,7 @@ class _decorator_jit(object):
             return wrapper
 
     @staticmethod
-    def complex(dependency=None, grad=None, curl=None, div=None, td=False):
+    def complex(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False):
         '''
         This form allows to use both with and without ()
         @complex
@@ -157,7 +157,7 @@ class _decorator_jit(object):
         @complex(dependency....
         '''
         def wrapper(func):
-            def dec(func):
+            def dec(*args, **kwargs):
                 obj = NumbaCoefficientVariable(func,
                                                complex=True,
                                                dependency=dependency,
@@ -1394,12 +1394,21 @@ class NumbaCoefficientVariable(CoefficientVariable):
                 return
             dep.append(dd)
 
+        from petram.mfem_config import numba_debug, use_parallel
+        if use_parallel:
+            from mpi4py import MPI
+            myid = MPI.COMM_WORLD.rank
+        else:
+            myid = 0
+        numba_debug = False if myid != 0 else numba_debug
+
         wrapper = jitter(sdim=sdim,
                          complex=self.complex,
                          td=self.td,
                          dependency=dep,
                          interface=(gen_caller, gen_sig),
-                         debug=False, **kwargs)
+                         debug=numba_debug,
+                         **kwargs)
 
         return wrapper(self.func)
 
