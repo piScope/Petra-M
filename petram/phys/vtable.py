@@ -469,7 +469,7 @@ class Vtable_mixin(object):
     def eval_phys_expr(self, value, param,
                        chk_int=False, chk_complex=False,
                        chk_float=False, chk_array=False,
-                       chk_any=False):
+                       chk_any=False, chk_string=False):
 
         from petram.helper.variables import NativeCoefficientGenBase
         if value.startswith('='):
@@ -498,6 +498,8 @@ class Vtable_mixin(object):
                 x = float(x)
             elif chk_array:
                 x = np.atleast_1d(np.array(x, copy=False))
+            elif chk_string:
+                pass
             else:
                 x = x + 0   # at least check if it is number.
             dprint2('Value Evaluation ', param, '=', x)

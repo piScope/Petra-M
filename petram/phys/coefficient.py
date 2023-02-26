@@ -55,7 +55,8 @@ def call_nativegen(v, l, g, real, conj, scale):
             return coeff
 
 
-def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
+def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
+           return_mfem_constant=False, **kwargs):
     if isinstance(exprs, str):
         exprs = [exprs]
     if isinstance(exprs, NativeCoefficientGenBase):
@@ -231,10 +232,14 @@ def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
             e = np.array(e * 0.0, dtype=float, copy=False)
         else:
             e = np.array(e, dtype=float, copy=False)
-        return PhysMatrixConstant(e)
 
+        if return_mfem_constant:
+            return mfem.MatrixConstantCoefficient(e)
+        else:
+            return PhysMatrixConstant(e)
 
-def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
+def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
+           return_mfem_constant=False, **kwargs):
     if isinstance(exprs, str):
         exprs = [exprs]
     if isinstance(exprs, NativeCoefficientGenBase):
@@ -346,10 +351,14 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
                 e = np.array(e * 0.0, dtype=float, copy=False)
             else:
                 e = np.array(e, dtype=float, copy=False)
-            return PhysVectorConstant(e)
+            if return_mfem_constant:
+                return mfem.VectorConstantCoefficient(e)
+            else:
+                return PhysVectorConstant(e)
 
 
-def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
+def SCoeff(exprs, ind_vars, l, g, return_complex=False,
+           return_mfem_constant=False, **kwargs):
     if isinstance(exprs, str):
         exprs = [exprs]
     if isinstance(exprs, NativeCoefficientGenBase):
@@ -488,7 +497,10 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
             else:
                 pass
             v = float(v)
-            return PhysConstant(v)
+            if return_mfem_constant:
+                return mfem.ConstantCoefficient(v)
+            else:
+                return PhysConstant(v)
 
 
 def sum_coefficient(c_arr):
