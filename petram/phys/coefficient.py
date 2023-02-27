@@ -120,7 +120,8 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
         from petram.phys.numba_coefficient import expr_to_numba_coeff
 
         coeff = expr_to_numba_coeff(exprs, mfem.jit.matrix,
-                                    ind_vars, conj, scale, g, l, shape=(dim, dim))
+                                    ind_vars, conj, scale, g, l,
+                                    return_complex, shape=(dim, dim))
         if coeff is None:
             msg = "JIT is not possbile. Continuing with Python mode"
             handle_allow_python_function_coefficient(msg)
@@ -154,6 +155,7 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
             e = np.conj(e)
 
         if return_complex:
+            assert not return_mfem_constant, "return_complex and return_mfem_constant can not be used togeter"
             e = e.astype(complex)
             return PyComplexMatrixConstant(e)
         else:
@@ -167,10 +169,14 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
             else:
                 e = np.array(e, dtype=float, copy=False)
 
-            return PhysMatrixConstant(e)
+            if return_mfem_constant:
+                return mfem.MatrixConstantCoefficient(e)
+            else:
+                return PhysMatrixConstant(e)
 
 
-def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
+def DCoeff(dim, exprs, ind_vars, l, g,
+           return_mfem_constant=False, **kwargs):
     if isinstance(exprs, str):
         exprs = [exprs]
     if isinstance(exprs, NativeCoefficientGenBase):
@@ -238,6 +244,7 @@ def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
         else:
             return PhysMatrixConstant(e)
 
+
 def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
            return_mfem_constant=False, **kwargs):
     if isinstance(exprs, str):
@@ -303,7 +310,8 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
         # if it is one liner array expression. try mfem.jit
         from petram.phys.numba_coefficient import expr_to_numba_coeff
         coeff = expr_to_numba_coeff(exprs, mfem.jit.vector,
-                                    ind_vars, conj, scale, g, l, shape=(dim, ))
+                                    ind_vars, conj, scale, g, l,
+                                    return_complex, shape=(dim, ))
         if coeff is None:
             msg = "JIT is not possbile. Continuing with Python mode"
             handle_allow_python_function_coefficient(msg)
@@ -337,6 +345,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
         e = e * scale
 
         if return_complex:
+            assert not return_mfem_constant, "return_complex and return_mfem_constant can not be used togeter"
             e = e.astype(complex)
             return PyComplexVectorConstant(e)
         else:
@@ -440,7 +449,7 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False,
             # if it is one liner array expression. try mfem.jit
             from petram.phys.numba_coefficient import expr_to_numba_coeff
             coeff = expr_to_numba_coeff(exprs, mfem.jit.scalar,
-                                        ind_vars, conj, scale, g, l,)
+                                        ind_vars, conj, scale, g, l, return_complex)
             if coeff is None:
                 msg = "JIT is not possbile. Continuing with Python mode"
                 handle_allow_python_function_coefficient(msg)
@@ -483,6 +492,7 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False,
             v = complex(v)
             if conj:
                 v = np.conj(v)
+            assert not return_mfem_constant, "return_complex and return_mfem_constant can not be used togeter"
             return PyComplexConstant(v)
         else:
             if np.iscomplexobj(v):

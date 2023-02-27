@@ -24,7 +24,6 @@ from petram.helper.variables import (Variable,
                                      NativeCoefficientGenBase)
 
 
-
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('NumbaCoefficient')
 
@@ -412,7 +411,8 @@ class NumbaCoefficient():
 '''
 
 
-def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l, **kwargs):
+def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
+                         return_complex, **kwargs):
 
     ind_vars = [xx.strip() for xx in ind_vars.split(',')]
     code = compile(txt.strip(), '<string>', 'eval')
@@ -467,9 +467,15 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l, **kwargs):
     #func_txt.append("   print(_out_)")
 
     if jitter == mfem.jit.scalar:
-        func_txt.append("   return np.complex128(_out_)")
+        if return_complex:
+            func_txt.append("   return np.complex128(_out_)")
+        else:
+            func_txt.append("   return np.float64(_out_)")
     else:
-        func_txt.append("   return _out_.astype(np.complex128)")
+        if return_complex:
+            func_txt.append("   return _out_.astype(np.complex128)")
+        else:
+            func_txt.append("   return _out_.astype(np.float64)")
     func_txt = "\n".join(func_txt)
 
     from petram.mfem_config import numba_debug
@@ -480,7 +486,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l, **kwargs):
     exec(func_txt, g, l)
 
     try:
-        coeff = jitter(sdim=len(ind_vars), complex=True, debug=numba_debug,
+        coeff = jitter(sdim=len(ind_vars), complex=return_complex, debug=numba_debug,
                        dependency=dependency, **kwargs)(l["_func_"])
     except AssertionError:
         import traceback
@@ -495,7 +501,8 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l, **kwargs):
     return NumbaCoefficient(coeff)
 
 
-def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
+def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, return_complex,
+                        **kwargs):
     '''
     ## generate a wrapper for multiple inputs
     def _func_(ptx, p1, p2, out)
@@ -533,7 +540,7 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
     for k, ee in enumerate(exprs):
         if isinstance(ee, str):
             nbc = _expr_to_numba_coeff(
-                ee, jitter2, ind_vars, conj, scale, g, l, **kwargs)
+                ee, jitter2, ind_vars, conj, scale, g, l, return_complex, **kwargs)
             if nbc is None:
                 return None
             deps.append(nbc.mfem_numba_coeff)
@@ -593,7 +600,7 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, **kwargs):
     params["consts"] = consts
 
     coeff = jitter(sdim=len(ind_vars),
-                   complex=True,
+                   complex=return_complex,
                    debug=numba_debug,
                    shape=shape,
                    dependency=deps,
