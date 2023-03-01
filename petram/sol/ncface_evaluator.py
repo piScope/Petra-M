@@ -33,6 +33,7 @@ def eval_on_faces(obj, expr, solvars, phys):
     from petram.helper.variables import (Variable,
                                          var_g,
                                          NativeCoefficientGenBase,
+                                         CoefficientVariable,
                                          NumbaCoefficientVariable,)
 
     if len(obj.ifaces) == 0:
@@ -54,16 +55,39 @@ def eval_on_faces(obj, expr, solvars, phys):
     var_g2 = var_g.copy()
 
     new_names = []
-    for n in names:
-        if (n in g and isinstance(g[n], NumbaCoefficientVariable)):
+    name_translation = {}
+
+    all_names = list(names[:])
+
+    def get_names(names):
+        for n in names:
+            if (n in g and isinstance(g[n], Variable)):
+                new_names = g[n].get_names()
+                for x in new_names:
+                    all_names.append(x)
+                get_names(new_names)
+    get_names(names)
+
+    for n in all_names:
+        if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
+            g[n+"_coeff"] = CoefficientVariable(g[n], g)
+            new_names.append(n+"_coeff")
+            name_translation[n+"_coeff"] = n
+
+        elif (n in g and isinstance(g[n], NumbaCoefficientVariable)):
             ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
             g[n].set_coeff(ind_vars, g)
             new_names.append(n)
+            name_translation[n] = n
+
         elif (n in g and isinstance(g[n], Variable)):
             new_names.extend(g[n].dependency)
             new_names.append(n)
+            name_translation[n] = n
+
         elif n in g:
             new_names.append(n)
+            name_translation[n] = n
 
     for n in new_names:
         if (n in g and isinstance(g[n], Variable)):
@@ -78,7 +102,7 @@ def eval_on_faces(obj, expr, solvars, phys):
                                        g=g, knowns=obj.knowns,
                                        mesh=obj.mesh()[obj.emesh_idx]))
 
-            ll_name.append(n)
+            ll_name.append(name_translation[n])
             ll_value.append(obj.knowns[g[n]])
         elif (n in g):
             var_g2[n] = g[n]
@@ -92,7 +116,6 @@ def eval_on_faces(obj, expr, solvars, phys):
         val = np.array([eval(code, var_g2)]*len(obj.ptx))
 
     return val
-
 
 class NCFaceEvaluator(EvaluatorAgent):
     def __init__(self, battrs, **kwargs):

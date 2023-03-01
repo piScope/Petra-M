@@ -94,7 +94,6 @@ class EdgeNodalEvaluator(EvaluatorAgent):
 
         else:
             assert False, "Unsupported dim"
-            
 
         self.emesh_idx = emesh_idx
         

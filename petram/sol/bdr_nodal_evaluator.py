@@ -157,6 +157,7 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False):
     from petram.helper.variables import (Variable,
                                          var_g,
                                          NativeCoefficientGenBase,
+                                         CoefficientVariable,
                                          NumbaCoefficientVariable,)
 
     if len(obj.iverts) == 0:
@@ -180,20 +181,34 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False):
     new_names = []
     name_translation = {}
 
-    for n in names:
+    all_names = list(names[:])
+
+    def get_names(names):
+        for n in names:
+            if (n in g and isinstance(g[n], Variable)):
+                new_names = g[n].get_names()
+                for x in new_names:
+                    all_names.append(x)
+                get_names(new_names)
+    get_names(names)
+
+    for n in all_names:
         if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
             g[n+"_coeff"] = CoefficientVariable(g[n], g)
             new_names.append(n+"_coeff")
             name_translation[n+"_coeff"] = n
+
         elif (n in g and isinstance(g[n], NumbaCoefficientVariable)):
             ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
             g[n].set_coeff(ind_vars, g)
             new_names.append(n)
             name_translation[n] = n
+
         elif (n in g and isinstance(g[n], Variable)):
             new_names.extend(g[n].dependency)
             new_names.append(n)
             name_translation[n] = n
+
         elif n in g:
             new_names.append(n)
             name_translation[n] = n
