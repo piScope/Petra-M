@@ -191,7 +191,19 @@ class PointcloudEvaluator(EvaluatorAgent):
 
         new_names = []
         name_translation = {}
-        for n in names:
+
+        all_names = list(names[:])
+
+        def get_names(names):
+            for n in names:
+                if (n in g and isinstance(g[n], Variable)):
+                    new_names = g[n].get_names()
+                    for x in new_names:
+                        all_names.append(x)
+                    get_names(new_names)
+        get_names(names)
+
+        for n in all_names:
             if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
                 g[n+"_coeff"] = CoefficientVariable(g[n], g)
                 new_names.append(n+"_coeff")

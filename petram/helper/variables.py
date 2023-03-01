@@ -125,7 +125,7 @@ class _decorator(object):
 class _decorator_jit(object):
 
     @staticmethod
-    def float(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False):
+    def float(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False, params=None):
         '''
         This form allows to use both with and without ()
         @float
@@ -137,6 +137,7 @@ class _decorator_jit(object):
                 obj = NumbaCoefficientVariable(func,
                                                complex=False,
                                                dependency=dependency,
+                                               params=params,
                                                grad=grad,
                                                curl=curl,
                                                div=div,
@@ -149,7 +150,7 @@ class _decorator_jit(object):
             return wrapper
 
     @staticmethod
-    def complex(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False):
+    def complex(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False, params=None):
         '''
         This form allows to use both with and without ()
         @complex
@@ -161,6 +162,7 @@ class _decorator_jit(object):
                 obj = NumbaCoefficientVariable(func,
                                                complex=True,
                                                dependency=dependency,
+                                               params=params,
                                                grad=grad,
                                                curl=curl,
                                                div=div,
@@ -173,12 +175,13 @@ class _decorator_jit(object):
             return wrapper
 
     @staticmethod
-    def array(complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, td=False):
+    def array(complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, td=False, params=None):
         def dec(func):
             obj = NumbaCoefficientVariable(func,
                                            complex=complex,
                                            shape=shape,
                                            dependency=dependency,
+                                           params=params,
                                            grad=grad,
                                            curl=curl,
                                            div=div,
@@ -383,6 +386,9 @@ class Variable():
     def __getitem__(self, idx):
         return self()[idx]
 
+    def get_names(self):
+        return []
+
     def get_emesh_idx(self, idx=None, g=None):
         if idx is None:
             idx = []
@@ -396,6 +402,7 @@ class Variable():
         return self.ncface_values(*args, **kwargs)
 
     def point_values(self, *args, **kwargs):
+        print(self)
         raise NotImplementedError("Subclass need to implement")
 
     def add_topological_info(self, mesh):
@@ -539,6 +546,9 @@ class ExpressionVariable(Variable):
         self.ind_vars = ind_vars
         self.variables = WVD()
         # print 'Check Expression', expr.__repr__(), names
+
+    def get_names(self):
+        return self.names
 
     def __repr__(self):
         return "Expression(" + self.expr + ")"
@@ -700,6 +710,12 @@ class DomainVariable(Variable):
         self.gdomains[tuple(domains)] = gdomain
         self.domains[tuple(domains)] = ExpressionVariable(expr, ind_vars,
                                                           complex=complex)
+
+    def get_names(self):
+        ret = []
+        for x in self.domains:
+            ret.extend(self.domains[x].get_names())
+        return ret
 
     def __repr__(self):
         return "DomainVariable"
@@ -1285,7 +1301,7 @@ class CoefficientVariable(Variable):
             if (self.coeff[0] is not None and
                     self.coeff[1] is not None):
                 value = (np.array(call_eval(self.coeff[0], T, ip)) +
-                         1j * np.array(self.coeff[1], T, ip))
+                         1j * np.array(call_eval(self.coeff[1], T, ip)))
             elif self.coeff[0] is not None:
                 value = np.array(call_eval(self.coeff[0], T, ip))
             elif self.coeff[1] is not None:
@@ -1319,7 +1335,7 @@ class CoefficientVariable(Variable):
 
 class NumbaCoefficientVariable(CoefficientVariable):
     def __init__(self, func, complex=False, shape=tuple(), dependency=None,
-                 grad=None, curl=None, div=None, td=False):
+                 grad=None, curl=None, div=None, td=False, params=None):
         super(
             CoefficientVariable,
             self).__init__(complex=complex,
@@ -1329,6 +1345,7 @@ class NumbaCoefficientVariable(CoefficientVariable):
                            div=div)
 
         self.func = func
+        self.params = params
         self.t = None
         self.x = (0, 0, 0)
         self.shape = shape
@@ -1343,6 +1360,9 @@ class NumbaCoefficientVariable(CoefficientVariable):
             assert False, "unsupported shape"
 
     def get_jitted_coefficient(self, ind_vars, locals):
+        from petram.phys.numba_coefficient import NumbaCoefficient
+        if isinstance(self.func, NumbaCoefficient):
+            return self.func.mfem_numba_coeff
 
         from petram.helper.numba_utils import (generate_caller_scalar,
                                                generate_caller_array,
@@ -1405,6 +1425,7 @@ class NumbaCoefficientVariable(CoefficientVariable):
         wrapper = jitter(sdim=sdim,
                          complex=self.complex,
                          td=self.td,
+                         params=self.params,
                          dependency=dep,
                          interface=(gen_caller, gen_sig),
                          debug=numba_debug,
@@ -1860,7 +1881,7 @@ class GFScalarVariable(GridFunctionVariable):
             self.set_funcs()
 
         if isinstance(self.func_r, mfem.VectorCoefficient):
-            v = [0]* self.func_r.GetVDim()
+            v = [0] * self.func_r.GetVDim()
             v[self.comp-1] = 1
             c2 = mfem.VectorConstantCoefficient(v)
             # the value of c2 will be copied.
@@ -1875,6 +1896,7 @@ class GFScalarVariable(GridFunctionVariable):
             return self.func_r
         else:
             return (self.func_r, self.func_i)
+
 
 class GFVectorVariable(GridFunctionVariable):
     def __repr__(self):
