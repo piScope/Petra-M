@@ -424,6 +424,8 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
     for n in names:
         if n in ind_vars:
             continue
+
+        dep = None
         if n in l:
             if isinstance(l[n], Variable):
                 gg = l[n]
@@ -442,6 +444,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             else:
                 continue
         if dep is None:
+            #
             return None
 
         dependency.append(dep)

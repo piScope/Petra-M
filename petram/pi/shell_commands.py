@@ -47,7 +47,8 @@ def petram(reload_scripts=False):
     '''
     setup PetraM simulation enveroment
     '''
-    from __main__ import ifig_app
+    import wx
+    ifig_app = wx.GetApp().TopWindow
     proj = ifig_app.proj
     if proj.setting.parameters.hasvar('PetraM'):
         model = proj.setting.parameters.eval('PetraM')
