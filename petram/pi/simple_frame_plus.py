@@ -16,7 +16,9 @@ class SimpleFramePlus(FramePlus):
     def __init__(self, parent, *args, **kwargs):
         self.close_cb = kwargs.pop("close_cb", None)
 
-        kwargs['nomenu'] = True
+        if "wxMac" not in wx.PlatformInfo:        
+            kwargs['nomenu'] = True
+            
         super(SimpleFramePlus, self).__init__(parent, *args, **kwargs)
 
         self.Bind(wx.EVT_CLOSE, self.onClose)
