@@ -113,6 +113,9 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         import petram.helper.functions
         return petram.helper.functions.f.copy()
 
+    def save_attribute_set(self, skip_def_check):
+        ret = Model.save_attribute_set(self, skip_def_check)
+        return [x for x in ret if x != '_variable']
 
 class MFEM_PhysRoot(Model):
     can_delete = False

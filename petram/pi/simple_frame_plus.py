@@ -32,13 +32,15 @@ class SimpleFramePlus(FramePlus):
         tw.windowlist.remove_item(self)
 
         #self.Bind(wx.EVT_MENU, lambda evt: frame.ProcessEvent(evt))
-        extra_menu = wx.Menu()
-        self.menuBar.Insert(self.menuBar.GetMenuCount(), extra_menu,"MFEM")
-        menus = MFEM_menus(parent)
-        ret = BuildMenu(extra_menu, menus)
         if "wxMac" in wx.PlatformInfo:
+            extra_menu = wx.Menu()
+            self.menuBar.Insert(self.menuBar.GetMenuCount(), extra_menu,"MFEM")
+            menus = MFEM_menus(parent)
+            ret = BuildMenu(extra_menu, menus)
+
             self.SetMenuBar(self.menuBar)
         else:
+#            self.SetMenuBar(self.menuBar)
             self.SetMenuBar(None)
 
     def onResize(self, evt):
