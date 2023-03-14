@@ -241,17 +241,17 @@ def timeit(method):
 
 
 def handle_allow_python_function_coefficient(message):
-    from petram.mfem_config import allow_python_function_coefficient
+    from petram.mfem_config import get_allow_python_function_coefficient
 
     dprint1 = DPrint("Python mode check", 1)
 
-    if allow_python_function_coefficient == "warn":
+    if get_allow_python_function_coefficient() == "warn":
         import traceback
         traceback.print_stack()
         dprint1(message)
-    elif allow_python_function_coefficient == "ignore":
+    elif get_allow_python_function_coefficient() == "ignore":
         pass
-    elif allow_python_function_coefficient == "always use Python coeff.":
+    elif get_allow_python_function_coefficient() == "always use Python coeff.":
         pass
-    elif allow_python_function_coefficient == "error":
+    elif get_allow_python_function_coefficient() == "error":
         assert False, message

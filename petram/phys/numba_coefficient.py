@@ -529,7 +529,7 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, return_compl
     dep_names = []
 
     from petram.mfem_config import allow_python_function_coefficient
-    if allow_python_function_coefficient == "always use Python coeff.":
+    if get_allow_python_function_coefficient() == "always use Python coeff.":
         return None
 
     if len(exprs) > 1:
