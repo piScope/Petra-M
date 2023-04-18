@@ -249,6 +249,7 @@ var_g = {'sin': np.sin,
          'zeros': np.zeros,
          'nan': np.nan,
          'inf': np.inf,
+         'inv': np.linalg.inv,
          'linspace': np.linspace,
          'logspace': np.logspace}
 

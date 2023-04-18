@@ -245,7 +245,7 @@ def get_job_queue(model, host=None, user=None, progdlg=None, configext=''):
     #           user+'@' + host + " 'cat $PetraM/etc/queue_config'" )
     #p= sp.Popen(command, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
     
-    command = 'cat $PetraM/etc/queue_config'+configext
+    command = '$PetraM/bin/get_queue_config'+configext
     p = launch_ssh_command(model, command)    
     ret = communicate_with_timeout(p, maxtimeout=30,
                                    timeout=2, progdlg=progdlg)
