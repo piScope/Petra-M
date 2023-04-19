@@ -233,7 +233,7 @@ def retrieve_files(model, rhs=False, matrix = False, sol_dir = None):
     if matrix: get_files(host, 'matrix')
     if rhs: get_files(host, 'rhs')
  
-def get_job_queue(model, host=None, user=None, progdlg=None, configext=''):
+def _get_job_queue(model, command,  host=None, user=None, progdlg=None, configext=''):
 
     '''
     param = model.param
@@ -244,8 +244,7 @@ def get_job_queue(model, host=None, user=None, progdlg=None, configext=''):
     #command = ("ssh -o PasswordAuthentication=no -o PreferredAuthentications=publickey " +
     #           user+'@' + host + " 'cat $PetraM/etc/queue_config'" )
     #p= sp.Popen(command, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)
-    
-    command = '$PetraM/bin/get_queue_config'+configext
+
     p = launch_ssh_command(model, command)    
     ret = communicate_with_timeout(p, maxtimeout=30,
                                    timeout=2, progdlg=progdlg)
@@ -264,6 +263,19 @@ def get_job_queue(model, host=None, user=None, progdlg=None, configext=''):
         traceback.print_exc()        
         return False, None
     return True, value
+
+def get_job_queue(model, command, host=None, user=None, progdlg=None, configext=''):
+
+    # try this first
+    command = '$PetraM/bin/get_queue_config'+configext
+    ret = _get_job_queue(model, command,  host=host, user=user, progdlg=progdlg, configext=configext)
+    if ret[0]:
+        return ret
+
+    # try this (old method)
+    command = 'cat $PetraM/etc/queue_config'+configext
+    ret = _get_job_queue(model, command,  host=host, user=user, progdlg=progdlg, configext=configext)
+    return ret
 
 def interpret_job_queue_file(lines):
     lines = [x.strip() for x in lines if not x.startswith("#")
