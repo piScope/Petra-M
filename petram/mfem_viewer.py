@@ -1676,26 +1676,6 @@ class MFEMViewer(BookViewer):
             obj = make_remote_connection(self.model, new_name)
             self.model.param.setvar('host', '='+obj.get_full_path())
 
-    def onServerNewDir(self, evt):
-        from petram.remote.client_script import wdir_from_datetime
-
-        remote = self.model.param.eval('remote')
-        # this assumes file_sep is "/" on server..
-        if remote is not None and remote['rwdir'].split('/')[-1] != '':
-            txt = remote['rwdir'].split('/')[-1]+'_new'
-        else:
-            txt = wdir_from_datetime()
-
-        from ifigure.widgets.dialog import textentry
-        f, txt = textentry(self, message='Enter remote directory name',
-                           title='Creating remote directory',
-                           def_string=txt, center=True)
-        if not f:
-            return
-
-        from petram.remote.client_script import prepare_remote_dir
-
-        prepare_remote_dir(self.model, txt)
 
     def onServerSolve(self, evt):
         m = self.model.param.getvar('mfem_model')

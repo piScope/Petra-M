@@ -100,6 +100,19 @@ class dlg_jobsubmission(wx.Dialog):
         self.Show()        
         #wx.CallAfter(self.Fit)
         self.value = self.elp.GetValue()
+
+        from ifigure.widgets.dialog import message
+
+    def _show_notice(self, evt):
+        m = "\n".join(queue["NOTICE"])
+        ret = message(parent=self, message=m, title='Usage Notice', style=2,
+                      icon=wx.ICON_EXCLAMATION,
+                      center_on_screen=False)
+
+        print("ret here", ret)
+        if ret == "":
+            self.onCancel(evt)
+        self.EndModal(wx.ID_OK)
         
     def onCancel(self, evt):
         self.value = self.elp.GetValue()     
@@ -114,13 +127,14 @@ class dlg_jobsubmission(wx.Dialog):
             from ifigure.widgets.dialog import message
             message(self, title="Error", message="Enter job description and select at least one keyword")
             return
-        
-        self.EndModal(wx.ID_OK)
+        wx.CallAfter(self._show_notice, evt)
+        evt.Skip()
+
  
 def get_job_submisson_setting(parent, servername = '', value = None,
                               queues = None):
     
-    from petram.remote.client_script import base_remote_path
+
 
     if value[5] == '':
         from petram.remote.client_script import wdir_from_datetime
@@ -130,7 +144,9 @@ def get_job_submisson_setting(parent, servername = '', value = None,
     
     dlg = dlg_jobsubmission(parent, title='Submit to '+servername, value=value,
                             queues = queues)
+
     value = {}
+    base_remote_path = queues['SCRATHC']
     try:
         if dlg.ShowModal() == wx.ID_OK:
             value["num_nodes"] = dlg.value[0]

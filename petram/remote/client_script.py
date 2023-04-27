@@ -280,7 +280,8 @@ def get_job_queue(model, command, host=None, user=None, progdlg=None, configext=
 def interpret_job_queue_file(lines):
     lines = [x.strip() for x in lines if not x.startswith("#")
              if len(x.strip()) != 0]
-    q = {'type': lines[0], 'queues':[]}
+
+    q = {'type': lines[0], 'queues':[], 'scratch':"~/myscratch", "notice":[]}
     for l in lines[1:]:
         if l.startswith('KEYWORD'):
             if not 'keywords' in q:
@@ -288,6 +289,10 @@ def interpret_job_queue_file(lines):
             q['keywords'].append(l.split(':')[1])
         elif l.startswith('QUEUE'):
             q['queues'].append({'name':l.split(':')[1]})
+        elif l.startswith('SCRATCH'):
+            q['scratch'] = l.split(':')[1].strip()
+        elif l.startswith('NOTICE'):
+            q['notice'].append(l.split(':')[1].strip())
         else:
             data = ':'.join(l.split(':')[1:])
             param = l.split(':')[0]
