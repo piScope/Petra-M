@@ -264,10 +264,10 @@ def _get_job_queue(model, command,  host=None, user=None, progdlg=None, configex
         return False, None
     return True, value
 
-def get_job_queue(model, command, host=None, user=None, progdlg=None, configext=''):
+def get_job_queue(model, host=None, user=None, progdlg=None, configext=''):
 
     # try this first
-    command = '$PetraM/bin/get_queue_config'+configext
+    command = '$PetraM/bin/get_job_queues.py'+configext
     ret = _get_job_queue(model, command,  host=host, user=user, progdlg=progdlg, configext=configext)
     if ret[0]:
         return ret

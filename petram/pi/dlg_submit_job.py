@@ -146,7 +146,7 @@ def get_job_submisson_setting(parent, servername = '', value = None,
                             queues = queues)
 
     value = {}
-    base_remote_path = queues['SCRATHC']
+    base_remote_path = queues['SCRATCH']
     try:
         if dlg.ShowModal() == wx.ID_OK:
             value["num_nodes"] = dlg.value[0]
