@@ -290,9 +290,9 @@ def interpret_job_queue_file(lines):
         elif l.startswith('QUEUE'):
             q['queues'].append({'name':l.split(':')[1]})
         elif l.startswith('SCRATCH'):
-            q['scratch'] = l.split(':')[1].strip()
+            q['scratch'] = l.split(':')[1].rstrip()
         elif l.startswith('NOTICE'):
-            q['notice'].append(l.split(':')[1].strip())
+            q['notice'].append((":".join(l.split(':')[1:])).rstrip())
         else:
             data = ':'.join(l.split(':')[1:])
             param = l.split(':')[0]
