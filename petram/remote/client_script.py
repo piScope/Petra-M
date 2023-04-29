@@ -9,7 +9,7 @@ import base64
 import traceback
 import subprocess as sp
 
-base_remote_path = '~/myscratch/mfem_batch'
+#base_remote_path = '~/myscratch/mfem_batch'
 
 def communicate_with_timeout(p,
                              maxtimeout=np.inf,
@@ -267,7 +267,7 @@ def _get_job_queue(model, command,  host=None, user=None, progdlg=None, configex
 def get_job_queue(model, host=None, user=None, progdlg=None, configext=''):
 
     # try this first
-    command = '$PetraM/bin/get_job_queues.py'+configext
+    command = '$PetraM/bin/get_job_queues.sh'+configext
     ret = _get_job_queue(model, command,  host=host, user=user, progdlg=progdlg, configext=configext)
     if ret[0]:
         return ret
