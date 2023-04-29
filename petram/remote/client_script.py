@@ -124,8 +124,7 @@ def clean_remote_dir(model):
 
     return True
 
-def prepare_remote_dir(model, txt='', dirbase=base_remote_path,
-                       progdlg=None):
+def prepare_remote_dir(model, txt='', dirbase='', progdlg=None):
     model_dir = model.owndir()
     param = model.param
     if txt  == '':

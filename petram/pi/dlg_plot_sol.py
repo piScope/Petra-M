@@ -45,7 +45,7 @@ def setup_figure(fig, fig2):
 
 
 def read_solinfo_remote(user, server, path):
-    txt = "$PetraM/bin/get_soldir_info.py " + path
+    txt = "$PetraM/bin/get_soldir_info.sh " + path
     command = ["ssh",  "-o",
                "PasswordAuthentication=no",
                "-o",
@@ -71,12 +71,18 @@ def read_solinfo_remote(user, server, path):
 
     res = [x for x in res if len(x) > 0]
     res = res[-1].strip()
-    res = pk.loads(binascii.a2b_hex(res))
 
-    if not res[0]:
-        assert False, res[1]
+    try:
+        res2 = pk.loads(binascii.a2b_hex(res))
+    except binascii.Error:
+        print("Failed to call: "+" ".join(command))
+        print("res is :", res)
+        raise
 
-    return res[1]
+    if not res2[0]:
+        assert False, res2[1]
+
+    return res2[1]
 
 
 ThreadEnd = wx.NewEventType()
