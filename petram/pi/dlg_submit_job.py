@@ -1,6 +1,6 @@
 import os
 import wx
-from ifigure.utils.edit_list import EditListPanel
+from ifigure.utils.edit_list import EditListPanel, EDITLIST_CHANGED
 
 setting1 = {"style": wx.CB_READONLY, "choices": (
     "None", "Begin", "End", "Fail", "All")}
@@ -11,21 +11,24 @@ def elp_setting(log_keywords):
           ["Num. of Cores(total)", 16, 400, {}],
           ["Num. of OMP threads", 4, 400, {}],
           ["Wall clock", "00:15:00", 0, {}],
-          ["Queue", "Debug", 0, {}],
+          ["Queue(Repo.)", "Debug", 0, {}],
+          ["PetraM Ver.", "19700521", 0, {}],
           ["Remote Dir.", "", 0, {}],
-          ["Note", None, 235, {'nlines': 5}],
+          ["Note", None, 235, {'nlines': 3}],
           ["Keywords", None, 36, {'col': 3, 'labels': list(log_keywords)}],
           ["Notification",  "None", 4, setting1],
+          ["Adv. options",  None, 235, {'nlines': 2}],
           [None,   False,  3, {"text": "Skip sending mesh file"}], ]
     return ll
 
 
-values = ['1', '1', '1', '00:10:00', 'debug', '',
-          '', '', "None", False, False, ]
+values = ['1', '1', '1', '00:10:00', 'debug', '19700521', '',
+          '', '', "None", '', False, False, ]
+
 keys = ['num_nodes', 'num_cores', 'num_openmp', 'walltime',
-        'queue', 'rwdir',
-        'log_txt', 'log_keywords', 'notification', 'skip_mesh',
-        'retrieve_files', ]
+        'queue', 'petramver', 'rwdir',
+        'log_txt', 'log_keywords', 'notification', 'adv_opts', 'skip_mesh',
+        'retrieve_files']
 
 def_queues = {'type': 'SLURM',
               'queus': [{'name': 'debug',
@@ -55,12 +58,17 @@ class dlg_jobsubmission(wx.Dialog):
         q_names = [x['name'] for x in queues['queues']]
         dp_setting = {"style": wx.CB_DROPDOWN, "choices": q_names}
 
+        v_names = list(queues['versions'])
+        dv_setting = {"style": wx.CB_DROPDOWN, "choices": v_names}
         if "keywords" in queues:
             log_keywords = queues["keywords"]
         else:
             log_keywords = ["production", "debug"]
         ll = elp_setting(log_keywords)
-        ll[4] = ["Queue", q_names[0], 4, dp_setting]
+
+        ll[4] = [ll[4][0], q_names[0], 4, dp_setting]
+        ll[5] = [ll[5][0], v_names[0], 4, dv_setting]
+
         self.elp = EditListPanel(self, ll)
 
         hbox2.Add(self.elp, 1, wx.EXPAND | wx.RIGHT | wx.LEFT, 1)
@@ -82,12 +90,17 @@ class dlg_jobsubmission(wx.Dialog):
                     v[k] = value[n]
             if not value[4] in q_names:
                 value[4] = q_names[0]
+            if not value[5] in v_names:
+                value[5] = v_names[0]
 
-            value7 = [False]*len(log_keywords)
-            for name, v in value[7]:
+            value8 = [False]*len(log_keywords)
+            for name, v in value[8]:
                 if name in log_keywords:
-                    value7[log_keywords.index(name)] = v
-            value[7] = value7
+                    value8[log_keywords.index(name)] = v
+            value[8] = value8
+
+            tmp = [y for x, y in queues['versions'][value[5]]]
+            value[10] = '\n'.join(tmp)
 
             self.elp.SetValue(value)
 
@@ -104,7 +117,10 @@ class dlg_jobsubmission(wx.Dialog):
 
         self.Show()
         # wx.CallAfter(self.Fit)
+
         self.value = self.elp.GetValue()
+        self._queues = queues
+        self.Bind(EDITLIST_CHANGED, self.onEL_Changed)
 
         user_notice = "\n".join(queues["notice"])
         from ifigure.widgets.dialog import message
@@ -118,7 +134,6 @@ class dlg_jobsubmission(wx.Dialog):
                       center_on_parent=True,
                       labels=["Accept", "Cancel"])
 
-        print("ret here", ret)
         if ret == "cancel":
             wx.CallAfter(self.onCancel)
 
@@ -129,8 +144,8 @@ class dlg_jobsubmission(wx.Dialog):
     def onSubmit(self, evt):
         self.value = self.elp.GetValue()
 
-        if (self.value[6].strip() == '' or
-                not any([x[1] for x in self.value[7]])):
+        if (self.value[7].strip() == '' or
+                not any([x[1] for x in self.value[8]])):
 
             from ifigure.widgets.dialog import message
             message(self, title="Error",
@@ -139,15 +154,32 @@ class dlg_jobsubmission(wx.Dialog):
         self.EndModal(wx.ID_OK)
         evt.Skip()
 
+    def onEL_Changed(self, evt):
+        # update adv. options if Petra-M
+        value = self.elp.GetValue()
+
+        if self.value[5] != value[5]:
+            # need to update values for buttons
+            value[8] = [y for x, y in value[8]]
+
+            # update adv. options.
+            tmp = [y for x, y in self._queues['versions'][value[5]]]
+            value[10] = '\n'.join(tmp)
+
+            self.elp.SetValue(value)
+            self.value = value
+
+        evt.Skip()
+
 
 def get_job_submisson_setting(parent, servername='', value=None,
                               queues=None):
 
-    if value[5] == '':
+    if value[6] == '':
         from petram.remote.client_script import wdir_from_datetime
-        value[5] = wdir_from_datetime()
+        value[6] = wdir_from_datetime()
     else:
-        value[5] = os.path.basename(value[5])
+        value[6] = os.path.basename(value[6])
 
     dlg = dlg_jobsubmission(parent, title='Submit to '+servername, value=value,
                             queues=queues)
@@ -160,13 +192,18 @@ def get_job_submisson_setting(parent, servername='', value=None,
             value["num_cores"] = dlg.value[1]
             value["num_openmp"] = dlg.value[2]
             value["walltime"] = str(dlg.value[3])
-            value["queue"] = str(dlg.value[4])
+
+            queue_value = str(dlg.value[4])[:-1]+'_'+str(dlg.value[5])+")"
+            value["queue"] = queue_value
             value["retrieve_files"] = False
-            value["rwdir"] = os.path.join(base_remote_path, dlg.value[5])
-            value["log_txt"] = dlg.value[6]
-            value["log_keywords"] = dlg.value[7]
-            value["notification"] = dlg.value[8]
-            value["skip_mesh"] = dlg.value[9]
+            value["rwdir"] = os.path.join(base_remote_path, dlg.value[6])
+            value["log_txt"] = dlg.value[7]
+            value["log_keywords"] = dlg.value[8]
+            value["notification"] = dlg.value[9]
+            value["adv_opts"] = ",".join([x.strip()
+                                          for x in dlg.value[10].split("\n")])
+            value["skip_mesh"] = dlg.value[11]
+
         else:
             pass
     finally:
