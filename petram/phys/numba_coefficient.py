@@ -203,25 +203,64 @@ class NumbaCoefficient():
         return NumbaCoefficient(coeff)
 
     def __sub__(self, other):
-        raise NotImplementedError
+        '''
+        ruturn sum coefficient
+        '''
+        from petram.phys.phys_model import (PhysConstant,
+                                            PhysVectorConstant,
+                                            PhysMatrixConstant,)
+        from petram.phys.pycomplex_coefficient import (PyComplexConstant,
+                                                       PyComplexVectorConstant,
+                                                       PyComplexMatrixConstant,)
+        from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
 
-    def __div__(self, other):
-        raise NotImplementedError
+        if not isinstance(other, NumbaCoefficient):
+            if isinstance(other, (PhysConstant,
+                                  PhysVectorConstant,
+                                  PhysMatrixConstant,
+                                  PyComplexConstant,
+                                  PyComplexVectorConstant,
+                                  PyComplexMatrixConstant,)):
+                params = {"value": other.value}
+                dep = (self.mfem_numba_coeff, )
+                func = '\n'.join(['def f(ptx, coeff1):',
+                                  '    return coeff1 - value'])
 
-    def __truediv__(self, other):
-        raise NotImplementedError
+            else:
+                return NotImplemented
+        else:
+            assert self.shape == other.shape, "ndim must match to perform sum operation"
+            dep = (self.mfem_numba_coeff, other.mfem_numba_coeff)
+            params = None
+            func = '\n'.join(['def f(ptx, coeff1, coeff2):',
+                              '    return coeff1 - coeff2'])
 
-    def __pos__(self):
-        raise NotImplementedError
+        l = {}
+        exec(func, globals(), l)
+        if self.ndim == 0:
+            coeff = mfem.jit.scalar(complex=self.complex,
+                                    dependency=dep,
+                                    params=params,
+                                    debug=numba_debug)(l["f"])
+        elif self.ndim == 1:
+            coeff = mfem.jit.vector(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    params=params,
+                                    shape=self.shape)(l["f"])
 
-    def __neg__(self, other):
-        raise NotImplementedError
+        elif self.ndim == 2:
+            coeff = mfem.jit.matrix(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    params=params,
+                                    shape=self.shape)(l["f"])
 
-    def __abs__(self, other):
-        raise NotImplementedError
+        else:
+            assert False, "unsupported dim: dim=" + str(self.ndim)
 
-    def __pow__(self, exponent):
-        raise NotImplementedError
+        return NumbaCoefficient(coeff)
 
     def __mul__(self, scale):
         from petram.mfem_config import numba_debug
@@ -238,13 +277,98 @@ class NumbaCoefficient():
         dep = (self.mfem_numba_coeff, )
         params = {'scale': scale}
 
-        coeff = mfem.jit.matrix(complex=self.complex,
-                                dependency=dep,
-                                shape=self.shape,
-                                interface="simple",
-                                params=params,
-                                debug=numba_debug)(l["f"])
+        if self.ndim == 0:
+            coeff = mfem.jit.scalar(complex=self.complex,
+                                    dependency=dep,
+                                    interface="simple",
+                                    params=params,
+                                    debug=numba_debug)(l["f"])
+        elif self.ndim == 1:
+            coeff = mfem.jit.vector(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    params=params,
+                                    shape=self.shape)(l["f"])
+
+        elif self.ndim == 2:
+            coeff = mfem.jit.matrix(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    params=params,
+                                    shape=self.shape)(l["f"])
+
+        else:
+            assert False, "unsupported dim: dim=" + str(self.ndim)
+
         return NumbaCoefficient(coeff)
+
+    def __rmul__(self, scale):
+        return self.__mul__(scale)
+
+    def __div__(self, scale):
+        return self.__mul__(1./scale)
+
+    def __truediv__(self, scale):
+        return self.__mul__(1./scale)
+
+    def __rdiv__(self, scale):
+        from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
+
+        func = '\n'.join(['def f(ptx, val):',
+                          '    return scale/val'])
+
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+        params = {'scale': scale}
+
+        if self.ndim == 0:
+            coeff = mfem.jit.scalar(complex=self.complex,
+                                    dependency=dep,
+                                    interface="simple",
+                                    params=params,
+                                    debug=numba_debug)(l["f"])
+        elif self.ndim == 1:
+            coeff = mfem.jit.vector(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    params=params,
+                                    shape=self.shape)(l["f"])
+
+        elif self.ndim == 2:
+            coeff = mfem.jit.matrix(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    params=params,
+                                    shape=self.shape)(l["f"])
+
+        else:
+            assert False, "unsupported dim: dim=" + str(self.ndim)
+
+        return NumbaCoefficient(coeff)
+
+    def __rtruediv__(self, scale):
+        return self.__rdiv__(scale)
+
+    def __pos__(self):
+        raise NotImplementedError
+
+    def __neg__(self, other):
+        raise NotImplementedError
+
+    def __abs__(self, other):
+        raise NotImplementedError
+
+    def __pow__(self, exponent):
+        raise NotImplementedError
 
     def __getitem__(self, arg):
         check = self.kind == 'matrix' or self.kind == 'vector'
