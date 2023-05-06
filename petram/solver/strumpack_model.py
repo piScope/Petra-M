@@ -380,6 +380,8 @@ class StrumpackSolver(LinearSolver):
         if self.gui.mc64job.find('default') == -1:
             job = int(self.gui.mc64job.split('(')[0])
             self.spss.set_matching(job)
+        else:
+            self.spss.set_matching(ST.STRUMPACK_MATCHING_NONE)
 
         # compression
         o = getattr(ST, compression_modes[self.gui.compression])
