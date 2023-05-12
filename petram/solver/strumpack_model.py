@@ -380,6 +380,8 @@ class StrumpackSolver(LinearSolver):
         if self.gui.mc64job.find('default') == -1:
             job = int(self.gui.mc64job.split('(')[0])
             self.spss.set_matching(job)
+        else:
+            self.spss.set_matching(ST.STRUMPACK_MATCHING_NONE)
 
         # compression
         o = getattr(ST, compression_modes[self.gui.compression])
@@ -425,11 +427,13 @@ class StrumpackSolver(LinearSolver):
             self.spss.disable_gpu()
 
     def spss_options_args(self):
-        opts = ["--sp_enable_METIS_NodeNDP", ]
+        opts = ["--sp_enable_METIS_NodeND", ]
+#        opts = ["--sp_enable_METIS_NodeNDP", ]
 #               "--sp_enable_METIS_NodeND"]
         if self.gui.lossy_precision.find('default') == -1:
             tol = int(self.gui.lossy_precision.split('(')[0])
-            opts.extend(["--sp_lossy_precision", str(tol)])
+            if tol != 16:
+                opts.extend(["--sp_lossy_precision", str(tol)])
 
         if self.gui.use_gpu:
             if self.gui.cuda_cutoff.find('default') == -1:

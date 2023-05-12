@@ -83,11 +83,17 @@ class dlg_jobsubmission(wx.Dialog):
 
         button.Bind(wx.EVT_BUTTON, self.onCancel)
         button2.Bind(wx.EVT_BUTTON, self.onSubmit)
+
+        petram_version = value[4].split("_")[1][:-1]
+        queue = value[4].split("_")[0]+")"
         if value is not None:
             v, names = get_defaults()
             for k, n in enumerate(names):
                 if n in value:
-                    v[k] = value[n]
+                    value[n] = v[k]
+            print("value", value)
+            value[4] = queue
+            value[5] = petram_version
             if not value[4] in q_names:
                 value[4] = q_names[0]
             if not value[5] in v_names:
