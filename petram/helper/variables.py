@@ -472,7 +472,7 @@ class Constant(Variable):
         size = len(wverts)
         shape = [size] + list(np.array(self.value).shape)
 
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
         ret = np.zeros(shape, dtype=dtype)
         wverts = np.zeros(size)
 
@@ -584,7 +584,7 @@ class ExpressionVariable(Variable):
                      **kwargs):
         #print("Entering nodal(expr)", self.expr)
         size = len(wverts)
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
         ret = np.zeros(size, dtype=dtype)
         for kk, m, loc in zip(iele, el2v, elvertloc):
             if kk < 0:
@@ -629,7 +629,7 @@ class ExpressionVariable(Variable):
                     **kwargs):
 
         size = len(locs)
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex127 if self.complex else np.float64
         ret = np.zeros(size, dtype=dtype)
 
         l = {}
@@ -978,7 +978,7 @@ class PyFunctionVariable(Variable):
         size = len(wverts)
         shape = [size] + list(self.shape)
 
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
         ret = np.zeros(shape, dtype=dtype)
         wverts = np.zeros(size)
 
@@ -1017,7 +1017,7 @@ class PyFunctionVariable(Variable):
         if knowns is None:
             knowns = WKD()
 
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
 
         ret = [None] * len(locs)
         for idx, xyz in enumerate(locs):
@@ -1064,7 +1064,7 @@ class PyFunctionVariable(Variable):
             knowns = WKD()
 
         shape = [counts] + list(self.shape)
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
         ret = np.zeros(shape, dtype=dtype)
 
         valid_attrs = attrs[attrs != -1]
@@ -1216,7 +1216,7 @@ class CoefficientVariable(Variable):
             m = mesh.GetElementTransformation
 
         data = []
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
 
         for i, gtype, in zip(ifaces, gtypes):
             T = m(i)
@@ -1255,7 +1255,7 @@ class CoefficientVariable(Variable):
             assert False, "NCEdge Evaluator is not supported for this dimension"
 
         data = []
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
 
         for i, gtype, in zip(ifaces, gtypes):
             T = m(i)
@@ -1289,7 +1289,7 @@ class CoefficientVariable(Variable):
         call_eval = self.get_call_eval()
 
         data = []
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
 
         for i in range(len(attrs)):
             if attrs[i] == -1:
@@ -1643,9 +1643,9 @@ class GFScalarVariable(GridFunctionVariable):
 
         size = len(wverts)
         if self.gfi is None:
-            ret = np.zeros(size, dtype=np.float)
+            ret = np.zeros(size, dtype=np.float64)
         else:
-            ret = np.zeros(size, dtype=np.complex)
+            ret = np.zeros(size, dtype=np.complex128)
         wverts = np.zeros(size)
 
         for kk, m in zip(iele, el2v):
@@ -1974,9 +1974,9 @@ class GFVectorVariable(GridFunctionVariable):
         ans = []
         for comp in range(self.dim):
             if self.gfi is None:
-                ret = np.zeros(size, dtype=np.float)
+                ret = np.zeros(size, dtype=np.float64)
             else:
-                ret = np.zeros(size, dtype=np.complex)
+                ret = np.zeros(size, dtype=np.complex128)
 
             wverts = np.zeros(size)
             for kk, m in zip(iele, el2v):
