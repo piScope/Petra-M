@@ -22,7 +22,7 @@ def elp_setting(log_keywords):
     return ll
 
 
-values = ['1', '1', '1', '00:10:00', 'debug', '19700521', '',
+values = ['1', '1', '1', '00:10:00', 'regular(PROJ_19700521)', '', '',
           '', '', "None", '', False, False, ]
 
 keys = ['num_nodes', 'num_cores', 'num_openmp', 'walltime',
@@ -84,6 +84,7 @@ class dlg_jobsubmission(wx.Dialog):
         button.Bind(wx.EVT_BUTTON, self.onCancel)
         button2.Bind(wx.EVT_BUTTON, self.onSubmit)
 
+        #print("value", value)
         petram_version = value[4].split("_")[1][:-1]
         queue = value[4].split("_")[0]+")"
         if value is not None:
@@ -91,7 +92,7 @@ class dlg_jobsubmission(wx.Dialog):
             for k, n in enumerate(names):
                 if n in value:
                     value[n] = v[k]
-            print("value", value)
+
             value[4] = queue
             value[5] = petram_version
             if not value[4] in q_names:
