@@ -347,7 +347,10 @@ def submit_job(model, progdlg=None, sh_command="$PetraM/bin/launch_petram.sh"):
     N = str(remote["num_nodes"])
     o = str(remote["num_openmp"])
     q = str(remote["queue"])
+
     adv = str(remote["adv_opts"])
+    adv = ",".join([x.strip()
+                    for x in adv.split("\n") if not x.strip().startswith("#")])
 
     lk = []
     for k, v in remote["log_keywords"]:
