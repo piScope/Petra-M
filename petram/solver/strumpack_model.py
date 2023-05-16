@@ -602,7 +602,7 @@ class StrumpackSolver(LinearSolver):
                 assert False, "error during factor (Strumpack)"
 
             dprint1("calling solve")
-            ret = self.spss.solve(bbv, xxv, 0)
+            ret = self.spss.solve(bbv, xxv, False)
             if ret != ST.STRUMPACK_SUCCESS:
                 assert False, "error during solve phase (Strumpack)"
 
