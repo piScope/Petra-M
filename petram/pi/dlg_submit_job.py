@@ -17,7 +17,7 @@ def elp_setting(log_keywords):
           ["Note", None, 235, {'nlines': 3}],
           ["Keywords", None, 36, {'col': 3, 'labels': list(log_keywords)}],
           ["Notification",  "None", 4, setting1],
-          ["Adv. options",  None, 235, {'nlines': 2}],
+          ["Adv. options",  None, 235, {'nlines': 3}],
           [None,   False,  3, {"text": "Skip sending mesh file"}], ]
     return ll
 

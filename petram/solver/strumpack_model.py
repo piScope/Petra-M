@@ -62,6 +62,7 @@ attr_names = ['log_level',
               'separator_ordering_level',
               'hodlr_butterfly_levels',
               'use_single_precision',
+              'use_64_int',
               'write_mat',
               'extra_options']
 
@@ -136,6 +137,7 @@ class Strumpack(LinearSolverModel):
             ["separator ordering level", self.separator_ordering_level, 0, {}],
             ["hodlr butterfly levels", self.hodlr_butterfly_levels, 0, {}],
             ["single preceision", self.use_single_precision, 3, {"text": ""}],
+            ["use 64bit integer", self.use_64_int, 3, {"text": ""}],
             ["write matrix", self.write_mat, 3, {"text": ""}],
             ["extra options", self.extra_options, 35, {'nlines': 3}, ], ]
 
@@ -187,6 +189,7 @@ class Strumpack(LinearSolverModel):
         v["compression_abs_tol"] = "1e-8 (default)"
         v["lossy_precision"] = "16 (default)"
         v["extra_options"] = ""
+        v["use_64_int"] = False
 
         return v
 
@@ -487,17 +490,29 @@ class StrumpackSolver(LinearSolver):
         if is_complex:
             if use_single_precision:
                 dtype = np.complex64
-                spss = ST.CStrumpackSolver(*args)
+                if self.gui.use_64_int:
+                    spss = ST.C64StrumpackSolver(*args)
+                else:
+                    spss = ST.CStrumpackSolver(*args)
             else:
                 dtype = np.complex128
-                spss = ST.ZStrumpackSolver(*args)
+                if self.gui.use_64_int:
+                    spss = ST.Z64StrumpackSolver(*args)
+                else:
+                    spss = ST.ZStrumpackSolver(*args)
         else:
             if use_single_precision:
                 dtype = np.float32
-                spss = ST.SStrumpackSolver(*args)
+                if self.gui.use_64_int:
+                    spss = ST.S64StrumpackSolver(*args)
+                else:
+                    spss = ST.SStrumpackSolver(*args)
             else:
                 dtype = np.float64
-                spss = ST.DStrumpackSolver(*args)
+                if self.gui.use_64_int:
+                    spss = ST.D64StrumpackSolver(*args)
+                else:
+                    spss = ST.DStrumpackSolver(*args)
 
         assert spss.isValid(), "Failed to create STRUMPACK solver object"
         spss.set_from_options()
