@@ -17,12 +17,12 @@ def elp_setting(log_keywords):
           ["Note", None, 235, {'nlines': 3}],
           ["Keywords", None, 36, {'col': 3, 'labels': list(log_keywords)}],
           ["Notification",  "None", 4, setting1],
-          ["Adv. options",  None, 235, {'nlines': 3}],
+          ["Adv. options (# is comment)",  None, 235, {'nlines': 3}],
           [None,   False,  3, {"text": "Skip sending mesh file"}], ]
     return ll
 
 
-values = ['1', '1', '1', '00:10:00', 'debug', '19700521', '',
+values = ['1', '1', '1', '00:10:00', 'regular(PROJ_19700521)', '', '',
           '', '', "None", '', False, False, ]
 
 keys = ['num_nodes', 'num_cores', 'num_openmp', 'walltime',
@@ -84,6 +84,7 @@ class dlg_jobsubmission(wx.Dialog):
         button.Bind(wx.EVT_BUTTON, self.onCancel)
         button2.Bind(wx.EVT_BUTTON, self.onSubmit)
 
+        print("value", value)
         petram_version = value[4].split("_")[1][:-1]
         queue = value[4].split("_")[0]+")"
         if value is not None:
@@ -91,7 +92,7 @@ class dlg_jobsubmission(wx.Dialog):
             for k, n in enumerate(names):
                 if n in value:
                     value[n] = v[k]
-            print("value", value)
+
             value[4] = queue
             value[5] = petram_version
             if not value[4] in q_names:
@@ -206,10 +207,9 @@ def get_job_submisson_setting(parent, servername='', value=None,
             value["log_txt"] = dlg.value[7]
             value["log_keywords"] = dlg.value[8]
             value["notification"] = dlg.value[9]
-            value["adv_opts"] = ",".join([x.strip()
-                                          for x in dlg.value[10].split("\n")])
-            value["skip_mesh"] = dlg.value[11]
+            value["adv_opts"] = dlg.value[10]
 
+            value["skip_mesh"] = dlg.value[11]
         else:
             pass
     finally:
