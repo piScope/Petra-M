@@ -348,6 +348,9 @@ def submit_job(model, progdlg=None, sh_command="$PetraM/bin/launch_petram.sh"):
     adv = str(remote["adv_opts"])
     adv = ",".join([x.strip()
                     for x in adv.split("\n") if not x.strip().startswith("#")])
+    env = str(remote["env_opts"])
+    env = ",".join([x.strip()
+                    for x in env.split("\n") if not x.strip().startswith("#")])
 
     lk = []
     for k, v in remote["log_keywords"]:
@@ -375,6 +378,8 @@ def submit_job(model, progdlg=None, sh_command="$PetraM/bin/launch_petram.sh"):
         exe = exe + ' -V ' + q2
     if adv != "":
         exe = exe + ' -A ' + adv
+    if env != "":
+        exe = exe + ' -E ' + env
 
     command = 'cd '+rwdir+';'+exe
     p = launch_ssh_command(model, command)

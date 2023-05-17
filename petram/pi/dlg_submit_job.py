@@ -17,17 +17,18 @@ def elp_setting(log_keywords):
           ["Note", None, 235, {'nlines': 3}],
           ["Keywords", None, 36, {'col': 3, 'labels': list(log_keywords)}],
           ["Notification",  "None", 4, setting1],
-          ["Adv. options (# is comment)",  None, 235, {'nlines': 3}],
+          ["Adv. options\n(# is comment)",  None, 235, {'nlines': 3}],
+          ["Env  options",  None, 235, {'nlines': 2}],
           [None,   False,  3, {"text": "Skip sending mesh file"}], ]
     return ll
 
 
 values = ['1', '1', '1', '00:10:00', 'regular(PROJ_19700521)', '', '',
-          '', '', "None", '', False, False, ]
+          '', '', "None", '', '', False, False, ]
 
 keys = ['num_nodes', 'num_cores', 'num_openmp', 'walltime',
         'queue', 'petramver', 'rwdir',
-        'log_txt', 'log_keywords', 'notification', 'adv_opts', 'skip_mesh',
+        'log_txt', 'log_keywords', 'notification', 'adv_opts', 'env_opts', 'skip_mesh',
         'retrieve_files']
 
 def_queues = {'type': 'SLURM',
@@ -106,8 +107,10 @@ class dlg_jobsubmission(wx.Dialog):
                     value8[log_keywords.index(name)] = v
             value[8] = value8
 
-            tmp = [y for x, y in queues['versions'][value[5]]]
+            tmp = [y for x, y in queues['versions'][value[5]] if x=='srun_option']
             value[10] = '\n'.join(tmp)
+            tmp = [y for x, y in queues['versions'][value[5]] if x=='env_option']
+            value[11] = '\n'.join(tmp)
 
             self.elp.SetValue(value)
 
@@ -170,8 +173,12 @@ class dlg_jobsubmission(wx.Dialog):
             value[8] = [y for x, y in value[8]]
 
             # update adv. options.
-            tmp = [y for x, y in self._queues['versions'][value[5]]]
+            #tmp = [y for x, y in self._queues['versions'][value[5]]]
+            #value[10] = '\n'.join(tmp)
+            tmp = [y for x, y in self._queues['versions'][value[5]] if x=='srun_option']
             value[10] = '\n'.join(tmp)
+            tmp = [y for x, y in self._queues['versions'][value[5]] if x=='env_option']
+            value[11] = '\n'.join(tmp)
 
             self.elp.SetValue(value)
             self.value = value
@@ -208,8 +215,8 @@ def get_job_submisson_setting(parent, servername='', value=None,
             value["log_keywords"] = dlg.value[8]
             value["notification"] = dlg.value[9]
             value["adv_opts"] = dlg.value[10]
-
-            value["skip_mesh"] = dlg.value[11]
+            value["env_opts"] = dlg.value[11]
+            value["skip_mesh"] = dlg.value[12]
         else:
             pass
     finally:
