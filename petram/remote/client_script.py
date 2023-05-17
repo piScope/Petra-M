@@ -365,6 +365,7 @@ def submit_job(model, progdlg=None, sh_command="$PetraM/bin/launch_petram.sh"):
 
     lk = base64.b64encode(lk.encode()).decode()
     lt = base64.b64encode(lt.encode()).decode()
+    env = base64.b64encode(env.encode()).decode()    
 
     q1 = q.strip().split("(")[0]
     q2 = "" if q.find("(") == -1 else "(".join(q.strip().split("(")[1:])[:-1]
