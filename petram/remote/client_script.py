@@ -9,6 +9,7 @@ import base64
 import traceback
 import subprocess as sp
 
+
 def communicate_with_timeout(p,
                              maxtimeout=np.inf,
                              timeout=2,
@@ -346,10 +347,10 @@ def submit_job(model, progdlg=None, sh_command="$PetraM/bin/launch_petram.sh"):
     q = str(remote["queue"])
 
     adv = str(remote["adv_opts"])
-    adv = ",".join([x.strip()
+    adv = "\n".join([x.strip()
                     for x in adv.split("\n") if not x.strip().startswith("#")])
     env = str(remote["env_opts"])
-    env = ",".join([x.strip()
+    env = "\n".join([x.strip()
                     for x in env.split("\n") if not x.strip().startswith("#")])
 
     lk = []
@@ -365,7 +366,8 @@ def submit_job(model, progdlg=None, sh_command="$PetraM/bin/launch_petram.sh"):
 
     lk = base64.b64encode(lk.encode()).decode()
     lt = base64.b64encode(lt.encode()).decode()
-    env = base64.b64encode(env.encode()).decode()    
+    env = base64.b64encode(env.encode()).decode()
+    adv = base64.b64encode(adv.encode()).decode()
 
     q1 = q.strip().split("(")[0]
     q2 = "" if q.find("(") == -1 else "(".join(q.strip().split("(")[1:])[:-1]
