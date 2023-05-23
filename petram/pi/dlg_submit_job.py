@@ -8,6 +8,7 @@ setting1 = {"style": wx.CB_READONLY, "choices": (
 
 def elp_setting(log_keywords):
     ll = [["Num. of Nodes", 1, 400, {}],
+
           ["Num. of Cores(total)", 16, 400, {}],
           ["Num. of OMP threads", 4, 400, {}],
           ["Wall clock", "00:15:00", 0, {}],
@@ -17,9 +18,12 @@ def elp_setting(log_keywords):
           ["Note", None, 235, {'nlines': 3}],
           ["Keywords", None, 36, {'col': 3, 'labels': list(log_keywords)}],
           ["Notification",  "None", 4, setting1],
-          ["Adv. options\n(# is comment)",  None, 235, {'nlines': 3}],
-          ["Env  options",  None, 235, {'nlines': 2}],
-          [None,   False,  3, {"text": "Skip sending mesh file"}], ]
+          ["-> Adv. options"],
+          ["Run ", None, 235, {'nlines': 3}],
+          ["Env. ", None, 235, {'nlines': 2}],
+          ["<-"],
+          [None,   False,  3, {"text": "Skip sending mesh file"}],
+          ]
     return ll
 
 
@@ -85,7 +89,7 @@ class dlg_jobsubmission(wx.Dialog):
         button.Bind(wx.EVT_BUTTON, self.onCancel)
         button2.Bind(wx.EVT_BUTTON, self.onSubmit)
 
-        print("value", value)
+        #print("value", value)
         petram_version = value[4].split("_")[1][:-1]
         queue = value[4].split("_")[0]+")"
         if value is not None:
@@ -107,9 +111,11 @@ class dlg_jobsubmission(wx.Dialog):
                     value8[log_keywords.index(name)] = v
             value[8] = value8
 
-            tmp = [y for x, y in queues['versions'][value[5]] if x=='srun_option']
+            tmp = [y for x, y in queues['versions']
+                   [value[5]] if x == 'srun_option']
             value[10] = '\n'.join(tmp)
-            tmp = [y for x, y in queues['versions'][value[5]] if x=='env_option']
+            tmp = [y for x, y in queues['versions']
+                   [value[5]] if x == 'env_option']
             value[11] = '\n'.join(tmp)
 
             self.elp.SetValue(value)
@@ -175,9 +181,11 @@ class dlg_jobsubmission(wx.Dialog):
             # update adv. options.
             #tmp = [y for x, y in self._queues['versions'][value[5]]]
             #value[10] = '\n'.join(tmp)
-            tmp = [y for x, y in self._queues['versions'][value[5]] if x=='srun_option']
+            tmp = [y for x, y in self._queues['versions']
+                   [value[5]] if x == 'srun_option']
             value[10] = '\n'.join(tmp)
-            tmp = [y for x, y in self._queues['versions'][value[5]] if x=='env_option']
+            tmp = [y for x, y in self._queues['versions']
+                   [value[5]] if x == 'env_option']
             value[11] = '\n'.join(tmp)
 
             self.elp.SetValue(value)
