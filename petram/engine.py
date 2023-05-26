@@ -509,7 +509,8 @@ class Engine(object):
         else:
             petram.mfem_config.numba_debug = False
 
-        dprint1("petram.mfem_config.numba_debug", petram.mfem_config.numba_debug)
+        dprint1("petram.mfem_config.numba_debug",
+                petram.mfem_config.numba_debug)
         petram.mfem_config.allow_python_function_coefficient = model[
             "General"].allow_fallback_nonjit
 
@@ -2668,8 +2669,10 @@ class Engine(object):
                     else:
                         index2 = index2 + node.get_essential_idx(k)
             if len(self.emeshes[phys.emesh_idx].bdr_attributes.ToList()) > 0:
-                ess_bdr1 = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
-                ess_bdr2 = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
+                ess_bdr1 = [0] * \
+                    self.emeshes[phys.emesh_idx].bdr_attributes.Max()
+                ess_bdr2 = [0] * \
+                    self.emeshes[phys.emesh_idx].bdr_attributes.Max()
             else:
                 ess_bdr1 = []
                 ess_bdr2 = []
@@ -2933,7 +2936,6 @@ class Engine(object):
         # if self.emesh_data is None:
         #    self.emesh_data = MeshExt()
         self.emeshes = []
-
 
         if meshmodel is None:
             parent = self.model['Mesh']
@@ -3781,7 +3783,7 @@ class ParallelEngine(Engine):
                     o = child[k]
                     if not o.enabled:
                         continue
-                    #dprint1(k)
+                    # dprint1(k)
                     if o.isMeshGenerator:
                         smesh = o.run()
                         if len(smesh.GetBdrAttributeArray()) > 0:
@@ -3908,6 +3910,10 @@ class ParallelEngine(Engine):
 
             mesh_name = header+'.'+smyid
             mesh.ParPrintToFile(mesh_name, 16)
+
+            header = 'solsermesh_' + str(k)
+            mesh_name = header+'.mesh'
+            mesh.PrintAsSerial(mesh_name)
 
     def solfile_suffix(self):
         from mpi4py import MPI
