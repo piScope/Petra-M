@@ -57,10 +57,10 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
         ret1 = [["dwc", self.dwc_name, 0, {}, ],
                 ["args.", self.dwc_args, 0, {}, ], ]
         value1 = [self.dwc_name, self.dwc_args]
-        panel2 = [[None, [False, value1, ], 27, [{'text': 'Use DWC (postprocess)'},
+        panel2 = [[None, [False, value1, ], 27, [{'text': 'use DWC (postprocess)'},
                                                  {'elp': ret1}, ]], ]
 
-        return ([["Postporcess solution", self.postprocess_sol, 0, {}, ],
+        return ([["Postprocess solution", self.postprocess_sol, 0, {}, ],
                  ["Counter name", self.counter_name, 0, {}, ]] + panels + panel2)
 
     def get_panel1_value(self):

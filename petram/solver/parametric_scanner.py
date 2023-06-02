@@ -156,9 +156,15 @@ class SimpleScanner(DefaultParametricScanner):
 
         dprint1("Simple Scanner: Target " + str(self.target_phys))
         for k, name in enumerate(names):
+            id_list = []
             for phys in self.target_phys:
-                dprint1("Simple Scanner: Setting " + name + ':' + str(data[k]))
+                if id(phys._global_ns) in id_list:
+                    continue
+
+                dprint1("Simple Scanner: Setting " + name + ':' + str(data[k]) +
+                        " setting in " + str(phys))
                 phys._global_ns[name] = data[k]
+                id_list.append(id(phys._global_ns))
 
     @property
     def names(self):

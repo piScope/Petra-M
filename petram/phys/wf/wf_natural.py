@@ -12,7 +12,7 @@ from petram.model import Domain, Bdry, Edge, Point, Pair
 from petram.phys.phys_model import Phys, PhysModule
 
 data =  (('label1', VtableElement(None, 
-                                  guilabel = 'Natrual BC',
+                                  guilabel = 'Natural BC',
                                   default = "",
                                   tip = "this does not constrain the model" )),)
 

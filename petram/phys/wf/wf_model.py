@@ -22,6 +22,11 @@ class WF_DefDomain(Domain, Phys):
     def __init__(self, **kwargs):
         super(WF_DefDomain, self).__init__(**kwargs)
 
+    def attribute_set(self, v):
+        super(WF_DefDomain, self).attribute_set(v)        
+        v['sel_readonly'] = False
+        v['sel_index'] = ['remaining']
+        return v
     
     def get_panel1_value(self):
         return None

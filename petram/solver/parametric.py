@@ -31,17 +31,18 @@ class Parametric(SolveStep, NS_mixin):
     def panel1_param(self):
         v = self.get_panel1_value()
         return [["Initial value setting",   self.init_setting,  0, {}, ],
-                ["Postporcess solution",    self.postprocess_sol,   0, {}, ],
+                ["Postprocess solution",    self.postprocess_sol,   0, {}, ],
                 ["trial phys. ",   self.phys_model, 0, {}, ],
                 ["assembly method",  'Full assemble',  4, {"readonly": True,
                                                            "choices": list(assembly_methods)}],
                 self.make_param_panel('scanner',  v[2]),
-                ["save separate mesh",  True,  3, {"text": ""}],
                 ["inner solver", '', 2, None],
-                ["clear working dir.", False, 3, {"text": ""}],
+                [None,  True,  3, {"text": "save separate mesh"}],
+                [None, False, 3, {"text": "clear working dir."}],
                 [None,  self.use_geom_gen,  3, {
                     "text": "run geometry generator"}],
                 [None,  self.use_mesh_gen,  3, {"text": "run mesh generator"}],
+                [None,  self.use_profiler,  3, {"text": "use profiler"}],
                 ]
 
     def get_panel1_value(self):
@@ -55,26 +56,28 @@ class Parametric(SolveStep, NS_mixin):
                 self.phys_model,
                 str(txt),
                 str(self.scanner),
-                self.save_separate_mesh,
                 self.get_inner_solver_names(),
+                self.save_separate_mesh,
                 self.clear_wdir,
                 self.use_geom_gen,
-                self.use_mesh_gen,)
+                self.use_mesh_gen,
+                self.use_profiler,)
 
     def import_panel1_value(self, v):
         self.init_setting = str(v[0])
         self.postprocess_sol = v[1]
         self.phys_model = str(v[2])
-        self.assembly_method = assembly_methods[v[-7]]
-        self.scanner = v[-6]
+        self.assembly_method = assembly_methods[v[-8]]
+        self.scanner = v[-7]
         self.save_separate_mesh = v[-5]
-        self.clear_wdir = v[-3]
-        self.use_geom_gen = v[-2]
-        self.use_mesh_gen = v[-1]
+        self.clear_wdir = v[-4]
+        self.use_geom_gen = v[-3]
+        self.use_mesh_gen = v[-2]
         if self.use_geom_gen:
             self.use_mesh_gen = True
         if self.use_mesh_gen:
             self.assembly_method = 0
+        self.use_profiler = bool(v[-1])
 
     def get_inner_solver_names(self):
         names = [s.name() for s in self.get_active_solvers()]
@@ -97,6 +100,7 @@ class Parametric(SolveStep, NS_mixin):
     def get_possible_child(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
+        from petram.solver.nl_solver_model import NLSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
         from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.set_var import SetVar
@@ -106,15 +110,18 @@ class Parametric(SolveStep, NS_mixin):
             return [MultiLvlStationarySolver,
                     StdSolver,
                     StdMeshAdaptSolver,
+                    NLSolver,
                     DWCCall, ForLoop, SetVar]
         except:
             return [MultiLvlStationarySolver,
                     StdSolver,
+                    NLSolver,
                     DWCCall, ForLoop, SetVar]
 
     def get_possible_child_menu(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
+        from petram.solver.nl_solver_model import NLSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
         from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.set_var import SetVar
@@ -123,6 +130,7 @@ class Parametric(SolveStep, NS_mixin):
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
             return [("", StdSolver),
                     ("", MultiLvlStationarySolver),
+                    ("", NLSolver),
                     ("extra", ForLoop),
                     ("", StdMeshAdaptSolver),
                     ("", DWCCall),
@@ -130,6 +138,7 @@ class Parametric(SolveStep, NS_mixin):
         except:
             return [("", StdSolver),
                     ("", MultiLvlStationarySolver),
+                    ("", NLSolver),
                     ("extra", ForLoop),
                     ("", DWCCall),
                     ("!", SetVar)]
@@ -178,23 +187,23 @@ class Parametric(SolveStep, NS_mixin):
     def _run_full_assembly(self, engine, solvers, scanner, is_first=True):
 
         postprocess = self.get_pp_setting()
-
         for kcase, case in enumerate(scanner):
-            is_first = True
+            is_first0 = True
 
             od = self.go_case_dir(engine, kcase, True)
 
             is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
 
-            if is_new_mesh or kcase == 0:
+            if is_new_mesh or is_first:
                 engine.preprocess_modeldata()
+                is_first = False
 
             self.prepare_form_sol_variables(engine)
 
             self.init(engine)
 
             for ksolver, s in enumerate(solvers):
-                is_first = s.run(engine, is_first=is_first)
+                is_first0 = s.run(engine, is_first=is_first0)
                 engine.add_FESvariable_to_NS(self.get_phys())
                 engine.store_x()
                 if self.solve_error[0]:
@@ -232,10 +241,13 @@ class Parametric(SolveStep, NS_mixin):
                     instance.assemble(inplace=False)
                 else:
                     engine.set_update_flag('ParametricRHS')
-                    for phys in phys_target:
-                        engine.run_update_param(phys)
-                    for phys in phys_range:
-                        engine.run_update_param(phys)
+
+                    done = []
+                    for phys in phys_target + phys_range:
+                        if phys not in done:
+                            engine.run_update_param(phys)
+                            done.append(phys)
+
                     engine.run_apply_essential(phys_target,
                                                phys_range,
                                                update=True)
@@ -285,6 +297,8 @@ class Parametric(SolveStep, NS_mixin):
                         if ksol == 0:
                             instance.save_solution(mesh_only=True,
                                                    save_parmesh=s.save_parmesh)
+                            save_mesh_linkdir = None
+
                         A.reformat_central_mat(solall, ksol, X[0], mask)
                         instance.sol = X[0]
                         for p in instance.probe:
@@ -293,10 +307,16 @@ class Parametric(SolveStep, NS_mixin):
                         od = self.go_case_dir(engine,
                                               ksol,
                                               ksolver == 0)
+
                         instance.save_solution(ksol=ksol,
                                                skip_mesh=False,
                                                mesh_only=False,
-                                               save_parmesh=s.save_parmesh)
+                                               save_parmesh=s.save_parmesh,
+                                               save_mesh_linkdir=save_mesh_linkdir)
+
+                        if save_mesh_linkdir is None:
+                            save_mesh_linkdir = os.getcwd()
+
                         engine.sol = instance.sol
                         instance.save_probe()
 
@@ -326,6 +346,8 @@ class Parametric(SolveStep, NS_mixin):
         os.chdir(od)
         for p in probes:
             p.write_file()
+            # else:
+            #    dprint1("skipping summarizing probe data for ", p.name)
 
     def set_scanner_physmodel(self, scanner):
         solvers = self.get_active_solvers()
@@ -337,6 +359,7 @@ class Parametric(SolveStep, NS_mixin):
         scanner.set_phys_models(phys_models)
         return solvers
 
+    @debug.use_profiler
     def run(self, engine, is_first=True):
         #
         # is_first is not used

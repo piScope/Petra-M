@@ -9,4 +9,4 @@ for m in model.walk():
     #print m.__class__, c
     m.__class__ = c
 
-model.set_guiscript('.scripts.helpers.open_gui')
+#model.set_guiscript('.scripts.helpers.open_gui')

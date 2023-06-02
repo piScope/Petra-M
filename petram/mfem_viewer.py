@@ -27,6 +27,7 @@ except ImportError:
 from petram.utils import check_cluster_access
 has_cluster_access = check_cluster_access()
 
+
 def setup_figure(fig):
     fig.nsec(1)
     fig.property(fig.get_axes(0), 'axis', False)
@@ -52,7 +53,7 @@ def MFEM_menus(parent):
 
              ("Reload Mesh",  self.onLoadMesh, None),
              ("Mesh visualization +",  self.onMeshVisPlus, None),
-             ("Mesh visualization -",  self.onMeshVisMinus, None),             
+             ("Mesh visualization -",  self.onMeshVisMinus, None),
              ("!", None, None),
              ("+Namespace", None, None),
              ("New...", self.onNewNS, None),
@@ -72,17 +73,16 @@ def MFEM_menus(parent):
              ("Clear sol", self.onClearSol, None),
              ("Preprocess data",   self.onRunPreprocess, None),
              ("!", None, None),
-             ("!", None, None),]
+             ("!", None, None), ]
 
     if has_cluster_access:
         menu2 = [("+Cluster", None, None),
                  ("Setting...", self.onServerSetting, None),
                  ("Solve...", self.onServerSolve, None),
                  ("Retrieve File", self.onServerRetrieve, None),
-                 ("!", None, None),]
+                 ("!", None, None), ]
     else:
         menu2 = []
-
 
     menu3 = [("+Plot", None, None),
              ("Function...",    self.onPlotExpr, None),
@@ -100,13 +100,12 @@ def MFEM_menus(parent):
              ("Reset Model", self.onResetModel, None), ]
     return menu1 + menu2 + menu3
 
-from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
 
 class MFEMViewerCanvas(ifigure_canvas):
     def __init__(self, *args, **kwags):
         self._mfemviewer_spacehit = False
         return ifigure_canvas.__init__(self, *args, **kwags)
-    
+
     def unselect_all(self):
         ifigure_canvas.unselect_all(self)
         self.TopLevelParent._dom_bdr_sel = ([], [], [], [])
@@ -117,34 +116,36 @@ class MFEMViewerCanvas(ifigure_canvas):
             self._mfemviewer_spacehit = True
 
         return ifigure_canvas.onKey(self, evt)
+
     def onKey2(self, evt):
-        keycode = evt.guiEvent.GetKeyCode()        
+        keycode = evt.guiEvent.GetKeyCode()
         if keycode == wx.WXK_SPACE:
             if self._mfemviewer_spacehit:
                 self.TopLevelParent.handle_shifthit()
         self._mfemviewer_spacehit = False
         return ifigure_canvas.onKey2(self, evt)
-        
+
+
 class MFEMViewer(BookViewer):
     def __init__(self, *args, **kargs):
         kargs['isattachable'] = False
         kargs['isinteractivetarget'] = False
-        kargs['ismultipage'] = False        
+        kargs['ismultipage'] = False
         BookViewer.__init__(self, *args, **kargs)
         extra_menu = wx.Menu()
         self.menuBar.Insert(self.menuBar.GetMenuCount()-1,
                             extra_menu, "MFEM")
         menus = MFEM_menus(self)
         ret = BuildMenu(extra_menu, menus)
-        
+
         data = ret[ID_SOL_FOLDER]
         if len(data) == 2:
             self._solmenu, item = data
             self._ID_SOL_FOLDER = item.GetId()
         else:
-            self._solmenu = data            
+            self._solmenu = data
             self._ID_SOL_FOLDER = ID_SOL_FOLDER
-            
+
         self._hidemesh = True
         self._sel_mode = ''  # selecting particular geomgetry element
         self._view_mode = ''  # ('geom', 'mesh', 'phys')
@@ -195,7 +196,7 @@ class MFEMViewer(BookViewer):
                                          btask,
                                          mode='3D',
                                          refresh=refresh)
-            
+
         od = self.model.param.getvar('mfem_model')
         od.set_root_path(self.model.owndir())
 
@@ -237,11 +238,11 @@ class MFEMViewer(BookViewer):
     @property
     def view_mode_group(self):
         return self._view_mode_group
-    
+
     @property
     def dom_bdr_sel(self):
         return self._dom_bdr_sel
-    
+
     def set_view_mode(self, mode, mm=None):
         p = mm
         while p is not None:
@@ -438,7 +439,7 @@ class MFEMViewer(BookViewer):
                 sc.load_script(os.path.join(
                     self.model.namespaces.owndir(), file))
             if file.endswith('.dat'):
-                fid = open(os.path.join(dir, file), 'r')
+                fid = open(os.path.join(dir, file), 'rb')
                 data = pickle.load(fid)
                 fid.close()
                 obj = self.model.datasets.add_childobject(
@@ -455,39 +456,47 @@ class MFEMViewer(BookViewer):
         evt.Skip()
 
     def onOpenModelS(self, evt):
-        import imp, shutil
+        import imp
+        import shutil
         import ifigure.utils.pickle_wrapper as pickle
         from ifigure.mto.py_code import PyData
-        from ifigure.mto.py_script import PyScript        
-        path = dialog.read(message='Select model file to read', wildcard='*.py')
+        from ifigure.mto.py_script import PyScript
+        path = dialog.read(
+            message='Select model file to read', wildcard='*.py')
         try:
             print("loading", path)
-            m = imp.load_source('petram.user_model', path)        
+            m = imp.load_source('petram.user_model', path)
             model = m.make_model()
         except:
             print(path)
-            dialog.showtraceback(parent = self,
-                               txt='Model file load error',
-                               title='Error',
-                               traceback=traceback.format_exc())
+            dialog.showtraceback(parent=self,
+                                 txt='Model file load error',
+                                 title='Error',
+                                 traceback=traceback.format_exc())
             return
         dir = os.path.dirname(path)
         c = [child for name, child in self.model.datasets.get_children()]
-        for child in c: child.destroy()
+        for child in c:
+            child.destroy()
         c = [child for name, child in self.model.namespaces.get_children()]
-        for child in c: child.destroy()
-            
+        for child in c:
+            child.destroy()
+
         for file in os.listdir(dir):
-            if file == os.path.basename(path): continue
+            if file == os.path.basename(path):
+                continue
             if file.endswith('.py'):
-                shutil.copy(os.path.join(dir, file), self.model.namespaces.owndir())
+                shutil.copy(os.path.join(dir, file),
+                            self.model.namespaces.owndir())
                 sc = self.model.namespaces.add_childobject(PyScript, file[:-3])
-                sc.load_script(os.path.join(self.model.namespaces.owndir(), file))
+                sc.load_script(os.path.join(
+                    self.model.namespaces.owndir(), file))
             if file.endswith('.dat'):
                 fid = open(os.path.join(dir, file), 'rb')
                 data = pickle.load(fid)
                 fid.close()
-                obj = self.model.datasets.add_childobject(PyData, file[:-6]+'data')
+                obj = self.model.datasets.add_childobject(
+                    PyData, file[:-6]+'data')
                 obj.setvar(data)
 
         self.model.param.setvar('mfem_model', model)
@@ -495,11 +504,10 @@ class MFEMViewer(BookViewer):
         self.load_mesh()
 
         if self.editdlg is not None:
-            od = self.model.param.getvar('mfem_model')        
-            self.editdlg.set_model(od)        
+            od = self.model.param.getvar('mfem_model')
+            self.editdlg.set_model(od)
 
         evt.Skip()
-
 
     def _getSelectedIndexVolume(self, already_selected_surface):
         objs = [o().figobj for o in self.canvas.selection
@@ -519,7 +527,7 @@ class MFEMViewer(BookViewer):
 
     def _getSelectedIndex(self, mode='face'):
         objs = [o().figobj for o in self.canvas.selection
-                        if o() is not None]
+                if o() is not None]
 
         sel = []
         oo = []
@@ -711,10 +719,10 @@ class MFEMViewer(BookViewer):
         else:
             top_win = self
         dlg = dialog.progressbar(top_win, 'Loading mesh...',
-                                'In progress', 5)
+                                 'In progress', 5)
         dlg.Show()
         wx.GetApp().Yield()
-        
+
         self.load_mesh()
         self._hidemesh = True
 
@@ -763,19 +771,19 @@ class MFEMViewer(BookViewer):
                                  txt='Error during run_config after loading mesh',
                                  title='Error (run_config)',
                                  traceback=exception)
-            
+
         if err != -1:
             self.plot_mfem_geom()
             self.use_toolbar_palette('petram_phys', mode='3D')
-            
+
     def onMeshVisPlus(self, evt):
         self._mesh_vis = self._mesh_vis + 1
         self.onLoadMesh(evt)
-        
-    def onMeshVisMinus(self, evt):        
+
+    def onMeshVisMinus(self, evt):
         self._mesh_vis = self._mesh_vis - 1
         self.onLoadMesh(evt)
-        
+
     def plot_mfem_geom(self):
         from petram.mesh.geo_plot import plot_geometry
         from petram.mesh.read_mfemmesh import extract_mesh_data
@@ -940,13 +948,13 @@ class MFEMViewer(BookViewer):
                     self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
-                
+
         self._dom_bdr_sel = (self._dom_bdr_sel[0],
                              self._dom_bdr_sel[1],
                              tuple(i),
                              self._dom_bdr_sel[3],)
-        
-        wx.CallAfter(self.canvas.refresh_hl)             
+
+        wx.CallAfter(self.canvas.refresh_hl)
 
     def highlight_point(self, i, unselect=True):
         '''
@@ -976,7 +984,7 @@ class MFEMViewer(BookViewer):
                              self._dom_bdr_sel[2],
                              tuple(i),)
 
-        wx.CallAfter(self.canvas.refresh_hl)                             
+        wx.CallAfter(self.canvas.refresh_hl)
 
     def highlight_none(self):
         self.canvas.unselect_all()
@@ -1027,7 +1035,7 @@ class MFEMViewer(BookViewer):
 
     def onSelectionPanel(self, evt):
         from petram.pi.selection_palette import SelectionPalette
-        
+
         if self.selection_palette is None:
             self.selection_palette = SelectionPalette(
                 self, wx.ID_ANY, 'Selection')
@@ -1082,6 +1090,27 @@ class MFEMViewer(BookViewer):
                                  title='Error',
                                  traceback=traceback.format_exc())
 
+    def set_num_threads(self, nproc=1):
+        import os
+        import multiprocessing
+
+        num_threads1 = self.model.param.getvar('openmp_num_threads')
+        if num_threads1 is None:
+            self.model.param.setvar('openmp_num_threads', 'auto')
+            num_threads1 = 1
+        if num_threads1 == 'auto':
+            ncpus = multiprocessing.cpu_count()
+            num_threads1 = ncpus//nproc
+
+        os.environ["OMP_NUM_THREADS"] = str(num_threads1)
+
+        num_threads2 = self.model.param.getvar('openblas_num_threads')
+        if num_threads2 is None:
+            self.model.param.setvar('openblas_num_threads', 1)
+            num_threads2 = 1
+        if num_threads2 != 'auto':
+            os.environ["OPENBLAS_NUM_THREADS"] = str(num_threads2)
+
     def onSerDriver(self, evt):
         m = self.model.param.getvar('mfem_model')
         m.set_root_path(self.model.owndir())
@@ -1096,19 +1125,21 @@ class MFEMViewer(BookViewer):
                                  title='Error',
                                  traceback=traceback.format_exc())
             return
+
+        self.set_num_threads()
         self.model.scripts.run_serial.RunT(debug=debug_level)
-        
+
         os.chdir(odir)
-        
+
     def onParDriver(self, evt):
         m = self.model.param.getvar('mfem_model')
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
-        odir = os.getcwd()        
+        odir = os.getcwd()
         try:
             self.run_preprocess()
         except:
-            os.chdir(odir)            
+            os.chdir(odir)
             dialog.showtraceback(parent=self,
                                  txt='Failed to during pre-processing model data',
                                  title='Error',
@@ -1117,12 +1148,14 @@ class MFEMViewer(BookViewer):
         nproc = self.model.param.getvar('nproc')
         if nproc is None:
             nproc = 2
+        self.set_num_threads(nproc)
+
         self.model.scripts.run_parallel.RunT(nproc=nproc, debug=debug_level)
-        
+
         os.chdir(odir)
-                                             
+
     def viewer_canvasmenu(self):
-        menus = [("+MFEM", None, None),]
+        menus = [("+MFEM", None, None), ]
         if self._hidemesh:
             menus.append(("Show Mesh",  self.onShowMesh, None))
         else:
@@ -1135,7 +1168,7 @@ class MFEMViewer(BookViewer):
         if self._view_mode == 'geom':
             menus.append(
                 ("Copy " + selmode + " selection with prefix", self.onCopySelection2, None))
-                
+
         # if len(self.canvas.selection) > 0:
         #    if self._view_mode == 'mesh':
         #        menus.append(("Show meshed " + selmode, self.onShowMeshedEntity, None))
@@ -1221,16 +1254,17 @@ class MFEMViewer(BookViewer):
 
         palette_menu = []
         if self.selection_palette is None:
-            palette_menu.append(("Selection palette...", self.onSelectionPanel, None),)
+            palette_menu.append(
+                ("Selection palette...", self.onSelectionPanel, None),)
 
-        if (self._view_mode == 'geom' and 
+        if (self._view_mode == 'geom' and
             self._view_mode_group.startswith('OCC') and
-            self.geom_info_palette is None):
+                self.geom_info_palette is None):
             palette_menu.append(("Geomtry info ...", self.onGeomInfo,  None),)
 
         if len(palette_menu) > 0:
-             menus.append(('---', None, None),)
-             menus.extend(palette_menu)
+            menus.append(('---', None, None),)
+            menus.extend(palette_menu)
 
         menus.extend([("!", None, None),
                       ("---", None, None), ])
@@ -1500,7 +1534,7 @@ class MFEMViewer(BookViewer):
                        message='Namespace is built successfully. ',
                        title='Passed',
                        center_on_screen=True)
-        
+
         evt.Skip()
 
     def onClearSol(self, evt):
@@ -1621,17 +1655,17 @@ class MFEMViewer(BookViewer):
                           'sol': ''}
                 if new_name == "New...":
                     ret, new_name = dialog.textentry(self,
-                                                 "Enter the name of new connection",
-                                                 "Add Connection",
-                                                 "enter-hostname.pppl.gov",
-                                                 center=False,
-                                                 center_on_screen=True)
+                                                     "Enter the name of new connection",
+                                                     "Add Connection",
+                                                     "enter-hostname.pppl.gov",
+                                                     center=False,
+                                                     center_on_screen=True)
                 else:
                     pass
             else:
                 child = c.get_child(name=new_name)
                 child.onSetting()
-                remote['name'] = new_name                
+                remote['name'] = new_name
                 self.model.param.setvar('host', '='+child.get_full_path())
                 return
 
@@ -1689,29 +1723,29 @@ class MFEMViewer(BookViewer):
 
         from petram.pi.dlg_submit_job import get_job_submisson_setting
         from petram.remote.client_script import get_job_queue
-        
+
         dlg = progressbar(self, 'Checking queue config...',
                           'In progress', 5,
-                          can_abort = True)
+                          can_abort=True)
         dlg.Show()
         wx.GetApp().Yield()
 
         success, q = get_job_queue(self.model, progdlg=dlg)
         if dlg:
             dlg.Destroy()
-        
+
         if not success:
             q = {'type': '',
                  'queues': [{'name': 'failed to read queue config'}, ]}
-        
+
         setting = get_job_submisson_setting(self, remote['name'].upper(),
                                             value=values,
                                             queues=q)
         if len(setting) == 0:
             return
-        
+
         dlg = progressbar(self, 'Preparing...', 'Job submission',
-                          4, can_abort = True)        
+                          4, can_abort=True)
         dlg.Show()
         wx.GetApp().Yield()
 
@@ -1721,7 +1755,8 @@ class MFEMViewer(BookViewer):
                                        setting['rwdir'],
                                        dirbase='',
                                        progdlg=dlg)
-        if not dlg: return
+        if not dlg:
+            return
         if cancelled:
             dlg.Destroy()
             return
@@ -1733,9 +1768,8 @@ class MFEMViewer(BookViewer):
         else:
             sol = self.model.param.eval('sol')
 
-        
         dlg.Update(1, newmsg="Preparing Data...")
-        wx.GetApp().Yield()        
+        wx.GetApp().Yield()
         # remote.scripts.clean_remote_dir()
         sol.clean_owndir()
         self.model.scripts.helpers.save_model(os.path.join(sol.owndir(),
@@ -1743,22 +1777,24 @@ class MFEMViewer(BookViewer):
                                               meshfile_relativepath=True)
 
         from petram.remote.client_script import send_file, submit_job
-        
+
         dlg.Update(2, newmsg="Sending file")
         wx.GetApp().Yield()
-        
+
         cancelled = send_file(self.model, dlg,
                               skip_mesh=setting['skip_mesh'])
-        if not dlg: return
+        if not dlg:
+            return
         if cancelled:
             dlg.Destroy()
             return
-        
+
         dlg.Update(3, newmsg="Submitting a job...")
         wx.GetApp().Yield()
-        
+
         cancelled = submit_job(self.model, dlg)
-        if not dlg: return
+        if not dlg:
+            return
         if cancelled:
             dlg.Destroy()
             return
@@ -1766,7 +1802,7 @@ class MFEMViewer(BookViewer):
         dlg.Update(3, newmsg="Done...")
         wx.GetApp().Yield()
         wx.Sleep(1)
-        
+
         dlg.Destroy()
 
     def onServerRetrieve(self, evt):
@@ -1832,15 +1868,16 @@ class MFEMViewer(BookViewer):
         '''
 
     def set_toolbar_mode(self, mode):
-        bmodes = {'volume':'domain',
+        bmodes = {'volume': 'domain',
                   'face': 'face',
                   'edge': 'edge',
-                  'point':'dot'}
-        if not mode in bmodes: return
+                  'point': 'dot'}
+        if not mode in bmodes:
+            return
         bmode = bmodes[mode]
 
         self.set_sel_mode(mode)
-        
+
         toolbarname = self.canvas.toolbar.p1_choice[1]
         buttonname = bmode + '_' + toolbarname
 
@@ -1851,6 +1888,3 @@ class MFEMViewer(BookViewer):
 
         self.canvas.toolbar.ClickP1Button(buttonname)
         self.canvas.toolbar.ClickP1Button('select')
-        
-            
-        

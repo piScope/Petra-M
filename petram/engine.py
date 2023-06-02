@@ -46,6 +46,14 @@ def enum_fes(phys, *args):
         yield ([k] + [(None if a[phys] is None else a[phys][k][1])
                       for a in args])
 
+# Number of matrices to handle.
+#   must be even number.
+#    First half is for time-dependent
+#    Second half is for gradient
+
+
+max_matrix_num = 10
+
 
 class Engine(object):
     max_levels = 10
@@ -142,6 +150,28 @@ class Engine(object):
         self.model.root()._parameters = data[1]
         for k, n in enumerate(stored_data_names):
             setattr(self, n, data[2][k])
+
+    #
+    #  active_matrix
+    #
+    def is_matrix_active(self, k_matrix):
+        return self._active_matrix[k_matrix]
+
+    def set_active_matrix(self, active_matrix):
+        self._active_matrix = active_matrix
+
+    def activate_matrix(self, k):
+        self._active_matrix[k] = True
+
+    def deactivate_matrix(self, k):
+        self._active_matrix[k] = False
+
+    def iter_active_matrix(self):
+        d = self._active_matrix
+        return [i*d[i] for i in range(len(d)) if d[i]]
+    #
+    #  formblocks
+    #
 
     def set_formblocks(self, phys_target, phys_range, n_matrix):
         '''
@@ -648,7 +678,6 @@ class Engine(object):
             self.do_run_mesh_extension_prep(phys)
 
     def do_run_mesh_extension_prep(self, phys):
-        from petram.mesh.mesh_extension import MeshExt, generate_emesh
         from petram.mesh.mesh_model import MFEMMesh
 
         if len(self.emeshes) == 0:
@@ -659,12 +688,26 @@ class Engine(object):
                                                  self.emeshes[j].Dimension(),
                                                  attrs)
         info = phys.get_mesh_ext_info(self.meshes[phys.mesh_idx])
-        idx = self.emesh_data.add_info(info)
-
-        phys.emesh_idx = idx
-        dprint1(phys.name() + ":  emesh index =", idx)
+        if info is not None:
+            idx = self.emesh_data.add_info(info)
+            phys.emesh_idx = idx
+        elif phys.enabled:
+            assert False, "failed to run mesh extension. check selection of " + \
+                str(phys)
+        else:
+            phys.emesh_idx = 0   # this is when
+        dprint1(phys.name() + ":  emesh index =", phys.emesh_idx)
 
     def run_mesh_extension(self, phys):
+
+        import petram.mesh.partial_mesh
+
+        p_method = self.get_submesh_partitiong_method()
+        if p_method == "auto":
+            petram.mesh.partial_mesh.partition_method = "default"
+        else:
+            petram.mesh.partial_mesh.partition_method = "0"
+
         from petram.mesh.mesh_extension import MeshExt, generate_emesh
         from petram.mesh.mesh_model import MFEMMesh
 
@@ -736,6 +779,9 @@ class Engine(object):
         dprint1("run_apply_init0", phys_range, mode)
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             if mode in [0, 1, 2, 3, 4]:
                 for phys in phys_range:
                     names = phys.dep_vars
@@ -800,6 +846,9 @@ class Engine(object):
         dprint1("run_apply_init_autozero", phys_range)
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             for phys in phys_range:
                 names = phys.dep_vars
                 for name in names:
@@ -838,6 +887,9 @@ class Engine(object):
 
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             for phys in phys_target:
                 self.apply_essential(phys, update=update)
 
@@ -859,6 +911,8 @@ class Engine(object):
 
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
 
             for phys in phys_target:
                 self.fill_bf(phys, update)
@@ -883,9 +937,14 @@ class Engine(object):
             self.extras = {}
             updated_extra = []
             for phys in phys_target:
-                self.assemble_extra(phys, phys_range)
-                updated_extra.extend(
-                    self.extra_update_check_M(phys, phys_range))
+                keys_to_update = self.extra_update_check_M(phys, phys_range)
+
+                if update:
+                    self.assemble_extra(phys, phys_range, keys_to_update)
+                else:
+                    self.assemble_extra(phys, phys_range, None)
+
+                updated_extra.extend(keys_to_update)
 
             for extra_name, dep_name, kfes in updated_extra:
                 r = self.dep_var_offset(extra_name)
@@ -921,15 +980,21 @@ class Engine(object):
             # global interpolation (mesh coupling)
             self.assemble_projection(phys)
 
-        self.extras_mm = {}
+        #self.extras_mm = {}
 
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
 
-            self.extras = {}
+            # self.extras = {} (we keep old extra and update only where it is needed)
             updated_extra = []
             for phys in phys_target:
-                self.assemble_extra(phys, phys_range)
+                # dprint1("checking extra_updat for B",
+                #        self.extra_update_check_B(phys, phys_target))
+                keys_to_update = self.extra_update_check_B(phys, phys_target)
+
+                self.assemble_extra(phys, phys_range, keys_to_update)
                 updated_extra.extend(
                     self.extra_update_check_M(phys, phys_range))
 
@@ -1041,7 +1106,6 @@ class Engine(object):
                                                  update=update)
 
         RHS = compute_rhs(M, B, X)          # solver determins RHS
-
         RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
 
         # A and RHS is modifedy by global DoF coupling P
@@ -1095,6 +1159,9 @@ class Engine(object):
         # this loop alloates GridFunctions
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             is_complex = phys.is_complex()
             for n in phys.dep_vars:
                 r_ifes = self.r_ifes(n)
@@ -1206,6 +1273,8 @@ class Engine(object):
 
             for j in range(self.n_matrix):
                 self.access_idx = j
+                if not self.is_matrix_active(j):
+                    continue
 
                 # if it is not using name defined in init, skip it...
                 if not self.has_rfes(name):
@@ -1538,6 +1607,9 @@ class Engine(object):
         fes_vars = self.fes_vars
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             for name in self.fes_vars:
                 ifes = self.ifes(name)
 
@@ -1564,7 +1636,7 @@ class Engine(object):
     def fill_coupling(self, coupling, phys_target):
         raise NotImplementedError("Coupling is not supported")
 
-    def assemble_extra(self, phys, phys_range):
+    def assemble_extra(self, phys, phys_range, keys_to_update):
         for mm in phys.walk():
             if not mm.enabled:
                 continue
@@ -1573,6 +1645,14 @@ class Engine(object):
                 for kfes, name in enumerate(names):
                     if not mm.has_extra_DoF2(kfes, phys2, self.access_idx):
                         continue
+
+                    dep_var = names[kfes]
+                    extra_name = mm.extra_DoF_name2(kfes)
+                    key = (extra_name, dep_var, kfes)
+
+                    if keys_to_update is not None and key not in keys_to_update:
+                        continue
+
                     gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
                     gl_ess_tdof = gl_ess_tdof1 + gl_ess_tdof2
                     tmp = mm.add_extra_contribution(self,
@@ -1582,10 +1662,7 @@ class Engine(object):
                     if tmp is None:
                         continue
 
-                    dep_var = names[kfes]
-                    extra_name = mm.extra_DoF_name2(kfes)
-                    key = (extra_name, dep_var, kfes)
-                    if key in self.extras:
+                    if key in self.extras and keys_to_update is None:
                         assert False, "extra with key= " + \
                             str(key) + " already exists."
                     self.extras[key] = tmp
@@ -1719,6 +1796,9 @@ class Engine(object):
             R = len(self.dep_vars)
             C = len(self.r_dep_vars)
             for k in range(self.n_matrix):
+                if not self.is_matrix_active(k):
+                    continue
+
                 for i, j in product(range(R), range(C)):
                     if self.mask_M[k, i, j]:
                         M[k][i, j] = None
@@ -1734,6 +1814,8 @@ class Engine(object):
 
         for k in range(self.n_matrix):
             self.access_idx = k
+            if not self.is_matrix_active(k):
+                continue
 
             self.r_a.generateMatVec(self.a2A, self.a2Am)
             self.i_a.generateMatVec(self.a2A, self.a2Am)
@@ -1807,6 +1889,7 @@ class Engine(object):
         from petram.helper.formholder import convertElement
         from mfem.common.chypre import MfemVec2PyVec
 
+        dprint1("fill_B_blocks mask_B", self.mask_B)
         nfes = len(self.fes_vars)
         self.access_idx = 0
         self.r_b.generateMatVec(self.b2B)
@@ -1838,6 +1921,8 @@ class Engine(object):
 
         for k in range(self.n_matrix):
             self.access_idx = k
+            if not self.is_matrix_active(k):
+                continue
 
             self.r_x.generateMatVec(self.x2X)
             self.i_x.generateMatVec(self.x2X)
@@ -1934,6 +2019,23 @@ class Engine(object):
                 A[j, idx2] = A[j, idx2].resetCol(gl_ess_tdof1, inplace=inplace)
 
         return A, Ae
+
+    def eliminateJac(self, Jac):
+        '''
+        eliminate both col/rows from matrix
+
+        '''
+        for name in self.gl_ess_tdofs:
+            if not name in self._dep_vars:
+                continue
+
+            idx1 = self.dep_var_offset(name)
+            idx2 = self.r_dep_var_offset(name)
+
+            gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
+            if Jac[idx1, idx2] is not None:
+                Jac[idx1, idx2].resetRow(gl_ess_tdof1)
+                Jac[idx1, idx2].resetCol(gl_ess_tdof1)
 
     def eliminateBC(self, Ae, X, RHS):
         try:
@@ -2091,7 +2193,8 @@ class Engine(object):
         return M
 
     def finalize_rhs(self,  B_blocks, M_block, X_block,
-                     mask, is_complex, format='coo', verbose=True):
+                     mask, is_complex, format='coo', verbose=True,
+                     use_residual=False):
         #
         #  RHS = B - A[not solved]*X[not solved]
         #
@@ -2099,7 +2202,13 @@ class Engine(object):
         MM = M_block.get_subblock(mask[0], inv_mask)
         XX = X_block.get_subblock(inv_mask, [True])
         xx = MM.dot(XX)
+
         B_blocks = [b.get_subblock(mask[0], [True]) - xx for b in B_blocks]
+
+        if use_residual:
+            M_block_use = M_block.get_subblock(mask[0], mask[1])
+            X_block_use = X_block.get_subblock(mask[1], [True])
+            B_blocks = [b - M_block_use.dot(X_block_use) for b in B_blocks]
 
         if format == 'coo':  # coo either real or complex
             BB = [self.finalize_coo_rhs(
@@ -2142,7 +2251,7 @@ class Engine(object):
         return X
 
     def finalize_coo_matrix(self, M_block, is_complex, convert_real=False,
-                            verbose=True):
+                            verbose=False):
         if verbose:
             dprint1("A (in finalizie_coo_matrix) \n",  M_block)
             # M_block.save_to_file("M_block")
@@ -2272,10 +2381,11 @@ class Engine(object):
 
     def save_sol_to_file(self, phys_target, skip_mesh=False,
                          mesh_only=False,
-                         save_parmesh=False):
+                         save_parmesh=False,
+                         save_mesh_linkdir=None):
         if not skip_mesh:
-            m1 = [self.save_mesh0(), ]
-            mesh_filenames = self.save_mesh(phys_target)
+            m1 = [self.save_mesh0(save_mesh_linkdir), ]
+            mesh_filenames = self.save_mesh(phys_target, save_mesh_linkdir)
             mesh_filenames = m1 + mesh_filenames
 
         if save_parmesh:
@@ -2767,6 +2877,7 @@ class Engine(object):
                 node._local_ns = self.model.root()._variables
 
         if len(errors) > 0:
+            dprint1("\n".join(errors))
             assert False, "\n".join(errors)
 
     def preprocess_ns(self, ns_folder, data_folder):
@@ -2964,7 +3075,7 @@ class Engine(object):
             if i_x is not None:
                 i_x.Save(fnamei, 8)
 
-    def save_mesh0(self):
+    def save_mesh0(self, save_mesh_linkdir=None):
         mesh_names = []
         suffix = self.solfile_suffix()
         mesh = self.emeshes[0]
@@ -2972,18 +3083,29 @@ class Engine(object):
         self.clear_solmesh_files(header)
         name = header+suffix
 
-        if self.get_savegz():
-            mesh.PrintGZ(name, 16)
+        if save_mesh_linkdir is None:
+            if self.get_savegz():
+                mesh.PrintGZ(name, 16)
+            else:
+                mesh.Print(name, 16)
         else:
-            mesh.Print(name, 16)
+            src = os.path.join(save_mesh_linkdir, name)
+            dst = os.path.join(os.getcwd(), name)
+            os.symlink(src, dst)
         return name
 
-    def save_mesh(self, phys_target):
+    def save_mesh(self, phys_target, save_mesh_linkdir=None):
         mesh_names = []
         suffix = self.solfile_suffix()
 
+        done = []
+
         for phys in phys_target:
             k = phys.emesh_idx
+            if k in done:
+                continue
+            done.append(k)
+
             name = phys.dep_vars[0]
 
             mesh = self.fespaces.get_mesh(name)
@@ -2993,10 +3115,16 @@ class Engine(object):
 
             name = header+suffix
 
-            if self.get_savegz():
-                mesh.PrintGZ(name, 16)
+            if save_mesh_linkdir is None:
+                if self.get_savegz():
+                    mesh.PrintGZ(name, 16)
+                else:
+                    mesh.Print(name, 16)
             else:
-                mesh.Print(name, 16)
+                src = os.path.join(save_mesh_linkdir, name)
+                dst = os.path.join(os.getcwd(), name)
+                os.symlink(src, dst)
+
             mesh_names.append(name)
 
         return mesh_names
@@ -3117,6 +3245,9 @@ class Engine(object):
         R = len(self.dep_vars)
         C = len(self.r_dep_vars)
         for k in range(self.n_matrix):
+            if not self.is_matrix_active(k):
+                continue
+
             for i, j in product(range(R), range(C)):
                 if self.mask_M[k, i, j] and mask[0][j] and mask[1][i]:
                     return True
@@ -3239,14 +3370,15 @@ class Engine(object):
                             mm._update_flag = True
                     if mm.has_essential:
                         mm._update_flag = True
-                    if mm.is_extra_RHSonly():
+                    # if mm.is_extra_RHSonly():
+                    if mm.isTimeDependent_RHS:
                         for kfes, name in enumerate(phys.dep_vars):
-                            if mm.has_extra_DoF(kfes):
+                            if mm.has_extra_DoF2(kfes, phys, 0):
                                 mm._update_flag = True
-                    else:
+                    if mm.isTimeDependent:
                         for kfes, name in enumerate(phys.dep_vars):
-                            if mm.has_extra_DoF(kfes):
-                                assert False, "RHS only parametric is invalid for general extra DoF (is_extra_RHSonly = False)"
+                            if mm.has_extra_DoF2(kfes, phys, 0):
+                                assert False, "RHS only parametric is invalid for general extra DoF"
                     if mm._update_flag:
                         for kfes, name in enumerate(phys.dep_vars):
                             if mm.has_bf_contribution2(kfes, 0):
@@ -3360,6 +3492,9 @@ class Engine(object):
 
     def get_partitiong_method(self):
         return self.model.root()['General'].partitioning
+
+    def get_submesh_partitiong_method(self):
+        return self.model.root()['General'].submeshpartitioning
 
     def get_autofill_diag(self):
         return self.model.root()['General'].autofilldiag == 'on'

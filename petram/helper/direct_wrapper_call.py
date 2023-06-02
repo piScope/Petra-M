@@ -31,6 +31,9 @@ class DWC(object):
         elif mode == 'loopcontrol':
             ct = kwargs.pop('count')
             return (ct,), kwargs
+        elif mode == 'nlcheckpoint':
+            ct = kwargs.pop('count')
+            return (ct,), kwargs
         elif mode == 'init':
             return tuple(), kwargs
         else:
@@ -66,6 +69,28 @@ class DWC(object):
         cp = check pioint index
         '''
         raise NotImplementedError("checkpoint must be implemented by a user")
+
+    def nl_checkpoint(self, caller, count, *args, **kwargs):
+        '''
+        called during nonlinear iteration loop
+        return value: 
+             False: normal
+             True: emergency stop of iteration
+        '''
+        raise NotImplementedError(
+            "nl_checkpoint must be implemented by a user")
+
+    def nl_start(self, caller, *args, **kwargs):
+        '''
+        called at the begining of non-linear iteration
+        '''
+        raise NotImplementedError("nl_start must be implemented by a user")
+
+    def nl_end(self, caller, *args, **kwargs):
+        '''
+        called at the end of non-linear iteration
+        '''
+        raise NotImplementedError("nl_end must be implemented by a user")
 
     def init(self, caller, *args, **kwargs):
         '''
