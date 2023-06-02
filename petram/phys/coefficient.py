@@ -3,19 +3,37 @@
    coefficient generation funcitons
 
 '''
-from petram.mfem_config import use_parallel
-import abc
-from abc import ABC, abstractmethod
-
+from petram.debug import handle_allow_python_function_coefficient
 import numpy as np
 
-from petram.phys.phys_model import PhysCoefficient
-from petram.phys.phys_model import VectorPhysCoefficient
-from petram.phys.phys_model import MatrixPhysCoefficient
-from petram.phys.phys_model import PhysConstant, PhysVectorConstant, PhysMatrixConstant
-from petram.phys.phys_model import Coefficient_Evaluator
+from petram.mfem_config import use_parallel
+if use_parallel:
+    import mfem.par as mfem
+else:
+    import mfem.ser as mfem
 
-from petram.helper.variables import NativeCoefficientGenBase
+
+from petram.phys.phys_model import (PhysCoefficient,
+                                    VectorPhysCoefficient,
+                                    MatrixPhysCoefficient,
+                                    PhysConstant,
+                                    PhysVectorConstant,
+                                    PhysMatrixConstant,
+                                    Coefficient_Evaluator)
+
+from petram.helper.variables import (Variable,
+                                     NativeCoefficientGenBase)
+
+from petram.phys.pycomplex_coefficient import (CC_Matrix,
+                                               CC_Vector,
+                                               CC_Scalar,
+                                               PyComplexConstant,
+                                               PyComplexVectorConstant,
+                                               PyComplexMatrixConstant,
+                                               complex_coefficient_from_real_and_imag)
+
+import petram.debug
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('Coefficient')
 
 
 def call_nativegen(v, l, g, real, conj, scale):
@@ -37,7 +55,8 @@ def call_nativegen(v, l, g, real, conj, scale):
             return coeff
 
 
-def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
+def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
+           return_mfem_constant=False, **kwargs):
     if isinstance(exprs, str):
         exprs = [exprs]
     if isinstance(exprs, NativeCoefficientGenBase):
@@ -75,17 +94,16 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
             else:
                 return val
 
-    class MCoeffCC(Coefficient_Evaluator, MCoeff_Base,
-                   PyComplexMatrixCoefficient):
-        def __init__(self, c1, c2, exprs, ind_vars, l,
+    class MCoeffCC(Coefficient_Evaluator, MCoeff_Base, CC_Matrix):
+        def __init__(self, dim, exprs, ind_vars, l,
                      g, conj=False, scale=1.0, **kwargs):
             MCoeff_Base.__init__(self, conj=conj, scale=scale)
             # real is not used...
             Coefficient_Evaluator.__init__(
                 self, exprs, ind_vars, l, g, real=True)
-            PyComplexMatrixCoefficient.__init__(self, c1, c2)
+            CC_Matrix.__init__(self, dim, dim)
 
-        def Eval(self, K, T, ip):
+        def eval(self, T, ip):
             for n, v in self.variables:
                 v.set_point(T, ip, self.g, self.l)
             x = T.Transform(ip)
@@ -98,12 +116,26 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     scale = kwargs.get('scale', 1.0)
 
     if any([isinstance(ee, str) for ee in exprs]):
+        # if it is one liner array expression. try mfem.jit
+        from petram.phys.numba_coefficient import expr_to_numba_coeff
+
+        coeff = expr_to_numba_coeff(exprs, mfem.jit.matrix,
+                                    ind_vars, conj, scale, g, l,
+                                    return_complex, shape=(dim, dim))
+        if coeff is None:
+            msg = "JIT is not possbile. Continuing with Python mode"
+            handle_allow_python_function_coefficient(msg)
+        else:
+            if return_complex:
+                return coeff
+            else:
+                if real:
+                    return coeff.real
+                else:
+                    return coeff.imag
+
         if return_complex:
-            kwargs['real'] = True
-            c1 = MCoeff(dim, exprs, ind_vars, l, g, **kwargs)
-            kwargs['real'] = False
-            c2 = MCoeff(dim, exprs, ind_vars, l, g, **kwargs)
-            return MCoeffCC(c1, c2, exprs, ind_vars, l, g, **kwargs)
+            return MCoeffCC(dim, exprs, ind_vars, l, g, **kwargs)
         else:
             return MCoeff(dim, exprs, ind_vars, l, g, **kwargs)
     else:
@@ -123,6 +155,7 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
             e = np.conj(e)
 
         if return_complex:
+            assert not return_mfem_constant, "return_complex and return_mfem_constant can not be used togeter"
             e = e.astype(complex)
             return PyComplexMatrixConstant(e)
         else:
@@ -136,10 +169,14 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
             else:
                 e = np.array(e, dtype=float, copy=False)
 
-            return PhysMatrixConstant(e)
+            if return_mfem_constant:
+                return mfem.MatrixConstantCoefficient(e)
+            else:
+                return PhysMatrixConstant(e)
 
 
-def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
+def DCoeff(dim, exprs, ind_vars, l, g,
+           return_mfem_constant=False, **kwargs):
     if isinstance(exprs, str):
         exprs = [exprs]
     if isinstance(exprs, NativeCoefficientGenBase):
@@ -177,6 +214,10 @@ def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
     #print("matrix exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
+        from petram.mfem_config import allow_python_function_coefficient
+        if allow_python_function_coefficient != "allow":
+            print("JIT is not supported in DCoeff")
+            assert False, "can not jit coefficient"
         return DCoeff(dim, exprs, ind_vars, l, g, **kwargs)
     else:
         e = exprs
@@ -197,10 +238,15 @@ def DCoeff(dim, exprs, ind_vars, l, g, **kwargs):
             e = np.array(e * 0.0, dtype=float, copy=False)
         else:
             e = np.array(e, dtype=float, copy=False)
-        return PhysMatrixConstant(e)
+
+        if return_mfem_constant:
+            return mfem.MatrixConstantCoefficient(e)
+        else:
+            return PhysMatrixConstant(e)
 
 
-def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
+def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
+           return_mfem_constant=False, **kwargs):
     if isinstance(exprs, str):
         exprs = [exprs]
     if isinstance(exprs, NativeCoefficientGenBase):
@@ -238,17 +284,16 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
             else:
                 return val
 
-    class VCoeffCC(Coefficient_Evaluator, Vcoeff_Base,
-                   PyComplexVectorCoefficient):
-        def __init__(self, c1, c2, exprs, ind_vars, l,
+    class VCoeffCC(Coefficient_Evaluator, Vcoeff_Base, CC_Vector):
+        def __init__(self, dim, exprs, ind_vars, l,
                      g, conj=False, scale=1.0, **kwargs):
             Vcoeff_Base.__init__(self, conj=conj, scale=scale)
             # real is not used...
             Coefficient_Evaluator.__init__(
                 self, exprs, ind_vars, l, g, real=True)
-            PyComplexVectorCoefficient.__init__(self, c1, c2)
+            CC_Vector.__init__(self, dim)
 
-        def Eval(self, V, T, ip):
+        def eval(self, T, ip):
             for n, v in self.variables:
                 v.set_point(T, ip, self.g, self.l)
             x = T.Transform(ip)
@@ -262,12 +307,26 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
     #print("vector exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
+        # if it is one liner array expression. try mfem.jit
+        from petram.phys.numba_coefficient import expr_to_numba_coeff
+        coeff = expr_to_numba_coeff(exprs, mfem.jit.vector,
+                                    ind_vars, conj, scale, g, l,
+                                    return_complex, shape=(dim, ))
+        if coeff is None:
+            msg = "JIT is not possbile. Continuing with Python mode"
+            handle_allow_python_function_coefficient(msg)
+
+        else:
+            if return_complex:
+                return coeff
+            else:
+                if real:
+                    return coeff.real
+                else:
+                    return coeff.imag
+
         if return_complex:
-            kwargs['real'] = True
-            c1 = VCoeff(dim, exprs, ind_vars, l, g, **kwargs)
-            kwargs['real'] = False
-            c2 = VCoeff(dim, exprs, ind_vars, l, g, **kwargs)
-            return VCoeffCC(c1, c2, exprs, ind_vars, l, g, **kwargs)
+            return VCoeffCC(dim, exprs, ind_vars, l, g, **kwargs)
         else:
             return VCoeff(dim, exprs, ind_vars, l, g, **kwargs)
 
@@ -277,7 +336,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
         if isinstance(e[0], NativeCoefficientGenBase):
             if return_complex:
                 c1 = call_nativegen(e[0], l, g, True, conj, scale)
-                c2 = call_nativegen(v, l, g, False, conj, scale)
+                c2 = call_nativegen(e[0], l, g, False, conj, scale)
                 return complex_coefficient_from_real_and_imag(c1, c2)
             else:
                 return call_nativegen(e[0], l, g, real, conj, scale)
@@ -286,6 +345,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
         e = e * scale
 
         if return_complex:
+            assert not return_mfem_constant, "return_complex and return_mfem_constant can not be used togeter"
             e = e.astype(complex)
             return PyComplexVectorConstant(e)
         else:
@@ -300,10 +360,14 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False, **kwargs):
                 e = np.array(e * 0.0, dtype=float, copy=False)
             else:
                 e = np.array(e, dtype=float, copy=False)
-            return PhysVectorConstant(e)
+            if return_mfem_constant:
+                return mfem.VectorConstantCoefficient(e)
+            else:
+                return PhysVectorConstant(e)
 
 
-def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
+def SCoeff(exprs, ind_vars, l, g, return_complex=False,
+           return_mfem_constant=False, **kwargs):
     if isinstance(exprs, str):
         exprs = [exprs]
     if isinstance(exprs, NativeCoefficientGenBase):
@@ -353,8 +417,8 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
             else:
                 return v
 
-    class SCoeffCC(Coefficient_Evaluator, Scoeff_Base, PyComplexCoefficient):
-        def __init__(self, c1, c2, exprs, ind_vars, l, g,
+    class SCoeffCC(Coefficient_Evaluator, Scoeff_Base, CC_Scalar):
+        def __init__(self, exprs, ind_vars, l, g,
                      component=None, conj=False, scale=1.0, **kwargs):
             Scoeff_Base.__init__(
                 self,
@@ -364,9 +428,9 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
             # real is not used...
             Coefficient_Evaluator.__init__(
                 self, exprs, ind_vars, l, g, real=True)
-            PyComplexCoefficient.__init__(self, c1, c2)
+            CC_Scalar.__init__(self)
 
-        def Eval(self, T, ip):
+        def eval(self, T, ip):
             for n, v in self.variables:
                 v.set_point(T, ip, self.g, self.l)
             x = T.Transform(ip)
@@ -380,15 +444,29 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
 
-    #print("scalar exprs", exprs)
-
     if any([isinstance(ee, str) for ee in exprs]):
+        if len(exprs) == 1:
+            # if it is one liner array expression. try mfem.jit
+            from petram.phys.numba_coefficient import expr_to_numba_coeff
+            coeff = expr_to_numba_coeff(exprs, mfem.jit.scalar,
+                                        ind_vars, conj, scale, g, l, return_complex)
+            if coeff is None:
+                msg = "JIT is not possbile. Continuing with Python mode"
+                handle_allow_python_function_coefficient(msg)
+            else:
+                if return_complex:
+                    return coeff
+                else:
+                    if real:
+                        return coeff.real
+                    else:
+                        return coeff.imag
+        else:
+            # should not come here
+            assert False, "Scalar coefficient can not use mutliple expressions"
+
         if return_complex:
-            kwargs['real'] = True
-            c1 = SCoeff(exprs, ind_vars, l, g, **kwargs)
-            kwargs['real'] = False
-            c2 = SCoeff(exprs, ind_vars, l, g, **kwargs)
-            return SCoeffCC(c1, c2, exprs, ind_vars, l, g, **kwargs)
+            return SCoeffCC(exprs, ind_vars, l, g, **kwargs)
         else:
             return SCoeff(exprs, ind_vars, l, g, **kwargs)
     else:
@@ -414,6 +492,7 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
             v = complex(v)
             if conj:
                 v = np.conj(v)
+            assert not return_mfem_constant, "return_complex and return_mfem_constant can not be used togeter"
             return PyComplexConstant(v)
         else:
             if np.iscomplexobj(v):
@@ -428,540 +507,10 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False, **kwargs):
             else:
                 pass
             v = float(v)
-            return PhysConstant(v)
-
-
-'''
-
-   Complex Coefficient
-
-    Handle Complex Coefficint as a single coefficint
-    These classes are derived from RealImagCoefficientGen.
-
-'''
-
-if use_parallel:
-    import mfem.par as mfem
-else:
-    import mfem.ser as mfem
-
-
-class RealImagCoefficientGen(ABC):
-    # abstract
-    @abstractmethod
-    def __init__(self):
-        pass
-
-    @abstractmethod
-    def get_real_coefficient(self):
-        pass
-
-    @abstractmethod
-    def get_imag_coefficient(self):
-        pass
-
-    @abstractmethod
-    def get_realimag_coefficient(self, real):
-        pass
-
-    @abc.abstractproperty
-    def kind(self):
-        pass
-
-    def is_matrix(self):
-        return self.kind == 'matrix'
-
-    def is_vector(self):
-        return self.kind == 'vector'
-
-
-class PyComplexConstantBase(RealImagCoefficientGen):
-    def get_realimag_coefficient(self, real):
-        if real:
-            return self.get_real_coefficient()
-        else:
-            return self.get_imag_coefficient()
-
-
-class PyComplexConstant(PyComplexConstantBase):
-    def __init__(self, value):
-        self.value = value
-
-    def Eval(self, T, ip):
-        return self.value
-
-    def get_real_coefficient(self):
-        return PhysConstant(self.value.real)
-
-    def get_imag_coefficient(self):
-        return PhysConstant(self.value.imag)
-
-    @property
-    def kind(self):
-        return 'scalar'
-
-
-class PyComplexVectorConstant(PyComplexConstantBase):
-    def __init__(self, value):
-        self.value = value
-        self.vdim = len(value)
-
-    def Eval(self, V, T, ip):
-        return self.value
-
-    def get_real_coefficient(self):
-        return PhysVectorConstant(self.value.real)
-
-    def get_imag_coefficient(self):
-        return PhysVectorConstant(self.value.imag)
-
-    @property
-    def kind(self):
-        return 'vector'
-
-
-class PyComplexMatrixConstant(RealImagCoefficientGen):
-    def __init__(self, value):
-        self.value = value
-        self.width = value.shape[1]
-        self.height = value.shape[0]
-
-    def Eval(self, K, T, ip):
-        return self.value
-
-    def get_real_coefficient(self):
-        return PhysMatrixConstant(self.value.real)
-
-    def get_imag_coefficient(self):
-        return PhysMatrixConstant(self.value.imag)
-
-    def get_realimag_coefficient(self, real):
-        if real:
-            return self.get_real_coefficient()
-        else:
-            return self.get_imag_coefficient()
-
-    @property
-    def kind(self):
-        return 'matrix'
-
-
-class PyComplexCoefficientBase(RealImagCoefficientGen):
-    def __init__(self, coeff1, coeff2):
-        self.coeff1 = coeff1
-        self.coeff2 = coeff2
-
-    def get_real_coefficient(self):
-        return self.coeff1
-
-    def get_imag_coefficient(self):
-        return self.coeff2
-
-    def get_realimag_coefficient(self, real):
-        if real:
-            return self.get_real_coefficient()
-        else:
-            return self.get_imag_coefficient()
-
-    @abstractmethod
-    def Eval(self, *args):
-        pass
-
-
-class PyComplexCoefficient(PyComplexCoefficientBase):
-    def Eval(self, T, ip):
-        if self.coeff1 is not None:
-            v = complex(self.coeff1.Eval(T, ip))
-        else:
-            v = 0.0
-        if self.coeff2 is not None:
-            v += 1j * self.coeff2.Eval(T, ip)
-        return v
-
-    @property
-    def kind(self):
-        return 'scalar'
-
-
-class PyComplexVectorCoefficient(PyComplexCoefficientBase):
-    def __init__(self, coeff1, coeff2):
-        self.coeff1 = coeff1
-        self.coeff2 = coeff2
-        if self.coeff1 is not None:
-            self.vdim = self.coeff1.GetVDim()
-        elif self.coeff2 is not None:
-            self.vdim = self.coeff1.GetVDim()
-        else:
-            assert False, "Either Real or Imag should be non zero"
-
-    def Eval(self, V, T, ip):
-        if self.coeff1 is not None:
-            self.coeff1.Eval(V, T, ip)
-        else:
-            V.Assign(0.0)
-        M = V.GetDataArray().astype(complex)
-        if self.coeff2 is not None:
-            self.coeff2.Eval(V, T, ip)
-            M += 1j * V.GetDataArray()
-        return M
-
-    @property
-    def kind(self):
-        return 'vector'
-
-
-class PyComplexMatrixCoefficient(PyComplexCoefficientBase):
-    def __init__(self, coeff1, coeff2):
-        self.coeff1 = coeff1
-        self.coeff2 = coeff2
-        if self.coeff1 is not None:
-            self.height = self.coeff1.GetHeight()
-            self.width = self.coeff1.GetWidth()
-        elif self.coeff2 is not None:
-            self.height = self.coeff1.GetHeight()
-            self.width = self.coeff1.GetWidth()
-        else:
-            assert False, "Either Real or Imag should be non zero"
-
-    def Eval(self, K, T, ip):
-        if self.coeff1 is not None:
-            self.coeff1.Eval(K, T, ip)
-        else:
-            K.Assign(0.0)
-        M = K.GetDataArray().astype(complex)
-        if self.coeff2 is not None:
-            self.coeff2.Eval(K, T, ip)
-            M += 1j * K.GetDataArray()
-        return M
-
-    @property
-    def kind(self):
-        return 'matrix'
-
-
-def complex_coefficient_from_real_and_imag(coeffr, coeffi):
-    if (isinstance(coeffr, mfem.MatrixCoefficient) or
-            isinstance(coeffi, mfem.MatrixCoefficient)):
-        return PyComplexMatrixCoefficient(coeffr, coeffi)
-
-    elif (isinstance(coeffr, mfem.VectorCoefficient) or
-          isinstance(coeffi, mfem.VectorCoefficient)):
-        return PyComplexVectorCoefficient(coeffr, coeffi)
-
-    elif (isinstance(coeffr, mfem.Coefficient) or
-          isinstance(coeffi, mfem.Coefficient)):
-        return PyComplexCoefficient(coeffr, coeffi)
-
-
-class PyRealCoefficient(mfem.PyCoefficient):
-    def __init__(self, coeff):
-        self.coeff = coeff
-        mfem.PyCoefficient.__init__(self)
-
-    def Eval(self, T, ip):
-        v = self.coeff.Eval(T, ip)
-        return v.real
-
-
-class PyImagCoefficient(mfem.PyCoefficient):
-    def __init__(self, coeff):
-        self.coeff = coeff
-        mfem.PyCoefficient.__init__(self)
-
-    def Eval(self, T, ip):
-        v = self.coeff.Eval(T, ip)
-        return v.imag
-
-
-class PyRealVectorCoefficient(mfem.VectorPyCoefficient):
-    def __init__(self, coeff):
-        self.coeff = coeff
-        mfem.VectorPyCoefficient.__init__(self, coeff.vdim)
-
-    def Eval(self, K, T, ip):
-        M = self.coeff.Eval(K, T, ip)
-        #print("M here", M)
-        # print(K.GetDataArray())
-        K.SetSize(M.shape[0])
-        return K.Assign(M.real)
-
-
-class PyImagVectorCoefficient(mfem.VectorPyCoefficient):
-    def __init__(self, coeff):
-        self.coeff = coeff
-        mfem.VectorPyCoefficient.__init__(self, coeff.vdim)
-
-    def Eval(self, K, T, ip):
-        M = self.coeff.Eval(K, T, ip)
-        K.SetSize(M.shape[0])
-        return K.Assign(M.imag)
-
-
-class PyRealMatrixCoefficient(mfem.MatrixPyCoefficient):
-    def __init__(self, coeff):
-        self.coeff = coeff
-        assert coeff.height == coeff.width, "not supported"
-        mfem.MatrixPyCoefficient.__init__(self, coeff.height)
-
-    def Eval(self, K, T, ip):
-        M = self.coeff.Eval(K, T, ip)
-        K.SetSize(M.shape[0], M.shape[1])
-        return K.Assign(M.real)
-
-
-class PyImagMatrixCoefficient(mfem.MatrixPyCoefficient):
-    def __init__(self, coeff):
-        self.coeff = coeff
-        assert coeff.height == coeff.width, "not supported"
-        mfem.MatrixPyCoefficient.__init__(self, coeff.height)
-
-    def Eval(self, K, T, ip):
-        M = self.coeff.Eval(K, T, ip)
-        K.SetSize(M.shape[0], M.shape[1])
-        return K.Assign(M.imag)
-
-## CC (ComplexCoefficient)
-# This class does not inherit MFEM Coefficient class
-
-
-class CCBase(RealImagCoefficientGen):
-    def __init__(self, coeff):
-        self.coeff = coeff
-
-    @abstractmethod
-    def Eval(self, *args, **kwargs):
-        pass
-
-    def get_real_coefficient(self):
-        if self.kind == 'scalar':
-            return PyRealCoefficient(self)
-        elif self.kind == 'vector':
-            return PyRealVectorCoefficient(self)
-        elif self.kind == 'matrix':
-            return PyRealMatrixCoefficient(self)
-
-    def get_imag_coefficient(self):
-        if self.kind == 'scalar':
-            return PyImagCoefficient(self)
-        elif self.kind == 'vector':
-            return PyImagVectorCoefficient(self)
-        elif self.kind == 'matrix':
-            return PyImagMatrixCoefficient(self)
-
-    def get_realimag_coefficient(self, real):
-        if real:
-            return self.get_real_coefficient()
-        else:
-            return self.get_imag_coefficient()
-
-    @property
-    def vdim(self):
-        return self.coeff.vdim
-
-    @property
-    def width(self):
-        return self.coeff.width
-
-    @property
-    def height(self):
-        return self.coeff.height
-
-
-class CC_Scalar(CCBase):
-    @property
-    def kind(self):
-        return 'scalar'
-
-
-class CC_Matrix(CCBase):
-    @property
-    def kind(self):
-        return 'matrix'
-
-
-class CC_Vector(CCBase):
-    @property
-    def kind(self):
-        return 'vector'
-
-
-class PyComplexPowCoefficient(CC_Scalar):
-    def __init__(self, coeff, pow):
-        self.pow = pow
-        CC_Scalar.__init__(self, coeff)
-
-    def Eval(self, T, ip):
-        v = self.coeff.Eval(T, ip)
-        v = (v)**(self.pow)
-        return v
-
-
-class PyComplexProductCoefficient(CC_Scalar):
-    def __init__(self, coeff, scale=1.0):
-        self.scale = scale
-        CC_Scalar.__init__(self, coeff)
-
-    def Eval(self, T, ip):
-        v = self.coeff.Eval(T, ip)
-        v *= self.scale
-        return v
-
-
-class PyComplexSumCoefficient(CC_Scalar):
-    def __init__(self, coeff1, coeff2):
-        CC_Matrix.__init__(self, coeff1)
-        self.coeff2 = coeff2
-
-    def Eval(self, T, ip):
-        v1 = self.coeff.Eval(T, ip)
-        v2 = self.coeff2.Eval(T, ip)
-        return v1 + v2
-
-
-class PyComplexMatrixProductCoefficient(CC_Matrix):
-    def __init__(self, coeff, scale=1.0):
-        self.scale = scale
-        CC_Matrix.__init__(self, coeff)
-
-    def Eval(self, K, T, ip):
-        v = self.coeff.Eval(K, T, ip)
-        v *= self.scale
-        return v
-
-
-class PyComplexMatrixInvCoefficient(CC_Matrix):
-    def Eval(self, K, T, ip):
-        M = self.coeff.Eval(K, T, ip)
-        M = np.linalg.inv(M)
-        return M
-
-
-class PyComplexMatrixAdjCoefficient(CC_Matrix):
-    def Eval(self, K, T, ip):
-        M = self.coeff.Eval(K, T, ip)
-        d = np.linalg.det(M)
-        M = np.linalg.inv(M)
-        return M * d
-
-
-class PyComplexMatrixSumCoefficient(CC_Matrix):
-    def __init__(self, coeff1, coeff2):
-        CC_Matrix.__init__(self, coeff1)
-        self.coeff2 = coeff2
-
-    def Eval(self, K, T, ip):
-        M1 = self.coeff.Eval(K, T, ip)
-        M2 = self.coeff2.Eval(K, T, ip)
-        return M1 + M2
-
-
-class PyComplexVectorSliceScalarCoefficient(CC_Scalar):
-    def __init__(self, coeff, slice1):
-        CC_Scalar.__init__(self, coeff)
-        self.V = mfem.Vector(coeff.vdim)
-        self.slice1 = slice1
-
-    def Eval(self, T, ip):
-        M = self.coeff.Eval(self.V, T, ip)
-        return M[self.slice1]
-
-
-class PyComplexVectorSliceVectorCoefficient(CC_Vector):
-    def __init__(self, coeff, slice1):
-        CC_Scalar.__init__(self, coeff)
-        self.V = mfem.Vector(coeff.vdim)
-        self.slice1 = slice1
-        self._vdim = len(slice1)
-
-    def Eval(self, V, T, ip):
-        M = self.coeff.Eval(self.V, T, ip)
-        return M[self.slice1]
-
-    @property
-    def vdim(self):
-        return self._vdim
-
-
-class PyComplexMatrixSliceScalarCoefficient(CC_Scalar):
-    def __init__(self, coeff, slice1, slice2):
-        CC_Scalar.__init__(self, coeff)
-        self.K = mfem.DenseMatrix(coeff.width, coeff.height)
-        self.slice1 = slice1
-        self.slice2 = slice2
-
-    def Eval(self, T, ip):
-        M = self.coeff.Eval(self.K, T, ip)
-        return M[self.slice1, self.slice2]
-
-
-class PyComplexMatrixSliceVectorCoefficient(CC_Vector):
-    def __init__(self, coeff, slice1, slice2):
-        CC_Vector.__init__(self, coeff)
-        self.K = mfem.DenseMatrix(coeff.width, coeff.height)
-        self.slice1 = slice1
-        self.slice2 = slice2
-        if len(slice1) == 1 and len(slice2) > 1:
-            self._vdim = len(slice2)
-        elif len(slice2) == 1 and len(slice1) > 1:
-            self._vdim = len(slice1)
-        else:
-            assert False, "SliceVector output should be a vector" + \
-                str(slice1) + "/" + str(slice2)
-
-    def Eval(self, K, T, ip):
-        M = self.coeff.Eval(self.K, T, ip)
-        return M[self.slice1, :][:, self.slice2].flatten()
-
-    @property
-    def vdim(self):
-        return self._vdim
-
-
-class PyComplexMatrixSliceMatrixCoefficient(CC_Matrix):
-    def __init__(self, coeff, slice1, slice2):
-        CC_Matrix.__init__(self, coeff)
-        self.slice1 = slice1
-        self.slice2 = slice2
-        self._height = len(slice1)
-        self._width = len(slice2)
-
-    def Eval(self, K, T, ip):
-        M = self.coeff.Eval(K, T, ip)
-        return M[self.slice1, :][:, self.slice2]
-
-    @property
-    def width(self):
-        return self._width
-
-    @property
-    def height(self):
-        return self._height
-
-
-def PyComplexVectorSliceCoefficient(coeff, slice1):
-    if len(slice1) == 1:
-        return PyComplexVectorSliceScalarCoefficient(coeff, slice1[0])
-    elif len(slice1) > 1:
-        return PyComplexVectorSliceVectorCoefficient(coeff, slice1)
-    else:
-        assert False, "slice size must be greater than 1"
-
-
-def PyComplexMatrixSliceCoefficient(coeff, slice1, slice2):
-    if len(slice1) == 1 and len(slice2) == 1:
-        return PyComplexMatrixSliceScalarCoefficient(
-            coeff, slice1[0], slice2[0])
-
-    elif len(slice1) == 1 and len(slice2) > 1:
-        return PyComplexMatrixSliceVectorCoefficient(coeff, slice1, slice2)
-
-    elif len(slice2) == 1 and len(slice1) > 1:
-        return PyComplexMatrixSliceVectorCoefficient(coeff, slice1, slice2)
-
-    elif len(slice2) > 1 and len(slice1) > 1:
-        return PyComplexMatrixSliceMatrixCoefficient(coeff, slice1, slice2)
-    else:
-        assert False, "slice size must be greater than 1"
+            if return_mfem_constant:
+                return mfem.ConstantCoefficient(v)
+            else:
+                return PhysConstant(v)
 
 
 def sum_coefficient(c_arr):

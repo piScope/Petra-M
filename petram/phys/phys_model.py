@@ -1,4 +1,5 @@
 from __future__ import print_function
+from petram.debug import handle_allow_python_function_coefficient
 from petram.phys.vtable import VtableElement, Vtable
 from petram.helper.variables import Variable, eval_code
 from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
@@ -10,13 +11,13 @@ from os.path import dirname, basename, isfile, join
 import warnings
 import glob
 import types
-import parser
 import numbers
 from abc import abstractmethod
 
 import petram
 from petram.model import Model, Bdry, Domain
 from petram.namespace_mixin import NS_mixin
+
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Phys')
 
@@ -40,22 +41,24 @@ class PhysConstant(mfem.ConstantCoefficient):
 
 class PhysVectorConstant(mfem.VectorConstantCoefficient):
     def __init__(self, value):
-        self.value = mfem.Vector(value)
-        mfem.VectorConstantCoefficient.__init__(self, self.value)
+        self._value = mfem.Vector(value)
+        self.value = self._value.GetDataArray()
+        mfem.VectorConstantCoefficient.__init__(self, value)
 
     def __repr__(self):
-        return self.__class__.__name__ + "(" + str(self.value) + ")"
+        return self.__class__.__name__ + "(" + str(self._value) + ")"
 
 
 class PhysMatrixConstant(mfem.MatrixConstantCoefficient):
     def __init__(self, value):
         v = mfem.Vector(np.transpose(value).flatten())
         m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])
-        self.value = (v, m)
+        self._value = (v, m)
+        self.value = m.GetDataArray()
         mfem.MatrixConstantCoefficient.__init__(self, m)
 
     def __repr__(self):
-        return self.__class__.__name__ + "(" + str(self.value) + ")"
+        return self.__class__.__name__ + "(" + str(self._value) + ")"
 
 
 def try_eval(exprs, l, g):
@@ -120,8 +123,7 @@ class Coefficient_Evaluator(object):
 
         for expr in exprs:
             if isinstance(expr, str):
-                st = parser.expr(expr.strip())
-                code = st.compile('<string>')
+                code = compile(expr.strip(), '<string>', 'eval')
                 names = code.co_names
                 for n in names:
                     if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
@@ -147,7 +149,15 @@ class Coefficient_Evaluator(object):
         for k, name in enumerate(self.ind_vars):
             self.l[name] = x[k]
         for n, v in self.variables:
-            kwargs = {nn: self.variables_dd[nn]() for nn in v.dependency}
+            kwargs = {}
+            for nn in v.dependency:
+                kwargs[nn] = self.variables_dd[nn]()
+            for nn in v.grad:
+                kwargs['grad'+nn] = self.variables_dd[nn].eval_grad()
+            for nn in v.curl:
+                kwargs['curl'+nn] = self.variables_dd[nn].eval_curl()
+            for nn in v.div:
+                kwargs['div'+nn] = self.variables_dd[nn].eval_div()
             self.l[n] = v(**kwargs)
 
         val = [eval_code(co, self.g, self.l, flag=flag)
@@ -162,6 +172,9 @@ class PhysCoefficient(mfem.PyCoefficient, Coefficient_Evaluator):
         #    exprs = [exprs]
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)
         mfem.PyCoefficient.__init__(self)
+
+        handle_allow_python_function_coefficient(
+            "Python function coefficient is created")
 
     def __repr__(self):
         return self.__class__.__name__ + "(PhysCoefficeint)"
@@ -190,6 +203,9 @@ class VectorPhysCoefficient(mfem.VectorPyCoefficient, Coefficient_Evaluator):
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)
         mfem.VectorPyCoefficient.__init__(self, sdim)
         self.sdim = sdim
+
+        handle_allow_python_function_coefficient(
+            "Python function coefficient is created")
 
     def __repr__(self):
         return self.__class__.__name__ + "(VectorPhysCoefficeint)"
@@ -222,6 +238,9 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
         self.sdim = sdim
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)
         mfem.MatrixPyCoefficient.__init__(self, sdim)
+
+        handle_allow_python_function_coefficient(
+            "Python function coefficient is created")
 
     def __repr__(self):
         return self.__class__.__name__ + "(MatrixPhysCoefficeint)"
@@ -297,6 +316,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         v['timestep_weight'] = ["1", "0", "0"]
         v['isTimeDependent'] = False
         v['isTimeDependent_RHS'] = False
+        v['isJacobian'] = False
         v['add_intorder'] = 0
         return v
 
@@ -520,7 +540,19 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     '''
 
     def set_matrix_weight(self, w):
-        self._mat_weight = w
+        '''
+        matrix weight = [y, dy/dt, dy/dt^2, Jac(y), Jac(dy/dt), Jac(dy/dt^2)
+        '''
+        from petram.engine import max_matrix_num
+        ww = [0]*max_matrix_num
+
+        for i, val in enumerate(w):
+            ww[i] = val
+        if self.isJacobian:
+            ww[:(max_matrix_num//2)] = [False]*(max_matrix_num//2)
+        else:
+            ww[(max_matrix_num//2):] = [False]*(max_matrix_num//2)
+        self._mat_weight = ww
 
     def get_matrix_weight(self):
         return self._mat_weight
@@ -664,10 +696,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             ll = [['y(t)', True, 3, {"text": ""}],
                   ['dy/dt', False, 3, {"text": ""}],
                   ['d2y/dt2', False, 3, {"text": ""}],
-                  ['Time Varing Term.', False, 3, {"text": ""}], ]
-#              ['M(t)',     "1", 0],
-#              ['M(t-dt)',  "0", 0],
-#              ['M(t-2dt)', "0", 0],]
+                  ['Gradient', False, 3, {"text": ""}],
+                  ['Varying (in time/for loop) Term.', False, 3, {"text": ""}], ]
         if self.allow_custom_intorder:
             ll.append(['Increase int. order', '0', 400, ''])
         return ll
@@ -683,7 +713,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             self.timestep_config[0] = value[0]
             self.timestep_config[1] = value[1]
             self.timestep_config[2] = value[2]
-            self.isTimeDependent = value[3]
+            self.isJacobian = value[3]
+            self.isTimeDependent = value[4]
 
         if self.allow_custom_intorder:
             self.add_intorder = int(value[-1])
@@ -692,7 +723,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if self.has_essential:
             ret = [self.isTimeDependent]
         else:
-            ret = self.timestep_config[0:3] + [self.isTimeDependent]
+            ret = self.timestep_config[0:3] + \
+                [self.isJacobian, self.isTimeDependent]
         if self.allow_custom_intorder:
             ret = ret + [self.add_intorder]
         return ret
@@ -1143,6 +1175,16 @@ class PhysModule(Phys):
     def is_complex(self):
         return False
 
+    _possible_constraints = None
+    @classmethod
+    def _set_possible_constraints(cls, name):
+        '''
+        utility to define a possible constraints dynamically expandable.
+        '''
+        from petram.helper.phys_module_util import get_phys_constraints
+        constraints = get_phys_constraints(name)
+        cls._possible_constraints = constraints
+
     def get_possible_domain(self):
         from petram.phys.wf.wf_constraints import WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint
         return [WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint]
@@ -1207,6 +1249,9 @@ class PhysModule(Phys):
         from petram.mesh.mesh_extension import MeshExtInfo
 
         info = MeshExtInfo(dim=self.dim, base=self.mesh_idx)
+
+        if len(self.sel_index) == 0:
+            return None
         if self.sel_index[0] != 'all':
             info.set_selection(self.sel_index)
         else:

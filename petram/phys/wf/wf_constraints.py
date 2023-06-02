@@ -168,7 +168,7 @@ class WF_WeakBdryLinConstraint(WF_common, Bdry, WeakLinIntegration):
      
     @classmethod
     def fancy_tree_name(self):
-        return 'WeakLinerContribution'
+        return 'WeakLinearContribution'
      
     @classmethod
     def fancy_menu_name(self):

@@ -185,8 +185,15 @@ class MUMPS(MUMPSBase):
         # it is the top level linearsolver
 
 #        if isinstance(self.parent, Solver):
+        from petram.solver.solver_controls import SolveControl
+
         if self.parent.parent is self.get_solve_root():
             return True
+        elif isinstance(self.parent.parent, SolveControl):
+            if self.parent.parent.parent is self.get_solve_root():
+                return True
+            else:
+                return False
         else:
             return False
 
@@ -695,9 +702,10 @@ class MUMPSSolver(LinearSolver):
             s.run()
             info1 = s.get_info(1)
 
-            if info1 != 0:
+            if info1 < 0:
                 assert False, "MUMPS call (job1) failed. Check error log"
-
+            if info1 > 0:
+                dprint1("MUMPS return warning", info1)
             if not self.silent:
                 dprint1("job2")
             s.set_icntl(13, 0)
@@ -706,8 +714,10 @@ class MUMPSSolver(LinearSolver):
             s.set_job(2)
             s.run()
             info1 = s.get_info(1)
-            if info1 != 0:
+            if info1 < 0:
                 assert False, "MUMPS call (job2) failed. Check error log"
+            if info1 > 0:
+                dprint1("MUMPS return warning", info1)
             if gui.write_fac:
                 if not self.silent:
                     dprint1("job7 (save)")

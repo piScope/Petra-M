@@ -8,7 +8,6 @@ from mpi4py import MPI
 from warnings import warn
 from mfem.common.mpi_debug import nicePrint, niceCall
 
-
 def mpi_type_flag(d):
     if d == MPI.LONG:
         return 1

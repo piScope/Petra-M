@@ -1,5 +1,4 @@
 import numpy as np
-import parser
 import scipy
 import six
 import weakref
@@ -168,6 +167,7 @@ class SliceEvaluator(EvaluatorAgent):
         
         val = eval_at_nodals(self, expr, solvars, phys)
         if val is None: return None, None, None
+
         value = self.interp_mat.dot(val)
         value = value.flatten()
         verts = self.vertices.reshape(-1, self.vertices.shape[-1])

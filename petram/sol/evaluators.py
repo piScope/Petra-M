@@ -22,7 +22,6 @@
 
 import numpy as np
 import six
-import parser
 import weakref
 import os
 from weakref import WeakKeyDictionary as WKD

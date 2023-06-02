@@ -1,6 +1,5 @@
 import time
 import numpy as np
-import parser
 import weakref
 import traceback
 import six

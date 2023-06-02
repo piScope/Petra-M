@@ -45,7 +45,7 @@ def setup_figure(fig, fig2):
 
 
 def read_solinfo_remote(user, server, path):
-    txt = "$PetraM/bin/get_soldir_info.py " + path
+    txt = "$PetraM/bin/get_soldir_info.sh " + path
     command = ["ssh",  "-o",
                "PasswordAuthentication=no",
                "-o",
@@ -71,12 +71,18 @@ def read_solinfo_remote(user, server, path):
 
     res = [x for x in res if len(x) > 0]
     res = res[-1].strip()
-    res = pk.loads(binascii.a2b_hex(res))
 
-    if not res[0]:
-        assert False, res[1]
+    try:
+        res2 = pk.loads(binascii.a2b_hex(res))
+    except binascii.Error:
+        print("Failed to call: "+" ".join(command))
+        print("res is :", res)
+        raise
 
-    return res[1]
+    if not res2[0]:
+        assert False, res2[1]
+
+    return res2[1]
 
 
 ThreadEnd = wx.NewEventType()
@@ -528,7 +534,7 @@ class DlgPlotSol(SimpleFramePlus):
                     [None, None, 141, {"alignright": True,
                                        "func": self.OnLoadLocalSol,
                                        "noexpand": True,
-                                       "label": "Reload chocies"}], ]
+                                       "label": "Reload choices"}], ]
             elp2 = [["Number of workers", self.config['mp_worker'], 400, ],
                     ["Sol", "sol", 504, {"choices_cb": self.local_sollist,
                                          "choices": ["sol", ], }],
@@ -538,7 +544,7 @@ class DlgPlotSol(SimpleFramePlus):
                     [None, None, 141, {"alignright": True,
                                        "func": self.OnLoadLocalSol,
                                        "noexpand": True,
-                                       "label": "Reload chocies"}], ]
+                                       "label": "Reload choices"}], ]
             elp3 = [["Server", self.config['cs_server'], 0, ],
                     ["Number of workers", self.config['cs_worker'], 400, ],
                     ["Sol dir.", self.config['cs_soldir'], 504,
@@ -579,6 +585,8 @@ class DlgPlotSol(SimpleFramePlus):
                                '',
                                None]],
                           ])
+            parent.model.variables.setvar('remote_soldir',
+                                          self.config['cs_soldir'])
 
         self.nb.SetSelection(self.nb.GetPageCount() - 1)
         self.Show()
@@ -783,11 +791,12 @@ class DlgPlotSol(SimpleFramePlus):
             remote = False
 
         from string import digits
+
         def extract_trailing_digits(txt):
             return txt[len(txt.rstrip(digits)):]
 
         sorted_subs = [x[1] for x in sorted([(int(extract_trailing_digits(x)), x)
-                       for x in v if len(extract_trailing_digits(x)) != 0])]
+                                             for x in v if len(extract_trailing_digits(x)) != 0])]
         if '' in v:
             sorted_subs = [''] + sorted_subs
 
@@ -897,6 +906,7 @@ class DlgPlotSol(SimpleFramePlus):
             if self.local_soldir is not None:
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
                 if not os.path.exists(npath):  # fall back
+                    sol = model.param.eval('sol')
                     npath = sol.owndir()
                     self.local_soldir = npath
                     self.local_solsubdir = ""
@@ -1154,7 +1164,7 @@ class DlgPlotSol(SimpleFramePlus):
         all_data = []
         for s in subs:
             if s.strip() == '':
-                continue
+                contineu
             if remote:
                 self.config['cs_soldir'] = base
                 self.config['cs_solsubdir'] = s
@@ -1287,10 +1297,13 @@ class DlgPlotSol(SimpleFramePlus):
         else:
             do_merge1 = True
         average = value[7]
+
+        exprs = [expr, expr_x] if expr_x != '' else [expr]
         data, void = self.evaluate_sol_edge(expr, battrs, phys_path,
                                             do_merge1, True,
                                             average=average,
-                                            refine=refine)
+                                            refine=refine,
+                                            exprs=exprs)
         if data is None:
             return None, None, None
 
@@ -1298,7 +1311,8 @@ class DlgPlotSol(SimpleFramePlus):
             data_x, void = self.evaluate_sol_edge(expr_x, battrs, phys_path,
                                                   do_merge1, True,
                                                   average=average,
-                                                  refine=refine)
+                                                  refine=refine,
+                                                  exprs=exprs)
 
             if data_x is None:
                 return None, None, None
@@ -2293,7 +2307,9 @@ class DlgPlotSol(SimpleFramePlus):
         v.suptitle(expr)
         if len(xexpr) != 0:
             v.xlabel(xexpr)
-        v.plot(data[0], data[1])
+            v.plot(data[0], data[1])
+        else:
+            v.plot(data[1])
         v.update(True)
 
     def eval_probe(self, mode='plot'):
@@ -2727,11 +2743,6 @@ class DlgPlotSol(SimpleFramePlus):
             return None
 
         try:
-            if model.variables.getvar('remote_soldir') is None:
-                probes = self.local_sols[0:2]
-            else:
-                probes = self.remote_sols[0:2]
-
             self.evaluators['Integral'].set_phys_path(phys_path)
             return self.evaluators['Integral'].eval_integral(expr,
                                                              kind=kind,
@@ -2775,14 +2786,14 @@ class DlgPlotSol(SimpleFramePlus):
             return None, None
 
         try:
-            if model.variables.getvar('remote_soldir') is None:
+            if not self.config['use_cs']:
                 probes = self.local_sols[0:2]
             else:
                 probes = self.remote_sols[0:2]
 
             self.evaluators['Probe'].set_phys_path(phys_path)
             data = self.evaluators['Probe'].eval_probe(expr, xexpr, probes)
-            return data[1], data[2]
+            return data[1], np.transpose(data[2])
         except BaseException:
             wx.CallAfter(dialog.showtraceback,
                          parent=self,

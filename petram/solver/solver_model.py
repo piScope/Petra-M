@@ -22,7 +22,7 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
 
 
     (SolverInstance)
-
+n
     SolverInstance: an actual solver logic comes here
        SolverInstance : base class for standard solver
        TimeDependentSolverInstance : an actual solver logic comes here
@@ -80,6 +80,7 @@ class SolveStep(SolverBase):
         v['dwc_pp_arg'] = ''
         v['use_geom_gen'] = False
         v['use_mesh_gen'] = False
+        v['use_profiler'] = False
 
         super(SolveStep, self).attribute_set(v)
         return v
@@ -89,12 +90,13 @@ class SolveStep(SolverBase):
                ["args.",   self.dwc_pp_arg,   0, {}]]
         value = [self.dwc_name, self.dwc_pp_arg]
         return [["Initial value setting",   self.init_setting,   0, {}, ],
-                ["Postporcess solution",    self.postprocess_sol,   0, {}, ],
+                ["Postprocess solution",    self.postprocess_sol,   0, {}, ],
                 ["trial phys.", self.phys_model, 0, {}, ],
                 [None,  self.use_geom_gen,  3, {
                     "text": "run geometry generator"}],
                 [None,  self.use_mesh_gen,  3, {"text": "run mesh generator"}],
-                [None, [False, value], 27, [{'text': 'Use DWC (postprocess)'},
+                [None,  self.use_profiler,  3, {"text": "use profiler"}],
+                [None, [False, value], 27, [{'text': 'use DWC (postprocess)'},
                                             {'elp': ret}]], ]
 
 #                ["initialize solution only",
@@ -104,6 +106,7 @@ class SolveStep(SolverBase):
         return (self.init_setting, self.postprocess_sol, self.phys_model,
                 self.use_geom_gen,
                 self.use_mesh_gen,
+                self.use_profiler,
                 [self.use_dwc_pp, [self.dwc_name, self.dwc_pp_arg, ]])
 
     def import_panel1_value(self, v):
@@ -114,18 +117,20 @@ class SolveStep(SolverBase):
         self.use_mesh_gen = v[4]
         if self.use_geom_gen:
             self.use_mesh_gen = True
-        self.use_dwc_pp = v[5][0]
-        self.dwc_name = v[5][1][0]
-        self.dwc_pp_arg = v[5][1][1]
+        self.use_profiler = bool(v[5])
+        self.use_dwc_pp = v[6][0]
+        self.dwc_name = v[6][1][0]
+        self.dwc_pp_arg = v[6][1][1]
 
 #        self.init_only    = v[2]
 
     def get_possible_child(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
+        from petram.solver.nl_solver_model import NLSolver
         from petram.solver.mg_solver_model import MGSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
-        from petram.solver.solver_controls import DWCCall
+        from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
         from petram.solver.distance_solver import DistanceSolver
@@ -137,7 +142,9 @@ class SolveStep(SolverBase):
                     DistanceSolver,
                     StdSolver,
                     StdMeshAdaptSolver,
+                    NLSolver,
                     # MGSolver,
+                    ForLoop,
                     DWCCall, SetVar]
         except:
             return [MultiLvlStationarySolver,
@@ -145,14 +152,17 @@ class SolveStep(SolverBase):
                     DistanceSolver,
                     # MGSolver,
                     StdSolver,
+                    NLSolver,
+                    ForLoop,
                     DWCCall, SetVar]
 
     def get_possible_child_menu(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
+        from petram.solver.nl_solver_model import NLSolver
         from petram.solver.mg_solver_model import MGSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
-        from petram.solver.solver_controls import DWCCall
+        from petram.solver.solver_controls import DWCCall, InnerForLoop
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
         from petram.solver.distance_solver import DistanceSolver
@@ -161,18 +171,20 @@ class SolveStep(SolverBase):
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
             return [("", StdSolver),
                     ("", MultiLvlStationarySolver),
+                    ("", NLSolver),
                     ("", TimeDomain),
                     ("extra", DistanceSolver),
                     ("", StdMeshAdaptSolver),
-                    # MGSolver,
+                    ("", InnerForLoop),
                     ("", DWCCall),
                     ("!", SetVar)]
         except:
             return [("", StdSolver),
                     ("", MultiLvlStationarySolver),
+                    ("", NLSolver),
                     ("", TimeDomain),
                     ("extra", DistanceSolver),
-                    # MGSolver,
+                    ("", InnerForLoop),
                     ("", DWCCall),
                     ("!", SetVar)]
 
@@ -232,18 +244,21 @@ class SolveStep(SolverBase):
     def get_active_solvers(self):
         return [x for x in self.iter_enabled()]
 
-    def get_num_matrix(self, phys_target):
+    def get_num_matrix(self, phys_target, set_active_matrix=False, engine=None):
+        from petram.engine import max_matrix_num
 
         num = []
         num_matrix = 0
         active_solves = [self[k] for k in self if self[k].enabled]
         ###
+
+        all_weights = []
         for phys in phys_target:
             for mm in phys.walk():
                 if not mm.enabled:
                     continue
 
-                ww = [False]*10
+                ww = [False]*max_matrix_num
                 for s in active_solves:
                     w = s.get_matrix_weight(mm.timestep_config)
                     for i, v in enumerate(w):
@@ -255,7 +270,12 @@ class SolveStep(SolverBase):
                 tmp = int(np.max((wt != 0)*(np.arange(len(wt))+1)))
                 num_matrix = max(tmp, num_matrix)
 
-        #dprint1("number of matrix", num_matrix)
+                all_weights.append(mm.get_matrix_weight())
+
+        if set_active_matrix:
+            flag = np.sum(all_weights, 0).astype(bool)
+            engine.set_active_matrix(flag)
+            dprint1("active_matrix flag", flag)
         return num_matrix
 
     def get_matrix_weight(self, timestep_config):
@@ -326,8 +346,8 @@ class SolveStep(SolverBase):
 
         def make_assertion(cond, message):
             if not cond:
-                print("selected ls", ls_selected)
-                print("candidate ls", ls_candidates)
+                dprint1("Error: selected ls", ls_selected)
+                dprint1("Error: candidate ls", ls_candidates)
                 assert cond, message
 
         def collect_assemble_real(top):
@@ -395,7 +415,9 @@ class SolveStep(SolverBase):
         phys_target = self.get_phys()
         phys_range = self.get_phys_range()
 
-        num_matrix = self.get_num_matrix(phys_target)
+        num_matrix = self.get_num_matrix(phys_target,
+                                         set_active_matrix=True,
+                                         engine=engine)
 
         engine.set_formblocks(phys_target, phys_range, num_matrix)
 
@@ -430,8 +452,9 @@ class SolveStep(SolverBase):
         engine.run_apply_essential(phys_target, phys_range)
         engine.run_fill_X_block()
 
+    @debug.use_profiler
     def run(self, engine, is_first=True):
-        dprint1("!!!!! Entering SolveStep :" + self.name() + " !!!!!")
+        dprint1("!!!!! Entering SolveStep " + self.name() + " !!!!!")
         solvers = self.get_active_solvers()
 
         is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
@@ -470,6 +493,9 @@ class SolveStep(SolverBase):
                         ":" + self.solve_error[1])
                 break
 
+        for solver in solvers:
+            solver.free_instance()
+
         postprocess = self.get_pp_setting()
         engine.run_postprocess(postprocess, name=self.name())
 
@@ -479,6 +505,7 @@ class SolveStep(SolverBase):
                             callername=self.name(),
                             dwcname=self.dwc_name,
                             args=self.dwc_pp_arg)
+        return False
 
 
 class Solver(SolverBase):
@@ -496,6 +523,25 @@ class Solver(SolverBase):
         v['sol_file'] = ''
         super(Solver, self).attribute_set(v)
         return v
+
+    @property
+    def solve_error(self):
+        if hasattr(self, "_solve_error"):
+            return self._solve_error
+        return (False, "")
+
+    @property
+    def instance(self):
+        if hasattr(self, "_instance"):
+            return self._instance
+        return None
+
+    @instance.setter
+    def instance(self, value):
+        self._instance = value
+
+    def free_instance(self):
+        self._instance = None
 
     def get_phys(self):
         my_solve_step = self.get_solve_root()
@@ -666,8 +712,20 @@ class SolverInstance(ABC):
         self.blk_mask = (mask1, mask2)
         self.engine._matrix_blk_mask = self.blk_mask
 
+    def recover_solution(self, ksol=0):
+        '''
+        bring linear algebra level solution to gridfunction.
+        called when we need a solution vector in gridfucntion vector.
+        '''
+        engine = self.engine
+        phys_target = self.get_phys()
+        sol, sol_extra = engine.split_sol_array(self.sol)
+        engine.recover_sol(sol)
+        extra_data = engine.process_extra(sol_extra)
+
     def save_solution(self, ksol=0, skip_mesh=False,
-                      mesh_only=False, save_parmesh=False):
+                      mesh_only=False, save_parmesh=False,
+                      save_mesh_linkdir = None):
 
         engine = self.engine
         phys_target = self.get_phys()
@@ -684,7 +742,8 @@ class SolverInstance(ABC):
             engine.save_sol_to_file(phys_target,
                                     skip_mesh=skip_mesh,
                                     mesh_only=False,
-                                    save_parmesh=save_parmesh)
+                                    save_parmesh=save_parmesh,
+                                    save_mesh_linkdir=save_mesh_linkdir)
             engine.save_extra_to_file(extra_data)
         #engine.is_initialzied = False
 
@@ -888,12 +947,15 @@ class LinearSolver(ABC):
     @abstractmethod
     def Mult(self, b, case_base=0):
         ...
+
     @property
     def skip_solve(self):
         return self._skip_solve
+
     @skip_solve.setter
     def skip_solve(self, val):
         self._skip_solve = val
+
 
 def convert_realblocks_to_complex(solall, M, merge_real_imag):
     if merge_real_imag:

@@ -491,10 +491,10 @@ class Model(RestorableOrderedDict):
         return "Selection"
 
     def panel3_tabname(self):
-        return "Init/NL."
+        return "Init."
 
     def panel4_tabname(self):
-        return "Time Dep./Adv."
+        return "Time Dep./NL."
 
     def panel1_param(self):
         return []
@@ -602,6 +602,16 @@ class Model(RestorableOrderedDict):
         yield self
         for k in self.keys():
             for x in self[k].walk():
+                yield x
+
+    def walk_enabled(self):
+        if not self.enabled:
+            return
+        yield self
+        for k in self.keys():
+            if not self[k].enabled:
+                continue
+            for x in self[k].walk_enabled():
                 yield x
 
     def iter_enabled(self):
@@ -888,6 +898,9 @@ class Model(RestorableOrderedDict):
                        '    mfem_config.use_parallel = use_parallel',
                        '    debug_level=args.debug_param',
                        '',
+                       '# this is needed if this file is being imported',
+                       'if not "use_parallel" in locals():',
+                       '    use_parallel = False',
                        '#set default parallel/serial flag',
                        'if use_parallel:',
                        '    from mpi4py import MPI',

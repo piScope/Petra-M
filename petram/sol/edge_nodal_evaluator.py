@@ -1,5 +1,4 @@
 import numpy as np
-import parser
 import scipy
 import six
 from collections import defaultdict
@@ -95,7 +94,6 @@ class EdgeNodalEvaluator(EvaluatorAgent):
 
         else:
             assert False, "Unsupported dim"
-            
 
         self.emesh_idx = emesh_idx
         
@@ -111,8 +109,9 @@ class EdgeNodalEvaluator(EvaluatorAgent):
         
             
     def eval(self, expr, solvars, phys, **kwargs):
+        exprs =  kwargs.pop("exprs", [expr])
+        emesh_idx = get_emesh_idx(self, exprs, solvars, phys)
         
-        emesh_idx = get_emesh_idx(self, expr, solvars, phys)
         #print("emesh_idx", emesh_idx)
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
@@ -124,7 +123,8 @@ class EdgeNodalEvaluator(EvaluatorAgent):
             if self.emesh_idx != emesh_idx[0]:
                  self.preprocess_geometry(self.attrs, emesh_idx=emesh_idx[0])
                  
-        val = eval_at_nodals(self, expr, solvars, phys)
+        val = eval_at_nodals(self, expr, solvars, phys,
+                             edge_evaluator=True)
         if val is None: return None, None, None
 
 #        return self.locs[self.iverts_inv], val[self.iverts_inv, ...]

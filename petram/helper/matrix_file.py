@@ -11,6 +11,7 @@ import numpy as np
 import os
 import six
 
+
 def read_matvec(file, all=False, verbose=False, complex=False, skip=0):
     '''
     read matrix/vector file.  
@@ -24,16 +25,17 @@ def read_matvec(file, all=False, verbose=False, complex=False, skip=0):
         files = []
         for x in os.listdir(dir):
             if x.find(base) != -1:
-                 files.append(x)
+                files.append(x)
         files = sorted(files)
         files = [os.path.join(dir, f) for f in files]
-        if verbose: six.print_(files)
- 
+        if verbose:
+            six.print_(files)
+
     if len(files) == 0:
         return
 
     ret = []
-    for file in files:   
+    for file in files:
         fid = open(file, "r")
         xx = [x.strip().split() for x in fid.readlines()]
         xx = xx[skip:]
@@ -45,30 +47,31 @@ def read_matvec(file, all=False, verbose=False, complex=False, skip=0):
         ret.append(np.array(xxx))
     return np.vstack(ret)
 
+
 def write_matrix(file, m):
     from petram.mfem_config import use_parallel
     if use_parallel:
-       from mpi4py import MPI                               
-       num_proc = MPI.COMM_WORLD.size
-       myid     = MPI.COMM_WORLD.rank
-       smyid = '.'+'{:0>6d}'.format(myid)
+        from mpi4py import MPI
+        num_proc = MPI.COMM_WORLD.size
+        myid = MPI.COMM_WORLD.rank
+        smyid = '.'+'{:0>6d}'.format(myid)
     else:
-       smyid = ''
+        smyid = ''
     if hasattr(m, 'save_data'):
-       m.save_data(file + smyid)
+        m.save_data(file + smyid)
     else:
-       raise NotImplemented("write matrix not implemented for" + m.__repr__())
+        raise NotImplemented("write matrix not implemented for" + m.__repr__())
 
 
 def write_vector(file, bb):
     from petram.mfem_config import use_parallel
     if use_parallel:
-       from mpi4py import MPI                               
-       num_proc = MPI.COMM_WORLD.size
-       myid     = MPI.COMM_WORLD.rank
-       smyid = '.'+'{:0>6d}'.format(myid)
+        from mpi4py import MPI
+        num_proc = MPI.COMM_WORLD.size
+        myid = MPI.COMM_WORLD.rank
+        smyid = '.'+'{:0>6d}'.format(myid)
     else:
-       smyid = ''
+        smyid = ''
 
     if hasattr(bb, "SaveToFile"):   # GridFunction
         bb.SaveToFile(file+smyid, 8)
@@ -83,15 +86,16 @@ def write_vector(file, bb):
                 fid.write(str(k) + ' ' + "{0:.8g}".format(x) + '\n')
         fid.close()
 
+
 def write_coo_matrix(file, A):
     from petram.mfem_config import use_parallel
     if use_parallel:
-       from mpi4py import MPI                               
-       num_proc = MPI.COMM_WORLD.size
-       myid     = MPI.COMM_WORLD.rank
-       smyid = '.'+'{:0>6d}'.format(myid)
+        from mpi4py import MPI
+        num_proc = MPI.COMM_WORLD.size
+        myid = MPI.COMM_WORLD.rank
+        smyid = '.'+'{:0>6d}'.format(myid)
     else:
-       smyid = ''
+        smyid = ''
 
     if (A.dtype == 'complex'):
         is_complex = True
@@ -100,22 +104,22 @@ def write_coo_matrix(file, A):
 
     fid = open(file+smyid, 'w')
     rc = np.vstack((A.row, A.col)).transpose()
-    tmp = sorted([(k, tuple(x)) for k, x in enumerate(rc)], key=lambda x:x[1])
+    tmp = sorted([(k, tuple(x)) for k, x in enumerate(rc)], key=lambda x: x[1])
     idx = np.array([x[0] for x in tmp])
     if len(idx) == 0:
         fid.close()
         return
-    
+
     row = A.row[idx]
     col = A.col[idx]
-    data = A.data[idx]    
+    data = A.data[idx]
 
     if is_complex:
         txt = [' '.join([str(int(r)), str(int(c)), "{0:.8g}".format(a.real),
-               "{0:.8g}".format(a.imag)]) for r,c,a in zip(row, col, data)]
+                         "{0:.8g}".format(a.imag)]) for r, c, a in zip(row, col, data)]
         fid.write('\n'.join(txt) + "\n")
     else:
         txt = [' '.join([str(int(r)), str(int(c)), "{0:.8g}".format(a.real),
-               "{0:.8g}".format(a.imag)]) for r,c,a in zip(row, col, data)]
+                         "{0:.8g}".format(a.imag)]) for r, c, a in zip(row, col, data)]
         fid.write('\n'.join(txt) + "\n")
     fid.close()

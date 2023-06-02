@@ -3,7 +3,6 @@
       a thing to evaluate solution on a boundary
 '''
 import numpy as np
-import parser
 import weakref
 import six
 import os
@@ -30,14 +29,12 @@ class ProbeEvaluator(EvaluatorAgent):
         path = os.path.expanduser(path)        
         probes = probe_files[1]
 
-        st = parser.expr(expr)
-        code= st.compile('<string>')
+        code= compile(expr, '<string>', 'eval')
         names = list(code.co_names)
 
         if len(xexpr.strip()) != 0:
-            xst = parser.expr(xexpr)
-            xcode= xst.compile('<string>')
-            names.extend(code.co_names)
+            xcode = compile(xexpr, '<string>', 'eval')
+            names.extend(xcode.co_names)
         else:
             xcode = None
 

@@ -1,4 +1,5 @@
 from __future__ import print_function
+import petram.helper.pickle_wrapper as pickle
 
 from itertools import product
 import os
@@ -8,11 +9,11 @@ dprint1, dprint2, dprint3 = debug.init_dprints('ParametricScanner')
 dprint0 = debug.regular_print('ParametricScanner', True)
 format_memory_usage = debug.format_memory_usage
 
-import petram.helper.pickle_wrapper as pickle
 
 class DefaultParametricScanner(object):
-    def __init__(self, data = None):
-        if data is None: data = []
+    def __init__(self, data=None):
+        if data is None:
+            data = []
         self.idx = 0
         self.target = None
         self.set_data(data)
@@ -24,12 +25,14 @@ class DefaultParametricScanner(object):
         model tree
         '''
         pass
-    
+
     def set_data(self, data):
         self._data = data
         self.max = len(data)
-    
-    def __iter__(self): return self
+
+    def __iter__(self):
+        self.idx = 0
+        return self
 
     def __next__(self):
 
@@ -38,32 +41,33 @@ class DefaultParametricScanner(object):
 
         data = self._data[self.idx]
         dprint0("==== Entering next parameter:", data, "(" +
-                str(self.idx+1)+ "/" + str(self.max) + ")")
+                str(self.idx+1) + "/" + str(self.max) + ")")
         dprint1(format_memory_usage())
 
         self.apply_param(data)
 
-        self.idx = self.idx +1
+        self.idx = self.idx + 1
         return self.idx
 
     def list_data(self):
         return list(self._data)
-    
+
     def set_phys_models(self, targets):
         '''
         set target physics model
         '''
         if (not isinstance(targets, tuple) and
-            not isinstance(targets, list)):
+                not isinstance(targets, list)):
             self.target_phys = [targets]
         else:
             self.target_phys = targets
+
     def next(self):
         return self.__next__()
 
     def __len__(self):
         return self.max
-    
+
     def len(self):
         return self.max
 
@@ -79,7 +83,7 @@ class DefaultParametricScanner(object):
 
         if myid == 0:
             fid = open("parametric_data_"+solver_name, "wb")
-            dd = {"name": solver_name, "data":data}
+            dd = {"name": solver_name, "data": data}
             pickle.dump(dd, fid)
             fid.close()
 
@@ -87,7 +91,7 @@ class DefaultParametricScanner(object):
 
     def set_model(self, data):
         raise NotImplementedError(
-             "set model for parametric scanner needs to be given in subclass")
+            "set model for parametric scanner needs to be given in subclass")
 
     @property
     def names(self):
@@ -95,7 +99,7 @@ class DefaultParametricScanner(object):
         suposed to return parameternames
         '''
         raise NotImplementedError(
-             "set model for parametric scanner needs to be given in subclass")
+            "set model for parametric scanner needs to be given in subclass")
 
 
 class SimpleScanner(DefaultParametricScanner):
@@ -109,27 +113,29 @@ class SimpleScanner(DefaultParametricScanner):
     # 2D scan
     Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = (3,4)) 
     '''
+
     def __init__(self, *args, **kwargs):
         use_product = kwargs.pop('product', True)
-        
+
         if len(kwargs) != 0:
             self._names = args
             starts = np.atleast_1d(kwargs['start'])
             stops = np.atleast_1d(kwargs['stop'])
             steps = np.atleast_1d(kwargs['nstep'])
-            if len(steps) == 1: use_product = False
-            
+            if len(steps) == 1:
+                use_product = False
+
             data = []
             for k in range(len(self._names)):
                 s = starts[k]
                 e = stops[k]
                 n = steps[0] if len(steps) == 1 else steps[k]
                 data.append(np.linspace(s, e, n))
-                
+
         else:
             o = iter(args)
             names = []
-            data = []            
+            data = []
             while True:
                 try:
                     names.append(o.__next__())
@@ -137,22 +143,28 @@ class SimpleScanner(DefaultParametricScanner):
                 except StopIteration:
                     break
             self._names = names
-            
+
         if use_product:
             data = product(*data)
         else:
             data = zip(*data)
-            
-        DefaultParametricScanner.__init__(self, data = list(data))
+
+        DefaultParametricScanner.__init__(self, data=list(data))
 
     def apply_param(self, data):
         names = self._names
-                            
+
         dprint1("Simple Scanner: Target " + str(self.target_phys))
         for k, name in enumerate(names):
+            id_list = []
             for phys in self.target_phys:
-                 dprint1("Simple Scanner: Setting " + name + ':' + str(data[k]))
-                 phys._global_ns[name] = data[k]
+                if id(phys._global_ns) in id_list:
+                    continue
+
+                dprint1("Simple Scanner: Setting " + name + ':' + str(data[k]) +
+                        " setting in " + str(phys))
+                phys._global_ns[name] = data[k]
+                id_list.append(id(phys._global_ns))
 
     @property
     def names(self):
@@ -161,5 +173,5 @@ class SimpleScanner(DefaultParametricScanner):
         '''
         return self._names
 
-                 
+
 Scan = SimpleScanner

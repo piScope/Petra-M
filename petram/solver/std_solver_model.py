@@ -38,9 +38,9 @@ class StdSolver(Solver):
             [None,
              self.use_profiler,  3, {"text": "use profiler"}],
             [None, self.skip_solve,  3, {"text": "skip linear solve"}],
-            [None, self.load_sol,  3, {"text": "load sol file (linear solver is not called)"}],
-            [None, self.sol_file,  0, None],]
-
+            [None, self.load_sol,  3, {
+                "text": "load sol file (linear solver is not called)"}],
+            [None, self.sol_file,  0, None], ]
 
     def get_panel1_value(self):
         return (  # self.init_setting,
@@ -111,11 +111,13 @@ class StdSolver(Solver):
 
     @debug.use_profiler
     def run(self, engine, is_first=True, return_instance=False):
-        dprint1("Entering run (is_first=", is_first, ")", self.fullpath())
+        dprint1("Entering run (is_first= ", is_first, ") ", self.fullpath())
         if self.clear_wdir:
             engine.remove_solfiles()
 
-        instance = StandardSolver(self, engine)
+        instance = StandardSolver(
+            self, engine) if self.instance is None else self.instance
+
         instance.set_blk_mask()
         if return_instance:
             return instance
@@ -135,7 +137,12 @@ class StdSolver(Solver):
             if is_first:
                 instance.assemble()
                 is_first = False
-            instance.solve()
+            else:
+                instance.assemble(update=True)
+
+            update_operator = engine.check_block_matrix_changed(
+                instance.blk_mask)
+            instance.solve(update_operator=update_operator)
 
         instance.save_solution(ksol=0,
                                skip_mesh=False,
@@ -144,6 +151,8 @@ class StdSolver(Solver):
         engine.sol = instance.sol
 
         instance.save_probe()
+
+        self.instance = instance
 
         dprint1(debug.format_memory_usage())
         return is_first
@@ -154,6 +163,7 @@ class StandardSolver(SolverInstance):
         SolverInstance.__init__(self, gui, engine)
         self.assembled = False
         self.linearsolver = None
+        self._operator_set = False
 
     @property
     def blocks(self):
@@ -165,7 +175,7 @@ class StandardSolver(SolverInstance):
 
         return A and isAnew
         '''
-        return M[0], True
+        return M[0], np.any(mask_M[0])
 
     def compute_rhs(self, M, B, X):
         '''
@@ -173,7 +183,7 @@ class StandardSolver(SolverInstance):
         '''
         return B
 
-    def assemble(self, inplace=True):
+    def assemble(self, inplace=True, update=False):
         engine = self.engine
         phys_target = self.get_phys()
         phys_range = self.get_phys_range()
@@ -183,16 +193,25 @@ class StandardSolver(SolverInstance):
                 [x.name() for x in phys_target],
                 [x.name() for x in phys_range])
 
-        engine.run_verify_setting(phys_target, self.gui)
-        engine.run_assemble_mat(phys_target, phys_range)
-        engine.run_assemble_b(phys_target)
-        engine.run_fill_X_block()
+        if not update:
+            engine.run_verify_setting(phys_target, self.gui)
+        else:
+            engine.set_update_flag('TimeDependent')
 
-        self.engine.run_assemble_blocks(self.compute_A,
-                                        self.compute_rhs,
-                                        inplace=inplace)
+        M_updated = engine.run_assemble_mat(
+            phys_target, phys_range, update=update)
+        B_updated = engine.run_assemble_b(phys_target, update=update)
+
+        engine.run_apply_essential(phys_target, phys_range, update=update)
+        engine.run_fill_X_block(update=update)
+
+        _blocks, M_changed = self.engine.run_assemble_blocks(self.compute_A,
+                                                             self.compute_rhs,
+                                                             inplace=inplace,
+                                                             update=update,)
         #A, X, RHS, Ae, B, M, names = blocks
         self.assembled = True
+        return M_changed
 
     def assemble_rhs(self):
         engine = self.engine
@@ -203,6 +222,7 @@ class StandardSolver(SolverInstance):
         self.assembled = True
 
     def solve(self, update_operator=True):
+        update_operator = update_operator or not self._operator_set
         engine = self.engine
 
         # if not self.assembled:
@@ -217,6 +237,7 @@ class StandardSolver(SolverInstance):
         if update_operator:
             AA = engine.finalize_matrix(A, mask, not self.phys_real,
                                         format=self.ls_type)
+
         BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
                                  format=self.ls_type)
 
@@ -233,6 +254,7 @@ class StandardSolver(SolverInstance):
             linearsolver.SetOperator(AA,
                                      dist=engine.is_matrix_distributed,
                                      name=depvars)
+            self._operator_set = True
 
         if linearsolver.is_iterative:
             XX = engine.finalize_x(X[0], RHS, mask, not self.phys_real,

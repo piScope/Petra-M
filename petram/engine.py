@@ -46,6 +46,14 @@ def enum_fes(phys, *args):
         yield ([k] + [(None if a[phys] is None else a[phys][k][1])
                       for a in args])
 
+# Number of matrices to handle.
+#   must be even number.
+#    First half is for time-dependent
+#    Second half is for gradient
+
+
+max_matrix_num = 10
+
 
 class Engine(object):
     max_levels = 10
@@ -94,6 +102,8 @@ class Engine(object):
         self.case_base = 0
         self._init_done = []
 
+        self._ppname_postfix = ''
+
     def initialize_datastorage(self):
         self.is_assembled = False
         self.is_initialized = False
@@ -140,6 +150,28 @@ class Engine(object):
         self.model.root()._parameters = data[1]
         for k, n in enumerate(stored_data_names):
             setattr(self, n, data[2][k])
+
+    #
+    #  active_matrix
+    #
+    def is_matrix_active(self, k_matrix):
+        return self._active_matrix[k_matrix]
+
+    def set_active_matrix(self, active_matrix):
+        self._active_matrix = active_matrix
+
+    def activate_matrix(self, k):
+        self._active_matrix[k] = True
+
+    def deactivate_matrix(self, k):
+        self._active_matrix[k] = False
+
+    def iter_active_matrix(self):
+        d = self._active_matrix
+        return [i*d[i] for i in range(len(d)) if d[i]]
+    #
+    #  formblocks
+    #
 
     def set_formblocks(self, phys_target, phys_range, n_matrix):
         '''
@@ -442,7 +474,6 @@ class Engine(object):
             for k in solk:
                 if not (isinstance(model['Solver'][k], SolveStep) or
                         isinstance(model['Solver'][k], SolveControl)):
-                    print("moving ", k)
                     if box is None:
                         name = model['Solver'].add_item('SolveStep', SolveStep)
                         box = model['Solver'][name]
@@ -468,6 +499,20 @@ class Engine(object):
             except:
                 from petram.mfem_model import MFEM_GeomRoot
             model.insert_item(1, 'Geometry', MFEM_GeomRoot())
+
+        #
+        #  set debug parameters to mfem_config
+        #
+        import petram.mfem_config
+        if model["General"].debug_numba_jit == 'on':
+            petram.mfem_config.numba_debug = True
+        else:
+            petram.mfem_config.numba_debug = False
+
+        dprint1("petram.mfem_config.numba_debug",
+                petram.mfem_config.numba_debug)
+        petram.mfem_config.allow_python_function_coefficient = model[
+            "General"].allow_fallback_nonjit
 
     def get_mesh(self, idx=0, mm=None):
         if len(self.meshes) == 0:
@@ -551,6 +596,7 @@ class Engine(object):
         if dir is None:
             from __main__ import __file__ as mainfile
             dir = os.path.dirname(os.path.realpath(mainfile))
+
         for node in model.walk():
             if node.has_ns() and node.ns_name is not None:
                 node.read_ns_script_data(dir=dir)
@@ -639,12 +685,12 @@ class Engine(object):
 
         for k in self.model['Phys'].keys():
             phys = self.model['Phys'][k]
-            if not phys.enabled:
-                continue
+            # (we do this even disabled physics, until different problem develops)
+            # if not phys.enabled:
+            #     continue
             self.do_run_mesh_extension_prep(phys)
 
     def do_run_mesh_extension_prep(self, phys):
-        from petram.mesh.mesh_extension import MeshExt, generate_emesh
         from petram.mesh.mesh_model import MFEMMesh
 
         if len(self.emeshes) == 0:
@@ -655,12 +701,26 @@ class Engine(object):
                                                  self.emeshes[j].Dimension(),
                                                  attrs)
         info = phys.get_mesh_ext_info(self.meshes[phys.mesh_idx])
-        idx = self.emesh_data.add_info(info)
-
-        phys.emesh_idx = idx
-        dprint1(phys.name() + ":  emesh index =", idx)
+        if info is not None:
+            idx = self.emesh_data.add_info(info)
+            phys.emesh_idx = idx
+        elif phys.enabled:
+            assert False, "failed to run mesh extension. check selection of " + \
+                str(phys)
+        else:
+            phys.emesh_idx = 0   # this is when
+        dprint1(phys.name() + ":  emesh index =", phys.emesh_idx)
 
     def run_mesh_extension(self, phys):
+
+        import petram.mesh.partial_mesh
+
+        p_method = self.get_submesh_partitiong_method()
+        if p_method == "auto":
+            petram.mesh.partial_mesh.partition_method = "default"
+        else:
+            petram.mesh.partial_mesh.partition_method = "0"
+
         from petram.mesh.mesh_extension import MeshExt, generate_emesh
         from petram.mesh.mesh_model import MFEMMesh
 
@@ -722,7 +782,7 @@ class Engine(object):
         return self.is_initialized
 
     def run_apply_init0(self, phys_range, mode,
-                        init_value=0.0, init_path=''):
+                        init_value=0.0, init_path='', init_dwc=("", "")):
         # mode
         #  0: zero
         #  1: init to constant
@@ -732,51 +792,59 @@ class Engine(object):
         dprint1("run_apply_init0", phys_range, mode)
         for j in range(self.n_matrix):
             self.access_idx = j
-            for phys in phys_range:
-                names = phys.dep_vars
-                if mode == 0:
-                    for name in names:
-                        r_ifes = self.r_ifes(name)
-                        rgf = self.r_x[r_ifes]
-                        igf = self.i_x[r_ifes]
-                        rgf.Assign(0.0)
-                        if igf is not None:
-                            igf.Assign(0.0)
-                        if not name in self._init_done:
-                            self._init_done.append(name)
-                elif mode == 1:
-                    from petram.helper.variables import project_variable_to_gf
+            if not self.is_matrix_active(j):
+                continue
 
-                    global_ns = phys._global_ns.copy()
-                    for key in self.model.root()._variables:
-                        global_ns[key] = self.model.root()._variables[key]
-                    for name in names:
-                        r_ifes = self.r_ifes(name)
-                        rgf = self.r_x[r_ifes]
-                        igf = self.i_x[r_ifes]
-                        ind_vars = phys.ind_vars
-                        dprint1(
-                            "applying init value to entire discrete space:" + name, init_value)
-                        project_variable_to_gf(init_value,
-                                               ind_vars,
-                                               rgf, igf,
-                                               global_ns=global_ns)
+            if mode in [0, 1, 2, 3, 4]:
+                for phys in phys_range:
+                    names = phys.dep_vars
+                    if mode == 0:
+                        for name in names:
+                            r_ifes = self.r_ifes(name)
+                            rgf = self.r_x[r_ifes]
+                            igf = self.i_x[r_ifes]
+                            rgf.Assign(0.0)
+                            if igf is not None:
+                                igf.Assign(0.0)
+                            if not name in self._init_done:
+                                self._init_done.append(name)
+                    elif mode == 1:
+                        from petram.helper.variables import project_variable_to_gf
 
-                        # rgf.ProjectCoefficient(rc)
-                        # rgf.Assign(rinit)
-                        # if igf is not None:
-                        #   igf.ProjectCoefficient(ic)
-                        if not name in self._init_done:
-                            self._init_done.append(name)
-                elif mode == 2:  # apply Einit
-                    self.apply_init_from_init_panel(phys)
-                elif mode == 3:
-                    self.apply_init_from_file(phys, init_path)
-                elif mode == 4:
-                    self.apply_init_from_previous(names)
-                else:
-                    raise NotImplementedError(
-                        "unknown init mode")
+                        global_ns = phys._global_ns.copy()
+                        for key in self.model.root()._variables:
+                            global_ns[key] = self.model.root()._variables[key]
+                        for name in names:
+                            r_ifes = self.r_ifes(name)
+                            rgf = self.r_x[r_ifes]
+                            igf = self.i_x[r_ifes]
+                            ind_vars = phys.ind_vars
+                            dprint1(
+                                "applying init value to entire discrete space:" + name, init_value)
+                            project_variable_to_gf(init_value,
+                                                   ind_vars,
+                                                   rgf, igf,
+                                                   global_ns=global_ns)
+
+                            # rgf.ProjectCoefficient(rc)
+                            # rgf.Assign(rinit)
+                            # if igf is not None:
+                            #   igf.ProjectCoefficient(ic)
+                            if not name in self._init_done:
+                                self._init_done.append(name)
+                    elif mode == 2:  # apply Einit
+                        self.apply_init_from_init_panel(phys)
+                    elif mode == 3:
+                        self.apply_init_from_file(phys, init_path)
+                    elif mode == 4:
+                        self.apply_init_from_previous(names)
+            elif mode == 5:
+                names = []
+                for phys in phys_range:
+                    names.extend(phys.dep_vars)
+                self.apply_init_by_dwc(names, init_dwc)
+            else:
+                raise NotImplementedError("unknown init mode")
 
         self.add_FESvariable_to_NS(phys_range, verbose=True)
 
@@ -791,6 +859,9 @@ class Engine(object):
         dprint1("run_apply_init_autozero", phys_range)
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             for phys in phys_range:
                 names = phys.dep_vars
                 for name in names:
@@ -829,6 +900,9 @@ class Engine(object):
 
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             for phys in phys_target:
                 self.apply_essential(phys, update=update)
 
@@ -850,6 +924,8 @@ class Engine(object):
 
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
 
             for phys in phys_target:
                 self.fill_bf(phys, update)
@@ -874,9 +950,14 @@ class Engine(object):
             self.extras = {}
             updated_extra = []
             for phys in phys_target:
-                self.assemble_extra(phys, phys_range)
-                updated_extra.extend(
-                    self.extra_update_check_M(phys, phys_range))
+                keys_to_update = self.extra_update_check_M(phys, phys_range)
+
+                if update:
+                    self.assemble_extra(phys, phys_range, keys_to_update)
+                else:
+                    self.assemble_extra(phys, phys_range, None)
+
+                updated_extra.extend(keys_to_update)
 
             for extra_name, dep_name, kfes in updated_extra:
                 r = self.dep_var_offset(extra_name)
@@ -912,15 +993,21 @@ class Engine(object):
             # global interpolation (mesh coupling)
             self.assemble_projection(phys)
 
-        self.extras_mm = {}
+        #self.extras_mm = {}
 
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
 
-            self.extras = {}
+            # self.extras = {} (we keep old extra and update only where it is needed)
             updated_extra = []
             for phys in phys_target:
-                self.assemble_extra(phys, phys_range)
+                # dprint1("checking extra_updat for B",
+                #        self.extra_update_check_B(phys, phys_target))
+                keys_to_update = self.extra_update_check_B(phys, phys_target)
+
+                self.assemble_extra(phys, phys_range, keys_to_update)
                 updated_extra.extend(
                     self.extra_update_check_M(phys, phys_range))
 
@@ -1021,10 +1108,10 @@ class Engine(object):
         # M[0].save_to_file("M0")
         # M[1].save_to_file("M1")
         # X[0].save_to_file("X0")
-
         A2, isAnew = compute_A(M, B, X,
                                self.mask_M,
                                self.mask_B)  # solver determins A
+
         if isAnew:
             # generate Ae and eliminated A
             A, Ae = self.fill_BCeliminate_matrix(A2, B,
@@ -1032,29 +1119,20 @@ class Engine(object):
                                                  update=update)
 
         RHS = compute_rhs(M, B, X)          # solver determins RHS
-
-        # for m in M:
-        #    A.check_shared_id(m)
-        # for x in X:
-        #    B.check_shared_id(x)
-        # RHS.save_to_file("RHSbefore")
-        # M[0].save_to_file("M0there")
-        # Ae.save_to_file("Ae")
-
         RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
-
-        # RHS.save_to_file("RHS")
 
         # A and RHS is modifedy by global DoF coupling P
         A, RHS = self.apply_interp(A, RHS)
+
+        # RHS.save_to_file("RHS")
         # M[0].save_to_file("M0there2")
         # M[1].save_to_file("M1")
         # X[0].save_to_file("X0")
         # RHS.save_to_file("RHS")
 
+        # = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
         self.assembled_blocks = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
 
-        # = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
         return self.assembled_blocks, M_changed
 
     def run_update_B_blocks(self):
@@ -1094,6 +1172,9 @@ class Engine(object):
         # this loop alloates GridFunctions
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             is_complex = phys.is_complex()
             for n in phys.dep_vars:
                 r_ifes = self.r_ifes(n)
@@ -1205,6 +1286,8 @@ class Engine(object):
 
             for j in range(self.n_matrix):
                 self.access_idx = j
+                if not self.is_matrix_active(j):
+                    continue
 
                 # if it is not using name defined in init, skip it...
                 if not self.has_rfes(name):
@@ -1286,6 +1369,17 @@ class Engine(object):
         else:
             dprint1("(warining) extra is not loaded ...")
         # print self.sol_extra
+
+    def apply_init_by_dwc(self, names, init_dwc):
+        for n in names:
+            if n not in self._init_done:
+                self._init_done.append(n)
+
+        self.call_dwc(None, method='init', callername=init_dwc[0],
+                      dwcname=init_dwc[1],
+                      args=init_dwc[2],
+                      fesnames=names)
+
     #
     #  Step 2  fill matrix/rhs elements
     #
@@ -1443,8 +1537,10 @@ class Engine(object):
             for loc in loc_list:
                 r, c, is_trans, is_conj = loc
                 if isinstance(r, int):
-                    idx1 = phys_offset + r
-                    idx2 = rphys_offset + c
+                    #idx1 = phys_offset + r
+                    #idx2 = rphys_offset + c
+                    idx1 = self.ifes(phys.dep_vars[r])
+                    idx2 = self.r_ifes(phys.dep_vars[c])
                 else:
                     idx1 = self.ifes(r)
                     idx2 = self.r_ifes(c)
@@ -1488,8 +1584,10 @@ class Engine(object):
                 is_conj = (is_conj == -1)
 
                 if isinstance(r, int):
-                    idx1 = phys_offset + r
-                    idx2 = rphys_offset + c
+                    #idx1 = phys_offset + r
+                    #idx2 = rphys_offset + c
+                    idx1 = self.ifes(phys.dep_vars[r])
+                    idx2 = self.r_ifes(phys.dep_vars[c])
                 else:
                     idx1 = self.ifes(r)
                     idx2 = self.r_ifes(c)
@@ -1526,6 +1624,9 @@ class Engine(object):
         fes_vars = self.fes_vars
         for j in range(self.n_matrix):
             self.access_idx = j
+            if not self.is_matrix_active(j):
+                continue
+
             for name in self.fes_vars:
                 ifes = self.ifes(name)
 
@@ -1552,7 +1653,7 @@ class Engine(object):
     def fill_coupling(self, coupling, phys_target):
         raise NotImplementedError("Coupling is not supported")
 
-    def assemble_extra(self, phys, phys_range):
+    def assemble_extra(self, phys, phys_range, keys_to_update):
         for mm in phys.walk():
             if not mm.enabled:
                 continue
@@ -1561,6 +1662,14 @@ class Engine(object):
                 for kfes, name in enumerate(names):
                     if not mm.has_extra_DoF2(kfes, phys2, self.access_idx):
                         continue
+
+                    dep_var = names[kfes]
+                    extra_name = mm.extra_DoF_name2(kfes)
+                    key = (extra_name, dep_var, kfes)
+
+                    if keys_to_update is not None and key not in keys_to_update:
+                        continue
+
                     gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
                     gl_ess_tdof = gl_ess_tdof1 + gl_ess_tdof2
                     tmp = mm.add_extra_contribution(self,
@@ -1570,10 +1679,7 @@ class Engine(object):
                     if tmp is None:
                         continue
 
-                    dep_var = names[kfes]
-                    extra_name = mm.extra_DoF_name2(kfes)
-                    key = (extra_name, dep_var, kfes)
-                    if key in self.extras:
+                    if key in self.extras and keys_to_update is None:
                         assert False, "extra with key= " + \
                             str(key) + " already exists."
                     self.extras[key] = tmp
@@ -1707,6 +1813,9 @@ class Engine(object):
             R = len(self.dep_vars)
             C = len(self.r_dep_vars)
             for k in range(self.n_matrix):
+                if not self.is_matrix_active(k):
+                    continue
+
                 for i, j in product(range(R), range(C)):
                     if self.mask_M[k, i, j]:
                         M[k][i, j] = None
@@ -1722,6 +1831,8 @@ class Engine(object):
 
         for k in range(self.n_matrix):
             self.access_idx = k
+            if not self.is_matrix_active(k):
+                continue
 
             self.r_a.generateMatVec(self.a2A, self.a2Am)
             self.i_a.generateMatVec(self.a2A, self.a2Am)
@@ -1795,6 +1906,7 @@ class Engine(object):
         from petram.helper.formholder import convertElement
         from mfem.common.chypre import MfemVec2PyVec
 
+        dprint1("fill_B_blocks mask_B", self.mask_B)
         nfes = len(self.fes_vars)
         self.access_idx = 0
         self.r_b.generateMatVec(self.b2B)
@@ -1826,6 +1938,8 @@ class Engine(object):
 
         for k in range(self.n_matrix):
             self.access_idx = k
+            if not self.is_matrix_active(k):
+                continue
 
             self.r_x.generateMatVec(self.x2X)
             self.i_x.generateMatVec(self.x2X)
@@ -1873,6 +1987,12 @@ class Engine(object):
                 A.add_empty_square_block(idx1, idx2)
 
             if A[idx1, idx2] is not None:
+                # note: this check is necessary, since in parallel environment,
+                # add_empty_square_block could not create any block because
+                # locally number or rows is zero.
+                if self.get_autofill_diag():
+                    self.fill_empty_diag(A[idx1, idx2])
+
                 Aee, A[idx1, idx2], Bnew = A[idx1, idx2].eliminate_RowsCols(B[idx1], ess_tdof1,
                                                                             inplace=inplace,
                                                                             diagpolicy=diagpolicy)
@@ -1899,7 +2019,7 @@ class Engine(object):
                     continue
 
                 A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof1, inplace=inplace)
-                if not (idx1, j) in self._aux_essential:
+                if not (idx1, j) in self._aux_essential and len(gl_ess_tdof2) > 0:
                     A[idx1, j] = A[idx1, j].resetRow(
                         gl_ess_tdof2, inplace=inplace)
 
@@ -1916,6 +2036,23 @@ class Engine(object):
                 A[j, idx2] = A[j, idx2].resetCol(gl_ess_tdof1, inplace=inplace)
 
         return A, Ae
+
+    def eliminateJac(self, Jac):
+        '''
+        eliminate both col/rows from matrix
+
+        '''
+        for name in self.gl_ess_tdofs:
+            if not name in self._dep_vars:
+                continue
+
+            idx1 = self.dep_var_offset(name)
+            idx2 = self.r_dep_var_offset(name)
+
+            gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
+            if Jac[idx1, idx2] is not None:
+                Jac[idx1, idx2].resetRow(gl_ess_tdof1)
+                Jac[idx1, idx2].resetCol(gl_ess_tdof1)
 
     def eliminateBC(self, Ae, X, RHS):
         try:
@@ -2073,7 +2210,8 @@ class Engine(object):
         return M
 
     def finalize_rhs(self,  B_blocks, M_block, X_block,
-                     mask, is_complex, format='coo', verbose=True):
+                     mask, is_complex, format='coo', verbose=True,
+                     use_residual=False):
         #
         #  RHS = B - A[not solved]*X[not solved]
         #
@@ -2081,7 +2219,13 @@ class Engine(object):
         MM = M_block.get_subblock(mask[0], inv_mask)
         XX = X_block.get_subblock(inv_mask, [True])
         xx = MM.dot(XX)
+
         B_blocks = [b.get_subblock(mask[0], [True]) - xx for b in B_blocks]
+
+        if use_residual:
+            M_block_use = M_block.get_subblock(mask[0], mask[1])
+            X_block_use = X_block.get_subblock(mask[1], [True])
+            B_blocks = [b - M_block_use.dot(X_block_use) for b in B_blocks]
 
         if format == 'coo':  # coo either real or complex
             BB = [self.finalize_coo_rhs(
@@ -2124,7 +2268,7 @@ class Engine(object):
         return X
 
     def finalize_coo_matrix(self, M_block, is_complex, convert_real=False,
-                            verbose=True):
+                            verbose=False):
         if verbose:
             dprint1("A (in finalizie_coo_matrix) \n",  M_block)
             # M_block.save_to_file("M_block")
@@ -2254,10 +2398,11 @@ class Engine(object):
 
     def save_sol_to_file(self, phys_target, skip_mesh=False,
                          mesh_only=False,
-                         save_parmesh=False):
+                         save_parmesh=False,
+                         save_mesh_linkdir=None):
         if not skip_mesh:
-            m1 = [self.save_mesh0(), ]
-            mesh_filenames = self.save_mesh(phys_target)
+            m1 = [self.save_mesh0(save_mesh_linkdir), ]
+            mesh_filenames = self.save_mesh(phys_target, save_mesh_linkdir)
             mesh_filenames = m1 + mesh_filenames
 
         if save_parmesh:
@@ -2358,7 +2503,16 @@ class Engine(object):
     #  postprocess
     #
 
+    @property
+    def ppname_postfix(self):
+        return self._ppname_postfix
+
+    @ppname_postfix.setter
+    def ppname_postfix(self, value):
+        self._ppname_postfix = value
+
     def store_pp_extra(self, name, data, save_once=False):
+        name = name + self._ppname_postfix
         self.model._parameters[name] = data
         self._pp_extra_update.append(name)
 
@@ -2514,8 +2668,14 @@ class Engine(object):
                         index1 = index1 + node.get_essential_idx(k)
                     else:
                         index2 = index2 + node.get_essential_idx(k)
-            ess_bdr1 = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
-            ess_bdr2 = [0]*self.emeshes[phys.emesh_idx].bdr_attributes.Max()
+            if len(self.emeshes[phys.emesh_idx].bdr_attributes.ToList()) > 0:
+                ess_bdr1 = [0] * \
+                    self.emeshes[phys.emesh_idx].bdr_attributes.Max()
+                ess_bdr2 = [0] * \
+                    self.emeshes[phys.emesh_idx].bdr_attributes.Max()
+            else:
+                ess_bdr1 = []
+                ess_bdr2 = []
             for kk in index1:
                 ess_bdr1[kk-1] = 1
             for kk in index2:
@@ -2740,6 +2900,7 @@ class Engine(object):
                 node._local_ns = self.model.root()._variables
 
         if len(errors) > 0:
+            dprint1("\n".join(errors))
             assert False, "\n".join(errors)
 
     def preprocess_ns(self, ns_folder, data_folder):
@@ -2937,7 +3098,7 @@ class Engine(object):
             if i_x is not None:
                 i_x.Save(fnamei, 8)
 
-    def save_mesh0(self):
+    def save_mesh0(self, save_mesh_linkdir=None):
         mesh_names = []
         suffix = self.solfile_suffix()
         mesh = self.emeshes[0]
@@ -2945,18 +3106,29 @@ class Engine(object):
         self.clear_solmesh_files(header)
         name = header+suffix
 
-        if self.get_savegz():
-            mesh.PrintGZ(name, 16)
+        if save_mesh_linkdir is None:
+            if self.get_savegz():
+                mesh.PrintGZ(name, 16)
+            else:
+                mesh.Print(name, 16)
         else:
-            mesh.Print(name, 16)
+            src = os.path.join(save_mesh_linkdir, name)
+            dst = os.path.join(os.getcwd(), name)
+            os.symlink(src, dst)
         return name
 
-    def save_mesh(self, phys_target):
+    def save_mesh(self, phys_target, save_mesh_linkdir=None):
         mesh_names = []
         suffix = self.solfile_suffix()
 
+        done = []
+
         for phys in phys_target:
             k = phys.emesh_idx
+            if k in done:
+                continue
+            done.append(k)
+
             name = phys.dep_vars[0]
 
             mesh = self.fespaces.get_mesh(name)
@@ -2966,10 +3138,16 @@ class Engine(object):
 
             name = header+suffix
 
-            if self.get_savegz():
-                mesh.PrintGZ(name, 16)
+            if save_mesh_linkdir is None:
+                if self.get_savegz():
+                    mesh.PrintGZ(name, 16)
+                else:
+                    mesh.Print(name, 16)
             else:
-                mesh.Print(name, 16)
+                src = os.path.join(save_mesh_linkdir, name)
+                dst = os.path.join(os.getcwd(), name)
+                os.symlink(src, dst)
+
             mesh_names.append(name)
 
         return mesh_names
@@ -3084,6 +3262,19 @@ class Engine(object):
 
     def copy_block_mask(self, mask):
         self._matrix_blk_mask = mask
+
+    def check_block_matrix_changed(self, mask):
+        from itertools import product
+        R = len(self.dep_vars)
+        C = len(self.r_dep_vars)
+        for k in range(self.n_matrix):
+            if not self.is_matrix_active(k):
+                continue
+
+            for i, j in product(range(R), range(C)):
+                if self.mask_M[k, i, j] and mask[0][j] and mask[1][i]:
+                    return True
+        return False
 
     def collect_dependent_vars(self, phys_target=None, phys_range=None, range_space=False):
         if phys_target is None:
@@ -3202,14 +3393,15 @@ class Engine(object):
                             mm._update_flag = True
                     if mm.has_essential:
                         mm._update_flag = True
-                    if mm.is_extra_RHSonly():
+                    # if mm.is_extra_RHSonly():
+                    if mm.isTimeDependent_RHS:
                         for kfes, name in enumerate(phys.dep_vars):
-                            if mm.has_extra_DoF(kfes):
+                            if mm.has_extra_DoF2(kfes, phys, 0):
                                 mm._update_flag = True
-                    else:
+                    if mm.isTimeDependent:
                         for kfes, name in enumerate(phys.dep_vars):
-                            if mm.has_extra_DoF(kfes):
-                                assert False, "RHS only parametric is invalid for general extra DoF (is_extra_RHSonly = False)"
+                            if mm.has_extra_DoF2(kfes, phys, 0):
+                                assert False, "RHS only parametric is invalid for general extra DoF"
                     if mm._update_flag:
                         for kfes, name in enumerate(phys.dep_vars):
                             if mm.has_bf_contribution2(kfes, 0):
@@ -3219,19 +3411,26 @@ class Engine(object):
                     assert False, "update mode not supported: mode = "+mode
 
     def call_dwc(self, phys_range, method='', callername='',
-                 dwcname='', args='', **kwargs):
+                 dwcname='', args='', fesnames=None, **kwargs):
 
-        for phys in phys_range:
-            for name in phys.dep_vars:
-                rifes = self.r_ifes(name)
-                if rifes == -1:
-                    continue
-                rgf = self.r_x[rifes]
-                igf = self.i_x[rifes]
-                if igf is None:
-                    kwargs[name] = rgf
-                else:
-                    kwargs[name] = (rgf, igf)
+        names = []
+        if phys_range is not None:
+            for phys in phys_range:
+                for name in phys.dep_vars:
+                    names.append(name)
+        if fesnames is not None:
+            names.extend(fesnames)
+
+        for name in names:
+            rifes = self.r_ifes(name)
+            if rifes == -1:
+                continue
+            rgf = self.r_x[rifes]
+            igf = self.i_x[rifes]
+            if igf is None:
+                kwargs[name] = rgf
+            else:
+                kwargs[name] = (rgf, igf)
 
         g = self.model['General']._global_ns
         if dwcname == '':
@@ -3316,6 +3515,12 @@ class Engine(object):
 
     def get_partitiong_method(self):
         return self.model.root()['General'].partitioning
+
+    def get_submesh_partitiong_method(self):
+        return self.model.root()['General'].submeshpartitioning
+
+    def get_autofill_diag(self):
+        return self.model.root()['General'].autofilldiag == 'on'
 
 
 class SerialEngine(Engine):
@@ -3526,6 +3731,24 @@ class SerialEngine(Engine):
     def save_processed_model(self):
         self.model.save_to_file('model_proc.pmfm', meshfile_relativepath=False)
 
+    def fill_empty_diag(self, A):
+        '''
+        A is ScipyCoo (this one fully supports complex)
+        '''
+        csr = A.tocsr()
+        csr.eliminate_zeros()
+        zerorows = np.where(np.diff(csr.indptr) == 0)[0]
+        if len(zerorows) == csr.shape[0]:
+            dprint1(
+                "!!! skipping fill_empty_diag: this diagonal block is compltely zero")
+            return
+        lil = A.tolil()
+        lil[zerorows, zerorows] = 1.0
+        coo = lil.tocoo()
+        A.data = coo.data
+        A.row = coo.row
+        A.col = coo.col
+
 
 class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
@@ -3560,7 +3783,7 @@ class ParallelEngine(Engine):
                     o = child[k]
                     if not o.enabled:
                         continue
-                    dprint1(k)
+                    # dprint1(k)
                     if o.isMeshGenerator:
                         smesh = o.run()
                         if len(smesh.GetBdrAttributeArray()) > 0:
@@ -3665,6 +3888,7 @@ class ParallelEngine(Engine):
     #
     def store_pp_extra(self, name, data, save_once=False):
         from mpi4py import MPI
+        name = name + self._ppname_postfix
         self.model._parameters[name] = data
         if not save_once or MPI.COMM_WORLD.rank == 0:
             self._pp_extra_update.append(name)
@@ -3686,6 +3910,10 @@ class ParallelEngine(Engine):
 
             mesh_name = header+'.'+smyid
             mesh.ParPrintToFile(mesh_name, 16)
+
+            header = 'solsermesh_' + str(k)
+            mesh_name = header+'.mesh'
+            mesh.PrintAsSerial(mesh_name)
 
     def solfile_suffix(self):
         from mpi4py import MPI
@@ -3850,3 +4078,31 @@ class ParallelEngine(Engine):
         else:
             pass
         MPI.COMM_WORLD.Barrier()
+
+    def fill_empty_diag(self, A):
+        '''
+        A is CHypre (complex is supported only when imaginary is zero)
+        '''
+        from mpi4py import MPI
+        if A[0] is None:
+            return
+
+        nnz0, tnnz0 = A[0].get_local_true_nnz()
+        tnnz0 = np.sum(MPI.COMM_WORLD.allgather(tnnz0))
+
+        if A[1] is None:
+            if tnnz0 == 0:
+                dprint1(
+                    "!!! skipping fill_empty_diag: this diagnal block is compltely zero")
+                return
+            A[0].EliminateZeroRows()
+        else:
+
+            nnz, tnnz = A[1].get_local_true_nnz()
+            tnnz = np.sum(MPI.COMM_WORLD.allgather(tnnz))
+            if tnnz == 0:
+                if tnnz0 == 0:
+                    dprint1(
+                        "!!! skipping fill_empty_diag: this diagnal block is compltely zero")
+                    return
+                A[0].EliminateZeroRows()

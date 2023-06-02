@@ -22,6 +22,7 @@ class InitSetting(Model, Vtable_mixin):
         v["init_mode"] = 0
         #v["init_value_txt"]    = '0.0'
         v["init_path"] = ''
+        v["init_dwc_name_params"] = ('', '')
         self.vt_coeff.attribute_set(v)
         return v
 
@@ -50,13 +51,14 @@ class InitSetting(Model, Vtable_mixin):
     def get_panel1_value(self):
         init_value_txt = self.vt_coeff.get_panel_value(self)[0]
         return [self.phys_model,
-                (self.init_mode, init_value_txt, self.init_path)]
+                (self.init_mode, init_value_txt, self.init_path, self.init_dwc_name_params), ]
 
     def import_panel1_value(self, v):
         self.phys_model = str(v[0])
         self.init_mode = v[1][0]
         #self.init_value_txt = v[1][1]
         self.init_path = v[1][2]
+        self.init_dwc_name_params = v[1][3]
         self.vt_coeff.import_panel_value(self, (v[1][1],))
 
     def preprocess_params(self, engine):
@@ -75,9 +77,13 @@ class InitSetting(Model, Vtable_mixin):
 
     def run(self, engine):
         phys_targets = self.get_phys()
+        dwcparams = (self.name(),
+                     self.init_dwc_name_params[0],
+                     self.init_dwc_name_params[1])
         engine.run_apply_init0(phys_targets, self.init_mode,
                                init_value=self.init_value,
-                               init_path=self.init_path)
+                               init_path=self.init_path,
+                               init_dwc=dwcparams)
         return phys_targets
 
     def onItemSelChanged(self, evt):
@@ -96,15 +102,25 @@ class CustomInitSetting():
 
     '''
 
-    def __init__(self, phys_targets, mode=1, value=[0, ], path=''):
+    def __init__(self, phys_targets, mode=1, value=[0, ], path='', dwc=('', ''), name='CustomInit'):
+        self.init_name = name
         self.phys_targets = phys_targets
         self.init_mode = mode
         self.init_value = value
         self.init_path = path
+        self.init_dwc_name_params = dwc
+
+    def name(self):
+        return self.init_name
 
     def run(self, engine):
+        dwcparams = (self.name,
+                     self.init_dwc_name_params[0],
+                     self.init_dwc_name_params[1])
+
         engine.run_apply_init0(self.phys_targets,
                                mode=self.init_mode,
                                init_value=self.init_value,
-                               init_path=self.init_path)
+                               init_path=self.init_path,
+                               init_dwc=dwcparams)
         return self.phys_targets

@@ -2,10 +2,12 @@ import numpy as np
 
 import petram
 import petram.phys
+from os import listdir
 from os.path import dirname, basename, isfile, join
 import glob
 import warnings
 import glob
+import sys
 
 # collect all physics module
 modulenames = []
@@ -55,7 +57,45 @@ def all_phys_models():
     return models, classes
 
 
+def get_phys_constraints(module):
+    mname = 'petram.phys.'+module    
+    if mname not in sys.modules:
+        try:
+            __import__(mname, locals(), globals())
+        except ImportError:
+            warnings.warn('Failed to import physcis module :' + mname)
+            raise
+    try:
 
+        paths = getattr(sys.modules[mname], '__path__')
+    except BaseException:
+        warnings.warn('Can not find path for :' + mname)
+        raise
+
+    constraints = {'domain':[], 'bdry':[], 'edge':[], 'pointt':[], 'pair':[]}
+
+    for p in paths:
+        for f in listdir(p):
+            name = basename(f)
+            if not name.endswith('py'): continue
+            if name.startswith('_'):continue
+            name = name[:-3]
+            mname2 = mname + '.' + name
+
+            try:
+                __import__(mname2, locals(), globals())
+            except BaseException:
+                warnings.warn('Failed to import physcis module :' + mname2)
+                raise
+            
+            for key in constraints:
+                if hasattr(sys.modules[mname2], key+'_constraints'):
+                    m = getattr(sys.modules[mname2], key+'_constraints')
+                    for x in m():
+                        if not x in constraints[key]:
+                            constraints[key].append(x)
+                    
+    return constraints
 
 from petram.phys.weakform import get_integrators
 bilinintegs = get_integrators('BilinearOps')

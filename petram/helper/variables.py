@@ -45,7 +45,6 @@
 
 '''
 import numpy as np
-import parser
 import weakref
 import types
 import traceback
@@ -63,32 +62,137 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('Variables')
 
 
 class _decorator(object):
-    def float(self, dependency=None):
+    @staticmethod
+    def float(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False):
+        '''
+        this form allows for using both
+        @float
+        @float()
+        '''
+        def wrapper(func):
+            def dec(*args, **kwargs):
+                obj = PyFunctionVariable(func,
+                                         complex=False,
+                                         dependency=dependency,
+                                         grad=grad,
+                                         curl=curl,
+                                         div=div)
+                return obj
+            return dec(func)
+        if func:
+            return wrapper(func)
+        else:
+            return wrapper
+
+    @staticmethod
+    def complex(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False):
+        '''
+        this form allows for using both
+        @complex
+        @complex()
+        '''
+        def wrapper(func):
+            def dec(*args, **kwargs):
+                obj = PyFunctionVariable(func,
+                                         complex=True,
+                                         dependency=dependency,
+                                         grad=grad,
+                                         curl=curl,
+                                         div=div)
+
+                return obj
+            return dec(func)
+        if func:
+            return wrapper(func)
+        else:
+            return wrapper
+
+    @staticmethod
+    def array(complex=False, shape=(1,), dependency=None, grad=None,
+              curl=None, div=None, td=False):
         def dec(func):
-            obj = PyFunctionVariable(
-                func, complex=False, dependency=dependency)
+            obj = PyFunctionVariable(func,
+                                     complex=complex,
+                                     shape=shape,
+                                     dependency=dependency,
+                                     grad=grad,
+                                     curl=curl,
+                                     div=div,)
             return obj
         return dec
 
-    def complex(self, dependency=None):
-        def dec(func):
-            obj = PyFunctionVariable(func, complex=True, dependency=dependency)
-            return obj
-        return dec
 
-    def array(self, complex=False, shape=(1,), dependency=None):
+class _decorator_jit(object):
+
+    @staticmethod
+    def float(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False, params=None):
+        '''
+        This form allows to use both with and without ()
+        @float
+        @float()
+        @float(dependency....
+        '''
+        def wrapper(func):
+            def dec(*args, **kwargs):
+                obj = NumbaCoefficientVariable(func,
+                                               complex=False,
+                                               dependency=dependency,
+                                               params=params,
+                                               grad=grad,
+                                               curl=curl,
+                                               div=div,
+                                               td=td,)
+                return obj
+            return dec(func)
+        if func:
+            return wrapper(func)
+        else:
+            return wrapper
+
+    @staticmethod
+    def complex(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False, params=None):
+        '''
+        This form allows to use both with and without ()
+        @complex
+        @complex()
+        @complex(dependency....
+        '''
+        def wrapper(func):
+            def dec(*args, **kwargs):
+                obj = NumbaCoefficientVariable(func,
+                                               complex=True,
+                                               dependency=dependency,
+                                               params=params,
+                                               grad=grad,
+                                               curl=curl,
+                                               div=div,
+                                               td=td,)
+                return obj
+            return dec(func)
+        if func:
+            return wrapper(func)
+        else:
+            return wrapper
+
+    @staticmethod
+    def array(complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, td=False, params=None):
         def dec(func):
-            # print "inside dec", complex, shape
-            obj = PyFunctionVariable(
-                func,
-                complex=complex,
-                shape=shape,
-                dependency=dependency)
+            obj = NumbaCoefficientVariable(func,
+                                           complex=complex,
+                                           shape=shape,
+                                           dependency=dependency,
+                                           params=params,
+                                           grad=grad,
+                                           curl=curl,
+                                           div=div,
+                                           td=td,)
+
             return obj
         return dec
 
 
 variable = _decorator()
+variable.jit = _decorator_jit()
 
 
 def eval_code(co, g, l, flag=None):
@@ -142,7 +246,12 @@ var_g = {'sin': np.sin,
          'sign': np.sign,
          'ones': np.ones,
          'diag': np.diag,
-         'zeros': np.zeros}
+         'zeros': np.zeros,
+         'nan': np.nan,
+         'inf': np.inf,
+         'inv': np.linalg.inv,
+         'linspace': np.linspace,
+         'logspace': np.logspace}
 
 
 def check_vectorfe_in_lowdim(gf):
@@ -173,12 +282,15 @@ class Variable():
     define everything which we define algebra
     '''
 
-    def __init__(self, complex=False, dependency=None):
+    def __init__(self, complex=False, dependency=None, grad=None, curl=None, div=None):
         self.complex = complex
 
         # dependency stores a list of Finite Element space discrite variable
         # names whose set_point has to be called
         self.dependency = [] if dependency is None else dependency
+        self.div = [] if div is None else div
+        self.curl = [] if curl is None else curl
+        self.grad = [] if grad is None else grad
 
     def __call__(self):
         raise NotImplementedError("Subclass need to implement")
@@ -275,6 +387,9 @@ class Variable():
     def __getitem__(self, idx):
         return self()[idx]
 
+    def get_names(self):
+        return []
+
     def get_emesh_idx(self, idx=None, g=None):
         if idx is None:
             idx = []
@@ -288,6 +403,7 @@ class Variable():
         return self.ncface_values(*args, **kwargs)
 
     def point_values(self, *args, **kwargs):
+        print(self)
         raise NotImplementedError("Subclass need to implement")
 
     def add_topological_info(self, mesh):
@@ -299,6 +415,9 @@ class Variable():
             self.topo_info = (2, mesh.extended_connectivity['line2surf'])
         if mesh.Dimension() == 1:
             self.topo_info = (1, mesh.extended_connectivity['vert2line'])
+
+    def get_jitted_coefficient(self, *args):
+        return None
     '''
     def make_callable(self):
         raise NotImplementedError("Subclass need to implement")
@@ -353,7 +472,7 @@ class Constant(Variable):
         size = len(wverts)
         shape = [size] + list(np.array(self.value).shape)
 
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
         ret = np.zeros(shape, dtype=dtype)
         wverts = np.zeros(size)
 
@@ -420,8 +539,7 @@ class ExpressionVariable(Variable):
         super(ExpressionVariable, self).__init__(complex=complex)
 
         variables = []
-        st = parser.expr(expr)
-        code = st.compile('<string>')
+        code = compile(expr, '<string>', 'eval')
         names = code.co_names
         self.co = code
         self.names = names
@@ -429,6 +547,9 @@ class ExpressionVariable(Variable):
         self.ind_vars = ind_vars
         self.variables = WVD()
         # print 'Check Expression', expr.__repr__(), names
+
+    def get_names(self):
+        return self.names
 
     def __repr__(self):
         return "Expression(" + self.expr + ")"
@@ -463,7 +584,7 @@ class ExpressionVariable(Variable):
                      **kwargs):
         #print("Entering nodal(expr)", self.expr)
         size = len(wverts)
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
         ret = np.zeros(size, dtype=dtype)
         for kk, m, loc in zip(iele, el2v, elvertloc):
             if kk < 0:
@@ -508,7 +629,7 @@ class ExpressionVariable(Variable):
                     **kwargs):
 
         size = len(locs)
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex127 if self.complex else np.float64
         ret = np.zeros(size, dtype=dtype)
 
         l = {}
@@ -590,6 +711,12 @@ class DomainVariable(Variable):
         self.gdomains[tuple(domains)] = gdomain
         self.domains[tuple(domains)] = ExpressionVariable(expr, ind_vars,
                                                           complex=complex)
+
+    def get_names(self):
+        ret = []
+        for x in self.domains:
+            ret.extend(self.domains[x].get_names())
+        return ret
 
     def __repr__(self):
         return "DomainVariable"
@@ -804,12 +931,16 @@ class DomainVariable(Variable):
 
 
 class PyFunctionVariable(Variable):
-    def __init__(self, func, complex=False, shape=tuple(), dependency=None):
+    def __init__(self, func, complex=False, shape=tuple(), dependency=None,
+                 grad=None, curl=None, div=None):
         super(
             PyFunctionVariable,
-            self).__init__(
-            complex=complex,
-            dependency=dependency)
+            self).__init__(complex=complex,
+                           dependency=dependency,
+                           grad=grad,
+                           curl=curl,
+                           div=div)
+
         self.func = func
         self.t = None
         self.x = (0, 0, 0)
@@ -847,7 +978,7 @@ class PyFunctionVariable(Variable):
         size = len(wverts)
         shape = [size] + list(self.shape)
 
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
         ret = np.zeros(shape, dtype=dtype)
         wverts = np.zeros(size)
 
@@ -873,7 +1004,7 @@ class PyFunctionVariable(Variable):
 
         from petram.helper.right_broadcast import div
         ret = div(ret, wverts)
-        #print("PyFunctionVariable", ret)
+
         return ret
 
     def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
@@ -886,7 +1017,7 @@ class PyFunctionVariable(Variable):
         if knowns is None:
             knowns = WKD()
 
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
 
         ret = [None] * len(locs)
         for idx, xyz in enumerate(locs):
@@ -909,7 +1040,9 @@ class PyFunctionVariable(Variable):
 
             kwargs = {n: knowns[g[n]][idx] for n in self.dependency}
             ret[idx] = self.func(*xyz, **kwargs)
+
         ret = np.stack(ret).astype(dtype, copy=False)
+
         return ret
 
     def ncface_values(self, *args, **kwargs):
@@ -931,7 +1064,7 @@ class PyFunctionVariable(Variable):
             knowns = WKD()
 
         shape = [counts] + list(self.shape)
-        dtype = np.complex if self.complex else np.float
+        dtype = np.complex128 if self.complex else np.float64
         ret = np.zeros(shape, dtype=dtype)
 
         valid_attrs = attrs[attrs != -1]
@@ -961,7 +1094,7 @@ class PyFunctionVariable(Variable):
 
 
 class CoefficientVariable(Variable):
-    def __init__(self, coeff_gen, l, g=None):
+    def __init__(self, coeff_gen, l, g=None, coeff=None):
         self.coeff = coeff_gen(l, g)
         self.kind = coeff_gen.kind
 
@@ -1006,7 +1139,8 @@ class CoefficientVariable(Variable):
 
     def nodal_values(self, iele=None, ibele=None, elattr=None, el2v=None,
                      locs=None, elvertloc=None, wverts=None, mesh=None,
-                     iverts_f=None, g=None, knowns=None, **kwargs):
+                     iverts_f=None, g=None, knowns=None,
+                     edge_evaluator=False, **kwargs):
 
         g = mfem.Geometry()
         size = len(iverts_f)
@@ -1016,13 +1150,23 @@ class CoefficientVariable(Variable):
             return
 
         if mesh.Dimension() == 3:
+            if edge_evaluator:
+                assert False, "EdgeNodal Evaluator does not supported dim=3"
             getelement = mesh.GetBdrElement
             gettransformation = mesh.GetBdrElementTransformation
         elif mesh.Dimension() == 2:
-            getelement = mesh.GetElement
-            gettransformation = mesh.GetElementTransformation
+            if edge_evaluator:
+                getelement = mesh.GetBdrElement
+                gettransformation = mesh.GetBdrElementTransformation
+            else:
+                getelement = mesh.GetElement
+                gettransformation = mesh.GetElementTransformation
         else:
-            assert False, "BdrNodal Evaluator is not supported for this dimension"
+            if edge_evaluator:
+                getelement = mesh.GetElement
+                gettransformation = mesh.GetElementTransformation
+            else:
+                assert False, "BdrNodal Evaluator does not support dim=1"
 
         call_eval = self.get_call_eval()
 
@@ -1041,7 +1185,7 @@ class CoefficientVariable(Variable):
                 if (self.coeff[0] is not None and
                         self.coeff[1] is not None):
                     value = (np.array(call_eval(self.coeff[0], T, ip)) +
-                             1j * np.array(self.coeff[1], T, ip))
+                             1j * np.array(call_eval(self.coeff[1], T, ip)))
                 elif self.coeff[0] is not None:
                     value = np.array(call_eval(self.coeff[0], T, ip))
                 elif self.coeff[1] is not None:
@@ -1058,6 +1202,116 @@ class CoefficientVariable(Variable):
 
                 idx = np.searchsorted(iverts_f, bverts[i])
                 ret[idx, ...] = value
+
+        return ret
+
+    def ncface_values(self, ifaces=None, irs=None, gtypes=None, mesh=None,
+                      **kwargs):
+
+        call_eval = self.get_call_eval()
+
+        if mesh.Dimension() == 3:
+            m = mesh.GetFaceTransformation
+        elif mesh.Dimension() == 2:
+            m = mesh.GetElementTransformation
+
+        data = []
+        dtype = np.complex128 if self.complex else np.float64
+
+        for i, gtype, in zip(ifaces, gtypes):
+            T = m(i)
+            ir = irs[gtype]
+            nv = ir.GetNPoints()
+
+            for j in range(nv):
+                ip = ir.IntPoint(j)
+
+                if (self.coeff[0] is not None and
+                        self.coeff[1] is not None):
+                    value = (np.array(call_eval(self.coeff[0], T, ip)) +
+                             1j * np.array(call_eval(self.coeff[1], T, ip)))
+                elif self.coeff[0] is not None:
+                    value = np.array(call_eval(self.coeff[0], T, ip))
+                elif self.coeff[1] is not None:
+                    value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+                else:
+                    assert False, "coeff is (None, None)"
+                data.append(value)
+
+        ret = np.stack(data).astype(dtype, copy=False)
+
+        return ret
+
+    def ncedge_values(self, ifaces=None, irs=None, gtypes=None, mesh=None,
+                      **kwargs):
+
+        call_eval = self.get_call_eval()
+
+        if mesh.Dimension() == 2:
+            m = mesh.GetFaceTransformation
+        elif mesh.Dimension() == 1:
+            m = mesh.GetElementTransformation
+        else:
+            assert False, "NCEdge Evaluator is not supported for this dimension"
+
+        data = []
+        dtype = np.complex128 if self.complex else np.float64
+
+        for i, gtype, in zip(ifaces, gtypes):
+            T = m(i)
+            ir = irs[gtype]
+            nv = ir.GetNPoints()
+
+            for j in range(nv):
+                ip = ir.IntPoint(j)
+
+                if (self.coeff[0] is not None and
+                        self.coeff[1] is not None):
+                    value = (np.array(call_eval(self.coeff[0], T, ip)) +
+                             1j * np.array(call_eval(self.coeff[1], T, ip)))
+                elif self.coeff[0] is not None:
+                    value = np.array(call_eval(self.coeff[0], T, ip))
+                elif self.coeff[1] is not None:
+                    value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+                else:
+                    assert False, "coeff is (None, None)"
+                data.append(value)
+
+        ret = np.stack(data).astype(dtype, copy=False)
+
+        return ret
+
+    def point_values(self, counts=None, locs=None, points=None,
+                     attrs=None, elem_ids=None,
+                     mesh=None, int_points=None, g=None,
+                     knowns=None, **kwargs):
+
+        call_eval = self.get_call_eval()
+
+        data = []
+        dtype = np.complex128 if self.complex else np.float64
+
+        for i in range(len(attrs)):
+            if attrs[i] == -1:
+                continue
+
+            iele = elem_ids[i]
+            T = mesh.GetElementTransformation(iele)
+            ip = int_points[i]
+
+            if (self.coeff[0] is not None and
+                    self.coeff[1] is not None):
+                value = (np.array(call_eval(self.coeff[0], T, ip)) +
+                         1j * np.array(call_eval(self.coeff[1], T, ip)))
+            elif self.coeff[0] is not None:
+                value = np.array(call_eval(self.coeff[0], T, ip))
+            elif self.coeff[1] is not None:
+                value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+            else:
+                assert False, "coeff is (None, None)"
+            data.append(value)
+
+        ret = np.stack(data).astype(dtype, copy=False)
 
         return ret
 
@@ -1080,6 +1334,114 @@ class CoefficientVariable(Variable):
         return call_eval
 
 
+class NumbaCoefficientVariable(CoefficientVariable):
+    def __init__(self, func, complex=False, shape=tuple(), dependency=None,
+                 grad=None, curl=None, div=None, td=False, params=None):
+        super(
+            CoefficientVariable,
+            self).__init__(complex=complex,
+                           dependency=dependency,
+                           grad=grad,
+                           curl=curl,
+                           div=div)
+
+        self.func = func
+        self.params = params
+        self.t = None
+        self.x = (0, 0, 0)
+        self.shape = shape
+        self.td = td
+        if len(self.shape) == 0:
+            self.kind = 'scalar'
+        elif len(self.shape) == 1:
+            self.kind = 'vector'
+        elif len(self.shape) == 2:
+            self.kind = 'matrix'
+        else:
+            assert False, "unsupported shape"
+
+    def get_jitted_coefficient(self, ind_vars, locals):
+        from petram.phys.numba_coefficient import NumbaCoefficient
+        if isinstance(self.func, NumbaCoefficient):
+            return self.func.mfem_numba_coeff
+
+        from petram.helper.numba_utils import (generate_caller_scalar,
+                                               generate_caller_array,
+                                               generate_signature_scalar,
+                                               generate_signature_array,)
+        sdim = len(ind_vars)
+
+        if len(self.shape) == 0:
+            jitter = mfem.jit.scalar
+
+            def gen_caller(setting):
+                return generate_caller_scalar(setting, sdim)
+
+            def gen_sig(setting):
+                return generate_signature_scalar(setting, sdim)
+
+            kwargs = {}
+
+        elif len(self.shape) == 1:
+            jitter = mfem.jit.vector
+
+            def gen_caller(setting):
+                return generate_caller_array(setting, sdim)
+
+            def gen_sig(setting):
+                return generate_signature_array(setting, sdim)
+
+            kwargs = {"shape": self.shape}
+
+        elif len(self.shape) == 2:
+            jitter = mfem.jit.matrix
+
+            def gen_caller(setting):
+                return generate_caller_array(setting, sdim)
+
+            def gen_sig(setting):
+                return generate_signature_array(setting, sdim)
+
+            kwargs = {"shape": self.shape}
+
+        else:
+            assert False, "unsupported shape"
+
+        dep = []
+
+        for d in self.dependency:
+            dd = locals[d].get_jitted_coefficient(ind_vars, locals)
+            if dd is None:
+                return
+            dep.append(dd)
+
+        from petram.mfem_config import numba_debug, use_parallel
+        if use_parallel:
+            from mpi4py import MPI
+            myid = MPI.COMM_WORLD.rank
+        else:
+            myid = 0
+        numba_debug = False if myid != 0 else numba_debug
+
+        wrapper = jitter(sdim=sdim,
+                         complex=self.complex,
+                         td=self.td,
+                         params=self.params,
+                         dependency=dep,
+                         interface=(gen_caller, gen_sig),
+                         debug=numba_debug,
+                         **kwargs)
+
+        return wrapper(self.func)
+
+    def set_coeff(self, ind_vars, locals):
+        coeff = self.get_jitted_coefficient(ind_vars, locals)
+        if self.complex:
+            self.coeff = (coeff.real, coeff.imag)
+        else:
+            self.coeff = (coeff, None)
+
+
 class GridFunctionVariable(Variable):
     def __init__(self, gf_real, gf_imag=None, comp=1,
                  deriv=None, complex=False):
@@ -1093,8 +1455,60 @@ class GridFunctionVariable(Variable):
         self.deriv = deriv if deriv is not None else self._def_deriv
         self.deriv_args = (gf_real, gf_imag)
 
+        self._curl = None
+        self._div = None
+        self._grad = None
+
     def _def_deriv(self, *args):
         return args[0], args[1], None
+
+    def eval_grad(self):
+        if self._grad is None:
+            grad_r = mfem.GradientGridFunctionCoefficient(self.gfr)
+            if self.gfi is not None:
+                grad_i = mfem.GradientVectorGridFunctionCoefficient(self.gfi)
+            else:
+                grad_i = None
+            self._grad_gf = (grad_r, grad_i)
+        v = mfem.Vector()
+        self._grad_gf[0].Eval(v, self.T, self.ip)
+        ret = v.GetDataArray().copy()
+        if self._grad_gf[1] is not None:
+            self._grad_gf[1].Eval(v, self.T, self.ip)
+            ret = ret + 1j*v.GetDataArray()
+        return ret
+
+    def eval_curl(self):
+        if self._curl is None:
+            curl_r = mfem.CurlGridFunctionCoefficient(self.gfr)
+            if self.gfi is not None:
+                curl_i = mfem.CurlVectorGridFunctionCoefficient(self.gfi)
+            else:
+                curl_i = None
+            self._curl_gf = (curl_r, curl_i)
+        v = mfem.Vector()
+        self._curl_gf[0].Eval(v, self.T, self.ip)
+        ret = v.GetDataArray().copy()
+        if self._curl_gf[1] is not None:
+            self._curl_gf[1].Eval(v, self.T, self.ip)
+            ret = ret + 1j*v.GetDataArray()
+        return ret
+
+    def eval_div(self):
+        if self._div is None:
+            div_r = mfem.DivergenceGridFunctionCoefficient(self.gfr)
+            if self.gfi is not None:
+                div_i = mfem.DivergenceVectorGridFunctionCoefficient(self.gfi)
+            else:
+                div_i = None
+            self._div_gf = (div_r, div_i)
+        v = mfem.Vector()
+        self._div_gf[0].Eval(v, self.T, self.ip)
+        ret = v.GetDataArray().copy()
+        if self._div_gf[1] is not None:
+            self._div_gf[1].Eval(v, self.T, self.ip)
+            ret = ret + 1j*v.GetDataArray()
+        return ret
 
     def get_gf_real(self):
         if not self.isGFSet:
@@ -1229,9 +1643,9 @@ class GFScalarVariable(GridFunctionVariable):
 
         size = len(wverts)
         if self.gfi is None:
-            ret = np.zeros(size, dtype=np.float)
+            ret = np.zeros(size, dtype=np.float64)
         else:
-            ret = np.zeros(size, dtype=np.complex)
+            ret = np.zeros(size, dtype=np.complex128)
         wverts = np.zeros(size)
 
         for kk, m in zip(iele, el2v):
@@ -1323,6 +1737,7 @@ class GFScalarVariable(GridFunctionVariable):
                 v = v + 1j * vi
             data.append(v)
         data = np.hstack(data)
+
         return data
 
     def ncedge_values(self, ifaces=None, irs=None,
@@ -1339,8 +1754,9 @@ class GFScalarVariable(GridFunctionVariable):
             p = mfem.DenseMatrix()
             isVector = True
         elif name.startswith('ND'):
-            d = mfem.Vector()
+            d = mfem.DenseMatrix()
             p = mfem.DenseMatrix()
+            isVector = True
         else:
             d = mfem.Vector()
             p = mfem.DenseMatrix()
@@ -1349,8 +1765,8 @@ class GFScalarVariable(GridFunctionVariable):
         def get_method(gf, ndim, isVector):
             if gf is None:
                 return None
-            if ndim == 1 or ndim == 2:
-                #if isVector:
+            if ndim == 1:
+                # if isVector:
                 #    def func(i, ir, vals, tr, in_gf=gf):
                 if gf.VectorDim() > 1:
                     def func(i, ir, vals, tr, in_gf=gf):
@@ -1361,6 +1777,23 @@ class GFScalarVariable(GridFunctionVariable):
                         in_gf.GetValues(i, ir, vals, tr)
                         return
                     return func
+            elif ndim == 2:
+                side = 2
+                if isVector:
+                    def func(i, ir, vals, tr, in_gf=gf):
+                        in_gf.GetFaceVectorValues(i, side, ir, vals, tr)
+                    return func
+                elif gf.VectorDim() > 1:
+                    def func(i, ir, vals, tr, in_gf=gf):
+                        in_gf.GetFaceValues(
+                            i, side, ir, vals, tr, self.comp - 1)
+                    return func
+                else:
+                    def func(i, ir, vals, tr, in_gf=gf):
+                        in_gf.GetFaceValues(i, side, ir, vals, tr)
+                        return
+                    return func
+
             else:
                 assert False, "ndim = 3 is not supported"
             return None
@@ -1382,6 +1815,7 @@ class GFScalarVariable(GridFunctionVariable):
                     vi = vi[self.comp - 1, :]
                 v = v + 1j * vi
             data.append(v)
+
         data = np.hstack(data)
         return data
 
@@ -1442,6 +1876,27 @@ class GFScalarVariable(GridFunctionVariable):
             jj = jj + 1
 
         return data
+
+    def get_jitted_coefficient(self, ind_vars, locals):
+        if not self.isDerived:
+            self.set_funcs()
+
+        if isinstance(self.func_r, mfem.VectorCoefficient):
+            v = [0] * self.func_r.GetVDim()
+            v[self.comp-1] = 1
+            c2 = mfem.VectorConstantCoefficient(v)
+            # the value of c2 will be copied.
+            ret1 = mfem.InnerProductCoefficient(self.func_r, c2)
+            if self.func_i is not None:
+                ret2 = mfem.InnerProductCoefficient(self.func_i, c2)
+                return (ret1, ret2)
+            else:
+                return ret1
+
+        if self.func_i is None:
+            return self.func_r
+        else:
+            return (self.func_r, self.func_i)
 
 
 class GFVectorVariable(GridFunctionVariable):
@@ -1519,9 +1974,9 @@ class GFVectorVariable(GridFunctionVariable):
         ans = []
         for comp in range(self.dim):
             if self.gfi is None:
-                ret = np.zeros(size, dtype=np.float)
+                ret = np.zeros(size, dtype=np.float64)
             else:
-                ret = np.zeros(size, dtype=np.complex)
+                ret = np.zeros(size, dtype=np.complex128)
 
             wverts = np.zeros(size)
             for kk, m in zip(iele, el2v):
@@ -1576,6 +2031,7 @@ class GFVectorVariable(GridFunctionVariable):
                 v = v + 1j * vi
             data.append(v)
         ret = np.hstack(data).transpose()
+
         return ret
 
     def point_values(self, counts=None, locs=None, points=None,
@@ -2022,12 +2478,15 @@ class NativeCoefficientGenBase(object):
         self.complex = complex
         self.jit = jit
         self.td = False
+        self._generated = None
 
     def __call__(self, l, g=None):
         '''
         call fgen to generate coefficient
 
         '''
+        if self._generated is not None:
+            return self._generated
         m = getattr(self, 'fgen')
         if not self.jit:
             args = []
@@ -2041,51 +2500,13 @@ class NativeCoefficientGenBase(object):
             if self.complex:
                 if len(rc) != 2:
                     assert False, "generator must return real/imag parts"
-                return rc
+                self._generated = rc
+                return self._generated
             else:
-                return rc, None
+                self._generated = rc, None
+                return self._generated
         else:
-            if len(self.dependency) > 0:
-                assert False, "dependency is not supported in numba call"
-            if self.td:
-                assert False, "time-dependent coefficient is not supported in numba call"
-            # here we compile function
-            from petram.helper.numba_utils import make_signature
-            sdim, sig = make_signature(self.fgen,
-                                       td=self.td,
-                                       return_complex=self.complex,
-                                       shape=self.shape)
-
-            from numba import cfunc
-            func0 = cfunc(sig)(m)
-
-            from petram.helper.numba_utils import create_caller
-
-            def make_coeff(real=False, imag=False):
-                if self.shape is None:
-                    caller = create_caller(sdim, func0, self.td, scalar=True)
-                    c1 = mfem.NumbaFunction(caller, 3).GenerateCoefficient()
-                else:
-                    if len(self.shape) == 1:
-                        caller = create_caller(
-                            sdim, func0, self.td, vector=True)
-                        c1 = mfem.VectorNumbaFunction(
-                            caller, 3, self.shape[0]).GenerateCoefficient()
-                    elif len(self.shape) == 2:
-                        caller = create_caller(
-                            sdim, func0, self.td, matrix=True)
-                        c1 = mfem.MatrixNumbaFunction(
-                            caller, 3, self.shape[0]).GenerateCoefficient()
-                    else:
-                        assert False, "unsupported size"
-                return c1
-            if self.complex:
-                c1 = make_coeff(real=True, imag=False)
-                c2 = make_coeff(real=True, imag=False)
-            else:
-                c1 = make_coeff(real=False, imag=False)
-                c2 = None
-            return c1, c2
+            assert False, "coefficient(jit=True) is not valid anymore. jit is supported by @variable"
 
     def scale_coeff(self, coeff, scale):
         if self.shape is None:
