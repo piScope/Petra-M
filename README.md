@@ -9,9 +9,7 @@ on the top of PyMFEM, a python wrapper for Modular FEM library
 Petra-M Base includes
  - Physics modeling interface on piScope.
  - Weakform module to define PDE using MFEM integrators.
- - HypreParCSR matrix utility. 
- - NASTRAN file converter to MFEM mesh format.
- - Physics modeling interface on piScope
+ - Distance module to define PDE for measuring distance
 
 Petra-M consists from submodules.
    PetraM_RF : 3D frequency domain Maxwell equation
