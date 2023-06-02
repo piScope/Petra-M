@@ -235,6 +235,11 @@ class MFEMViewer(BookViewer):
         if self.model.param.eval('sol') is None:
             self.model.scripts.helpers.make_new_sol()
 
+        import logging
+        numba_logger = logging.getLogger('numba')
+        numba_logger.setLevel(logging.WARNING)
+        print("numba debug logging is suppressed")            
+
     @property
     def view_mode_group(self):
         return self._view_mode_group
@@ -1717,6 +1722,16 @@ class MFEMViewer(BookViewer):
         if not success:
             q = {'type': '',
                  'queues': [{'name': 'failed to read queue config'}, ]}
+
+        if q["queues"][0]['name'] == ' no queue for a user':
+            from ifigure.widgets.dialog import message
+            ret = message(parent=self,
+                          message="You do not have permission to access use to Petra-M on this computer system.",
+                          title="No queue is available",
+                          icon=wx.ICON_EXCLAMATION,
+                          center_on_screen=False,
+                          center_on_parent=True,)
+            return
 
         setting = get_job_submisson_setting(self, remote['name'].upper(),
                                             value=values,
