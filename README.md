@@ -11,10 +11,10 @@ Petra-M Base includes
  - Weakform module to define PDE using MFEM integrators.
  - Distance module to define PDE for measuring distance
 
-Petra-M consists from submodules.
-   PetraM_RF : 3D frequency domain Maxwell equation
-   PetraM_MUMPS : interface to MUMPS direct linear solver
-   PetraM_Geom : Geometry editor module using GMSH/OpenCascade
+Additinal Petra-M submodules are available from different repository.
+ - PetraM_RF : 3D frequency domain Maxwell equation
+ - PetraM_MUMPS : interface to MUMPS direct linear solver
+ - PetraM_Geom : Geometry editor module using GMSH/OpenCascade
 
 ## Publications
   S. Shiraiwa, et al. EPJ Web of Conferences 157, 03048 (2017)
