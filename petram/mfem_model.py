@@ -11,6 +11,11 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MFEMModel')
 
 
+from petram.utils import (check_cluster_access,
+                          check_addon_access)
+has_addon_access = check_addon_access()
+has_cluster_access = check_cluster_access()
+
 class MFEM_GeneralRoot(Model, NS_mixin):
     can_delete = False
     has_2nd_panel = True

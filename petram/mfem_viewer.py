@@ -24,10 +24,6 @@ try:
 except ImportError:
     hasGeom = False
 
-from petram.utils import check_cluster_access
-has_cluster_access = check_cluster_access()
-
-
 def setup_figure(fig):
     fig.nsec(1)
     fig.property(fig.get_axes(0), 'axis', False)
@@ -36,11 +32,6 @@ def setup_figure(fig):
 
 
 ID_SOL_FOLDER = wx.NewIdRef(count=1)
-
-# class MFEMViewerCanvas(ifigure_canvas):
-#    def unselect_all(self):
-#        ifigure_canvas.unselect_all(self)
-
 
 def MFEM_menus(parent):
     self = parent
@@ -75,7 +66,7 @@ def MFEM_menus(parent):
              ("!", None, None),
              ("!", None, None), ]
 
-    if has_cluster_access:
+    if petram.mfem_model.has_cluster_access:
         menu2 = [("+Cluster", None, None),
                  ("Setting...", self.onServerSetting, None),
                  ("Solve...", self.onServerSolve, None),

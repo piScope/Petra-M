@@ -34,7 +34,6 @@ debug_default_level = 1
 debug_essential_bc = False
 debug_memory = False
 
-
 def set_debug_level(level):
     s = 1 if level == 0 else level/abs(level)
     globals()['debug_default_level'] = s*(abs(level) % 4)

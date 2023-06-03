@@ -3,15 +3,15 @@
 '''
 import os
 import numpy as np
-import resource    
+import resource
 from petram.mfem_config import use_parallel
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Utils')
 
 if use_parallel:
-   import mfem.par as mfem
+    import mfem.par as mfem
 else:
-   import mfem.ser as mfem
+    import mfem.ser as mfem
 
 
 def file_write(fid, *args):
@@ -20,14 +20,16 @@ def file_write(fid, *args):
     fid.write(txt + "\n")
 
 
-def print_mem(myid = 0):
-    mem=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    print("memory usage (" + str(myid) +  "): " + str(mem))
+def print_mem(myid=0):
+    mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    print("memory usage (" + str(myid) + "): " + str(mem))
+
 
 def set_array_attribute(v, base, suffix, values):
     for s, vv in zip(suffix, values):
         v[base + s] = vv
     return v
+
 
 def txt2indexlist(txt):
     try:
@@ -35,7 +37,8 @@ def txt2indexlist(txt):
     except:
         raise ValueError("can not convert text to index list")
 
-def eval_expression(expr, mesh, battr, ind_vars, ns, use_dom = False):
+
+def eval_expression(expr, mesh, battr, ind_vars, ns, use_dom=False):
     '''
     example:
         expr = 'x', or 'sin(x)'
@@ -51,28 +54,29 @@ def eval_expression(expr, mesh, battr, ind_vars, ns, use_dom = False):
         get_element = mesh.GetElement
     else:
         get_array = mesh.GetBdrArray
-        get_element = mesh.GetBdrElement        
-        
+        get_element = mesh.GetBdrElement
+
     ibdr = get_array(battr)
 
     code = compile(expr, '<string>', 'eval')
-    
+
     iverts = np.stack([get_element(i).GetVerticesArray() for i in ibdr])
-    locs   = np.stack([np.stack([mesh.GetVertexArray(k) for k in ivert])     
-                          for ivert in iverts])
-    data   =  np.stack([np.stack([_do_eval(code, mesh.GetVertexArray(k))
-                                for k in ivert])     
-                                for ivert in iverts])
+    locs = np.stack([np.stack([mesh.GetVertexArray(k) for k in ivert])
+                     for ivert in iverts])
+    data = np.stack([np.stack([_do_eval(code, mesh.GetVertexArray(k))
+                               for k in ivert])
+                     for ivert in iverts])
     return locs, data
 
-def eval_expr(model, engine, expr, battrs, phys = None):
+
+def eval_expr(model, engine, expr, battrs, phys=None):
     '''
     expr = expression to evaluate
     battrs = list of boundary attribute
     '''
     from petram.model import Bdry
 
-    if phys is None: 
+    if phys is None:
         phys = model['Phys'][list(model['Phys'])[0]]
     else:
         phys = model['Phys'][phys]
@@ -80,38 +84,42 @@ def eval_expr(model, engine, expr, battrs, phys = None):
     ret = {}
     mesh = engine.get_mesh()
     engine.assign_sel_index(phys)
-    
+
     use_dom = (phys.dim == 2 or phys.dim == 1)
     ns = phys._global_ns
     battrs = list(np.atleast_1d(eval(battrs, ns, {})).flatten().astype(int))
-       
+
     for m in phys.walk():
         for battr in battrs:
-           ind_vars = m.get_independent_variables()
-           ret[battr] = eval_expression(expr, mesh, battr, ind_vars, ns, use_dom=use_dom)
+            ind_vars = m.get_independent_variables()
+            ret[battr] = eval_expression(
+                expr, mesh, battr, ind_vars, ns, use_dom=use_dom)
     return ret
- 
 
-def eval_sol(sol, battrs, dim = 0):
+
+def eval_sol(sol, battrs, dim=0):
     mesh = sol.FESpace().GetMesh()
     ibdr = np.hstack([mesh.GetBdrArray(battr) for battr in battrs])
-    if len(ibdr) == 0: return None, None
+    if len(ibdr) == 0:
+        return None, None
     iverts = np.stack([mesh.GetBdrElement(i).GetVerticesArray() for i in ibdr])
-    locs   = np.stack([np.stack([mesh.GetVertexArray(k) for k in ivert])     
-                          for ivert in iverts])
+    locs = np.stack([np.stack([mesh.GetVertexArray(k) for k in ivert])
+                     for ivert in iverts])
 
     data = sol.GetNodalValues(dim)
-    data   =  data[iverts.flatten()].reshape(iverts.shape)
-    
+    data = data[iverts.flatten()].reshape(iverts.shape)
+
     return locs, data
+
 
 def eval_loc(sol, battrs):
     mesh = sol.FESpace().GetMesh()
     ibdr = np.hstack([mesh.GetBdrArray(battr) for battr in battrs])
-    if len(ibdr) == 0: return None, None
+    if len(ibdr) == 0:
+        return None, None
     iverts = np.stack([mesh.GetBdrElement(i).GetVerticesArray() for i in ibdr])
-    locs   = np.stack([np.stack([mesh.GetVertexArray(k) for k in ivert])     
-                          for ivert in iverts])
+    locs = np.stack([np.stack([mesh.GetVertexArray(k) for k in ivert])
+                     for ivert in iverts])
     return locs
 
 
@@ -125,17 +133,28 @@ def get_pkg_datafile(pkg, *path):
     root = os.path.abspath(os.path.dirname(file))
     return os.path.join(os.path.dirname(root), 'data', *path)
 
+
 def get_evn_petram_root():
     petram = os.getenv("PetraM")
     return petram
- 
+
+
 def get_evn_twopiroot():
     petram = os.getenv("TwoPiRoot")
     return petram
 
+
 def check_cluster_access():
     petram = get_evn_twopiroot()
     return os.path.exists(os.path.join(petram, "etc", "cluster_access"))
+
+
+def check_addon_access():
+    petram = get_evn_twopiroot()
+    if os.path.exists(os.path.join(petram, "etc", "addon_access")):
+        return "any"
+    return "none"
+
 
 '''
 This is old less accurate code.
@@ -204,4 +223,3 @@ def eval_curl(sol, battr, dim = 0):
     
     return locs, data
 '''
-

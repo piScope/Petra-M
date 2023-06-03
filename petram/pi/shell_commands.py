@@ -43,9 +43,13 @@ class PetraMHelper(object):
         print("MFEM:", mfem.__version__)
 
 
-def petram(reload_scripts=False):
+def petram(reload_scripts=False, addon="none", cluster=False):
     '''
     setup PetraM simulation enveroment
+
+       cluster : turn-on cluster access menu, temporariliy.
+       reload_scripts : reload project sciripts
+       addon : turn-on addon access, temporariliy.
     '''
     import wx
     ifig_app = wx.GetApp().TopWindow
@@ -86,6 +90,13 @@ def petram(reload_scripts=False):
 
         import wx
         wx.CallAfter(model.mfembook.find_bookviewer().Raise)
+
+    import petram.mfem_model as mm
+    if not mm.has_cluster_access and cluster is True:
+        mm.has_cluster_access = True
+    if mm.has_addon_access == "none":
+        mm.has_addon_access = addon
+
     return PetraMHelper()
 
 
