@@ -12,6 +12,6 @@ default: compile
 compile:
 	$(PYTHON) setup.py build
 install:
-	$(PYTHON) setup.py install --prefix=$(INSTALLDIR)
+	$(PYTHON) -m pip install ./ --prefix=$(INSTALLDIR) --verbose
 clean:
 	$(PYTHON) setup.py clean
