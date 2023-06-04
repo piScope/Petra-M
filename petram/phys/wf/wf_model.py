@@ -110,7 +110,7 @@ class WF(PhysModule):
         else:
             val =  self.dep_vars_base_txt.split(',')
         return [x + self.dep_vars_suffix for x in val]
-    
+
     @property 
     def der_vars(self):
         sdim = self.geom_dim

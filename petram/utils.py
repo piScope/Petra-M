@@ -155,71 +155,54 @@ def check_addon_access():
         return "any"
     return "none"
 
-
+''''
+ pv (paired value) handling (used in processing GUI data)
 '''
-This is old less accurate code.
-Those derivatis should be evaulated using DiscreteLinearInterpolator.
+def pv_get_gui_value(mm, paired_var):
+    '''
+    return value for GUI panel
+    '''
+    mfem_physroot = mm.get_root_phys().parent
+    paired_var = mm.paired_var
+    if paired_var is not None:
+        try:
+            var_s = mfem_physroot[paired_var[0]].dep_vars
+            name1 = var_s[paired_var[1]]
+            model1 = paired_var[0]
+        except BaseException:
+            paired_var = None
 
-def eval_nodal_curl_values(gf, i, vdim):
-    geometries = mfem.geom.Geometry()
+    if paired_var is None:
+        name1 = mm.get_root_phys().dep_vars[0]
+        model1 = mm.get_root_phys().name()
+    var = name1 + " ("+model1 + ")"
+    return var, paired_var
 
-    fes = gf.FESpace()
-    fe = fes.GetFE(i)
-    tr = fes.GetElementTransformation(i)
-    rule = geometries.GetVertices(fes.GetFE(i).GetGeomType())
-    dof = fe.GetDof()
-    n = rule.GetNPoints()
-    values = []
-    for k in range(n):
-        tr.SetIntPoint(rule.IntPoint(k))
-        v = mfem.Vector()
-        gf.GetCurl(tr, v)
-        values.append(v.GetDataArray().copy()[vdim-1])
-    return np.stack(values)
+def pv_from_gui_value(mm, value):
+    '''
+    return paired_var from GUI input
+    '''
+    mfem_physroot = mm.get_root_phys().parent
+    names, pnames, pindex = mfem_physroot.dependent_values()
 
+    if len(value) == 0:
+        # v[0] could be '' if object is based to a tree.
+        idx = 0
+    else:
+        idx = names.index(str(value).split("(")[0].strip())
 
-def eval_nodal_div_values(gf, i, vdim):
-    raise NotImplementedError(
-          "you must specify this method in subclass")
+    paired_var = (pnames[idx], pindex[idx])
+    return paired_var
 
-def eval_nodal_grad_values(gf, i, vdim):
-    raise NotImplementedError(
-          "you must specify this method in subclass")
+def pv_panel_param(mm, label):
+    '''
+    panel value for paired_var
+    '''
+    from wx import CB_READONLY
+    mfem_physroot = mm.get_root_phys().parent
+    names, pnames, _pindex = mfem_physroot.dependent_values()
+    names = [n+" ("+p + ")" for n, p in zip(names, pnames)]
 
-def get_nodal_x_values(gf, vdim, x=eval_nodal_curl_values):
-    fes = gf.FESpace()
-    values = [None]*fes.GetNV()
-    for i in range(fes.GetNE()):
-        ivert = fes.GetMesh().GetElementVertices(i)
-        v = x(gf, i, vdim)
-        for k, vv in zip(ivert, v):
-            if values[k] is None:
-                values[k] = [vv]
-            else:
-                values[k].append(vv)
-        
-    for i in range(fes.GetNV()):
-       values[i] = np.stack(values[i])
-       values[i] = np.mean(values[i], 0)
-    return np.stack(values)
-
-def get_nodal_curl_values(gf, vdim):
-    return get_nodal_x_values(gf, vdim, x=eval_nodal_curl_values)
-def get_nodal_div_values(gf, vdim):
-    return get_nodal_x_values(gf, vdim, x=eval_nodal_div_values)
-def get_nodal_grad_values(gf, vdim):
-    return get_nodal_x_values(gf, vdim, x=eval_nodal_grad_values)
-
-def eval_curl(sol, battr, dim = 0):
-    mesh = sol.FESpace().GetMesh()
-    ibdr = mesh.GetBdrArray(battr)
-    if len(ibdr) == 0: return None, None
-    iverts = np.stack([mesh.GetBdrElement(i).GetVerticesArray() for i in ibdr])
-    locs   = np.stack([np.stack([mesh.GetVertexArray(k) for k in ivert])     
-                          for ivert in iverts])
-
-    data = get_nodal_curl_values(sol, dim)
-    data   =  data[iverts.flatten()].reshape(iverts.shape)
-    
-    return locs, data
-'''
+    ll1 = [label, "S", 4,
+           {"style": CB_READONLY, "choices": names}]
+    return ll1

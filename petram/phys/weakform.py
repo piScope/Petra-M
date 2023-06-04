@@ -271,6 +271,8 @@ class WeakBilinIntegration(WeakIntegration):
         return v
 
     def get_panel1_value(self):
+        '''
+        (old routine will be deleted)
         if self.paired_var is not None:
             try:
                 mfem_physroot = self.get_root_phys().parent
@@ -285,7 +287,11 @@ class WeakBilinIntegration(WeakIntegration):
             p = self.get_root_phys().name()
 
         var = n + " ("+p + ")"
-        v1 = [var]
+        '''
+        from petram.utils import pv_get_gui_value
+        gui_value, self.paired_var = pv_get_gui_value(self, self.paired_var)
+
+        v1 = [gui_value]
         v2 = super(WeakBilinIntegration, self).get_panel1_value()
         v3 = [self.use_symmetric, self.use_conj]
         return v1 + v2 + v3
@@ -297,6 +303,8 @@ class WeakBilinIntegration(WeakIntegration):
         return self.get_root_phys().is_complex_valued
 
     def import_panel1_value(self, v):
+        '''
+        (old routine will be deleted)
         mfem_physroot = self.get_root_phys().parent
         names, pnames, pindex = mfem_physroot.dependent_values()
 
@@ -307,19 +315,28 @@ class WeakBilinIntegration(WeakIntegration):
             idx = names.index(str(v[0]).split("(")[0].strip())
 
         self.paired_var = (pnames[idx], pindex[idx])
+        '''
+        from petram.utils import pv_from_gui_value
+        self.paired_var = pv_from_gui_value(self, v[0])
+
         super(WeakBilinIntegration, self).import_panel1_value(v[1:-2])
         self.use_symmetric = v[-2]
         self.use_conj = v[-1]
 
     def panel1_param(self):
+        '''
+        (old routine will be deleted)
         import wx
-
         mfem_physroot = self.get_root_phys().parent
         names, pnames, pindex = mfem_physroot.dependent_values()
         names = [n+" ("+p + ")" for n, p in zip(names, pnames)]
 
         ll1 = [["paired variable", "S", 4,
                 {"style": wx.CB_READONLY, "choices": names}]]
+        '''
+        from petram.utils import pv_panel_param
+        ll1 = [pv_panel_param(self, "EM3D1 model"), ]
+
         ll2 = super(WeakBilinIntegration, self).panel1_param()
         ll3 = [["make symmetric",  self.use_symmetric,   3, {"text": ""}],
                ["use  conjugate",  self.use_conj,   3, {"text": ""}], ]

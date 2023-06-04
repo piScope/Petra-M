@@ -2735,8 +2735,9 @@ class Engine(object):
         key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
         dkey = ("emesh_idx", "elem", "order",
                 "dim", "sdim", "vdim", "isParMesh")
-        dprint1("Allocate/Reuse fec/fes:", {d: v for d, v in zip(dkey, key)})
+        #dprint1("Allocate/Reuse fec/fes:", {d: v for d, v in zip(dkey, key)})
 
+        dprint1("!checking allocated fespaces ", name)
         if name in self.fespaces:
             fes1 = self.fespaces[name]
             isFESparallel = hasattr(fes1, 'GroupComm')
@@ -2744,7 +2745,7 @@ class Engine(object):
                 return False, fes1
         # elif not make_new:
         #    return False, None
-        dprint1("making a new fec/fes")
+        dprint1("Making a new fec/fes", {d: v for d, v in zip(dkey, key)})
         is_new = True
         element = elem.split('(')[0].strip()
 
@@ -2804,17 +2805,25 @@ class Engine(object):
         return self.new_gf(fes)
 
     def alloc_lf(self, idx, idx2=0):
-        fes = self.fespaces[self.fes_vars[idx]]
+        name = self.fes_vars[idx]
+        dprint2("")
+        dprint2("< *** > Generating a new LF between " + name)
+        fes = self.fespaces[name]
         return self.new_lf(fes)
 
     def alloc_bf(self, idx, idx2=None):
-        fes = self.fespaces[self.fes_vars[idx]]
+        name = self.fes_vars[idx]
+        dprint2("")
+        dprint2("< *** > Generating a new BF between " + name)
+        fes = self.fespaces[name]
         return self.new_bf(fes)
 
     def alloc_mbf(self, idx1, idx2):  # row col
 
         name1 = self.fes_vars[idx1]
         name2 = self.r_fes_vars[idx2]
+        dprint2("")
+        dprint2("< *** > Generating a new mixed-BF between " + name1 + " and " + name2)
         fes1 = self.fespaces[name1]
         fes2 = self.fespaces[name2]
 

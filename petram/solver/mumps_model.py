@@ -915,9 +915,12 @@ class MUMPSSolver(LinearSolver):
 
         info1 = s.get_info(1)
         info2 = s.get_info(2)
-        if info1 != 0:
+        if info1 < 0:
             assert False, "MUMPS call (job3) failed. Check error log (info1/info2)" + str(
                 info1) + " " + str(info2)
+        if info1 > 0:
+            dprint1("MUMPS call (job3) return warning Check error log (info1/info2)" + str(
+                    info1) + " " + str(info2))
 
         rsol = None
         isol = None
