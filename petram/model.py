@@ -604,10 +604,14 @@ class Model(RestorableOrderedDict):
             for x in self[k].walk():
                 yield x
 
-    def walk_enabled(self):
+    def walk_enabled(self, skip_self=False):
+        '''
+        skip_self: not return the top level model
+        '''
         if not self.enabled:
             return
-        yield self
+        if skip_self:
+            yield self
         for k in self.keys():
             if not self[k].enabled:
                 continue
