@@ -3,6 +3,8 @@
     Model Tree to stroe MFEM model parameters
 
 '''
+from petram.utils import (check_cluster_access,
+                          check_addon_access)
 from petram.namespace_mixin import NS_mixin
 import numpy as np
 from petram.model import Model
@@ -11,10 +13,9 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MFEMModel')
 
 
-from petram.utils import (check_cluster_access,
-                          check_addon_access)
 has_addon_access = check_addon_access()
 has_cluster_access = check_cluster_access()
+
 
 class MFEM_GeneralRoot(Model, NS_mixin):
     can_delete = False
@@ -122,6 +123,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         ret = Model.save_attribute_set(self, skip_def_check)
         return [x for x in ret if x != '_variable']
 
+
 class MFEM_PhysRoot(Model):
     can_delete = False
     has_2nd_panel = False
@@ -130,7 +132,53 @@ class MFEM_PhysRoot(Model):
         ans = []
         from petram.helper.phys_module_util import all_phys_models
         models, classes = all_phys_models()
+
+        tmp = sorted([(cls.__name__, cls) for cls in classes])
+        classes = [x[1] for x in tmp]
+
         return classes
+
+    def get_possible_child_menu(self):
+        '''
+        return hierachial menus
+        '''
+        ans = []
+        from petram.helper.phys_module_util import all_phys_models
+        models, classes = all_phys_models()
+
+        name_class = sorted([(cls.__name__, cls) for cls in classes])
+
+        import wx
+        petram_model = wx.GetApp().TopWindow.proj.setting.parameters.eval('PetraM')
+        mesh = petram_model.variables.eval('mesh')
+        if mesh is None:
+            return []
+
+        sdim = mesh.SpaceDimension()
+
+        allkeys = ['3D', '2D', '2Da', '1D']
+        if sdim == 3:
+            keys = ['3D']
+        elif sdim == 2:
+            keys = ['2D', '2Da']
+        else:
+            keys = ['1D']
+
+        menus = []
+
+        for n, cls in name_class:
+            hitkey = ''
+            for k in allkeys:
+                if n.find(k) != -1:
+                    hitkey = k
+                    break
+            if hitkey == '':
+                menus.append(("", cls))
+            else:
+                if hitkey in keys:
+                    menus.append(("", cls))
+
+        return menus
 
     def make_solvars(self, solsets, g=None):
         from petram.mesh.mesh_utils import (get_extended_connectivity,

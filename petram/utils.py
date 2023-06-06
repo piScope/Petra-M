@@ -155,9 +155,12 @@ def check_addon_access():
         return "any"
     return "none"
 
+
 ''''
  pv (paired value) handling (used in processing GUI data)
 '''
+
+
 def pv_get_gui_value(mm, paired_var):
     '''
     return value for GUI panel
@@ -182,6 +185,7 @@ def pv_get_gui_value(mm, paired_var):
     var = name1 + " ("+model1 + ")"
     return var, paired_var
 
+
 def pv_from_gui_value(mm, value):
     '''
     return paired_var from GUI input
@@ -199,10 +203,11 @@ def pv_from_gui_value(mm, value):
         else:
             idx = 0
 
-    if len(pnames)==0:
+    if len(pnames) == 0:
         return None
     paired_var = (pnames[idx], pindex[idx])
     return paired_var
+
 
 def pv_panel_param(mm, label):
     '''
@@ -212,6 +217,66 @@ def pv_panel_param(mm, label):
     mfem_physroot = mm.get_root_phys().parent
     names, pnames, _pindex = mfem_physroot.dependent_values()
     names = [n+" ("+p + ")" for n, p in zip(names, pnames)]
+
+    ll1 = [label, "S", 4,
+           {"style": CB_READONLY, "choices": names}]
+    return ll1
+
+
+''''
+ pm (paired model) handling (used in processing GUI data)
+'''
+
+
+def pm_get_gui_value(mm, paired_model):
+    '''
+    return value for GUI panel
+    '''
+    mfem_physroot = mm.get_root_phys().parent
+    paired_model = mm.paired_model
+    if paired_model is not None:
+        try:
+            var_s = mfem_physroot[paired_var[0]].dep_vars
+            model1 = paired_var[0]
+        except BaseException:
+            paired_model = None
+
+    if paired_model is None:
+        model1 = mm.get_root_phys().name()
+
+    return model1, paired_model
+
+
+def pm_from_gui_value(mm, value):
+    '''
+    return paired_model from GUI input
+    '''
+    mfem_physroot = mm.get_root_phys().parent
+    names = [x.name() for x in mfem_physroot.get_children()]
+
+    if len(value) == 0:
+        # v[0] could be '' if object is based to a tree.
+        idx = 0
+    else:
+        tmp = str(value).split("(")[0].strip()
+        if tmp in names:
+            idx = names.index(tmp)
+        else:
+            idx = 0
+
+    if len(names) == 0:
+        return None
+    paired_model = names[idx]
+    return paired_model
+
+
+def pm_panel_param(mm, label):
+    '''
+    panel value for paired_var
+    '''
+    from wx import CB_READONLY
+    mfem_physroot = mm.get_root_phys().parent
+    names = [x.name() for x in mfem_physroot.get_children()]
 
     ll1 = [label, "S", 4,
            {"style": CB_READONLY, "choices": names}]
