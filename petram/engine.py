@@ -2737,7 +2737,7 @@ class Engine(object):
                 "dim", "sdim", "vdim", "isParMesh")
         #dprint1("Allocate/Reuse fec/fes:", {d: v for d, v in zip(dkey, key)})
 
-        dprint1("!checking allocated fespaces ", name)
+        dprint1("Looking for already allocated fespaces ", name)
         if name in self.fespaces:
             fes1 = self.fespaces[name]
             isFESparallel = hasattr(fes1, 'GroupComm')

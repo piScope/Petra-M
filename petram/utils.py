@@ -173,7 +173,11 @@ def pv_get_gui_value(mm, paired_var):
             paired_var = None
 
     if paired_var is None:
-        name1 = mm.get_root_phys().dep_vars[0]
+        names = mm.get_root_phys().dep_vars
+        if len(names) > 0:
+            name1 = names[0]
+        else:
+            name1 = ""
         model1 = mm.get_root_phys().name()
     var = name1 + " ("+model1 + ")"
     return var, paired_var
@@ -189,8 +193,14 @@ def pv_from_gui_value(mm, value):
         # v[0] could be '' if object is based to a tree.
         idx = 0
     else:
-        idx = names.index(str(value).split("(")[0].strip())
+        tmp = str(value).split("(")[0].strip()
+        if tmp in names:
+            idx = names.index(tmp)
+        else:
+            idx = 0
 
+    if len(pnames)==0:
+        return None
     paired_var = (pnames[idx], pindex[idx])
     return paired_var
 
