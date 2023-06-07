@@ -615,6 +615,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
     try:
         coeff = jitter(sdim=len(ind_vars), complex=return_complex, debug=numba_debug,
                        dependency=dependency, **kwargs)(l["_func_"])
+        del l["_func_"]
     except AssertionError:
         import traceback
         traceback.print_exc()
@@ -736,4 +737,5 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, return_compl
                    **kwargs)(l["_func_"])
 
     ret = NumbaCoefficient(coeff)
+    del l["_func_"]
     return ret
