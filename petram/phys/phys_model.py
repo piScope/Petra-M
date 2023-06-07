@@ -978,6 +978,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                              real=real, conj=is_conj)
         return c_coeff
 
+    def compile_coeffs(self, n_matrix, *kargs):
+        '''
+        jit compile coefficient
+        '''
+        pass
 
 data = [("order", VtableElement("order", type='int',
                                 guilabel="order", no_func=True,

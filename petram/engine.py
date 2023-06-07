@@ -924,6 +924,13 @@ class Engine(object):
 
         for j in range(self.n_matrix):
             self.access_idx = j
+            for phys in phys_target:
+                print(phys)
+                for mm in phys.walk_enabled():
+                    mm.compile_coeffs(j)
+
+        for j in range(self.n_matrix):
+            self.access_idx = j
             if not self.is_matrix_active(j):
                 continue
 

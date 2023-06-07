@@ -610,7 +610,7 @@ class Model(RestorableOrderedDict):
         '''
         if not self.enabled:
             return
-        if skip_self:
+        if not skip_self:
             yield self
         for k in self.keys():
             if not self[k].enabled:
