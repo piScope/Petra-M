@@ -81,6 +81,8 @@ def run_serial(path='', debug=0, thread=True):
         stdoutdata, stderrdata = p.communicate()
         print(stdoutdata)
 
+    p.kill()
+
     globals()['default_sol_path'] = os.path.dirname(path)
     globals()['default_glvis_args'] = []
 

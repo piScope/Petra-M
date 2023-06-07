@@ -73,6 +73,8 @@ def run_parallel(path='', nproc=1, debug=0, thread=True):
     else:
         stdoutdata, stderrdata = p.communicate()
         print(stdoutdata)
+
+    p.kill()
     globals()['default_sol_path'] = os.path.dirname(path)
     globals()['default_glvis_args'] = ['-np', nproc]
 

@@ -495,8 +495,10 @@ class MFEM_ModelRoot(Model):
             for od in self.walk():
                 if hasattr(od, 'use_relative_path'):
                     od.use_relative_path()
-        pickle.dump(self, open(path, 'wb'))
+        fid = open(path, 'wb')
+        pickle.dump(self, fid)
         if meshfile_relativepath:
             for od in self.walk():
                 if hasattr(od, 'use_relative_path'):
                     od.restore_fullpath()
+        fid.close()
