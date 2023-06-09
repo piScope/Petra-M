@@ -927,7 +927,7 @@ class Engine(object):
             for phys in phys_target:
                 print(phys)
                 for mm in phys.walk_enabled():
-                    mm.compile_coeffs(j)
+                    mm.compile_coeffs()
 
         for j in range(self.n_matrix):
             self.access_idx = j
@@ -2830,7 +2830,8 @@ class Engine(object):
         name1 = self.fes_vars[idx1]
         name2 = self.r_fes_vars[idx2]
         dprint2("")
-        dprint2("< *** > Generating a new mixed-BF between " + name1 + " and " + name2)
+        dprint2("< *** > Generating a new mixed-BF between " +
+                name1 + " and " + name2)
         fes1 = self.fespaces[name1]
         fes2 = self.fespaces[name2]
 

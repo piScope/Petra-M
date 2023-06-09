@@ -361,8 +361,43 @@ class NumbaCoefficient():
     def __pos__(self):
         raise NotImplementedError
 
-    def __neg__(self, other):
-        raise NotImplementedError
+    def __neg__(self):
+        from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
+
+        func = '\n'.join(['def f(ptx, val):',
+                          '    return -val'])
+
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+
+        if self.ndim == 0:
+            coeff = mfem.jit.scalar(complex=self.complex,
+                                    dependency=dep,
+                                    interface="simple",
+                                    debug=numba_debug)(l["f"])
+        elif self.ndim == 1:
+            coeff = mfem.jit.vector(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    shape=self.shape)(l["f"])
+
+        elif self.ndim == 2:
+            coeff = mfem.jit.matrix(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    shape=self.shape)(l["f"])
+
+        else:
+            assert False, "unsupported dim: dim=" + str(self.ndim)
+
+        return NumbaCoefficient(coeff)
 
     def __abs__(self, other):
         raise NotImplementedError
@@ -739,3 +774,63 @@ def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, return_compl
     ret = NumbaCoefficient(coeff)
     del l["_func_"]
     return ret
+
+
+'''
+convert function to numba coefficient
+'''
+
+
+def func_to_numba_coeff_scalar(func, complex=False,
+                               params=None, dependency=None):
+    from petram.mfem_config import numba_debug
+    numba_debug = False if myid != 0 else numba_debug
+
+    if dependency is None:
+        dependency = tuple()
+
+    dependency = [(x.mfem_numba_coeff if isinstance(x, NumbaCoefficient) else x)
+                  for x in dependency]
+
+    jitter = mfem.jit.scalar(complex=complex, params=params,
+                             debug=numba_debug, dependency=dependency)
+
+    mfem_coeff1 = jitter(func)
+    return NumbaCoefficient(mfem_coeff1)
+
+
+def func_to_numba_coeff_vector(func, shape=(0,), complex=False,
+                               params=None, dependency=None):
+    from petram.mfem_config import numba_debug
+    numba_debug = False if myid != 0 else numba_debug
+
+    if dependency is None:
+        dependency = tuple()
+
+    dependency = [(x.mfem_numba_coeff if isinstance(x, NumbaCoefficient) else x)
+                  for x in dependency]
+
+    jitter = mfem.jit.vector(shape=shape, complex=complex, params=params,
+                             debug=numba_debug, dependency=dependency)
+
+    mfem_coeff1 = jitter(func)
+    return NumbaCoefficient(mfem_coeff1)
+
+
+def func_to_numba_coeff_matrix(func, shape=(0, 0), complex=False,
+                               params=None, dependency=None):
+
+    from petram.mfem_config import numba_debug
+    numba_debug = False if myid != 0 else numba_debug
+
+    if dependency is None:
+        dependency = tuple()
+
+    dependency = [(x.mfem_numba_coeff if isinstance(x, NumbaCoefficient) else x)
+                  for x in dependency]
+
+    jitter = mfem.jit.matrix(shape=shape, complex=complex, params=params,
+                             debug=numba_debug, dependency=dependency)
+
+    mfem_coeff1 = jitter(func)
+    return NumbaCoefficient(mfem_coeff1)

@@ -186,6 +186,10 @@ class MFEM_PhysRoot(Model):
         from petram.helper.variables import Variable
         from petram.helper.variables import add_scalar
 
+        for phys in self.iter_enabled():
+            for mm in phys.walk_enabled():
+                mm.compile_coeffs()
+
         solvars = [None] * len(solsets)
         if g is None:
             g = {}

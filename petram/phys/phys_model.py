@@ -978,11 +978,12 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                              real=real, conj=is_conj)
         return c_coeff
 
-    def compile_coeffs(self, n_matrix, *kargs):
+    def compile_coeffs(self, *kargs):
         '''
         jit compile coefficient
         '''
         pass
+
 
 data = [("order", VtableElement("order", type='int',
                                 guilabel="order", no_func=True,
@@ -1181,6 +1182,7 @@ class PhysModule(Phys):
         return False
 
     _possible_constraints = None
+
     @classmethod
     def _set_possible_constraints(cls, name):
         '''
@@ -1234,6 +1236,7 @@ class PhysModule(Phys):
                         continue
                     if mm is self:
                         continue
+
                     mm.add_domain_variables(variables, n, suffix, ind_vars,
                                             solr, soli)
                     mm.add_bdr_variables(variables, n, suffix, ind_vars,

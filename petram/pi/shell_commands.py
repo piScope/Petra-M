@@ -51,6 +51,12 @@ def petram(reload_scripts=False, addon="none", cluster=False):
        reload_scripts : reload project sciripts
        addon : turn-on addon access, temporariliy.
     '''
+    import petram.mfem_model as mm
+    if not mm.has_cluster_access and cluster is True:
+        mm.has_cluster_access = True
+    if mm.has_addon_access == "none":
+        mm.has_addon_access = addon
+
     import wx
     ifig_app = wx.GetApp().TopWindow
     proj = ifig_app.proj
@@ -90,12 +96,6 @@ def petram(reload_scripts=False, addon="none", cluster=False):
 
         import wx
         wx.CallAfter(model.mfembook.find_bookviewer().Raise)
-
-    import petram.mfem_model as mm
-    if not mm.has_cluster_access and cluster is True:
-        mm.has_cluster_access = True
-    if mm.has_addon_access == "none":
-        mm.has_addon_access = addon
 
     return PetraMHelper()
 
