@@ -117,6 +117,8 @@ class RestorableOrderedDict(ABC, MutableMapping, Restorable, object):
                 isinstance(item, tuple)):
             keys = [self]+list(item)
             return reduce(lambda x, y: x[y], keys)
+        elif item is None:
+            raise KeyError
         elif item.find('.') != -1:
             items = item.split('.')
             keys = [self]+list(items)

@@ -233,17 +233,13 @@ def pm_get_gui_value(mm, paired_model):
     return value for GUI panel
     '''
     mfem_physroot = mm.get_root_phys().parent
+
     paired_model = mm.paired_model
-    if paired_model is not None:
-        try:
-            var_s = mfem_physroot[paired_var[0]].dep_vars
-            model1 = paired_var[0]
-        except BaseException:
-            paired_model = None
-
-    if paired_model is None:
+    if paired_model not in mfem_physroot:
         model1 = mm.get_root_phys().name()
-
+        paired_model = None
+    else:
+        model1 = paired_model
     return model1, paired_model
 
 
@@ -251,21 +247,22 @@ def pm_from_gui_value(mm, value):
     '''
     return paired_model from GUI input
     '''
+    print(value, type(value))
     mfem_physroot = mm.get_root_phys().parent
     names = [x.name() for x in mfem_physroot.get_children()]
+
+    if len(names) == 0:
+        return None
 
     if len(value) == 0:
         # v[0] could be '' if object is based to a tree.
         idx = 0
     else:
-        tmp = str(value).split("(")[0].strip()
-        if tmp in names:
-            idx = names.index(tmp)
+        if value in names:
+            idx = names.index(value)
         else:
             idx = 0
 
-    if len(names) == 0:
-        return None
     paired_model = names[idx]
     return paired_model
 
