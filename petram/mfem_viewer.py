@@ -125,7 +125,7 @@ class MFEMViewer(BookViewer):
         BookViewer.__init__(self, *args, **kargs)
         extra_menu = wx.Menu()
         self.menuBar.Insert(self.menuBar.GetMenuCount()-1,
-                            extra_menu, "MFEM")
+                            extra_menu, "PetraM")
         menus = MFEM_menus(self)
         ret = BuildMenu(extra_menu, menus)
 
