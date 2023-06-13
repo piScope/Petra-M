@@ -191,7 +191,7 @@ def pv_from_gui_value(mm, value):
     return paired_var from GUI input
     '''
     mfem_physroot = mm.get_root_phys().parent
-    names, pnames, pindex = mfem_physroot.dependent_values()
+    names, pnames, pindex = mfem_physroot.dependent_values(include_disabled=True)
 
     if len(value) == 0:
         # v[0] could be '' if object is based to a tree.
@@ -215,7 +215,7 @@ def pv_panel_param(mm, label):
     '''
     from wx import CB_READONLY
     mfem_physroot = mm.get_root_phys().parent
-    names, pnames, _pindex = mfem_physroot.dependent_values()
+    names, pnames, _pindex = mfem_physroot.dependent_values(include_disabled=True)
     names = [n+" ("+p + ")" for n, p in zip(names, pnames)]
 
     ll1 = [label, "S", 4,

@@ -223,18 +223,23 @@ class MFEM_PhysRoot(Model):
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys')
 
-    def dependent_values(self):
+    def dependent_values(self, include_disabled=False):
         '''
         return dependent_values
            names: name of values
            pnames: list of physics module
            pindex: index of dependent value in the physics module
         '''
-        names = sum([c.dep_vars for c in self.iter_enabled()], [])
+        if include_disabled:
+            method = self.get_children
+        else:
+            method = self.iter_enabled
+
+        names = sum([c.dep_vars for c in method()], [])
         pnames = sum([[c.name()] * len(c.dep_vars)
-                      for c in self.iter_enabled()], [])
+                      for c in method()], [])
         pindex = sum([list(range(len(c.dep_vars)))
-                      for c in self.iter_enabled()], [])
+                      for c in method()], [])
 
         return names, pnames, pindex
 
