@@ -472,6 +472,10 @@ class Vtable_mixin(object):
                        chk_any=False, chk_string=False):
 
         from petram.helper.variables import NativeCoefficientGenBase
+        
+        if not hasattr(value, 'startswith'):
+            value = str(value)
+        
         if value.startswith('='):
             return dummy,  '='.join(value.split('=')[1:])
         else:
@@ -510,6 +514,8 @@ class Vtable_mixin(object):
 
         from petram.helper.variables import NativeCoefficientGenBase
 
+        if not hasattr(value, 'startswith'):
+            value = str(value)
         if value.startswith('='):
             return dummy,  value.split('=')[1]
         else:
