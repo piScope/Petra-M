@@ -1439,6 +1439,7 @@ class Engine(object):
                 proj = mm.get_projection()
                 ra = self.r_a[ifes, rifes, proj]
 
+                mm.set_integrator_realimag_mode(True)
                 mm.add_bf_contribution(self, ra, real=True, kfes=kfes)
 
         if not is_complex:
@@ -1463,6 +1464,7 @@ class Engine(object):
                 proj = mm.get_projection()
                 ia = self.i_a[ifes, rifes, proj]
 
+                mm.set_integrator_realimag_mode(False)
                 mm.add_bf_contribution(self, ia, real=False, kfes=kfes)
 
     def fill_lf(self, phys, update):
@@ -1503,6 +1505,8 @@ class Engine(object):
                     continue
                 if len(mm._sel_index) == 0:
                     continue
+
+                mm.set_integrator_realimag_mode(True)
                 mm.add_lf_contribution(self, rb, real=True, kfes=kfes)
 
         if not is_complex:
@@ -1522,6 +1526,8 @@ class Engine(object):
                     continue
                 if len(mm._sel_index) == 0:
                     continue
+
+                mm.set_integrator_realimag_mode(False)
                 mm.add_lf_contribution(self, ib, real=False, kfes=kfes)
 
     def fill_mixed(self, phys, update):
@@ -1615,6 +1621,8 @@ class Engine(object):
                     bfr = self.r_at[idx1, idx2]
                 else:
                     bfr = self.r_a[idx1, idx2]
+
+                mm.set_integrator_realimag_mode(True)
                 mm.add_mix_contribution2(
                     self, bfr, r, c, False, is_conj, real=True)
 
@@ -1624,6 +1632,7 @@ class Engine(object):
                         bfi = self.i_at[idx1, idx2]
                     else:
                         bfi = self.i_a[idx1, idx2]
+                    mm.set_integrator_realimag_mode(False)
                     mm.add_mix_contribution2(
                         self, bfi, r, c, False, is_conj, real=False)
 

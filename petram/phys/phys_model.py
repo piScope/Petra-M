@@ -753,6 +753,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             self._realimag_mode = "imag"
 
     def process_complex_coefficient(self, coeff):
+        if not hasattr(coeff[0], "get_real_coefficient"):
+            return coeff
+
         if self.integrator_realimag_mode == "real":
             return sum(((coeff[0].get_real_coefficient(),), coeff[1:]), ())
         elif self.integrator_realimag_mode == "imag":
