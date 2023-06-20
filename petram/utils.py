@@ -247,7 +247,6 @@ def pm_from_gui_value(mm, value):
     '''
     return paired_model from GUI input
     '''
-    print(value, type(value))
     mfem_physroot = mm.get_root_phys().parent
     names = [x.name() for x in mfem_physroot.get_children()]
 

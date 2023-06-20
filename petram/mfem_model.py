@@ -39,7 +39,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         v['autofilldiag'] = 'off'
         v['savegz'] = 'on'
         v['allow_fallback_nonjit'] = 'allow'
-        v['debug_numba_jit'] = 'on'
+        v['debug_numba_jit'] = 'off'
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
 
