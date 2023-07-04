@@ -1151,7 +1151,7 @@ class MFEMViewer(BookViewer):
         os.chdir(odir)
 
     def viewer_canvasmenu(self):
-        menus = [("+MFEM", None, None), ]
+        menus = [("+Petra-M", None, None), ]
         if self._hidemesh:
             menus.append(("Show Mesh",  self.onShowMesh, None))
         else:
