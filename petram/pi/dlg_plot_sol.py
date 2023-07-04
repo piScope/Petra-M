@@ -1042,18 +1042,29 @@ class DlgPlotSol(SimpleFramePlus):
         pass
 
     def onApply(self, evt):
+        elp = self.get_selected_elp()
+        elp.AddCurrentToHistory()
+
         t = self.get_selected_plotmode()
         m = getattr(self, 'onApply' + t)
+
         m(evt)
 
     def onInteg(self, evt):
+        elp = self.get_selected_elp()
+        elp.AddCurrentToHistory()
+
         t = self.get_selected_plotmode()
         m = getattr(self, 'onInteg' + t)
         m(evt)
 
     def onExport(self, evt):
+        elp = self.get_selected_elp()
+        elp.AddCurrentToHistory()
+
         t = self.get_selected_plotmode()
         m = getattr(self, 'onExport' + t)
+
         m(evt)
     '''
     def onExport2(self, evt):
@@ -1063,6 +1074,9 @@ class DlgPlotSol(SimpleFramePlus):
     '''
 
     def onExportR(self, evt):
+        elp = self.get_selected_elp()
+        elp.AddCurrentToHistory()
+
         t = self.get_selected_plotmode()
         m1 = getattr(self, 'onExportR1' + t)
         m2 = getattr(self, 'onExportR2' + t)
@@ -1077,6 +1091,12 @@ class DlgPlotSol(SimpleFramePlus):
         evt.GetEventObject().PopupMenu(menu, evt.GetPosition())
         menu.Destroy()
         evt.Skip()
+
+    def get_selected_elp(self):
+        t = self.nb.GetPageText(self.nb.GetSelection())
+        t = t.replace('(', '').replace(')', '')
+        elp = self.elps[t]
+        return elp
 
     def get_selected_plotmode(self, kind=False):
         t = self.nb.GetPageText(self.nb.GetSelection())
