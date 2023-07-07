@@ -25,6 +25,8 @@ for p in petram.phys.__path__:
 def all_phys_models():
     modulenames = []
     for m in _modulenames:
+        if m == "common":  # this is the name for common physics subroutines
+            continue
         try:
             mname = 'petram.phys.'+m + '.'+m+'_model'
             __import__(mname, locals(), globals())
