@@ -583,6 +583,7 @@ class DlgEditModel(SimpleFramePlus):
             self.Enable(False)
 
     def OnItemSelChanged(self, evt=None):
+
         if self.tree.GetSelection() is None:
             return
 
@@ -592,7 +593,6 @@ class DlgEditModel(SimpleFramePlus):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
 #        if not mm.__class__ in self.panels.keys():
-
         for k in self.panels.keys():
             p1panel, p2panel, p3panel, p4panel = self.panels[k]
             self.p1sizer.Detach(p1panel)
@@ -862,10 +862,11 @@ class DlgEditModel(SimpleFramePlus):
                 traceback.print_exc()
 
         if viewer_update:
-            mm.update_after_ELChanged(self)
+            flag1 = mm.update_after_ELChanged(self)
             if evt is not None:
-                mm.update_after_ELChanged2(evt)
-            wx.CallAfter(self.show_panel, mm)
+                flag2 = mm.update_after_ELChanged2(evt)
+            if flag1 or flag2:
+                wx.CallAfter(self.show_panel, mm)
 
         self.tree.RefreshItems()
         return viewer_update

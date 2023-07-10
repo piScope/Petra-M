@@ -966,10 +966,16 @@ class Model(RestorableOrderedDict):
         return self.name()
 
     def update_after_ELChanged2(self, evt):
-        pass
+        '''
+        return True if edit panel needs update
+        '''
+        return False
 
     def update_after_ELChanged(self, dlg):
-        pass
+        '''
+        return True if edit panel needs update
+        '''
+        return False
 
     def use_essential_elimination(self):
         return True
