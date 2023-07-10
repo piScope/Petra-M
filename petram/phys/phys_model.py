@@ -1216,7 +1216,7 @@ class PhysModule(Phys):
         return [AUX_Variable, AUX_Operator]
 
     def get_possible_pair(self):
-        from projection import BdrProjection, DomainProjection
+        from petram.phys.projection import BdrProjection, DomainProjection
         return [DomainProjection, BdrProjection, ]
 
     def soldict_to_solvars(self, soldict, variables):
