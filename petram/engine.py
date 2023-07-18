@@ -554,8 +554,8 @@ class Engine(object):
     def preprocess_modeldata(self, dir=None):
         '''
         do everything it takes to run a newly built
-        name space is already build
         model data strucutre.
+        name space is already build
         used from text script execution
         '''
         import os
