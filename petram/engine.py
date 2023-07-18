@@ -5,6 +5,7 @@ import sys
 import os
 import six
 import shutil
+import textwrap
 import traceback
 import numpy as np
 import scipy.sparse
@@ -2596,7 +2597,10 @@ class Engine(object):
 
             dom_choice, bdr_choice, internal_bdr = p.get_dom_bdr_choice(
                 self.meshes[p.mesh_idx])
-            dprint1("## internal bdr index " + str(internal_bdr))
+
+            txt = textwrap.shorten(str(internal_bdr), width=70,
+                                   placeholder='...')
+            dprint1("## internal bdr index " + txt)
 
             p._phys_sel_index = dom_choice
             self.do_assign_sel_index(p, dom_choice, Domain)
@@ -2605,8 +2609,10 @@ class Engine(object):
             self.do_assign_sel_index(p, dom_choice, Point)
 
     def do_assign_sel_index(self, m, choice, cls, internal_bdr=None):
+        txt = textwrap.shorten(str(choice), width=70,
+                               placeholder='...')
         dprint1("## setting _sel_index (1-based number): " + cls.__name__ +
-                ":" + m.fullname() + ":" + str(choice))
+                ":" + m.fullname() + ":" + txt)
         # _sel_index is 0-base array
 
         def _walk_physics(node):
@@ -2631,9 +2637,14 @@ class Engine(object):
                 node._sel_index = choice
                 if not node.is_secondary_condition:
                     checklist[np.in1d(choice, node._sel_index)] = False
-                dprint1(node.fullname(), node._sel_index)
+
+                txt = textwrap.shorten(str(node._sel_index), width=70,
+                                       placeholder='...')
+                dprint1(node.fullname(), txt)
             else:
-                dprint1(node.fullname(), ret)
+                txt = textwrap.shorten(str(ret), width=70,
+                                       placeholder='...')
+                dprint1(node.fullname(), txt)
                 # for k in ret:
                 #   idx = list(choice).index(k)
                 #   if node.is_secondary_condition: continue
@@ -2642,7 +2653,10 @@ class Engine(object):
                     checklist[np.in1d(choice, ret)] = False
         if rem is not None:
             rem._sel_index = list(np.array(choice)[checklist])
-            dprint1(rem.fullname() + ':' + rem._sel_index.__repr__())
+            txt = textwrap.shorten(str(rem._sel_index), width=70,
+                                   placeholder='...')
+
+            dprint1(rem.fullname() + ':' + txt)
 
     def find_domain_by_index(self, phys, idx,  check_enabled=False):
         return self._do_find_by_index(phys, idx, Domain,

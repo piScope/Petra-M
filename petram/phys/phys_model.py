@@ -1113,6 +1113,7 @@ class PhysModule(Phys):
 
     def panel2_param(self):
         import wx
+
         if self.geom_dim == 3:
             choice = ("Volume", "Surface", "Edge")
         elif self.geom_dim == 2:
@@ -1120,14 +1121,21 @@ class PhysModule(Phys):
         elif self.geom_dim == 1:
             choice = ("Edge", )
 
+        from petram.model import validate_sel
+
         if self.dim_fixed:
             return [["index", 'all', 0, {'changing_event': True,
-                                         'setfocus_event': True}, ]]
+                                         'setfocus_event': True,
+                                         'validator': validate_sel,
+                                         'validator_param': self}, ]]
+
         else:
             p = ["Type", choice[0], 4,
                  {"style": wx.CB_READONLY, "choices": choice}]
             return [p, ["index", 'all', 0, {'changing_event': True,
-                                            'setfocus_event': True}, ]]
+                                            'setfocus_event': True,
+                                            'validator': validate_sel,
+                                            'validator_param': self}, ]]
 
     def get_panel2_value(self):
         choice = ["Point", "Edge", "Surface", "Volume", ]
@@ -1330,7 +1338,7 @@ class PhysModule(Phys):
             return [], [], []
 
         dom_choice = list(d)
-        bdr_choice = sum([list(d[x]) for x in d], [])
+        bdr_choide = list(set(np.hstack([list(d[x]) for x in d])))
 
         if self.sel_index[0] != 'all':
             dom_choice = [int(x) for x in self.sel_index]
