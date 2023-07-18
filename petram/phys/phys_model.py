@@ -1338,7 +1338,7 @@ class PhysModule(Phys):
             return [], [], []
 
         dom_choice = list(d)
-        bdr_choide = list(set(np.hstack([list(d[x]) for x in d])))
+        bdr_choice = list(set(np.hstack([list(d[x]) for x in d])))
 
         if self.sel_index[0] != 'all':
             dom_choice = [int(x) for x in self.sel_index]
