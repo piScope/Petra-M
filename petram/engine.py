@@ -2988,12 +2988,15 @@ class Engine(object):
                     o = child[k]
                     if not o.enabled:
                         continue
+                    print(o)
                     if o.isMeshGenerator:
                         dprint1("Loading mesh (serial)")
                         self.meshes[idx] = o.run_serial()
                         target = self.meshes[idx]
                     else:
-                        if o.isRefinement and skip_refine:
+                        if (o.isRefinement and
+                            skip_refine and
+                            not o.isSerialRefinement):
                             continue
                         if hasattr(o, 'run') and target is not None:
                             self.meshes[idx] = o.run(target)
@@ -3007,8 +3010,7 @@ class Engine(object):
             if len(m.GetAttributeArray()) > 0:
                 self.max_attr = np.max(
                     [self.max_attr, max(m.GetAttributeArray())])
-            # Test this...(2021/Nov)
-            # m.ReorientTetMesh()
+
             m.GetEdgeVertexTable()
             get_extended_connectivity(m)
 
@@ -3856,6 +3858,8 @@ class ParallelEngine(Engine):
                         #self.base_meshes[idx] = self.meshes[idx]
                     else:
                         if hasattr(o, 'run') and target is not None:
+                            if o.isSerialRefinement:
+                                continue
                             target = self.new_mesh_from_mesh(target)
                             self.meshes[idx] = o.run(target)
                             target = self.meshes[idx]

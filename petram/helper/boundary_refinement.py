@@ -1,11 +1,26 @@
 import numpy as np
-import mfem.ser as mfem
+
+import petram.debug
+from petram.mfem_config import use_parallel
+
+if use_parallel:
+    import mfem.par as mfem
+    from mpi4py import MPI
+    num_proc = MPI.COMM_WORLD.size
+    myid = MPI.COMM_WORLD.rank
+    from petram.helper.mpi_recipes import *
+else:
+    import mfem.ser as mfem
+
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('BoundaryRefinement')
+
 
 
 def apply_boundary_refinement(mesh, sels, nlayers=6):
     '''
     refinement near the boundary element sels.
     '''
+    dprint1("applying boundary refinement: " + str(sels) + ", nlayers=" + str(nlayers))
     dim = mesh.Dimension()
 
     bdrs = mesh.GetBdrAttributeArray()
@@ -62,3 +77,4 @@ def apply_boundary_refinement(mesh, sels, nlayers=6):
 
     iii = mfem.intArray(iels)
     mesh.GeneralRefinement(iii)
+    return mesh
