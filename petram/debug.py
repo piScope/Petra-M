@@ -1,6 +1,7 @@
 from __future__ import print_function
 import resource
 import time
+import textwrap
 #####################################
 #
 # debug.py
@@ -34,6 +35,7 @@ debug_default_level = 1
 debug_essential_bc = False
 debug_memory = False
 
+
 def set_debug_level(level):
     s = 1 if level == 0 else level/abs(level)
     globals()['debug_default_level'] = s*(abs(level) % 4)
@@ -45,6 +47,9 @@ def dprint(*args):
     s = ''
     for item in args:
         s = s + ' ' + str(item)
+
+    s = textwrap.shorten(s, width=350, placeholder='...')
+
     if debug_mode != 0:
         import sys
         print('DEBUG('+str(debug_mode)+')::'+s)

@@ -5,7 +5,6 @@ import sys
 import os
 import six
 import shutil
-import textwrap
 import traceback
 import numpy as np
 import scipy.sparse
@@ -2598,9 +2597,7 @@ class Engine(object):
             dom_choice, bdr_choice, internal_bdr = p.get_dom_bdr_choice(
                 self.meshes[p.mesh_idx])
 
-            txt = textwrap.shorten(str(internal_bdr), width=70,
-                                   placeholder='...')
-            dprint1("## internal bdr index " + txt)
+            dprint1("## internal bdr index " + str(internal_bdr))
 
             p._phys_sel_index = dom_choice
             self.do_assign_sel_index(p, dom_choice, Domain)
@@ -2609,10 +2606,8 @@ class Engine(object):
             self.do_assign_sel_index(p, dom_choice, Point)
 
     def do_assign_sel_index(self, m, choice, cls, internal_bdr=None):
-        txt = textwrap.shorten(str(choice), width=70,
-                               placeholder='...')
         dprint1("## setting _sel_index (1-based number): " + cls.__name__ +
-                ":" + m.fullname() + ":" + txt)
+                ":" + m.fullname() + ":" + str(choice))
         # _sel_index is 0-base array
 
         def _walk_physics(node):
@@ -2638,13 +2633,9 @@ class Engine(object):
                 if not node.is_secondary_condition:
                     checklist[np.in1d(choice, node._sel_index)] = False
 
-                txt = textwrap.shorten(str(node._sel_index), width=70,
-                                       placeholder='...')
-                dprint1(node.fullname(), txt)
+                dprint1(node.fullname(), str(node._sel_index))
             else:
-                txt = textwrap.shorten(str(ret), width=70,
-                                       placeholder='...')
-                dprint1(node.fullname(), txt)
+                dprint1(node.fullname(), str(ret))
                 # for k in ret:
                 #   idx = list(choice).index(k)
                 #   if node.is_secondary_condition: continue
@@ -2653,10 +2644,7 @@ class Engine(object):
                     checklist[np.in1d(choice, ret)] = False
         if rem is not None:
             rem._sel_index = list(np.array(choice)[checklist])
-            txt = textwrap.shorten(str(rem._sel_index), width=70,
-                                   placeholder='...')
-
-            dprint1(rem.fullname() + ':' + txt)
+            dprint1(rem.fullname() + ':' + str(rem._sel_index))
 
     def find_domain_by_index(self, phys, idx,  check_enabled=False):
         return self._do_find_by_index(phys, idx, Domain,
@@ -2966,6 +2954,7 @@ class Engine(object):
 
     def run_mesh_serial(self, meshmodel=None,
                         skip_refine=False):
+
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
         #from petram.mesh.mesh_extension import MeshExt
         from petram.mesh.mesh_utils import get_extended_connectivity
@@ -2988,15 +2977,14 @@ class Engine(object):
                     o = child[k]
                     if not o.enabled:
                         continue
-                    print(o)
+
                     if o.isMeshGenerator:
                         dprint1("Loading mesh (serial)")
                         self.meshes[idx] = o.run_serial()
                         target = self.meshes[idx]
                     else:
                         if (o.isRefinement and
-                            skip_refine and
-                            not o.isSerialRefinement):
+                                skip_refine):
                             continue
                         if hasattr(o, 'run') and target is not None:
                             self.meshes[idx] = o.run(target)
@@ -3574,7 +3562,7 @@ class SerialEngine(Engine):
         skip_refine is for mfem_viewer
         '''
         return self.run_mesh_serial(meshmodel=meshmodel,
-                                    skip_refine=skip_refine)
+                                    skip_refine=skip_refine,)
 
     def run_assemble_mat(self, phys_target, phys_range, update=False):
         self.is_matrix_distributed = False
@@ -3814,12 +3802,16 @@ class ParallelEngine(Engine):
             parent = self.model['Mesh']
             children = [parent[g] for g in parent.keys()
                         if isinstance(parent[g], MFEMMesh) and parent[g].enabled]
+
             for idx, child in enumerate(children):
                 self.meshes.append(None)
                 self.base_meshes.append(None)
                 if not child.enabled:
                     continue
                 target = None
+
+                srefines = [child[x]
+                            for x in child if child[x].isSerialRefinement]
                 for k in child.keys():
                     o = child[k]
                     if not o.enabled:
@@ -3849,6 +3841,9 @@ class ParallelEngine(Engine):
                                     smesh.GetNE()//1000+1, 1)
                             else:
                                 parts = None
+
+                        for srefine in srefines:
+                            smesh = srefine.run(smesh)
 
                         self.base_meshes[idx] = mfem.ParMesh(
                             MPI.COMM_WORLD, smesh, parts)

@@ -54,6 +54,7 @@ class Mesh(Model, NS_mixin):
 class MeshGenerator(Mesh):
     isMeshGenerator = True
     isRefinement = False
+    isSerialRefinement = False   # refinement performed in serial
 
     def attribute_set(self, v):
         v = super(MeshGenerator, self).attribute_set(v)
@@ -123,8 +124,8 @@ class MFEMMesh(Model):
 
     def panel1_param(self):
         if not hasattr(self, "_topo_check_char"):
-            self._topo_check_char= ''
-            self._invalid_data= None
+            self._topo_check_char = ''
+            self._invalid_data = None
         import wx
         return [[None, None, 341, {"label": "Reload mesh",
                                    "func": 'call_reload_mfem_mesh',
@@ -956,9 +957,9 @@ class DomainRefinement(Mesh):
 
         return [["Number", str(self.num_refine), 0, {}],
                 ["Domains", self.sel_index_txt, 0, {'changing_event': True,
-                                                 'setfocus_event': True,
-                                                 'validator': validate_sel,
-                                                 'validator_param': self}, ],
+                                                    'setfocus_event': True,
+                                                    'validator': validate_sel,
+                                                    'validator_param': self}, ],
                 ["Expr.", self.expression, 0, {}, ]
                 ["NS for expr.", self.expression_ns, 0, {}], ]
 
@@ -986,7 +987,7 @@ class DomainRefinement(Mesh):
             dprint1(
                 "(Warning) Element Geometry Type is mixed. Cannot perform UniformRefinement")
             return mesh
-        
+
         domains = self.process_sel_index()
         if len(domains) == 0:
             return mesh
@@ -1020,7 +1021,9 @@ class DomainRefinement(Mesh):
             mesh.GeneralRefinement(idx0)  # this is parallel refinement
         return mesh
 
+
 class BoundaryRefinement(Mesh):
+    isRefinement = True
     isSerialRefinement = True
     has_2nd_panel = False
 
@@ -1046,10 +1049,10 @@ class BoundaryRefinement(Mesh):
 
         return [["Number", str(self.num_refine), 0, {}],
                 ["Boundaries", self.sel_index_txt, 0, {'changing_event': True,
-                                                 'setfocus_event': True,
-                                                 'validator': validate_sel,
-                                                 'validator_param': self}, ],
-                ["#Layers", self.num_layer, 0, {}],]
+                                                       'setfocus_event': True,
+                                                       'validator': validate_sel,
+                                                       'validator_param': self}, ],
+                ["#Layers", self.num_layer, 0, {}], ]
 
     def import_panel1_value(self, v):
         self.num_refine = str(v[0])
@@ -1068,9 +1071,13 @@ class BoundaryRefinement(Mesh):
         nlayers = int(self.num_layer)
         sels = self.process_sel_index()
 
-        print(sels, mesh.GetNE())
+        ne0 = mesh.GetNE()
+
         krefine = int(self.num_refine)
         for i in range(krefine):
             mesh = apply_boundary_refinement(mesh, sels, nlayers=nlayers)
-        print(mesh.GetNE())
+
+        ne1 = mesh.GetNE()
+        dprint1("Number of element before/after boundary refinementmesh: " +
+                str(ne0) + " -->> " + str(ne1))
         return mesh
