@@ -35,6 +35,8 @@ debug_default_level = 1
 debug_essential_bc = False
 debug_memory = False
 
+max_txt = 70*2
+
 
 def set_debug_level(level):
     s = 1 if level == 0 else level/abs(level)
@@ -48,7 +50,7 @@ def dprint(*args):
     for item in args:
         s = s + ' ' + str(item)
 
-    s = textwrap.shorten(s, width=350, placeholder='...')
+    s = textwrap.shorten(s, width=max_txt, placeholder='...')
 
     if debug_mode != 0:
         import sys
@@ -85,6 +87,8 @@ class DPrint(object):
 
         for item in args:
             s = s + ' ' + str(item)
+        s = textwrap.shorten(s, width=max_txt, placeholder='...')
+
         if self.name in debug_modes:
             if debug_modes[self.name] >= self.level:
                 print('DEBUG('+str(self.name)+' ' + str(myid)+')::'+s)
@@ -117,6 +121,8 @@ class RPrint(object):
             return
         for item in args:
             s = s + ' ' + str(item)
+
+        s = textwrap.shorten(s, width=max_txt, placeholder='...')
         print(str(self.name)+'(' + str(myid)+')::'+s)
 
 
