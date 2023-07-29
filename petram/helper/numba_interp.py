@@ -3,8 +3,8 @@ from numba import njit, float64, int32, types
 from numba.types import Array
 
 arr1D = Array(float64, 1, 'A', readonly=True)
-arr2D = Array(float64, 2, 'C', readonly=True)
-arr3D = Array(float64, 3, 'C', readonly=True)
+arr2D = Array(float64, 2, 'A', readonly=True)
+arr3D = Array(float64, 3, 'A', readonly=True)
 
 
 @njit(float64(arr1D, arr1D, float64))
@@ -221,7 +221,7 @@ def interp3d_linear(x, y, z, p, x0, y0,  z0):
             k = k
 
     a0 = interp2d_linear(x, y, p[k, :, :], x0, y0)
-    a1 = interp2d_linear(x, y, p[k, :, :], x0, y0)
+    a1 = interp2d_linear(x, y, p[k+1, :, :], x0, y0)
 
     return a0 * (z[k+1] - z0)/(z[k+1] - z[k]) + a1 * (z0 - z[k])/(z[k+1]-z[k])
 
@@ -240,8 +240,8 @@ def interp3d_cubic(x, y, z, p, x0, y0,  z0):
     '''
 
     if z0 < z[1]:
-        a0 = interp2d_cubic(x, p[0, :, :], x0, y0)
-        a1 = interp2d_cubic(x, p[1, :, :], x0, y0)
+        a0 = interp2d_cubic(x, y, p[0, :, :], x0, y0)
+        a1 = interp2d_cubic(x, y, p[1, :, :], x0, y0)
         return a0 * (z[1] - z0)/(z[1] - z[0]) + a1 * (z0 - z[0])/(z[1]-z[0])
     if z0 > z[-2]:
         a0 = interp2d_cubic(x, y, p[-2, :, :], x0, y0)
@@ -293,36 +293,37 @@ def test1d():
 
 @njit
 def test2d():
-    size = 20
+    size1 = 15
+    size2 = 20
 
-    x = np.linspace(-3, 3, size)
-    y = np.linspace(-3, 3, size)
+    x = np.linspace(-3, 3, size1)
+    y = np.linspace(-3, 3, size2)
 
-    p = np.zeros((size, size))
-    for i in range(size):
-        for j in range(size):
+    p = np.zeros((size2, size1))
+    for j in range(size2):
+        for i in range(size1):
             p[j, i] = np.exp(-(x[i]**2 + y[j]**2)/3)
 
-    new_x = np.linspace(-3, 3, 100)
+    new_x = np.linspace(-3, 3, 50)
+    new_y = np.linspace(-3, 3, 100)
 
-    size = 100
-    out0 = np.zeros((size, size))
-    out1 = np.zeros((size, size))
-    out2 = np.zeros((size, size))
+    shape = (len(new_y), len(new_x))
+    out0 = np.zeros(shape)
+    out1 = np.zeros(shape)
+    out2 = np.zeros(shape)
 
-    for i in range(size):
-        for j in range(size):
+    for j in range(shape[0]):
+        for i in range(shape[1]):
             out0[j, i] = interp2d_nearest(x, y, p, new_x[i], new_y[j])
             out1[j, i] = interp2d_linear(x, y, p, new_x[i], new_y[j])
             out2[j, i] = interp2d_cubic(x, y, p, new_x[i], new_y[j])
 
-    print("here")
-    return x, y, p, new_x, out0, out1, out2
+    return x, y, p, new_x, new_y, out0, out1, out2
 
 
 @njit
 def test3d():
-    size1, size2, size3 = 10, 15, 20
+    size1, size2, size3 = 8, 7, 11
 
     x = np.linspace(-3, 3, size1)
     y = np.linspace(-3, 3, size2)
@@ -334,24 +335,27 @@ def test3d():
             for i in range(size1):
                 p[k, j, i] = np.exp(-(x[i]**2 + y[j]**2 + z[k]**2)/3)
 
-    new_x = np.linspace(-3, 3, 20)
+    new_x = np.linspace(-3, 3, 25)
+    new_y = np.linspace(-3, 3, 15)
+    new_z = np.linspace(-3, 3, 31)
 
-    size = 100
-    out0 = np.zeros((size, size, size))
-    out1 = np.zeros((size, size, size))
-    out2 = np.zeros((size, size, size))
+    shape = (len(new_z), len(new_y), len(new_x))
+    out0 = np.zeros(shape)
+    out1 = np.zeros(shape)
+    out2 = np.zeros(shape)
 
-    for i in range(size):
-        for j in range(size):
-            for k in range(size):
+    for k in range(shape[0]):
+        for j in range(shape[1]):
+            for i in range(shape[2]):
                 out0[k, j, i] = interp3d_nearest(
                     x, y, z, p, new_x[i], new_y[j], new_z[k])
                 out1[k, j, i] = interp3d_linear(
                     x, y, z, p, new_x[i], new_y[j], new_z[k])
-                out2[k, j, i] = interp3d_cubic(x, y, , z p, new_x[i], new_y[j], new_z[k])
+                out2[k, j, i] = interp3d_cubic(
+                    x, y, z, p, new_x[i], new_y[j], new_z[k])
 
     print("here")
-    return x, y, p, new_x, out0, out1, out2
+    return x, y, z, p, new_x, new_y, new_z, out0, out1, out2
 
 
 print()
