@@ -144,7 +144,7 @@ class VtableElement(object):
 
     def add_attribute(self, v):
         if self.name is None:
-            return
+            return v
 
         if self.type == 'bool':
             v[self.name + '_txt'] = self.default
