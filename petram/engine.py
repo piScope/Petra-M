@@ -2201,7 +2201,7 @@ class Engine(object):
     def finalize_matrix(self, M_block, mask, is_complex, format='coo',
                         verbose=True):
         if verbose:
-            dprint1("A (in finalizie_matrix) \n",  M_block, mask)
+            dprint1("A (in finalizie_matrix) \n",  M_block, mask, format)
         M_block = M_block.get_subblock(mask[0], mask[1])
 
         if format == 'coo':  # coo either real or complex
