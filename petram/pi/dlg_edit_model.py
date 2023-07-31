@@ -675,7 +675,7 @@ class DlgEditModel(SimpleFramePlus):
 
         self._focus_idx = None
 
-        from petram.model import Bdry, Domain, Pair
+        from petram.model import Bdry, Domain, Point, Pair
         from petram.phys.phys_model import PhysModule
 
         viewer = self.GetParent()
@@ -752,6 +752,16 @@ class DlgEditModel(SimpleFramePlus):
                     viewer._dom_bdr_sel = ([], [], mm._sel_index, [],)
                 else:
                     pass
+
+            elif isinstance(mm, Point):
+                if not hasattr(mm, '_sel_index') or mm.sel_index == 'remaining':
+                    phys = mm.get_root_phys()
+                    engine.assign_phys_pp_sel_index()
+                    engine.assign_sel_index(phys)
+
+                viewer.change_panel_button('vertex')
+                viewer.highlight_point(mm._sel_index)
+                viewer._dom_bdr_sel = ([], [], [], mm._sel_index)
 
         elif isinstance(mm, AUX_Operator) or isinstance(mm, AUX_Variable):
             if not mm.enabled:

@@ -1310,7 +1310,7 @@ class PhysModule(Phys):
         txt = ','.join(probes)
         return txt
 
-    def get_dom_bdr_choice(self, mesh):
+    def get_dom_bdr_pnt_choice(self, mesh):
 
         from collections import defaultdict
 
@@ -1335,10 +1335,11 @@ class PhysModule(Phys):
         d = mesh.extended_connectivity[kk]
 
         if d is None:
-            return [], [], []
+            return [], [], [], []
 
         dom_choice = list(d)
         bdr_choice = list(set(np.hstack([list(d[x]) for x in d])))
+        pnt_choice = list(mesh.extended_connectivity["vert2vert"])
 
         if self.sel_index[0] != 'all':
             dom_choice = [int(x) for x in self.sel_index]
@@ -1356,5 +1357,5 @@ class PhysModule(Phys):
 
         # return unique list
         return list(set(dom_choice)), list(
-            set(bdr_choice)), list(set(internal_bdr))
+            set(bdr_choice)), list(set(pnt_choice)), list(set(internal_bdr)),
         # return dom_choice, bdr_choice

@@ -1172,8 +1172,8 @@ class Engine(object):
         self.allocate_fespace(phys)
         true_v_sizes = self.get_true_v_sizes(phys)
 
-        flags = self.get_essential_bdr_flag(phys)
-        self.get_essential_bdr_tdofs(phys, flags)
+        flags = self.get_essential_bdr_pnt_flag(phys)
+        self.get_essential_bdr_pnt_tdofs(phys, flags)
 
         # this loop alloates GridFunctions
         for j in range(self.n_matrix):
@@ -2594,7 +2594,7 @@ class Engine(object):
             if len(p.sel_index) == 0:
                 continue
 
-            dom_choice, bdr_choice, internal_bdr = p.get_dom_bdr_choice(
+            dom_choice, bdr_choice, pnt_choice, internal_bdr = p.get_dom_bdr_pnt_choice(
                 self.meshes[p.mesh_idx])
 
             dprint1("## internal bdr index " + str(internal_bdr))
@@ -2603,7 +2603,7 @@ class Engine(object):
             self.do_assign_sel_index(p, dom_choice, Domain)
             self.do_assign_sel_index(
                 p, bdr_choice, Bdry, internal_bdr=internal_bdr)
-            self.do_assign_sel_index(p, dom_choice, Point)
+            self.do_assign_sel_index(p, pnt_choice, Point)
 
     def do_assign_sel_index(self, m, choice, cls, internal_bdr=None):
         dprint1("## setting _sel_index (1-based number): " + cls.__name__ +
@@ -2667,24 +2667,33 @@ class Engine(object):
                     return node
 
     def gather_essential_tdof(self, phys):
-        flags = self.get_essential_bdr_flag(phys)
-        self.get_essential_bdr_tdofs(phys, flags)
+        flags = self.get_essential_bdr_pnt_flag(phys)
+        self.get_essential_bdr_pnt_tdofs(phys, flags)
 
-    def get_essential_bdr_flag(self, phys):
+    def get_essential_bdr_pnt_flag(self, phys):
         flag = []
         for k,  name in enumerate(phys.dep_vars):
             fes = self.fespaces[name]
             index1 = []    # with elimination
             index2 = []    # w/o elimination
+            ptx1 = []    # with elimination (point)
+            ptx2 = []    # w/o elimination (point)
+
             for node in phys.walk():
                 # if not isinstance(node, Bdry): continue
                 if not node.enabled:
                     continue
-                if node.has_essential:
+                if node.has_essential and isinstance(node, Bdry):
                     if node.use_essential_elimination():
                         index1 = index1 + node.get_essential_idx(k)
                     else:
                         index2 = index2 + node.get_essential_idx(k)
+                if node.has_essential and isinstance(node, Point):
+                    if node.use_essential_elimination():
+                        ptx1 = ptx1 + node.ess_point_array
+                    else:
+                        ptx2 = ptx2 + node.ess_point_array
+
             if len(self.emeshes[phys.emesh_idx].bdr_attributes.ToList()) > 0:
                 ess_bdr1 = [0] * \
                     self.emeshes[phys.emesh_idx].bdr_attributes.Max()
@@ -2697,24 +2706,35 @@ class Engine(object):
                 ess_bdr1[kk-1] = 1
             for kk in index2:
                 ess_bdr2[kk-1] = 1
-            flag.append((name, ess_bdr1, ess_bdr2))
+            flag.append((name, ess_bdr1, ess_bdr2, ptx1, ptx2))
 
         return flag
 
-    def get_essential_bdr_tdofs(self, phys, flags):
-        for name, ess_bdr1, ess_bdr2 in flags:
+    def get_point_essential_tdofs(self, fespace, ess_point_array):
+        raise NotImplementedError(
+            "you must specify this method in subclass")
+
+    def get_essential_bdr_pnt_tdofs(self, phys, flags):
+        for name, ess_bdr1, ess_bdr2, ptx1, ptx2 in flags:
+            fespace = self.fespaces[name]
+
             ess_tdof_list = mfem.intArray()
             ess_bdr1 = mfem.intArray(ess_bdr1)
-            fespace = self.fespaces[name]
             fespace.GetEssentialTrueDofs(ess_bdr1, ess_tdof_list)
             ess_tdofs1 = ess_tdof_list.ToList()
 
             ess_tdof_list = mfem.intArray()
             ess_bdr2 = mfem.intArray(ess_bdr2)
-            fespace = self.fespaces[name]
             fespace.GetEssentialTrueDofs(ess_bdr2, ess_tdof_list)
             ess_tdofs2 = ess_tdof_list.ToList()
             self.ess_tdofs[name] = (ess_tdofs1, ess_tdofs2)
+
+            if len(ptx1) > 0:
+                tmp = self.get_point_essential_tdofs(fespace, ptx1)
+                self.ess_tdofs[name][0].extend(tmp)
+            if len(ptx2) > 0:
+                tmp = self.get_point_essential_tdofs(fespace, ptx2)
+                self.ess_tdofs[name][1].extend(tmp)
 
             #print(name, len(self.ess_tdofs[name]))
         return
@@ -3620,6 +3640,21 @@ class SerialEngine(Engine):
     def collect_all_ess_tdof(self):
         self.gl_ess_tdofs = self.ess_tdofs
 
+    def get_point_essential_tdofs(self, fes, ess_point_array):
+        fec_name = fes.FEColl().Name()
+        if not fec_name.startswith("H1"):
+            assert False, "Pointwise Essential supports only H1 element"
+
+        mesh = fes.GetMesh()
+
+        dofs = []
+        for iv in range(mesh.GetNV()):
+            if tuple(mesh.GetVertexArray(iv)) in ess_point_array:
+                tmp = fes.GetVertexDofs(iv)
+                dofs.extend(tmp)
+
+        return dofs
+
     def save_parmesh(self, phys_target):
         # serial engine does not do anything
         return
@@ -3920,6 +3955,23 @@ class ParallelEngine(Engine):
         if (myid == 0):
             dprint1('Number of finite element unknowns: ' + str(fe_sizes))
         return fe_sizes
+
+    def get_point_essential_tdofs(self, fes, ess_point_array):
+        fec_name = fes.FEColl().Name()
+        if not fec_name.startswith("H1"):
+            assert False, "Pointwise Essential supports only H1 element"
+
+        mesh = fes.GetParMesh()
+
+        dofs = []
+        for iv in range(mesh.GetNV()):
+            if tuple(mesh.GetVertexArray(iv)) in ess_point_array:
+                tmp = fes.GetVertexDofs(iv)
+                dofs.extend(tmp)
+
+        dofs = [fes.GetLocalTDofNumber(x) for x in dofs]
+
+        return dofs
 
     #
     #  postprocess
