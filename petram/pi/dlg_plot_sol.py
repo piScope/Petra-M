@@ -1094,7 +1094,6 @@ class DlgPlotSol(SimpleFramePlus):
 
     def get_selected_elp(self):
         t = self.nb.GetPageText(self.nb.GetSelection())
-        t = t.replace('(', '').replace(')', '')
         elp = self.elps[t]
         return elp
 
