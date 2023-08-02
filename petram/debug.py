@@ -34,6 +34,7 @@ debug_modes = {}
 debug_default_level = 1
 debug_essential_bc = False
 debug_memory = False
+trim_debug_print = True
 
 max_txt = 70*2
 
@@ -50,7 +51,8 @@ def dprint(*args):
     for item in args:
         s = s + ' ' + str(item)
 
-    s = textwrap.shorten(s, width=max_txt, placeholder='...')
+    if trim_debug_print:
+        s = textwrap.shorten(s, width=max_txt, placeholder='...')
 
     if debug_mode != 0:
         import sys
@@ -87,7 +89,9 @@ class DPrint(object):
 
         for item in args:
             s = s + ' ' + str(item)
-        s = textwrap.shorten(s, width=max_txt, placeholder='...')
+
+        if trim_debug_print:
+            s = textwrap.shorten(s, width=max_txt, placeholder='...')
 
         if self.name in debug_modes:
             if debug_modes[self.name] >= self.level:
@@ -122,7 +126,8 @@ class RPrint(object):
         for item in args:
             s = s + ' ' + str(item)
 
-        s = textwrap.shorten(s, width=max_txt, placeholder='...')
+        if trim_debug_print:
+            s = textwrap.shorten(s, width=max_txt, placeholder='...')
         print(str(self.name)+'(' + str(myid)+')::'+s)
 
 

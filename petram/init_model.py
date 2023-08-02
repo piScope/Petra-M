@@ -19,6 +19,7 @@ class InitSetting(Model, Vtable_mixin):
     def attribute_set(self, v):
         v = super(InitSetting, self).attribute_set(v)
         v["phys_model"] = ''
+        v["init_var"] = ''
         v["init_mode"] = 0
         #v["init_value_txt"]    = '0.0'
         v["init_path"] = ''
@@ -29,6 +30,7 @@ class InitSetting(Model, Vtable_mixin):
     def panel1_param(self):
         from petram.pi.widget_init import InitSettingPanel
         return [["physics model",   self.phys_model,  0, {}, ],
+                ["variable name (\"\"=all)",   self.init_var,  0, {}, ],
                 [None, None, 99, {'UI': InitSettingPanel, 'validator': self.check_phys_expr_array}], ]
 
     def _init_eval(self, value):
@@ -50,16 +52,17 @@ class InitSetting(Model, Vtable_mixin):
 
     def get_panel1_value(self):
         init_value_txt = self.vt_coeff.get_panel_value(self)[0]
-        return [self.phys_model,
+        return [self.phys_model, self.init_var,
                 (self.init_mode, init_value_txt, self.init_path, self.init_dwc_name_params), ]
 
     def import_panel1_value(self, v):
         self.phys_model = str(v[0])
-        self.init_mode = v[1][0]
+        self.init_var = str(v[1])
+        self.init_mode = v[2][0]
         #self.init_value_txt = v[1][1]
-        self.init_path = v[1][2]
-        self.init_dwc_name_params = v[1][3]
-        self.vt_coeff.import_panel_value(self, (v[1][1],))
+        self.init_path = v[2][2]
+        self.init_dwc_name_params = v[2][3]
+        self.vt_coeff.import_panel_value(self, (v[2][1],))
 
     def preprocess_params(self, engine):
         from petram.helper.init_helper import eval_value
@@ -83,6 +86,7 @@ class InitSetting(Model, Vtable_mixin):
         engine.run_apply_init0(phys_targets, self.init_mode,
                                init_value=self.init_value,
                                init_path=self.init_path,
+                               init_var=self.init_var,
                                init_dwc=dwcparams)
         return phys_targets
 
@@ -102,13 +106,14 @@ class CustomInitSetting():
 
     '''
 
-    def __init__(self, phys_targets, mode=1, value=[0, ], path='', dwc=('', ''), name='CustomInit'):
+    def __init__(self, phys_targets, var="", mode=1, value=[0, ], path='', dwc=('', ''), name='CustomInit'):
         self.init_name = name
         self.phys_targets = phys_targets
         self.init_mode = mode
         self.init_value = value
         self.init_path = path
         self.init_dwc_name_params = dwc
+        self.init_var = var
 
     def name(self):
         return self.init_name
@@ -122,5 +127,7 @@ class CustomInitSetting():
                                mode=self.init_mode,
                                init_value=self.init_value,
                                init_path=self.init_path,
+                               init_var=self.init_var,
                                init_dwc=dwcparams)
+
         return self.phys_targets

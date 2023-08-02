@@ -782,7 +782,7 @@ class Engine(object):
         return self.is_initialized
 
     def run_apply_init0(self, phys_range, mode,
-                        init_value=0.0, init_path='', init_dwc=("", "")):
+                        init_value=0.0, init_path='', init_dwc=("", ""), init_var=""):
         # mode
         #  0: zero
         #  1: init to constant
@@ -800,6 +800,9 @@ class Engine(object):
                     names = phys.dep_vars
                     if mode == 0:
                         for name in names:
+                            if init_var != "" and name != init_var:
+                                continue
+
                             r_ifes = self.r_ifes(name)
                             rgf = self.r_x[r_ifes]
                             igf = self.i_x[r_ifes]
@@ -815,6 +818,8 @@ class Engine(object):
                         for key in self.model.root()._variables:
                             global_ns[key] = self.model.root()._variables[key]
                         for name in names:
+                            if init_var != "" and name != init_var:
+                                continue
                             r_ifes = self.r_ifes(name)
                             rgf = self.r_x[r_ifes]
                             igf = self.i_x[r_ifes]
