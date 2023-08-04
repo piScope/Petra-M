@@ -836,12 +836,14 @@ class DlgEditModel(SimpleFramePlus):
         if len(p1children) > 0:
             elp1 = p1children[0].GetWindow()
             v1 = elp1.GetValue()
+
             viewer_update = mm.import_panel1_value(v1) or viewer_update
             try:
                 phys = mm.get_root_phys()
             except:
                 pass
             elp1.SetValue(mm.get_panel1_value())
+            elp1.update_label(mm.panel1_param())
 
         if mm.has_2nd_panel:
             p2children = self.p2sizer.GetChildren()

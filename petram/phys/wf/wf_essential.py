@@ -31,6 +31,7 @@ class WF_Essential(Bdry, Phys):
         Phys.attribute_set(self, v)
         v['sel_readonly'] = False
         v['sel_index'] = []
+        v['target_kfes_txt'] = '0'
         return v
 
     @property
@@ -44,11 +45,12 @@ class WF_Essential(Bdry, Phys):
             return Vtable(data)
 
         dep_vars = self.get_root_phys().dep_vars
+        dep_var = dep_vars[int(self.target_kfes_txt)]
+
         if not hasattr(self, '_dep_var_bk'):
             self._dep_var_bk = ""
 
-        if self._dep_var_bk != dep_vars:
-            dep_var = dep_vars[0]
+        if self._dep_var_bk != dep_var:
             data = (('esse_value', VtableElement("esse_value", type="array",
                                                  guilabel=dep_var,
                                                  default="0.0",
@@ -62,14 +64,14 @@ class WF_Essential(Bdry, Phys):
                                                 guilabel="Use eliminaiton",
                                                 default=True,
                                                 tip="Eliminate DoFs from linear system (know Essential)")),
-                    ('kfes', VtableElement("kfes", type="string",
-                                           guilabel="FES index",
-                                           default="0",
-                                           tip="target FES")),)
+                    ('target_kfes', VtableElement("target_kfes", type="string",
+                                                  guilabel="FES index",
+                                                  default=self.target_kfes_txt,
+                                                  tip="target FES")),)
 
             vt = Vtable(data)
             self._vt1 = vt
-            self._dep_var_bk = dep_vars
+            self._dep_var_bk = dep_var
             self.update_attribute_set()
         else:
             vt = self._vt1
@@ -110,14 +112,15 @@ class WF_Essential(Bdry, Phys):
         if kfes not in target_kfes:
             return
 
+        name = self.get_root_phys().dep_vars[kfes]
+
         if real:
             dprint1("Apply Ess.(real)" +
-                    str(self._sel_index), 'c0, v0', c0, vdim0)
+                    str(self._sel_index), name, 'c0, v0', c0, vdim0)
         else:
             dprint1("Apply Ess.(imag)" +
-                    str(self._sel_index), 'c0, v0', c0, vdim0)
+                    str(self._sel_index), name, 'c0, v0', c0, vdim0)
 
-        name = self.get_root_phys().dep_vars[kfes]
         fes = engine.get_fes(self.get_root_phys(), name=name)
 
         vdim = fes.GetVDim()
@@ -212,7 +215,16 @@ class WF_EssentialPoint(Point, Phys):
         v['sel_readonly'] = False
         v['sel_index'] = []
         v['ess_point_array'] = None
+        v['target_kfes_txt'] = '0'
         return v
+
+    def get_ess_point_array(self, kfes):
+        c0, vdim0, no, target_kfes = self.vt.make_value_or_expression(self)
+        target_kfes = np.atleast_1d(eval(target_kfes))
+
+        if kfes not in target_kfes:
+            return []
+        return self.ess_point_array
 
     @property
     def vt(self):
@@ -225,11 +237,11 @@ class WF_EssentialPoint(Point, Phys):
             return Vtable(data)
 
         dep_vars = self.get_root_phys().dep_vars
+        dep_var = dep_vars[int(self.target_kfes_txt)]
         if not hasattr(self, '_dep_var_bk'):
             self._dep_var_bk = ""
 
-        if self._dep_var_bk != dep_vars:
-            dep_var = dep_vars[0]
+        if self._dep_var_bk != dep_var:
             data = (('esse_value', VtableElement("esse_value", type="array",
                                                  guilabel=dep_var,
                                                  default="0.0",
@@ -243,14 +255,14 @@ class WF_EssentialPoint(Point, Phys):
                                                 guilabel="Use eliminaiton",
                                                 default=True,
                                                 tip="Eliminate DoFs from linear system (know Essential)")),
-                    ('kfes', VtableElement("kfes", type="string",
-                                           guilabel="FES index",
-                                           default="0",
-                                           tip="target FES")),)
+                    ('target_kfes', VtableElement("target_kfes", type="string",
+                                                  guilabel="FES index",
+                                                  default=self.target_kfes_txt,
+                                                  tip="target FES")),)
 
             vt = Vtable(data)
             self._vt1 = vt
-            self._dep_var_bk = dep_vars
+            self._dep_var_bk = dep_var
             self.update_attribute_set()
         else:
             vt = self._vt1
@@ -281,14 +293,15 @@ class WF_EssentialPoint(Point, Phys):
         if kfes not in target_kfes:
             return
 
+        name = self.get_root_phys().dep_vars[kfes]
+
         if real:
             dprint1("Apply Ess.(real)" +
-                    str(self._sel_index), 'c0, v0', c0, vdim0)
+                    str(self._sel_index), name, 'c0, v0', c0, vdim0)
         else:
             dprint1("Apply Ess.(imag)" +
-                    str(self._sel_index), 'c0, v0', c0, vdim0)
+                    str(self._sel_index), name, 'c0, v0', c0, vdim0)
 
-        name = self.get_root_phys().dep_vars[kfes]
         fes = engine.get_fes(self.get_root_phys(), name=name)
 
         vdim = fes.GetVDim()
