@@ -45,7 +45,20 @@ class FormBlock(object):
         self.no_allocation = False
 
     def __repr__(self):
-        return "Formblock" + str(self._shape)
+
+        text2 = []
+        for x in self.block:
+            text = []
+            for y in x:
+                if y is None:
+                    text.append("None")
+                else:
+                    text.append(str(list(y)))
+            text2.append(",".join(text))
+        full_repr = "\n".join(text2)
+
+        return "Formblock" + str(self._shape) + ":\n" + full_repr
+        # return "Formblock" + str(self._shape) + ":\n" + str(self.block)
 
     @property
     def shape(self):
@@ -138,6 +151,10 @@ class FormBlock(object):
                 else:
                     form, projector = self.allocator2(r, c)
                     self.block[r][c][projector] = [form, None]
+        elif len(self.block[r][c]) == 1:
+            projector = list(self.block[r][c])[0]
+        else:
+            assert False, "should not come here? having two differnt projection in the same block"
         return r, c, projector
 
     def renew(self, idx):
@@ -210,7 +227,10 @@ def convertElement(Mreal, Mimag, i, j, converter, projections=None):
         m = converter(rmatvec, imatvec)
         if k != 1:
             pos, projector = k
-            p = projections[projector]
+            projections, projections_hash = projections
+
+            h = projections_hash[projector]
+            p = projections[h]
             if pos > 0:
                 m = m.dot(p)
             else:

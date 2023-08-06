@@ -40,6 +40,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         v['savegz'] = 'on'
         v['allow_fallback_nonjit'] = 'allow'
         v['debug_numba_jit'] = 'off'
+        v['trim_debug_print'] = 'on'
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
 
@@ -85,11 +86,14 @@ class MFEM_GeneralRoot(Model, NS_mixin):
                     1, {"values": ["allow", "warn", "error", "always use Python coeff."]}],
                 ["Check numba JIT process", None,
                     1, {"values": ["on", "off"]}],
+                ["Trim debug print text", None,
+                    1, {"values": ["on", "off"]}],
                 ]
 
     def get_panel2_value(self):
         return (self.diagpolicy, self.savegz, self.partitioning, self.submeshpartitioning,
-                self.autofilldiag, self.allow_fallback_nonjit, self.debug_numba_jit)
+                self.autofilldiag, self.allow_fallback_nonjit, self.debug_numba_jit,
+                self.trim_debug_print)
 
     def import_panel2_value(self, v):
         self.diagpolicy = v[0]
@@ -99,11 +103,14 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         self.autofilldiag = v[4]
         self.allow_fallback_nonjit = v[5]
         self.debug_numba_jit = v[6]
+        self.trim_debug_print = v[7]
 
     def run(self):
         import petram.debug
         if petram.debug.debug_default_level == 0:
             petram.debug.debug_default_level = int(self.debug_level)
+
+        petram.debug.trim_debug_print = bool(self.trim_debug_print == 'on')
 
         if not hasattr(self.root(), "_variables"):
             from petram.helper.variables import Variables

@@ -241,6 +241,7 @@ class Engine(object):
 
         self._interps.append({})
         self._projections.append({})
+        self._projections_hash.append({})
         self._gl_ess_tdofs.append({n: [] for n in self.fes_vars})
         self._ess_tdofs.append({n: [] for n in self.fes_vars})
 
@@ -257,6 +258,7 @@ class Engine(object):
         self._aux_ops = []
         self._interps = []
         self._projections = []
+        self._projections_hash = []
         self._gl_ess_tdofs = []
         self._ess_tdofs = []
 
@@ -395,6 +397,14 @@ class Engine(object):
     @projections.setter
     def projections(self, v):
         self._projections[self._level_idx] = v
+
+    @property
+    def projections_hash(self):
+        return self._projections_hash[self._level_idx]
+
+    @projections_hash.setter
+    def projections_hash(self, v):
+        self._projections_hash[self._level_idx] = v
 
     @property
     def gl_ess_tdofs(self):
@@ -782,7 +792,7 @@ class Engine(object):
         return self.is_initialized
 
     def run_apply_init0(self, phys_range, mode,
-                        init_value=0.0, init_path='', init_dwc=("", "")):
+                        init_value=0.0, init_path='', init_dwc=("", ""), init_var=""):
         # mode
         #  0: zero
         #  1: init to constant
@@ -800,6 +810,9 @@ class Engine(object):
                     names = phys.dep_vars
                     if mode == 0:
                         for name in names:
+                            if init_var != "" and name != init_var:
+                                continue
+
                             r_ifes = self.r_ifes(name)
                             rgf = self.r_x[r_ifes]
                             igf = self.i_x[r_ifes]
@@ -815,6 +828,8 @@ class Engine(object):
                         for key in self.model.root()._variables:
                             global_ns[key] = self.model.root()._variables[key]
                         for name in names:
+                            if init_var != "" and name != init_var:
+                                continue
                             r_ifes = self.r_ifes(name)
                             rgf = self.r_x[r_ifes]
                             igf = self.i_x[r_ifes]
@@ -1531,7 +1546,8 @@ class Engine(object):
 
     def fill_mixed(self, phys, update):
 
-        renewflag = {}
+        renewflag1 = {}
+        renewflag2 = {}
         fillflag = {}
         phys_offset = self.phys_offsets(phys)[0]
         rphys_offset = self.r_phys_offsets(phys)[0]
@@ -1562,8 +1578,12 @@ class Engine(object):
                 if not update:
                     fillflag[(idx1, idx2)] = True
                 elif mm.update_flag:
-                    renewflag[(idx1, idx2)] = True
-                    fillflag[(idx1, idx2)] = True
+                    if is_trans < 0:
+                        renewflag2[(idx2, idx1)] = True
+                        fillflag[(idx1, idx2)] = True
+                    else:
+                        renewflag1[(idx1, idx2)] = True
+                        fillflag[(idx1, idx2)] = True
                 else:
                     if not (idx1, idx2) in fillflag:
                         fillflag[(idx1, idx2)] = False
@@ -1572,11 +1592,14 @@ class Engine(object):
         mixed_bf = {}
         tasks = {}
 
-        for idx in renewflag:
+        for idx in renewflag1:
             self.r_a.renew(idx)
-            self.r_at.renew(idx)
             if is_complex:
                 self.i_a.renew(idx)
+
+        for idx in renewflag2:
+            self.r_at.renew(idx)
+            if is_complex:
                 self.i_at.renew(idx)
 
         for mm in phys.walk():
@@ -1863,13 +1886,13 @@ class Engine(object):
 
                 m1 = convertElement(self.r_a, self.i_a,
                                     i, j, MfemMat2PyMat,
-                                    projections=self.projections)
+                                    projections=(self.projections, self.projections_hash))
                 if m1 is not None:
                     M[k][r, c] = m1 if M[k][r, c] is None else M[k][r, c] + m1
 
                 m2 = convertElement(self.r_at, self.i_at,
                                     i, j, MfemMat2PyMat,
-                                    projections=self.projections)
+                                    projections=(self.projections, self.projections_hash))
 
                 if m2 is not None:
                     m2t = m2.transpose()
@@ -2690,9 +2713,9 @@ class Engine(object):
                         index2 = index2 + node.get_essential_idx(k)
                 if node.has_essential and isinstance(node, Point):
                     if node.use_essential_elimination():
-                        ptx1 = ptx1 + node.ess_point_array
+                        ptx1 = ptx1 + node.get_ess_point_array(k)
                     else:
-                        ptx2 = ptx2 + node.ess_point_array
+                        ptx2 = ptx2 + node.get_ess_point_array(k)
 
             if len(self.emeshes[phys.emesh_idx].bdr_attributes.ToList()) > 0:
                 ess_bdr1 = [0] * \
@@ -2868,12 +2891,18 @@ class Engine(object):
         info1 = self.get_fes_info(fes1)
         info2 = self.get_fes_info(fes2)
         if info1["emesh_idx"] != info2["emesh_idx"]:
+            info1 = self.get_fes_info(fes1)
+            info2 = self.get_fes_info(fes2)
             dprint1(
                 "fes1 and fes2 are on different mesh. Constructing a DoF map.", name1, name2)
-            dprint1("info1", self.get_fes_info(fes1))
-            dprint1("info2", self.get_fes_info(fes2))
+            dprint1("info1", info1)
+            dprint1("info2", info2)
 
             name = name2 + '_to_' + name1
+            namehash = str(hash(tuple(info1.items()))) + \
+                "___" + str(hash(tuple(info1.items())))
+            self.projections_hash[name] = namehash
+
             if abs(info1["dim"]-info2["dim"]) > 1:
                 assert False, "does not support direct mapping from volume to edge (or face to vertex)"
 
@@ -2902,26 +2931,31 @@ class Engine(object):
                                                       el,
                                                       order,
                                                       info2["vdim"])
-            if info2["dim"]-info1["dim"] == 1:  # (ex)volume to surface
-                mode = "boundary"
-            elif info2["dim"]-info1["dim"] == 0:
-                mode = "domain"
-            else:
-                mode = "domain"
+
+            if namehash not in self.projections:
+                if info2["dim"]-info1["dim"] == 1:  # (ex)volume to surface
+                    mode = "boundary"
+                elif info2["dim"]-info1["dim"] == 0:
+                    mode = "domain"
+                else:
+                    mode = "domain"
                 #assert False, "should not come here."
 
-            # fes2  -> fes (intermediate space using fes1's mesh)
-            p = simple_projection(fes2, fes, mode)
+                # fes2  -> fes (intermediate space using fes1's mesh)
+                p = simple_projection(fes2, fes, mode)
 
-            self.projections[name] = p
-            '''
-            if transpose:
-                # first -1 is flag to apply projecton from right
-                proj = (-1, name)
-                fes2 = fes
-                return self.new_mixed_bf(fes1, fes2), proj
+                self.projections[namehash] = p
+                '''
+                if transpose:
+                    # first -1 is flag to apply projecton from right
+                    proj = (-1, name)
+                    fes2 = fes
+                    return self.new_mixed_bf(fes1, fes2), proj
+                else:
+                '''
             else:
-            '''
+                p = self.projections[namehash]
+
             # first 1 is flag to apply projecton from left. A_ij = A_ij*Map
             proj = (1, name)
             fes2 = fes

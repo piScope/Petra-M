@@ -2116,6 +2116,10 @@ class SurfNormal(SurfVariable):
         mfem.CalcOrtho(T.Jacobian(), nor)
         self.nor = nor.GetDataArray().copy()
 
+    def get_jitted_coefficient(self, ind_vars, locals):
+        norm = mfem.VectorBdrNormalCoefficient(len(ind_vars))
+        return norm
+
     def __call__(self, **kwargs):
         if self.comp == -1:
             return self.nor
