@@ -879,6 +879,8 @@ class DlgEditModel(SimpleFramePlus):
             flag1 = mm.update_after_ELChanged(self)
             if evt is not None:
                 flag2 = mm.update_after_ELChanged2(evt)
+            else:
+                flag2 = False
             if flag1 or flag2:
                 wx.CallAfter(self.show_panel, mm)
 

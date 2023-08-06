@@ -344,6 +344,7 @@ def find_cp_pc_parameter(mesh, abcd, e1, gsize=None, gcount=100, origin=None, at
     v = mfem.Vector()
     mesh.GetVertices(v)
     sdim = mesh.SpaceDimension()
+    dim = mesh.Dimension()
     vv = v.GetDataArray().copy()
 
     vv = vv.reshape(sdim, -1)
@@ -356,12 +357,16 @@ def find_cp_pc_parameter(mesh, abcd, e1, gsize=None, gcount=100, origin=None, at
 
     norm = np.array(abcd[:3])
     norm = norm/np.sqrt(np.sum(norm**2))
-    flag = np.zeros(mesh.GetNV(), dtype=bool)
 
-    for iele, f in enumerate(mesh.IsElementOnPlaneArray(*abcd)):
-        if not f:
-            continue
-        flag[mesh.GetElementVertices(iele)] = True
+    if sdim == 3 and dim == 3:
+        # flag elements which are on the plane
+        flag = np.zeros(mesh.GetNV(), dtype=bool)
+        for iele, f in enumerate(mesh.IsElementOnPlaneArray(*abcd)):
+            if not f:
+                continue
+            flag[mesh.GetElementVertices(iele)] = True
+    else:
+        flag = np.ones(mesh.GetNV(), dtype=bool)
     '''
     val =  vv[0, :]*abcd[0] + vv[1,:]*abcd[1] + vv[2,:]*abcd[2] + abcd[3]
     for iele in range(mesh.GetNE()):
