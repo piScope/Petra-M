@@ -753,6 +753,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             self._realimag_mode = "imag"
 
     def process_complex_coefficient(self, coeff):
+        if not hasattr(coeff[0], "get_real_coefficient"):
+            return coeff
+
         if self.integrator_realimag_mode == "real":
             return sum(((coeff[0].get_real_coefficient(),), coeff[1:]), ())
         elif self.integrator_realimag_mode == "imag":
@@ -978,6 +981,12 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                              real=real, conj=is_conj)
         return c_coeff
 
+    def compile_coeffs(self, *kargs):
+        '''
+        jit compile coefficient
+        '''
+        pass
+
 
 data = [("order", VtableElement("order", type='int',
                                 guilabel="order", no_func=True,
@@ -1104,6 +1113,7 @@ class PhysModule(Phys):
 
     def panel2_param(self):
         import wx
+
         if self.geom_dim == 3:
             choice = ("Volume", "Surface", "Edge")
         elif self.geom_dim == 2:
@@ -1111,14 +1121,21 @@ class PhysModule(Phys):
         elif self.geom_dim == 1:
             choice = ("Edge", )
 
+        from petram.model import validate_sel
+
         if self.dim_fixed:
             return [["index", 'all', 0, {'changing_event': True,
-                                         'setfocus_event': True}, ]]
+                                         'setfocus_event': True,
+                                         'validator': validate_sel,
+                                         'validator_param': self}, ]]
+
         else:
             p = ["Type", choice[0], 4,
                  {"style": wx.CB_READONLY, "choices": choice}]
             return [p, ["index", 'all', 0, {'changing_event': True,
-                                            'setfocus_event': True}, ]]
+                                            'setfocus_event': True,
+                                            'validator': validate_sel,
+                                            'validator_param': self}, ]]
 
     def get_panel2_value(self):
         choice = ["Point", "Edge", "Surface", "Volume", ]
@@ -1176,6 +1193,7 @@ class PhysModule(Phys):
         return False
 
     _possible_constraints = None
+
     @classmethod
     def _set_possible_constraints(cls, name):
         '''
@@ -1206,7 +1224,7 @@ class PhysModule(Phys):
         return [AUX_Variable, AUX_Operator]
 
     def get_possible_pair(self):
-        from projection import BdrProjection, DomainProjection
+        from petram.phys.projection import BdrProjection, DomainProjection
         return [DomainProjection, BdrProjection, ]
 
     def soldict_to_solvars(self, soldict, variables):
@@ -1229,6 +1247,7 @@ class PhysModule(Phys):
                         continue
                     if mm is self:
                         continue
+
                     mm.add_domain_variables(variables, n, suffix, ind_vars,
                                             solr, soli)
                     mm.add_bdr_variables(variables, n, suffix, ind_vars,
@@ -1291,7 +1310,7 @@ class PhysModule(Phys):
         txt = ','.join(probes)
         return txt
 
-    def get_dom_bdr_choice(self, mesh):
+    def get_dom_bdr_pnt_choice(self, mesh):
 
         from collections import defaultdict
 
@@ -1316,10 +1335,11 @@ class PhysModule(Phys):
         d = mesh.extended_connectivity[kk]
 
         if d is None:
-            return [], [], []
+            return [], [], [], []
 
         dom_choice = list(d)
-        bdr_choice = sum([list(d[x]) for x in d], [])
+        bdr_choice = list(set(np.hstack([list(d[x]) for x in d])))
+        pnt_choice = list(mesh.extended_connectivity["vert2vert"])
 
         if self.sel_index[0] != 'all':
             dom_choice = [int(x) for x in self.sel_index]
@@ -1337,5 +1357,5 @@ class PhysModule(Phys):
 
         # return unique list
         return list(set(dom_choice)), list(
-            set(bdr_choice)), list(set(internal_bdr))
+            set(bdr_choice)), list(set(pnt_choice)), list(set(internal_bdr)),
         # return dom_choice, bdr_choice

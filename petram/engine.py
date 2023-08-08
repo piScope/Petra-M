@@ -241,6 +241,7 @@ class Engine(object):
 
         self._interps.append({})
         self._projections.append({})
+        self._projections_hash.append({})
         self._gl_ess_tdofs.append({n: [] for n in self.fes_vars})
         self._ess_tdofs.append({n: [] for n in self.fes_vars})
 
@@ -257,6 +258,7 @@ class Engine(object):
         self._aux_ops = []
         self._interps = []
         self._projections = []
+        self._projections_hash = []
         self._gl_ess_tdofs = []
         self._ess_tdofs = []
 
@@ -395,6 +397,14 @@ class Engine(object):
     @projections.setter
     def projections(self, v):
         self._projections[self._level_idx] = v
+
+    @property
+    def projections_hash(self):
+        return self._projections_hash[self._level_idx]
+
+    @projections_hash.setter
+    def projections_hash(self, v):
+        self._projections_hash[self._level_idx] = v
 
     @property
     def gl_ess_tdofs(self):
@@ -553,8 +563,8 @@ class Engine(object):
     def preprocess_modeldata(self, dir=None):
         '''
         do everything it takes to run a newly built
-        name space is already build
         model data strucutre.
+        name space is already build
         used from text script execution
         '''
         import os
@@ -782,7 +792,7 @@ class Engine(object):
         return self.is_initialized
 
     def run_apply_init0(self, phys_range, mode,
-                        init_value=0.0, init_path='', init_dwc=("", "")):
+                        init_value=0.0, init_path='', init_dwc=("", ""), init_var=""):
         # mode
         #  0: zero
         #  1: init to constant
@@ -800,6 +810,9 @@ class Engine(object):
                     names = phys.dep_vars
                     if mode == 0:
                         for name in names:
+                            if init_var != "" and name != init_var:
+                                continue
+
                             r_ifes = self.r_ifes(name)
                             rgf = self.r_x[r_ifes]
                             igf = self.i_x[r_ifes]
@@ -815,6 +828,8 @@ class Engine(object):
                         for key in self.model.root()._variables:
                             global_ns[key] = self.model.root()._variables[key]
                         for name in names:
+                            if init_var != "" and name != init_var:
+                                continue
                             r_ifes = self.r_ifes(name)
                             rgf = self.r_x[r_ifes]
                             igf = self.i_x[r_ifes]
@@ -921,6 +936,12 @@ class Engine(object):
             self.assemble_projection(phys)
 
         self.extras_mm = {}
+
+        for j in range(self.n_matrix):
+            self.access_idx = j
+            for phys in phys_target:
+                for mm in phys.walk_enabled():
+                    mm.compile_coeffs()
 
         for j in range(self.n_matrix):
             self.access_idx = j
@@ -1166,8 +1187,8 @@ class Engine(object):
         self.allocate_fespace(phys)
         true_v_sizes = self.get_true_v_sizes(phys)
 
-        flags = self.get_essential_bdr_flag(phys)
-        self.get_essential_bdr_tdofs(phys, flags)
+        flags = self.get_essential_bdr_pnt_flag(phys)
+        self.get_essential_bdr_pnt_tdofs(phys, flags)
 
         # this loop alloates GridFunctions
         for j in range(self.n_matrix):
@@ -1432,6 +1453,7 @@ class Engine(object):
                 proj = mm.get_projection()
                 ra = self.r_a[ifes, rifes, proj]
 
+                mm.set_integrator_realimag_mode(True)
                 mm.add_bf_contribution(self, ra, real=True, kfes=kfes)
 
         if not is_complex:
@@ -1456,6 +1478,7 @@ class Engine(object):
                 proj = mm.get_projection()
                 ia = self.i_a[ifes, rifes, proj]
 
+                mm.set_integrator_realimag_mode(False)
                 mm.add_bf_contribution(self, ia, real=False, kfes=kfes)
 
     def fill_lf(self, phys, update):
@@ -1496,6 +1519,8 @@ class Engine(object):
                     continue
                 if len(mm._sel_index) == 0:
                     continue
+
+                mm.set_integrator_realimag_mode(True)
                 mm.add_lf_contribution(self, rb, real=True, kfes=kfes)
 
         if not is_complex:
@@ -1515,11 +1540,14 @@ class Engine(object):
                     continue
                 if len(mm._sel_index) == 0:
                     continue
+
+                mm.set_integrator_realimag_mode(False)
                 mm.add_lf_contribution(self, ib, real=False, kfes=kfes)
 
     def fill_mixed(self, phys, update):
 
-        renewflag = {}
+        renewflag1 = {}
+        renewflag2 = {}
         fillflag = {}
         phys_offset = self.phys_offsets(phys)[0]
         rphys_offset = self.r_phys_offsets(phys)[0]
@@ -1550,8 +1578,12 @@ class Engine(object):
                 if not update:
                     fillflag[(idx1, idx2)] = True
                 elif mm.update_flag:
-                    renewflag[(idx1, idx2)] = True
-                    fillflag[(idx1, idx2)] = True
+                    if is_trans < 0:
+                        renewflag2[(idx2, idx1)] = True
+                        fillflag[(idx1, idx2)] = True
+                    else:
+                        renewflag1[(idx1, idx2)] = True
+                        fillflag[(idx1, idx2)] = True
                 else:
                     if not (idx1, idx2) in fillflag:
                         fillflag[(idx1, idx2)] = False
@@ -1560,11 +1592,14 @@ class Engine(object):
         mixed_bf = {}
         tasks = {}
 
-        for idx in renewflag:
+        for idx in renewflag1:
             self.r_a.renew(idx)
-            self.r_at.renew(idx)
             if is_complex:
                 self.i_a.renew(idx)
+
+        for idx in renewflag2:
+            self.r_at.renew(idx)
+            if is_complex:
                 self.i_at.renew(idx)
 
         for mm in phys.walk():
@@ -1608,6 +1643,8 @@ class Engine(object):
                     bfr = self.r_at[idx1, idx2]
                 else:
                     bfr = self.r_a[idx1, idx2]
+
+                mm.set_integrator_realimag_mode(True)
                 mm.add_mix_contribution2(
                     self, bfr, r, c, False, is_conj, real=True)
 
@@ -1617,6 +1654,7 @@ class Engine(object):
                         bfi = self.i_at[idx1, idx2]
                     else:
                         bfi = self.i_a[idx1, idx2]
+                    mm.set_integrator_realimag_mode(False)
                     mm.add_mix_contribution2(
                         self, bfi, r, c, False, is_conj, real=False)
 
@@ -1848,13 +1886,13 @@ class Engine(object):
 
                 m1 = convertElement(self.r_a, self.i_a,
                                     i, j, MfemMat2PyMat,
-                                    projections=self.projections)
+                                    projections=(self.projections, self.projections_hash))
                 if m1 is not None:
                     M[k][r, c] = m1 if M[k][r, c] is None else M[k][r, c] + m1
 
                 m2 = convertElement(self.r_at, self.i_at,
                                     i, j, MfemMat2PyMat,
-                                    projections=self.projections)
+                                    projections=(self.projections, self.projections_hash))
 
                 if m2 is not None:
                     m2t = m2.transpose()
@@ -2186,7 +2224,7 @@ class Engine(object):
     def finalize_matrix(self, M_block, mask, is_complex, format='coo',
                         verbose=True):
         if verbose:
-            dprint1("A (in finalizie_matrix) \n",  M_block, mask)
+            dprint1("A (in finalizie_matrix) \n",  M_block, mask, format)
         M_block = M_block.get_subblock(mask[0], mask[1])
 
         if format == 'coo':  # coo either real or complex
@@ -2579,15 +2617,16 @@ class Engine(object):
             if len(p.sel_index) == 0:
                 continue
 
-            dom_choice, bdr_choice, internal_bdr = p.get_dom_bdr_choice(
+            dom_choice, bdr_choice, pnt_choice, internal_bdr = p.get_dom_bdr_pnt_choice(
                 self.meshes[p.mesh_idx])
+
             dprint1("## internal bdr index " + str(internal_bdr))
 
             p._phys_sel_index = dom_choice
             self.do_assign_sel_index(p, dom_choice, Domain)
             self.do_assign_sel_index(
                 p, bdr_choice, Bdry, internal_bdr=internal_bdr)
-            self.do_assign_sel_index(p, dom_choice, Point)
+            self.do_assign_sel_index(p, pnt_choice, Point)
 
     def do_assign_sel_index(self, m, choice, cls, internal_bdr=None):
         dprint1("## setting _sel_index (1-based number): " + cls.__name__ +
@@ -2616,9 +2655,10 @@ class Engine(object):
                 node._sel_index = choice
                 if not node.is_secondary_condition:
                     checklist[np.in1d(choice, node._sel_index)] = False
-                dprint1(node.fullname(), node._sel_index)
+
+                dprint1(node.fullname(), str(node._sel_index))
             else:
-                dprint1(node.fullname(), ret)
+                dprint1(node.fullname(), str(ret))
                 # for k in ret:
                 #   idx = list(choice).index(k)
                 #   if node.is_secondary_condition: continue
@@ -2627,7 +2667,7 @@ class Engine(object):
                     checklist[np.in1d(choice, ret)] = False
         if rem is not None:
             rem._sel_index = list(np.array(choice)[checklist])
-            dprint1(rem.fullname() + ':' + rem._sel_index.__repr__())
+            dprint1(rem.fullname() + ':' + str(rem._sel_index))
 
     def find_domain_by_index(self, phys, idx,  check_enabled=False):
         return self._do_find_by_index(phys, idx, Domain,
@@ -2650,24 +2690,33 @@ class Engine(object):
                     return node
 
     def gather_essential_tdof(self, phys):
-        flags = self.get_essential_bdr_flag(phys)
-        self.get_essential_bdr_tdofs(phys, flags)
+        flags = self.get_essential_bdr_pnt_flag(phys)
+        self.get_essential_bdr_pnt_tdofs(phys, flags)
 
-    def get_essential_bdr_flag(self, phys):
+    def get_essential_bdr_pnt_flag(self, phys):
         flag = []
         for k,  name in enumerate(phys.dep_vars):
             fes = self.fespaces[name]
             index1 = []    # with elimination
             index2 = []    # w/o elimination
+            ptx1 = []    # with elimination (point)
+            ptx2 = []    # w/o elimination (point)
+
             for node in phys.walk():
                 # if not isinstance(node, Bdry): continue
                 if not node.enabled:
                     continue
-                if node.has_essential:
+                if node.has_essential and isinstance(node, Bdry):
                     if node.use_essential_elimination():
                         index1 = index1 + node.get_essential_idx(k)
                     else:
                         index2 = index2 + node.get_essential_idx(k)
+                if node.has_essential and isinstance(node, Point):
+                    if node.use_essential_elimination():
+                        ptx1 = ptx1 + node.get_ess_point_array(k)
+                    else:
+                        ptx2 = ptx2 + node.get_ess_point_array(k)
+
             if len(self.emeshes[phys.emesh_idx].bdr_attributes.ToList()) > 0:
                 ess_bdr1 = [0] * \
                     self.emeshes[phys.emesh_idx].bdr_attributes.Max()
@@ -2680,24 +2729,35 @@ class Engine(object):
                 ess_bdr1[kk-1] = 1
             for kk in index2:
                 ess_bdr2[kk-1] = 1
-            flag.append((name, ess_bdr1, ess_bdr2))
+            flag.append((name, ess_bdr1, ess_bdr2, ptx1, ptx2))
 
         return flag
 
-    def get_essential_bdr_tdofs(self, phys, flags):
-        for name, ess_bdr1, ess_bdr2 in flags:
+    def get_point_essential_tdofs(self, fespace, ess_point_array):
+        raise NotImplementedError(
+            "you must specify this method in subclass")
+
+    def get_essential_bdr_pnt_tdofs(self, phys, flags):
+        for name, ess_bdr1, ess_bdr2, ptx1, ptx2 in flags:
+            fespace = self.fespaces[name]
+
             ess_tdof_list = mfem.intArray()
             ess_bdr1 = mfem.intArray(ess_bdr1)
-            fespace = self.fespaces[name]
             fespace.GetEssentialTrueDofs(ess_bdr1, ess_tdof_list)
             ess_tdofs1 = ess_tdof_list.ToList()
 
             ess_tdof_list = mfem.intArray()
             ess_bdr2 = mfem.intArray(ess_bdr2)
-            fespace = self.fespaces[name]
             fespace.GetEssentialTrueDofs(ess_bdr2, ess_tdof_list)
             ess_tdofs2 = ess_tdof_list.ToList()
             self.ess_tdofs[name] = (ess_tdofs1, ess_tdofs2)
+
+            if len(ptx1) > 0:
+                tmp = self.get_point_essential_tdofs(fespace, ptx1)
+                self.ess_tdofs[name][0].extend(tmp)
+            if len(ptx2) > 0:
+                tmp = self.get_point_essential_tdofs(fespace, ptx2)
+                self.ess_tdofs[name][1].extend(tmp)
 
             #print(name, len(self.ess_tdofs[name]))
         return
@@ -2735,8 +2795,9 @@ class Engine(object):
         key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
         dkey = ("emesh_idx", "elem", "order",
                 "dim", "sdim", "vdim", "isParMesh")
-        dprint1("Allocate/Reuse fec/fes:", {d: v for d, v in zip(dkey, key)})
+        #dprint1("Allocate/Reuse fec/fes:", {d: v for d, v in zip(dkey, key)})
 
+        dprint1("Looking for already allocated fespaces ", name)
         if name in self.fespaces:
             fes1 = self.fespaces[name]
             isFESparallel = hasattr(fes1, 'GroupComm')
@@ -2744,7 +2805,7 @@ class Engine(object):
                 return False, fes1
         # elif not make_new:
         #    return False, None
-        dprint1("making a new fec/fes")
+        dprint1("Making a new fec/fes", {d: v for d, v in zip(dkey, key)})
         is_new = True
         element = elem.split('(')[0].strip()
 
@@ -2804,29 +2865,44 @@ class Engine(object):
         return self.new_gf(fes)
 
     def alloc_lf(self, idx, idx2=0):
-        fes = self.fespaces[self.fes_vars[idx]]
+        name = self.fes_vars[idx]
+        dprint2("")
+        dprint2("< *** > Generating a new LF between " + name)
+        fes = self.fespaces[name]
         return self.new_lf(fes)
 
     def alloc_bf(self, idx, idx2=None):
-        fes = self.fespaces[self.fes_vars[idx]]
+        name = self.fes_vars[idx]
+        dprint2("")
+        dprint2("< *** > Generating a new BF between " + name)
+        fes = self.fespaces[name]
         return self.new_bf(fes)
 
     def alloc_mbf(self, idx1, idx2):  # row col
 
         name1 = self.fes_vars[idx1]
         name2 = self.r_fes_vars[idx2]
+        dprint2("")
+        dprint2("< *** > Generating a new mixed-BF between " +
+                name1 + " and " + name2)
         fes1 = self.fespaces[name1]
         fes2 = self.fespaces[name2]
 
         info1 = self.get_fes_info(fes1)
         info2 = self.get_fes_info(fes2)
         if info1["emesh_idx"] != info2["emesh_idx"]:
+            info1 = self.get_fes_info(fes1)
+            info2 = self.get_fes_info(fes2)
             dprint1(
                 "fes1 and fes2 are on different mesh. Constructing a DoF map.", name1, name2)
-            dprint1("info1", self.get_fes_info(fes1))
-            dprint1("info2", self.get_fes_info(fes2))
+            dprint1("info1", info1)
+            dprint1("info2", info2)
 
             name = name2 + '_to_' + name1
+            namehash = str(hash(tuple(info1.items()))) + \
+                "___" + str(hash(tuple(info1.items())))
+            self.projections_hash[name] = namehash
+
             if abs(info1["dim"]-info2["dim"]) > 1:
                 assert False, "does not support direct mapping from volume to edge (or face to vertex)"
 
@@ -2855,26 +2931,31 @@ class Engine(object):
                                                       el,
                                                       order,
                                                       info2["vdim"])
-            if info2["dim"]-info1["dim"] == 1:  # (ex)volume to surface
-                mode = "boundary"
-            elif info2["dim"]-info1["dim"] == 0:
-                mode = "domain"
-            else:
-                mode = "domain"
+
+            if namehash not in self.projections:
+                if info2["dim"]-info1["dim"] == 1:  # (ex)volume to surface
+                    mode = "boundary"
+                elif info2["dim"]-info1["dim"] == 0:
+                    mode = "domain"
+                else:
+                    mode = "domain"
                 #assert False, "should not come here."
 
-            # fes2  -> fes (intermediate space using fes1's mesh)
-            p = simple_projection(fes2, fes, mode)
+                # fes2  -> fes (intermediate space using fes1's mesh)
+                p = simple_projection(fes2, fes, mode)
 
-            self.projections[name] = p
-            '''
-            if transpose:
-                # first -1 is flag to apply projecton from right
-                proj = (-1, name)
-                fes2 = fes
-                return self.new_mixed_bf(fes1, fes2), proj
+                self.projections[namehash] = p
+                '''
+                if transpose:
+                    # first -1 is flag to apply projecton from right
+                    proj = (-1, name)
+                    fes2 = fes
+                    return self.new_mixed_bf(fes1, fes2), proj
+                else:
+                '''
             else:
-            '''
+                p = self.projections[namehash]
+
             # first 1 is flag to apply projecton from left. A_ij = A_ij*Map
             proj = (1, name)
             fes2 = fes
@@ -2927,6 +3008,7 @@ class Engine(object):
 
     def run_mesh_serial(self, meshmodel=None,
                         skip_refine=False):
+
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
         #from petram.mesh.mesh_extension import MeshExt
         from petram.mesh.mesh_utils import get_extended_connectivity
@@ -2949,12 +3031,14 @@ class Engine(object):
                     o = child[k]
                     if not o.enabled:
                         continue
+
                     if o.isMeshGenerator:
                         dprint1("Loading mesh (serial)")
                         self.meshes[idx] = o.run_serial()
                         target = self.meshes[idx]
                     else:
-                        if o.isRefinement and skip_refine:
+                        if (o.isRefinement and
+                                skip_refine):
                             continue
                         if hasattr(o, 'run') and target is not None:
                             self.meshes[idx] = o.run(target)
@@ -2968,8 +3052,7 @@ class Engine(object):
             if len(m.GetAttributeArray()) > 0:
                 self.max_attr = np.max(
                     [self.max_attr, max(m.GetAttributeArray())])
-            # Test this...(2021/Nov)
-            # m.ReorientTetMesh()
+
             m.GetEdgeVertexTable()
             get_extended_connectivity(m)
 
@@ -3533,7 +3616,7 @@ class SerialEngine(Engine):
         skip_refine is for mfem_viewer
         '''
         return self.run_mesh_serial(meshmodel=meshmodel,
-                                    skip_refine=skip_refine)
+                                    skip_refine=skip_refine,)
 
     def run_assemble_mat(self, phys_target, phys_range, update=False):
         self.is_matrix_distributed = False
@@ -3590,6 +3673,21 @@ class SerialEngine(Engine):
 
     def collect_all_ess_tdof(self):
         self.gl_ess_tdofs = self.ess_tdofs
+
+    def get_point_essential_tdofs(self, fes, ess_point_array):
+        fec_name = fes.FEColl().Name()
+        if not fec_name.startswith("H1"):
+            assert False, "Pointwise Essential supports only H1 element"
+
+        mesh = fes.GetMesh()
+
+        dofs = []
+        for iv in range(mesh.GetNV()):
+            if tuple(mesh.GetVertexArray(iv)) in ess_point_array:
+                tmp = fes.GetVertexDofs(iv)
+                dofs.extend(tmp)
+
+        return dofs
 
     def save_parmesh(self, phys_target):
         # serial engine does not do anything
@@ -3773,12 +3871,16 @@ class ParallelEngine(Engine):
             parent = self.model['Mesh']
             children = [parent[g] for g in parent.keys()
                         if isinstance(parent[g], MFEMMesh) and parent[g].enabled]
+
             for idx, child in enumerate(children):
                 self.meshes.append(None)
                 self.base_meshes.append(None)
                 if not child.enabled:
                     continue
                 target = None
+
+                srefines = [child[x]
+                            for x in child if child[x].isSerialRefinement]
                 for k in child.keys():
                     o = child[k]
                     if not o.enabled:
@@ -3809,6 +3911,9 @@ class ParallelEngine(Engine):
                             else:
                                 parts = None
 
+                        for srefine in srefines:
+                            smesh = srefine.run(smesh)
+
                         self.base_meshes[idx] = mfem.ParMesh(
                             MPI.COMM_WORLD, smesh, parts)
                         self.meshes[idx] = self.base_meshes[idx]
@@ -3817,6 +3922,8 @@ class ParallelEngine(Engine):
                         #self.base_meshes[idx] = self.meshes[idx]
                     else:
                         if hasattr(o, 'run') and target is not None:
+                            if o.isSerialRefinement:
+                                continue
                             target = self.new_mesh_from_mesh(target)
                             self.meshes[idx] = o.run(target)
                             target = self.meshes[idx]
@@ -3882,6 +3989,23 @@ class ParallelEngine(Engine):
         if (myid == 0):
             dprint1('Number of finite element unknowns: ' + str(fe_sizes))
         return fe_sizes
+
+    def get_point_essential_tdofs(self, fes, ess_point_array):
+        fec_name = fes.FEColl().Name()
+        if not fec_name.startswith("H1"):
+            assert False, "Pointwise Essential supports only H1 element"
+
+        mesh = fes.GetParMesh()
+
+        dofs = []
+        for iv in range(mesh.GetNV()):
+            if tuple(mesh.GetVertexArray(iv)) in ess_point_array:
+                tmp = fes.GetVertexDofs(iv)
+                dofs.extend(tmp)
+
+        dofs = [fes.GetLocalTDofNumber(x) for x in dofs]
+
+        return dofs
 
     #
     #  postprocess

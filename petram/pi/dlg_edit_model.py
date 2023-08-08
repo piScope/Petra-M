@@ -128,6 +128,10 @@ class DlgEditModel(SimpleFramePlus):
         self.p2 = wx.Panel(self.nb)
         self.p3 = wx.Panel(self.nb)
         self.p4 = wx.Panel(self.nb)
+        self.p1.SetBackgroundColour(wx.Colour(235, 235, 235, 255))
+        self.p2.SetBackgroundColour(wx.Colour(235, 235, 235, 255))
+        self.p3.SetBackgroundColour(wx.Colour(235, 235, 235, 255))
+        self.p4.SetBackgroundColour(wx.Colour(235, 235, 235, 255))
         self.nb.AddPage(self.p1, "Config.")
 #        self.nb.AddPage(self.p2, "Selection")
         self.p1.SetSizer(wx.BoxSizer(wx.HORIZONTAL))
@@ -583,6 +587,7 @@ class DlgEditModel(SimpleFramePlus):
             self.Enable(False)
 
     def OnItemSelChanged(self, evt=None):
+
         if self.tree.GetSelection() is None:
             return
 
@@ -592,7 +597,6 @@ class DlgEditModel(SimpleFramePlus):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
 #        if not mm.__class__ in self.panels.keys():
-
         for k in self.panels.keys():
             p1panel, p2panel, p3panel, p4panel = self.panels[k]
             self.p1sizer.Detach(p1panel)
@@ -671,7 +675,7 @@ class DlgEditModel(SimpleFramePlus):
 
         self._focus_idx = None
 
-        from petram.model import Bdry, Domain, Pair
+        from petram.model import Bdry, Domain, Point, Pair
         from petram.phys.phys_model import PhysModule
 
         viewer = self.GetParent()
@@ -749,6 +753,16 @@ class DlgEditModel(SimpleFramePlus):
                 else:
                     pass
 
+            elif isinstance(mm, Point):
+                if not hasattr(mm, '_sel_index') or mm.sel_index == 'remaining':
+                    phys = mm.get_root_phys()
+                    engine.assign_phys_pp_sel_index()
+                    engine.assign_sel_index(phys)
+
+                viewer.change_panel_button('vertex')
+                viewer.highlight_point(mm._sel_index)
+                viewer._dom_bdr_sel = ([], [], [], mm._sel_index)
+
         elif isinstance(mm, AUX_Operator) or isinstance(mm, AUX_Variable):
             if not mm.enabled:
                 viewer.highlight_none()
@@ -822,12 +836,14 @@ class DlgEditModel(SimpleFramePlus):
         if len(p1children) > 0:
             elp1 = p1children[0].GetWindow()
             v1 = elp1.GetValue()
+
             viewer_update = mm.import_panel1_value(v1) or viewer_update
             try:
                 phys = mm.get_root_phys()
             except:
                 pass
             elp1.SetValue(mm.get_panel1_value())
+            elp1.update_label(mm.panel1_param())
 
         if mm.has_2nd_panel:
             p2children = self.p2sizer.GetChildren()
@@ -862,10 +878,13 @@ class DlgEditModel(SimpleFramePlus):
                 traceback.print_exc()
 
         if viewer_update:
-            mm.update_after_ELChanged(self)
+            flag1 = mm.update_after_ELChanged(self)
             if evt is not None:
-                mm.update_after_ELChanged2(evt)
-            wx.CallAfter(self.show_panel, mm)
+                flag2 = mm.update_after_ELChanged2(evt)
+            else:
+                flag2 = False
+            if flag1 or flag2:
+                wx.CallAfter(self.show_panel, mm)
 
         self.tree.RefreshItems()
         return viewer_update

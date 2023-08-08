@@ -261,9 +261,9 @@ class DlgPlotSol(SimpleFramePlus):
             if len(choices) == 0:
                 choices = ['no physcs in model']
 
-            elp1 = [['x:', '0 ', 0, {}],
-                    ['y:', '0 ', 0, {}],
-                    ['z:', '0', 0, {}], ]
+            elp1 = [['x:', '0 ', 500, {}],
+                    ['y:', '0 ', 500, {}],
+                    ['z:', '0', 500, {}], ]
             elp2 = [['start point:', '0., 0., 0.', 0, {}],
                     ['end point:', '1., 0., 0.', 0, {}],
                     ['resolution:', '30', 0, {}], ]
@@ -312,9 +312,9 @@ class DlgPlotSol(SimpleFramePlus):
 
             s4 = {"style": wx.TE_PROCESS_ENTER,
                   "choices": [str(x + 1) for x in range(10)]}
-            ll = [['Expression', '', 0, {}],
-                  ['Expression(x)', '', 0, {}],
-                  ['Edge ', text, 0, {}],
+            ll = [['Expression', '', 500, {}],
+                  ['Expression(x)', '', 500, {}],
+                  ['Edge ', text, 500, {}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
                   [None, False, 3, {"text": 'dynamic extension'}],
@@ -354,8 +354,8 @@ class DlgPlotSol(SimpleFramePlus):
 
             s4 = {"style": wx.TE_PROCESS_ENTER,
                   "choices": [str(x + 1) for x in range(10)]}
-            ll = [['Expression', '', 0, {}],
-                  ['Offset (x, y, z)', '0, 0, 0', 0, {}],
+            ll = [['Expression', '', 500, {}],
+                  ['Offset (x, y, z)', '0, 0, 0', 500, {}],
                   ['Boundary Index', 'all', 4, {'style': wx.CB_DROPDOWN,
                                                 'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
@@ -393,10 +393,10 @@ class DlgPlotSol(SimpleFramePlus):
 
             if len(choices) == 0:
                 choices = ['no physcs in model']
-            ll = [['Expression(u)', '', 0, {}],
-                  ['Expression(v)', '', 0, {}],
-                  ['Expression(w)', '', 0, {}],
-                  ['Boundary Index', text, 0, {}],
+            ll = [['Expression(u)', '', 500, {}],
+                  ['Expression(v)', '', 500, {}],
+                  ['Expression(w)', '', 500, {}],
+                  ['Boundary Index', text, 500, {}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
                   [None, False, 3, {
@@ -426,9 +426,9 @@ class DlgPlotSol(SimpleFramePlus):
             choices = list(mfem_model['Phys'])
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
-            elp1 = [['plane (a,b,c,d):', '0, 0, 1, 0', 0, {}], ]
+            elp1 = [['plane (a,b,c,d):', '0, 0, 1, 0', 500, {}], ]
 
-            elp2 = [['plane (a,b,c,d):', '0, 0, 1, 0', 0, {}],
+            elp2 = [['plane (a,b,c,d):', '0, 0, 1, 0', 500, {}],
                     ['first axis:', '1., 0., 0.', 0, {}],
                     ['resolution', '0.01', 0, {}], ]
 
@@ -440,9 +440,9 @@ class DlgPlotSol(SimpleFramePlus):
 
             if len(choices) == 0:
                 choices = ['no physcs in model']
-            ll = [['Expression', '', 0, {}],
+            ll = [['Expression', '', 500, {}],
                   ss,
-                  ['Domain Index', text, 0, {}],
+                  ['Domain Index', text, 500, {}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
                   [None, False, 3, {"text": 'dynamic extension'}],
@@ -474,10 +474,10 @@ class DlgPlotSol(SimpleFramePlus):
                 choices = ['no physics in model']
 
             dom_bdr = ['Domain', 'Boundary']
-            ll = [['Expression', '', 0, {}],
+            ll = [['Expression', '', 500, {}],
                   ['Kind', dom_bdr[0], 4, {'style': wx.CB_READONLY,
                                            'choices': dom_bdr}],
-                  ['Index', text, 0, {}],
+                  ['Index', text, 500, {}],
                   ['Order', '2',  0, {}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}], ]
@@ -1042,18 +1042,29 @@ class DlgPlotSol(SimpleFramePlus):
         pass
 
     def onApply(self, evt):
+        elp = self.get_selected_elp()
+        elp.AddCurrentToHistory()
+
         t = self.get_selected_plotmode()
         m = getattr(self, 'onApply' + t)
+
         m(evt)
 
     def onInteg(self, evt):
+        elp = self.get_selected_elp()
+        elp.AddCurrentToHistory()
+
         t = self.get_selected_plotmode()
         m = getattr(self, 'onInteg' + t)
         m(evt)
 
     def onExport(self, evt):
+        elp = self.get_selected_elp()
+        elp.AddCurrentToHistory()
+
         t = self.get_selected_plotmode()
         m = getattr(self, 'onExport' + t)
+
         m(evt)
     '''
     def onExport2(self, evt):
@@ -1063,6 +1074,9 @@ class DlgPlotSol(SimpleFramePlus):
     '''
 
     def onExportR(self, evt):
+        elp = self.get_selected_elp()
+        elp.AddCurrentToHistory()
+
         t = self.get_selected_plotmode()
         m1 = getattr(self, 'onExportR1' + t)
         m2 = getattr(self, 'onExportR2' + t)
@@ -1077,6 +1091,11 @@ class DlgPlotSol(SimpleFramePlus):
         evt.GetEventObject().PopupMenu(menu, evt.GetPosition())
         menu.Destroy()
         evt.Skip()
+
+    def get_selected_elp(self):
+        t = self.nb.GetPageText(self.nb.GetSelection())
+        elp = self.elps[t]
+        return elp
 
     def get_selected_plotmode(self, kind=False):
         t = self.nb.GetPageText(self.nb.GetSelection())

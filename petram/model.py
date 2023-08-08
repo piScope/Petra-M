@@ -117,6 +117,8 @@ class RestorableOrderedDict(ABC, MutableMapping, Restorable, object):
                 isinstance(item, tuple)):
             keys = [self]+list(item)
             return reduce(lambda x, y: x[y], keys)
+        elif item is None:
+            raise KeyError
         elif item.find('.') != -1:
             items = item.split('.')
             keys = [self]+list(items)
@@ -604,10 +606,14 @@ class Model(RestorableOrderedDict):
             for x in self[k].walk():
                 yield x
 
-    def walk_enabled(self):
+    def walk_enabled(self, skip_self=False):
+        '''
+        skip_self: not return the top level model
+        '''
         if not self.enabled:
             return
-        yield self
+        if not skip_self:
+            yield self
         for k in self.keys():
             if not self[k].enabled:
                 continue
@@ -960,10 +966,16 @@ class Model(RestorableOrderedDict):
         return self.name()
 
     def update_after_ELChanged2(self, evt):
-        pass
+        '''
+        return True if edit panel needs update
+        '''
+        return False
 
     def update_after_ELChanged(self, dlg):
-        pass
+        '''
+        return True if edit panel needs update
+        '''
+        return False
 
     def use_essential_elimination(self):
         return True

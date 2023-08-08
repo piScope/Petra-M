@@ -26,7 +26,8 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('MeshModel')
 
 class Mesh(Model, NS_mixin):
     isMeshGenerator = False
-    isRefinement = False
+    isRefinement = False         # refinement performed in either serial/parallel
+    isSerialRefinement = False   # refinement performed in serial
 
     def __init__(self, *args, **kwargs):
         super(Mesh, self).__init__(*args, **kwargs)
@@ -53,6 +54,7 @@ class Mesh(Model, NS_mixin):
 class MeshGenerator(Mesh):
     isMeshGenerator = True
     isRefinement = False
+    isSerialRefinement = False   # refinement performed in serial
 
     def attribute_set(self, v):
         v = super(MeshGenerator, self).attribute_set(v)
@@ -95,21 +97,30 @@ class MFEMMesh(Model):
         try:
             from petram.mesh.pumimesh_model import PumiMesh
             return [MeshFile, PumiMesh, Mesh1D, Mesh2D, Mesh3D,
-                    UniformRefinement, DomainRefinement]
+                    UniformRefinement, DomainRefinement, BoundaryRefinement]
         except BaseException:
             return [MeshFile, Mesh1D, Mesh2D, Mesh3D, UniformRefinement,
-                    DomainRefinement]
+                    DomainRefinement, BoundaryRefinement]
 
     def get_possible_child_menu(self):
         try:
             from petram.mesh.pumimesh_model import PumiMesh
-            return [("", MeshFile), ("Other Meshes", Mesh1D),
-                    ("", Mesh2D), ("", Mesh3D), ("!", PumiMesh),
-                    ("Refinement...", UniformRefinement), ("!", DomainRefinement)]
+            return [("", MeshFile),
+                    ("Other Meshes", Mesh1D),
+                    ("", Mesh2D),
+                    ("", Mesh3D),
+                    ("!", PumiMesh),
+                    ("Refinement...", UniformRefinement),
+                    ("", DomainRefinement),
+                    ("!", BoundaryRefinement)]
         except BaseException:
-            return [("", MeshFile), ("Other Meshes", Mesh1D),
-                    ("", Mesh2D), ("!", Mesh3D), ("Refinement...", UniformRefinement),
-                    ("!", DomainRefinement)]
+            return [("", MeshFile),
+                    ("Other Meshes", Mesh1D),
+                    ("", Mesh2D),
+                    ("!", Mesh3D),
+                    ("Refinement...", UniformRefinement),
+                    ("", DomainRefinement),
+                    ("!", BoundaryRefinement)]
 
     def panel1_param(self):
         if not hasattr(self, "_topo_check_char"):
@@ -149,7 +160,7 @@ class MFEMMesh(Model):
         return 'mfem'
 
     def get_special_menu(self, evt):
-        #menu =[["Reload Mesh", self.reload_mfem_mesh, None,],]
+        # menu =[["Reload Mesh", self.reload_mfem_mesh, None,],]
         menu = [["+Mesh parameters...", None, None],
                 ["Plot low quality elements", self.plot_lowqualities, None],
                 ["Compute minSJac", self.compute_scaled_jac, None], ]
@@ -925,7 +936,6 @@ class DomainRefinement(Mesh):
 
     def __init__(self, parent=None, **kwargs):
         self.num_refine = kwargs.pop("num_refine", "0")
-        self.domain_txt = kwargs.pop("domain_txt", "")
         self.expression = kwargs.pop("expression", "")
         super(DomainRefinement, self).__init__(parent=parent, **kwargs)
 
@@ -938,26 +948,30 @@ class DomainRefinement(Mesh):
     def attribute_set(self, v):
         v = super(DomainRefinement, self).attribute_set(v)
         v['num_refine'] = '0'
-        v['domain_txt'] = ''
         v['expression'] = ''
         v['expression_ns'] = 'global'
         return v
 
     def panel1_param(self):
+        from petram.model import validate_sel
+
         return [["Number", str(self.num_refine), 0, {}],
-                ["Domains", self.domain_txt, 0, {}],
-                ["Expr.", self.expression, 0, {}],
+                ["Domains", self.sel_index_txt, 0, {'changing_event': True,
+                                                    'setfocus_event': True,
+                                                    'validator': validate_sel,
+                                                    'validator_param': self}, ],
+                ["Expr.", self.expression, 0, {}, ]
                 ["NS for expr.", self.expression_ns, 0, {}], ]
 
     def import_panel1_value(self, v):
         self.num_refine = str(v[0])
-        self.domain_txt = str(v[1])
+        self.sel_index_txt = str(v[1])
         self.expression = str(v[2])
         self.expression_ns = str(v[3])
 
     def get_panel1_value(self):
         return (str(self.num_refine),
-                str(self.domain_txt),
+                str(self.sel_index_txt),
                 str(self.expression),
                 str(self.expression_ns), )
 
@@ -973,7 +987,8 @@ class DomainRefinement(Mesh):
             dprint1(
                 "(Warning) Element Geometry Type is mixed. Cannot perform UniformRefinement")
             return mesh
-        domains = [int(x) for x in self.domain_txt.split(',')]
+
+        domains = self.process_sel_index()
         if len(domains) == 0:
             return mesh
 
@@ -984,7 +999,7 @@ class DomainRefinement(Mesh):
 
         v = mfem.Vector()
         coords = ['x', 'y', 'z']
-        #nicePrint("refining elements domain choice", domains)
+        # nicePrint("refining elements domain choice", domains)
         for i in range(int(self.num_refine)):
             attr = mesh.GetAttributeArray()
             idx = list(np.where(np.in1d(attr, domains))[0])
@@ -1001,7 +1016,68 @@ class DomainRefinement(Mesh):
                         idx2.append(ii)
 
                 idx = idx2
-            #nicePrint("number of refined element: ", len(idx))
+            # nicePrint("number of refined element: ", len(idx))
             idx0 = mfem.intArray(idx)
             mesh.GeneralRefinement(idx0)  # this is parallel refinement
+        return mesh
+
+
+class BoundaryRefinement(Mesh):
+    isRefinement = True
+    isSerialRefinement = True
+    has_2nd_panel = False
+
+    def __init__(self, parent=None, **kwargs):
+        self.num_refine = kwargs.pop("num_refine", "0")
+        self.num_layer = kwargs.pop("num_layer", "4")
+        super(BoundaryRefinement, self).__init__(parent=parent, **kwargs)
+
+    def __repr__(self):
+        try:
+            return 'MeshBoundaryRefinement(' + self.num_refine + ')'
+        except BaseException:
+            return 'MeshBoundaryRefinement(!!!Error!!!)'
+
+    def attribute_set(self, v):
+        v = super(BoundaryRefinement, self).attribute_set(v)
+        v['num_refine'] = '0'
+        v['num_layer'] = '4'
+        return v
+
+    def panel1_param(self):
+        from petram.model import validate_sel
+
+        return [["Number", str(self.num_refine), 0, {}],
+                ["Boundaries", self.sel_index_txt, 0, {'changing_event': True,
+                                                       'setfocus_event': True,
+                                                       'validator': validate_sel,
+                                                       'validator_param': self}, ],
+                ["#Layers", self.num_layer, 0, {}], ]
+
+    def import_panel1_value(self, v):
+        self.num_refine = str(v[0])
+        self.sel_index_txt = str(v[1])
+        self.num_layer = str(v[2])
+
+    def get_panel1_value(self):
+        return (str(self.num_refine),
+                str(self.sel_index_txt),
+                str(self.num_layer),)
+
+    def run(self, mesh):
+
+        from petram.helper.boundary_refinement import apply_boundary_refinement
+
+        nlayers = int(self.num_layer)
+        sels = self.process_sel_index()
+
+        ne0 = mesh.GetNE()
+
+        krefine = int(self.num_refine)
+        for i in range(krefine):
+            mesh = apply_boundary_refinement(mesh, sels, nlayers=nlayers)
+
+        ne1 = mesh.GetNE()
+        dprint1("Number of element before/after boundary refinementmesh: " +
+                str(ne0) + " -->> " + str(ne1))
         return mesh

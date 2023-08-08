@@ -17,12 +17,14 @@ def elp_setting(log_keywords):
           ["Remote Dir.", "", 0, {}],
           ["Note", None, 235, {'nlines': 3}],
           ["Keywords", None, 36, {'col': 3, 'labels': list(log_keywords)}],
-          ["Notification",  "None", 4, setting1],
-          ["-> Adv. options"],
+          ["Notification", "None", 4, setting1],
+#          ["-> Adv. options", None, None, {"no_tlw_resize": True}],
+          ["-> Adv. options", None, None, {"tlb_resize_samewidth": True}],
+#          ["-> Adv. options", None, None, {"no_tlw_resize": False}],
           ["Run ", None, 235, {'nlines': 3}],
           ["Env. ", None, 235, {'nlines': 2}],
           ["<-"],
-          [None,   False,  3, {"text": "Skip sending mesh file"}],
+          [None, False, 3, {"text": "Skip sending mesh file"}],
           ]
     return ll
 

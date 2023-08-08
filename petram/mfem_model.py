@@ -3,12 +3,18 @@
     Model Tree to stroe MFEM model parameters
 
 '''
+from petram.utils import (check_cluster_access,
+                          check_addon_access)
 from petram.namespace_mixin import NS_mixin
 import numpy as np
 from petram.model import Model
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MFEMModel')
+
+
+has_addon_access = check_addon_access()
+has_cluster_access = check_cluster_access()
 
 
 class MFEM_GeneralRoot(Model, NS_mixin):
@@ -33,7 +39,8 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         v['autofilldiag'] = 'off'
         v['savegz'] = 'on'
         v['allow_fallback_nonjit'] = 'allow'
-        v['debug_numba_jit'] = 'on'
+        v['debug_numba_jit'] = 'off'
+        v['trim_debug_print'] = 'on'
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
 
@@ -79,11 +86,14 @@ class MFEM_GeneralRoot(Model, NS_mixin):
                     1, {"values": ["allow", "warn", "error", "always use Python coeff."]}],
                 ["Check numba JIT process", None,
                     1, {"values": ["on", "off"]}],
+                ["Trim debug print text", None,
+                    1, {"values": ["on", "off"]}],
                 ]
 
     def get_panel2_value(self):
         return (self.diagpolicy, self.savegz, self.partitioning, self.submeshpartitioning,
-                self.autofilldiag, self.allow_fallback_nonjit, self.debug_numba_jit)
+                self.autofilldiag, self.allow_fallback_nonjit, self.debug_numba_jit,
+                self.trim_debug_print)
 
     def import_panel2_value(self, v):
         self.diagpolicy = v[0]
@@ -93,11 +103,14 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         self.autofilldiag = v[4]
         self.allow_fallback_nonjit = v[5]
         self.debug_numba_jit = v[6]
+        self.trim_debug_print = v[7]
 
     def run(self):
         import petram.debug
         if petram.debug.debug_default_level == 0:
             petram.debug.debug_default_level = int(self.debug_level)
+
+        petram.debug.trim_debug_print = bool(self.trim_debug_print == 'on')
 
         if not hasattr(self.root(), "_variables"):
             from petram.helper.variables import Variables
@@ -117,6 +130,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         ret = Model.save_attribute_set(self, skip_def_check)
         return [x for x in ret if x != '_variable']
 
+
 class MFEM_PhysRoot(Model):
     can_delete = False
     has_2nd_panel = False
@@ -125,13 +139,63 @@ class MFEM_PhysRoot(Model):
         ans = []
         from petram.helper.phys_module_util import all_phys_models
         models, classes = all_phys_models()
+
+        tmp = sorted([(cls.__name__, cls) for cls in classes])
+        classes = [x[1] for x in tmp]
+
         return classes
+
+    def get_possible_child_menu(self):
+        '''
+        return hierachial menus
+        '''
+        ans = []
+        from petram.helper.phys_module_util import all_phys_models
+        models, classes = all_phys_models()
+
+        name_class = sorted([(cls.__name__, cls) for cls in classes])
+
+        import wx
+        petram_model = wx.GetApp().TopWindow.proj.setting.parameters.eval('PetraM')
+        mesh = petram_model.variables.eval('mesh')
+        if mesh is None:
+            return []
+
+        sdim = mesh.SpaceDimension()
+
+        allkeys = ['3D', '2D', '2Da', '1D']
+        if sdim == 3:
+            keys = ['3D']
+        elif sdim == 2:
+            keys = ['2D', '2Da']
+        else:
+            keys = ['1D']
+
+        menus = []
+
+        for n, cls in name_class:
+            hitkey = ''
+            for k in allkeys:
+                if n.find(k) != -1:
+                    hitkey = k
+                    break
+            if hitkey == '':
+                menus.append(("", cls))
+            else:
+                if hitkey in keys:
+                    menus.append(("", cls))
+
+        return menus
 
     def make_solvars(self, solsets, g=None):
         from petram.mesh.mesh_utils import (get_extended_connectivity,
                                             get_reverse_connectivity)
         from petram.helper.variables import Variable
         from petram.helper.variables import add_scalar
+
+        for phys in self.iter_enabled():
+            for mm in phys.walk_enabled():
+                mm.compile_coeffs()
 
         solvars = [None] * len(solsets)
         if g is None:
@@ -166,18 +230,23 @@ class MFEM_PhysRoot(Model):
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys')
 
-    def dependent_values(self):
+    def dependent_values(self, include_disabled=False):
         '''
         return dependent_values
            names: name of values
            pnames: list of physics module
            pindex: index of dependent value in the physics module
         '''
-        names = sum([c.dep_vars for c in self.iter_enabled()], [])
+        if include_disabled:
+            method = self.get_children
+        else:
+            method = self.iter_enabled
+
+        names = sum([c.dep_vars for c in method()], [])
         pnames = sum([[c.name()] * len(c.dep_vars)
-                      for c in self.iter_enabled()], [])
+                      for c in method()], [])
         pindex = sum([list(range(len(c.dep_vars)))
-                      for c in self.iter_enabled()], [])
+                      for c in method()], [])
 
         return names, pnames, pindex
 
@@ -442,8 +511,10 @@ class MFEM_ModelRoot(Model):
             for od in self.walk():
                 if hasattr(od, 'use_relative_path'):
                     od.use_relative_path()
-        pickle.dump(self, open(path, 'wb'))
+        fid = open(path, 'wb')
+        pickle.dump(self, fid)
         if meshfile_relativepath:
             for od in self.walk():
                 if hasattr(od, 'use_relative_path'):
                     od.restore_fullpath()
+        fid.close()

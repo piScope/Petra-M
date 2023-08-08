@@ -121,13 +121,15 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     cls = task[1]
                     params = task[2]
                     kwargs = task[3]
+
                     if self.solfiles is None and cls != 'Probe':
                         continue
                     self.make_agents(cls, params, **kwargs)
 
                 elif task[0] == 2: # (2, solfiles) = set_solfiles
                     self.set_solfiles(task[1])
-                    value = (self.myid, len(self.solfiles), None)
+                    ll = len(self.solfiles) if self.solfiles is not None else 0
+                    value = (self.myid, ll, None)
 
                 elif task[0] == 3: # (3, mfem_model) = set_model
                     self.set_model(task[1])
@@ -198,6 +200,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
     def set_solfiles(self, solfiles):
         st, et = data_partition(len(solfiles.set), self.rank, self.myid)
         s = solfiles[st:et]
+        print(s)
         if len(s) > 0:
             self.solfiles_real = s
             self.solfiles = s
@@ -218,18 +221,6 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     s.model.save_to_file(model_path,
                                          meshfile_relativepath=False)
 
-            # we don't need this anymore since _emesh_idx is read
-            # from solution (encoded in filename)
-
-            #s.prep_emesh_data_ifneeded()
-            #s.run_mesh_extension_prep()
-
-            ### can we skip this (run_config read mesh...)
-            #s.run_config()
-            ### (we don't need this for sure???)
-            #s.run_mesh()
-            #s.assign_sel_index()
-            ###
             self.model_real = s.model
         except:
             print(traceback.format_exc())
@@ -417,6 +408,9 @@ class EvaluatorMP(Evaluator):
             self.tasks.put((3, file2), join = True)
         else:
             assert False, "No model file in " + os.getcwd()
+
+        self._mfem_model_bk = model
+
         #import tempfile, shutil
         #tmpdir = tempfile.mkdtemp()
         #model_path = os.path.join(tmpdir, 'model.pmfm')
@@ -462,10 +456,12 @@ class EvaluatorMP(Evaluator):
             else:
                 print("new file time stamp")
                 
-            print("new solfiles")
+            print("new solfiles (reloading model from)")
+            self.set_model(self._mfem_model_bk)
             self.set_solfiles(solfiles)
             self.load_solfiles()
             redo_geom = True
+
         else:
             print("same solfiles")            
         if not super(EvaluatorMP, self).validate_evaluator(name, attr, **kwargs):
