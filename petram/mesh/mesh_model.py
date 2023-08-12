@@ -960,7 +960,7 @@ class DomainRefinement(Mesh):
                                                     'setfocus_event': True,
                                                     'validator': validate_sel,
                                                     'validator_param': self}, ],
-                ["Expr.", self.expression, 0, {}, ]
+                ["Expr.", self.expression, 0, {}, ],
                 ["NS for expr.", self.expression_ns, 0, {}], ]
 
     def import_panel1_value(self, v):
