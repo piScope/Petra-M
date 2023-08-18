@@ -24,6 +24,7 @@ try:
 except ImportError:
     hasGeom = False
 
+
 def setup_figure(fig):
     fig.nsec(1)
     fig.property(fig.get_axes(0), 'axis', False)
@@ -32,6 +33,7 @@ def setup_figure(fig):
 
 
 ID_SOL_FOLDER = wx.NewIdRef(count=1)
+
 
 def MFEM_menus(parent):
     self = parent
@@ -229,7 +231,7 @@ class MFEMViewer(BookViewer):
         import logging
         numba_logger = logging.getLogger('numba')
         numba_logger.setLevel(logging.WARNING)
-        print("numba debug logging is suppressed")            
+        print("numba debug logging is suppressed")
 
     @property
     def view_mode_group(self):
@@ -1112,6 +1114,17 @@ class MFEMViewer(BookViewer):
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
         odir = os.getcwd()
+
+        try:
+            self.engine.run_verify_setting()
+        except:
+            os.chdir(odir)
+            dialog.showtraceback(parent=self,
+                                 txt='Failed to verify setting',
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            return
+
         try:
             self.run_preprocess()
         except:
@@ -1132,6 +1145,17 @@ class MFEMViewer(BookViewer):
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
         odir = os.getcwd()
+
+        try:
+            self.engine.run_verify_setting()
+        except:
+            os.chdir(odir)
+            dialog.showtraceback(parent=self,
+                                 txt='Failed to verify setting',
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            return
+
         try:
             self.run_preprocess()
         except:
@@ -1141,6 +1165,7 @@ class MFEMViewer(BookViewer):
                                  title='Error',
                                  traceback=traceback.format_exc())
             return
+
         nproc = self.model.param.getvar('nproc')
         if nproc is None:
             nproc = 2
@@ -1672,14 +1697,25 @@ class MFEMViewer(BookViewer):
             obj = make_remote_connection(self.model, new_name)
             self.model.param.setvar('host', '='+obj.get_full_path())
 
-
     def onServerSolve(self, evt):
         m = self.model.param.getvar('mfem_model')
         m.set_root_path(self.model.owndir())
+        odir = os.getcwd()
+
+        try:
+            self.engine.run_verify_setting()
+        except:
+            os.chdir(odir)
+            dialog.showtraceback(parent=self,
+                                 txt='Failed to verify setting',
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            return
 
         try:
             self.run_preprocess()
         except:
+            os.chdir(odir)
             dialog.showtraceback(parent=self,
                                  txt='Failed to during pre-processing model data',
                                  title='Error',

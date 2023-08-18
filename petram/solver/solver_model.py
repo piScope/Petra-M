@@ -329,8 +329,8 @@ class SolveStep(SolverBase):
         try:
             self.get_linearsystem_type_from_modeltree()
 
-        except:
-            return False, "Can not select linear system type consistently"
+        except AssertionError as msg:
+            return False, "Can not select linear system type consistently", str(msg)
 
         return True, "", ""
 
@@ -725,7 +725,7 @@ class SolverInstance(ABC):
 
     def save_solution(self, ksol=0, skip_mesh=False,
                       mesh_only=False, save_parmesh=False,
-                      save_mesh_linkdir = None):
+                      save_mesh_linkdir=None):
 
         engine = self.engine
         phys_target = self.get_phys()

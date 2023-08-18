@@ -672,7 +672,15 @@ class Engine(object):
             init = self.model['InitialValue'][k]
             init.preprocess_params(self)
 
-    def run_verify_setting(self, phys_target, solver):
+    def run_verify_setting(self, phys_target=None, solver=None):
+        if phys_target is None and solver is None:
+            top = self.model
+            for mm in top.walk_enabled():
+                if hasattr(mm, 'verify_setting'):
+                    error, txt, long_txt = mm.verify_setting()
+                assert error, mm.fullname() + ":" + long_txt
+            return
+
         for phys in phys_target:
             for mm in phys.walk():
                 if not mm.enabled:
@@ -969,8 +977,8 @@ class Engine(object):
                     try:
                         form.Assemble(0)
                     except BaseException:
-                         print("failed to assemble (r, c) = ", r1, c1)
-                         raise
+                        print("failed to assemble (r, c) = ", r1, c1)
+                        raise
 
             self.extras = {}
             updated_extra = []
