@@ -21,6 +21,16 @@ class StdSolver(Solver):
     def fancy_tree_name(self):
         return 'Stationary'
 
+    def verify_setting(self):
+        try:
+            phys = self.get_phys()
+        except KeyError:
+            return False, "", "Physics does not exist (KeyError)"
+        if len(phys) == 0:
+            return False, "", "No Physics is chosen to solve"
+
+        return True, "", ""
+
     def attribute_set(self, v):
         super(StdSolver, self).attribute_set(v)
         return v
@@ -55,7 +65,7 @@ class StdSolver(Solver):
             self.sol_file)
 
     def import_panel1_value(self, v):
-        #self.init_setting = str(v[0])
+        # self.init_setting = str(v[0])
         self.phys_model = str(v[0])
         self.init_only = v[1]
         self.clear_wdir = v[2]
@@ -209,7 +219,7 @@ class StandardSolver(SolverInstance):
                                                              self.compute_rhs,
                                                              inplace=inplace,
                                                              update=update,)
-        #A, X, RHS, Ae, B, M, names = blocks
+        # A, X, RHS, Ae, B, M, names = blocks
         self.assembled = True
         return M_changed
 
@@ -266,8 +276,8 @@ class StandardSolver(SolverInstance):
         if solall is not None:
             dprint1("solall.shape", solall.shape)
 
-        #linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
-        #solall = linearsolver.Mult(BB, case_base=0)
+        # linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
+        # solall = linearsolver.Mult(BB, case_base=0)
 
         if not self.phys_real and self.gui.assemble_real:
             solall = self.linearsolver_model.real_to_complex(solall, AA)
