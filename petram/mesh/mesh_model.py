@@ -124,7 +124,7 @@ class MFEMMesh(Model):
 
     def panel1_param(self):
         if not hasattr(self, "_topo_check_char"):
-            self._topo_check_char = ''
+            self._topo_check_char = "\n".join([' '*15,' '*15,' '*15,' '*15])
             self._invalid_data = None
         import wx
         return [[None, None, 341, {"label": "Reload mesh",
@@ -162,14 +162,16 @@ class MFEMMesh(Model):
     def get_special_menu(self, evt):
         # menu =[["Reload Mesh", self.reload_mfem_mesh, None,],]
         menu = [["+Mesh parameters...", None, None],
-                ["Plot low quality elements", self.plot_lowqualities, None],
-                ["Compute minSJac", self.compute_scaled_jac, None], ]
+                ["Plot low quality elements", self.plot_lowqualities, None],]
+
         if (self._invalid_data is not None and
                 len(self._invalid_data[0]) > 0):
             menu.append(["Plot invalid faces", self.plot_invalids, None])
         if (self._invalid_data is not None and
                 len(self._invalid_data[2]) > 0):
             menu.append(["Plot inverted elements", self.plot_inverted, None])
+
+        menu.append(["Compute minSJac", self.compute_scaled_jac, None])
         menu.append(["!", None, None])
         return menu
 
@@ -198,12 +200,18 @@ class MFEMMesh(Model):
             if mesh is None:
                 out = 'Mesh is not loaded'
             else:
-                invalids, invalid_attrs, inverted = find_invalid_topology(mesh)
-                if len(invalids) == 0:
-                    out = 'No error'
+                invalids, invalid_attrs, inverted, sj_min_max = find_invalid_topology(mesh)
+                if sj_min_max[0] < 0:
+                    out = "\n".join(["Some elements are inverted",
+                                     "min(ScaledJac) = " + str(sj_min_max[0]),
+                                     "max(ScaledJac) = " + str(sj_min_max[1]),])
+                elif len(invalids) == 0:
+                    out = "\n".join(["No error",
+                                     "min(ScaledJac) = " + str(sj_min_max[0]),
+                                     "max(ScaledJac) = " + str(sj_min_max[1]),])
                 else:
                     out = format_error(invalids, invalid_attrs, inverted)
-                self._invalid_data = invalids, invalid_attrs, inverted
+                self._invalid_data = invalids, invalid_attrs, inverted, sj_min_max
             self._topo_check_char = out
 
             import wx
