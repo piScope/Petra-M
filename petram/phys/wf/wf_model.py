@@ -285,11 +285,12 @@ class WF(PhysModule):
         return [WF_Essential, WF_Natural]+bdrs
 
     def get_possible_point(self):
-        #from petram.phys.wf.wf_constraints import WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint
-        from petram.phys.wf.wf_essential import WF_EssentialPoint
-        # return [WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint]
-        # Bilinear form does not suppoert delta coefficent
-        return [WF_EssentialPoint]
+        pnts = super(WF, self).get_possible_point()
+        if self.ndim == 1:
+            return pnts
+        else:
+            from petram.phys.wf.wf_essential import WF_EssentialPoint
+            return [WF_EssentialPoint] + pnts
 
     def get_possible_pair(self):
         from petram.phys.wf.wf_pairs import WF_PeriodicBdr
@@ -308,8 +309,8 @@ class WF(PhysModule):
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
         suffix = self.dep_vars_suffix
 
-        #from petram.helper.variables import TestVariable
-        #v['debug_test'] =  TestVariable()
+        # from petram.helper.variables import TestVariable
+        # v['debug_test'] =  TestVariable()
 
         add_coordinates(v, ind_vars)
         add_surf_normals(v, ind_vars)

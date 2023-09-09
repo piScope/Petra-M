@@ -1212,11 +1212,11 @@ class PhysModule(Phys):
         return [WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint]
 
     def get_possible_point(self):
-        from petram.phys.wf.wf_constraints import WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint
-        #from wf_essential import WF_Essential
-        # return [WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint]
-        # Bilinear form does not suppoert delta coefficent
-        return [WF_WeakPointLinConstraint]
+        from petram.phys.wf.wf_constraints import (WF_WeakPointBilinConstraint,
+                                                   WF_WeakPointLinConstraint)
+
+        # (note) BilinearForm does not suppoert delta coefficent
+        return [WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint]
 
     def get_possible_child(self):
         from petram.phys.aux_variable import AUX_Variable
