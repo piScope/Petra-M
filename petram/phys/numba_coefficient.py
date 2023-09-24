@@ -495,6 +495,47 @@ class NumbaCoefficient():
 
         return NumbaCoefficient(coeff)
 
+    def conj(self):
+        '''
+        generate conjugate
+        '''
+        from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
+
+        func = '\n'.join(['def f(ptx, val):',
+                          '    return npconj(val)'])
+
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+
+        if self.ndim == 0:
+            coeff = mfem.jit.scalar(complex=self.complex,
+                                    dependency=dep,
+                                    interface="simple",
+                                    debug=numba_debug)(l["f"])
+        elif self.ndim == 1:
+            coeff = mfem.jit.vector(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    shape=self.shape)(l["f"])
+
+        elif self.ndim == 2:
+            coeff = mfem.jit.matrix(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    shape=self.shape)(l["f"])
+
+        else:
+            assert False, "unsupported dim: dim=" + str(self.ndim)
+
+        return NumbaCoefficient(coeff)
+
     def __abs__(self, other):
         raise NotImplementedError
 
