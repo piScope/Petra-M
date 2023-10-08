@@ -536,6 +536,86 @@ class NumbaCoefficient():
 
         return NumbaCoefficient(coeff)
 
+    def dot(self, other):
+        '''
+        dot product matrix*matrix etc
+        '''
+        from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
+
+        assert len(self.shape) > 0, ".dot is defined only for vector/matrix"
+
+        if not isinstance(other, NumbaCoefficient):
+            if isinstance(ohter, (PhysVectorConstant,
+                                  PhysMatrixConstant,
+                                  PyComplexVectorConstant,
+                                  PyComplexMatrixConstant,)):
+                params = {"scale": other.value}
+            else:
+                params = {"scale": other}  # this assuems other is a number
+
+            func = '\n'.join(['def f(ptx, val):',
+                              '    return val.dot(scale)'])
+            is_other_complex = iscomplexobj(params["scale"])
+            other_shape = params["scale"].shape
+
+        else:
+            assert len(other.shape) > 0, "other must be vector/matrix"
+
+            dep = (self.mfem_numba_coeff, other.mfem_numba_coeff)
+
+            params = None
+            func = '\n'.join(['def f(ptx, val, scale):',
+                              '    return val.dot(scale)'])
+            is_other_complex = other.complex
+            other_shape = other.shape
+
+        if len(self.shape) == 2:
+            # matrix * matrix or matrix * vector
+            if len(other_shape) == 1:
+                assert self.shape[1] == other_shape[0], "dimenstion does not match (mat*vec)" + str(self.shape) + ":" + str(other_shape)
+                out_shape = (self.shape[0],)
+            else:
+                assert self.shape[1] == other_shape[0], "dimenstion does not match (mat*mat)" + str(self.shape) + ":" + str(other_shape)
+                out_shape = (self.shape[0], other_shape[1])
+        elif len(self.shape) == 1:
+            assert len(other_shape) == 1, "vector.dot only supports inner product"
+            assert self.shape[0] == other_shape[0],  "dimenstion does not match (vec*vec)" + str(self.shape) + ":" + str(other_shape)
+            out_shape = tuple()
+        else:
+            assert False, "should not come here (.dot)"
+
+        is_complex = self.complex or is_other_complex
+        
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        if len(out_shape) == 0:
+            coeff = mfem.jit.scalar(complex=is_complex,
+                                    dependency=dep,
+                                    interface="simple",
+                                    debug=numba_debug)(l["f"])
+        elif len(out_shape) == 1:
+            coeff = mfem.jit.vector(complex=is_complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    shape=out_shape)(l["f"])
+
+        elif len(out_shape) == 2:
+            coeff = mfem.jit.matrix(complex=is_complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    shape=out_shape)(l["f"])
+
+        else:
+            assert False, "unsupported dim: dim=" + str(self.ndim)
+
+        return NumbaCoefficient(coeff)
+        
     def __abs__(self, other):
         raise NotImplementedError
 
@@ -763,7 +843,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
         func_txt.append("   _out_ = _out_ * " + str(scale))
     if conj:
         func_txt.append("   _out_ = np.conj(_out_)")
-    #func_txt.append("   print(_out_)")
+    # func_txt.append("   print(_out_)")
 
     if jitter == mfem.jit.scalar:
         if return_complex:
@@ -804,7 +884,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
 def expr_to_numba_coeff(exprs, jitter, ind_vars, conj, scale, g, l, return_complex,
                         **kwargs):
     '''
-    ## generate a wrapper for multiple inputs
+    # generate a wrapper for multiple inputs
     def _func_(ptx, p1, p2, out)
         deps = [p1, p2]
         count = 0
