@@ -301,6 +301,9 @@ def interpret_job_queue_file(lines):
     lines = [x.strip() for x in lines if not x.startswith("#")
              if len(x.strip()) != 0]
 
+    if len(lines) == 0:
+        return None
+
     q = {'type': lines[0], 'queues': [],
          'scratch': "~/myscratch", "notice": [], "versions": {}}
     for l in lines[1:]:
