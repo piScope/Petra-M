@@ -273,16 +273,32 @@ class StandardSolver(SolverInstance):
             XX = None
 
         solall = linearsolver.Mult(BB, x=XX, case_base=0)
-        if solall is not None:
-            dprint1("solall.shape", solall.shape)
+
+        from petram.mfem_config import use_parallel
+        if use_parallel:
+            from mpi4py import MPI
+        else:
+            from petram.helper.dummy_mpi import MPI
+        myid = MPI.COMM_WORLD.rank
+        size = MPI.COMM_WORLD.size
+        is_sol_central = any(MPI.COMM_WORLD.allgather(solall is None))
+        ss = str(solall.shape) if solall is not None else "x"
+        ss = MPI.COMM_WORLD.gather(ss)
+        if ss is not None:
+            dprint1("solshape", ', '.join(ss))
 
         # linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         # solall = linearsolver.Mult(BB, case_base=0)
 
-        if not self.phys_real and self.gui.assemble_real:
-            solall = self.linearsolver_model.real_to_complex(solall, AA)
+        if is_sol_central:
+            if not self.phys_real and self.gui.assemble_real:
+                solall = self.linearsolver_model.real_to_complex(solall, AA)
+            A.reformat_central_mat(solall, 0, X[0], mask)
+        else:
+            if not self.phys_real and self.gui.assemble_real:
+                assert False, "this operation is not permitted"
+            A.reformat_distributed_mat(solall, 0, X[0], mask)
 
-        A.reformat_central_mat(solall, 0, X[0], mask)
         self.sol = X[0]
 
         # store probe signal (use t=0.0 in std_solver)

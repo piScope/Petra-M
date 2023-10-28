@@ -61,7 +61,9 @@ class MUMPSBase(LinearSolverModel):
                 ["scaling strategy (ICNTL8)", self.icntl8, 0, {}],
                 ["write inverse", self.write_inv, 3, {"text": ""}],
                 ["use float32", self.use_single_precision, 3, {"text": ""}],
-                ["use dist, RHS (only for MLsolver)", self.use_dist_rhs, 3, {"text": ""}], ]
+                ["use dist, RHS (only for MLsolver)",
+                 self.use_dist_rhs, 3, {"text": ""}],
+                ["use dist, SOL (dev.)", self.use_dist_sol, 3, {"text": ""}], ]
 
     def get_panel1_value(self):
         return (int(self.log_level), self.ordering, self.out_of_core,
@@ -71,7 +73,7 @@ class MUMPSBase(LinearSolverModel):
                 str(self.icntl23),
                 self.cntl1, self.cntl4, self.icntl10, self.cntl2,
                 self.icntl6, self.icntl8, self.write_inv,
-                self.use_single_precision, self.use_dist_rhs)
+                self.use_single_precision, self.use_dist_rhs, self.use_dist_sol)
 
     def import_panel1_value(self, v):
         self.log_level = int(v[0])
@@ -95,6 +97,7 @@ class MUMPSBase(LinearSolverModel):
         self.write_inv = v[18]
         self.use_single_precision = v[19]
         self.use_dist_rhs = v[20]
+        self.use_dist_sol = v[21]
 
     def attribute_set(self, v):
         v = super(MUMPSBase, self).attribute_set(v)
@@ -128,6 +131,7 @@ class MUMPSBase(LinearSolverModel):
         v['use_single_precision'] = False
         v['write_inv'] = False
         v['use_dist_rhs'] = False
+        v['use_dist_sol'] = True
 
         # make sure that old data type (data was stored as int) is converted to
         # string
@@ -882,7 +886,7 @@ class MUMPSSolver(LinearSolver):
 
         distributed_sol = (use_parallel and
                            nproc > 1 and
-                           self.keep_sol_distributed)  # if not std_solver
+                           (self.keep_sol_distributed or self.gui.use_dist_sol))
 
         if distributed_sol:
             lsol_loc, isol_loc, sol_loc = self.set_distributed_sol(s, nrhs)
@@ -929,6 +933,12 @@ class MUMPSSolver(LinearSolver):
         if distributed_sol:
             sol = self.redistributed_array(
                 sol_loc.flatten(), isol_loc, self.irhs_loc)
+
+            if self.gui.use_dist_sol:
+                sol = np.transpose(sol.reshape(nrhs, -1))
+            else:
+                # preconditioner mode. keep sol as it is
+                pass
         else:
             if myid == 0:
                 if self.is_complex:
