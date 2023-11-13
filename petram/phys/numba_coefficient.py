@@ -8,6 +8,7 @@
 '''
 from numpy.linalg import inv, det
 from numpy import conj as npconj
+from numpy import dot as npdot
 from numpy import array, zeros, iscomplexobj
 from petram.mfem_config import use_parallel
 
@@ -555,7 +556,7 @@ class NumbaCoefficient():
                 params = {"scale": other}  # this assuems other is a number
 
             func = '\n'.join(['def f(ptx, val):',
-                              '    return val.dot(scale)'])
+                              '    return npdot(val, scale)'])
             is_other_complex = iscomplexobj(params["scale"])
             other_shape = params["scale"].shape
 
@@ -566,7 +567,7 @@ class NumbaCoefficient():
 
             params = None
             func = '\n'.join(['def f(ptx, val, scale):',
-                              '    return val.dot(scale)'])
+                              '    return npdot(val, scale)'])
             is_other_complex = other.complex
             other_shape = other.shape
 
@@ -587,9 +588,9 @@ class NumbaCoefficient():
 
         is_complex = self.complex or is_other_complex
         
-        l = {}
         if numba_debug:
             print("(DEBUG) numba function\n", func)
+        l = {}
         exec(func, globals(), l)
 
         if len(out_shape) == 0:
