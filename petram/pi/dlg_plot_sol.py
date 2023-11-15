@@ -29,6 +29,9 @@ from petram.pi.simple_frame_plus import SimpleFramePlus
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Dlg_plot_sol')
 
+pane_colour1 = wx.Colour(245, 245, 245, 255)
+pane_colour2 = wx.Colour(235, 235, 235, 255)
+
 
 def setup_figure(fig, fig2):
     fig.nsec(1)
@@ -199,6 +202,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.elps = {}
         for t in tabs:
             p = wx.Panel(self.nb)
+            p.SetBackgroundColour(pane_colour1)
             self.nb.AddPage(p, t)
             self.pages[t] = p
 
@@ -261,22 +265,30 @@ class DlgPlotSol(SimpleFramePlus):
             if len(choices) == 0:
                 choices = ['no physcs in model']
 
-            elp1 = [['x:', '0 ', 500, {}],
-                    ['y:', '0 ', 500, {}],
+            elp1 = [['x:', '0', 500, {}],
+                    ['y:', '0', 500, {}],
                     ['z:', '0', 500, {}], ]
+            tip1 = ('x coordiantes of points',
+                    'y coordiantes of points',
+                    'z coordiantes of points',)
+
             elp2 = [['start point:', '0., 0., 0.', 0, {}],
                     ['end point:', '1., 0., 0.', 0, {}],
                     ['resolution:', '30', 0, {}], ]
+            tip2 = ('first edge of line',
+                    'second  of line',
+                    'number of points on line')
 
             ss = [None, None, 34, ({'text': '',
-                                    'choices': ['XYZ', 'Line'],
+                                    'choices': ['XYZ', 'Line  '],
+                                    'cb_tip': "Point could generation mode",
                                     'call_fit': False},
-                                   {'elp': elp1},
-                                   {'elp': elp2},)]
+                                   {'elp': elp1, 'tip': tip1},
+                                   {'elp': elp2, 'tip': tip2},)]
             ll = [
                 [
                     'Expression', '', 0, {}], ss, [
-                    'Domain Index', 'all', 4, {
+                    'Selection', 'all', 4, {
                         'style': wx.CB_DROPDOWN, 'choices': [
                             'all', 'visible', 'hidden']}], [
                         'NameSpace', choices[0], 4, {
@@ -284,7 +296,12 @@ class DlgPlotSol(SimpleFramePlus):
                                 None, False, 3, {
                                     "text": 'dynamic extension'}], ]
 
-            elp = EditListPanel(p, ll)
+            tip = ("Expression",
+                   None,
+                   "Selection of domain to evaluate points",
+                   "Namespace used to evaluate variabls",
+                   "Generate animation using phasing")
+            elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Points'] = elp
 
@@ -313,8 +330,12 @@ class DlgPlotSol(SimpleFramePlus):
             s4 = {"style": wx.TE_PROCESS_ENTER,
                   "choices": [str(x + 1) for x in range(10)]}
             ll = [['Expression', '', 500, {}],
+                  ["-> more...", None, None,
+                      {"tlb_resize_samewidth": True, "colour": pane_colour2}, ],
                   ['Expression(x)', '', 500, {}],
-                  ['Edge ', text, 500, {}],
+                  ["<-"],
+                  ['Selection', 'all', 4, {'style': wx.CB_DROPDOWN,
+                                           'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
                   [None, False, 3, {"text": 'dynamic extension'}],
@@ -322,7 +343,15 @@ class DlgPlotSol(SimpleFramePlus):
                   ['Refine', 1, 104, s4],
                   [None, True, 3, {"text": 'averaging'}], ]
 
-            elp = EditListPanel(p, ll)
+            tip = ("Expression", None, "Expression for x (2D plot)",
+                   None,
+                   "Selection of Boundary(2D geometry) or Domain (1D geometry) to plot",
+                   "Namespace to evaluate variables",
+                   "Gerante animation using phasing",
+                   None,
+                   "Data point refinement",
+                   None)
+            elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Edge'] = elp
 
@@ -355,9 +384,15 @@ class DlgPlotSol(SimpleFramePlus):
             s4 = {"style": wx.TE_PROCESS_ENTER,
                   "choices": [str(x + 1) for x in range(10)]}
             ll = [['Expression', '', 500, {}],
-                  ['Offset (x, y, z)', '0, 0, 0', 500, {}],
-                  ['Boundary Index', 'all', 4, {'style': wx.CB_DROPDOWN,
-                                                'choices': ['all', 'visible', 'hidden']}],
+                  ["-> more...", None, None,
+                      {"tlb_resize_samewidth": True, "colour": pane_colour2}, ],
+                  ['Offset X', '0', 500, {}],
+                  ['Offset Y', '0', 500, {}],
+                  ['Offset Z', '0', 500, {}],
+                  ['Scale', '1.0', 500, {}],
+                  ["<-"],
+                  ['Selection', 'all', 4, {'style': wx.CB_DROPDOWN,
+                                           'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
                   [None, False, 3, {"text": 'dynamic extenstion'}],
@@ -365,7 +400,19 @@ class DlgPlotSol(SimpleFramePlus):
                   ['Refine', 1, 104, s4],
                   [None, True, 3, {"text": 'averaging'}],
                   ['Decimate elements', '1', 0, {}, ], ]
-            elp = EditListPanel(p, ll)
+
+            tip = ("Expression", None,
+                   "Offset X (evaluated using solution namespace)",
+                   "Offset Y (evaluated using solution namespace)",
+                   "Offset Z (evaluated using solution namespace)",
+                   "Scaling coordiantes (evaluated using local namespace)", None,
+                   "Selection of Boundary(3D geometry) or Domain (2D geometry) to plot",
+                   "Namespace used to evaluate variables",
+                   "Generate animation using phasing",
+                   None,
+                   "Data point refienment", None, None,)
+
+            elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Bdr'] = elp
 
@@ -396,7 +443,8 @@ class DlgPlotSol(SimpleFramePlus):
             ll = [['Expression(u)', '', 500, {}],
                   ['Expression(v)', '', 500, {}],
                   ['Expression(w)', '', 500, {}],
-                  ['Boundary Index', text, 500, {}],
+                  ['Selection', 'all', 4, {'style': wx.CB_DROPDOWN,
+                                           'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
                   [None, False, 3, {
@@ -404,7 +452,11 @@ class DlgPlotSol(SimpleFramePlus):
                   [None, True, 3, {"text": 'merge solutions'}],
                   ['Arrow count', 300, 400, None], ]
 
-            elp = EditListPanel(p, ll)
+            tip = ("Expressoin for arrow (u)", "Expressoin for arrow (v)", "Expressoin for arrow (w)",
+                   "Selection of Boundary(3D geometry) or Domain (2D geometry) to plot",
+                   "Namespace used to evaluate variables",
+                   None, None, "Number of arrows")
+            elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Bdr(arrow)'] = elp
 
@@ -432,23 +484,31 @@ class DlgPlotSol(SimpleFramePlus):
                     ['first axis:', '1., 0., 0.', 0, {}],
                     ['resolution', '0.01', 0, {}], ]
 
+            txt1 = "\n".join(("ax + by + cz + d = 0, The parameters (a, b, c and/or d) can be 1D array",
+                              "with the same length to define multiple plane."))
             ss = [None, None, 34, ({'text': 'Rendering',
                                     'choices': ['Triangles', 'Grid'],
                                     'call_fit': False},
-                                   {'elp': elp1},
-                                   {'elp': elp2},), ]
+                                   {'elp': elp1, 'tip': [txt1]},
+                                   {'elp': elp2, 'tip': [txt1,
+                                                         "1st axis on the plane, 2nd one is normal to the first axis and (a, b, c)",
+                                                         "resolution of image"]},)]
 
             if len(choices) == 0:
                 choices = ['no physcs in model']
             ll = [['Expression', '', 500, {}],
                   ss,
-                  ['Domain Index', text, 500, {}],
+                  ['Selection', 'all', 4, {'style': wx.CB_DROPDOWN,
+                                           'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
                   [None, False, 3, {"text": 'dynamic extension'}],
                   [None, True, 3, {"text": 'merge solutions'}], ]
-
-            elp = EditListPanel(p, ll)
+            tip = ("Expression",  None,
+                   "Selection of volumes (3D geometry) or faces (2D)",
+                   "Namespace used to evaluate variables",
+                   None, None)
+            elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Slice'] = elp
 
@@ -535,6 +595,9 @@ class DlgPlotSol(SimpleFramePlus):
                                        "func": self.OnLoadLocalSol,
                                        "noexpand": True,
                                        "label": "Reload choices"}], ]
+            tip1 = ("Solution folder",
+                    "Subdirectory (for parametric scan/time-dependent sims.)",
+                    None)
             elp2 = [["Number of workers", self.config['mp_worker'], 400, ],
                     ["Sol", "sol", 504, {"choices_cb": self.local_sollist,
                                          "choices": ["sol", ], }],
@@ -545,6 +608,10 @@ class DlgPlotSol(SimpleFramePlus):
                                        "func": self.OnLoadLocalSol,
                                        "noexpand": True,
                                        "label": "Reload choices"}], ]
+            tip2 = ("Numboer of worker processes",
+                    "Solution folder",
+                    "Subdirectory (for parametric scan/time-dependent sims.)",
+                    None)
             elp3 = [["Server", self.config['cs_server'], 0, ],
                     ["Number of workers", self.config['cs_worker'], 400, ],
                     ["Sol dir.", self.config['cs_soldir'], 504,
@@ -556,14 +623,22 @@ class DlgPlotSol(SimpleFramePlus):
                                        "func": self.OnLoadRemoteSol,
                                        "noexpand": True,
                                        "label": "Reload choices"}], ]
+            tip3 = ("Remote server name",
+                    "Numboer of worker processes on remoter server",
+                    "Solution directory",
+                    "Subdirectory",
+                    None)
 
             choices = ['Single', 'MP', 'C/S']
+            tip = '\n'.join(("Single: plot local solution, MP: plot local solution with multiprocessing,",
+                             "C/S: plot solution on a remote server"))
             ll = [[None, None, 34, ({'text': "Worker Mode",
                                      'choices': choices,
+                                     'cb_tip': tip,
                                      'call_fit': False},
-                                    {'elp': elp1},
-                                    {'elp': elp2},
-                                    {'elp': elp3},), ], ]
+                                    {'elp': elp1, 'tip': tip1},
+                                    {'elp': elp2, 'tip': tip2},
+                                    {'elp': elp3, 'tip': tip3},), ], ]
 
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
@@ -1358,17 +1433,28 @@ class DlgPlotSol(SimpleFramePlus):
         value = self.elps['Bdr'] .GetValue()
         expr = str(value[0]).strip()
 
-        if value[4]:
+        if value[7]:
             from ifigure.widgets.wave_viewer import WaveViewer
             cls = WaveViewer
         else:
             cls = None
-        refine = int(value[6])
-        use_pointfill = int(value[8]) > 1
+        refine = int(value[9])
+        use_pointfill = int(value[11]) > 1
         data, battrs = self.eval_bdr(mode='plot', refine=refine)
         if data is None:
             return
-        self.post_threadend(self.make_plot_bdr, data, battrs,
+
+        scale = str(value[4]).strip()
+        if scale.strip() != "":
+            model = self.GetParent().model
+            mfem_model = model.param.getvar('mfem_model')
+            phys_path = value[6]
+            phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
+            scale = eval(scale, {}, phys_ns)
+        else:
+            scale = 1.0
+
+        self.post_threadend(self.make_plot_bdr, data, battrs, scale,
                             cls=cls, expr=expr,
                             use_pointfill=use_pointfill)
 
@@ -1376,6 +1462,7 @@ class DlgPlotSol(SimpleFramePlus):
             self,
             data,
             battrs,
+            scale,
             cls=None,
             expr='',
             use_pointfill=False):
@@ -1402,7 +1489,7 @@ class DlgPlotSol(SimpleFramePlus):
                                    for k, c in zip(kk, cdata)])
             array_idx = array_idx + 1
 
-            verts = np.vstack(verts)
+            verts = np.vstack(verts)*scale
             cdata = np.hstack(cdata)
             idata = np.vstack(idata)
             idata = idata + np.atleast_2d(offsets_idx).transpose()
@@ -1448,7 +1535,7 @@ class DlgPlotSol(SimpleFramePlus):
 
         print("Area Ingegration")
         print("Expression : " + expr)
-        print("Boundary Index :" + str(list(battrs)))
+        print("Boundary Index :" + str(battrs))
         print("Value : " + str(integ))
 
     def onExportBdr(self, evt):
@@ -1508,10 +1595,10 @@ class DlgPlotSol(SimpleFramePlus):
         value = self.elps['Bdr'] .GetValue()
 
         expr = str(value[0]).strip()
-        battrs = str(value[2])
-        phys_path = value[3]
+        battrs = str(value[5])
+        phys_path = value[6]
         if mode == 'plot':
-            do_merge1 = value[5]
+            do_merge1 = value[8]
             do_merge2 = True
         elif mode == 'integ':
             do_merge1 = True
@@ -1520,8 +1607,8 @@ class DlgPlotSol(SimpleFramePlus):
             do_merge1 = False
             do_merge2 = False
 
-        average = value[7]
-        decimate = int(value[8])
+        average = value[10]
+        decimate = int(value[11])
         data, battrs2 = self.evaluate_sol_bdr(expr, battrs, phys_path,
                                               do_merge1, do_merge2,
                                               export_type=export_type,
@@ -1531,9 +1618,11 @@ class DlgPlotSol(SimpleFramePlus):
         if data is None:
             return None, None
 
-        uvw = str(value[1]).split(',')
+        uvw = (str(value[1]), str(value[2]), str(value[3]),)
         if len(uvw) == 3:
             for kk, expr in enumerate(uvw):
+                if expr.strip() == '':
+                    continue
                 try:
                     u = float(expr.strip())
                     isfloat = True
@@ -1705,6 +1794,48 @@ class DlgPlotSol(SimpleFramePlus):
         viewer.lighting(light=0.5)
         viewer.update(True)
 
+    def process_abcd(self, abcd_txt, phys_ns):
+        ll = {"YZ": _YZ((1, 0, 0., 0)),
+              "XY": _XY((0., 0, 1., 0)),
+              "ZX": _ZX((0., 1, 0., 0)),
+              "yz": _YZ((1, 0, 0., 0)),
+              "xy": _XY((0., 0, 1., 0)),
+              "zx": _ZX((0., 1, 0., 0)), }
+        # add all combinations
+        ll["ZY"] = ll["YZ"]
+        ll["zy"] = ll["YZ"]
+        ll["YX"] = ll["XY"]
+        ll["yx"] = ll["XY"]
+        ll["XZ"] = ll["ZX"]
+        ll["xz"] = ll["ZX"]
+
+        abcd_value = eval(abcd_txt, ll, phys_ns)
+
+        lens = [1, 1, 1, 1]
+        for i in range(4):
+            try:
+                lens[i] = len(abcd_value[i])
+            except TypeError:
+                pass
+        num_planes = max(lens)
+        planes = [None]*4
+
+        for i in range(4):
+            if lens[i] == 1:
+                planes[i] = [abcd_value[i]]*num_planes
+            elif lens[i] == num_planes:
+                planes[i] = abcd_value[i]
+            else:
+                if param is None:
+                    wx.CallAfter(
+                        dialog.showtraceback,
+                        parent=self,
+                        txt='Can not determin planes',
+                        title='Error',
+                        traceback='a, b, c, d has to have the same lenght when multiple planes are defined',)
+                return None
+        return planes
+
 #    to time this routine, we turn on this decorator
 #    from petram.debug import use_profiler
 #    @use_profiler
@@ -1777,43 +1908,72 @@ class DlgPlotSol(SimpleFramePlus):
             zz = np.atleast_1d(eval(pc_value[2], ll, phys_ns))
             pc_param = {'pc_type': 'xyz',
                         'pc_param': np.stack([xx, yy, zz], -1)}
+            ptx, data, attrs_out = self.evaluate_pointcloud(
+                expr, attrs, phys_path, **pc_param)
+
+            return ptx, data, attrs_out, attrs, pc_param
 
         elif pc_mode == 'Line':
             sp = tuple(np.atleast_1d(eval(pc_value[0], ll, phys_ns)))
             ep = tuple(np.atleast_1d(eval(pc_value[1], ll, phys_ns)))
             num = int(eval(pc_value[2], ll, phys_ns))
             pc_param = {'pc_type': 'line', 'pc_param': (sp, ep, num)}
+            ptx, data, attrs_out = self.evaluate_pointcloud(
+                expr, attrs, phys_path, **pc_param)
+
+            return ptx, data, attrs_out, attrs, pc_param
 
         elif pc_mode == 'CutPlane':
-            abcd = list(np.atleast_1d(eval(pc_value[0], ll, phys_ns)))
-            #origin = list(np.atleast_1d(eval(pc_value[1][3][1], ll, phys_ns)))
+            planes = self.process_abcd(pc_value[0], phys_ns)
+            if planes is None:
+                return None, None, None, None, None
+
+            params = []
             e1 = list(np.atleast_1d(eval(pc_value[1], ll, phys_ns)))
             res = float(eval(pc_value[2], ll, phys_ns))
-
             from petram.helper.geom import find_cp_pc_parameter
-            param = find_cp_pc_parameter(
-                mesh, abcd, e1, gsize=res, attrs=attrs)
-            if param is None:
+            for abcd in zip(*planes):
+                param = find_cp_pc_parameter(
+                    mesh, abcd, e1, gsize=res, attrs=attrs)
+                if param is not None:
+                    param = (tuple(param["origin"]),
+                             tuple(param["e1"]),
+                             tuple(param["e2"]),
+                             tuple(param["x"]),
+                             tuple(param["y"]),)
+
+                params.append(param)
+
+            if len(params) == 0:
                 wx.CallAfter(
                     dialog.showtraceback,
                     parent=self,
                     txt='No point is found',
                     title='Error',
-                    traceback='Cut plane does not intersect with geometry')
+                    traceback='Some cut plane does not intersect with geometry')
                 return None, None, None, None, None
-            param = (tuple(param["origin"]),
-                     tuple(param["e1"]),
-                     tuple(param["e2"]),
-                     tuple(param["x"]),
-                     tuple(param["y"]),)
-            pc_param = {'pc_type': 'cutplane', 'pc_param': param}
+
+            ptx_list = []
+            data_list = []
+            attrs_out_list = []
+            attrs_list = []
+            pc_param_list = []
+
+            for param in params:
+                pc_param = {'pc_type': 'cutplane', 'pc_param': param}
+                ptx, data, attrs_out = self.evaluate_pointcloud(
+                    expr, attrs, phys_path, **pc_param)
+
+                ptx_list.append(ptx)
+                data_list.append(data)
+                attrs_out_list.append(attrs_out)
+                attrs_list.append(attrs)
+                pc_param_list.append(pc_param)
+
+            return ptx_list, data_list, attrs_out_list, attrs_list, pc_param_list
+
         else:
             return None, None, None, None, None
-
-        ptx, data, attrs_out = self.evaluate_pointcloud(
-            expr, attrs, phys_path, **pc_param)
-
-        return ptx, data, attrs_out, attrs, pc_param
 
     def get_attrs_field_Points(self):
         return 2
@@ -2129,7 +2289,8 @@ class DlgPlotSol(SimpleFramePlus):
             cls = None
 
         if value[1][0] == 'Triangles':
-            data, battrs = self.eval_slice(mode='plot')
+            phys_path = value[3]
+            data, battrs = self.eval_slice(phys_path, mode='plot')
             if data is None:
                 wx.CallAfter(self.set_title_no_status)
                 return
@@ -2140,61 +2301,82 @@ class DlgPlotSol(SimpleFramePlus):
                 data = {'data': data}
                 return data
             else:
-                self.post_threadend(self.make_plot_slice, data, battrs,
-                                    cls=cls, expr=expr)
+                self.post_threadend(self.make_plot_slice,
+                                    data, battrs, cls=cls, expr=expr)
+                return
+
         elif value[1][0] == 'Grid':
             attrs = str(value[2])
             phys_path = value[3]
             pc_mode = 'CutPlane'
             pc_value = value[1][2]
-
-            ptx, data, attrs_out, attrs, pc_param = self.eval_pointcloud(
+            ptx_list, data_list, attrs_out_list, attrs_list, pc_param_list = self.eval_pointcloud(
                 expr, attrs, phys_path, pc_mode, pc_value, mode='plot')
 
-            if data is None:
-                return
+            num = 1
+            dataset = []
 
-            pc_param = pc_param['pc_param']
-            im_center = pc_param[0]
-            im_axes = (pc_param[1], pc_param[2])
-            midx = (pc_param[3][0] + pc_param[3][1]) / 2.0
-            midy = (pc_param[4][0] + pc_param[4][1]) / 2.0
-            xmin, xmax, xsize = pc_param[3]
-            ymin, ymax, ysize = pc_param[4]
+            for ptx, data, attrs_out, attrs, pc_param in zip(ptx_list, data_list, attrs_out_list,
+                                                             attrs_list, pc_param_list):
 
-            x = np.linspace(xmin, xmax, int((xmax - xmin) / xsize))
-            y = np.linspace(ymin, ymax, int((ymax - ymin) / ysize))
+                if data is None:
+                    continue
 
-            if mode == 'export':
-                data = {'data': data, 'x': x, 'y': y,
-                        'im_axes': im_axes, 'im_center': im_center}
-                self.export_to_piScope_shell(data, 'slice_data')
-            elif mode == 'export_return':
-                data = {'data': data, 'x': x, 'y': y,
-                        'im_axes': im_axes, 'im_center': im_center}
-                return data
-            else:
+                pc_param = pc_param['pc_param']
+                im_center = pc_param[0]
+                im_axes = (pc_param[1], pc_param[2])
+                midx = (pc_param[3][0] + pc_param[3][1]) / 2.0
+                midy = (pc_param[4][0] + pc_param[4][1]) / 2.0
+                xmin, xmax, xsize = pc_param[3]
+                ymin, ymax, ysize = pc_param[4]
+
+                x = np.linspace(xmin, xmax, int((xmax - xmin) / xsize))
+                y = np.linspace(ymin, ymax, int((ymax - ymin) / ysize))
+
+                suffix = "_plane"+str(num)
+                if mode == 'export':
+                    data = {'data'+suffix: data, 'x'+suffix: x, 'y'+suffix: y,
+                            'im_axes'+suffix: im_axes, 'im_center'+suffix: im_center}
+                    self.export_to_piScope_shell(data, 'slice_data')
+                elif mode == 'export_return':
+                    data = {'data'+suffix: data, 'x'+suffix: x, 'y'+suffix: y,
+                            'im_axes'+suffix: im_axes, 'im_center'+suffix: im_center}
+                    dataset.append(data)
+                else:
+                    data = {'data': data, 'x': x, 'y': y,
+                            'im_axes': im_axes, 'im_center': im_center,
+                            'attrs_out': attrs_out,
+                            'attrs': attrs}
+                    dataset.append(data)
+                num = num+1
+
+            if mode == 'export_return':
+                return dataset
+            elif mode == 'plot':
                 self.post_threadend(
                     self.make_plot_pc_slice,
-                    data,
-                    attrs_out,
-                    attrs,
-                    x, y, im_axes, im_center,
+                    dataset,
                     cls=cls,
                     expr=expr)
 
-    def make_plot_slice(self, data, battrs, cls=None, expr=''):
+    def make_plot_slice(self, dataset, battrsset, cls=None, expr=''):
         from ifigure.interactive import figure
         v = figure(viewer=cls)
         v.update(False)
         setup_figure(v, self.GetParent())
-        v.suptitle(expr + ':' + str(battrs))
-        for verts, cdata, adata in data:
-            if cls is None:
-                v.solid(verts, adata, cz=True, cdata=cdata.astype(float),
-                        shade='linear')
-            else:
-                v.solid(verts, adata, cz=True, cdata=cdata, shade='linear')
+
+        first = True
+        for data,  battrs in zip(dataset, battrsset):
+            if first:
+                v.suptitle(expr + ':' + str(battrs))
+                first = False
+            for verts, cdata, adata in data:
+                if cls is None:
+                    v.solid(verts, adata, cz=True, cdata=cdata.astype(float),
+                            shade='linear')
+                else:
+                    v.solid(verts, adata, cz=True, cdata=cdata, shade='linear')
+
         v.update(True)
         v.view('noclip')
         v.view('equal')
@@ -2206,51 +2388,61 @@ class DlgPlotSol(SimpleFramePlus):
         v.lighting(light=0.5)
         v.update(True)
 
-    def make_plot_pc_slice(
-            self,
-            data,
-            attrs_out,
-            attrs,
-            x, y,
-            im_axes, im_center,
-            cls=None,
-            expr=False):
+    def make_plot_pc_slice(self, dataset, cls=None, expr=False):
+
         from ifigure.interactive import figure
         viewer = figure(viewer=cls)
         viewer.update(False)
         setup_figure(viewer, self.GetParent())
-        viewer.suptitle(expr + ':' + str(attrs))
-
         viewer.threed('on')
-        if cls is None:
-            data = np.ma.masked_array(
-                data.real, mask=np.in1d(
-                    attrs_out, attrs, invert=True))
-        else:
-            data = np.ma.masked_array(
-                data, mask=np.in1d(
-                    attrs_out, attrs, invert=True))
-        viewer.image(x, y, data, im_axes=im_axes, im_center=im_center)
 
-        viewer.view('noclip')
-        viewer.view('equal')
-        ax = self.GetParent().get_axes()
-        param = ax.get_axes3d_viewparam(ax._artists[0])
-        ax2 = viewer.get_axes()
-        ax2.set_axes3d_viewparam(param, ax2._artists[0])
-        viewer.lighting(light=0.5)
+        first = True
+        for d in dataset:
+            data = d['data']
+            attrs_out = d['attrs_out']
+            attrs = d['attrs']
+            x = d['x']
+            y = d['y']
+            im_axes = d['im_axes']
+            im_center = d['im_center']
+
+            if first:
+                viewer.suptitle(expr + ':' + str(attrs))
+                first = False
+            if cls is None:
+                data = np.ma.masked_array(
+                    data.real, mask=np.in1d(
+                        attrs_out, attrs, invert=True))
+            else:
+                data = np.ma.masked_array(
+                    data, mask=np.in1d(
+                        attrs_out, attrs, invert=True))
+            viewer.image(x, y, data, im_axes=im_axes, im_center=im_center)
+
+            viewer.view('noclip')
+            viewer.view('equal')
+            ax = self.GetParent().get_axes()
+            param = ax.get_axes3d_viewparam(ax._artists[0])
+            ax2 = viewer.get_axes()
+            ax2.set_axes3d_viewparam(param, ax2._artists[0])
+            viewer.lighting(light=0.5)
+
         viewer.update(True)
 
     def get_attrs_field_Slice(self):
         return 2
 
-    def eval_slice(self, mode='plot'):
-        from petram.sol.evaluators import area_tri
+    def eval_slice(self, phys_path, mode='plot'):
+        model = self.GetParent().model
+        mfem_model = model.param.getvar('mfem_model')
+        phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
+
         value = self.elps['Slice'] .GetValue()
 
         expr = str(value[0]).strip()
-        #plane = [float(x) for x in str(value[1]).split(',')]
-        plane = str(value[1][1][0])
+
+        planes = self.process_abcd(str(value[1][1][0]), phys_ns)
+
         attrs = str(value[2])
         phys_path = value[3]
         if mode == 'plot':
@@ -2259,12 +2451,19 @@ class DlgPlotSol(SimpleFramePlus):
         else:
             do_merge1 = True
             do_merge2 = False
-        data, verts = self.evaluate_sol_slice(expr, attrs, plane, phys_path,
-                                              do_merge1, do_merge2)
 
-        if data is None:
+        dataset = []
+        attrsset = []
+        for plane in zip(*planes):
+            data, battrs = self.evaluate_sol_slice(expr, attrs, plane, phys_path,
+                                                   do_merge1, do_merge2)
+            if data is not None:
+                dataset.append(data)
+                attrsset.append(battrs)
+
+        if len(dataset) == 0:
             return None, None
-        return data, verts
+        return dataset, attrsset
 
     '''
     integral
@@ -2609,27 +2808,8 @@ class DlgPlotSol(SimpleFramePlus):
         model = self.GetParent().model
         solfiles = self.get_model_soldfiles()
         mfem_model = model.param.getvar('mfem_model')
-
         phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
-        ll = {"YZ": _YZ((1, 0, 0., 0)),
-              "XY": _XY((0., 0, 1., 0)),
-              "ZX": _ZX((0., 1, 0., 0)),
-              "yz": _YZ((1, 0, 0., 0)),
-              "xy": _XY((0., 0, 1., 0)),
-              "zx": _ZX((0., 1, 0., 0)), }
-        # add all combinations
-        ll["ZY"] = ll["YZ"]
-        ll["zy"] = ll["YZ"]
-        ll["YX"] = ll["XY"]
-        ll["yx"] = ll["XY"]
-        ll["XZ"] = ll["ZX"]
-        ll["xz"] = ll["ZX"]
-
-        try:
-            plane = list(eval(plane, ll, phys_ns))
-        except BaseException:
-            traceback.print_exc()
-            assert False, "Failed to evaluate plane " + plane
+        ll = {}
 
         if solfiles is None:
             wx.CallAfter(dialog.showtraceback, parent=self,
