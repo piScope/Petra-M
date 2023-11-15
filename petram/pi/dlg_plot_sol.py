@@ -1933,7 +1933,6 @@ class DlgPlotSol(SimpleFramePlus):
             res = float(eval(pc_value[2], ll, phys_ns))
             from petram.helper.geom import find_cp_pc_parameter
             for abcd in zip(*planes):
-                print("abcd", abcd)
                 param = find_cp_pc_parameter(
                     mesh, abcd, e1, gsize=res, attrs=attrs)
                 if param is not None:
@@ -2456,7 +2455,6 @@ class DlgPlotSol(SimpleFramePlus):
         dataset = []
         attrsset = []
         for plane in zip(*planes):
-            print(plane)
             data, battrs = self.evaluate_sol_slice(expr, attrs, plane, phys_path,
                                                    do_merge1, do_merge2)
             if data is not None:
