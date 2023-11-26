@@ -723,12 +723,22 @@ class DomainVariable(Variable):
 
     def add_expression(self, expr, ind_vars, domains, gdomain, complex=False):
         domains = sorted(domains)
-        # print 'adding expression expr',expr, domains
-        self.domains[tuple(domains)] = ExpressionVariable(expr, ind_vars,
+
+        doms = tuple(domains)
+
+        duplicate = []
+        for d in doms:
+            for key in self.domains:
+                if d in key:
+                    duplicate.append(d)
+
+        self.domains[doms] = ExpressionVariable(expr, ind_vars,
                                                           complex=complex)
-        self.gdomains[tuple(domains)] = gdomain
+        self.gdomains[doms] = gdomain
         if complex:
             self.complex = True
+
+        return duplicate
 
     def add_const(self, value, domains, gdomain):
         domains = sorted(domains)
@@ -2300,16 +2310,21 @@ def add_component_expression(solvar, name, suffix, ind_vars, expr, vars,
     cname = name + suffix + componentname
     if domains is not None:
         if (cname) in solvar:
-            solvar[cname].add_expression(expr, ind_vars, domains,
+            dup = solvar[cname].add_expression(expr, ind_vars, domains,
                                          gdomain,
                                          complex=complex)
+            if len(dup) != 0:
+                 print("!!!  " + name + " is already set in domain/boundary "
+                       + str(dup))
+
         else:
             solvar[cname] = DomainVariable(expr, ind_vars,
                                            domains=domains,
                                            complex=complex,
                                            gdomain=gdomain)
     elif bdrs is not None:
-        pass
+        assert False, "BoundaryVariable not implemented."
+
     else:
         solvar[cname] = ExpressionVariable(expr, ind_vars,
                                            complex=complex)
@@ -2323,16 +2338,21 @@ def add_expression(solvar, name, suffix, ind_vars, expr, vars,
 
     if domains is not None:
         if (name + suffix) in solvar:
-            solvar[name + suffix].add_expression(expr, ind_vars, domains,
+            dup = solvar[name + suffix].add_expression(expr, ind_vars, domains,
                                                  gdomain,
                                                  complex=complex)
+            if len(dup) != 0:
+                 print("!!!  " + name + " is already set in domain/boundary "
+                       + str(dup))
+
         else:
             solvar[name + suffix] = DomainVariable(expr, ind_vars,
                                                    domains=domains,
                                                    complex=complex,
                                                    gdomain=gdomain)
     elif bdrs is not None:
-        pass
+        assert False, "BoundaryVariable not implemented."
+
     else:
         solvar[name + suffix] = ExpressionVariable(expr, ind_vars,
                                                    complex=complex)
