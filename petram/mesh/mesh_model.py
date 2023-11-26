@@ -97,10 +97,10 @@ class MFEMMesh(Model):
         try:
             from petram.mesh.pumimesh_model import PumiMesh
             return [MeshFile, PumiMesh, Mesh1D, Mesh2D, Mesh3D,
-                    UniformRefinement, DomainRefinement, BoundaryRefinement]
+                    UniformRefinement, DomainRefinement, BoundaryRefinement, Scale]
         except BaseException:
             return [MeshFile, Mesh1D, Mesh2D, Mesh3D, UniformRefinement,
-                    DomainRefinement, BoundaryRefinement]
+                    DomainRefinement, BoundaryRefinement, Scale]
 
     def get_possible_child_menu(self):
         try:
@@ -110,6 +110,7 @@ class MFEMMesh(Model):
                     ("", Mesh2D),
                     ("", Mesh3D),
                     ("!", PumiMesh),
+                    ("", Scale),
                     ("Refinement...", UniformRefinement),
                     ("", DomainRefinement),
                     ("!", BoundaryRefinement)]
@@ -118,13 +119,14 @@ class MFEMMesh(Model):
                     ("Other Meshes", Mesh1D),
                     ("", Mesh2D),
                     ("!", Mesh3D),
+                    ("", Scale),
                     ("Refinement...", UniformRefinement),
                     ("", DomainRefinement),
                     ("!", BoundaryRefinement)]
 
     def panel1_param(self):
         if not hasattr(self, "_topo_check_char"):
-            self._topo_check_char = "\n".join([' '*15,' '*15,' '*15,' '*15])
+            self._topo_check_char = "\n".join([' '*15, ' '*15, ' '*15, ' '*15])
             self._invalid_data = None
         import wx
         return [[None, None, 341, {"label": "Reload mesh",
@@ -162,7 +164,7 @@ class MFEMMesh(Model):
     def get_special_menu(self, evt):
         # menu =[["Reload Mesh", self.reload_mfem_mesh, None,],]
         menu = [["+Mesh parameters...", None, None],
-                ["Plot low quality elements", self.plot_lowqualities, None],]
+                ["Plot low quality elements", self.plot_lowqualities, None], ]
 
         if (self._invalid_data is not None and
                 len(self._invalid_data[0]) > 0):
@@ -200,15 +202,16 @@ class MFEMMesh(Model):
             if mesh is None:
                 out = 'Mesh is not loaded'
             else:
-                invalids, invalid_attrs, inverted, sj_min_max = find_invalid_topology(mesh)
+                invalids, invalid_attrs, inverted, sj_min_max = find_invalid_topology(
+                    mesh)
                 if sj_min_max[0] < 0:
                     out = "\n".join(["Some elements are inverted",
                                      "min(ScaledJac) = " + str(sj_min_max[0]),
-                                     "max(ScaledJac) = " + str(sj_min_max[1]),])
+                                     "max(ScaledJac) = " + str(sj_min_max[1]), ])
                 elif len(invalids) == 0:
                     out = "\n".join(["No error",
                                      "min(ScaledJac) = " + str(sj_min_max[0]),
-                                     "max(ScaledJac) = " + str(sj_min_max[1]),])
+                                     "max(ScaledJac) = " + str(sj_min_max[1]), ])
                 else:
                     out = format_error(invalids, invalid_attrs, inverted)
                 self._invalid_data = invalids, invalid_attrs, inverted, sj_min_max
@@ -935,6 +938,43 @@ class UniformRefinement(Mesh):
             return mesh
         for i in range(int(self.num_refine)):
             mesh.UniformRefinement()  # this is parallel refinement
+        return mesh
+
+
+class Scale(Mesh):
+    def attribute_set(self, v):
+        v = super(Scale, self).attribute_set(v)
+        v['scale'] = '1.0, 1.0, 1.0'
+        v['scale_ns'] = 'global'
+        return v
+
+    def panel1_param(self):
+        return [["scale", self.scale, 0, {}, ],
+                ["NS for expr.", self.scale_ns, 0, {}], ]
+
+    def import_panel1_value(self, v):
+        self.scale = str(v[0])
+        self.scale_ns = str(v[1])
+
+    def get_panel1_value(self):
+        return (str(self.scale),
+                str(self.scale_ns), )
+
+    def run(self, mesh):
+        if self.scale != '':
+            code = compile(self.scale, '<string>', 'eval')
+            names = list(code.co_names)
+            ns_obj, ns_g = self.find_ns_by_name(self.scale_ns)
+
+        ll = {}
+        value = eval(code, ns_g, ll)
+
+        sdim = mesh.SpaceDimension()
+        # nicePrint("refining elements domain choice", domains)
+        for v in mesh.GetVertexArray():
+            for i in range(sdim):
+                v[i] = v[i]*value[i]
+
         return mesh
 
 

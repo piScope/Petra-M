@@ -154,6 +154,9 @@ class PointcloudEvaluator(EvaluatorAgent):
         attrs = [mesh.GetAttribute(id) if id != -1 else -1 for id in elem_ids]
         attrs = np.array([i if i in self.attrs else -1 for i in attrs])
 
+        elem_ids = [-1 if a == -1 else eid for a, eid in zip(attrs, elem_ids)]
+        counts = np.sum(np.array(elem_ids) != -1)
+
         self.elem_ids = elem_ids
         self.masked_attrs = attrs
 
@@ -250,6 +253,7 @@ class PointcloudEvaluator(EvaluatorAgent):
             # if expr does not involve Varialbe, evaluate code once
             # and generate an array
             val = np.array([eval(code, var_g2)]*len(self.locs))
+
         return val
 
     def eval(self, expr, solvars, phys):

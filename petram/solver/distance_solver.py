@@ -205,7 +205,10 @@ class DistanceSolverInstance(SolverInstance):
             filt_gf.ProjectCoefficient(ls_coeff)
             ls_filt_coeff = mfem.GridFunctionCoefficient(filt_gf)
 
-        ds.print_level = self.gui.log_level
+        # To DO FIX THIS
+        #print(ds.print_level)
+        #print(dir(ds.print_level))#.SetPrintLevel(self.gui.log_level)
+        #ds.print_level.FirstAndLast().Summary()
         ds.ComputeScalarDistance(ls_filt_coeff, r_x)
         if do_vector:
             ds.ComputeVectorDistance(ls_filt_coeff, dr_x)

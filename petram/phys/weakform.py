@@ -335,7 +335,7 @@ class WeakBilinIntegration(WeakIntegration):
                 {"style": wx.CB_READONLY, "choices": names}]]
         '''
         from petram.utils import pv_panel_param
-        ll1 = [pv_panel_param(self, "EM3D1 model"), ]
+        ll1 = [pv_panel_param(self, "paird var."), ]
 
         ll2 = super(WeakBilinIntegration, self).panel1_param()
         ll3 = [["make symmetric",  self.use_symmetric,   3, {"text": ""}],
