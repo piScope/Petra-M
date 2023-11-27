@@ -496,6 +496,70 @@ class Constant(Variable):
         return np.tile(self.value, shape)
 
 
+class SumVariable(Variable):
+    def __init__(self, variables, gvariables):
+        iscomplex = any([x.complex for x in variables])
+        super(SumVariable, self).__init__(complex=iscomplex)
+        self.variables = list(variables)
+        self.gvariables = list(gvariables)
+
+    def get_names(self):
+        ret = []
+        for x in self.variables:
+            ret.extend(x.get_names())
+
+        return ret
+
+    def add_expression(self, v, g):
+        self.complex = self.complex or v.complex
+        self.variables.append(v)
+        self.gvariables.append(g)
+
+    def set_point(self, T, ip, _g, l, t=None):
+        for v, g in zip(self.variables, self.gvariables):
+            v.set_point(T, ip, g, l, t=t)
+
+    def __call__(self, **kwargs):
+        g = kwargs.pop("g", {}).copy()
+
+        g.update(self.gvariables[0])
+        v1 = self.variables[0].__call__(g=g, **kwargs)
+        for v, g2 in zip(self.variables[1:], self.gvariables[1:]):
+            g.update(g2)
+            v1 = v1 + v.__call__(g=g, **kwargs)
+        return v1
+
+    def nodal_values(self, **kwargs):
+        g = kwargs.pop("g", {}).copy()
+
+        g.update(self.gvariables[0])
+        v1 = self.variables[0].nodal_values(g=g, **kwargs)
+        for v, g2 in zip(self.variables[1:], self.gvariables[1:]):
+            g.update(g2)
+            v1 = v1 + v.nodal_values(g=g, **kwargs)
+        return v1
+
+    def ncface_values(self, **kwargs):
+        g = kwargs.pop("g", {}).copy()
+
+        g.update(self.gvariables[0])
+        v1 = self.variables[0].ncface_values(g=g, **kwargs)
+        for v, g2 in zip(self.variables[1:], self.gvariables[1:]):
+            g.update(g2)
+            v1 = v1 + v.ncface_values(g=g, **kwargs)
+        return v1
+
+    def point_values(self, **kwargs):
+        g = kwargs.pop("g", {}).copy()
+
+        g.update(self.gvariables[0])
+        v1 = self.variables[0].point_values(g=g, **kwargs)
+        for v, g2 in zip(self.variables[1:], self.gvariables[1:]):
+            g.update(g2)
+            v1 = v1 + v.point_values(g=g, **kwargs)
+        return v1
+
+
 class CoordVariable(Variable):
     def __init__(self, comp=-1, complex=False):
         super(CoordVariable, self).__init__(complex=complex)
@@ -721,34 +785,52 @@ class DomainVariable(Variable):
     def __repr__(self):
         return "DomainVariable"
 
+    def _add_something(self, something, gsomething, domains):
+        doms = tuple(sorted(domains))
+
+        existing_domains = list(self.domains)
+        new_domains = tuple(np.setdiff1d(domains, sum(existing_domains, ())))
+
+        new_exprs = {}
+        new_gexprs = {}
+
+        if len(new_domains) > 0:
+            new_exprs[new_domains] = something
+            new_gexprs[new_domains] = gsomething
+
+        for ed in existing_domains:
+            diff = tuple(np.setdiff1d(ed, doms))
+            if len(diff) != 0:
+                new_exprs[diff] = self.domains[ed]
+                new_gexprs[diff] = self.gdomains[ed]
+            insct = tuple(np.intersect1d(ed, doms))
+            if len(insct) != 0:
+                if isinstance(ed, SumVariable):
+                    self.domains[ed].add_expression(something, gsomething)
+                    new_exprs[insct] = self.domains[ed]
+                    new_gexprs[insct] = {}
+                else:
+                    s = SumVariable(
+                        (self.domains[ed], something), (self.gdomains[ed], gsomething))
+                    new_exprs[insct] = s
+                    new_gexprs[insct] = {}
+
+        self.domains = new_exprs
+        self.gdomains = new_gexprs
+
     def add_expression(self, expr, ind_vars, domains, gdomain, complex=False):
-        domains = sorted(domains)
-
-        doms = tuple(domains)
-
-        print(self, doms, list(self.domains))
-        duplicate = []
-        for d in doms:
-            for key in self.domains:
-                if d in key:
-                    duplicate.append(d)
-
-        self.domains[doms] = ExpressionVariable(expr, ind_vars,
-                                                          complex=complex)
-        self.gdomains[doms] = gdomain
+        new_expr = ExpressionVariable(expr, ind_vars,
+                                      complex=complex)
+        self._add_something(new_expr, gdomain, domains)
         if complex:
             self.complex = True
 
-        return duplicate
-
     def add_const(self, value, domains, gdomain):
-        domains = sorted(domains)
+        new_expr = Constant(value)
+        self._add_something(new_expr, gdomain, domains)
 
-        self.domains[tuple(domains)] = Constant(value)
-        #self.domains[tuple(domains)] = value
-        self.gdomains[tuple(domains)] = gdomain
         if np.iscomplexobj(value):
-            self.complex = True
+            self.complex = self.complex and True
 
     def set_point(self, T, ip, g, l, t=None):
         attr = T.Attribute
@@ -833,6 +915,7 @@ class DomainVariable(Variable):
         idx = np.where(w != 0)[0]
         #ret2 = ret.copy()
         from petram.helper.right_broadcast import div
+
         ret[idx, ...] = div(ret[idx, ...], w[idx])
 
         return ret
@@ -872,8 +955,7 @@ class DomainVariable(Variable):
                 gdomain = g
             else:
                 gdomain = g.copy()
-                for key in self.gdomains[domains]:
-                    gdomain[key] = self.gdomains[domains][key]
+                gdomain.update(self.gdomains[domains])
 
             m = getattr(expr, method)
             #kwargs['weight'] = w2
@@ -2311,13 +2393,9 @@ def add_component_expression(solvar, name, suffix, ind_vars, expr, vars,
     cname = name + suffix + componentname
     if domains is not None:
         if (cname) in solvar:
-            dup = solvar[cname].add_expression(expr, ind_vars, domains,
+            solvar[cname].add_expression(expr, ind_vars, domains,
                                          gdomain,
                                          complex=complex)
-            if len(dup) != 0:
-                 print("!!!  " + cname + " is already set in domain/boundary "
-                       + str(dup))
-
         else:
             solvar[cname] = DomainVariable(expr, ind_vars,
                                            domains=domains,
@@ -2339,12 +2417,9 @@ def add_expression(solvar, name, suffix, ind_vars, expr, vars,
 
     if domains is not None:
         if (name + suffix) in solvar:
-            dup = solvar[name + suffix].add_expression(expr, ind_vars, domains,
+            solvar[name + suffix].add_expression(expr, ind_vars, domains,
                                                  gdomain,
                                                  complex=complex)
-            if len(dup) != 0:
-                 print("!!!  " + name + suffix + " is already set in domain/boundary "
-                       + str(dup))
 
         else:
             solvar[name + suffix] = DomainVariable(expr, ind_vars,
