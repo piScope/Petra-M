@@ -726,6 +726,7 @@ class DomainVariable(Variable):
 
         doms = tuple(domains)
 
+        print(self, doms, list(self.domains))
         duplicate = []
         for d in doms:
             for key in self.domains:
@@ -2314,7 +2315,7 @@ def add_component_expression(solvar, name, suffix, ind_vars, expr, vars,
                                          gdomain,
                                          complex=complex)
             if len(dup) != 0:
-                 print("!!!  " + name + " is already set in domain/boundary "
+                 print("!!!  " + cname + " is already set in domain/boundary "
                        + str(dup))
 
         else:
@@ -2342,7 +2343,7 @@ def add_expression(solvar, name, suffix, ind_vars, expr, vars,
                                                  gdomain,
                                                  complex=complex)
             if len(dup) != 0:
-                 print("!!!  " + name + " is already set in domain/boundary "
+                 print("!!!  " + name + suffix + " is already set in domain/boundary "
                        + str(dup))
 
         else:

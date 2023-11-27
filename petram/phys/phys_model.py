@@ -636,10 +636,10 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''
         pass
 
-    def add_domain_variables(self, v, n, suffix, ind_vars, solr, soli=None):
+    def add_domain_variables(self, v, n, suffix, ind_vars):
         pass
 
-    def add_bdr_variables(self, v, n, suffix, ind_vars, solr, soli=None):
+    def add_bdr_variables(self, v, n, suffix, ind_vars):
         pass
 
     def panel1_param(self):
@@ -1241,17 +1241,16 @@ class PhysModule(Phys):
                 soli = sol[1] if len(sol) > 1 else None
                 self.add_variables(variables, n, solr, soli)
 
-                # collect all definition from children
-                for mm in self.walk():
-                    if not mm.enabled:
-                        continue
-                    if mm is self:
-                        continue
+        # collect all definition (domain specific expressions) from children
+        for mm in self.walk():
+            if not mm.enabled:
+                continue
+            if mm is self:
+                continue
 
-                    mm.add_domain_variables(variables, n, suffix, ind_vars,
-                                            solr, soli)
-                    mm.add_bdr_variables(variables, n, suffix, ind_vars,
-                                         solr, soli)
+            mm.add_domain_variables(variables, n, suffix, ind_vars)
+            mm.add_bdr_variables(variables, n, suffix, ind_vars)
+
 
     def onItemSelChanged(self, evt):
         '''
