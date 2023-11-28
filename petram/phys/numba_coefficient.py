@@ -6,6 +6,8 @@
    utility to use NumbaCoefficient more easily
 
 '''
+import traceback
+
 from numpy.linalg import inv, det
 from numpy import conj as npconj
 from numpy import dot as npdot
@@ -574,20 +576,24 @@ class NumbaCoefficient():
         if len(self.shape) == 2:
             # matrix * matrix or matrix * vector
             if len(other_shape) == 1:
-                assert self.shape[1] == other_shape[0], "dimenstion does not match (mat*vec)" + str(self.shape) + ":" + str(other_shape)
+                assert self.shape[1] == other_shape[0], "dimenstion does not match (mat*vec)" + str(
+                    self.shape) + ":" + str(other_shape)
                 out_shape = (self.shape[0],)
             else:
-                assert self.shape[1] == other_shape[0], "dimenstion does not match (mat*mat)" + str(self.shape) + ":" + str(other_shape)
+                assert self.shape[1] == other_shape[0], "dimenstion does not match (mat*mat)" + str(
+                    self.shape) + ":" + str(other_shape)
                 out_shape = (self.shape[0], other_shape[1])
         elif len(self.shape) == 1:
-            assert len(other_shape) == 1, "vector.dot only supports inner product"
-            assert self.shape[0] == other_shape[0],  "dimenstion does not match (vec*vec)" + str(self.shape) + ":" + str(other_shape)
+            assert len(
+                other_shape) == 1, "vector.dot only supports inner product"
+            assert self.shape[0] == other_shape[0],  "dimenstion does not match (vec*vec)" + str(
+                self.shape) + ":" + str(other_shape)
             out_shape = tuple()
         else:
             assert False, "should not come here (.dot)"
 
         is_complex = self.complex or is_other_complex
-        
+
         if numba_debug:
             print("(DEBUG) numba function\n", func)
         l = {}
@@ -616,7 +622,7 @@ class NumbaCoefficient():
             assert False, "unsupported dim: dim=" + str(self.ndim)
 
         return NumbaCoefficient(coeff)
-        
+
     def __abs__(self, other):
         raise NotImplementedError
 
@@ -827,38 +833,56 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
         dependency.append(dep)
         dep_names.append(n)
 
-    f0 = 'def _func_(ptx, '
-    for n in dep_names:
-        f0 += n + ', '
-    f0 += '):'
-
-    func_txt = [f0]
-    for k, xx in enumerate(ind_vars):
-        func_txt.append("   " + xx + " = ptx[" + str(k) + "]")
-    func_txt.append("   _out_ =" + txt)
-    func_txt.append("   if isinstance(_out_, list):")
-    func_txt.append("         _out_ = np.array(_out_)")
-    func_txt.append("   elif isinstance(_out_, tuple):")
-    func_txt.append("         _out_ = np.array(_out_)")
-    if scale != 1:
-        func_txt.append("   _out_ = _out_ * " + str(scale))
-    if conj:
-        func_txt.append("   _out_ = np.conj(_out_)")
-    # func_txt.append("   print(_out_)")
-
     if jitter == mfem.jit.scalar:
-        if return_complex:
-            func_txt.append("   return np.complex128(_out_)")
-        else:
-            func_txt.append("   return np.float64(_out_)")
+        return_type = "complex128" if return_complex else "float64"
+    elif jitter == mfem.jit.vector:
+        return_type = "complex128[:]" if return_complex else "float64[:]"
+    elif jitter == mfem.jit.matrix:
+        return_type = "complex128[:,:]" if return_complex else "float64[:,:]"
     else:
-        if return_complex:
-            func_txt.append("   return _out_.astype(np.complex128)")
-        else:
-            func_txt.append("   return _out_.astype(np.float64)")
-    func_txt = "\n".join(func_txt)
+        assert False, "unknown jitter: " + str(type(jitter))
 
-    from petram.mfem_config import numba_debug
+    def create_func(objmode=False):
+        f0 = 'def _func_(ptx, '
+        for n in dep_names:
+            f0 += n + ', '
+        f0 += '):'
+
+        func_txt = [f0]
+        for k, xx in enumerate(ind_vars):
+            func_txt.append("   " + xx + " = ptx[" + str(k) + "]")
+        if objmode:
+            func_txt.append("   with objmode(_out_='"+return_type+"'):")
+            func_txt.append("       _out_ =" + txt)
+        else:
+            func_txt.append("   _out_ =" + txt)
+        func_txt.append("   if isinstance(_out_, list):")
+        func_txt.append("         _out_ = np.array(_out_)")
+        func_txt.append("   elif isinstance(_out_, tuple):")
+        func_txt.append("         _out_ = np.array(_out_)")
+        if scale != 1:
+            func_txt.append("   _out_ = _out_ * " + str(scale))
+        if conj:
+            func_txt.append("   _out_ = np.conj(_out_)")
+        # func_txt.append("   print(_out_)")
+
+        if jitter == mfem.jit.scalar:
+            if return_complex:
+                func_txt.append("   return np.complex128(_out_)")
+            else:
+                func_txt.append("   return np.float64(_out_)")
+        else:
+            if return_complex:
+                func_txt.append("   return _out_.astype(np.complex128)")
+            else:
+                func_txt.append("   return _out_.astype(np.float64)")
+        return func_txt
+
+    func_txt = "\n".join(create_func())
+
+    from petram.mfem_config import (numba_debug,
+                                    get_allow_python_function_coefficient)
+
     numba_debug = False if myid != 0 else numba_debug
 
     if numba_debug:
@@ -870,15 +894,53 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
                        dependency=dependency, **kwargs)(l["_func_"])
         del l["_func_"]
     except AssertionError:
+        if get_allow_python_function_coefficient() == "error":
+            if myid == 0:
+                traceback.print_exc()
+                print("Can not JIT coefficient")
+            return None
+        if myid == 0:
+            print("!!!! Failed to compile with nonpython mode. (next) Try object mode")
+
+    except BaseException:
+        if get_allow_python_function_coefficient() == "error":
+            if myid == 0:
+                traceback.print_exc()
+                print("Can not JIT coefficient")
+            return None
+        if myid == 0:
+            print("!!!! Failed to compile with nonpython mode. (next) Try object mode")
+
+    func_txt = "\n".join(create_func(True))
+
+    from petram.mfem_config import (numba_debug,
+                                    get_allow_python_function_coefficient)
+
+    numba_debug = False if myid != 0 else numba_debug
+
+    if numba_debug:
+        print("(DEBUG) wrapper function\n", func_txt)
+
+    exec(func_txt, g, l)
+
+    try:
+        from numba import objmode
+        coeff = jitter(sdim=len(ind_vars), complex=return_complex, debug=numba_debug,
+                       dependency=dependency, params={"objmode": objmode},
+                       **kwargs)(l["_func_"])
+        del l["_func_"]
+    except AssertionError:
         import traceback
         traceback.print_exc()
 
-        print("Can not JIT coefficient")
+        print("Can not JIT coefficient. No possible recoverly. ")
         return None
     except BaseException:
         import traceback
         traceback.print_exc()
+        print("Can not JIT coefficient. No possible recovery.")
         return None
+
     return NumbaCoefficient(coeff)
 
 
