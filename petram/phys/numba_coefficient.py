@@ -911,6 +911,9 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
         if myid == 0:
             print("!!!! Failed to compile with nonpython mode. (next) Try object mode")
 
+    else:
+        return NumbaCoefficient(coeff)
+    
     func_txt = "\n".join(create_func(True))
 
     from petram.mfem_config import (numba_debug,
