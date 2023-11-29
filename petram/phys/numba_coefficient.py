@@ -1,4 +1,3 @@
-
 '''
 
   NumbaCoefficient
@@ -913,7 +912,10 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
 
     else:
         return NumbaCoefficient(coeff)
-    
+
+    ### for the moment suppress objmode creation
+    ### return None
+
     func_txt = "\n".join(create_func(True))
 
     from petram.mfem_config import (numba_debug,
