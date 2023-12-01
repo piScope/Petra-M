@@ -701,7 +701,7 @@ class MUMPSSolver(LinearSolver):
         MPI.COMM_WORLD.Barrier()
         if not gui.restore_fac:
             if not self.silent:
-                dprint1("job1")
+                dprint1("job1", debug.format_memory_usage())
             s.set_job(1)
             s.run()
             info1 = s.get_info(1)
@@ -711,7 +711,7 @@ class MUMPSSolver(LinearSolver):
             if info1 > 0:
                 dprint1("MUMPS return warning", info1)
             if not self.silent:
-                dprint1("job2")
+                dprint1("job2", debug.format_memory_usage())
             s.set_icntl(13, 0)
             s.set_icntl(5, 0)
 
@@ -909,7 +909,7 @@ class MUMPSSolver(LinearSolver):
             s.set_icntl(3, -1)
             s.set_icntl(4, 0)
         else:
-            dprint1("job3")
+            dprint1("job3", debug.format_memory_usage())
 
         if not distributed_rhs and not distributed_sol:
             self.set_error_analysis(s)

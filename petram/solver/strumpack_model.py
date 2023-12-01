@@ -58,6 +58,7 @@ attr_names = ['log_level',
               'indirect_sampling',
               'replace_tiny_pivots',
               'compression_min_sep_size',
+              'compression_min_front_size',
               'compression_leaf_size',
               'separator_ordering_level',
               'hodlr_butterfly_levels',
@@ -132,14 +133,15 @@ class Strumpack(LinearSolverModel):
             ["agg_amalg", self.agg_amalg, 3, {"text": ""}],
             ["indirect_sampling", self.indirect_sampling, 3, {"text": ""}],
             ["replace_tiny_pivots", self.replace_tiny_pivots, 3, {"text": ""}],
-            ["compression min step", self.compression_min_sep_size, 0, {}],
+            ["compression min sep", self.compression_min_sep_size, 0, {}],
+            ["compression min front", self.compression_min_front_size, 0, {}],
             ["compression leaf size", self.compression_leaf_size, 0, {}],
             ["separator ordering level", self.separator_ordering_level, 0, {}],
             ["hodlr butterfly levels", self.hodlr_butterfly_levels, 0, {}],
             ["single preceision", self.use_single_precision, 3, {"text": ""}],
             ["use 64bit integer", self.use_64_int, 3, {"text": ""}],
             ["write matrix", self.write_mat, 3, {"text": ""}],
-            ["extra options", self.extra_options, 35, {'nlines': 3}, ], ]
+            ["extra options", self.extra_options, 2235, {'nlines': 3}, ], ]
 
     def get_panel1_value(self):
         ans = []
@@ -182,6 +184,7 @@ class Strumpack(LinearSolverModel):
         v["indirect_sampling"] = False
         v["replace_tiny_pivots"] = False
         v["compression_min_sep_size"] = "2147483647 (default)"
+        v["compression_min_front_size"] = "2147483647 (default)"
         v["compression_leaf_size"] = "2147483647 (default)"
         v["separator_ordering_level"] = "1 (default)"
         v["hodlr_butterfly_levels"] = "100 (default)"
@@ -401,6 +404,9 @@ class StrumpackSolver(LinearSolver):
         if self.gui.compression_min_sep_size.find('default') == -1:
             l = int(self.gui.compression_min_sep_size.split('(')[0])
             self.spss.set_compression_min_sep_size(l)
+        if self.gui.compression_min_front_size.find('default') == -1:
+            l = int(self.gui.compression_min_front_size.split('(')[0])
+            self.spss.set_compression_min_front_size(l)
         if self.gui.compression_leaf_size.find('default') == -1:
             l = int(self.gui.compression_leaf_size.split('(')[0])
             self.spss.set_compression_leaf_size(l)
@@ -469,6 +475,9 @@ class StrumpackSolver(LinearSolver):
         if self.gui.separator_ordering_level.find('default') == -1:
             l = int(self.gui.separator_ordering_level.split('(')[0])
             opts.extend(["--sp_separator_ordering_level", str(l)])
+
+        for x in self.gui.extra_options.split("\n"):
+            opts.extend(x.split(" "))
 
         return opts
 
@@ -591,17 +600,17 @@ class StrumpackSolver(LinearSolver):
 
             sys.stdout.flush()
             sys.stderr.flush()
-            dprint1("calling reorder")
+            dprint1("calling reorder", debug.format_memory_usage())
             ret = self.spss.reorder()
             if ret != ST.STRUMPACK_SUCCESS:
                 assert False, "error during recordering (Strumpack)"
 
-            dprint1("calling factor")
+            dprint1("calling factor", debug.format_memory_usage())
             ret = self.spss.factor()
             if ret != ST.STRUMPACK_SUCCESS:
                 assert False, "error during factor (Strumpack)"
 
-            dprint1("calling solve")
+            dprint1("calling solve", debug.format_memory_usage())
             ret = self.spss.solve(bbv, xxv, False)
             if ret != ST.STRUMPACK_SUCCESS:
                 assert False, "error during solve phase (Strumpack)"
