@@ -1453,7 +1453,14 @@ class NumbaCoefficientVariable(CoefficientVariable):
         else:
             assert False, "unsupported shape"
 
+        self._jitted = None
+
     def get_jitted_coefficient(self, ind_vars, locals):
+
+        if self._jitted is not None:
+            dprint1("(Note) this numba coefficient is already compiled", self.func)
+            return self._jitted
+
         from petram.phys.numba_coefficient import NumbaCoefficient
         if isinstance(self.func, NumbaCoefficient):
             return self.func.mfem_numba_coeff
@@ -1524,8 +1531,8 @@ class NumbaCoefficientVariable(CoefficientVariable):
                          interface=(gen_caller, gen_sig),
                          debug=numba_debug,
                          **kwargs)
-
-        return wrapper(self.func)
+        self._jitted = wrapper(self.func)
+        return self._jitted
 
     def set_coeff(self, ind_vars, locals):
         coeff = self.get_jitted_coefficient(ind_vars, locals)
