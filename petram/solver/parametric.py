@@ -12,6 +12,14 @@ format_memory_usage = debug.format_memory_usage
 assembly_methods = {'Full assemble': 0,
                     'Reuse matrix': 1}
 
+from petram.mfem_config import use_parallel
+if use_parallel:
+    import mfem.par as mfem
+    from mfem.common.mpi_debug import nicePrint
+    from mpi4py import MPI
+else:
+    import mfem.ser as mfem
+    nicePrint = dprint1
 
 class Parametric(SolveStep, NS_mixin):
     '''
@@ -214,7 +222,6 @@ class Parametric(SolveStep, NS_mixin):
             os.chdir(od)
 
     def _run_rhs_assembly(self, engine, solvers, scanner, is_first=True):
-
         self.prepare_form_sol_variables(engine)
 #        self.init(engine, skip_essential=True)
 
@@ -287,7 +294,12 @@ class Parametric(SolveStep, NS_mixin):
                     XX = None
                     solall = linearsolver.Mult(BB, x=XX, case_base=0)
 
+                    is_sol_central = (True if not use_parallel else
+                                      any(MPI.COMM_WORLD.allgather(solall is None)))
+
                     if not phys_real and s.assemble_real:
+                        if not is_sol_central:
+                            assert False, "this operation is not permitted"
                         oprt = linearsolver.oprt
                         solall = instance.linearsolver_model.real_to_complex(solall,
                                                                              oprt)
@@ -299,7 +311,11 @@ class Parametric(SolveStep, NS_mixin):
                                                    save_parmesh=s.save_parmesh)
                             save_mesh_linkdir = None
 
-                        A.reformat_central_mat(solall, ksol, X[0], mask)
+                        if is_sol_central:
+                            A.reformat_central_mat(solall, ksol, X[0], mask)
+                        else:
+                            A.reformat_distributed_mat(solall, ksol, X[0], mask)
+
                         instance.sol = X[0]
                         for p in instance.probe:
                             p.append_sol(X[0])

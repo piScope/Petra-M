@@ -281,7 +281,7 @@ class StandardSolver(SolverInstance):
             from petram.helper.dummy_mpi import MPI
         myid = MPI.COMM_WORLD.rank
         size = MPI.COMM_WORLD.size
-        is_sol_central = any(MPI.COMM_WORLD.allgather(solall is None))
+
         ss = str(solall.shape) if solall is not None else "x"
         ss = MPI.COMM_WORLD.gather(ss)
         if ss is not None:
@@ -290,6 +290,7 @@ class StandardSolver(SolverInstance):
         # linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         # solall = linearsolver.Mult(BB, case_base=0)
 
+        is_sol_central = any(MPI.COMM_WORLD.allgather(solall is None))
         if is_sol_central:
             if not self.phys_real and self.gui.assemble_real:
                 solall = self.linearsolver_model.real_to_complex(solall, AA)

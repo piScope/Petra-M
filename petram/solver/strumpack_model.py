@@ -65,7 +65,8 @@ attr_names = ['log_level',
               'use_single_precision',
               'use_64_int',
               'write_mat',
-              'extra_options']
+              'extra_options',
+              'use_dist_sol', ]
 
 ordering_modes = {"Natural": "STRUMPACK_NATURAL",
                   "Metis": "STRUMPACK_METIS",
@@ -141,7 +142,8 @@ class Strumpack(LinearSolverModel):
             ["single preceision", self.use_single_precision, 3, {"text": ""}],
             ["use 64bit integer", self.use_64_int, 3, {"text": ""}],
             ["write matrix", self.write_mat, 3, {"text": ""}],
-            ["extra options", self.extra_options, 2235, {'nlines': 3}, ], ]
+            ["extra options", self.extra_options, 2235, {'nlines': 3}, ],
+            ["use dist, SOL (dev.)", self.use_dist_sol, 3, {"text": ""}], ]
 
     def get_panel1_value(self):
         ans = []
@@ -149,7 +151,7 @@ class Strumpack(LinearSolverModel):
             value = getattr(self, n)
             if p[3] == 3:
                 value = bool(value)
-            if p[3] == 400:
+            elif p[3] == 400:
                 value = int(value)
             ans.append(value)
         return ans
@@ -193,6 +195,7 @@ class Strumpack(LinearSolverModel):
         v["lossy_precision"] = "16 (default)"
         v["extra_options"] = ""
         v["use_64_int"] = False
+        v['use_dist_sol'] = True
 
         return v
 
@@ -567,6 +570,18 @@ class StrumpackSolver(LinearSolver):
         sol = []
         row_offsets = self.row_offsets.ToList()
 
+        dprint1("calling reorder", debug.format_memory_usage())
+        ret = self.spss.reorder()
+        if ret != ST.STRUMPACK_SUCCESS:
+            assert False, "error during recordering (Strumpack)"
+
+        dprint1("calling factor", debug.format_memory_usage())
+        ret = self.spss.factor()
+        if ret != ST.STRUMPACK_SUCCESS:
+            assert False, "error during factor (Strumpack)"
+
+        return_distributed = self.gui.use_dist_sol
+
         for kk, bb in enumerate(b):
             rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
             rowstarts = np.hstack((0, np.cumsum(rows)))
@@ -600,43 +615,43 @@ class StrumpackSolver(LinearSolver):
 
             sys.stdout.flush()
             sys.stderr.flush()
-            dprint1("calling reorder", debug.format_memory_usage())
-            ret = self.spss.reorder()
-            if ret != ST.STRUMPACK_SUCCESS:
-                assert False, "error during recordering (Strumpack)"
-
-            dprint1("calling factor", debug.format_memory_usage())
-            ret = self.spss.factor()
-            if ret != ST.STRUMPACK_SUCCESS:
-                assert False, "error during factor (Strumpack)"
 
             dprint1("calling solve", debug.format_memory_usage())
             ret = self.spss.solve(bbv, xxv, False)
             if ret != ST.STRUMPACK_SUCCESS:
                 assert False, "error during solve phase (Strumpack)"
 
-            s = []
-            for i in range(len(row_offsets) - 1):
-                r1 = row_offsets[i]
-                r2 = row_offsets[i + 1]
+            if return_distributed:
+                sol.append(xxv)
+            else:
+                s = []
+                for i in range(len(row_offsets) - 1):
+                    r1 = row_offsets[i]
+                    r2 = row_offsets[i + 1]
 
-                if self.is_complex:
-                    r1 = r1 // 2
-                    r2 = r2 // 2
-                xxvv = xxv[r1:r2]
+                    if self.is_complex:
+                        r1 = r1 // 2
+                        r2 = r2 // 2
+                    xxvv = xxv[r1:r2]
 
-                if use_parallel:
-                    vv = gather_vector(xxvv)
-                else:
-                    vv = xxvv.copy()
+                    if use_parallel:
+                        vv = gather_vector(xxvv)
+                    else:
+                        vv = xxvv.copy()
+
+                    if myid == 0:
+                        s.append(vv)
+                    else:
+                        pass
                 if myid == 0:
-                    s.append(vv)
-                else:
-                    pass
-            if myid == 0:
-                sol.append(np.hstack(s))
-        if myid == 0:
+                    sol.append(np.hstack(s))
+
+        if return_distributed:
             sol = np.transpose(np.vstack(sol))
             return sol
         else:
-            return None
+            if myid == 0:
+                sol = np.transpose(np.vstack(sol))
+                return sol
+            else:
+                return None
