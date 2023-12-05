@@ -95,6 +95,15 @@ GramSchmidt_types = {"Classical": "STRUMPACK_CLASSICAL",
                      "Modified": "STRUMPACK_MODIFIED"}
 
 
+help_txt = ("0: no reordering for stability, this disables MC64/matching",
+            "1: MC64(1): currently not supported",
+            "2: MC64(2): maximize the smallest diagonal value",
+            "3: MC64(3): maximize the smallest diagonal value, different strategy",
+            "4: MC64(4): maximize sum of diagonal values",
+            "5: MC64(5): maximize product of diagonal values and apply row and column scaling",
+            "6: Combinatorial BLAS: approximate weight perfect matching",)
+
+
 class Strumpack(LinearSolverModel):
     hide_ns_menu = True
     has_2nd_panel = False
@@ -480,7 +489,8 @@ class StrumpackSolver(LinearSolver):
             opts.extend(["--sp_separator_ordering_level", str(l)])
 
         for x in self.gui.extra_options.split("\n"):
-            opts.extend(x.split(" "))
+            opts.extend([x.strip()
+                        for x in x.split(" ") if len(x.strip()) > 0])
 
         return opts
 
@@ -492,7 +502,7 @@ class StrumpackSolver(LinearSolver):
         dprint1("AllocSolver", is_complex, use_single_precision)
 
         opts = self.spss_options_args()
-        dprint1("options", opts)
+        dprint1("options", opts, notrim=True)
         verbose = self.gui.log_level > 0
         if use_parallel:
             args = (MPI.COMM_WORLD, opts, verbose)
@@ -570,11 +580,13 @@ class StrumpackSolver(LinearSolver):
         sol = []
         row_offsets = self.row_offsets.ToList()
 
+        MPI.COMM_WORLD.Barrier()
         dprint1("calling reorder", debug.format_memory_usage())
         ret = self.spss.reorder()
         if ret != ST.STRUMPACK_SUCCESS:
             assert False, "error during recordering (Strumpack)"
 
+        MPI.COMM_WORLD.Barrier()
         dprint1("calling factor", debug.format_memory_usage())
         ret = self.spss.factor()
         if ret != ST.STRUMPACK_SUCCESS:
@@ -616,6 +628,7 @@ class StrumpackSolver(LinearSolver):
             sys.stdout.flush()
             sys.stderr.flush()
 
+            MPI.COMM_WORLD.Barrier()
             dprint1("calling solve", debug.format_memory_usage())
             ret = self.spss.solve(bbv, xxv, False)
             if ret != ST.STRUMPACK_SUCCESS:

@@ -46,12 +46,12 @@ def set_debug_level(level):
     globals()['debug_memory'] = abs(level) & (1 << 3) != 0
 
 
-def dprint(*args):
+def dprint(*args, **kargs):
     s = ''
     for item in args:
         s = s + ' ' + str(item)
 
-    if trim_debug_print:
+    if trim_debug_print and "notrim" not in kargs:
         s = textwrap.shorten(s, width=max_txt, placeholder='...')
 
     if debug_mode != 0:
@@ -90,7 +90,7 @@ class DPrint(object):
         for item in args:
             s = s + ' ' + str(item)
 
-        if trim_debug_print:
+        if trim_debug_print and "notrim" not in kargs:
             s = textwrap.shorten(s, width=max_txt, placeholder='...')
 
         if self.name in debug_modes:
@@ -126,7 +126,7 @@ class RPrint(object):
         for item in args:
             s = s + ' ' + str(item)
 
-        if trim_debug_print:
+        if trim_debug_print and "notrim" not in kargs:
             s = textwrap.shorten(s, width=max_txt, placeholder='...')
         print(str(self.name)+'(' + str(myid)+')::'+s)
 
