@@ -1,13 +1,31 @@
-from numpy import pi
+from numpy import pi, finfo
+import numpy as np
+
+'''
+MACHINE CONSTANTS
+'''
+base = 2
+
+i1mach11 = finfo('float32').nmant
+i1mach12 = finfo('float32').minexp
+i1mach13 = finfo('float32').maxexp
+i1mach14 = finfo('float64').nmant
+i1mach15 = finfo('float64').minexp
+i1mach16 = finfo('float64').maxexp
+
+r1mach1 = finfo('float32').tiny
+r1mach2 = finfo('float32').max
+r1mach3 = finfo('float32').eps
+r1mach4 = base*finfo('float32').eps
+r1mach5 = np.log10(base)
+
+d1mach1 = finfo('float64').tiny
+d1mach2 = finfo('float64').max
+d1mach3 = finfo('float64').eps
+d1mach4 = base*finfo('float64').eps
+d1mach5 = np.log10(base)
+
 from numba import njit,  int32, int64, float64, complex128, types
-
-import sys
-
-11mach15 = sys.float_info.min_exp
-11mach16 = sys.float_info.max_exp
-d1mach4 = sys.float_info.epsilon
-d1mach5 = sys.float_info.radix
-
 @njit(complex128(complex128(float64), int32, bool, int32))
 def zbesi(z, fnu, kode, n):
 '''
@@ -218,15 +236,15 @@ C     COMPLEX CONE,CSGN,CW,CY,CZERO,Z,ZN
       k = min((abs(k1), abs(k2)))
 
       elim = 2.303*(k*r1m5 - 3.0)
-                
 
-      K1 = I1MACH(14) - 1
-      AA = R1M5*DBLE(FLOAT(K1))
-      DIG = DMIN1(AA,18.0D0)
-      AA = AA*2.303D0
-      ALIM = ELIM + DMAX1(-AA,-41.45D0)
-      RL = 1.2D0*DIG + 3.0D0
-      FNUL = 10.0D0 + 6.0D0*(DIG-3.0D0)
+      k1 = i1mach(14) - 1
+      aa = r1m5*k1
+      dig = min((aa, 18.))
+      aa = aa*2.303
+
+      alim = elim + max((-aa, -41.45))          
+      rl = 1.2*dig + 3.
+      fnul = 10 + 6*(dig-3.)
 C-----------------------------------------------------------------------------
 C     TEST FOR PROPER RANGE
 C-----------------------------------------------------------------------
