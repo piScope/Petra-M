@@ -1,4 +1,4 @@
-from numpy import pi, finfo
+from numpy import pi, finfo, iinfo
 import numpy as np
 
 '''
@@ -6,6 +6,7 @@ MACHINE CONSTANTS
 '''
 base = 2
 
+i1mach9 = iinfo(np.int32)
 i1mach11 = finfo('float32').nmant
 i1mach12 = finfo('float32').minexp
 i1mach13 = finfo('float32').maxexp
@@ -25,8 +26,9 @@ d1mach3 = finfo('float64').eps
 d1mach4 = base*finfo('float64').eps
 d1mach5 = np.log10(base)
 
-from numba import njit,  int32, int64, float64, complex128, types
-@njit(complex128(complex128(float64), int32, bool, int32))
+from numba import njit, int32, int64, float64, complex128, types
+
+@njit(types.Tuple((complex128[:], int32, int32))(complex128(float64), int32, bool, int32))
 def zbesi(z, fnu, kode, n):
 '''
  Numba implementation of AMOS zbesi
@@ -39,7 +41,7 @@ def zbesi(z, fnu, kode, n):
   nz : number of members of the sequence
 
  return value:
-  value, flag
+  value, nz, ierr
 
  error code : 
     1, 2, 3, 4, 5
@@ -213,7 +215,7 @@ C     COMPLEX CONE,CSGN,CW,CY,CZERO,Z,ZN
       if fnu < 0: ierr = 1
       if n < 1: ierr = 1
       if ierr != 0:
-           raise ValueError("ZBSI: fINPUT ERROR   - NO COMPUTATION")
+           raise ValueError("ZBSI: IERR=0, INPUT ERROR   - NO COMPUTATION")
       '''
       C-----------------------------------------------------------------------
       C     SET PARAMETERS RELATED TO MACHINE CONSTANTS.
@@ -248,34 +250,48 @@ C     COMPLEX CONE,CSGN,CW,CY,CZERO,Z,ZN
 C-----------------------------------------------------------------------------
 C     TEST FOR PROPER RANGE
 C-----------------------------------------------------------------------
-      AZ = ZABS(ZR,ZI)
-      FN = FNU+DBLE(FLOAT(N-1))
-      AA = 0.5D0/TOL
-      BB=DBLE(FLOAT(I1MACH(9)))*0.5D0
-      AA = DMIN1(AA,BB)
-      IF (AZ.GT.AA) GO TO 260
-      IF (FN.GT.AA) GO TO 260
-      AA = DSQRT(AA)
-      IF (AZ.GT.AA) IERR=3
-      IF (FN.GT.AA) IERR=3
-      ZNR = ZR
-      ZNI = ZI
+      az = abs(z)
+      fn = fnu + (n-1)          
+      aa = 0.5/tol
+      bb = 0.5*i1mach9
+      aa = min((aa, bb))
+
+      if az > aa or fn > aa:
+           
+           ierr = 4
+           nz = 0
+           raise ValueError("ZBSI: IERR=4, CABS(Z) OR FNU+N-1 TOO LARGE - NO COMPUTATION BECAUSE OF COMPLETE LOSSES OF SIGNIFICANCE BY ARGUMENT REDUCTION")
+
+      aa =sqrt(aa)
+
+      if az > aa or fn > aa:
+           ierr = 3
+
+      znr = z.real
+      zni = z.imag
+
       CSGNR = CONER
       CSGNI = CONEI
-      IF (ZR.GE.0.0D0) GO TO 40
-      ZNR = -ZR
-      ZNI = -ZI
-C-----------------------------------------------------------------------
-C     CALCULATE CSGN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
-C     WHEN FNU IS LARGE
-C-----------------------------------------------------------------------
-      INU = INT(SNGL(FNU))
-      ARG = (FNU-DBLE(FLOAT(INU)))*PI
-      IF (ZI.LT.0.0D0) ARG = -ARG
-      CSGNR = DCOS(ARG)
-      CSGNI = DSIN(ARG)
-      IF (MOD(INU,2).EQ.0) GO TO 40
-      CSGNR = -CSGNR
+                
+      if not z.real > 0.0:
+          znr = -z.real
+          zni = -z.imag
+      '''
+      C-----------------------------------------------------------------------
+      C     CALCULATE CSGN=EXP(FNU*PI*I) TO MINIMIZE LOSSES OF SIGNIFICANCE
+      C     WHEN FNU IS LARGE
+      C-----------------------------------------------------------------------
+      '''
+      inu = int(fun)
+      arg = fnu - inu*pi
+
+      if z.imag < 0:
+            arg = -arg
+
+      csg =  cos(arg) + 1j*sin(arg)
+      if inu mod 2  != 0:
+         csg = - csg
+
       CSGNI = -CSGNI
    40 CONTINUE
       CALL ZBINU(ZNR, ZNI, FNU, KODE, N, CYR, CYI, NZ, RL, FNUL, TOL,
