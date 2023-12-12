@@ -27,6 +27,12 @@ class PetraMHelper(object):
             import petram.mesh.refined_mfem_geom
             petram.mesh.refined_mfem_geom.default_refine = value
 
+    def set_debug(self, name, value=True):
+        import petram.debug
+        assert hasattr(petram.debug, "debug_"+name), "debug_" + \
+            name+" is not valid debug option."
+        setattr(petram.debug, "debug_"+name, value)
+
     def show(self):
         for k in self.properties:
             print(k + ' : ' + str(self.properties[k]))

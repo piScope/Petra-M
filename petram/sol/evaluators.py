@@ -270,6 +270,7 @@ class EvaluatorCommon(Evaluator):
 def_config = {'use_mp': False,
               'use_cs': False,
               'mp_worker': 2,
+              'mp_debug': False,
               'cs_worker': 4,
               'cs_server': 'localhost',
               'cs_soldir': '',
@@ -291,7 +292,9 @@ def build_evaluator(params,
     if not config['use_mp'] and not config['use_cs']:
        evaluator = EvaluatorSingle()        
     elif config['use_mp']:
-       evaluator = EvaluatorMP(nproc = config['mp_worker'])        
+       logfile = 'log' if config['mp_debug'] else False
+       evaluator = EvaluatorMP(nproc = config['mp_worker'],
+                               logfile=logfile)
     elif config['use_cs']:
        solpath = os.path.join(config['cs_soldir'],
                               config['cs_solsubdir'])
@@ -299,7 +302,8 @@ def build_evaluator(params,
                                    host=config['cs_server'],
                                    soldir=solpath,
                                    user=config['cs_user'],
-                                   ssh_opts=config['cs_ssh_opts'],)
+                                   ssh_opts=config['cs_ssh_opts'],
+                                   mp_debug=config['mp_debug'])
     else:
         raise ValueError("Unknown evaluator mode")
     evaluator.set_model(mfem_model)

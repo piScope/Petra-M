@@ -174,6 +174,10 @@ class DlgPlotSol(SimpleFramePlus):
 
         from petram.sol.evaluators import def_config
         self.config = def_config
+
+        from petram.debug import debug_evaluator_mp
+        self.config["mp_debug"] = debug_evaluator_mp
+
         remote = parent.model.param.eval('remote')
         if remote is not None:
             host = parent.model.param.eval('host')
@@ -611,7 +615,8 @@ class DlgPlotSol(SimpleFramePlus):
             tip2 = ("Numboer of worker processes",
                     "Solution folder",
                     "Subdirectory (for parametric scan/time-dependent sims.)",
-                    None)
+                    None,)
+
             elp3 = [["Server", self.config['cs_server'], 0, ],
                     ["Number of workers", self.config['cs_worker'], 400, ],
                     ["Sol dir.", self.config['cs_soldir'], 504,
@@ -622,12 +627,13 @@ class DlgPlotSol(SimpleFramePlus):
                     [None, None, 141, {"alignright": True,
                                        "func": self.OnLoadRemoteSol,
                                        "noexpand": True,
-                                       "label": "Reload choices"}], ]
+                                       "label": "Reload choices"}],
+                    [None, True, 3, {"text": 'dev. mode'}], ]
             tip3 = ("Remote server name",
                     "Numboer of worker processes on remoter server",
                     "Solution directory",
                     "Subdirectory",
-                    None)
+                    None,)
 
             choices = ['Single', 'MP', 'C/S']
             tip = '\n'.join(("Single: plot local solution, MP: plot local solution with multiprocessing,",
@@ -653,13 +659,14 @@ class DlgPlotSol(SimpleFramePlus):
 
             elp.SetValue([[c,
                            ['', 'sol', "", None],
-                           [2, 'sol', "", None],
+                           [2, 'sol', "", None, ],
                            [self.config['cs_server'],
                                self.config['cs_worker'],
                                self.config['cs_soldir'],
                                '',
-                               None]],
-                          ])
+                               None,
+                            ],
+                           ]])
             parent.model.variables.setvar('remote_soldir',
                                           self.config['cs_soldir'])
 
@@ -1058,6 +1065,7 @@ class DlgPlotSol(SimpleFramePlus):
             self.config['mp_worker'] = v[0][2][0]
             self.config['use_mp'] = True
             self.config['use_cs'] = False
+
             model.variables.setvar('remote_soldir', None)
 
             sol = model.solutions.get_child(name=str(v[0][2][1]))
@@ -1098,6 +1106,7 @@ class DlgPlotSol(SimpleFramePlus):
             self.config['cs_soldir'] = str(v[0][3][2])
             self.config['use_mp'] = False
             self.config['use_cs'] = True
+
             model.variables.setvar('remote_soldir', self.config['cs_soldir'])
 
             if reload_remote:

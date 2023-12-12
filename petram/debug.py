@@ -34,6 +34,7 @@ debug_modes = {}
 debug_default_level = 1
 debug_essential_bc = False
 debug_memory = False
+debug_evaluator_mp = False
 trim_debug_print = True
 
 max_txt = 70*2

@@ -142,7 +142,8 @@ def start_connection(host='localhost',
                      num_proc=2,
                      user='',
                      soldir='',
-                     ssh_opts=None):
+                     ssh_opts=None,
+                     mp_debug=False):
    
     if user != '':
        user = user+'@'
@@ -168,8 +169,9 @@ def start_connection(host='localhost',
        p.evalsvr_protocol = int(data[-1].split(':')[-1])
     else:
        p.evalsvr_protocol = 1
-    print("protcoal",  p.evalsvr_protocol)
-    txt = str(num_proc)+'\n'
+
+    txt = str(num_proc)+',' + str(mp_debug) + '\n'
+    print("protcoal/debug flat",  txt)
     p.stdin.write(txt)
     p.stdin.flush()
     out, alive = wait_for_prompt(p)
@@ -229,7 +231,8 @@ class EvaluatorClient(Evaluator):
                  host='localhost',
                  soldir='',
                  user='',
-                 ssh_opts=None):
+                 ssh_opts=None,
+                 mp_debug=False):
        
         self.init_done = False        
         self.soldir = soldir
@@ -239,7 +242,8 @@ class EvaluatorClient(Evaluator):
                                   num_proc=nproc,
                                   user=user,
                                   soldir=soldir,
-                                  ssh_opts=ssh_opts)
+                                  ssh_opts=ssh_opts,
+                                  mp_debug=mp_debug)
         self.failed = False
 
     def __del__(self):
