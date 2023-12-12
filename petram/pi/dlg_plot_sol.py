@@ -627,8 +627,8 @@ class DlgPlotSol(SimpleFramePlus):
                     [None, None, 141, {"alignright": True,
                                        "func": self.OnLoadRemoteSol,
                                        "noexpand": True,
-                                       "label": "Reload choices"}],
-                    [None, True, 3, {"text": 'dev. mode'}], ]
+                                       "label": "Reload choices"}],]
+
             tip3 = ("Remote server name",
                     "Numboer of worker processes on remoter server",
                     "Solution directory",
