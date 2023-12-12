@@ -524,7 +524,7 @@ class MUMPSSolver(LinearSolver):
         s.run()
         return irhs_loc
 
-    def redistributed_array(self, sol, isol_loc, irhs_loc):
+    def redistributed_array(self, sol, isol_loc, irhs_loc, nrhs):
         '''
         sol[isol_loc] is distributed so that the local sol index
         is irhs_loc
@@ -541,20 +541,20 @@ class MUMPSSolver(LinearSolver):
 
         solsend = []
         irhshit = []
+
+        sol = sol.reshape(nrhs, -1)
+
         for i in range(nprc):
             if i == myid:
                 irhs_tmp = MPI.COMM_WORLD.bcast(irhs_loc, root=i)
             else:
                 irhs_tmp = MPI.COMM_WORLD.bcast(None, root=i)
-
             mask = np.in1d(isol_loc, irhs_tmp, assume_unique=True)
-            solsend.append(np.array(sol[mask]))
+
+            solsend.append(np.array(sol[:, mask].flatten()))
             irhshit.append(np.array(isol_loc[mask]))
 
-        sol2 = alltoall_vector(solsend, sol.dtype)
         irhs = alltoall_vector(irhshit, int)
-        sol2 = np.hstack(sol2)
-
         irhs = [] if len(irhs) == 0 else np.hstack(irhs)
         irhs_loc = [] if len(irhs_loc) == 0 else np.hstack(irhs_loc)
 
@@ -562,7 +562,14 @@ class MUMPSSolver(LinearSolver):
         _hoge2, idx2 = np.unique(irhs_loc, return_inverse=True)
 
         assert np.all(_hoge1 == _hoge2), "fail here"
-        return sol2[idx1][idx2]
+
+        sol2 = alltoall_vector(solsend, sol.dtype)
+        sol2 = [s.reshape(nrhs, -1) for s in sol2]
+        sol2 = np.hstack(sol2)
+
+        sol2 = np.vstack([sol2[i][idx1][idx2] for i in range(nrhs)])
+
+        return sol2
 
     def SetOperator(self, A, dist, name=None, ifactor=0):
         try:
@@ -813,7 +820,6 @@ class MUMPSSolver(LinearSolver):
         myid = MPI.COMM_WORLD.rank
         nproc = MPI.COMM_WORLD.size
 
-        #self.SetOperator(A, b, True, engine)
         gui = self.gui
         s = self.s
         if gui.write_mat:
@@ -848,14 +854,9 @@ class MUMPSSolver(LinearSolver):
         #                   use_parallel and
         #                   nproc > 1 and
         #                   self.keep_sol_distributed )
-
         if distributed_rhs:
             s.set_icntl(20, 10)
-            '''
-            irhs_loc_read = self.read_rhs_distribution(s)
-            rhs_loc = self.redistributed_array(
-                b.flatten(), irhs_loc, irhs_loc_read)
-            '''
+
             rhs_loc = b.flatten()
             rhs_loc = rhs_loc.astype(self._data_type(), copy=False)
             irhs_loc_read = self.irhs_loc.astype(dtype=self._int_type())
@@ -932,7 +933,7 @@ class MUMPSSolver(LinearSolver):
 
         if distributed_sol:
             sol = self.redistributed_array(
-                sol_loc.flatten(), isol_loc, self.irhs_loc)
+                sol_loc.flatten(), isol_loc, self.irhs_loc, nrhs)
 
             if self.gui.use_dist_sol:
                 sol = np.transpose(sol.reshape(nrhs, -1))

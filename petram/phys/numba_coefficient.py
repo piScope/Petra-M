@@ -803,6 +803,14 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
     dependency = []
     dep_names = []
 
+    l = l.copy()
+    for n in g:
+        if isinstance(g[n], Variable):
+            if n not in l:
+                l[n] = g[n]
+            else:
+                assert False, "name confict: " + n + " is defined in local namespace"
+
     for n in names:
         if n in ind_vars:
             continue
@@ -815,10 +823,10 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             else:
                 continue
         elif n in g:
-            if isinstance(g[n], Variable):
-                gg = g[n]
-                dep = gg.get_jitted_coefficient(ind_vars, l)
-            elif isinstance(g[n], NativeCoefficientGenBase):
+            #if isinstance(g[n], Variable):
+            #    gg = g[n]
+            #    dep = gg.get_jitted_coefficient(ind_vars, l)
+            if isinstance(g[n], NativeCoefficientGenBase):
                 from petram.phys.coefficient import call_nativegen
                 c1 = call_nativegen(g[n], l, g, True, conj, scale)
                 c2 = call_nativegen(g[n], l, g, False, conj, scale)

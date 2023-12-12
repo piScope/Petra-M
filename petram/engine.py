@@ -2236,7 +2236,8 @@ class Engine(object):
     def finalize_matrix(self, M_block, mask, is_complex, format='coo',
                         verbose=True):
         if verbose:
-            dprint1("A (in finalizie_matrix) \n",  M_block, mask, format)
+            dprint1("A (in finalizie_matrix) \n", format, mask)
+            dprint1(M_block, notrim=True)
         M_block = M_block.get_subblock(mask[0], mask[1])
 
         if format == 'coo':  # coo either real or complex
@@ -2319,9 +2320,9 @@ class Engine(object):
 
     def finalize_coo_matrix(self, M_block, is_complex, convert_real=False,
                             verbose=False):
-        if verbose:
-            dprint1("A (in finalizie_coo_matrix) \n",  M_block)
-            # M_block.save_to_file("M_block")
+        # if verbose:
+        #    dprint1("A (in finalizie_coo_matrix) \n",  M_block)
+
         if not convert_real:
             if is_complex:
                 M = M_block.get_global_coo(dtype='complex')
@@ -2340,7 +2341,7 @@ class Engine(object):
                          convert_real=False,
                          verbose=True):
         if verbose:
-            dprint1("b (in finalizie_coo_rhs) \n",  b)
+            dprint1("b (in finalizie_coo_rhs) \n",  b, notrim=True)
         B = b.gather_densevec()
         if convert_real:
             B = np.vstack((B.real, B.imag))
