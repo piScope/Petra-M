@@ -41,7 +41,7 @@ def interp1d_linear(x, p, x0):
     elif i == size - 1:
         i = size - 2
     else:
-        if abs(x[i-1] - x0) < abs(x[i+1] - x0):
+        if x[i] > x0:
             i = i-1
         else:
             i = i
@@ -55,7 +55,7 @@ def interp1d_linear(x, p, x0):
 def interp1d_cubic(x, p, x0):
     '''
     1D cubic herimit interpolation
-       x 1D array. This must be monotocically increasing. Note the routine does not check this.
+       x 1D array. This must be monotoci and equally spaced. Note the routine does not check this.
        p 1D array
        x0 point to interpolate
     '''
@@ -71,7 +71,7 @@ def interp1d_cubic(x, p, x0):
     elif i == size - 2:
         i = size - 3
     else:
-        if abs(x[i-1] - x0) < abs(x[i+1] - x0):
+        if x[i] > x0:
             i = i-1
         else:
             i = i
@@ -119,7 +119,7 @@ def interp2d_linear(x, y, p, x0, y0):
     elif i == size - 1:
         i = size - 2
     else:
-        if abs(y[i-1] - y0) < abs(y[i+1] - y0):
+        if y[i] > y0:
             i = i-1
         else:
             i = i
@@ -134,8 +134,8 @@ def interp2d_linear(x, y, p, x0, y0):
 def interp2d_cubic(x, y, p, x0, y0):
     '''
     2D cubic interpolation
-       x 1D array. This must be monotocically increasing. Note the routine does not check this.
-       y 1D array. This must be monotocically increasing. Note the routine does not check this.
+       x 1D array. This must be monotoci and equally spaced. Note the routine does not check this.
+       y 1D array. This must be monotoci and equally spaced. Note the routine does not check this.
        p 2D array
        x0 point to interpolate
        y0 point to interpolate
@@ -157,7 +157,7 @@ def interp2d_cubic(x, y, p, x0, y0):
     elif i == size - 2:
         i = size - 3
     else:
-        if abs(y[i-1] - y0) < abs(y[i+1] - y0):
+        if y[i] > y0:
             i = i-1
         else:
             i = i
@@ -215,7 +215,7 @@ def interp3d_linear(x, y, z, p, x0, y0,  z0):
     elif k == size3 - 1:
         k = size3 - 2
     else:
-        if abs(z[k-1] - z0) < abs(z[k+1] - z0):
+        if z[k] > z0:
             k = k-1
         else:
             k = k
@@ -230,9 +230,9 @@ def interp3d_linear(x, y, z, p, x0, y0,  z0):
 def interp3d_cubic(x, y, z, p, x0, y0,  z0):
     '''
     3D cubic interpolation
-       x 1D array. This must be monotocically increasing. Note the routine does not check this.
-       y 1D array. This must be monotocically increasing. Note the routine does not check this.
-       z 1D array. This must be monotocically increasing. Note the routine does not check this.
+       x 1D array. This must be monotoci and equally spaced. Note the routine does not check this.
+       y 1D array. This must be monotoci and equally spaced. Note the routine does not check this.
+       z 1D array. This must be monotoci and equally spaced. Note the routine does not check this.
        p 3D array
        x0 point to interpolate
        y0 point to interpolate
@@ -255,7 +255,7 @@ def interp3d_cubic(x, y, z, p, x0, y0,  z0):
     elif k == size3 - 2:
         i = size3 - 3
     else:
-        if abs(z[k-1] - z0) < abs(z[k+1] - z0):
+        if z[k] > z0:
             k = k-1
         else:
             k = k
@@ -294,7 +294,7 @@ def test1d():
 @njit
 def test2d():
     size1 = 15
-    size2 = 20
+    size2 = 21
 
     x = np.linspace(-3, 3, size1)
     y = np.linspace(-3, 3, size2)
@@ -323,7 +323,7 @@ def test2d():
 
 @njit
 def test3d():
-    size1, size2, size3 = 8, 7, 11
+    size1, size2, size3 = 9, 7, 11
 
     x = np.linspace(-3, 3, size1)
     y = np.linspace(-3, 3, size2)
@@ -354,7 +354,6 @@ def test3d():
                 out2[k, j, i] = interp3d_cubic(
                     x, y, z, p, new_x[i], new_y[j], new_z[k])
 
-    print("here")
     return x, y, z, p, new_x, new_y, new_z, out0, out1, out2
 
 
