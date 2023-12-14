@@ -46,6 +46,8 @@ def interp1d_linear(x, p, x0):
         else:
             i = i
 
+    assert x[i+1]-x[i] > 0, "input array has to be monotonic"
+
     d1 = p[i+1] * (x0 - x[i])/(x[i+1]-x[i]) + \
         p[i] * (x[i+1] - x0)/(x[i+1]-x[i])
     return d1
@@ -55,7 +57,7 @@ def interp1d_linear(x, p, x0):
 def interp1d_cubic(x, p, x0):
     '''
     1D cubic herimit interpolation
-       x 1D array. This must be monotoci and equally spaced. Note the routine does not check this.
+       x 1D array. This must be monotonically increasing. Note the routine does not check this.
        p 1D array
        x0 point to interpolate
     '''
@@ -76,8 +78,31 @@ def interp1d_cubic(x, p, x0):
         else:
             i = i
 
-    x = (x0 - x[i])/(x[i+1] - x[i])
+    xx = (x0 - x[i])/(x[i+1] - x[i])
+
+    d1 = (x[i] - x[i-1])
+    d2 = (x[i+1] - x[i])
+    d3 = (x[i+2] - x[i+1])
+
+    assert d1 > 0, "input array has to be monotonic"
+    assert d2 > 0, "input array has to be monotonic"
+    assert d3 > 0, "input array has to be monotonic"
+
+    f0 = p[i]
+    f1 = p[i+1]
+    f0p = (-p[i-1]*d2 - p[i]*(d1 - d2) + p[i+1]*d1)/2/d1/d2*(x[i+1] - x[i])
+    f1p = (-p[i]*d3 - p[i+1]*(d2 - d3) + p[i+2]*d2)/2/d2/d3*(x[i+1] - x[i])
+
+    a = 2*f0 - 2*f1 + f0p + f1p
+    b = -3*f0 + 3*f1 - 2*f0p-f1p
+    c = f0p
+    d = f0
+
+    return a*xx**3 + b*xx**2 + c*xx**1 + d
+
+    '''
     return p[i] + 0.5 * x*(p[i+1] - p[i-1] + x*(2.0*p[i-1] - 5.0*p[i] + 4.0*p[i+1] - p[i+2] + x*(3.0*(p[i] - p[i+1]) + p[i+2] - p[i-1])))
+    '''
 
 
 @njit(float64(arr1D, arr1D, arr2D, float64, float64))
@@ -127,6 +152,8 @@ def interp2d_linear(x, y, p, x0, y0):
     a0 = interp1d_linear(x, p[i, :], x0)
     a1 = interp1d_linear(x, p[i+1, :], x0)
 
+    assert y[i+1]-y[i] > 0, "input array has to be monotonic"
+
     return a0 * (y[i+1] - y0)/(y[i+1] - y[i]) + a1 * (y0 - y[i])/(y[i+1]-y[i])
 
 
@@ -134,8 +161,8 @@ def interp2d_linear(x, y, p, x0, y0):
 def interp2d_cubic(x, y, p, x0, y0):
     '''
     2D cubic interpolation
-       x 1D array. This must be monotoci and equally spaced. Note the routine does not check this.
-       y 1D array. This must be monotoci and equally spaced. Note the routine does not check this.
+       x 1D array. This must be monotoci. Note the routine does not check this.
+       y 1D array. This must be monotoci. Note the routine does not check this.
        p 2D array
        x0 point to interpolate
        y0 point to interpolate
@@ -168,7 +195,30 @@ def interp2d_cubic(x, y, p, x0, y0):
     a3 = interp1d_cubic(x, p[i+2, :], x0)
 
     yy = (y0 - y[i])/(y[i+1] - y[i])
+
+    d1 = (y[i] - y[i-1])
+    d2 = (y[i+1] - y[i])
+    d3 = (y[i+2] - y[i+1])
+
+    assert d1 > 0, "input array has to be monotonic"
+    assert d2 > 0, "input array has to be monotonic"
+    assert d3 > 0, "input array has to be monotonic"
+
+    f0 = a1
+    f1 = a2
+    f0p = (-a0*d2 - a1*(d1 - d2) + a2*d1)/2/d1/d2*(y[i+1] - y[i])
+    f1p = (-a1*d3 - a2*(d2 - d3) + a3*d2)/2/d2/d3*(y[i+1] - y[i])
+
+    a = 2*f0 - 2*f1 + f0p + f1p
+    b = -3*f0 + 3*f1 - 2*f0p-f1p
+    c = f0p
+    d = f0
+
+    return a*yy**3 + b*yy**2 + c*yy**1 + d
+
+    '''
     return a1 + 0.5 * yy*(a2 - a0 + yy*(2.0*a0 - 5.0*a1 + 4.0*a2 - a3 + yy*(3.0*(a1 - a2) + a3 - a0)))
+    '''
 
 
 @njit(float64(arr1D, arr1D, arr1D, arr3D, float64, float64, float64))
@@ -223,6 +273,8 @@ def interp3d_linear(x, y, z, p, x0, y0,  z0):
     a0 = interp2d_linear(x, y, p[k, :, :], x0, y0)
     a1 = interp2d_linear(x, y, p[k+1, :, :], x0, y0)
 
+    assert z[k+1]-z[k] > 0, "input array has to be monotonic"
+
     return a0 * (z[k+1] - z0)/(z[k+1] - z[k]) + a1 * (z0 - z[k])/(z[k+1]-z[k])
 
 
@@ -230,9 +282,9 @@ def interp3d_linear(x, y, z, p, x0, y0,  z0):
 def interp3d_cubic(x, y, z, p, x0, y0,  z0):
     '''
     3D cubic interpolation
-       x 1D array. This must be monotoci and equally spaced. Note the routine does not check this.
-       y 1D array. This must be monotoci and equally spaced. Note the routine does not check this.
-       z 1D array. This must be monotoci and equally spaced. Note the routine does not check this.
+       x 1D array. This must be monotoci. Note the routine does not check this.
+       y 1D array. This must be monotoci. Note the routine does not check this.
+       z 1D array. This must be monotoci. Note the routine does not check this.
        p 3D array
        x0 point to interpolate
        y0 point to interpolate
@@ -266,7 +318,26 @@ def interp3d_cubic(x, y, z, p, x0, y0,  z0):
     a3 = interp2d_cubic(x, y, p[k+2, :, :], x0, y0)
 
     zz = (z0 - z[k])/(z[k+1] - z[k])
-    return a1 + 0.5 * zz*(a2 - a0 + zz*(2.0*a0 - 5.0*a1 + 4.0*a2 - a3 + zz*(3.0*(a1 - a2) + a3 - a0)))
+
+    d1 = (z[k] - z[k-1])
+    d2 = (z[k+1] - z[k])
+    d3 = (z[k+2] - z[k+1])
+
+    assert d1 > 0, "input array has to be monotonic"
+    assert d2 > 0, "input array has to be monotonic"
+    assert d3 > 0, "input array has to be monotonic"
+
+    f0 = a1
+    f1 = a2
+    f0p = (-a0*d2 - a1*(d1 - d2) + a2*d1)/2/d1/d2*(z[k+1] - z[k])
+    f1p = (-a1*d3 - a2*(d2 - d3) + a3*d2)/2/d2/d3*(z[k+1] - z[k])
+
+    a = 2*f0 - 2*f1 + f0p + f1p
+    b = -3*f0 + 3*f1 - 2*f0p-f1p
+    c = f0p
+    d = f0
+
+    return a*zz**3 + b*zz**2 + c*zz**1 + d
 
 
 @njit
@@ -298,14 +369,22 @@ def test2d():
 
     x = np.linspace(-3, 3, size1)
     y = np.linspace(-3, 3, size2)
-
-    p = np.zeros((size2, size1))
-    for j in range(size2):
-        for i in range(size1):
+    p = np.zeros((len(y), len(x)))
+    for j in range(len(y)):
+        for i in range(len(x)):
             p[j, i] = np.exp(-(x[i]**2 + y[j]**2)/3)
 
-    new_x = np.linspace(-3, 3, 50)
-    new_y = np.linspace(-3, 3, 100)
+    x2 = np.hstack((np.linspace(-3, 1, size1*3)
+                   [:-1], np.linspace(1, 3, size1*1000)))
+    y2 = np.hstack((np.linspace(-3, 1, size2*3)
+                   [:-1], np.linspace(1, 3, size2*1000)))
+    p2 = np.zeros((len(y2), len(x2)))
+    for j in range(len(y2)):
+        for i in range(len(x2)):
+            p2[j, i] = np.exp(-(x2[i]**2 + y2[j]**2)/3)
+
+    new_x = np.linspace(-3, 3, 2500)
+    new_y = np.linspace(-3, 3, 30)
 
     shape = (len(new_y), len(new_x))
     out0 = np.zeros(shape)
@@ -314,9 +393,9 @@ def test2d():
 
     for j in range(shape[0]):
         for i in range(shape[1]):
-            out0[j, i] = interp2d_nearest(x, y, p, new_x[i], new_y[j])
-            out1[j, i] = interp2d_linear(x, y, p, new_x[i], new_y[j])
-            out2[j, i] = interp2d_cubic(x, y, p, new_x[i], new_y[j])
+            out0[j, i] = interp2d_nearest(x2, y2, p2, new_x[i], new_y[j])
+            out1[j, i] = interp2d_linear(x2, y2, p2, new_x[i], new_y[j])
+            out2[j, i] = interp2d_cubic(x2, y2, p2, new_x[i], new_y[j])
 
     return x, y, p, new_x, new_y, out0, out1, out2
 
