@@ -823,7 +823,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             else:
                 continue
         elif n in g:
-            #if isinstance(g[n], Variable):
+            # if isinstance(g[n], Variable):
             #    gg = g[n]
             #    dep = gg.get_jitted_coefficient(ind_vars, l)
             if isinstance(g[n], NativeCoefficientGenBase):
@@ -897,6 +897,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
     exec(func_txt, g, l)
 
     try:
+        import traceback
         coeff = jitter(sdim=len(ind_vars), complex=return_complex, debug=numba_debug,
                        dependency=dependency, **kwargs)(l["_func_"])
         del l["_func_"]
@@ -906,6 +907,13 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
                 traceback.print_exc()
                 print("Can not JIT coefficient")
             return None
+
+        if get_allow_python_function_coefficient() == "warn":
+            if myid == 0:
+                traceback.print_exc()
+                print("problematic function is following")
+                print(func_txt)
+
         if myid == 0:
             print("!!!! Failed to compile with nonpython mode. (next) Try object mode")
 
@@ -915,14 +923,21 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
                 traceback.print_exc()
                 print("Can not JIT coefficient")
             return None
+
+        if get_allow_python_function_coefficient() == "warn":
+            if myid == 0:
+                traceback.print_exc()
+                print("problematic function is following")
+                print(func_txt)
+
         if myid == 0:
             print("!!!! Failed to compile with nonpython mode. (next) Try object mode")
 
     else:
         return NumbaCoefficient(coeff)
 
-    ### for the moment suppress objmode creation
-    ### return None
+    # for the moment suppress objmode creation
+    # return None
 
     func_txt = "\n".join(create_func(True))
 
