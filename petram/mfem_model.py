@@ -41,6 +41,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         v['allow_fallback_nonjit'] = 'allow'
         v['debug_numba_jit'] = 'off'
         v['trim_debug_print'] = 'on'
+        v['warning_control'] = 'once'
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
 
@@ -88,12 +89,15 @@ class MFEM_GeneralRoot(Model, NS_mixin):
                     1, {"values": ["on", "off"]}],
                 ["Trim debug print text", None,
                     1, {"values": ["on", "off"]}],
+                ["Warning control", None,
+                    1, {"values": ["default", "error", "ignore", "always",
+                                   "module", "once"]}],
                 ]
 
     def get_panel2_value(self):
         return (self.diagpolicy, self.savegz, self.partitioning, self.submeshpartitioning,
                 self.autofilldiag, self.allow_fallback_nonjit, self.debug_numba_jit,
-                self.trim_debug_print)
+                self.trim_debug_print, self.warning_control)
 
     def import_panel2_value(self, v):
         self.diagpolicy = v[0]
@@ -104,6 +108,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         self.allow_fallback_nonjit = v[5]
         self.debug_numba_jit = v[6]
         self.trim_debug_print = v[7]
+        self.warning_control = v[8]
 
     def run(self):
         import petram.debug
@@ -115,6 +120,9 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         if not hasattr(self.root(), "_variables"):
             from petram.helper.variables import Variables
             self.root()._variables = Variables()
+
+        if not hasattr(self, "warning_control"):
+            self.warning_control = 'once'
 
         self.root()._parameters = {}
         self.root()._init_done = True

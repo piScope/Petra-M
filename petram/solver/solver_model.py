@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 import warnings
+import os
 from petram.model import Model
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
@@ -455,6 +456,11 @@ class SolveStep(SolverBase):
     @debug.use_profiler
     def run(self, engine, is_first=True):
         dprint1("!!!!! Entering SolveStep " + self.name() + " !!!!!")
+
+        wc = self.root()["General"].warning_control
+        warnings.simplefilter(wc)
+        dprint1("Settiing warning mode :", wc)
+
         solvers = self.get_active_solvers()
 
         is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
@@ -505,6 +511,15 @@ class SolveStep(SolverBase):
                             callername=self.name(),
                             dwcname=self.dwc_name,
                             args=self.dwc_pp_arg)
+
+        warnings.resetwarnings()
+        if "PYTHONWARNINGS" in os.environ:
+            wc = os.environ["PYTHONWARNINGS"]
+            warnings.simplefilter(wc)
+        else:
+            wc = "Default"
+        dprint1("Resettiing warning mode :", wc)
+        dprint1("Exiting SolveStep " + self.name())
         return False
 
 
