@@ -605,8 +605,10 @@ class MUMPSSolver(LinearSolver):
             dprint1("NNZ local: ", A.nnz)
             nnz_array = np.array(MPI.COMM_WORLD.allgather(A.nnz))
             if myid == 0:
-                dprint1("NNZ all: ", nnz_array, np.sum(nnz_array))
                 s.set_n(A.shape[1])
+            dprint1("NNZ total: ", np.sum(nnz_array))
+            dprint1("NNZ all: ", nnz_array)
+
             dtype_int = 'int' + str(mumps_solve.SIZEOF_MUMPS_INT() * 8)
             row = A.row
             col = A.col
