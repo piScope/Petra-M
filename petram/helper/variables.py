@@ -603,6 +603,9 @@ class ExpressionVariable(Variable):
         super(ExpressionVariable, self).__init__(complex=complex)
 
         variables = []
+
+        expr = expr.strip()
+
         code = compile(expr, '<string>', 'eval')
         names = code.co_names
         self.co = code
