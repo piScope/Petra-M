@@ -492,6 +492,7 @@ class StrumpackSolver(LinearSolver):
             opts.extend([x.strip()
                         for x in x.split(" ") if len(x.strip()) > 0])
 
+        # opts.append("")
         return opts
 
     def AllocSolver(self, is_complex, use_single_precision):
@@ -537,6 +538,7 @@ class StrumpackSolver(LinearSolver):
                     spss = ST.DStrumpackSolver(*args)
 
         assert spss.isValid(), "Failed to create STRUMPACK solver object"
+
         spss.set_from_options()
 
         self.dtype = dtype
@@ -589,6 +591,16 @@ class StrumpackSolver(LinearSolver):
         MPI.COMM_WORLD.Barrier()
         dprint1("calling factor", debug.format_memory_usage())
         ret = self.spss.factor()
+
+        zero_pivot = np.sum(MPI.COMM_WORLD.allgather(
+            int(ret == ST.STRUMPACK_ZERO_PIVOT)))
+        if zero_pivot != 0:
+            dprint1("!!!! Zero pivots are detected on " +
+                    str(zero_pivot) + " processes")
+            dprint1("!!!! continuing ....")
+        ret = np.sum(MPI.COMM_WORLD.allgather(int(ret != ST.STRUMPACK_SUCCESS and
+                                                  ret != ST.STRUMPACK_ZERO_PIVOT)))
+
         if ret != ST.STRUMPACK_SUCCESS:
             assert False, "error during factor (Strumpack)"
 
@@ -631,7 +643,10 @@ class StrumpackSolver(LinearSolver):
             MPI.COMM_WORLD.Barrier()
             dprint1("calling solve", debug.format_memory_usage())
             ret = self.spss.solve(bbv, xxv, False)
-            if ret != ST.STRUMPACK_SUCCESS:
+
+            ret = np.sum(MPI.COMM_WORLD.allgather(
+                int(ret != ST.STRUMPACK_SUCCESS)))
+            if ret > 0:
                 assert False, "error during solve phase (Strumpack)"
 
             if return_distributed:
