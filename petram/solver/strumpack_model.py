@@ -583,12 +583,16 @@ class StrumpackSolver(LinearSolver):
         row_offsets = self.row_offsets.ToList()
 
         MPI.COMM_WORLD.Barrier()
+
         dprint1("calling reorder", debug.format_memory_usage())
         ret = self.spss.reorder()
-        if ret != ST.STRUMPACK_SUCCESS:
+
+        ret = np.sum(MPI.COMM_WORLD.allgather(int(ret != ST.STRUMPACK_SUCCESS)))
+        if ret > 0:
             assert False, "error during recordering (Strumpack)"
 
         MPI.COMM_WORLD.Barrier()
+
         dprint1("calling factor", debug.format_memory_usage())
         ret = self.spss.factor()
 
@@ -598,10 +602,10 @@ class StrumpackSolver(LinearSolver):
             dprint1("!!!! Zero pivots are detected on " +
                     str(zero_pivot) + " processes")
             dprint1("!!!! continuing ....")
+
         ret = np.sum(MPI.COMM_WORLD.allgather(int(ret != ST.STRUMPACK_SUCCESS and
                                                   ret != ST.STRUMPACK_ZERO_PIVOT)))
-
-        if ret != ST.STRUMPACK_SUCCESS:
+        if ret > 0:
             assert False, "error during factor (Strumpack)"
 
         return_distributed = self.gui.use_dist_sol
