@@ -146,11 +146,19 @@ def get_evn_twopiroot():
 
 def check_cluster_access():
     petram = get_evn_twopiroot()
+
+    if petram is None:
+        from ifigure.ifigure_config import rcdir as petram
+
     return os.path.exists(os.path.join(petram, "etc", "cluster_access"))
 
 
 def check_addon_access():
     petram = get_evn_twopiroot()
+
+    if petram is None:
+        from ifigure.ifigure_config import rcdir as petram        
+
     if os.path.exists(os.path.join(petram, "etc", "addon_access")):
         return "any"
     return "none"
