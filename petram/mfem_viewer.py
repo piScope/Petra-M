@@ -18,6 +18,7 @@ import ifigure.widgets.dialog as dialog
 import ifigure.events
 from petram.pi.dlg_progressbar import progressbar
 
+import petram
 try:
     import petram.geom
     hasGeom = True
