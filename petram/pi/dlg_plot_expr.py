@@ -20,8 +20,8 @@ class DlgPlotExpr(SimpleFramePlus):
                  wx.CLOSE_BOX|
                  wx.MINIMIZE_BOX| 
                  wx.RESIZE_BORDER|
-                 wx.FRAME_FLOAT_ON_PARENT|
-                 wx.FRAME_TOOL_WINDOW)
+                 wx.FRAME_FLOAT_ON_PARENT)
+        #        wx.FRAME_TOOL_WINDOW : this styles may not work on Windows/Mac
         super(DlgPlotExpr, self).__init__(parent, id, title, style=style, **kwargs)
         
         self.parent = parent

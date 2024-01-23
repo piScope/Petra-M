@@ -97,8 +97,8 @@ class DlgEditModel(SimpleFramePlus):
                  wx.CLOSE_BOX |
                  wx.MINIMIZE_BOX |
                  wx.RESIZE_BORDER |
-                 wx.FRAME_FLOAT_ON_PARENT |
-                 wx.FRAME_TOOL_WINDOW)
+                 wx.FRAME_FLOAT_ON_PARENT)
+        #        wx.FRAME_TOOL_WINDOW  this style may not work on Mac/Windows
 
         #style = wx.RESIZE_BORDER
         super(DlgEditModel, self).__init__(parent, id, title, style=style)
