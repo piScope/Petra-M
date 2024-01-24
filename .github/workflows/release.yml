@@ -1,4 +1,4 @@
-name: testrelease_binary
+name: release_binary
 
 on:
   push:
