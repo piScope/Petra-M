@@ -347,7 +347,6 @@ class NS_mixin(object):
                 pass  # return
         except Exception as e:
             import traceback
-            dprint1(traceback.format_exc())
             assert False, traceback.format_exc()
 
         # 2021.08.25. passing g only above allows for list comprehension to work.

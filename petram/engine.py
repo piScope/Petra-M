@@ -2994,7 +2994,7 @@ class Engine(object):
                 node._local_ns = self.model.root()._variables
 
         if len(errors) > 0:
-            dprint1("\n".join(errors))
+            dprint1("\n".join(errors), notrim=True)
             assert False, "\n".join(errors)
 
     def preprocess_ns(self, ns_folder, data_folder):
