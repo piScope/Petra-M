@@ -68,12 +68,12 @@ def try_eval(exprs, l, g):
     if not evaluate w/o knowing any Variables
     '''
     try:
-        value = eval(exprs, l, g)
+        value = eval(exprs, g, l)
         if isinstance(value, list):
             return True, [value]
         ll = [x for x in l if not isinstance(x, Variable)]
         gg = [x for x in g if not isinstance(x, Variable)]
-        value = eval(exprs, ll, gg)
+        value = eval(exprs, gg, ll)
         return True, [value]
     except BaseException:
         return False, exprs
@@ -95,6 +95,7 @@ class Coefficient_Evaluator(object):
               if =Varialbe in matrix form, it is passed as [['Variable']]
         '''
         flag, exprs = try_eval(exprs, l, g)
+
         #print("after try_eval", flag, exprs)
         if not flag:
             if isinstance(exprs, str):
@@ -111,9 +112,12 @@ class Coefficient_Evaluator(object):
             exprs = exprs[0]
         #dprint1("final exprs", exprs)
         self.l = {}
+
         # TODO g must be copied since some may passs _global_ns.
         # (I don't do it now since it requires a substantial testing)
-        self.g = g
+        # (2024 this needs to be copied for parametric scan works)
+        self.g = g.copy()
+
         for key in l.keys():
             self.g[key] = l[key]
         self.real = real
