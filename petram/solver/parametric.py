@@ -351,6 +351,7 @@ class Parametric(SolveStep, NS_mixin):
         filenames, probenames = list_probes(dirs[0])
 
         names = scanner.names
+
         probes = [Probe(n, xnames=names) for n in probenames]
 
         for param, dirname in zip(params, dirs):
@@ -361,7 +362,7 @@ class Parametric(SolveStep, NS_mixin):
 
         os.chdir(od)
         for p in probes:
-            p.write_file()
+            p.write_file(nosmyid=True)
             # else:
             #    dprint1("skipping summarizing probe data for ", p.name)
 
@@ -403,3 +404,4 @@ class Parametric(SolveStep, NS_mixin):
             self._run_rhs_assembly(engine, solvers, scanner, is_first=is_first)
 
         self.collect_probe_signals(self.case_dirs, scanner)
+        scanner.collect_probe_signals(engine, self.case_dirs)

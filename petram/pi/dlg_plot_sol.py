@@ -627,7 +627,7 @@ class DlgPlotSol(SimpleFramePlus):
                     [None, None, 141, {"alignright": True,
                                        "func": self.OnLoadRemoteSol,
                                        "noexpand": True,
-                                       "label": "Reload choices"}],]
+                                       "label": "Reload choices"}], ]
 
             tip3 = ("Remote server name",
                     "Numboer of worker processes on remoter server",
@@ -2517,6 +2517,13 @@ class DlgPlotSol(SimpleFramePlus):
         if data is None:
             wx.CallAfter(self.set_title_no_status)
             return
+        if xdata is None:
+            wx.CallAfter(self.set_title_no_status)
+            return
+        if len(data.shape) == 0:
+            wx.CallAfter(self.set_title_no_status)
+            return
+
         self.post_threadend(
             self.make_plot_probe, (xdata, data), expr=expr, xexpr=xexpr)
 
@@ -2524,6 +2531,12 @@ class DlgPlotSol(SimpleFramePlus):
         value = self.elps['Probe'] .GetValue()
         xdata, data = self.eval_probe(mode='plot')
 
+        if data is None:
+            return
+        if xdata is None:
+            return
+        if len(data.shape) == 0:
+            return
         data = {'xdata': xdata, 'data': data}
         self.export_to_piScope_shell(data, 'probe_data')
 

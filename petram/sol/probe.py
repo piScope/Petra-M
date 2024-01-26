@@ -27,6 +27,7 @@ def list_probes(dir):
 
 
 def load_probe(name):
+    print(name)
     fid = open(name, 'r')
     format = int(fid.readline().split(':')[-1])
 
@@ -100,13 +101,16 @@ class Probe(object):
         self.idx = idx
         self.finalized = False
 
-    def write_file(self, filename=None, format=1):
+    def write_file(self, filename=None, format=1, nosmyid=False):
         valid = self.finalize()
         if not valid:
             return
 
         if filename is None:
-            filename = 'probe_'+self.name + smyid
+            if nosmyid:
+                filename = 'probe_'+self.name
+            else:
+                filename = 'probe_'+self.name + smyid
 
         fid = open(filename, 'w')
 

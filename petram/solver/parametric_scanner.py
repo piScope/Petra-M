@@ -74,7 +74,7 @@ class DefaultParametricScanner(object):
     def save_scanner_data(self, solver):
         solver_name = solver.fullpath()
         data = self.list_data()
-        dprint1("saving parameter", os.getcwd())
+        dprint1("saving parameter", os.getcwd(), notrim=True)
         try:
             from mpi4py import MPI
         except ImportError:
@@ -88,6 +88,13 @@ class DefaultParametricScanner(object):
             fid.close()
 
         MPI.COMM_WORLD.Barrier()
+
+    def collect_probe_signals(self, engine, dirs):
+        '''
+        scanner can implement its own probe collections
+        '''
+        raise NotImplementedError(
+            "subclass needs to be provide this method")
 
     def set_model(self, data):
         raise NotImplementedError(
@@ -172,6 +179,9 @@ class SimpleScanner(DefaultParametricScanner):
         suposed to return parameternames
         '''
         return self._names
+
+    def collect_probe_data(self, engine, dirs):
+        pass
 
 
 Scan = SimpleScanner
