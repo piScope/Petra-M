@@ -27,7 +27,6 @@ def list_probes(dir):
 
 
 def load_probe(name):
-    print(name)
     fid = open(name, 'r')
     format = int(fid.readline().split(':')[-1])
 
