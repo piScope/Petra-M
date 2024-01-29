@@ -240,7 +240,7 @@ class AUX_Variable(Phys):
     def onRmConnection(self, evt):
         if len(self._vt_array) < 1:
             return
-        keys = self.aux_connection.keys()
+        keys = list(self.aux_connection.keys())
         del self.aux_connection[keys[-1]]
         self._vt_array = self._vt_array[:-1]
         evt.GetEventObject().TopLevelParent.OnItemSelChanged()
