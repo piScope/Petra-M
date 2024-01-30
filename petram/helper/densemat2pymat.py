@@ -22,7 +22,7 @@ def Densemat2PyMat(mat):
         col_starts = get_assumed_patitioning(mat.shape[1])
         row_starts = get_assumed_patitioning(mat.shape[0])
         rows = row_starts[1] - row_starts[0]
-        print(row_starts)
+
         if np.iscomplexobj(mat):
             real = mat.real
             imag = mat.imag
@@ -31,10 +31,8 @@ def Densemat2PyMat(mat):
             imag = None
         # if real != 0.0:
 
-        print(real)
         m1 = lil_matrix(real[row_starts[0]:row_starts[1], :])
         m1 = m1.tocsr()
-        print(m1.todense())
 
         if imag is not None:
             m2 = lil_matrix(imag[row_starts[0]:row_starts[1], :])
