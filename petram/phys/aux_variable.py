@@ -26,7 +26,7 @@ from petram.phys.vtable import VtableElement, Vtable
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('AUX_Variable')
 
-#groups = ['Domain', 'Boundary', 'Edge', 'Point', 'Pair']
+# groups = ['Domain', 'Boundary', 'Edge', 'Point', 'Pair']
 groups = ['Domain', 'Boundary', 'Pair']
 
 data0 = [("oprt_diag", VtableElement("oprt_diag", type='array',
@@ -54,7 +54,7 @@ class AUX_Variable(Phys):
             self._vt_array = []
         for vt in self.vt_array:
             v = vt.attribute_set(v)
-            #vv = vt.attribute_set({})
+            # vv = vt.attribute_set({})
             # for key in vv:
             #    if hasattr(self, key): vv[key] = getattr(self, key)
             #    v[key] = vv[key]
@@ -334,6 +334,9 @@ class AUX_Variable(Phys):
                     assert diag_size == t2.shape[1], "t1 and t2 shapes are inconsistent"
                 diag_size = t2.shape[1]
 
+        if diag_size < 0:
+            diag_size = len(np.atleast_1d(rhs_vec))
+
         from mfem.common.chypre import IdentityPyMat, Array2PyVec
         if diag is not None:
             if not self.get_root_phys().is_complex():
@@ -343,15 +346,19 @@ class AUX_Variable(Phys):
         # all node does do the same job, but Array2PyVec will use the data from
         # root node.
 
-        rhs = np.atleast_1d(rhs_vec).astype(float)
+        rhs = np.atleast_1d(rhs_vec)
         if diag_size != 1 and len(rhs) == 1:
             rhs = np.hstack([rhs[0]]*diag_size).flatten()
 
         if self.get_root_phys().is_complex():
-            rhs = rhs.astype(complex, copy=False)
-        if not self.get_root_phys().is_complex():
+            rhs = np.atleast_1d(rhs_vec).astype(complex)
+        else:
             if np.iscomplexobj(rhs):
                 rhs = rhs.real
+
+        #if not self.get_root_phys().is_complex():
+        #    if np.iscomplexobj(rhs):
+        #        rhs = rhs.real
 
         t4 = Array2PyVec(rhs)
 

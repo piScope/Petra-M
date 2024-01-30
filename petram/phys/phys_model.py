@@ -96,7 +96,7 @@ class Coefficient_Evaluator(object):
         '''
         flag, exprs = try_eval(exprs, l, g)
 
-        #print("after try_eval", flag, exprs)
+        # print("after try_eval", flag, exprs)
         if not flag:
             if isinstance(exprs, str):
                 exprs = [exprs]
@@ -110,7 +110,7 @@ class Coefficient_Evaluator(object):
                 pass
         if isinstance(exprs, list) and isinstance(exprs[0], list):
             exprs = exprs[0]
-        #dprint1("final exprs", exprs)
+        # dprint1("final exprs", exprs)
         self.l = {}
 
         # TODO g must be copied since some may passs _global_ns.
@@ -486,6 +486,27 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             if mode == 'B':
                 return True
         return False
+
+    def has_extra_coupling(self):
+        '''
+        True if it define coupling between Lagrange multipliers
+        '''
+        return False
+
+    def extra_coupling_names(self):
+        '''
+        return its own extra_name, and paired (coupled) extra_names
+        '''
+        return None, []
+
+    def get_extra_coupling(self, target_name):
+        '''
+        [    t2][paired extra]
+        [t1    ][extra]
+        t1 = (size of extra, size of targert_extra)
+        t2 = (size of target_extra, size of extra)
+        '''
+        return None, None
 
     def has_bf_contribution(self, kfes):
         return False
@@ -1225,7 +1246,8 @@ class PhysModule(Phys):
     def get_possible_child(self):
         from petram.phys.aux_variable import AUX_Variable
         from petram.phys.aux_operator import AUX_Operator
-        return [AUX_Variable, AUX_Operator]
+        from petram.phys.variable_coupling import VariableCoupling
+        return [AUX_Variable, AUX_Operator, VariableCoupling]
 
     def get_possible_pair(self):
         from petram.phys.projection import BdrProjection, DomainProjection
@@ -1254,7 +1276,6 @@ class PhysModule(Phys):
 
             mm.add_domain_variables(variables, n, suffix, ind_vars)
             mm.add_bdr_variables(variables, n, suffix, ind_vars)
-
 
     def onItemSelChanged(self, evt):
         '''

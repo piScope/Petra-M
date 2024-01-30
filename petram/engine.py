@@ -28,9 +28,9 @@ import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Engine')
 
 # if you need to turn a specific warning to exception
-#import scipy.sparse
-#import warnings
-#warnings.filterwarnings('error', category=scipy.sparse.SparseEfficiencyWarning)
+# import scipy.sparse
+# import warnings
+# warnings.filterwarnings('error', category=scipy.sparse.SparseEfficiencyWarning)
 
 
 def iter_phys(phys_targets, *args):
@@ -111,8 +111,8 @@ class Engine(object):
         self.emeshes = []
         self.emesh_data = None
         # place holder max level 10
-        #self._fec_storage = {}
-        #self._fes_storage = {}
+        # self._fec_storage = {}
+        # self._fes_storage = {}
         self.pp_extra = {}
         self.alloc_flag = {}
         self.initialize_fespaces()
@@ -237,6 +237,7 @@ class Engine(object):
         self._i_b.append(FormBlock(n_fes, new=self.alloc_lf))
 
         self._extras.append([None for i in range(n_mat)])
+        self._cextras.append([None for i in range(n_mat)])
         self._aux_ops.append([None for i in range(n_mat)])
 
         self._interps.append({})
@@ -255,6 +256,7 @@ class Engine(object):
         self._r_x = []
         self._i_x = []
         self._extras = []
+        self._cextras = []
         self._aux_ops = []
         self._interps = []
         self._projections = []
@@ -373,6 +375,14 @@ class Engine(object):
     @extras.setter
     def extras(self, v):
         self._extras[self._level_idx][self._access_idx] = v
+
+    @property
+    def cextras(self):
+        return self._cextras[self._level_idx][self._access_idx]
+
+    @cextras.setter
+    def cextras(self, v):
+        self._cextras[self._level_idx][self._access_idx] = v
 
     @property
     def aux_ops(self):
@@ -943,7 +953,8 @@ class Engine(object):
             # global interpolation (mesh coupling)
             self.assemble_projection(phys)
 
-        self.extras_mm = {}
+        self.extras_mm = {}       # FES-extra connection
+        self.cextras_mm = {}      # extra-extra connection
 
         for j in range(self.n_matrix):
             self.access_idx = j
@@ -981,6 +992,8 @@ class Engine(object):
                         raise
 
             self.extras = {}
+            self.cextras = {}
+
             updated_extra = []
             for phys in phys_target:
                 keys_to_update = self.extra_update_check_M(phys, phys_range)
@@ -1026,7 +1039,7 @@ class Engine(object):
             # global interpolation (mesh coupling)
             self.assemble_projection(phys)
 
-        #self.extras_mm = {}
+        # self.extras_mm = {}
 
         for j in range(self.n_matrix):
             self.access_idx = j
@@ -1577,8 +1590,8 @@ class Engine(object):
             for loc in loc_list:
                 r, c, is_trans, is_conj = loc
                 if isinstance(r, int):
-                    #idx1 = phys_offset + r
-                    #idx2 = rphys_offset + c
+                    # idx1 = phys_offset + r
+                    # idx2 = rphys_offset + c
                     idx1 = self.ifes(phys.dep_vars[r])
                     idx2 = self.r_ifes(phys.dep_vars[c])
                 else:
@@ -1631,8 +1644,8 @@ class Engine(object):
                 is_conj = (is_conj == -1)
 
                 if isinstance(r, int):
-                    #idx1 = phys_offset + r
-                    #idx2 = rphys_offset + c
+                    # idx1 = phys_offset + r
+                    # idx2 = rphys_offset + c
                     idx1 = self.ifes(phys.dep_vars[r])
                     idx2 = self.r_ifes(phys.dep_vars[c])
                 else:
@@ -1734,6 +1747,13 @@ class Engine(object):
                             str(key) + " already exists."
                     self.extras[key] = tmp
                     self.extras_mm[key] = mm.fullpath()
+
+            if mm.has_extra_coupling():
+                extra_name, coupled_names = mm.extra_coupling_names()
+                for n in coupled_names:
+                    t1, t2 = mm.get_extra_coupling(n)
+                    key = (extra_name, n)
+                    self.cextras[key] = (t1, t2)
 
     def _extra_update_check(self, phys, phys_range, mode='B'):
         updated_name = []
@@ -1934,10 +1954,17 @@ class Engine(object):
                 if r1 != -1:
                     M[k][r1, c1] = T1 if M[k][r1, c1] is None else M[k][r1, c1]+T1
                 M[k][r, c] = T2 if M[k][r, c] is None else M[k][r, c]+T2
-                #M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3
+                # M[k][r,r] = t3 if M[k][r,r] is None else M[k][r,r]+t3
                 M[k][r, c1] = t3 if M[k][r, c1] is None else M[k][r, c1]+t3
 
-            #print("aux", k, self.aux_ops.keys())
+            for extra_name1, extra_name2 in self.cextras.keys():
+                r = self.dep_var_offset(extra_name1)
+                c = self.r_dep_var_offset(extra_name2)
+                t1, t2 = self.cextras[(extra_name1, extra_name2)]
+                M[k][r, c] = t1 if M[k][r, c] is None else M[k][r, c]+t1
+                M[k][c, r] = t2 if M[k][c, r] is None else M[k][c, r]+t2
+
+            # print("aux", k, self.aux_ops.keys())
             for key in self.aux_ops.keys():
                 testname, trialname, mm_fullpath = key
                 r = self.dep_var_offset(testname)
@@ -2190,7 +2217,7 @@ class Engine(object):
         and 
              x  = P^t y
         '''
-        #import traceback
+        # import traceback
         # traceback.print_stack()
         for name in self.interps:
             idx1 = self.dep_var_offset(name)
@@ -2358,7 +2385,7 @@ class Engine(object):
 
     def split_sol_array(self, sol):
         s = [None]*len(self.r_fes_vars)
-        #nicePrint("sol", sol, self._rdep_vars)
+        # nicePrint("sol", sol, self._rdep_vars)
         for name in self.fes_vars:
             # print name
             j = self.r_dep_var_offset(name)
@@ -2377,7 +2404,7 @@ class Engine(object):
         for name in self.dep_vars:
             if not self.isFESvar(name):
                 e.append(sol[self.dep_var_offset(name)])
-        #nicePrint(s, e)
+        # nicePrint(s, e)
         return s, e
 
     def recover_sol(self, sol, access_idx=0):
@@ -2440,7 +2467,7 @@ class Engine(object):
         for k in ret:
             tmp = {x: ret[k][x].flatten() for x in ret[k]}
             tmp2 = {x: ret[k][x].flatten() for x in ret[k] if x in print_flag}
-            dprint1("extra (diagnostic)", tmp2)
+            dprint1("extra (diagnostic) (at rank=0)", tmp2)
         return ret
 
     #
@@ -2585,7 +2612,7 @@ class Engine(object):
     #
     def assign_phys_pp_sel_index(self):
         if len(self.meshes) == 0:
-            #dprint1('!!!! mesh is None !!!!')
+            # dprint1('!!!! mesh is None !!!!')
             return
         all_phys = [self.model['Phys'][k] for
                     k in self.model['Phys'].keys()]
@@ -2612,7 +2639,7 @@ class Engine(object):
 
     def assign_sel_index(self, phys=None):
         if len(self.meshes) == 0:
-            #dprint1('!!!! mesh is None !!!!')
+            # dprint1('!!!! mesh is None !!!!')
             return
         if phys is None:
             all_phys = [self.model['Phys'][k] for
@@ -2772,7 +2799,7 @@ class Engine(object):
                 tmp = self.get_point_essential_tdofs(fespace, ptx2)
                 self.ess_tdofs[name][1].extend(tmp)
 
-            #print(name, len(self.ess_tdofs[name]))
+            # print(name, len(self.ess_tdofs[name]))
         return
 
     def allocate_fespace(self, phys):
@@ -2808,7 +2835,7 @@ class Engine(object):
         key = (emesh_idx, elem, order, dim, sdim, vdim, isParMesh)
         dkey = ("emesh_idx", "elem", "order",
                 "dim", "sdim", "vdim", "isParMesh")
-        #dprint1("Allocate/Reuse fec/fes:", {d: v for d, v in zip(dkey, key)})
+        # dprint1("Allocate/Reuse fec/fes:", {d: v for d, v in zip(dkey, key)})
 
         dprint1("Looking for already allocated fespaces ", name)
         if name in self.fespaces:
@@ -2839,7 +2866,7 @@ class Engine(object):
 
     # mesh.GetEdgeVertexTable()
     #        self._fes_storage[key] = fes
-        #self.add_fec_fes(name, fec, fes)
+        # self.add_fec_fes(name, fec, fes)
 
     # def add_fec_fes(self, name, fec, fes):
     #    self.fec[name] = fec
@@ -2937,7 +2964,7 @@ class Engine(object):
             el, order, mbfdim = fes_mapping(info2["element"], info2["order"], info2["dim"],
                                             info1["dim"])
 
-            #emesh_idx = info2["emesh_idx"] if mbfdim == 1 else info1["emesh_idx"]
+            # emesh_idx = info2["emesh_idx"] if mbfdim == 1 else info1["emesh_idx"]
             emesh_idx = info1["emesh_idx"]
             is_new, fes = self.get_or_allocate_fecfes(name,
                                                       emesh_idx,
@@ -2952,7 +2979,7 @@ class Engine(object):
                     mode = "domain"
                 else:
                     mode = "domain"
-                #assert False, "should not come here."
+                # assert False, "should not come here."
 
                 # fes2  -> fes (intermediate space using fes1's mesh)
                 p = simple_projection(fes2, fes, mode)
@@ -2990,7 +3017,7 @@ class Engine(object):
                     errors.append("failed to build ns for " + node.fullname() +
                                   "\n" + m)
             else:
-                #node._global_ns = None
+                # node._global_ns = None
                 node._local_ns = self.model.root()._variables
 
         if len(errors) > 0:
@@ -3023,7 +3050,7 @@ class Engine(object):
                         skip_refine=False):
 
         from petram.mesh.mesh_model import MeshFile, MFEMMesh
-        #from petram.mesh.mesh_extension import MeshExt
+        # from petram.mesh.mesh_extension import MeshExt
         from petram.mesh.mesh_utils import get_extended_connectivity
 
         self.meshes = []
@@ -3770,7 +3797,7 @@ class SerialEngine(Engine):
         B = mfem.Vector()
         if not fes.Conforming():
             P = fes.GetConformingProlongation()
-            #R = fes.GetConformingRestriction()
+            # R = fes.GetConformingRestriction()
             # if R is not None:
             if P is not None:
                 B.SetSize(P.Width())
@@ -3932,7 +3959,7 @@ class ParallelEngine(Engine):
                         self.meshes[idx] = self.base_meshes[idx]
                         target = self.meshes[idx]
 
-                        #self.base_meshes[idx] = self.meshes[idx]
+                        # self.base_meshes[idx] = self.meshes[idx]
                     else:
                         if hasattr(o, 'run') and target is not None:
                             if o.isSerialRefinement:
@@ -4068,7 +4095,7 @@ class ParallelEngine(Engine):
     def collect_all_ess_tdof(self, M=None):
         from mpi4py import MPI
 
-        #gl_ess_tdofs = []
+        # gl_ess_tdofs = []
         # for name in phys.dep_vars:
         #    fes = self.fespaces[name]
 
@@ -4081,7 +4108,7 @@ class ParallelEngine(Engine):
             gl_ess_tdof1 = allgather_vector(data1, MPI.INT)
             gl_ess_tdof2 = allgather_vector(data2, MPI.INT)
             MPI.COMM_WORLD.Barrier()
-            #gl_ess_tdofs.append((name, gl_ess_tdof))
+            # gl_ess_tdofs.append((name, gl_ess_tdof))
             # TO-DO intArray must accept np.int32
             gtdofs1 = [int(x) for x in gl_ess_tdof1]
             gtdofs2 = [int(x) for x in gl_ess_tdof2]

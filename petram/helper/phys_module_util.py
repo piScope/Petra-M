@@ -84,7 +84,9 @@ def get_phys_constraints(module):
                    'edge': [], 'pointt': [], 'pair': []}
 
     for p in paths:
-        for f in listdir(p):
+        tmp = [(basename(x), x) for x in listdir(p)]
+        dirlist = [x[1] for x in sorted(tmp)]
+        for f in dirlist:
             name = basename(f)
             if not name.endswith('py'):
                 continue

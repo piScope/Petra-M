@@ -290,7 +290,9 @@ class StandardSolver(SolverInstance):
         # linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         # solall = linearsolver.Mult(BB, case_base=0)
 
-        is_sol_central = any(MPI.COMM_WORLD.allgather(solall is None))
+        is_sol_central = (True if not use_parallel else
+                          any(MPI.COMM_WORLD.allgather(solall is None)))
+
         if is_sol_central:
             if not self.phys_real and self.gui.assemble_real:
                 solall = self.linearsolver_model.real_to_complex(solall, AA)
