@@ -71,7 +71,6 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         self.rank = rank
         self.agents = {}
         self.logfile = logfile
-        print("log file")
         #self.logfile = 'log'
         self.use_stringio = False
         self.solfiles = None
