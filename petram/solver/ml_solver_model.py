@@ -342,7 +342,7 @@ class MultiLvlStationarySolver(StdSolver):
 
     @classmethod
     def fancy_tree_name(self):
-        return 'Stationary'
+        return 'MLStationary'
 
     def attribute_set(self, v):
         super(MultiLvlSolver, self).attribute_set(v)

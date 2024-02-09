@@ -163,6 +163,7 @@ class SolveStep(SolverBase):
         from petram.solver.nl_solver_model import NLSolver
         from petram.solver.mg_solver_model import MGSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
+        from petram.solver.egn_solver_model import EgnSolver
         from petram.solver.solver_controls import DWCCall, InnerForLoop
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
@@ -174,6 +175,7 @@ class SolveStep(SolverBase):
                     ("", MultiLvlStationarySolver),
                     ("", NLSolver),
                     ("", TimeDomain),
+                    ("", EgnSolver),
                     ("extra", DistanceSolver),
                     ("", StdMeshAdaptSolver),
                     ("", InnerForLoop),
@@ -184,6 +186,7 @@ class SolveStep(SolverBase):
                     ("", MultiLvlStationarySolver),
                     ("", NLSolver),
                     ("", TimeDomain),
+                    ("", EgnSolver),
                     ("extra", DistanceSolver),
                     ("", InnerForLoop),
                     ("", DWCCall),
