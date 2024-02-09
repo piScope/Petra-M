@@ -12,7 +12,7 @@ import numpy as np
 
 from petram.debug import flush_stdout
 from petram.namespace_mixin import NS_mixin
-from .solver_model import LinearSolverModel, LinearSolver
+from petram.solver.solver_model import LinearSolverModel, LinearSolver
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('KrylovModel')
