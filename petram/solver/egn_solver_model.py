@@ -201,6 +201,8 @@ class EgnSolver(StdSolver):
 
     @debug.use_profiler
     def run(self, engine, is_first=True, return_instance=False):
+        if not use_parallel:
+            assert False, "Eigen solver works only with MPI"
         dprint1("Entering EigenSolver: ", self.fullpath())
         if self.clear_wdir:
             engine.remove_solfiles()
@@ -233,6 +235,10 @@ class EigenValueSolver(LinearSolverModel, NS_mixin):
     has_2nd_panel = False
     accept_complex = False
     always_new_panel = False
+
+    def __init__(self, *args, **kwargs):
+        LinearSolverModel.__init__(self, *args, **kwargs)
+        NS_mixin.__init__(self, *args, **kwargs)
     
     def panel1_param(self):
         return [["log_level", -1, 400, {}],
@@ -356,17 +362,15 @@ class EigenValueSolver(LinearSolverModel, NS_mixin):
                 "blk_merged_s",
                 "blk_merged", ]
     
-    def allocate_solver(self, is_complex=False, engine=None):
-        solver = HypreAMESolver(self, engine, int(self.maxiter),
-                                self.abstol, self.reltol)
-        # solver.AllocSolver(datatype)
-        return solver
 
 class HypreAME(EigenValueSolver):
     def attribute_set(self, v):
         v = super(HypreAME, self).attribute_set(v)
         v['solver_type'] = 'HypreAME'
         return v
+    
+    def allocate_solver(self):
+        return mfem.HypreAME(MPI.COMM_WORLD)
 
 
 class HypreLOBPCG(EigenValueSolver):
@@ -374,14 +378,108 @@ class HypreLOBPCG(EigenValueSolver):
         v = super(HypreLOBPCG, self).attribute_set(v)
         v['solver_type'] = 'HypreLOBPCG'
         return v
+    
+    def allocate_solver(self):
+        return mfem.HypreLOBPCG(MPI.COMM_WORLD)
 
 
-class EgnSolverSolver(SolverInstance):
+class EgnInstance(SolverInstance):
     def __init__(self, gui, engine):
         SolverInstance.__init__(self, gui, engine)
         self.assembled = False
         self.linearsolver = None
 
+    @property
+    def blocks(self):
+        return self.engine.assembled_blocks
 
-    def create_solvers(self):
-        pass
+    def compute_A(self, M, B, X, mask_M, mask_B):
+        '''
+        M[0] x = B
+
+        return A and isAnew
+        '''
+        return M[0], np.any(mask_M[0])
+
+    def compute_rhs(self, M, B, X):
+        '''
+        M[0] x = B
+        '''
+        return B
+
+    def assemble(self, inplace=True, update=False):
+        engine = self.engine
+        phys_target = self.get_phys()
+        phys_range = self.get_phys_range()
+
+        # use get_phys to apply essential to all phys in solvestep
+        dprint1("Asembling system matrix",
+                [x.name() for x in phys_target],
+                [x.name() for x in phys_range])
+
+        if not update:
+            engine.run_verify_setting(phys_target, self.gui)
+        else:
+            engine.set_update_flag('TimeDependent')
+
+        M_updated = engine.run_assemble_mat(
+            phys_target, phys_range, update=update)
+        B_updated = engine.run_assemble_b(phys_target, update=update)
+
+        engine.run_apply_essential(phys_target, phys_range, update=update)
+        engine.run_fill_X_block(update=update)
+
+        _blocks, M_changed = self.engine.run_assemble_blocks(self.compute_A,
+                                                             self.compute_rhs,
+                                                             inplace=inplace,
+                                                             update=update,)
+        # A, X, RHS, Ae, B, M, names = blocks
+        self.assembled = True
+        return M_changed
+
+
+    def allocate_solver(self, AA):
+        for x in self.gui.iter_enabled():
+            if isinstance(x, EigenValueSolver):
+                solver = x.allocate_solver()
+
+        lobpcg.SetOperator(AA)                
+        #lobpcg.SetNumModes(nev)
+        #lobpcg.SetPreconditioner(precond)
+        #lobpcg.SetMaxIter(200)
+        #lobpcg.SetTol(1e-8)
+        #lobpcg.SetPrecondUsageMode(1)
+        #lobpcg.SetPrintLevel(1)
+        #lobpcg.SetMassMatrix(M)
+        amg = mfem.HypreBoomerAMG(AA)
+        amg.SetPrintLevel(0)
+        precond = amg
+
+    def solve(self):
+        engine = self.engine
+
+        # if not self.assembled:
+        #    assert False, "assmeble must have been called"
+
+        A, X, RHS, Ae, B, M, depvars = self.blocks
+        mask = self.blk_mask
+        engine.copy_block_mask(mask)
+
+        depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
+
+        AA = engine.finalize_matrix(A, mask, not self.phys_real,
+                                        format=self.ls_type)
+
+        BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
+                                 format=self.ls_type)
+        
+ 
+        solver = self.allocate_solver(AA)
+        eigenvalues = mfem.doubleArray()
+        solver.Solve()
+        solver.GetEigenvalues(eigenvalues)
+        
+
+        print(type(AA))
+        print(BB)
+
