@@ -644,8 +644,7 @@ class Solver(SolverBase):
 
     @abstractmethod
     def get_matrix_weight(self, *args, **kwargs):
-        raise NotImplementedError(
-            "bug should not need this method")
+        ...
 
     @abstractmethod
     def run(self, engine, is_first=True):
@@ -804,6 +803,14 @@ class SolverInstance(ABC):
 
         return linearsolver
 
+    def assemble_rhs(self):
+        raise NotImplementedError(
+            "assmemble_rhs should be implemented in subclass")
+        
+    @abstractmethod    
+    def assemble(self, inplace=True, update=False):
+        ...
+    
     @abstractmethod
     def solve(self):
         ...
