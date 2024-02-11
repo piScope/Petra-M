@@ -352,6 +352,18 @@ class BlockMatrix(object):
         self.shape = shape
         self.complex = complex
 
+    @property
+    def is_zero(self):
+        '''
+        check if block is completely zero
+        '''
+        print(self.block)
+        for i in range(self.shape[0]):
+            for j in range(self.shape[1]):
+                if self[i, j] is not None:
+                    return False
+        return True
+
     def __getitem__(self, idx):
         try:
             r, c = idx

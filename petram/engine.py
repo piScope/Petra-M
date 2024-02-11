@@ -1165,7 +1165,7 @@ class Engine(object):
         # X[0].save_to_file("X0")
         A2, isAnew = compute_A(M, B, X,
                                self.mask_M,
-                               self.mask_B)  # solver determins A
+                               self.mask_B)  # solver determines A
 
         if isAnew:
             # generate Ae and eliminated A
@@ -1179,14 +1179,64 @@ class Engine(object):
         # A and RHS is modifedy by global DoF coupling P
         A, RHS = self.apply_interp(A, RHS)
 
-        # RHS.save_to_file("RHS")
-        # M[0].save_to_file("M0there2")
-        # M[1].save_to_file("M1")
-        # X[0].save_to_file("X0")
-        # RHS.save_to_file("RHS")
-
         # = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
         self.assembled_blocks = [A, X, RHS, Ae,  B,  M, self.dep_vars[:]]
+
+        return self.assembled_blocks, M_changed
+
+    def run_assemble_blocks_egn(self, inplace=True, update=False):
+        '''
+        Generate blocks for eigenvalue  problem.
+        Quadratic eigenvalue problem is assumed
+        l^2 K + l C +  M = 0
+
+        where K = M[2], C = M[1] and M = M[0], respectively
+
+        for now M[2] = 0
+
+        output is AA and BB to defien a linearlized general eigenvalue prob.
+          AA x = l BB x
+        '''
+        if update:
+            M = self.assembled_blocks[5]
+            B = self.assembled_blocks[4]
+            X = self.assembled_blocks[1]
+            Ae = self.assembled_blocks[3]
+            A = self.assembled_blocks[0]
+        else:
+            M, B = self.prepare_M_B_blocks()
+            X = self.assembled_blocks[1]
+            Ae = None
+
+        M, B, M_changed = self.fill_M_B_blocks(M, B, update=update)
+
+        if len(M) < 3:
+            assert False, "Eigenvalue problem is not well defined"
+
+        is_quad = False
+        if not M[1].is_zero:
+            assert False, "Quadratic Eigenvalue problem is not yet supported"
+            is_quad = True
+        else:
+            CC = None
+
+        KK = M[2]
+        isKKnew = np.any(self.mask_M[2])
+        MM = M[0]
+        isMMnew = np.any(self.mask_M[0])
+
+        if isMMnew:
+            MM = self.eliminate_BC_egn(MM, diag=1.0, inplace=inplace)
+        if isKKnew:
+            KK = self.eliminate_BC_egn(KK, diag=1e-300, inplace=inplace)
+
+        if is_quad:
+            pass
+        else:
+            AA = MM
+            BB = KK
+
+        self.assembled_blocks = [AA, BB,  X, B,  M, self.dep_vars[:]]
 
         return self.assembled_blocks, M_changed
 
@@ -2172,6 +2222,70 @@ class Engine(object):
             RHS[idx].set_elements(gl_ess_tdof1, x1*x2)
 
         return RHS
+
+    def eliminate_BC_egn(self, A, diag=1.0, inplace=True):
+        '''
+        essential BC elimination for eigenmode solver
+        '''
+        diagpolicy = self.get_diagpolicy()
+
+        nblock1 = A.shape[0]
+        nblock2 = A.shape[1]
+
+        for name in self.gl_ess_tdofs:
+            # we do elimination only for the varialbes to be solved
+            if not name in self._dep_vars:
+                continue
+
+            gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
+            ess_tdof1, ess_tdof2 = self.ess_tdofs[name]
+            idx1 = self.dep_var_offset(name)
+            idx2 = self.r_dep_var_offset(name)
+
+            if A[idx1, idx2] is None:
+                A.add_empty_square_block(idx1, idx2)
+
+            if A[idx1, idx2] is not None:
+                # note: this check is necessary, since in parallel environment,
+                # add_empty_square_block could not create any block because
+                # locally number or rows is zero.
+                if self.get_autofill_diag():
+                    self.fill_empty_diag(A[idx1, idx2])
+
+                A[idx1, idx2] = A[idx1, idx2].resetRow(
+                    gl_ess_tdof1, inplace=inplace)
+                A[idx1, idx2] = A[idx1, idx2].resetRow(
+                    gl_ess_tdof1, inplace=inplace)
+                A[idx1, idx2].setDiag(ess_tdof1, diag)
+
+            '''
+            note: minor differece between serial/parallel
+ 
+            Aee in serial ana parallel are not equal. The definition of Aee in MFEM is
+            A_original = Aee + A, where A_diag is set to one for Esseential DoF
+            In the serial mode, Aee_diag is not properly set. But this element
+            does not impact the final RHS.
+            '''
+            for j in range(nblock2):
+                if j == idx2:
+                    continue
+                if A[idx1, j] is None:
+                    continue
+
+                A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof1, inplace=inplace)
+                if not (idx1, j) in self._aux_essential and len(gl_ess_tdof2) > 0:
+                    A[idx1, j] = A[idx1, j].resetRow(
+                        gl_ess_tdof2, inplace=inplace)
+
+            for j in range(nblock1):
+                if j == idx1:
+                    continue
+                if A[j, idx2] is None:
+                    continue
+
+                A[j, idx2] = A[j, idx2].resetCol(gl_ess_tdof1, inplace=inplace)
+
+        return A
 
     def collect_local_ess_TDofs(self, opr, format, is_complex):
         '''
@@ -3887,7 +4001,7 @@ class SerialEngine(Engine):
         zerorows = np.where(np.diff(csr.indptr) == 0)[0]
         if len(zerorows) == csr.shape[0]:
             dprint1(
-                "!!! skipping fill_empty_diag: this diagonal block is compltely zero")
+                "!!! skipping fill_empty_diag: this diagonal block is completely zero")
             return
         lil = A.tolil()
         lil[zerorows, zerorows] = 1.0
