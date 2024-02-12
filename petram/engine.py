@@ -2245,7 +2245,7 @@ class Engine(object):
 
                 A[idx1, idx2] = A[idx1, idx2].resetRow(
                     gl_ess_tdof1, inplace=inplace)
-                A[idx1, idx2] = A[idx1, idx2].resetRow(
+                A[idx1, idx2] = A[idx1, idx2].resetCol(
                     gl_ess_tdof1, inplace=inplace)
                 A[idx1, idx2].setDiag(ess_tdof1, diag)
 

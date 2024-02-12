@@ -207,7 +207,6 @@ class KrylovModel(LinearSolverModel, NS_mixin):
             if isinstance(x, LinearSolverModel):
                 return x.prepare_solver(opr, engine)
 
-
     def do_prepare_solver(self, opr, engine):
         cls = getattr(mfem, self.solver_type + 'Solver')
         args = (MPI.COMM_WORLD,) if use_parallel else ()
@@ -233,40 +232,8 @@ class KrylovModel(LinearSolverModel, NS_mixin):
         return solver
 
     def write_matrix(self, A=None, b=None, x=None, suffix=smyid):
-        def get_block(Op, i, j):
-            try:
-                return Op._linked_op[(i, j)]
-            except KeyError:
-                return None
-
-        offset = A.RowOffsets()
-        rows = A.NumRowBlocks()
-        cols = A.NumColBlocks()
-        if suffix != '':
-            suffix = '.'+suffix
-
-        if A is not None:
-            for i in range(cols):
-                for j in range(rows):
-                    m = get_block(A, i, j)
-                    if m is None:
-                        continue
-                    if isinstance(m, mfem.ComplexOperator):
-                        m1 = m._real_operator
-                        m2 = m._imag_operator
-                        m1.Print('matrix_Re_' + str(i) + '_' + str(j))
-                        m2.Print('matrix_Im_' + str(i) + '_' + str(j))
-                    else:
-                        m.Print('matrix_' + str(i) + '_' + str(j))
-        if b is not None:
-            for i, bb in enumerate(b):
-                for j in range(rows):
-                    v = bb.GetBlock(j)
-                    v.Print('rhs_' + str(i) + '_' + str(j) + suffix)
-        if x is not None:
-            for j in range(rows):
-                xx = x.GetBlock(j)
-                xx.Print('x_' + str(i) + '_' + str(j) + suffix)
+        from petram.solver.solver_utils import write_blockoperator
+        write_blockoperator(A=A, b=b, x=x, suffix=suffix)
 
     def prepare_solver(self, opr, engine):
         solver = self.do_prepare_solver(opr, engine)

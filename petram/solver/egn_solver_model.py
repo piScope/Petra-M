@@ -478,6 +478,7 @@ class HypreLOBPCG(EigenValueSolver):
         solver.SetTol(self.abstol)
         solver.SetRelTol(self.reltol)
         solver.SetPrintLevel(self.log_level)
+        solver.SetRandomSeed(75)
 
 
 class EgnInstance(SolverInstance):
@@ -580,6 +581,13 @@ class EgnInstance(SolverInstance):
                                       format=self.ls_type)
 
         self.solver = self.allocate_solver(Amat, Bmat)
+
+        egn_solver_model = self.get_eigensolver_model()
+        if egn_solver_model.write_mat:
+            from petram.solver.solver_utils import write_blockoperator
+            write_blockoperator(A=Amat, suffix=smyid, mat_base="Amat_")
+            write_blockoperator(A=Bmat, suffix=smyid, mat_base="Bmat_")
+
         self.solver.Solve()
 
         self._Amat = Amat
