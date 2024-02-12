@@ -39,12 +39,18 @@ def setup_figure(fig, fig2):
     fig.property(fig.get_axes(0), 'axis', False)
     fig.get_page(0).set_nomargin(True)
     fig.property(fig.get_page(0), 'bgcolor', 'white')
+
+    aspect = fig2.property(fig2.get_axes(0), 'aspect')
+    fig.property(fig.get_axes(0), 'aspect', aspect)
+
     xlim = fig2.xlim()
     ylim = fig2.ylim()
     zlim = fig2.zlim()
     fig.xlim(xlim)
     fig.ylim(ylim)
     fig.zlim(zlim)
+
+    fig.view('noclip')
 
 
 def read_solinfo_remote(user, server, path):
@@ -1321,9 +1327,10 @@ class DlgPlotSol(SimpleFramePlus):
 
         if data_x is None:
             v = figure(viewer=cls)
-            v.update(False)
             v.title(expr + ':' + str(battrs))
             setup_figure(v, self.GetParent())
+
+            v.update(False)
             for verts, cdata, adata in data:
                 if cls is None:
                     v.solid(verts, adata, cz=True, cdata=cdata.astype(float),
@@ -1332,8 +1339,6 @@ class DlgPlotSol(SimpleFramePlus):
                     v.solid(verts, adata, cz=True, cdata=cdata,
                             shade='linear')
             v.update(True)
-            v.view('noclip')
-            v.view('equal')
             v.update(False)
             ax = self.GetParent().get_axes()
             param = ax.get_axes3d_viewparam(ax._artists[0])
@@ -1477,8 +1482,9 @@ class DlgPlotSol(SimpleFramePlus):
             use_pointfill=False):
         from ifigure.interactive import figure
         viewer = figure(viewer=cls)
-        viewer.update(False)
         setup_figure(viewer, self.GetParent())
+
+        viewer.update(False)
         viewer.suptitle(expr + ':' + str(battrs))
 
         dd = defaultdict(list)
@@ -1516,8 +1522,6 @@ class DlgPlotSol(SimpleFramePlus):
                 obj.set_gl_hl_use_array_idx(True)
 
         viewer.update(True)
-        viewer.view('noclip')
-        viewer.view('equal')
         viewer.update(False)
         ax = self.GetParent().get_axes()
         param = ax.get_axes3d_viewparam(ax._artists[0])
@@ -1777,6 +1781,8 @@ class DlgPlotSol(SimpleFramePlus):
 
         from ifigure.interactive import figure
         viewer = figure(viewer=cls)
+        setup_figure(viewer, self.GetParent())
+
         viewer.update(False)
         viewer.suptitle(expr + ':' + str(attrs))
 
@@ -1788,14 +1794,12 @@ class DlgPlotSol(SimpleFramePlus):
             ii = np.linspace(0, 1., num)
             ptx = np.vstack([sp * (1 - i) + ep * i for i in ii])
             if ptx.shape(-1) == 3:
-                setup_figure(viewer, self.GetParent())
+                #setup_figure(viewer, self.GetParent())
                 viewer.plot(ptx[:, 0], ptx[:, 1], ptx[:, 2],
                             c=data.real, cz=True)
             else:
                 viewer.plot(data.real)
 
-        viewer.view('noclip')
-        viewer.view('equal')
         ax = self.GetParent().get_axes()
         param = ax.get_axes3d_viewparam(ax._artists[0])
         ax2 = viewer.get_axes()
@@ -2006,8 +2010,9 @@ class DlgPlotSol(SimpleFramePlus):
 
         from ifigure.interactive import figure
         v = figure()
-        v.update(False)
         setup_figure(v, self.GetParent())
+
+        v.update(False)
         v.suptitle('Boundary ' + str(battrs))
         for xdata, ydata, zdata in zip(x, y, z):
             verts = np.vstack((xdata[1], ydata[1], zdata[1])).transpose()
@@ -2015,8 +2020,6 @@ class DlgPlotSol(SimpleFramePlus):
             v.solid(verts, adata, **kwargs)
 
         v.update(True)
-        v.view('noclip')
-        v.view('equal')
         v.update(False)
         ax = self.GetParent().get_axes()
         param = ax.get_axes3d_viewparam(ax._artists[0])
@@ -2117,9 +2120,11 @@ class DlgPlotSol(SimpleFramePlus):
                            cls=None):
 
         from ifigure.interactive import figure
+
         viewer = figure(viewer=cls)
-        viewer.update(False)
         setup_figure(viewer, self.GetParent())
+
+        viewer.update(False)
         viewer.suptitle(
             '[' + ','.join((expr_u, expr_v, expr_w)) + '] : ' + str(battrs))
 
@@ -2159,8 +2164,7 @@ class DlgPlotSol(SimpleFramePlus):
                             length=length)
 
         viewer.update(True)
-        viewer.view('noclip')
-        viewer.view('equal')
+
         viewer.update(False)
         ax = self.GetParent().get_axes()
         param = ax.get_axes3d_viewparam(ax._artists[0])
@@ -2371,8 +2375,9 @@ class DlgPlotSol(SimpleFramePlus):
     def make_plot_slice(self, dataset, battrsset, cls=None, expr=''):
         from ifigure.interactive import figure
         v = figure(viewer=cls)
-        v.update(False)
         setup_figure(v, self.GetParent())
+
+        v.update(False)
 
         first = True
         for data,  battrs in zip(dataset, battrsset):
@@ -2387,8 +2392,7 @@ class DlgPlotSol(SimpleFramePlus):
                     v.solid(verts, adata, cz=True, cdata=cdata, shade='linear')
 
         v.update(True)
-        v.view('noclip')
-        v.view('equal')
+
         v.update(False)
         ax = self.GetParent().get_axes()
         param = ax.get_axes3d_viewparam(ax._artists[0])
@@ -2401,8 +2405,9 @@ class DlgPlotSol(SimpleFramePlus):
 
         from ifigure.interactive import figure
         viewer = figure(viewer=cls)
-        viewer.update(False)
         setup_figure(viewer, self.GetParent())
+
+        viewer.update(False)
         viewer.threed('on')
 
         first = True
@@ -2428,8 +2433,6 @@ class DlgPlotSol(SimpleFramePlus):
                         attrs_out, attrs, invert=True))
             viewer.image(x, y, data, im_axes=im_axes, im_center=im_center)
 
-            viewer.view('noclip')
-            viewer.view('equal')
             ax = self.GetParent().get_axes()
             param = ax.get_axes3d_viewparam(ax._artists[0])
             ax2 = viewer.get_axes()
