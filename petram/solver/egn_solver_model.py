@@ -229,10 +229,9 @@ class EgnSolver(StdSolver):
         path = os.path.join(od, 'case_' + str(ksol))
         if not os.path.exists(path):
             engine.mkdir(path)
-            os.chdir(path)
-            engine.cleancwd()
-        else:
-            os.chdir(path)
+        os.chdir(path)
+        engine.cleancwd()
+
         files = ['model.pmfm'] + nsfiles
         for n in files:
             engine.symlink(os.path.join('../', n), n)
@@ -248,8 +247,6 @@ class EgnSolver(StdSolver):
 
     @debug.use_profiler
     def run(self, engine, is_first=True, return_instance=False):
-        if not use_parallel:
-            assert False, "Eigen solver works only with MPI"
         dprint1("Entering EigenSolver: ", self.fullpath())
         if self.clear_wdir:
             engine.remove_solfiles()
@@ -575,10 +572,38 @@ class EgnInstance(SolverInstance):
 
         depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
 
+        print(type(AA))
+        print(type(BB))
+
+        print(type(AA[0, 0]), type(BB[0, 0]))
+
+        if not use_parallel:
+            from scipy.sparse.linalg import eigs, eigsh
+            from scipy.sparse import coo_matrix
+            evals, evecs = eigs(coo_matrix(AA[0, 0]),
+                                k=self.gui.num_modes,
+                                M=coo_matrix(BB[0, 0]),
+                                sigma=-499000,
+                                which='LR')
+            # evals, evecs = eigsh(coo_matrix(AA[0,0]),
+            #                     k=self.gui.num_modes,
+            #                     M=coo_matrix(BB[0,0]),
+            #                     sigma=-497000,
+            #                     which='LA')
+
+            print(evals)
+            print(np.max(np.abs(evecs.imag)))
+            self._evals = evals
+            self._evecs = evecs
+            return True
+
         Amat = engine.finalize_matrix(AA, mask, not self.phys_real,
                                       format=self.ls_type)
         Bmat = engine.finalize_matrix(BB, mask, not self.phys_real,
                                       format=self.ls_type)
+
+        print(type(Amat))
+        print(type(Bmat))
 
         self.solver = self.allocate_solver(Amat, Bmat)
 
@@ -594,6 +619,24 @@ class EgnInstance(SolverInstance):
         return True
 
     def extract_sol(self, ksol):
+        if use_parallel:
+            return self.extract_sol_par(ksol)
+        else:
+            return self.extract_sol_ser(ksol)
+
+    def extract_sol_ser(self, ksol):
+        from petram.helper.block_matrix import ScipyCoo
+        solall = np.atleast_2d(self._evecs[:, ksol]).transpose().real
+
+        AA, _BB, X, _B, _M, _depvars = self.blocks
+
+        do_real_to_complex = self.gui.is_converted_from_complex()
+
+        AA.reformat_central_mat(solall, 0, X[0], self.blk_mask)
+        self.sol = X[0]
+        return self._evals[ksol]
+
+    def extract_sol_par(self, ksol):
         eigenvalues = mfem.doubleArray()
         self.solver.GetEigenvalues(eigenvalues)
         eigenvalue = eigenvalues.ToList()[ksol]

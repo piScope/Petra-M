@@ -163,6 +163,7 @@ class EvaluatorCommon(Evaluator):
             self.set_parametric_data()
 
         phys_root = self.mfem_model()["Phys"]
+
         solvars = phys_root.make_solvars(solsets.set)
 
         # Setting _emesh_idx from emesh_idx in GridFunction

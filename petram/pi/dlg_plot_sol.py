@@ -2660,6 +2660,7 @@ class DlgPlotSol(SimpleFramePlus):
         evaluate sol using boundary evaluator
         '''
         model = self.GetParent().model
+
         solfiles = self.get_model_soldfiles()
         mfem_model = model.param.getvar('mfem_model')
         phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
@@ -3042,10 +3043,11 @@ class DlgPlotSol(SimpleFramePlus):
 
     def get_model_soldfiles(self):
         model = self.GetParent().model
-        solfiles = model.variables.getvar('solfiles')
         soldir = model.variables.getvar('remote_soldir')
 
         if not self.config['use_cs']:
+            self.load_sol_if_needed()
+            solfiles = model.variables.getvar('solfiles')
             return solfiles
         else:
             soldir = os.path.join(soldir, self.config["cs_solsubdir"])
