@@ -1,3 +1,4 @@
+from mfem.common.mpi_debug import nicePrint
 from abc import ABC, abstractmethod
 import numpy as np
 import warnings
@@ -5,6 +6,7 @@ import os
 from petram.model import Model
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
+
 
 '''
 
@@ -806,11 +808,11 @@ class SolverInstance(ABC):
     def assemble_rhs(self):
         raise NotImplementedError(
             "assmemble_rhs should be implemented in subclass")
-        
-    @abstractmethod    
+
+    @abstractmethod
     def assemble(self, inplace=True, update=False):
         ...
-    
+
     @abstractmethod
     def solve(self):
         ...
@@ -822,6 +824,26 @@ class SolverInstance(ABC):
     @abstractmethod
     def compute_A(self, M, B, X, mask_M, mask_B):
         ...
+
+    def reformat_mat(self, A, AA, solall, ksol, ret, mask, alpha=1, beta=0):
+        from petram.mfem_config import use_parallel
+        if use_parallel:
+            from mpi4py import MPI
+            is_sol_central = any(MPI.COMM_WORLD.allgather(solall is None))
+
+        else:
+            is_sol_central = True
+
+        if is_sol_central:
+            if not self.phys_real and self.gui.assemble_real:
+                solall = self.linearsolver_model.real_to_complex(solall, AA)
+            A.reformat_central_mat(solall, ksol, ret, mask)
+        else:
+            print(self.phys_real, self.gui.assemble_real)
+            if not self.phys_real and self.gui.assemble_real:
+                solall = self.linearsolver_model.real_to_complex(solall, AA)
+                #assert False, "this operation is not permitted"
+            A.reformat_distributed_mat(solall, ksol, ret, mask)
 
 
 class TimeDependentSolverInstance(SolverInstance):
@@ -1004,7 +1026,7 @@ def real_to_complex_interleaved(solall, M):
     else:
         offset = M.RowOffsets()
         of = offset.ToList()
-
+    nicePrint(of)
     rows = M.NumRowBlocks()
     s = solall.shape
     nb = rows // 2
@@ -1037,6 +1059,7 @@ def real_to_complex_merged(solall, M):
         offset = M.RowOffsets()
         of = offset.ToList()
 
+    nicePrint(of)
     rows = M.NumRowBlocks()
     s = solall.shape
     i = 0

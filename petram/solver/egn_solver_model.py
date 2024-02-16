@@ -475,7 +475,7 @@ class HypreLOBPCG(EigenValueSolver):
         solver.SetTol(self.abstol)
         solver.SetRelTol(self.reltol)
         solver.SetPrintLevel(self.log_level)
-        solver.SetRandomSeed(75)
+        solver.SetRandomSeed(775)
 
 
 class EgnInstance(SolverInstance):
@@ -572,10 +572,6 @@ class EgnInstance(SolverInstance):
 
         depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
 
-        print(type(AA))
-        print(type(BB))
-
-        print(type(AA[0, 0]), type(BB[0, 0]))
 
         if not use_parallel:
             from scipy.sparse.linalg import eigs, eigsh
@@ -583,7 +579,9 @@ class EgnInstance(SolverInstance):
             evals, evecs = eigs(coo_matrix(AA[0, 0]),
                                 k=self.gui.num_modes,
                                 M=coo_matrix(BB[0, 0]),
-                                sigma=-499000,
+                                #sigma=-499000,
+                                sigma=15000.0,
+                                #sigma=0.0,
                                 which='LR')
             # evals, evecs = eigsh(coo_matrix(AA[0,0]),
             #                     k=self.gui.num_modes,
@@ -614,6 +612,11 @@ class EgnInstance(SolverInstance):
             write_blockoperator(A=Bmat, suffix=smyid, mat_base="Bmat_")
 
         self.solver.Solve()
+        eigenvalues = mfem.doubleArray()
+        self.solver.GetEigenvalues(eigenvalues)
+
+        self._eigenvalues = eigenvalues.ToList()
+        dprint1("Eigen values : " + ', '.join([str(x) for x in self._eigenvalues]))
 
         self._Amat = Amat
         return True
@@ -637,9 +640,7 @@ class EgnInstance(SolverInstance):
         return self._evals[ksol]
 
     def extract_sol_par(self, ksol):
-        eigenvalues = mfem.doubleArray()
-        self.solver.GetEigenvalues(eigenvalues)
-        eigenvalue = eigenvalues.ToList()[ksol]
+        eigenvalue = self._eigenvalues[ksol]
 
         vecs = self.solver.GetEigenvector(ksol).GetDataArray()
         solall = np.transpose(np.vstack([vecs]))
