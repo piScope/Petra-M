@@ -170,7 +170,7 @@ class MUMPSBase(LinearSolverModel):
         myid = MPI.COMM_WORLD.rank
         nproc = MPI.COMM_WORLD.size
 
-        if myid == 0:
+        if solall is not None:
             s = solall.shape[0]
             solall = solall[:s // 2, :] + 1j * solall[s // 2:, :]
             return solall
@@ -236,7 +236,8 @@ class MUMPSMFEMSolverModel(MUMPSBase):
     def prepare_solver(self, opr, engine):
         solver = MUMPSBlockPreconditioner(opr,
                                           gui=self,
-                                          engine=engine,)
+                                          engine=engine,
+                                          silent=True)
         solver.SetOperator(opr)
         return solver
 
@@ -265,7 +266,8 @@ class MUMPSPreconditionerModel(MUMPSBase):
     def prepare_solver(self, opr, engine):
         prc = MUMPSPreconditioner(opr,
                                   gui=self,
-                                  engine=engine)
+                                  engine=engine,
+                                  silent=True)
         return prc
 
 
@@ -403,7 +405,7 @@ class MUMPSSolver(LinearSolver):
 
         gui = self.gui
         # No outputs
-        if gui.log_level == 0:
+        if gui.log_level <= 0:
             s.set_icntl(1, -1)
             s.set_icntl(2, -1)
             s.set_icntl(3, -1)
@@ -906,13 +908,14 @@ class MUMPSSolver(LinearSolver):
             # stopping criterion for iterative refinement
             s.set_cntl(2, convert2float(self.gui.cntl2))
 
-        if self.silent or self.gui.log_level >= 10:
+        if self.gui.log_level >= 10 or self.gui.log_level <= 0:
             s.set_icntl(1, -1)
             s.set_icntl(2, -1)
             s.set_icntl(3, -1)
             s.set_icntl(4, 0)
         else:
-            dprint1("job3", debug.format_memory_usage())
+            if not self.silent:
+                dprint1("job3", debug.format_memory_usage())
 
         if not distributed_rhs and not distributed_sol:
             self.set_error_analysis(s)
@@ -1317,6 +1320,7 @@ class MUMPSBlockPreconditioner(mfem.Solver):
 
         if not self.gui.restore_fac:
             solver = MUMPSSolver(self.gui, self.engine)
+            solver.set_silent(self.silent)
             solver.AllocSolver(self.is_complex_operator,
                                self.gui.use_single_precision)
             solver.SetOperator(gcoo, is_parallel)
@@ -1326,6 +1330,7 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             pathes = self.gui.factor_path.split(',')
             for i in range(len(pathes)):
                 solver = MUMPSSolver(self.gui, self.engine)
+                solver.set_silent(self.silent)
                 solver.AllocSolver(self.is_complex_operator,
                                    self.gui.use_single_precision)
                 solver.SetOperator(gcoo, is_parallel, ifactor=i)
