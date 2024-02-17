@@ -204,7 +204,6 @@ class Strumpack(LinearSolverModel):
         v["lossy_precision"] = "16 (default)"
         v["extra_options"] = ""
         v["use_64_int"] = False
-        v['use_dist_sol'] = True
 
         return v
 
@@ -228,15 +227,16 @@ class Strumpack(LinearSolverModel):
             from mpi4py import MPI
             myid = MPI.COMM_WORLD.rank
 
-            offset = M.RowOffsets().ToList()
-            of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
-                  for o in offset]
-            if myid != 0:
-                return
+            of = M.RowOffsets().ToList()
 
+            if not self.use_dist_sol:
+                of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
+                      for o in of]
+                if myid != 0:
+                    return
         else:
-            offset = M.RowOffsets()
-            of = offset.ToList()
+            of = M.RowOffsets().ToList()
+
         dprint1(of)
         rows = M.NumRowBlocks()
         s = solall.shape

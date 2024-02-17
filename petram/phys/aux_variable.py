@@ -334,6 +334,7 @@ class AUX_Variable(Phys):
                     assert diag_size == t2.shape[1], "t1 and t2 shapes are inconsistent"
                 diag_size = t2.shape[1]
 
+
         if diag_size < 0:
             diag_size = len(np.atleast_1d(rhs_vec))
 
@@ -351,11 +352,12 @@ class AUX_Variable(Phys):
             rhs = np.hstack([rhs[0]]*diag_size).flatten()
 
         if self.get_root_phys().is_complex():
-            rhs = np.atleast_1d(rhs_vec).astype(complex)
+            rhs = np.atleast_1d(rhs).astype(complex)
         else:
             if np.iscomplexobj(rhs):
                 rhs = rhs.real
 
+        print(rhs)
         #if not self.get_root_phys().is_complex():
         #    if np.iscomplexobj(rhs):
         #        rhs = rhs.real

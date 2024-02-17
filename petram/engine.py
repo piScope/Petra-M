@@ -2206,6 +2206,8 @@ class Engine(object):
         except:
             print("Ae", Ae)
             print("X", X)
+            print("AeX", AeX)
+            print("RHS", RHS)
             raise
 
         for name in self.gl_ess_tdofs:

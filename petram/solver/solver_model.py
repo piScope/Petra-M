@@ -839,7 +839,6 @@ class SolverInstance(ABC):
                 solall = self.linearsolver_model.real_to_complex(solall, AA)
             A.reformat_central_mat(solall, ksol, ret, mask)
         else:
-            print(self.phys_real, self.gui.assemble_real)
             if not self.phys_real and self.gui.assemble_real:
                 solall = self.linearsolver_model.real_to_complex(solall, AA)
                 #assert False, "this operation is not permitted"
@@ -912,6 +911,11 @@ class LinearSolverModel(SolverBase):
     Model tree object for a linear solver
     '''
     is_iterative = True
+
+    def attribute_set(self, v):
+        v = super(LinearSolverModel, self).attribute_set(v)
+        v['use_dist_sol'] = True
+        return v
 
     def get_phys(self):
         return self.parent.get_phys()
