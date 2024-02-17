@@ -357,7 +357,6 @@ class AUX_Variable(Phys):
             if np.iscomplexobj(rhs):
                 rhs = rhs.real
 
-        print(rhs)
         #if not self.get_root_phys().is_complex():
         #    if np.iscomplexobj(rhs):
         #        rhs = rhs.real

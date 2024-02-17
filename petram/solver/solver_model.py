@@ -837,12 +837,12 @@ class SolverInstance(ABC):
         if is_sol_central:
             if not self.phys_real and self.gui.assemble_real:
                 solall = self.linearsolver_model.real_to_complex(solall, AA)
-            A.reformat_central_mat(solall, ksol, ret, mask)
+            A.reformat_central_mat(solall, ksol, ret, mask, alpha=alpha, beta=beta)
         else:
             if not self.phys_real and self.gui.assemble_real:
                 solall = self.linearsolver_model.real_to_complex(solall, AA)
                 #assert False, "this operation is not permitted"
-            A.reformat_distributed_mat(solall, ksol, ret, mask)
+            A.reformat_distributed_mat(solall, ksol, ret, mask, alpha=alpha, beta=beta)
 
 
 class TimeDependentSolverInstance(SolverInstance):

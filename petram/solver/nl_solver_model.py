@@ -368,6 +368,7 @@ class NonlinearBaseSolver(SolverInstance):
             opr = self.adjust_operator(A, M, mask)   # add Jacobian for Newtown
             AA = engine.finalize_matrix(opr, mask, not self.phys_real,
                                         format=self.ls_type)
+            self._AA = AA
 
         BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
                                  format=self.ls_type,
@@ -408,8 +409,8 @@ class NonlinearBaseSolver(SolverInstance):
         A, X, RHS, Ae, B, M, depvars = self.blocks
         mask = self.blk_mask
 
-        A.reformat_central_mat(
-            solall, 0, X[0], mask, alpha=self._alpha, beta=self._beta)
+        self.reformat_mat(A, self._AA, solall, 0, X[0], mask,
+                          alpha=self._alpha, beta=self._beta)
         self.sol = X[0]
 
         # store probe signal (use t=0.0 in std_solver)
@@ -760,16 +761,17 @@ class NewtonSolver(NonlinearBaseSolver):
             if self._converged:
                 dprint1("converged ("+self.scheme_name + ") #iter=", self.kiter)
                 dprint1("final error |err| = ", err)
-                dprint1("damping parameters", self.damping_record)
 
             else:
                 dprint1("no convergence ("+self.scheme_name+" interation)")
                 dprint1("damping parameters", self.damping_record)
 
             if self.verbose:
-                dprint1("err history = ", self.error_record)
-                dprint1("err^2 history (decomposition) = ", self.debug_data)
-                dprint1("residuals", self.residual_record)
+                dprint1("damping parameters", self.damping_record, notrim=True)
+                dprint1("err history = ", self.error_record, notrim=True)
+                dprint1("err^2 history (decomposition) = ",
+                        self.debug_data, notrim=True)
+                dprint1("residuals", self.residual_record, notrim=True)
 
     def save_probe(self):
         from petram.mfem_config import use_parallel
