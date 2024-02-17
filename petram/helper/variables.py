@@ -217,7 +217,7 @@ def cosd(x): return np.cos(x * np.pi / 180.)
 def sind(x): return np.sin(x * np.pi / 180.)
 def tand(x): return np.tan(x * np.pi / 180.)
 
-
+from petram.solver.parametric_scanner import Scan
 var_g = {'sin': np.sin,
          'cos': np.cos,
          'tan': np.tan,
@@ -251,7 +251,8 @@ var_g = {'sin': np.sin,
          'inf': np.inf,
          'inv': np.linalg.inv,
          'linspace': np.linspace,
-         'logspace': np.logspace}
+         'logspace': np.logspace,
+         'Scan': Scan}
 
 
 def check_vectorfe_in_lowdim(gf):

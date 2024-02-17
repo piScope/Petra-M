@@ -247,7 +247,7 @@ class StandardSolver(SolverInstance):
         if update_operator:
             AA = engine.finalize_matrix(A, mask, not self.phys_real,
                                         format=self.ls_type)
-
+            self._AA = AA
         BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
                                  format=self.ls_type)
 
@@ -290,7 +290,7 @@ class StandardSolver(SolverInstance):
         # linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         # solall = linearsolver.Mult(BB, case_base=0)
 
-        self.reformat_mat(A, AA, solall, 0, X[0], mask)
+        self.reformat_mat(A, self._AA, solall, 0, X[0], mask)
         '''
         is_sol_central = (True if not use_parallel else
                           any(MPI.COMM_WORLD.allgather(solall is None)))
