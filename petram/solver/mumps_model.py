@@ -131,7 +131,6 @@ class MUMPSBase(LinearSolverModel):
         v['use_single_precision'] = False
         v['write_inv'] = False
         v['use_dist_rhs'] = False
-        v['use_dist_sol'] = True
 
         # make sure that old data type (data was stored as int) is converted to
         # string
