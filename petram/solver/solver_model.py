@@ -16,7 +16,7 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
     (GUI)
 
     SolveStep:   This level defines the block matrix assembled at one time
-    Solve:       Solver solves a problem (linear or non-lienar or time-dependent or parametric),
+    Solver:      Solver solves a problem (linear or non-lienar or time-dependent or parametric),
                  using blocks defined in SolveStep
 
     LinterSolverModel:
@@ -932,12 +932,12 @@ class LinearSolverModel(SolverBase):
         raise NotImplementedError(
             "bug. this method sould not be called")
 
-    def prepare_solver(self):
+    def prepare_solver(self, opr, engine):
         '''
         this method create LinearSolver. This should return MFEM LinearOperator
         '''
         raise NotImplementedError(
-            "bug. this method sould not be called")
+            "bug. this method sould not implemented in subclass.")
 
     def prepare_solver_with_multtranspose(self):
         '''
@@ -1007,6 +1007,17 @@ class LinearSolver(ABC):
     def skip_solve(self, val):
         self._skip_solve = val
 
+
+    def get_solver(self):
+        '''
+        return Solver
+        ex) used to find assemble_real from linearsolver
+        '''
+        p = self.parent
+        while p is not None:
+            if isinstance(p, Solver):
+                return p
+            p = p.parent
 
 def convert_realblocks_to_complex(solall, M, merge_real_imag):
     if merge_real_imag:

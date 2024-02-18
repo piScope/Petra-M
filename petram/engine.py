@@ -2258,7 +2258,7 @@ class Engine(object):
                     gl_ess_tdof1, inplace=inplace)
                 A[idx1, idx2] = A[idx1, idx2].resetCol(
                     gl_ess_tdof1, inplace=inplace)
-                A[idx1, idx2].setDiag(ess_tdof1, diag)
+                A[idx1, idx2].setDiag(gl_ess_tdof1, diag)
 
             '''
             note: minor differece between serial/parallel

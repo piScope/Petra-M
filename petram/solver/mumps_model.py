@@ -1101,30 +1101,6 @@ class MUMPSPreconditioner(mfem.PyOperator):
         y.Assign(s.flatten().astype(float, copy=False))
 
 
-def check_block_operator(A):
-    from petram.solver.strumpack_model import get_block
-
-    rows = A.NumRowBlocks()
-    cols = A.NumColBlocks()
-
-    is_complex = False
-    is_parallel = False
-    for i in range(rows):
-        for j in range(cols):
-            m = get_block(A, i, j)
-            if m is None:
-                continue
-            if isinstance(m, mfem.ComplexOperator):
-                is_complex = True
-                check = m._real_operator
-            else:
-                check = m
-            if not isinstance(check, mfem.SparseMatrix):
-                is_parallel = True
-
-    return is_complex, is_parallel
-
-
 class MUMPSBlockPreconditioner(mfem.Solver):
     def __init__(self, opr, gui=None, engine=None, silent=False, **kwargs):
         self.gui = gui
@@ -1264,7 +1240,7 @@ class MUMPSBlockPreconditioner(mfem.Solver):
 
         opr = self._opr()
         from petram.solver.strumpack_model import build_csr_local
-
+        from petram.solver.solver_utils import check_block_operator
         is_complex, is_parallel = check_block_operator(opr)
 
         if is_complex:

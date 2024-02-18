@@ -124,6 +124,13 @@ def scatter_vector(fespace, vector, mpi_data_type):
     return list(recvdata)
 
 
+def get_operator_block(Op, i, j):
+    try:
+        return Op._linked_op[(i, j)]
+    except KeyError:
+        return None
+
+
 def write_blockoperator(A=None, b=None, x=None,
                         suffix="",
                         mat_base="matrix_",
@@ -138,12 +145,6 @@ def write_blockoperator(A=None, b=None, x=None,
     else:
         import mfem.ser as mfem
 
-    def get_block(Op, i, j):
-        try:
-            return Op._linked_op[(i, j)]
-        except KeyError:
-            return None
-
     offset = A.RowOffsets()
     rows = A.NumRowBlocks()
     cols = A.NumColBlocks()
@@ -153,7 +154,7 @@ def write_blockoperator(A=None, b=None, x=None,
     if A is not None:
         for i in range(cols):
             for j in range(rows):
-                m = get_block(A, i, j)
+                m = get_operator_block(A, i, j)
                 if m is None:
                     continue
                 if isinstance(m, mfem.ComplexOperator):
@@ -172,3 +173,31 @@ def write_blockoperator(A=None, b=None, x=None,
         for j in range(rows):
             xx = x.GetBlock(j)
             xx.Print(x_base + str(i) + '_' + str(j) + suffix)
+
+
+def check_block_operator(A):
+    from petram.mfem_config import use_parallel
+    if use_parallel:
+        import mfem.par as mfem
+    else:
+        import mfem.ser as mfem
+
+    rows = A.NumRowBlocks()
+    cols = A.NumColBlocks()
+
+    is_complex = False
+    is_parallel = False
+    for i in range(rows):
+        for j in range(cols):
+            m = get_operator_block(A, i, j)
+            if m is None:
+                continue
+            if isinstance(m, mfem.ComplexOperator):
+                is_complex = True
+                check = m._real_operator
+            else:
+                check = m
+            if not isinstance(check, mfem.SparseMatrix):
+                is_parallel = True
+
+    return is_complex, is_parallel
