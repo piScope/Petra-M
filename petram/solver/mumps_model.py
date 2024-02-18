@@ -1297,22 +1297,21 @@ class MUMPSBlockPreconditioner(mfem.Solver):
         for x in self.solver:
             x.set_silent(self.silent)
 
-    '''
-class MUMPSBlockSolver(LinearSolver):
 
+class MUMPSBlockSolver(LinearSolver):
+    '''
     MUMPS LinearSolverInstance which internally uses BlockSolver
 
     This is used from DerivedValue solver in TimeDependent solver.
 
     Not recommended to use in future, since it collect solution in
     root node.
-
+    '''
     is_iterative = True
 
     def __init__(self, *args, **kwargs):
         super(MUMPSBlockSolver, self).__init__(*args, **kwargs)
         self.silent = False
-        self.keep_sol_distributed = False
 
     def SetOperator(self, A, dist, name=None, ifactor=0):
         solver = MUMPSBlockPreconditioner(A,
@@ -1329,12 +1328,14 @@ class MUMPSBlockSolver(LinearSolver):
             from petram.helper.mpi_recipes import (gather_vector,
                                                    allgather_vector)
             myid = MPI.COMM_WORLD.rank
-
-            xx = gather_vector(x.GetDataArray())
-            if myid == 0:
-                xx = np.atleast_2d(xx).transpose()
+            if self.gui.use_dist_sol:
+                xx = x.GetDataArray()
+            else:
+                xx = gather_vector(x.GetDataArray())
+            if xx is not None:
+               xx = np.atleast_2d(xx).transpose()
         else:
             xx = x.GetDataArray().copy().reshape(-1, 1)
 
         return xx
-    '''
+
