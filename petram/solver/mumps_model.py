@@ -61,7 +61,7 @@ class MUMPSBase(LinearSolverModel):
                 ["scaling strategy (ICNTL8)", self.icntl8, 0, {}],
                 ["write inverse", self.write_inv, 3, {"text": ""}],
                 ["use float32", self.use_single_precision, 3, {"text": ""}],
-                ["use dist, RHS (only for MLsolver)",
+                ["use dist, RHS (dev.)",
                  self.use_dist_rhs, 3, {"text": ""}],
                 ["use dist, SOL (dev.)", self.use_dist_sol, 3, {"text": ""}], ]
 
@@ -1115,20 +1115,6 @@ class MUMPSBlockPreconditioner(mfem.Solver):
         super(MUMPSBlockPreconditioner, self).__init__()
 
     def real_to_complex(self, x):
-        '''
-        if use_parallel:
-           from mpi4py import MPI
-           myid     = MPI.COMM_WORLD.rank
-
-
-           offset = M.RowOffsets().ToList()
-           of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o))) for o in offset]
-           if myid != 0: return
-
-        else:
-            pass
-        '''
-
         rows = len(self.block_size)
         of = self.block_offset
         pt = 0
@@ -1143,23 +1129,16 @@ class MUMPSBlockPreconditioner(mfem.Solver):
         return x2
 
     def complex_to_real(self, y):
-        '''
-        if use_parallel:
-           from mpi4py import MPI
-           myid     = MPI.COMM_WORLD.rank
-
-
-           offset = M.RowOffsets().ToList()
-           of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o))) for o in offset]
-           if myid != 0: return
-
-        else:
-            pass
-        '''
         rows = len(self.block_size)
         of = self.block_offset
         pt = 0
-        y2 = np.zeros(of[-1], dtype=np.float)
+
+        if self.gui.use_single_precision:
+            dtype = np.float32
+        else:
+            dtype = np.float64
+
+        y2 = np.zeros(of[-1], dtype=dtype)
         for i in range(rows):
             l = of[i + 1] - of[i]
             w = int(l // 2)
@@ -1167,7 +1146,6 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             y2[(of[i] + w):(of[i] + w + w)] = y[pt:pt + w].imag
             pt = pt + w
 
-        #assert False, "test"
         return y2
 
     def Mult(self, x, y):
@@ -1196,9 +1174,6 @@ class MUMPSBlockPreconditioner(mfem.Solver):
                 xx = gather_vector(vec)
                 if myid == 0:
                     xx = np.atleast_2d(xx).transpose()
-
-        # if myid == 0:
-        #    print("xx shape (at node-0)", xx.shape)
 
         s = [solver.Mult(xx) for solver in self.solver]
 
@@ -1322,16 +1297,16 @@ class MUMPSBlockPreconditioner(mfem.Solver):
         for x in self.solver:
             x.set_silent(self.silent)
 
-
-class MUMPSBlockSolver(LinearSolver):
     '''
+class MUMPSBlockSolver(LinearSolver):
+
     MUMPS LinearSolverInstance which internally uses BlockSolver
 
     This is used from DerivedValue solver in TimeDependent solver.
 
     Not recommended to use in future, since it collect solution in
     root node.
-    '''
+
     is_iterative = True
 
     def __init__(self, *args, **kwargs):
@@ -1362,3 +1337,4 @@ class MUMPSBlockSolver(LinearSolver):
             xx = x.GetDataArray().copy().reshape(-1, 1)
 
         return xx
+    '''
