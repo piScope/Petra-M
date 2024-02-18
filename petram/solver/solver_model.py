@@ -837,12 +837,14 @@ class SolverInstance(ABC):
         if is_sol_central:
             if not self.phys_real and self.gui.assemble_real:
                 solall = self.linearsolver_model.real_to_complex(solall, AA)
-            A.reformat_central_mat(solall, ksol, ret, mask, alpha=alpha, beta=beta)
+            A.reformat_central_mat(
+                solall, ksol, ret, mask, alpha=alpha, beta=beta)
         else:
             if not self.phys_real and self.gui.assemble_real:
                 solall = self.linearsolver_model.real_to_complex(solall, AA)
                 #assert False, "this operation is not permitted"
-            A.reformat_distributed_mat(solall, ksol, ret, mask, alpha=alpha, beta=beta)
+            A.reformat_distributed_mat(
+                solall, ksol, ret, mask, alpha=alpha, beta=beta)
 
 
 class TimeDependentSolverInstance(SolverInstance):
@@ -922,6 +924,17 @@ class LinearSolverModel(SolverBase):
 
     def get_phys_range(self):
         return self.parent.get_phys_range()
+
+    def get_solver(self):
+        '''
+        return Solver
+        ex) used to find assemble_real from linearsolver
+        '''
+        p = self.parent
+        while p is not None:
+            if isinstance(p, Solver):
+                return p
+            p = p.parent
 
     def allocate_solver(self, is_complex=False, engine=None):
         '''
@@ -1007,17 +1020,6 @@ class LinearSolver(ABC):
     def skip_solve(self, val):
         self._skip_solve = val
 
-
-    def get_solver(self):
-        '''
-        return Solver
-        ex) used to find assemble_real from linearsolver
-        '''
-        p = self.parent
-        while p is not None:
-            if isinstance(p, Solver):
-                return p
-            p = p.parent
 
 def convert_realblocks_to_complex(solall, M, merge_real_imag):
     if merge_real_imag:

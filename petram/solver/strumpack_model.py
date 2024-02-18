@@ -560,7 +560,6 @@ class StrumpackSolver(LinearSolver):
             self.spss.set_distributed_csr_matrix(AA)
         else:
             self.spss.set_csr_matrix(AA)
-        nicePrint(AA)
         self._matrix = AA
 
     def Mult(self, b, x=None, case_base=0):
