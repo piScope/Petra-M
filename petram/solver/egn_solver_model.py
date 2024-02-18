@@ -1,6 +1,6 @@
 from petram.solver.krylov import KrylovModel
 from petram.solver.mumps_model import MUMPSMFEMSolverModel
-from petram.solver.strumpack_model import Strumpack
+from petram.solver.strumpack_model import StrumpackMFEMSolverModel
 from petram.mfem_config import use_parallel
 from petram.solver.mumps_model import MUMPSPreconditioner
 import os
@@ -59,9 +59,9 @@ class EgnMUMPS(MUMPSMFEMSolverModel, EgnLinearSolver):
         return 'Direct'
 
 
-class EgnStrumpack(Strumpack, EgnLinearSolver):
+class EgnStrumpack(StrumpackMFEMSolverModel, EgnLinearSolver):
     def __init__(self, *args, **kwargs):
-        Strumpack.__init__(self, *args, **kwargs)
+        StrumpackMFEMSolverModel.__init__(self, *args, **kwargs)
         EgnLinearSolver.__init__(self)
 
         self._case_dirs = None
@@ -599,9 +599,6 @@ class EgnInstance(SolverInstance):
                                       format=self.ls_type)
         Bmat = engine.finalize_matrix(BB, mask, not self.phys_real,
                                       format=self.ls_type)
-
-        print(type(Amat))
-        print(type(Bmat))
 
         self.solver = self.allocate_solver(Amat, Bmat)
 
