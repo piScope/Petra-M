@@ -135,12 +135,12 @@ class Coefficient_Evaluator(object):
                 code = compile(expr.strip(), '<string>', 'eval')
                 names = code.co_names
                 for n in names:
-                    if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
-                        coeff_var = CoefficientVariable(g[n], l, g)
+                    if (n in self.g and isinstance(self.g[n], NativeCoefficientGenBase)):
+                        coeff_var = CoefficientVariable(self.g[n], l, self.g)
                         self.variables.append((n, coeff_var))
-                    elif n in g and isinstance(g[n], Variable):
-                        self.variables.append((n, g[n]))
-                        for nn in g[n].dependency:
+                    elif n in self.g and isinstance(self.g[n], Variable):
+                        self.variables.append((n, self.g[n]))
+                        for nn in self.g[n].dependency:
                             self.variables.append((nn, self.g[nn]))
                     else:
                         pass
