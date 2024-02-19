@@ -3056,7 +3056,7 @@ class Engine(object):
 
             name = name2 + '_to_' + name1
             namehash = str(hash(tuple(info1.items()))) + \
-                "___" + str(hash(tuple(info1.items())))
+                "___" + str(hash(tuple(info2.items())))
             self.projections_hash[name] = namehash
 
             if abs(info1["dim"]-info2["dim"]) > 1:
