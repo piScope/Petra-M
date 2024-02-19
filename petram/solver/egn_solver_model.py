@@ -214,7 +214,8 @@ class EgnSolver(StdSolver):
 
     def get_possible_child_menu(self):
         choice = [("EigenSolver",  HypreLOBPCG),
-                  ("!", HypreAME), ]
+                  ("!",  ARPACK),]
+#                  ("!", HypreAME), ]
         return choice
 
     def go_case_dir(self, engine, ksol):
@@ -318,11 +319,12 @@ class EigenValueSolver(LinearSolverModel, NS_mixin):
                  {"text": "check converegence"}], ]
 
     def get_panel1_value(self):
-        single1 = (int(self.log_level),
-                   int(self.maxiter),
-                   self.reltol,
-                   self.abstol,
-                   self.write_mat, self.assert_no_convergence,)
+        value = (int(self.log_level),
+                 int(self.maxiter),
+                 self.reltol,
+                 self.abstol,
+                 self.write_mat, self.assert_no_convergence,)
+        return value
 
     def import_panel1_value(self, v):
         self.log_level = int(v[0])
@@ -423,12 +425,35 @@ class EigenValueSolver(LinearSolverModel, NS_mixin):
     def does_linearsolver_choose_linearsystem_type(self):
         return False
 
+class ARPACK(EigenValueSolver):
+    @classmethod
+    def fancy_menu_name(self):
+        return 'ARPACK'
+
+    @classmethod
+    def fancy_tree_name(self):
+        return 'ARPACK'
+
+    def attribute_set(self, v):
+        v = super(ARPACK, self).attribute_set(v)
+        v['solver_type'] = 'ARPACK'
+        return v
+    
     def supported_linear_system_type(self):
         return ["blk_interleave",
                 "blk_merged_s",
                 "blk_merged", ]
+    
+    def allocate_solver(self):
+        return ARPACK_Solver()
 
+class ARPACK_Solver:
+    def __init__(self, *args, **kwargs):
+        pass
 
+    def solve():
+        pass
+        
 class HypreAME(EigenValueSolver):
     @classmethod
     def fancy_menu_name(self):
@@ -451,6 +476,11 @@ class HypreAME(EigenValueSolver):
         solver.SetTol(self.abstol)
         solver.SetRelTol(self.reltol)
         solver.SetPrintLevel(self.log_level)
+        
+    def supported_linear_system_type(self):
+        return ["blk_interleave",
+                "blk_merged_s",
+                "blk_merged", ]
 
 
 class HypreLOBPCG(EigenValueSolver):
@@ -477,6 +507,10 @@ class HypreLOBPCG(EigenValueSolver):
         solver.SetPrintLevel(self.log_level)
         solver.SetRandomSeed(775)
 
+    def supported_linear_system_type(self):
+        return ["blk_interleave",
+                "blk_merged_s",
+                "blk_merged", ]
 
 class EgnInstance(SolverInstance):
     def __init__(self, gui, engine):
@@ -574,22 +608,26 @@ class EgnInstance(SolverInstance):
 
 
         if not use_parallel:
+            print(AA)
             from scipy.sparse.linalg import eigs, eigsh
             from scipy.sparse import coo_matrix
-            evals, evecs = eigs(coo_matrix(AA[0, 0]),
-                                k=self.gui.num_modes,
-                                M=coo_matrix(BB[0, 0]),
-                                #sigma=-499000,
-                                sigma=15000.0,
-                                #sigma=0.0,
-                                which='LR')
-            # evals, evecs = eigsh(coo_matrix(AA[0,0]),
-            #                     k=self.gui.num_modes,
-            #                     M=coo_matrix(BB[0,0]),
-            #                     sigma=-497000,
-            #                     which='LA')
+            Acoo = AA.get_global_coo()
+            Bcoo = BB.get_global_coo()            
+            #evals, evecs = eigs(Acoo,
+            #                    k=self.gui.num_modes,
+            #                    M=Bcoo,
+            #                    sigma=-498000,
+            #                    which='LR')
+            evals, evecs = eigsh(Acoo,
+                                  k=self.gui.num_modes,
+                                  M=Bcoo,
+                                  #sigma=-497000,
+                                  #sigma=-499000,
+                                  sigma= -30000,
+                                  which='LA')
 
             print(evals)
+            print(evecs.shape)
             print(np.max(np.abs(evecs.imag)))
             self._evals = evals
             self._evecs = evecs
