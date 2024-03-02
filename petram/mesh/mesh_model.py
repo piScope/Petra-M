@@ -428,6 +428,7 @@ class MeshFile(MeshGenerator):
         v['generate_edges'] = 1
         v['refine'] = True
         v['fix_orientation'] = True
+        v['fix_numbering'] = False
 
         return v
 
@@ -444,6 +445,8 @@ class MeshFile(MeshGenerator):
                3, {"text": "Generate edges"}],
               [None, self.refine == 1, 3, {"text": "Refine"}],
               [None, self.fix_orientation, 3, {"text": "FixOrientation"}],
+              [None, self.fix_numbering, 3, {
+                  "text": "Fix Attr/BdrAttr Numbering"}],
               [None, self._mesh_char, 2, None], ]
 
         p2 = MeshGenerator.panel1_param(self)
@@ -451,7 +454,8 @@ class MeshFile(MeshGenerator):
 
     def get_panel1_value(self):
         v1 = [self.path, None, self.generate_edges,
-              self.refine, self.fix_orientation, None]
+              self.refine, self.fix_orientation,
+              self.fix_numbering, None]
 
         v2 = MeshGenerator.get_panel1_value(self)
 
@@ -462,8 +466,9 @@ class MeshFile(MeshGenerator):
         self.generate_edges = 1 if v[2] else 0
         self.refine = 1 if v[3] else 0
         self.fix_orientation = v[4]
+        self.fix_numbering = v[5]
 
-        MeshGenerator.import_panel1_value(self, v[4:-1])
+        MeshGenerator.import_panel1_value(self, v[5:-1])
 
     def use_relative_path(self):
         self._path_bk = self.path
@@ -535,6 +540,16 @@ class MeshFile(MeshGenerator):
         args = (path, self.generate_edges, self.refine, self.fix_orientation)
 
         mesh = mfem.Mesh(*args)
+
+        if self.fix_numbering:
+            attr = mesh.GetAttributeArray()
+            _c, attr = np.unique(attr, return_inverse=True)
+            for i, k in enumerate(attr):
+                mesh.SetAttribute(i, k+1)
+            attr = mesh.GetBdrAttributeArray()
+            _c, attr = np.unique(attr, return_inverse=True)
+            for i, k in enumerate(attr):
+                mesh.SetBdrAttribute(i, k+1)
 
         if self.enforce_ncmesh:
             mesh.EnsureNCMesh()
