@@ -137,6 +137,12 @@ class Coefficient_Evaluator(object):
                         self.variables.append((n, g[n]))
                         for nn in g[n].dependency:
                             self.variables.append((nn, self.g[nn]))
+                        for nn in self.g[n].div:
+                            self.variables.append((nn, self.g[nn]))
+                        for nn in self.g[n].curl:
+                            self.variables.append((nn, self.g[nn]))
+                        for nn in self.g[n].grad:
+                            self.variables.append((nn, self.g[nn]))
                     else:
                         pass
                 self.co.append(code)
