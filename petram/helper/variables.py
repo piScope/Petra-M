@@ -1618,7 +1618,7 @@ class GridFunctionVariable(Variable):
         if self._grad_gf is None:
             grad_r = mfem.GradientGridFunctionCoefficient(self.gfr)
             if self.gfi is not None:
-                grad_i = mfem.GradientVectorGridFunctionCoefficient(self.gfi)
+                grad_i = mfem.GradientGridFunctionCoefficient(self.gfi)
             else:
                 grad_i = None
             self._grad_gf = (grad_r, grad_i)
@@ -1638,7 +1638,7 @@ class GridFunctionVariable(Variable):
         if self._curl_gf is None:
             curl_r = mfem.CurlGridFunctionCoefficient(self.gfr)
             if self.gfi is not None:
-                curl_i = mfem.CurlVectorGridFunctionCoefficient(self.gfi)
+                curl_i = mfem.CurlGridFunctionCoefficient(self.gfi)
             else:
                 curl_i = None
             self._curl_gf = (curl_r, curl_i)
