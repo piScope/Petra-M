@@ -1587,6 +1587,8 @@ class NumbaCoefficientVariable(CoefficientVariable):
 
     def set_coeff(self, ind_vars, locals):
         coeff = self.get_jitted_coefficient(ind_vars, locals)
+        if coeff is None:
+            assert False, "Failed to generate JITed coefficient"
         if self.complex:
             self.coeff = (coeff.real, coeff.imag)
         else:
@@ -2300,6 +2302,17 @@ class GFVectorVariable(GridFunctionVariable):
 
         return data
 
+    def get_jitted_coefficient(self, ind_vars, locals):
+        if not self.isDerived:
+            self.set_funcs()
+
+        if isinstance(self.func_r, mfem.VectorCoefficient):
+            if self.func_i is None:
+                return self.func_r
+            else:
+                return (self.func_r, self.func_i)
+        else:
+            assert False, "Not Implemented (should return VectorCoefficient?)"
 
 '''
 
