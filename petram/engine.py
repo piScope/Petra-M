@@ -817,7 +817,9 @@ class Engine(object):
         #  2: use init panel values
         #  3: load file
         #  4: do nothing
-        dprint1("run_apply_init0", phys_range, mode)
+        dprint1("run_apply_init0", phys_range, mode, init_var)
+
+        init_var_names = [x.strip() for x in init_var.split(",")]
         for j in range(self.n_matrix):
             self.access_idx = j
             if not self.is_matrix_active(j):
@@ -828,8 +830,10 @@ class Engine(object):
                     names = phys.dep_vars
                     if mode == 0:
                         for name in names:
-                            if init_var != "" and name != init_var:
+                            if init_var != "" and name not in init_var_names:
                                 continue
+                            dprint1(
+                                "applying value=0 to entire discrete space:" + name, init_value)
 
                             r_ifes = self.r_ifes(name)
                             rgf = self.r_x[r_ifes]
@@ -846,7 +850,7 @@ class Engine(object):
                         for key in self.model.root()._variables:
                             global_ns[key] = self.model.root()._variables[key]
                         for name in names:
-                            if init_var != "" and name != init_var:
+                            if init_var != "" and name not in init_var_names:
                                 continue
                             r_ifes = self.r_ifes(name)
                             rgf = self.r_x[r_ifes]
@@ -912,12 +916,17 @@ class Engine(object):
         if len(inits) == 0:
             self.run_apply_init_autozero(phys_range)
         else:
+            all_tmp = []
             for init in inits:
                 tmp = init.run(self)
-                phys_range = [phys for phys in phys_range if not phys in tmp]
-            if len(phys_range) > 0:
+                for x in tmp:
+                    if x not in all_tmp:
+                        all_tmp.append(x)
+            xphys_range = [phys.name() for phys in phys_range if not phys in all_tmp]
+            if len(xphys_range) > 0:
                 dprint1(
-                    "!!!!! These phys are not initiazliaed (FES variable is not available)!!!!!", phys_range)
+                    "!!!!! These phys are not initiazliaed (FES variable is not available)!!!!!",
+                    xphys_range)
 
     def run_apply_essential(self, phys_target, phys_range, update=False):
         L = len(self.r_dep_vars)
