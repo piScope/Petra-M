@@ -1026,6 +1026,13 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''
         pass
 
+    def compile_coeffs_for_evaluator(self, *kargs):
+        '''
+        called from make_solvars (used for plotting solution)
+        overwrite tihs to skip compiling coeffs if they are not
+        needed for visualization.
+        '''
+        self.compile_coeffs(*kargs)
 
 data = [("order", VtableElement("order", type='int',
                                 guilabel="order", no_func=True,
