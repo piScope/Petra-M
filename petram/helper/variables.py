@@ -2494,17 +2494,31 @@ def project_variable_to_gf(c, ind_vars, gfr, gfi,
     else:
         coeff_dim = vdim
 
+
+    return_complex = bool(gfi is not  None)
+
     def project_coeff(gf, coeff_dim, c, ind_vars, real):
         if coeff_dim > 1:
             #print("vector coeff", c)
             coeff = VCoeff(coeff_dim, c, ind_vars,
-                           local_ns, global_ns, real=real)
+                           local_ns, global_ns,
+                           return_complex=return_complex,
+                           real=real)
         else:
             #print("coeff", c)
             coeff = SCoeff(c, ind_vars,
-                           local_ns, global_ns, real=real)
+                           local_ns, global_ns,
+                           return_complex=return_complex,
+                           real=real)
 
-        gf.ProjectCoefficient(coeff)
+        if hasattr(coeff, 'get_real_coefficient'):
+            if real:
+                cc = coeff.get_real_coefficient()
+            else:
+                cc = coeff.get_imag_coefficient()
+        else:
+            cc = coeff
+        gf.ProjectCoefficient(cc)
 
     project_coeff(gfr, coeff_dim, c, ind_vars, True)
     if gfi is not None:
