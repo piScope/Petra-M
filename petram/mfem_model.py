@@ -203,7 +203,7 @@ class MFEM_PhysRoot(Model):
 
         for phys in self.iter_enabled():
             for mm in phys.walk_enabled():
-                mm.compile_coeffs()
+                mm.compile_coeffs_for_evaluator()
 
         solvars = [None] * len(solsets)
         if g is None:
