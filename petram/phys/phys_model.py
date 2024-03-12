@@ -1281,7 +1281,7 @@ class PhysModule(Phys):
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
 
         for k in keys:
-            n = k.split('_')[0]
+            n = "_".join(k.split('_')[:-1])
             if n in depvars:
                 sol = soldict[k]
                 solr = sol[0]
