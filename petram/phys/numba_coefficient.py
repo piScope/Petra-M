@@ -809,7 +809,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             if n not in l:
                 l[n] = g[n]
             else:
-                assert False, "name confict: " + n + " is defined in local namespace"
+                assert False, "name conflict: " + n + " is defined in local namespace"
 
     for n in names:
         if n in ind_vars:
