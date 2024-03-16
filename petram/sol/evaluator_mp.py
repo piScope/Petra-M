@@ -200,7 +200,6 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
     def set_solfiles(self, solfiles):
         st, et = data_partition(len(solfiles.set), self.rank, self.myid)
         s = solfiles[st:et]
-        print(s)
         if len(s) > 0:
             self.solfiles_real = s
             self.solfiles = s
