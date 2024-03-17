@@ -239,9 +239,9 @@ class DlgPlotSol(SimpleFramePlus):
 
             if len(choices) == 0:
                 choices = ['no physcs in mode']
-            ll = [['x', 'x', 0, {}],
-                  ['y', 'y', 0, {}],
-                  ['z', 'z', 0, {}],
+            ll = [['x', 'x', 500, {}],
+                  ['y', 'y', 500, {}],
+                  ['z', 'z', 500, {}],
                   ['Boundary Index', text, 0, {}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
@@ -297,7 +297,7 @@ class DlgPlotSol(SimpleFramePlus):
                                    {'elp': elp2, 'tip': tip2},)]
             ll = [
                 [
-                    'Expression', '', 0, {}], ss, [
+                    'Expression', '', 500, {}], ss, [
                     'Selection', 'all', 4, {
                         'style': wx.CB_DROPDOWN, 'choices': [
                             'all', 'visible', 'hidden']}], [

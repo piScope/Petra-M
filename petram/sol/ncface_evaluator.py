@@ -76,12 +76,35 @@ def eval_on_faces(obj, expr, solvars, phys):
 
         elif (n in g and isinstance(g[n], NumbaCoefficientVariable)):
             ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
+            if g[n].has_dependency():
+                g[n].forget_jitted_coefficient()
             g[n].set_coeff(ind_vars, g)
             new_names.append(n)
             name_translation[n] = n
 
         elif (n in g and isinstance(g[n], Variable)):
-            new_names.extend(g[n].dependency)
+            for x in g[n].dependency:
+                new_names.append(x)
+                name_translation[x] = x
+
+            for x in g[n].grad:
+                new_names.append('grad'+x)
+                name_translation['grad'+x] = 'grad'+x
+                if 'grad'+x not in g:
+                    g['grad'+x] = g[x].generate_grad_variable()
+
+            for x in g[n].curl:
+                new_names.append('curl'+x)
+                name_translation['curl'+x] = 'curl'+x
+                if 'curl'+x not in g:
+                    g['curl'+x] = g[x].generate_curl_variable()
+
+            for x in g[n].div:
+                new_names.append('div'+x)
+                name_translation['div'+x] = 'div'+x
+                if 'div'+x not in g:
+                    g['div'+x] = g[x].generate_div_variable()
+
             new_names.append(n)
             name_translation[n] = n
 

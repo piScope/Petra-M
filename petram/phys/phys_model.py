@@ -988,6 +988,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         else:
             dim = self.get_root_phys().geom_dim
 
+        return_complex = self.get_root_phys().is_complex()
+
         if cotype == 'S':
             # for b in self.itg_choice():
             #   if b[0] == self.integrator: break
@@ -995,25 +997,31 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             if not use_dual:
                 c_coeff = SCoeff(c, self.get_root_phys().ind_vars,
                                  self._local_ns, self._global_ns,
+                                 return_complex=return_complex,
                                  real=real, conj=is_conj)
             else:  # so far this is only for an elastic integrator
                 c_coeff = (SCoeff(c, self.get_root_phys().ind_vars,
                                   self._local_ns, self._global_ns,
+                                  return_complex=return_complex,
                                   real=real, conj=is_conj, component=0),
                            SCoeff(c, self.get_root_phys().ind_vars,
                                   self._local_ns, self._global_ns,
+                                  return_complex=return_complex,
                                   real=real, conj=is_conj, component=1))
         elif cotype == 'V':
             c_coeff = VCoeff(dim, c, self.get_root_phys().ind_vars,
                              self._local_ns, self._global_ns,
+                             return_complex=return_complex,
                              real=real, conj=is_conj)
         elif cotype == 'M':
             c_coeff = MCoeff(dim, c, self.get_root_phys().ind_vars,
                              self._local_ns, self._global_ns,
+                             return_complex=return_complex,
                              real=real, conj=is_conj)
         elif cotype == 'D':
             c_coeff = DCoeff(dim, c, self.get_root_phys().ind_vars,
                              self._local_ns, self._global_ns,
+                             return_complex=return_complex,
                              real=real, conj=is_conj)
         return c_coeff
 
@@ -1022,14 +1030,6 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         jit compile coefficient
         '''
         pass
-
-    def compile_coeffs_for_evaluator(self, *kargs):
-        '''
-        called from make_solvars (used for plotting solution)
-        overwrite tihs to skip compiling coeffs if they are not
-        needed for visualization.
-        '''
-        self.compile_coeffs(*kargs)
 
 data = [("order", VtableElement("order", type='int',
                                 guilabel="order", no_func=True,
@@ -1278,7 +1278,7 @@ class PhysModule(Phys):
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
 
         for k in keys:
-            n = k.split('_')[0]
+            n = "_".join(k.split('_')[:-1])
             if n in depvars:
                 sol = soldict[k]
                 solr = sol[0]

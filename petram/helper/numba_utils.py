@@ -44,7 +44,8 @@ def generate_caller_scalar(setting, sdim):
                 str(count) + ' = farray(data[' + \
                 str(count+1) + "], "+str(size) + ", np.float64)"
 
-            if len(size) == 1 and size[0] == 1:
+            #if len(size) == 1 and size[0] == 1:
+            if kind == 0:
                 t1 += '[0]'
                 t2 += '[0]'
 
@@ -60,7 +61,8 @@ def generate_caller_scalar(setting, sdim):
                 str(count) + ' = farray(data[' + \
                 str(count) + "], "+str(size) + ", np.float64)"
 
-            if len(size) == 1 and size[0] == 1:
+            #if len(size) == 1 and size[0] == 1:
+            if kind == 0:
                 t += '[0]'
 
             text.append(t)
@@ -132,7 +134,8 @@ def generate_caller_array(setting, sdim):
             t2 = '    arri' + \
                 str(count) + ' = farray(data[' + \
                 str(count+1) + "], "+str(size) + ", np.float64)"
-            if len(size) == 1 and size[0] == 1:
+            #if len(size) == 1 and size[0] == 1:
+            if kind == 0:
                 t1 += '[0]'
                 t2 += '[0]'
 
@@ -148,7 +151,8 @@ def generate_caller_array(setting, sdim):
             t = '    arr' + \
                 str(count) + ' = farray(data[' + \
                 str(count) + "]," + str(size) + ", np.float64)"
-            if len(size) == 1 and size[0] == 1:
+            #if len(size) == 1 and size[0] == 1:
+            if kind == 0:
                 t += '[0]'
 
             text.append(t)
