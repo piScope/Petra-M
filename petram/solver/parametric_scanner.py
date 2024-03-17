@@ -183,5 +183,10 @@ class SimpleScanner(DefaultParametricScanner):
     def collect_probe_data(self, engine, dirs):
         pass
 
+    def collect_probe_signals(self, engine, dirs):
+        import warnings
+        warnings.warn(
+            "collect_probe_signals is not used for SimpleScanner", UserWarning)
+
 
 Scan = SimpleScanner

@@ -1,4 +1,4 @@
-from petram.solver.strumpack_model import Strumpack
+from petram.solver.strumpack_model import StrumpackMFEMSolverModel
 from petram.solver.mumps_model import MUMPSMFEMSolverModel
 from petram.solver.krylov import KrylovModel, StationaryRefinementModel
 import os
@@ -272,7 +272,7 @@ class CoarseMUMPS(MUMPSMFEMSolverModel, CoarsestLvlSolver):
         return 'MUMPS:Lv0'
 
 
-class CoarseStrumpack(Strumpack, CoarsestLvlSolver):
+class CoarseStrumpack(StrumpackMFEMSolverModel, CoarsestLvlSolver):
     @classmethod
     def fancy_menu_name(self):
         return 'STRUMPACK'
@@ -342,7 +342,7 @@ class MultiLvlStationarySolver(StdSolver):
 
     @classmethod
     def fancy_tree_name(self):
-        return 'Stationary'
+        return 'MLStationary'
 
     def attribute_set(self, v):
         super(MultiLvlSolver, self).attribute_set(v)

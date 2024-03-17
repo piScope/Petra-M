@@ -44,6 +44,7 @@
        return np.array([1-0.1j,1-0.1j])
 
 '''
+from petram.solver.parametric_scanner import Scan
 import numpy as np
 import weakref
 import types
@@ -63,7 +64,8 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('Variables')
 
 class _decorator(object):
     @staticmethod
-    def float(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False):
+    def float(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False,
+              params=None):
         '''
         this form allows for using both
         @float
@@ -76,7 +78,8 @@ class _decorator(object):
                                          dependency=dependency,
                                          grad=grad,
                                          curl=curl,
-                                         div=div)
+                                         div=div,
+                                         params=params)
                 return obj
             return dec(func)
         if func:
@@ -85,7 +88,8 @@ class _decorator(object):
             return wrapper
 
     @staticmethod
-    def complex(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False):
+    def complex(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False,
+                params=None):
         '''
         this form allows for using both
         @complex
@@ -98,8 +102,8 @@ class _decorator(object):
                                          dependency=dependency,
                                          grad=grad,
                                          curl=curl,
-                                         div=div)
-
+                                         div=div,
+                                         params=params)
                 return obj
             return dec(func)
         if func:
@@ -109,7 +113,7 @@ class _decorator(object):
 
     @staticmethod
     def array(complex=False, shape=(1,), dependency=None, grad=None,
-              curl=None, div=None, td=False):
+              curl=None, div=None, td=False, params=None):
         def dec(func):
             obj = PyFunctionVariable(func,
                                      complex=complex,
@@ -117,7 +121,8 @@ class _decorator(object):
                                      dependency=dependency,
                                      grad=grad,
                                      curl=curl,
-                                     div=div,)
+                                     div=div,
+                                     params=params)
             return obj
         return dec
 
@@ -217,7 +222,7 @@ def cosd(x): return np.cos(x * np.pi / 180.)
 def sind(x): return np.sin(x * np.pi / 180.)
 def tand(x): return np.tan(x * np.pi / 180.)
 
-
+from petram.solver.parametric_scanner import Scan
 var_g = {'sin': np.sin,
          'cos': np.cos,
          'tan': np.tan,
@@ -251,7 +256,8 @@ var_g = {'sin': np.sin,
          'inf': np.inf,
          'inv': np.linalg.inv,
          'linspace': np.linspace,
-         'logspace': np.logspace}
+         'logspace': np.logspace,
+         'Scan': Scan}
 
 
 def check_vectorfe_in_lowdim(gf):
@@ -388,7 +394,8 @@ class Variable():
         return self()[idx]
 
     def get_names(self):
-        return []
+        return list(set(list(self.dependency) + list(self.div) +
+                        list(self.curl) + list(self.grad)))
 
     def get_emesh_idx(self, idx=None, g=None):
         if idx is None:
@@ -681,7 +688,7 @@ class ExpressionVariable(Variable):
             for k, name in enumerate(self.ind_vars):
                 l[name] = locs[..., k]
             value = np.array(eval_code(self.co, var_g2, l), copy=False)
-            if value.ndim > 1:
+            if value.ndim > 0:
                 value = np.stack([value] * size)
         #value = np.array(eval_code(self.co, var_g, l), copy=False)
         from petram.helper.right_broadcast import multi
@@ -723,9 +730,8 @@ class ExpressionVariable(Variable):
             for k, name in enumerate(self.ind_vars):
                 l[name] = locs[..., k]
             value = np.array(eval_code(self.co, var_g2, l), copy=False)
-            if value.ndim > 1:
+            if value.ndim > 0:
                 value = np.stack([value] * size)
-
         return value
 
     def ncface_values(self, *args, **kwargs):
@@ -760,7 +766,8 @@ class ExpressionVariable(Variable):
             for k, name in enumerate(self.ind_vars):
                 l[name] = locs[..., k]
             value = np.array(eval_code(self.co, var_g2, l), copy=False)
-            if value.ndim > 1:
+            if value.ndim > 0:
+                size = counts
                 value = np.stack([value] * size)
 
         return value
@@ -1026,9 +1033,36 @@ class DomainVariable(Variable):
         return ret
 
 
+def _copy_func_and_apply_params(f, params):
+    import copy
+    import types
+    import functools
+
+    """Based on https://stackoverflow.com/a/13503277/2988730 (@unutbu)"""
+    globals = f.__globals__.copy()
+    for k in params:
+        globals[k] = params[k]
+    g = types.FunctionType(f.__code__, globals, name=f.__name__,
+                           argdefs=f.__defaults__, closure=f.__closure__)
+    g = functools.update_wrapper(g, f)
+    g.__module__ = f.__module__
+    g.__kwdefaults__ = copy.copy(f.__kwdefaults__)
+    return g
+
+
+def _get_kwargs(func):
+    from inspect import signature
+    sig = signature(func)
+
+    kwnames = [x for x in sig.parameters
+               if sig.parameters[x].default != sig.parameters[x].empty]
+    return kwnames
+    dep2kw = dict(zip(self.dependency, kwnames))
+
+
 class PyFunctionVariable(Variable):
     def __init__(self, func, complex=False, shape=tuple(), dependency=None,
-                 grad=None, curl=None, div=None):
+                 grad=None, curl=None, div=None, params=None):
         super(
             PyFunctionVariable,
             self).__init__(complex=complex,
@@ -1036,7 +1070,8 @@ class PyFunctionVariable(Variable):
                            grad=grad,
                            curl=curl,
                            div=div)
-
+        if params is not None:
+            func = _copy_func_and_apply_params(func, params)
         self.func = func
         self.t = None
         self.x = (0, 0, 0)
@@ -1044,6 +1079,11 @@ class PyFunctionVariable(Variable):
 
     def __repr__(self):
         return "PyFunction"
+
+    def _get_dep2kw(self):
+        kwnames = _get_kwargs(self.func)
+        dep2kw = dict(zip(self.dependency, kwnames))
+        return dep2kw
 
     def set_point(self, T, ip, g, l, t=None):
         self.x = T.Transform(ip)
@@ -1064,6 +1104,7 @@ class PyFunctionVariable(Variable):
                      **kwargs):
         # elattr = None, el2v = None,
         # wverts = None, locs = None, g = None
+
         if locs is None:
             return
         if g is None:
@@ -1078,6 +1119,8 @@ class PyFunctionVariable(Variable):
         ret = np.zeros(shape, dtype=dtype)
         wverts = np.zeros(size)
 
+        dep2kw = self._get_dep2kw()
+
         for kk, m, loc in zip(iele, el2v, elvertloc):
             if kk < 0:
                 continue
@@ -1090,7 +1133,16 @@ class PyFunctionVariable(Variable):
                                                          elvertloc=elvertloc,
                                                          g=g, knows=knowns,
                                                          **kwargs)
-                kwargs = {n: knowns[g[n]][idx] for n in self.dependency}
+
+                kwargs = {dep2kw[n]: knowns[g[n]][idx]
+                          for n in self.dependency}
+                for n in self.grad:
+                    kwargs['grad'+n] = knowns[g['grad'+n]][idx]
+                for n in self.curl:
+                    kwargs['curl'+n] = knowns[g['curl'+n]][idx]
+                for n in self.div:
+                    kwargs['div'+n] = knowns[g['div'+n]][idx]
+
                 ret[idx] = ret[idx] + self.func(*xyz, **kwargs)
                 wverts[idx] = wverts[idx] + 1
         ret = np.stack([x for x in ret if x is not None])
@@ -1116,6 +1168,9 @@ class PyFunctionVariable(Variable):
         dtype = np.complex128 if self.complex else np.float64
 
         ret = [None] * len(locs)
+
+        dep2kw = self._get_dep2kw()
+
         for idx, xyz in enumerate(locs):
             '''
             for n in self.dependency:
@@ -1134,7 +1189,14 @@ class PyFunctionVariable(Variable):
                                      locs=locs, knows=knowns,
                                      **kwargs)
 
-            kwargs = {n: knowns[g[n]][idx] for n in self.dependency}
+            kwargs = {dep2kw[n]: knowns[g[n]][idx] for n in self.dependency}
+            for n in self.grad:
+                kwargs['grad'+n] = knowns[g['grad'+n]][idx]
+            for n in self.curl:
+                kwargs['curl'+n] = knowns[g['curl'+n]][idx]
+            for n in self.div:
+                kwargs['div'+n] = knowns[g['div'+n]][idx]
+
             ret[idx] = self.func(*xyz, **kwargs)
 
         ret = np.stack(ret).astype(dtype, copy=False)
@@ -1165,6 +1227,8 @@ class PyFunctionVariable(Variable):
 
         valid_attrs = attrs[attrs != -1]
 
+        dep2kw = self._get_dep2kw()
+
         jj = 0
         for i in range(counts):
             if valid_attrs[i] == -1:
@@ -1181,7 +1245,14 @@ class PyFunctionVariable(Variable):
                                                      knowns=knowns, current_domains=current_domains)
 
             xyz = tuple(locs[i])
-            kwargs = {n: knowns[g[n]][i] for n in self.dependency}
+            kwargs = {dep2kw[n]: knowns[g[n]][i] for n in self.dependency}
+            for n in self.grad:
+                kwargs['grad'+n] = knowns[g['grad'+n]][i]
+            for n in self.curl:
+                kwargs['curl'+n] = knowns[g['curl'+n]][i]
+            for n in self.div:
+                kwargs['div'+n] = knowns[g['div'+n]][i]
+
             value = self.func(*xyz, **kwargs)
 
             ret[i, ...] = value
@@ -1321,6 +1392,7 @@ class CoefficientVariable(Variable):
 
             for j in range(nv):
                 ip = ir.IntPoint(j)
+                T.SetIntPoint(ip)
 
                 if (self.coeff[0] is not None and
                         self.coeff[1] is not None):
@@ -1360,6 +1432,7 @@ class CoefficientVariable(Variable):
 
             for j in range(nv):
                 ip = ir.IntPoint(j)
+                T.SetIntPoint(ip)
 
                 if (self.coeff[0] is not None and
                         self.coeff[1] is not None):
@@ -1394,6 +1467,7 @@ class CoefficientVariable(Variable):
             iele = elem_ids[i]
             T = mesh.GetElementTransformation(iele)
             ip = int_points[i]
+            T.SetIntPoint(ip)
 
             if (self.coeff[0] is not None and
                     self.coeff[1] is not None):
@@ -1433,6 +1507,7 @@ class CoefficientVariable(Variable):
 class NumbaCoefficientVariable(CoefficientVariable):
     def __init__(self, func, complex=False, shape=tuple(), dependency=None,
                  grad=None, curl=None, div=None, td=False, params=None):
+
         super(
             CoefficientVariable,
             self).__init__(complex=complex,
@@ -1456,6 +1531,13 @@ class NumbaCoefficientVariable(CoefficientVariable):
         else:
             assert False, "unsupported shape"
 
+        self._jitted = None
+
+    def has_dependency(self):
+        return ((len(self.dependency) + len(self.grad) +
+                 len(self.div) + len(self.curl)) > 0)
+
+    def forget_jitted_coefficient(self):
         self._jitted = None
 
     def get_jitted_coefficient(self, ind_vars, locals):
@@ -1517,6 +1599,21 @@ class NumbaCoefficientVariable(CoefficientVariable):
             if dd is None:
                 return
             dep.append(dd)
+        for d in self.grad:
+            dd = locals[d].get_jitted_grad_coefficient(ind_vars, locals)
+            if dd is None:
+                return
+            dep.append(dd)
+        for d in self.curl:
+            dd = locals[d].get_jitted_curl_coefficient(ind_vars, locals)
+            if dd is None:
+                return
+            dep.append(dd)
+        for d in self.div:
+            dd = locals[d].get_jitted_div_coefficient(ind_vars, locals)
+            if dd is None:
+                return
+            dep.append(dd)
 
         from petram.mfem_config import numba_debug, use_parallel
         if use_parallel:
@@ -1539,6 +1636,8 @@ class NumbaCoefficientVariable(CoefficientVariable):
 
     def set_coeff(self, ind_vars, locals):
         coeff = self.get_jitted_coefficient(ind_vars, locals)
+        if coeff is None:
+            assert False, "Failed to generate JITed coefficient"
         if self.complex:
             self.coeff = (coeff.real, coeff.imag)
         else:
@@ -1558,21 +1657,93 @@ class GridFunctionVariable(Variable):
         self.deriv = deriv if deriv is not None else self._def_deriv
         self.deriv_args = (gf_real, gf_imag)
 
-        self._curl = None
-        self._div = None
-        self._grad = None
+        self._grad_gf = None
+        self._curl_gf = None
+        self._div_gf = None
 
     def _def_deriv(self, *args):
         return args[0], args[1], None
 
-    def eval_grad(self):
-        if self._grad is None:
+    def _set_grad_gf(self):
+        self.set_gfr_gfi()
+        if self._grad_gf is None:
             grad_r = mfem.GradientGridFunctionCoefficient(self.gfr)
             if self.gfi is not None:
-                grad_i = mfem.GradientVectorGridFunctionCoefficient(self.gfi)
+                grad_i = mfem.GradientGridFunctionCoefficient(self.gfi)
             else:
                 grad_i = None
             self._grad_gf = (grad_r, grad_i)
+
+    def _set_div_gf(self):
+        self.set_gfr_gfi()
+        if self._div_gf is None:
+            div_r = mfem.DivergenceGridFunctionCoefficient(self.gfr)
+            if self.gfi is not None:
+                div_i = mfem.DivergenceGridFunctionCoefficient(self.gfi)
+            else:
+                div_i = None
+            self._div_gf = (div_r, div_i)
+
+    def _set_curl_gf(self):
+        self.set_gfr_gfi()
+        if self._curl_gf is None:
+            curl_r = mfem.CurlGridFunctionCoefficient(self.gfr)
+            if self.gfi is not None:
+                curl_i = mfem.CurlGridFunctionCoefficient(self.gfi)
+            else:
+                curl_i = None
+            self._curl_gf = (curl_r, curl_i)
+
+    def generate_grad_variable(self):
+        self._set_grad_gf()
+
+        def func(*args, **kargs):
+            return self._grad_gf
+        func.kind = 'vector'
+        l = {}
+        return CoefficientVariable(func, l)
+
+    def generate_curl_variable(self):
+        self._set_curl_gf()
+
+        def func(*args, **kargs):
+            return self._curl_gf
+        func.kind = 'vector'
+        l = {}
+        return CoefficientVariable(func, l)
+
+    def generate_div_variable(self):
+        self._set_div_gf()
+
+        def func(*args, **kargs):
+            return self._div_gf
+        func.kind = 'scalar'
+        l = {}
+        return CoefficientVariable(func, l)
+
+    def get_jitted_grad_coefficient(self, ind_vars, locals):
+        self._set_grad_gf()
+        if self._grad_gf[1] is None:
+            return self._grad_gf[0]
+        else:
+            return (self._grad_gf[0], self._grad_gf[1])
+
+    def get_jitted_curl_coefficient(self, ind_vars, locals):
+        self._set_curl_gf()
+        if self._curl_gf[1] is None:
+            return self._curl_gf[0]
+        else:
+            return (self._curl_gf[0], self._curl_gf[1])
+
+    def get_jitted_div_coefficient(self, ind_vars, locals):
+        self._set_div_gf()
+        if self._div_gf[1] is None:
+            return self._div_gf[0]
+        else:
+            return (self._div_gf[0], self._div_gf[1])
+
+    def eval_grad(self):
+        self._set_grad_gf()
         v = mfem.Vector()
         self._grad_gf[0].Eval(v, self.T, self.ip)
         ret = v.GetDataArray().copy()
@@ -1582,13 +1753,7 @@ class GridFunctionVariable(Variable):
         return ret
 
     def eval_curl(self):
-        if self._curl is None:
-            curl_r = mfem.CurlGridFunctionCoefficient(self.gfr)
-            if self.gfi is not None:
-                curl_i = mfem.CurlVectorGridFunctionCoefficient(self.gfi)
-            else:
-                curl_i = None
-            self._curl_gf = (curl_r, curl_i)
+        self._set_curl_gf()
         v = mfem.Vector()
         self._curl_gf[0].Eval(v, self.T, self.ip)
         ret = v.GetDataArray().copy()
@@ -1598,13 +1763,7 @@ class GridFunctionVariable(Variable):
         return ret
 
     def eval_div(self):
-        if self._div is None:
-            div_r = mfem.DivergenceGridFunctionCoefficient(self.gfr)
-            if self.gfi is not None:
-                div_i = mfem.DivergenceVectorGridFunctionCoefficient(self.gfi)
-            else:
-                div_i = None
-            self._div_gf = (div_r, div_i)
+        self._set_div_gf()
         v = mfem.Vector()
         self._div_gf[0].Eval(v, self.T, self.ip)
         ret = v.GetDataArray().copy()
@@ -1845,6 +2004,7 @@ class GFScalarVariable(GridFunctionVariable):
 
     def ncedge_values(self, ifaces=None, irs=None,
                       gtypes=None, **kwargs):
+
         if not self.isDerived:
             self.set_funcs()
 
@@ -2062,7 +2222,7 @@ class GFVectorVariable(GridFunctionVariable):
                      **kwargs):
         # iele = None, elattr = None, el2v = None,
         # wverts = None, locs = None, g = None
-        #print("grid vector nodal")
+
         if iele is None:
             return
         if not self.isDerived:
@@ -2190,6 +2350,18 @@ class GFVectorVariable(GridFunctionVariable):
             jj = jj + 1
 
         return data
+
+    def get_jitted_coefficient(self, ind_vars, locals):
+        if not self.isDerived:
+            self.set_funcs()
+
+        if isinstance(self.func_r, mfem.VectorCoefficient):
+            if self.func_i is None:
+                return self.func_r
+            else:
+                return (self.func_r, self.func_i)
+        else:
+            assert False, "Not Implemented (should return VectorCoefficient?)"
 
 
 '''
@@ -2493,8 +2665,7 @@ def project_variable_to_gf(c, ind_vars, gfr, gfi,
     else:
         coeff_dim = vdim
 
-
-    return_complex = bool(gfi is not  None)
+    return_complex = bool(gfi is not None)
 
     def project_coeff(gf, coeff_dim, c, ind_vars, real):
         if coeff_dim > 1:

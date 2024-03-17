@@ -496,7 +496,7 @@ class Model(RestorableOrderedDict):
         return "Init."
 
     def panel4_tabname(self):
-        return "Time Dep./NL."
+        return "Contrib."
 
     def panel1_param(self):
         return []

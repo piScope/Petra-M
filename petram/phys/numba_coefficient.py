@@ -796,6 +796,8 @@ class NumbaCoefficient():
 def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
                          return_complex, **kwargs):
 
+    diag_mode = kwargs.pop("diag_mode", False)
+
     ind_vars = [xx.strip() for xx in ind_vars.split(',')]
     code = compile(txt.strip(), '<string>', 'eval')
     names = code.co_names
@@ -809,7 +811,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             if n not in l:
                 l[n] = g[n]
             else:
-                assert False, "name confict: " + n + " is defined in local namespace"
+                assert False, "name conflict: " + n + " is defined in local namespace"
 
     for n in names:
         if n in ind_vars:
@@ -860,9 +862,16 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             func_txt.append("   " + xx + " = ptx[" + str(k) + "]")
         if objmode:
             func_txt.append("   with objmode(_out_='"+return_type+"'):")
-            func_txt.append("       _out_ =" + txt)
+            if diag_mode:
+                func_txt.append("       _out_ = np.diag(" + txt + ")")
+            else:
+                func_txt.append("       _out_ =" + txt)
         else:
-            func_txt.append("   _out_ =" + txt)
+            if diag_mode:
+                func_txt.append("   _out_ = np.diag(" + txt + ")")
+            else:
+                func_txt.append("   _out_ =" + txt)
+
         func_txt.append("   if isinstance(_out_, list):")
         func_txt.append("         _out_ = np.array(_out_)")
         func_txt.append("   elif isinstance(_out_, tuple):")

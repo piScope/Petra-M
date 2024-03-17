@@ -61,7 +61,7 @@ class MUMPSBase(LinearSolverModel):
                 ["scaling strategy (ICNTL8)", self.icntl8, 0, {}],
                 ["write inverse", self.write_inv, 3, {"text": ""}],
                 ["use float32", self.use_single_precision, 3, {"text": ""}],
-                ["use dist, RHS (only for MLsolver)",
+                ["use dist, RHS (dev.)",
                  self.use_dist_rhs, 3, {"text": ""}],
                 ["use dist, SOL (dev.)", self.use_dist_sol, 3, {"text": ""}], ]
 
@@ -131,7 +131,6 @@ class MUMPSBase(LinearSolverModel):
         v['use_single_precision'] = False
         v['write_inv'] = False
         v['use_dist_rhs'] = False
-        v['use_dist_sol'] = True
 
         # make sure that old data type (data was stored as int) is converted to
         # string
@@ -170,7 +169,7 @@ class MUMPSBase(LinearSolverModel):
         myid = MPI.COMM_WORLD.rank
         nproc = MPI.COMM_WORLD.size
 
-        if myid == 0:
+        if solall is not None:
             s = solall.shape[0]
             solall = solall[:s // 2, :] + 1j * solall[s // 2:, :]
             return solall
@@ -236,7 +235,8 @@ class MUMPSMFEMSolverModel(MUMPSBase):
     def prepare_solver(self, opr, engine):
         solver = MUMPSBlockPreconditioner(opr,
                                           gui=self,
-                                          engine=engine,)
+                                          engine=engine,
+                                          silent=True)
         solver.SetOperator(opr)
         return solver
 
@@ -265,7 +265,8 @@ class MUMPSPreconditionerModel(MUMPSBase):
     def prepare_solver(self, opr, engine):
         prc = MUMPSPreconditioner(opr,
                                   gui=self,
-                                  engine=engine)
+                                  engine=engine,
+                                  silent=True)
         return prc
 
 
@@ -403,7 +404,7 @@ class MUMPSSolver(LinearSolver):
 
         gui = self.gui
         # No outputs
-        if gui.log_level == 0:
+        if gui.log_level <= 0:
             s.set_icntl(1, -1)
             s.set_icntl(2, -1)
             s.set_icntl(3, -1)
@@ -906,13 +907,14 @@ class MUMPSSolver(LinearSolver):
             # stopping criterion for iterative refinement
             s.set_cntl(2, convert2float(self.gui.cntl2))
 
-        if self.silent or self.gui.log_level >= 10:
+        if self.gui.log_level >= 10 or self.gui.log_level <= 0:
             s.set_icntl(1, -1)
             s.set_icntl(2, -1)
             s.set_icntl(3, -1)
             s.set_icntl(4, 0)
         else:
-            dprint1("job3", debug.format_memory_usage())
+            if not self.silent:
+                dprint1("job3", debug.format_memory_usage())
 
         if not distributed_rhs and not distributed_sol:
             self.set_error_analysis(s)
@@ -1099,30 +1101,6 @@ class MUMPSPreconditioner(mfem.PyOperator):
         y.Assign(s.flatten().astype(float, copy=False))
 
 
-def check_block_operator(A):
-    from petram.solver.strumpack_model import get_block
-
-    rows = A.NumRowBlocks()
-    cols = A.NumColBlocks()
-
-    is_complex = False
-    is_parallel = False
-    for i in range(rows):
-        for j in range(cols):
-            m = get_block(A, i, j)
-            if m is None:
-                continue
-            if isinstance(m, mfem.ComplexOperator):
-                is_complex = True
-                check = m._real_operator
-            else:
-                check = m
-            if not isinstance(check, mfem.SparseMatrix):
-                is_parallel = True
-
-    return is_complex, is_parallel
-
-
 class MUMPSBlockPreconditioner(mfem.Solver):
     def __init__(self, opr, gui=None, engine=None, silent=False, **kwargs):
         self.gui = gui
@@ -1137,20 +1115,6 @@ class MUMPSBlockPreconditioner(mfem.Solver):
         super(MUMPSBlockPreconditioner, self).__init__()
 
     def real_to_complex(self, x):
-        '''
-        if use_parallel:
-           from mpi4py import MPI
-           myid     = MPI.COMM_WORLD.rank
-
-
-           offset = M.RowOffsets().ToList()
-           of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o))) for o in offset]
-           if myid != 0: return
-
-        else:
-            pass
-        '''
-
         rows = len(self.block_size)
         of = self.block_offset
         pt = 0
@@ -1165,23 +1129,16 @@ class MUMPSBlockPreconditioner(mfem.Solver):
         return x2
 
     def complex_to_real(self, y):
-        '''
-        if use_parallel:
-           from mpi4py import MPI
-           myid     = MPI.COMM_WORLD.rank
-
-
-           offset = M.RowOffsets().ToList()
-           of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o))) for o in offset]
-           if myid != 0: return
-
-        else:
-            pass
-        '''
         rows = len(self.block_size)
         of = self.block_offset
         pt = 0
-        y2 = np.zeros(of[-1], dtype=np.float)
+
+        if self.gui.use_single_precision:
+            dtype = np.float32
+        else:
+            dtype = np.float64
+
+        y2 = np.zeros(of[-1], dtype=dtype)
         for i in range(rows):
             l = of[i + 1] - of[i]
             w = int(l // 2)
@@ -1189,7 +1146,6 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             y2[(of[i] + w):(of[i] + w + w)] = y[pt:pt + w].imag
             pt = pt + w
 
-        #assert False, "test"
         return y2
 
     def Mult(self, x, y):
@@ -1218,9 +1174,6 @@ class MUMPSBlockPreconditioner(mfem.Solver):
                 xx = gather_vector(vec)
                 if myid == 0:
                     xx = np.atleast_2d(xx).transpose()
-
-        # if myid == 0:
-        #    print("xx shape (at node-0)", xx.shape)
 
         s = [solver.Mult(xx) for solver in self.solver]
 
@@ -1262,7 +1215,7 @@ class MUMPSBlockPreconditioner(mfem.Solver):
 
         opr = self._opr()
         from petram.solver.strumpack_model import build_csr_local
-
+        from petram.solver.solver_utils import check_block_operator
         is_complex, is_parallel = check_block_operator(opr)
 
         if is_complex:
@@ -1317,6 +1270,7 @@ class MUMPSBlockPreconditioner(mfem.Solver):
 
         if not self.gui.restore_fac:
             solver = MUMPSSolver(self.gui, self.engine)
+            solver.set_silent(self.silent)
             solver.AllocSolver(self.is_complex_operator,
                                self.gui.use_single_precision)
             solver.SetOperator(gcoo, is_parallel)
@@ -1326,6 +1280,7 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             pathes = self.gui.factor_path.split(',')
             for i in range(len(pathes)):
                 solver = MUMPSSolver(self.gui, self.engine)
+                solver.set_silent(self.silent)
                 solver.AllocSolver(self.is_complex_operator,
                                    self.gui.use_single_precision)
                 solver.SetOperator(gcoo, is_parallel, ifactor=i)
@@ -1357,7 +1312,6 @@ class MUMPSBlockSolver(LinearSolver):
     def __init__(self, *args, **kwargs):
         super(MUMPSBlockSolver, self).__init__(*args, **kwargs)
         self.silent = False
-        self.keep_sol_distributed = False
 
     def SetOperator(self, A, dist, name=None, ifactor=0):
         solver = MUMPSBlockPreconditioner(A,
@@ -1374,11 +1328,14 @@ class MUMPSBlockSolver(LinearSolver):
             from petram.helper.mpi_recipes import (gather_vector,
                                                    allgather_vector)
             myid = MPI.COMM_WORLD.rank
-
-            xx = gather_vector(x.GetDataArray())
-            if myid == 0:
-                xx = np.atleast_2d(xx).transpose()
+            if self.gui.use_dist_sol:
+                xx = x.GetDataArray()
+            else:
+                xx = gather_vector(x.GetDataArray())
+            if xx is not None:
+               xx = np.atleast_2d(xx).transpose()
         else:
             xx = x.GetDataArray().copy().reshape(-1, 1)
 
         return xx
+

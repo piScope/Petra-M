@@ -1,3 +1,4 @@
+from mfem.common.mpi_debug import nicePrint
 from abc import ABC, abstractmethod
 import numpy as np
 import warnings
@@ -5,6 +6,7 @@ import os
 from petram.model import Model
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
+
 
 '''
 
@@ -14,7 +16,7 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
     (GUI)
 
     SolveStep:   This level defines the block matrix assembled at one time
-    Solve:       Solver solves a problem (linear or non-lienar or time-dependent or parametric),
+    Solver:      Solver solves a problem (linear or non-lienar or time-dependent or parametric),
                  using blocks defined in SolveStep
 
     LinterSolverModel:
@@ -131,6 +133,7 @@ class SolveStep(SolverBase):
         from petram.solver.nl_solver_model import NLSolver
         from petram.solver.mg_solver_model import MGSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
+        from petram.solver.egn_solver_model import EgnSolver        
         from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
@@ -144,6 +147,7 @@ class SolveStep(SolverBase):
                     StdSolver,
                     StdMeshAdaptSolver,
                     NLSolver,
+                    EgnSolver,
                     # MGSolver,
                     ForLoop,
                     DWCCall, SetVar]
@@ -154,6 +158,7 @@ class SolveStep(SolverBase):
                     # MGSolver,
                     StdSolver,
                     NLSolver,
+                    EgnSolver,                    
                     ForLoop,
                     DWCCall, SetVar]
 
@@ -163,6 +168,7 @@ class SolveStep(SolverBase):
         from petram.solver.nl_solver_model import NLSolver
         from petram.solver.mg_solver_model import MGSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
+        from petram.solver.egn_solver_model import EgnSolver
         from petram.solver.solver_controls import DWCCall, InnerForLoop
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
@@ -174,6 +180,7 @@ class SolveStep(SolverBase):
                     ("", MultiLvlStationarySolver),
                     ("", NLSolver),
                     ("", TimeDomain),
+                    #("", EgnSolver),
                     ("extra", DistanceSolver),
                     ("", StdMeshAdaptSolver),
                     ("", InnerForLoop),
@@ -184,6 +191,7 @@ class SolveStep(SolverBase):
                     ("", MultiLvlStationarySolver),
                     ("", NLSolver),
                     ("", TimeDomain),
+                    #("", EgnSolver),
                     ("extra", DistanceSolver),
                     ("", InnerForLoop),
                     ("", DWCCall),
@@ -641,8 +649,7 @@ class Solver(SolverBase):
 
     @abstractmethod
     def get_matrix_weight(self, *args, **kwargs):
-        raise NotImplementedError(
-            "bug should not need this method")
+        ...
 
     @abstractmethod
     def run(self, engine, is_first=True):
@@ -801,6 +808,14 @@ class SolverInstance(ABC):
 
         return linearsolver
 
+    def assemble_rhs(self):
+        raise NotImplementedError(
+            "assmemble_rhs should be implemented in subclass")
+
+    @abstractmethod
+    def assemble(self, inplace=True, update=False):
+        ...
+
     @abstractmethod
     def solve(self):
         ...
@@ -812,6 +827,27 @@ class SolverInstance(ABC):
     @abstractmethod
     def compute_A(self, M, B, X, mask_M, mask_B):
         ...
+
+    def reformat_mat(self, A, AA, solall, ksol, ret, mask, alpha=1, beta=0):
+        from petram.mfem_config import use_parallel
+        if use_parallel:
+            from mpi4py import MPI
+            is_sol_central = any(MPI.COMM_WORLD.allgather(solall is None))
+
+        else:
+            is_sol_central = True
+
+        if is_sol_central:
+            if not self.phys_real and self.gui.assemble_real:
+                solall = self.linearsolver_model.real_to_complex(solall, AA)
+            A.reformat_central_mat(
+                solall, ksol, ret, mask, alpha=alpha, beta=beta)
+        else:
+            if not self.phys_real and self.gui.assemble_real:
+                solall = self.linearsolver_model.real_to_complex(solall, AA)
+                #assert False, "this operation is not permitted"
+            A.reformat_distributed_mat(
+                solall, ksol, ret, mask, alpha=alpha, beta=beta)
 
 
 class TimeDependentSolverInstance(SolverInstance):
@@ -881,11 +917,27 @@ class LinearSolverModel(SolverBase):
     '''
     is_iterative = True
 
+    def attribute_set(self, v):
+        v = super(LinearSolverModel, self).attribute_set(v)
+        v['use_dist_sol'] = True
+        return v
+
     def get_phys(self):
         return self.parent.get_phys()
 
     def get_phys_range(self):
         return self.parent.get_phys_range()
+
+    def get_solver(self):
+        '''
+        return Solver
+        ex) used to find assemble_real from linearsolver
+        '''
+        p = self.parent
+        while p is not None:
+            if isinstance(p, Solver):
+                return p
+            p = p.parent
 
     def allocate_solver(self, is_complex=False, engine=None):
         '''
@@ -896,12 +948,12 @@ class LinearSolverModel(SolverBase):
         raise NotImplementedError(
             "bug. this method sould not be called")
 
-    def prepare_solver(self):
+    def prepare_solver(self, opr, engine):
         '''
         this method create LinearSolver. This should return MFEM LinearOperator
         '''
         raise NotImplementedError(
-            "bug. this method sould not be called")
+            "bug. this method sould not implemented in subclass.")
 
     def prepare_solver_with_multtranspose(self):
         '''
@@ -994,7 +1046,7 @@ def real_to_complex_interleaved(solall, M):
     else:
         offset = M.RowOffsets()
         of = offset.ToList()
-
+    nicePrint(of)
     rows = M.NumRowBlocks()
     s = solall.shape
     nb = rows // 2
@@ -1027,6 +1079,7 @@ def real_to_complex_merged(solall, M):
         offset = M.RowOffsets()
         of = offset.ToList()
 
+    nicePrint(of)
     rows = M.NumRowBlocks()
     s = solall.shape
     i = 0

@@ -204,7 +204,6 @@ class Strumpack(LinearSolverModel):
         v["lossy_precision"] = "16 (default)"
         v["extra_options"] = ""
         v["use_64_int"] = False
-        v['use_dist_sol'] = True
 
         return v
 
@@ -218,7 +217,8 @@ class Strumpack(LinearSolverModel):
             return 'blk_merged'
 
     def real_to_complex(self, solall, M):
-        if self.parent.assemble_real:
+        solver = self.get_solver()
+        if solver.assemble_real:
             return self.real_to_complex_merged(solall, M)
         else:
             assert False, "should not come here"
@@ -228,15 +228,16 @@ class Strumpack(LinearSolverModel):
             from mpi4py import MPI
             myid = MPI.COMM_WORLD.rank
 
-            offset = M.RowOffsets().ToList()
-            of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
-                  for o in offset]
-            if myid != 0:
-                return
+            of = M.RowOffsets().ToList()
 
+            if not self.use_dist_sol:
+                of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
+                      for o in of]
+                if myid != 0:
+                    return
         else:
-            offset = M.RowOffsets()
-            of = offset.ToList()
+            of = M.RowOffsets().ToList()
+
         dprint1(of)
         rows = M.NumRowBlocks()
         s = solall.shape
@@ -255,13 +256,6 @@ class Strumpack(LinearSolverModel):
         solver = StrumpackSolver(self, engine)
         solver.AllocSolver(is_complex, self.use_single_precision)
         return solver
-
-
-def get_block(Op, i, j):
-    try:
-        return Op._linked_op[(i, j)]
-    except KeyError:
-        return None
 
 
 def build_csr_local(A, dtype, is_complex):
@@ -333,12 +327,13 @@ def build_csr_local(A, dtype, is_complex):
     ncols = np.sum(global_size)
 
     from scipy.sparse import bmat
+    from petram.solver.solver_utils import get_operator_block
 
     elements = [None] * rows
     elements = [elements.copy() for x in range(cols)]
     for i in range(rows):
         for j in range(cols):
-            m = get_block(A, i, j)
+            m = get_operator_block(A, i, j)
             if m is None:
                 continue
             if use_parallel:
@@ -490,7 +485,7 @@ class StrumpackSolver(LinearSolver):
 
         for x in self.gui.extra_options.split("\n"):
             opts.extend([x.strip()
-                        for x in x.split(" ") if len(x.strip()) > 0])
+                         for x in x.split(" ") if len(x.strip()) > 0])
 
         # opts.append("")
         return opts
@@ -587,7 +582,8 @@ class StrumpackSolver(LinearSolver):
         dprint1("calling reorder", debug.format_memory_usage())
         ret = self.spss.reorder()
 
-        ret = np.sum(MPI.COMM_WORLD.allgather(int(ret != ST.STRUMPACK_SUCCESS)))
+        ret = np.sum(MPI.COMM_WORLD.allgather(
+            int(ret != ST.STRUMPACK_SUCCESS)))
         if ret > 0:
             assert False, "error during recordering (Strumpack)"
 
@@ -687,3 +683,52 @@ class StrumpackSolver(LinearSolver):
                 return sol
             else:
                 return None
+
+
+class StrumpackMFEMSolverModel(Strumpack):
+    '''
+    This one is to use STRUMPACK in iterative solver
+    It creates MUMPSPreconditioner
+    '''
+
+    def prepare_solver(self, opr, engine):
+        solver = StrumpackBlockPreconditioner(opr,
+                                              gui=self,
+                                              engine=engine,
+                                              silent=True)
+        solver.SetOperator(opr)
+        return solver
+
+
+class StrumpackBlockPreconditioner(mfem.Solver):
+    def __init__(self, opr, gui=None, engine=None, silent=False, **kwargs):
+        self.gui = gui
+        self.engine = engine
+        self.silent = silent
+
+        self.is_complex_operator = False
+        self.is_parallel = False
+
+        self.solver = None
+        super(StrumpackBlockPreconditioner, self).__init__()
+
+    def Mult(self, x, y):
+        s = self.solver.Mult([x])
+        if self.is_complex_operator:
+            assert False, "StrumpackMFEM for Complex is not yet implemented"
+            #s = self.complex_to_real(s)
+
+        y.Assign(s.flatten().astype(float, copy=False))
+
+    def SetOperator(self, opr):
+        print('opr', opr)
+        from petram.solver.solver_utils import check_block_operator
+        is_complex, is_parallel = check_block_operator(opr)
+
+        solver = StrumpackSolver(self.gui, self.engine)
+        solver.AllocSolver(is_complex, self.gui.use_single_precision)
+        solver.SetOperator(opr, is_parallel)
+
+        self.is_complex_operator = is_complex
+        self.is_parallel = is_parallel
+        self.solver = solver

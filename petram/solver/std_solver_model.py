@@ -247,7 +247,7 @@ class StandardSolver(SolverInstance):
         if update_operator:
             AA = engine.finalize_matrix(A, mask, not self.phys_real,
                                         format=self.ls_type)
-
+            self._AA = AA
         BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
                                  format=self.ls_type)
 
@@ -290,6 +290,8 @@ class StandardSolver(SolverInstance):
         # linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         # solall = linearsolver.Mult(BB, case_base=0)
 
+        self.reformat_mat(A, self._AA, solall, 0, X[0], mask)
+        '''
         is_sol_central = (True if not use_parallel else
                           any(MPI.COMM_WORLD.allgather(solall is None)))
 
@@ -301,7 +303,7 @@ class StandardSolver(SolverInstance):
             if not self.phys_real and self.gui.assemble_real:
                 assert False, "this operation is not permitted"
             A.reformat_distributed_mat(solall, 0, X[0], mask)
-
+        '''
         self.sol = X[0]
 
         # store probe signal (use t=0.0 in std_solver)
