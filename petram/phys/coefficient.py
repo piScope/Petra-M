@@ -175,28 +175,36 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
                 return PhysMatrixConstant(e)
 
 
-def DCoeff(dim, exprs, ind_vars, l, g,
+def DCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
            return_mfem_constant=False, **kwargs):
     if isinstance(exprs, str):
         exprs = [exprs]
     if isinstance(exprs, NativeCoefficientGenBase):
         exprs = [exprs]
 
-    class DCoeff(MatrixPhysCoefficient):
-        def __init__(self, *args, **kwargs):
-            self.conj = kwargs.pop('conj', False)
-            self.scale = kwargs.pop('scale', 1.0)
-            self.space_dim = args[0]
-            super(DCoeff, self).__init__(*args, **kwargs)
+    class DCoeff_Base(object):
+        def __init__(self, conj=False, scale=1.0):
+            self.conj = conj
+            self.scale = scale
+
+        def proc_value(self, val):
+            val = val * self.scale
+            if self.conj:
+                val = np.conj(val)
+            return val
+
+    class DCoeff(MatrixPhysCoefficient, DCoeff_Base):
+        def __init__(self, sdim, exprs, ind_vars, l, g,
+                     conj=False, scale=1.0, **kwargs):
+            DCoeff_Base.__init__(self, conj=conj, scale=scale)
+            MatrixPhysCoefficient.__init__(
+                self, sdim, exprs, ind_vars, l, g, **kwargs)
 
         def EvalValue(self, x):
             from petram.phys.phys_model import Coefficient_Evaluator
             val = Coefficient_Evaluator.EvalValue(self, x)
             val = np.diag(val)
-            val = val * self.scale
-            if self.conj:
-                val = np.conj(val)
-
+            val = self.proc_value(val)
             if np.iscomplexobj(val):
                 if self.real:
                     return val.real
@@ -207,6 +215,25 @@ def DCoeff(dim, exprs, ind_vars, l, g,
             else:
                 return val
 
+    class DCoeffCC(Coefficient_Evaluator, DCoeff_Base, CC_Matrix):
+        def __init__(self, dim, exprs, ind_vars, l,
+                     g, conj=False, scale=1.0, **kwargs):
+            DCoeff_Base.__init__(self, conj=conj, scale=scale)
+            # real is not used...
+            Coefficient_Evaluator.__init__(
+                self, exprs, ind_vars, l, g, real=True)
+            CC_Matrix.__init__(self, dim, dim)
+
+        def eval(self, T, ip):
+            for n, v in self.variables:
+                v.set_point(T, ip, self.g, self.l)
+            x = T.Transform(ip)
+            val = Coefficient_Evaluator.EvalValue(self, x)
+            val = np.diag(val)
+            return self.proc_value(val)
+
+            raise NotImplementedError
+
     conj = kwargs.get('conj', False)
     real = kwargs.get('real', True)
     scale = kwargs.get('scale', 1.0)
@@ -214,11 +241,27 @@ def DCoeff(dim, exprs, ind_vars, l, g,
     #print("matrix exprs", exprs)
 
     if any([isinstance(ee, str) for ee in exprs]):
-        from petram.mfem_config import allow_python_function_coefficient
-        if allow_python_function_coefficient != "allow":
-            print("JIT is not supported in DCoeff")
-            assert False, "can not jit coefficient"
-        return DCoeff(dim, exprs, ind_vars, l, g, **kwargs)
+        from petram.phys.numba_coefficient import expr_to_numba_coeff
+
+        coeff = expr_to_numba_coeff(exprs, mfem.jit.matrix,
+                                    ind_vars, conj, scale, g, l,
+                                    return_complex, shape=(dim, dim),
+                                    diag_mode=True)
+        if coeff is None:
+            msg = "JIT is not possbile. Continuing with Python mode"
+            handle_allow_python_function_coefficient(msg)
+        else:
+            if return_complex:
+                return coeff
+            else:
+                if real:
+                    return coeff.real
+                else:
+                    return coeff.imag
+        if return_complex:
+            return DCCoeff(dim, exprs, ind_vars, l, g, **kwargs)
+        else:
+            return DCoeff(dim, exprs, ind_vars, l, g, **kwargs)
     else:
         e = exprs
 

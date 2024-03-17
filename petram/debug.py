@@ -270,4 +270,4 @@ def handle_allow_python_function_coefficient(message):
     elif get_allow_python_function_coefficient() == "always use Python coeff.":
         pass
     elif get_allow_python_function_coefficient() == "error":
-        assert False, message
+        assert False, message + " (Python mode not allowed)"

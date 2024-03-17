@@ -305,13 +305,14 @@ class Identity(Operator):
 
         from petram.phys.phys_model import PhysConstant
         coeff = 0.
+
         if c_coeff[0] is not None:
             assert isinstance(
-                c_coeff[0], PhysConstant), "projection supports only constant scalr coefficient"
+                c_coeff[0], PhysConstant), "Identity supports only constant scalar coefficient. (Got "+str(type(c_coeff[0])) + ")"
             coeff += c_coeff[0].value
         if c_coeff[1] is not None:
             assert isinstance(
-                c_coeff[1], PhysConstant), "projection supports only constant scalr coefficient"
+                c_coeff[1], PhysConstant), "Identity supports only constant scalar coefficient. (Got "+str(type(c_coeff[1])) + ")"
             coeff += 1j*c_coeff[1].value
 
         mat = make_diagonal_mat(engine, fes1, fes2, 1.0)
@@ -531,11 +532,11 @@ class Projection(Operator):
         coeff = 0.
         if c_coeff[0] is not None:
             assert isinstance(
-                c_coeff[0], PhysConstant), "projection supports only constant scalr coefficient"
+                c_coeff[0], PhysConstant), "projection supports only constant scalar coefficient + (Got "+str(type(c_coeff[0])) + ")"
             coeff += c_coeff[0].value
         if c_coeff[1] is not None:
             assert isinstance(
-                c_coeff[1], PhysConstant), "projection supports only constant scalr coefficient"
+                c_coeff[1], PhysConstant), "projection supports only constant scalar coefficient + (Got "+str(type(c_coeff[1])) + ")"
             coeff += 1j*c_coeff[1].value
 
         dim1 = self.fes1.GetMesh().Dimension()

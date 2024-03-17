@@ -218,13 +218,11 @@ class AUX_Operator(Phys):
                                                             real=True,
                                                             is_conj=False)
             if is_complex:
-                c_coeff2 = self.get_coefficient_from_expression(coeff, cotype,
-                                                                use_dual=False,
-                                                                real=False,
-                                                                is_conj=False)
+                c_coeff = (c_coeff1.get_real_coefficient(),
+                           c_coeff1.get_imag_coefficient(),)
+
             else:
-                c_coeff2 = None
-            c_coeff = (c_coeff1, c_coeff2)
+                c_coeff = (c_coeff1, None)
 
             expr = Expression(oprt, engine=engine, trial=fes1, test=fes2,
                               trial_ess_tdof=trial_ess_tdof,
