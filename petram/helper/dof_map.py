@@ -12,7 +12,7 @@ from petram.helper.matrix_file import write_matrix, write_vector
      For periodic BC, DoF corresponts to y_dest will be eliminated
      from the final linear system.
 
-        Since, mapping is 
+        Since, mapping is
            [1,  0][y_src ]   [y_src]
            [     ][      ] = []
            [M,  0][void  ]   [y_dest]
@@ -25,7 +25,7 @@ from petram.helper.matrix_file import write_matrix, write_vector
            Pt A P [y_src] = [b1 + Mt b2]
 
      For H1, L2 element M^-1 = M^t,
-     For ND, and RT, M^-1 needs inversion. 
+     For ND, and RT, M^-1 needs inversion.
 '''
 
 import numpy as np
@@ -347,6 +347,7 @@ def redistribute_external_entry(external_entry, rstart):
     #  redistribute external entry. first regroup
     #  entries to the destination. then all-to-all
 
+
     rstarts = comm.allgather(rstart)
     dests = [bisect.bisect_right(rstarts, r)for r, c, d in external_entry]
 
@@ -356,7 +357,6 @@ def redistribute_external_entry(external_entry, rstart):
 
     external_entry = sum(comm.alltoall(data), [])
     return np.array(external_entry)
-
 
 def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                    k1all, k2all, sh1all, sh2all, map_1_2,
@@ -461,6 +461,8 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
             external_entry = external_entry[idx1][idx2]
 
             for r, c, d in external_entry:
+                r = int(r)
+                c = int(c)
                 # if not r in subvdofs1:
                 num_entry = num_entry + 1
                 map[r-rstart, c] = d
@@ -470,12 +472,12 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
 
         dprint1("map_dof_scalar3", debug.format_memory_usage())
         '''
-        external_entry =  sum(comm.allgather(external_entry),[])           
+        external_entry =  sum(comm.allgather(external_entry),[])
         for r, c, d in external_entry:
            h = map.shape[0]
            if (r - rstart >= 0 and r - rstart < h and
                not r  in subvdofs1):
-               num_entry = num_entry + 1                                 
+               num_entry = num_entry + 1
                print("adding",myid, r,  c, d )
                map[r-rstart, c] = d
                subvdofs1.append(r)
@@ -710,11 +712,11 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                 num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[0],2], m[0,0], num2)
                 num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[1],2], m[1,0], num2)
                 num2 = make_entry(newk1[dd[0],[1,2]], newk2[d[2],2], m[2,0], num2)
-                                  
+
                 num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[0],2], m[0,1], num2)
                 num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[1],2], m[1,1], num2)
                 num2 = make_entry(newk1[dd[1],[1,2]], newk2[d[2],2], m[2,1], num2)
-                                  
+
                 num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[0],2], m[0,2], num2)
                 num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[1],2], m[1,2], num2)
                 num2 = make_entry(newk1[dd[2],[1,2]], newk2[d[2],2], m[2,2], num2)
@@ -757,7 +759,7 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
                 print(pt1, pt2)
                 '''
                  newk1 = k1all[k0] #(i local DoF, global DoF)
-                 sh1 = sh1all[k0]           
+                 sh1 = sh1all[k0]
                  pto2 = pto2all[k2]
                  newk2 = k2all[k2]
                  sh2 = sh2all[k2]
@@ -783,21 +785,22 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
             external_entry = external_entry[idx1][idx2]
 
             for r, c, d in external_entry:
+                r = int(r)
+                c = int(c)
                 # if not r in subvdofs1:
                 num_entry = num_entry + 1
-                #print("adding",myid, r,  c, d )
                 map[r-rstart, c] = d
                 # subvdofs1.append(r)
 
         dprint1("map_dof_vector3", debug.format_memory_usage())
-        '''        
+        '''
         external_entry =  sum(comm.allgather(external_entry),[])
-        #nicePrint(external_entry)        
+        #nicePrint(external_entry)
         for r, c, d in external_entry:
            h = map.shape[0]
            if (r - rstart >= 0 and r - rstart < h and
                not r  in subvdofs1):
-               num_entry = num_entry + 1                                 
+               num_entry = num_entry + 1
                print("adding",myid, r,  c, d )
                map[r-rstart, c] = d
                subvdofs1.append(r)
@@ -914,7 +917,7 @@ def gather_dataset(idx1, idx2, fes1, fes2, trans1,
 
 def get_empty_map(fes1, fes2, is_complex=False):
     '''
-    empty matrix (fes1: test, fes2: 
+    empty matrix (fes1: test, fes2:
     '''
     if use_parallel:
         fesize1 = fes1.GetTrueVSize()
@@ -1016,7 +1019,7 @@ def map_point_h1(idx1, idx2, fes1, fes2=None, trans1=None,
         VDof2TDof = np.zeros(fes.GetNDofs(), dtype=int)
         for i, j in enumerate(R.GetJArray()):
             VDof2TDof[j] = i
-        TDof2Vdof = R.GetJArray().copy()            
+        TDof2Vdof = R.GetJArray().copy()
     '''
     mesh = fes1.GetMesh()
     battrs = {battr: k for k, battr in enumerate(mesh.GetBdrAttributeArray())}
@@ -1166,7 +1169,7 @@ def projection_matrix(idx1,  idx2,  fes, tdof1, fes2=None, tdof2=None,
                       tol=1e-7, mode='surface', filldiag=True,
                       old_mapping=True):
     '''
-     map: destinatiom mapping 
+     map: destinatiom mapping
      smap: source mapping
 
      old_mapping: True : periodic boundary conditions are implemented this way
