@@ -179,7 +179,10 @@ class NS_mixin(object):
 
         ns_script = ns_folder.get_child(name=self.ns_name+'_ns')
         if ns_script is None:
-            raise ValueError("namespace script is not found")
+            self.ns_string = None
+            self.dataset = None
+            return
+            #raise ValueError("namespace script is not found")
         err_string = ns_script.reload_script()
         if err_string != '' and err_string is not None:
             assert False, err_string
