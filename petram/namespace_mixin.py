@@ -306,9 +306,9 @@ class NS_mixin(object):
                         for k in p.attribute_mirror_ns():
                             g[k] = chain[-2]._global_ns[k]
                         if (p.ns_string != '' and p.ns_string is not None):
-                            #exec(p.ns_string, g, ll)
-                            #for k in ll: g[k] = ll[k]
-                            exec(p.ns_string, g)
+                            #exec(p.ns_string, g)
+                            #print("updating with ns", p)
+                            g.update(p._global_ns)
 
                     except Exception as e:
                         import traceback
@@ -341,7 +341,7 @@ class NS_mixin(object):
         try:
             l = {}
             if (self.ns_string != '' and self.ns_string is not None):
-                #exec(self.ns_string, g, l)
+                #print("executing...", self, self.ns_string)
                 exec(self.ns_string, g)
             else:
                 pass  # return
