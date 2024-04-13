@@ -217,17 +217,23 @@ class NS_mixin(object):
                 void = {}
                 x = eval(str(getattr(self, tname)), self._global_ns, void)
             except:
-                import traceback
-                traceback.print_exc()
+                if targets is not None:
+                    # print error if it fails in the second run
+                    import traceback
+                    traceback.print_exc()
                 invalid_expr.append(tname)
+                invalid_expr.append(name)
                 continue
             try:
                 if validator is not None:
                     x = validator(x)
             except:
-                import traceback
-                traceback.print_exc()
+                if targets is not None:
+                    # print error if it fails in the second run
+                    import traceback
+                    traceback.print_exc()
                 invalid_expr.append(tname)
+                invalid_expr.append(name)
                 continue
             result[name] = x
 
