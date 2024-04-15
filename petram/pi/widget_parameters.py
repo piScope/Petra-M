@@ -83,6 +83,7 @@ class WidgetParameters(wx.Panel):
         sizer2.Add(rowsizer, 0)
 
         self._pg_h = self.pg.GetFont().GetPixelSize()[1]
+        self._pg_h_c = 100
 
     def OnPropGridChange(self, evt):
         p = evt.GetProperty()
@@ -131,7 +132,12 @@ class WidgetParameters(wx.Panel):
                                             str(value[x])))
 
         s = max((self._pg_h+1)*(len(value)+3), 100)
-        self.pg.SetSizeHints((-1, s))
+
+        if s != self._pg_h_c:
+            self.pg.SetSizeHints((-1, s))
+            self._pg_h_c = s
+            self.SendSizeEventToParent(1)
+
 
     def OnSetPropertyValues(self, event):
         try:
