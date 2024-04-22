@@ -3,6 +3,7 @@
    Weakform : interface to use MFEM integrator
 
 '''
+import petram.helper.pybilininteg
 from petram.phys.coefficient import SCoeff, VCoeff, DCoeff, MCoeff
 from petram.phys.vtable import VtableElement, Vtable
 from petram.mfem_config import use_parallel
@@ -152,22 +153,36 @@ class WeakIntegration(Phys):
                 use_dual = "S*2" in b[3]
                 break
 
-        c_coeff = self.get_coefficient_from_expression(c, cotype,
-                                                       use_dual=use_dual,
-                                                       real=real,
-                                                       is_conj=is_conj)
-
-        if self.integrator == 'DerivativeIntegrator1':
-            integrator = getattr(mfem, 'DerivativeIntegrator')
-            c_coeff = (c_coeff, 0)
-        elif self.integrator == 'DerivativeIntegrator2':
-            integrator = getattr(mfem, 'DerivativeIntegrator')
-            c_coeff = (c_coeff, 1)
-        elif self.integrator == 'DerivativeIntegrator3':
-            integrator = getattr(mfem, 'DerivativeIntegrator')
-            c_coeff = (c_coeff, 2)
+        if not self.integrator.startswith("Py"):
+            c_coeff = self.get_coefficient_from_expression(c, cotype,
+                                                           use_dual=use_dual,
+                                                           real=real,
+                                                           is_conj=is_conj)
+            if self.integrator == 'DerivativeIntegrator1':
+                integrator = getattr(mfem, 'DerivativeIntegrator')
+                c_coeff = (c_coeff, 0)
+            elif self.integrator == 'DerivativeIntegrator2':
+                integrator = getattr(mfem, 'DerivativeIntegrator')
+                c_coeff = (c_coeff, 1)
+            elif self.integrator == 'DerivativeIntegrator3':
+                integrator = getattr(mfem, 'DerivativeIntegrator')
+                c_coeff = (c_coeff, 2)
+            else:
+                integrator = getattr(mfem, self.integrator)
         else:
-            integrator = getattr(mfem, self.integrator)
+            cc = mfem.ConstantCoefficient(0.0)
+            integrator = getattr(petram.helper.pybilininteg, self.integrator)
+
+            if len(c) == 2:
+                if real:
+                    c_coeff = (cc, c[0])
+                else:
+                    c_coeff = (cc, c[1])
+            else:
+                if real:
+                    c_coeff = (cc, c[0])
+                else:
+                    return  # no imaginary contribution
 
         if isinstance(self, Bdry):
             # print "Bdry Integrator"
