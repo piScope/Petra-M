@@ -1971,7 +1971,8 @@ class GFScalarVariable(GridFunctionVariable):
                 elif gf.VectorDim() > 1:
                     def func(i, side, ir, vals, tr, in_gf=gf):
                         #in_gf.GetValues(i, ir, vals, tr, vdim=self.comp - 1)
-                        in_gf.GetValues(i, ir, vals, tr, self.comp-1)
+                        #in_gf.GetValues(i, ir, vals, tr, self.comp-1)
+                        in_gf.GetValues(i, ir, vals, tr, self.comp)
                     return func
                 else:
                     def func(i, side, ir, vals, tr, in_gf=gf):
