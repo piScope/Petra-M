@@ -1,4 +1,4 @@
-<img align="right" width="300" height="300" src="https://github.com/piScope/PetraM_Base/blob/master/resources/app_logo.png">
+<img align="right" width="300" height="300" src="https://github.com/piScope/PetraM_Base/blob/master/resources/app_logo.png?raw=true">
 
 ## PetraM_Base (Base Package for Petra-M)
 
