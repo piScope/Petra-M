@@ -21,7 +21,7 @@ setup(
 
     description='PetraM base package',
     long_description=long_description,
-    long_description_content_type = 'text/markdown',    
+    long_description_content_type = 'text/markdown',     
     url='https://github.com/piScope/PetraM',
     author='S. Shiraiwa',
     author_email='shiraiwa@prenceton.edu',
