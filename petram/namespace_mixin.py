@@ -179,7 +179,10 @@ class NS_mixin(object):
 
         ns_script = ns_folder.get_child(name=self.ns_name+'_ns')
         if ns_script is None:
-            raise ValueError("namespace script is not found")
+            self.ns_string = None
+            self.dataset = None
+            return
+            #raise ValueError("namespace script is not found")
         err_string = ns_script.reload_script()
         if err_string != '' and err_string is not None:
             assert False, err_string
@@ -214,17 +217,23 @@ class NS_mixin(object):
                 void = {}
                 x = eval(str(getattr(self, tname)), self._global_ns, void)
             except:
-                import traceback
-                traceback.print_exc()
+                if targets is not None:
+                    # print error if it fails in the second run
+                    import traceback
+                    traceback.print_exc()
                 invalid_expr.append(tname)
+                invalid_expr.append(name)
                 continue
             try:
                 if validator is not None:
                     x = validator(x)
             except:
-                import traceback
-                traceback.print_exc()
+                if targets is not None:
+                    # print error if it fails in the second run
+                    import traceback
+                    traceback.print_exc()
                 invalid_expr.append(tname)
+                invalid_expr.append(name)
                 continue
             result[name] = x
 
@@ -306,9 +315,9 @@ class NS_mixin(object):
                         for k in p.attribute_mirror_ns():
                             g[k] = chain[-2]._global_ns[k]
                         if (p.ns_string != '' and p.ns_string is not None):
-                            #exec(p.ns_string, g, ll)
-                            #for k in ll: g[k] = ll[k]
-                            exec(p.ns_string, g)
+                            #exec(p.ns_string, g)
+                            #print("updating with ns", p)
+                            g.update(p._global_ns)
 
                     except Exception as e:
                         import traceback
@@ -341,7 +350,7 @@ class NS_mixin(object):
         try:
             l = {}
             if (self.ns_string != '' and self.ns_string is not None):
-                #exec(self.ns_string, g, l)
+                #print("executing...", self, self.ns_string)
                 exec(self.ns_string, g)
             else:
                 pass  # return
