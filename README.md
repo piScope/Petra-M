@@ -1,4 +1,4 @@
-<img align="right" width="300" height="300" src="https://github.com/piScope/PetraM_Base/blob/job_submission_adjustment/resources/app_logo.png">
+<img align="right" width="300" height="300" src="https://github.com/piScope/PetraM_Base/resources/app_logo.png">
 
 ## PetraM_Base (Base Package for Petra-M)
 
