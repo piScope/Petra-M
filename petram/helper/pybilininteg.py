@@ -60,8 +60,9 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
 
            vdim : size of i and k. vector dim of FE space.
 
-           (note) This is essentially the same as VectorMassIntegrator.
-                  Implemented for verificaiton.
+           (note) If both test and trail are scalar, the same as VectorMassIntegrator.
+                  Either test or trial can be VectorFE and coefficient can be rectangular
+
         '''
         PyVectorIntegratorBase.__init__(self, ir)
 
@@ -70,11 +71,17 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
             return
 
         self.lam = lam
-        self.vdim = lam.vdim
+        try:
+            self.vdim_te = lam.vdim[0]
+            self.vdim_tr = lam.vdim[1]
+        except:
+            self.vdim_te = lam.vdim
+            self.vdim_tr = lam.vdim
+
         self._ir = self.GetIntegrationRule()
 
-        self.tr_shape = mfem.Vector()
-        self.te_shape = mfem.Vector()
+        self.tr_shape = None
+        self.te_shape = None
 
         self.partelmat = mfem.DenseMatrix()
 
@@ -88,42 +95,147 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
         if self._ir is None:
             self.set_ir(trial_fe,  test_fe, trans)
 
+        if self.te_shape is None:
+            if test_fe.GetRangeType() == mfem.FiniteElement.VECTOR:
+                self.te_shape = mfem.DenseMatrix()
+            elif test_fe.GetRangeType() == mfem.FiniteElement.SCALAR:
+                self.te_shape = mfem.Vector()
+            else:
+                assert False, "should not come here"
+
+        if self.tr_shape is None:
+            if trial_fe.GetRangeType() == mfem.FiniteElement.VECTOR:
+                self.tr_shape = mfem.DenseMatrix()
+            elif trial_fe.GetRangeType() == mfem.FiniteElement.SCALAR:
+                self.tr_shape = mfem.Vector()
+            else:
+                assert False, "should not come here"
+
         tr_nd = trial_fe.GetDof()
         te_nd = test_fe.GetDof()
+        sdim = trans.GetSpaceDim()
+        tr_shape = [tr_nd]
+        te_shape = [te_nd]
 
-        elmat.SetSize(te_nd*self.vdim, tr_nd*self.vdim)
+        shape = [te_nd, tr_nd]
+        if test_fe.GetRangeType() == mfem.FiniteElement.SCALAR:
+            shape[0] *= self.vdim_te
+        else:
+            te_shape.append(sdim)
+
+        if trial_fe.GetRangeType() == mfem.FiniteElement.SCALAR:
+            shape[1] *= self.vdim_tr
+        else:
+            tr_shape.append(sdim)
+
+        elmat.SetSize(*shape)
         elmat.Assign(0.0)
         self.partelmat.SetSize(te_nd, tr_nd)
-
         partelmat_arr = self.partelmat.GetDataArray()
 
-        self.tr_shape.SetSize(tr_nd)
-        self.te_shape.SetSize(te_nd)
+        self.tr_shape.SetSize(*tr_shape)
+        self.te_shape.SetSize(*te_shape)
 
         self.tr_shape_arr = self.tr_shape.GetDataArray()
         self.te_shape_arr = self.te_shape.GetDataArray()
 
-        for i in range(self.ir.GetNPoints()):
-            ip = self.ir.IntPoint(i)
-            trans.SetIntPoint(ip)
-            w = trans.Weight()
+        #print("DoF", tr_nd, te_nd)
 
-            trial_fe.CalcShape(ip, self.tr_shape)
-            test_fe.CalcShape(ip, self.te_shape)
+        if (test_fe.GetRangeType() == mfem.FiniteElement.SCALAR and
+                trial_fe.GetRangeType() == mfem.FiniteElement.SCALAR):
 
-            w2 = np.sqrt(w)
-            dudxdvdx = np.tensordot(
-                self.te_shape_arr*w2, self.tr_shape_arr*w2, 0)*ip.weight
+            # tr_shape = (tr_nd)
+            # te_shape = (te_nd)
+            # elmat = (te_nd*vdim_te, tr_nd*vdim_tr)
 
-            transip = trans.Transform(ip)
-            lam = self.lam(transip)
+            for ii in range(self.ir.GetNPoints()):
+                ip = self.ir.IntPoint(ii)
+                trans.SetIntPoint(ip)
+                w = trans.Weight()
 
-            for i in range(self.vdim):  # test
-                for k in range(self.vdim):  # trial
+                trial_fe.CalcShape(ip, self.tr_shape)
+                test_fe.CalcShape(ip, self.te_shape)
+
+                w2 = np.sqrt(w)
+                dudxdvdx = np.tensordot(
+                    self.te_shape_arr*w2, self.tr_shape_arr*w2, 0)*ip.weight
+
+                transip = trans.Transform(ip)
+                lam = self.lam(transip)
+
+                #print("lam shape(0)", lam.shape, self.vdim_te, self.vdim_tr)
+
+                for i in range(self.vdim_te):  # test
+                    for k in range(self.vdim_tr):  # trial
+                        self.partelmat.Assign(0.0)
+                        partelmat_arr[:, :] += lam[i, k]*dudxdvdx[:, :]
+
+                        elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*k)
+
+        elif (test_fe.GetRangeType() == mfem.FiniteElement.SCALAR and
+              trial_fe.GetRangeType() == mfem.FiniteElement.VECTOR):
+
+            # tr_shape = (tr_nd, sdim)
+            # te_shape = (te_nd)
+            # elmat = (te_nd*vdim_te, tr_nd)
+
+            for ii in range(self.ir.GetNPoints()):
+                ip = self.ir.IntPoint(ii)
+                trans.SetIntPoint(ip)
+                w = trans.Weight()
+
+                trial_fe.CalcVShape(trans, self.tr_shape)
+                test_fe.CalcShape(ip, self.te_shape)
+
+                w2 = np.sqrt(w)
+                dudxdvdx = np.tensordot(
+                    self.te_shape_arr*w2, self.tr_shape_arr*w2, 0)*ip.weight
+
+                transip = trans.Transform(ip)
+                lam = self.lam(transip)
+
+                #print("lam shape (1)", lam.shape, dudxdvdx.shape)
+
+                for i in range(self.vdim_te):  # test
                     self.partelmat.Assign(0.0)
-                    partelmat_arr[:, :] += lam[i, k]*dudxdvdx[:, :]
+                    for k in range(sdim):  # trial
+                        partelmat_arr[:, :] += lam[i, k]*dudxdvdx[:, :, k]
 
-                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*k)
+                    elmat.AddMatrix(self.partelmat, te_nd*i, 0)
+
+        elif (test_fe.GetRangeType() == mfem.FiniteElement.VECTOR and
+              trial_fe.GetRangeType() == mfem.FiniteElement.SCALAR):
+
+            # tr_shape = (tr_nd,)
+            # te_shape = (te_nd, sdim)
+            # elmat = (te_nd, tr_nd*vdim_tr)
+
+            for ii in range(self.ir.GetNPoints()):
+                ip = self.ir.IntPoint(ii)
+                trans.SetIntPoint(ip)
+                w = trans.Weight()
+
+                trial_fe.CalcShape(ip, self.tr_shape)
+                test_fe.CalcVShape(trans, self.te_shape)
+
+                w2 = np.sqrt(w)
+                dudxdvdx = np.tensordot(
+                    self.te_shape_arr*w2, self.tr_shape_arr*w2, 0)*ip.weight
+
+                transip = trans.Transform(ip)
+                lam = self.lam(transip)
+
+                #print("lam shape(2)", lam.shape, dudxdvdx.shape)
+
+                for k in range(self.vdim_tr):  # trial
+                    self.partelmat.Assign(0.0)
+                    for i in range(sdim):  # test
+                        partelmat_arr[:, :] += lam[i, k]*dudxdvdx[:, i, :]
+
+                    elmat.AddMatrix(self.partelmat, 0, tr_nd*k)
+
+        else:
+            assert False, "Use VectorFE Mass Integrator"
 
 
 class PyVectorPartialIntegrator(PyVectorIntegratorBase):
