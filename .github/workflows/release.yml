@@ -28,4 +28,4 @@ jobs:
           rm -rf dist/*
           python3 -m build --sdist --wheel --outdir dist/ .
           ls -l
-          python3 -m twine upload --password ${{ secrets.PYPI_API_PETRAM_BASE_TOKEN }} --username __token__ --verbose dist/*
+          python3 -m twine upload --password ${{ secrets.PYPI_UPLOAD }} --username __token__ --verbose dist/*
