@@ -17,7 +17,7 @@ with open(path.join(here, 'README.md')) as f:
 setup(
     name='PetraM_Base',
 
-    version='2.1.39',
+    version='2.1.40',
 
     description='PetraM base package',
     long_description=long_description,
@@ -38,7 +38,7 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10'
+        'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
     ],            
 
