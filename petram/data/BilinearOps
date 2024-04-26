@@ -62,4 +62,5 @@
 | VectorDivergenceIntegrator            | H1v, L2v | H1, L2   | S  |  $(\lambda\div\vec\{u},v)$              | |1D, 2D, 3D |
 | PyVectorMassIntegrator                | H1v, L2v, H1, L2, ND, RT | H1v, L2v, H1, L2, ND, RT | M  |  $(\lambda_\{ij}{u}_j,\{v}_i)$                  | |1D, 2D, 3D |
 | PyVectorPartialIntegrator             | H1v, L2v |  | M  |  $(\lambda_\{ikj}\partial_k u_j, v_i)$               | |1D, 2D, 3D |
-| PyVectorPartialPartialIntegrator      | H1v, L2v |  | M  |  $(\lambda_\{likj}\partial_k u_j,\partial_l v_i)$    | |1D, 2D, 3D |
+| PyVectorWeakPartialPartialIntegrator  | H1v, L2v |  | M  |  $(\lambda_\{likj}\partial_k u_j,\partial_l v_i)$    | |1D, 2D, 3D |
+| PyVectorPartialPartialIntegrator      | H1v, L2v |  | M  |  $(\lambda_\{iklj}\partial_k \partial_l u_j, v_i)$    | |1D, 2D, 3D |

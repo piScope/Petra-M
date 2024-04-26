@@ -35,9 +35,9 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     def q_order(self, value):
         self._q_order = value
 
-    def set_ir(self, trial_fe,  test_fe, trans):
+    def set_ir(self, trial_fe,  test_fe, trans, delta=0):
         order = (trial_fe.GetOrder() + test_fe.GetOrder() +
-                 trans.OrderW() + self.q_order)
+                 trans.OrderW() + self.q_order + delta)
 
         if trial_fe.Space() == mfem.FunctionSpace.rQk:
             ir = mfem.RefinedIntRules.Get(trial_fe.GetGeomType(), order)
@@ -359,7 +359,7 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
 
-class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
+class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
     def __init__(self, _lam, lam, ir=None):
         '''
            integrator for
@@ -498,5 +498,147 @@ class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
                         for l in range(self.esdim):
                             partelmat_arr[:, :] += lam[l, i,
                                                        k, j]*dudxdvdx[:, l, :, k]
+
+                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
+
+
+class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
+    def __init__(self, _lam, lam, ir=None):
+        '''
+           integrator for
+
+              lmabda(i,j,k.l) gte(i,j) * gtr(k,l)
+
+               gte : generalized gradient of test function
+                  j < sdim d v_i/dx_j
+                  j >= sdim  v_i
+                or
+                  j not in exindex: v_i/dx_j
+                  j in esindex:  v_i
+
+               gtr : generalized gradient of trial function
+                  l < sdim d u_k/dx_l
+                  l >= sdim  u_k
+                or
+                  l not in exindex: u_k/dx_l
+                  l in esindex:  u_k
+
+
+           vdim : size of i and k. vector dim of FE space.
+           sdim : space dimension of v
+
+           esdim : size of j and l. extended space dim.
+           esindex: specify the index for extendend space dim.
+
+
+        '''
+        PyVectorIntegratorBase.__init__(self, ir)
+        self.lam = None if lam is None else lam
+        if self.lam is None:
+            return
+
+        self.esflag = np.where(np.array(lam.esindex) >= 0)[0]
+        self.esflag2 = np.where(np.atleast_1d(lam.esindex) == -1)[0]
+        self.esdim = len(lam.esindex)
+        self.vdim = lam.vdim
+
+        assert self.vdim == self.esdim, "vector dim and extedned spacedim must be the same"
+        #print('esdim flag', self.esflag, self.esflag2)
+
+        self._ir = self.GetIntegrationRule()
+
+        self.tr_shape = mfem.Vector()
+        self.te_shape = mfem.Vector()
+        self.tr_dshape = mfem.DenseMatrix()
+        self.tr_dshapedxt = mfem.DenseMatrix()
+        self.tr_hshape = mfem.DenseMatrix()
+
+        self.tr_merged = mfem.DenseMatrix()
+
+        self.partelmat = mfem.DenseMatrix()
+
+    def AssembleElementMatrix(self, el, trans, elmat):
+        self.AssembleElementMatrix2(el, el, trans, elmat)
+
+    def AssembleElementMatrix2(self, trial_fe, test_fe, trans, elmat):
+        # if self.ir is None:
+        #    self.ir = mfem.DiffusionIntegrator.GetRule(trial_fe, test_fe)
+        if self.lam is None:
+            return
+        if self._ir is None:
+            self.set_ir(trial_fe, test_fe, trans, -2)
+
+        tr_nd = trial_fe.GetDof()
+        te_nd = test_fe.GetDof()
+
+        elmat.SetSize(te_nd*self.vdim, tr_nd*self.vdim)
+        elmat.Assign(0.0)
+        self.partelmat.SetSize(te_nd, tr_nd)
+
+        partelmat_arr = self.partelmat.GetDataArray()
+
+        dim = trial_fe.GetDim()
+        sdim = trans.GetSpaceDim()
+        square = (dim == sdim)
+
+        self.tr_shape.SetSize(tr_nd)
+        self.te_shape.SetSize(te_nd)
+        self.tr_dshape.SetSize(tr_nd, dim)
+        self.tr_dshapedxt.SetSize(tr_nd, sdim)
+        self.tr_hshape.SetSize(tr_nd, dim*(dim+1)//2)
+
+        tr_shape_arr = self.tr_shape.GetDataArray()
+        te_shape_arr = self.te_shape.GetDataArray()
+        tr_dshapedxt_arr = self.tr_dshapedxt.GetDataArray()
+        tr_hshape_arr = self.tr_hshape.GetDataArray()
+
+        tr_merged_arr = np.zeros((tr_nd, self.esdim, self.esdim))
+
+        for i in range(self.ir.GetNPoints()):
+
+            ip = self.ir.IntPoint(i)
+            trans.SetIntPoint(ip)
+
+            test_fe.CalcPhysShape(trans, self.te_shape)
+            trial_fe.CalcPhysShape(trans, self.tr_shape)
+            trial_fe.CalcPhysDShape(trans, self.tr_dshape)
+            trial_fe.CalcPhysHessian(trans, self.tr_hshape)
+
+            if dim == 3:
+                hess = tr_hshape_arr[:, [0, 1, 2, 1, 5,
+                                         3, 2, 3, 4]].reshape(tr_nd, 3, 3)
+            elif dim == 2:
+                hess = tr_hshape_arr[:, [0, 1, 1, 2]].reshape(tr_nd, 2, 2)
+            elif dim == 1:
+                hess = tr_hshape_arr[:, [0, ]].reshape(tr_nd, 1, 1)
+
+            for i in self.esflag:
+                for j in self.esflag:
+                    tr_merged_arr[:, i, j] = hess[:, i, j]
+            for i in self.esflag:
+                for j in self.esflag2:
+                    tr_merged_arr[:, i, j] = tr_dshapedxt_arr[:, i]
+            for i in self.esflag2:
+                for j in self.esflag:
+                    tr_merged_arr[:, i, j] = tr_dshapedxt_arr[:, j]
+            for i in self.esflag2:
+                for j in self.esflag2:
+                    tr_merged_arr[:, i, j] = tr_shape_arr
+
+            detJ = trans.Weight()
+            weight = ip.weight
+            dudxdvdx = np.tensordot(te_shape_arr, tr_merged_arr, 0)*weight*detJ
+
+            transip = trans.Transform(ip)
+            lam = self.lam(transip)
+
+            for i in range(self.vdim):  # test
+                for j in range(self.vdim):  # trial
+
+                    self.partelmat.Assign(0.0)
+                    for k in range(self.esdim):
+                        for l in range(self.esdim):
+                            partelmat_arr[:, :] += lam[i, k,
+                                                       l, j]*dudxdvdx[:, :, k, l]
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
