@@ -61,7 +61,14 @@ bilinintegs = get_integrators('BilinearOps')
 linintegs = get_integrators('LinearOps')
 
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
-                                       guilabel="lambda", default=0.0, tip="coefficient",))]
+                                       guilabel="lambda",
+                                       default=0.0,
+                                       tip="coefficient",)),
+        ("coeff_param", VtableElement("coeff_param", type='any',
+                                      guilabel="coeff. parameters",
+                                      default="",
+                                      tip="extra parameter for constructing coefficient",)),
+       ]
 
 
 class WeakIntegration(Phys):
@@ -82,6 +89,7 @@ class WeakIntegration(Phys):
         return [dep_vars[self.test_idx],
                 self.coeff_type,
                 self.vt_coeff.get_panel_value(self)[0],
+                self.vt_coeff.get_panel_value(self)[1],                
                 self.integrator, ]
         # self.use_src_proj,
         # self.use_dst_proj,]
@@ -115,6 +123,7 @@ class WeakIntegration(Phys):
                {"style": wx.CB_READONLY, "choices": dep_vars}],
               p,
               panels[0],
+              panels[1],              
               p2, ]
         #["use src proj.",  self.use_src_proj,   3, {"text":""}],
         # ["use dst proj.",  self.use_dst_proj,   3, {"text":""}],  ]
@@ -127,8 +136,8 @@ class WeakIntegration(Phys):
         dep_vars = self.get_root_phys().dep_vars
         self.test_idx = dep_vars.index(str(v[0]))
         self.coeff_type = str(v[1])
-        self.vt_coeff.import_panel_value(self, (v[2],))
-        self.integrator = str(v[3])
+        self.vt_coeff.import_panel_value(self, (v[2],v[3]))
+        self.integrator = str(v[4])
         #self.use_src_proj = v[4]
         #self.use_dst_proj = v[5]
 

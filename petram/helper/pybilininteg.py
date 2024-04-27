@@ -163,8 +163,6 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 transip = trans.Transform(ip)
                 lam = self.lam(transip)
 
-                #print("lam shape(0)", lam.shape, self.vdim_te, self.vdim_tr)
-
                 for i in range(self.vdim_te):  # test
                     for k in range(self.vdim_tr):  # trial
                         self.partelmat.Assign(0.0)
