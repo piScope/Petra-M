@@ -987,13 +987,34 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                             **kywds)
 
     def get_coefficient_from_expression(
-            self, c, cotype, use_dual=False, real=True, is_conj=False):
+            self, c, cotype, use_dual=False, real=True, is_conj=False, shapehint=None):
         from petram.phys.coefficient import SCoeff, VCoeff, DCoeff, MCoeff
 
-        if self.get_root_phys().vdim > 1:
-            dim = self.get_root_phys().vdim
+        try:
+            shape = c.shape
+            has_shape = True
+        except:
+            has_shape = False
+
+        # if c is already evaluated, it may has shape
+        # if c is text,
+        # 1) we assign dim here using physics dim (default)
+        # 2) if shapehint is given, we use this (for PyBilininteg)
+        if has_shape:
+            if len(shape) == 1:
+                dim = shape[0]
+            elif len(shape) == 2:
+                assert shape[0] == shape[1], "rectangular shape is not support"
+            else:
+                assert False, "TensorCoefficient not supported"
+
+        elif shapehint is not None:
+            dim = np.prod(shapehint)
         else:
-            dim = self.get_root_phys().geom_dim
+            if self.get_root_phys().vdim > 1:
+                dim = self.get_root_phys().vdim
+            else:
+                dim = self.get_root_phys().geom_dim
 
         return_complex = self.get_root_phys().is_complex()
 

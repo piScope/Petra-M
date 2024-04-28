@@ -47,6 +47,10 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         self.ir = ir
         #self.ir = mfem.DiffusionIntegrator.GetRule(trial_fe, test_fe)
 
+    @classmethod
+    def coeff_shape(cls, itg_param):
+        raise NotImplementedError("subclass must implement coeff_shape")
+
 
 class PyVectorMassIntegrator(PyVectorIntegratorBase):
     def __init__(self, lam, vdim1, vdim2=None, ir=None):
@@ -85,6 +89,13 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
         self.te_shape = None
 
         self.partelmat = mfem.DenseMatrix()
+        self.val = mfem.Vector()
+
+    @classmethod
+    def coeff_shape(cls, vdim1, vdim2=None, ir=None):
+        if vdim2 is not None:
+            return (vdim1, vdim2)
+        return (vdim1, vdim1)
 
     def AssembleElementMatrix(self, el, trans, elmat):
         self.AssembleElementMatrix2(el, el, trans, elmat)
@@ -114,7 +125,6 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
 
         tr_nd = trial_fe.GetDof()
         te_nd = test_fe.GetDof()
-        sdim = trans.GetSpaceDim()
         tr_shape = [tr_nd]
         te_shape = [te_nd]
 
@@ -122,12 +132,12 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
         if test_fe.GetRangeType() == mfem.FiniteElement.SCALAR:
             shape[0] *= self.vdim_te
         else:
-            te_shape.append(sdim)
+            te_shape.append(self.vdim_te)
 
         if trial_fe.GetRangeType() == mfem.FiniteElement.SCALAR:
             shape[1] *= self.vdim_tr
         else:
-            tr_shape.append(sdim)
+            tr_shape.append(self.vdim_tr)
 
         elmat.SetSize(*shape)
         elmat.Assign(0.0)
@@ -161,8 +171,8 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 dudxdvdx = np.tensordot(
                     self.te_shape_arr*w2, self.tr_shape_arr*w2, 0)*ip.weight
 
-                transip = trans.Transform(ip)
-                lam = self.lam(transip)
+                self.lam.Eval(self.val, trans, ip)
+                lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 for i in range(self.vdim_te):  # test
                     for k in range(self.vdim_tr):  # trial
@@ -190,14 +200,12 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 dudxdvdx = np.tensordot(
                     self.te_shape_arr*w2, self.tr_shape_arr*w2, 0)*ip.weight
 
-                transip = trans.Transform(ip)
-                lam = self.lam(transip)
-
-                #print("lam shape (1)", lam.shape, dudxdvdx.shape)
+                self.lam.Eval(self.val, trans, ip)
+                lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 for i in range(self.vdim_te):  # test
                     self.partelmat.Assign(0.0)
-                    for k in range(sdim):  # trial
+                    for k in range(self.vdim_tr):  # trial
                         partelmat_arr[:, :] += lam[i, k]*dudxdvdx[:, :, k]
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, 0)
@@ -221,14 +229,12 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 dudxdvdx = np.tensordot(
                     self.te_shape_arr*w2, self.tr_shape_arr*w2, 0)*ip.weight
 
-                transip = trans.Transform(ip)
-                lam = self.lam(transip)
-
-                #print("lam shape(2)", lam.shape, dudxdvdx.shape)
+                self.lam.Eval(self.val, trans, ip)
+                lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 for k in range(self.vdim_tr):  # trial
                     self.partelmat.Assign(0.0)
-                    for i in range(sdim):  # test
+                    for i in range(self.vdim_te):  # test
                         partelmat_arr[:, :] += lam[i, k]*dudxdvdx[:, i, :]
 
                     elmat.AddMatrix(self.partelmat, 0, tr_nd*k)
@@ -289,6 +295,18 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
         self.tr_merged = mfem.DenseMatrix()
 
         self.partelmat = mfem.DenseMatrix()
+        self.val = mfem.Vector()
+
+    @classmethod
+    def coeff_shape(cls, vdim1, vdim2=None, esindex=None, ir=None):
+        if vdim2 is None:
+            vdim2 = vdim1
+        if esindex is None:
+            esdim = vdim2
+        else:
+            esdim = len(esindex)
+
+        return (vdim1, esdim, vdim2,)
 
     def AssembleElementMatrix(self, el, trans, elmat):
         self.AssembleElementMatrix2(el, el, trans, elmat)
@@ -340,7 +358,9 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
             w1 = np.sqrt(1./w) if square else np.sqrt(1/w/w/w)
             w2 = np.sqrt(w)
 
-            transip = trans.Transform(ip)
+            self.lam.Eval(self.val, trans, ip)
+            lam = self.val.GetDataArray().reshape(self.vdim_te, self.esdim, self.vdim_tr)
+
             lam = self.lam(transip)
 
             # construct merged test/trial shape
@@ -361,7 +381,7 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
 
 
 class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
-    def __init__(self, lam, vdim1, vdim2=None, ir=None):
+    def __init__(self, lam, vdim1, vdim2=None, esindex=None, ir=None):
         '''
            integrator for
 
@@ -420,6 +440,18 @@ class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
         self.te_merged = mfem.DenseMatrix()
 
         self.partelmat = mfem.DenseMatrix()
+        self.val = mfem.Vector()
+
+    @classmethod
+    def coeff_shape(cls, vdim1, vdim2=None, esindex=None, ir=None):
+        if vdim2 is None:
+            vdim2 = vdim1
+        if esindex is None:
+            esdim = vdim2
+        else:
+            esdim = len(esindex)
+
+        return (esdim, vdim1, esdim, vdim2)
 
     def AssembleElementMatrix(self, el, trans, elmat):
         self.AssembleElementMatrix2(el, el, trans, elmat)
@@ -492,8 +524,9 @@ class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
 
             dudxdvdx = np.tensordot(te_merged_arr, tr_merged_arr, 0)*ip.weight
 
-            transip = trans.Transform(ip)
-            lam = self.lam(transip)
+            self.lam.Eval(self.val, trans, ip)
+            lam = self.val.GetDataArray().reshape(self.esdim, self.vdim_te,
+                                                  self.esdim, self.vdim_tr)
 
             for i in range(self.vdim_te):  # test
                 for j in range(self.vdim_tr):  # trial
@@ -508,7 +541,7 @@ class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
 
 
 class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
-    def __init__(self, lam, vdim1, vdim2=None, ir=None):
+    def __init__(self, lam, vdim1, vdim2=None, esindex=None, ir=None):
         '''
            integrator for
 
@@ -566,6 +599,18 @@ class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
         self.tr_merged = mfem.DenseMatrix()
 
         self.partelmat = mfem.DenseMatrix()
+        self.val = mfem.Vector()
+
+    @classmethod
+    def coeff_shape(cls, vdim1, vdim2=None, esindex=None, ir=None):
+        if vdim2 is None:
+            vdim2 = vdim1
+        if esindex is None:
+            esdim = vdim2
+        else:
+            esdim = len(esindex)
+
+        return (vdim1, esdim, esdim, vdim2)
 
     def AssembleElementMatrix(self, el, trans, elmat):
         self.AssembleElementMatrix2(el, el, trans, elmat)
@@ -639,8 +684,9 @@ class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
             weight = ip.weight
             dudxdvdx = np.tensordot(te_shape_arr, tr_merged_arr, 0)*weight*detJ
 
-            transip = trans.Transform(ip)
-            lam = self.lam(transip)
+            self.lam.Eval(self.val, trans, ip)
+            lam = self.val.GetDataArray().reshape(self.vdim_te, self.esdim,
+                                                  self.esdim, self.vdim_tr)
 
             for i in range(self.vdim_te):  # test
                 for j in range(self.vdim_tr):  # trial

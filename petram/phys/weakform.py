@@ -163,38 +163,29 @@ class WeakIntegration(Phys):
                 break
 
         if not self.integrator.startswith("Py"):
-            c_coeff = self.get_coefficient_from_expression(coeff,
-                                                           cotype,
-                                                           use_dual=use_dual,
-                                                           real=real,
-                                                           is_conj=is_conj)
             if self.integrator == 'DerivativeIntegrator1':
                 integrator = getattr(mfem, 'DerivativeIntegrator')
-                c_coeff = (c_coeff, )
                 itg_params = (0, )
             elif self.integrator == 'DerivativeIntegrator2':
                 integrator = getattr(mfem, 'DerivativeIntegrator')
-                c_coeff = (c_coeff, )
                 itg_params = (1, )
             elif self.integrator == 'DerivativeIntegrator3':
                 integrator = getattr(mfem, 'DerivativeIntegrator')
-                c_coeff = (c_coeff, )
                 itg_params = (2, )
             else:
                 integrator = getattr(mfem, self.integrator)
+            shape = None
         else:
             integrator = getattr(petram.helper.pybilininteg, self.integrator)
+            shape = integrator.coeff_shape(*itg_params)
 
-            if len(coeff) == 2:
-                if real:
-                    c_coeff = (coeff[0],)
-                else:
-                    c_coeff = (coeff[1],)
-            else:
-                if real:
-                    c_coeff = (coeff[0],)
-                else:
-                    return  # no imaginary contribution
+        c_coeff = self.get_coefficient_from_expression(coeff,
+                                                       cotype,
+                                                       use_dual=use_dual,
+                                                       real=real,
+                                                       is_conj=is_conj,
+                                                       shapehint=shape)
+        c_coeff = (c_coeff, )
 
         if isinstance(self, Bdry):
             adder = a.AddBoundaryIntegrator
