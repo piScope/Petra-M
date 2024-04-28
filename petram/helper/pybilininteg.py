@@ -49,7 +49,7 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
 
 
 class PyVectorMassIntegrator(PyVectorIntegratorBase):
-    def __init__(self, _lam, lam, ir=None):
+    def __init__(self, lam, vdim1, vdim2=None, ir=None):
         '''
            integrator for
 
@@ -71,12 +71,13 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
             return
 
         self.lam = lam
-        try:
-            self.vdim_te = lam.vdim[0]
-            self.vdim_tr = lam.vdim[1]
-        except:
-            self.vdim_te = lam.vdim
-            self.vdim_tr = lam.vdim
+        self.lam = lam
+        if vdim2 is not None:
+            self.vdim_te = vdim1
+            self.vdim_tr = vdim2
+        else:
+            self.vdim_te = vdim1
+            self.vdim_tr = vdim1
 
         self._ir = self.GetIntegrationRule()
 
@@ -93,7 +94,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
             return
 
         if self._ir is None:
-            self.set_ir(trial_fe,  test_fe, trans)
+            self.set_ir(trial_fe, test_fe, trans)
 
         if self.te_shape is None:
             if test_fe.GetRangeType() == mfem.FiniteElement.VECTOR:
@@ -237,7 +238,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
 
 
 class PyVectorPartialIntegrator(PyVectorIntegratorBase):
-    def __init__(self, _lam, lam, ir=None):
+    def __init__(self, lam, vdim1, vdim2=None, esindex=None, ir=None):
         '''
            integrator for
 
@@ -265,17 +266,19 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
 
         '''
         PyVectorIntegratorBase.__init__(self, ir)
-        self.lam = None if lam is None else lam
-        if self.lam is None:
-            return
+        self.lam = lam
+        if vdim2 is not None:
+            self.vdim_te = vdim1
+            self.vdim_tr = vdim2
+        else:
+            self.vdim_te = vdim1
+            self.vdim_tr = vdim1
 
-        self.esflag = np.where(np.array(lam.esindex) >= 0)[0]
-        self.esflag2 = np.where(np.atleast_1d(lam.esindex) == -1)[0]
-        self.esdim = len(lam.esindex)
-        self.vdim = lam.vdim
-
-        assert self.vdim == self.esdim, "vector dim and extedned spacedim must be the same"
-        #print('esdim flag', self.esflag, self.esflag2)
+        if esindex is None:
+            esindex = list(range(self.vdim_tr))
+        self.esflag = np.where(np.array(esindex) >= 0)[0]
+        self.esflag2 = np.where(np.atleast_1d(esindex) == -1)[0]
+        self.esdim = len(esindex)
 
         self._ir = self.GetIntegrationRule()
 
@@ -299,7 +302,7 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
         tr_nd = trial_fe.GetDof()
         te_nd = test_fe.GetDof()
 
-        elmat.SetSize(te_nd*self.vdim, tr_nd*self.vdim)
+        elmat.SetSize(te_nd*self.vdim_tr, tr_nd*self.vdim_te)
         elmat.Assign(0.0)
         self.partelmat.SetSize(te_nd, tr_nd)
 
@@ -348,8 +351,8 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
             dudxdvdx = np.tensordot(
                 te_shape_arr*w2, tr_merged_arr, 0)*ip.weight
 
-            for i in range(self.vdim):  # test
-                for j in range(self.vdim):  # trial
+            for i in range(self.vdim_te):  # test
+                for j in range(self.vdim_tr):  # trial
                     self.partelmat.Assign(0.0)
                     for k in range(self.esdim):
                         partelmat_arr[:, :] += lam[i, k, j]*dudxdvdx[:, :, k]
@@ -358,7 +361,7 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
 
 
 class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
-    def __init__(self, _lam, lam, ir=None):
+    def __init__(self, lam, vdim1, vdim2=None, ir=None):
         '''
            integrator for
 
@@ -388,16 +391,20 @@ class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
 
         '''
         PyVectorIntegratorBase.__init__(self, ir)
-        self.lam = None if lam is None else lam
-        if self.lam is None:
-            return
+        self.lam = lam
+        if vdim2 is not None:
+            self.vdim_te = vdim1
+            self.vdim_tr = vdim2
+        else:
+            self.vdim_te = vdim1
+            self.vdim_tr = vdim1
 
-        self.esflag = np.where(np.array(lam.esindex) >= 0)[0]
-        self.esflag2 = np.where(np.atleast_1d(lam.esindex) == -1)[0]
-        self.esdim = len(lam.esindex)
-        self.vdim = lam.vdim
+        if esindex is None:
+            esindex = list(range(self.vdim_tr))
+        self.esflag = np.where(np.array(esindex) >= 0)[0]
+        self.esflag2 = np.where(np.atleast_1d(esindex) == -1)[0]
+        self.esdim = len(esindex)
 
-        assert self.vdim == self.esdim, "vector dim and extedned spacedim must be the same"
         #print('esdim flag', self.esflag, self.esflag2)
 
         self._ir = self.GetIntegrationRule()
@@ -428,7 +435,7 @@ class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
         tr_nd = trial_fe.GetDof()
         te_nd = test_fe.GetDof()
 
-        elmat.SetSize(te_nd*self.vdim, tr_nd*self.vdim)
+        elmat.SetSize(te_nd*self.vdim_te, tr_nd*self.vdim_tr)
         elmat.Assign(0.0)
         self.partelmat.SetSize(te_nd, tr_nd)
 
@@ -488,8 +495,8 @@ class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
             transip = trans.Transform(ip)
             lam = self.lam(transip)
 
-            for i in range(self.vdim):  # test
-                for j in range(self.vdim):  # trial
+            for i in range(self.vdim_te):  # test
+                for j in range(self.vdim_tr):  # trial
 
                     self.partelmat.Assign(0.0)
                     for k in range(self.esdim):
@@ -501,7 +508,7 @@ class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
 
 
 class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
-    def __init__(self, _lam, lam, ir=None):
+    def __init__(self, lam, vdim1, vdim2=None, ir=None):
         '''
            integrator for
 
@@ -531,16 +538,21 @@ class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
 
         '''
         PyVectorIntegratorBase.__init__(self, ir)
-        self.lam = None if lam is None else lam
-        if self.lam is None:
-            return
+        self.lam = lam
+        if vdim2 is not None:
+            self.vdim_te = vdim1
+            self.vdim_tr = vdim2
+        else:
+            self.vdim_te = vdim1
+            self.vdim_tr = vdim1
 
-        self.esflag = np.where(np.array(lam.esindex) >= 0)[0]
-        self.esflag2 = np.where(np.atleast_1d(lam.esindex) == -1)[0]
-        self.esdim = len(lam.esindex)
-        self.vdim = lam.vdim
+        if esindex is None:
+            esindex = list(range(self.vdim_tr))
+        self.esflag = np.where(np.array(esindex) >= 0)[0]
+        self.esflag2 = np.where(np.atleast_1d(esindex) == -1)[0]
+        self.esdim = len(esindex)
 
-        assert self.vdim == self.esdim, "vector dim and extedned spacedim must be the same"
+        assert self.vdim_tr == self.esdim, "vector dim and extedned spacedim must be the same"
         #print('esdim flag', self.esflag, self.esflag2)
 
         self._ir = self.GetIntegrationRule()
@@ -569,7 +581,7 @@ class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
         tr_nd = trial_fe.GetDof()
         te_nd = test_fe.GetDof()
 
-        elmat.SetSize(te_nd*self.vdim, tr_nd*self.vdim)
+        elmat.SetSize(te_nd*self.vdim_te, tr_nd*self.vdim_tr)
         elmat.Assign(0.0)
         self.partelmat.SetSize(te_nd, tr_nd)
 
@@ -630,8 +642,8 @@ class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
             transip = trans.Transform(ip)
             lam = self.lam(transip)
 
-            for i in range(self.vdim):  # test
-                for j in range(self.vdim):  # trial
+            for i in range(self.vdim_te):  # test
+                for j in range(self.vdim_tr):  # trial
 
                     self.partelmat.Assign(0.0)
                     for k in range(self.esdim):

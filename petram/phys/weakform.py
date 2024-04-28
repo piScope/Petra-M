@@ -64,11 +64,12 @@ data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
                                        guilabel="lambda",
                                        default=0.0,
                                        tip="coefficient",)),
-        ("coeff_param", VtableElement("coeff_param", type='any',
-                                      guilabel="coeff. parameters",
-                                      default="",
-                                      tip="extra parameter for constructing coefficient",)),
-       ]
+        ("itg_param", VtableElement("itg_param", type='any',
+                                    guilabel="Ing. parameters",
+                                    default="",
+                                    no_func=True,
+                                    tip="extra parameter for constructing integrator",)),
+        ]
 
 
 class WeakIntegration(Phys):
@@ -89,7 +90,7 @@ class WeakIntegration(Phys):
         return [dep_vars[self.test_idx],
                 self.coeff_type,
                 self.vt_coeff.get_panel_value(self)[0],
-                self.vt_coeff.get_panel_value(self)[1],                
+                self.vt_coeff.get_panel_value(self)[1],
                 self.integrator, ]
         # self.use_src_proj,
         # self.use_dst_proj,]
@@ -123,7 +124,7 @@ class WeakIntegration(Phys):
                {"style": wx.CB_READONLY, "choices": dep_vars}],
               p,
               panels[0],
-              panels[1],              
+              panels[1],
               p2, ]
         #["use src proj.",  self.use_src_proj,   3, {"text":""}],
         # ["use dst proj.",  self.use_dst_proj,   3, {"text":""}],  ]
@@ -136,7 +137,7 @@ class WeakIntegration(Phys):
         dep_vars = self.get_root_phys().dep_vars
         self.test_idx = dep_vars.index(str(v[0]))
         self.coeff_type = str(v[1])
-        self.vt_coeff.import_panel_value(self, (v[2],v[3]))
+        self.vt_coeff.import_panel_value(self, (v[2], v[3]))
         self.integrator = str(v[4])
         #self.use_src_proj = v[4]
         #self.use_dst_proj = v[5]
@@ -146,14 +147,13 @@ class WeakIntegration(Phys):
         super(WeakIntegration, self).preprocess_params(engine)
 
     def add_contribution(self, engine, a, real=True, is_trans=False, is_conj=False):
-        c = self.vt_coeff.make_value_or_expression(self)[0]
-
+        coeff, itg_params = self.vt_coeff.make_value_or_expression(self)
         if real:
             dprint1("Add "+self.integrator + " contribution(real)" +
-                    str(self._sel_index), "c", c)
+                    str(self._sel_index), "c", coeff)
         else:
             dprint1("Add "+self.integrator + " contribution(imag)" +
-                    str(self._sel_index), "c", c)
+                    str(self._sel_index), "c", coeff)
 
         cotype = self.coeff_type[0]
         use_dual = False
@@ -163,46 +163,48 @@ class WeakIntegration(Phys):
                 break
 
         if not self.integrator.startswith("Py"):
-            c_coeff = self.get_coefficient_from_expression(c, cotype,
+            c_coeff = self.get_coefficient_from_expression(coeff,
+                                                           cotype,
                                                            use_dual=use_dual,
                                                            real=real,
                                                            is_conj=is_conj)
             if self.integrator == 'DerivativeIntegrator1':
                 integrator = getattr(mfem, 'DerivativeIntegrator')
-                c_coeff = (c_coeff, 0)
+                c_coeff = (c_coeff, )
+                itg_params = (0, )
             elif self.integrator == 'DerivativeIntegrator2':
                 integrator = getattr(mfem, 'DerivativeIntegrator')
-                c_coeff = (c_coeff, 1)
+                c_coeff = (c_coeff, )
+                itg_params = (1, )
             elif self.integrator == 'DerivativeIntegrator3':
                 integrator = getattr(mfem, 'DerivativeIntegrator')
-                c_coeff = (c_coeff, 2)
+                c_coeff = (c_coeff, )
+                itg_params = (2, )
             else:
                 integrator = getattr(mfem, self.integrator)
         else:
-            cc = mfem.ConstantCoefficient(0.0)
             integrator = getattr(petram.helper.pybilininteg, self.integrator)
 
-            if len(c) == 2:
+            if len(coeff) == 2:
                 if real:
-                    c_coeff = (cc, c[0])
+                    c_coeff = (coeff[0],)
                 else:
-                    c_coeff = (cc, c[1])
+                    c_coeff = (coeff[1],)
             else:
                 if real:
-                    c_coeff = (cc, c[0])
+                    c_coeff = (coeff[0],)
                 else:
                     return  # no imaginary contribution
 
         if isinstance(self, Bdry):
-            # print "Bdry Integrator"
             adder = a.AddBoundaryIntegrator
         elif isinstance(self, Domain):
-            # print "Domain Integrator"
             adder = a.AddDomainIntegrator
         else:
             assert False, "this class is not supported in weakform"
         self.add_integrator(engine, 'c', c_coeff,
-                            adder, integrator, transpose=is_trans)
+                            adder, integrator, transpose=is_trans,
+                            itg_params=itg_params)
 
     def add_bf_contribution(self, engine, a, real=True, kfes=0):
         self.add_contribution(engine, a, real=real)

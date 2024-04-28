@@ -800,9 +800,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             return coeff
 
     def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None,
-                       transpose=False, ir=None):
+                       transpose=False, ir=None, itg_params=None):
         if coeff is None:
             return
+        if itg_params is None:
+            itg_params = []
         if vt is None:
             vt = self.vt
         # if vt[name].ndim == 0:
@@ -819,10 +821,15 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             coeff = self.restrict_coeff(coeff, engine, vec=True, idx=idx)
         elif isinstance(coeff[0], mfem.MatrixCoefficient):
             coeff = self.restrict_coeff(coeff, engine, matrix=True, idx=idx)
+        elif issubclass(integrator, mfem.PyBilinearFormIntegrator):
+            pass
         else:
             assert False, "Unknown coefficient type: " + str(type(coeff[0]))
 
-        itg = integrator(*coeff)
+        args = list(coeff)
+        args.extend(itg_params)
+
+        itg = integrator(*args)
         itg._linked_coeff = coeff  # make sure that coeff is not GCed.
 
         if transpose:
@@ -1030,6 +1037,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         jit compile coefficient
         '''
         pass
+
 
 data = [("order", VtableElement("order", type='int',
                                 guilabel="order", no_func=True,
