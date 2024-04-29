@@ -16,3 +16,15 @@ Da       = 1.66053906660e-27      # atomic mass unit (u or Dalton) (kg)
 mass_electron = Da/1822.8884845
 mass_hydrogen = Da*1.008 
 mass_proton = 1.67262192369e-27
+
+'''
+ Levi-Civita
+'''
+levi_civita = np.zeros((3, 3, 3), dtype=np.float64)
+eps[0, 1, 2] = 1
+eps[1, 2, 0] = 1
+eps[2, 0, 1] = 1
+eps[1, 0, 2] = -1
+eps[2, 1, 0] = -1
+eps[0, 2, 1] = -1
+
