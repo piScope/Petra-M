@@ -361,8 +361,6 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
             self.lam.Eval(self.val, trans, ip)
             lam = self.val.GetDataArray().reshape(self.vdim_te, self.esdim, self.vdim_tr)
 
-            lam = self.lam(transip)
-
             # construct merged test/trial shape
             tr_merged_arr[:, self.esflag] = tr_dshapedxt_arr*w1
             for k in self.esflag2:
