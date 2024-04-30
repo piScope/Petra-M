@@ -835,8 +835,9 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
                 dep = (c1, c2)
             else:
                 continue
+
         if dep is None:
-            #
+            dprint1("can not create JIT-ed coefficient (error in processing dependency) :"+ txt)
             return None
 
         dependency.append(dep)
