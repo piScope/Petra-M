@@ -222,7 +222,7 @@ def cosd(x): return np.cos(x * np.pi / 180.)
 def sind(x): return np.sin(x * np.pi / 180.)
 def tand(x): return np.tan(x * np.pi / 180.)
 
-from petram.solver.parametric_scanner import Scan
+
 var_g = {'sin': np.sin,
          'cos': np.cos,
          'tan': np.tan,
@@ -250,7 +250,7 @@ var_g = {'sin': np.sin,
          'min': np.min,
          'sign': np.sign,
          'ones': np.ones,
-         'eye':np.eye,
+         'eye': np.eye,
          'diag': np.diag,
          'zeros': np.zeros,
          'nan': np.nan,
@@ -2035,7 +2035,8 @@ class GFScalarVariable(GridFunctionVariable):
                 #    def func(i, ir, vals, tr, in_gf=gf):
                 if gf.VectorDim() > 1:
                     def func(i, ir, vals, tr, in_gf=gf):
-                        in_gf.GetValues(i, ir, vals, tr, self.comp - 1)
+                        #in_gf.GetValues(i, ir, vals, tr, self.comp-1)
+                        in_gf.GetValues(i, ir, vals, tr, self.comp)
                     return func
                 else:
                     def func(i, ir, vals, tr, in_gf=gf):
@@ -2051,7 +2052,8 @@ class GFScalarVariable(GridFunctionVariable):
                 elif gf.VectorDim() > 1:
                     def func(i, ir, vals, tr, in_gf=gf):
                         in_gf.GetFaceValues(
-                            i, side, ir, vals, tr, self.comp - 1)
+                            i, side, ir, vals, tr, self.comp)
+                        # i, side, ir, vals, tr, self.comp - 1)
                     return func
                 else:
                     def func(i, ir, vals, tr, in_gf=gf):
@@ -2128,14 +2130,16 @@ class GFScalarVariable(GridFunctionVariable):
                     self.gfr.GetVectorValue(iele, ip, d)
                     val = d[self.comp - 1]
                 else:
-                    val = self.gfr.GetValue(iele, ip, self.comp - 1)
+                    #val = self.gfr.GetValue(iele, ip, self.comp - 1)
+                    val = self.gfr.GetValue(iele, ip, self.comp)
 
             if self.gfi is not None:
                 if isVector:
                     self.gfi.GetVectorValue(iele, ip, d)
                     val += 1j * d[self.comp - 1]
                 else:
-                    val += 1j * self.gfi.GetValue(iele, ip, self.comp - 1)
+                    #val += 1j * self.gfi.GetValue(iele, ip, self.comp - 1)
+                    val += 1j * self.gfi.GetValue(iele, ip, self.comp)
 
             data[jj] = val
             jj = jj + 1
