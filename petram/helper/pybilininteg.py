@@ -423,7 +423,7 @@ class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
         self.esflag2 = np.where(np.atleast_1d(esindex) == -1)[0]
         self.esdim = len(esindex)
 
-        #print('esdim flag', self.esflag, self.esflag2)
+        #print('esdim flag', self.esdim, self.esflag, self.esflag2)
 
         self._ir = self.GetIntegrationRule()
 
