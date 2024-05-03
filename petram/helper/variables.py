@@ -2190,11 +2190,11 @@ class GFVectorVariable(GridFunctionVariable):
 
         else:
             self.isVectorFE = False
-            self.func_r = [mfem.GridFunctionCoefficient(gf_real, comp=k + 1)
+            self.func_r = [mfem.GridFunctionCoefficient(gf_real, k + 1)
                            for k in range(self.dim)]
 
             if gf_imag is not None:
-                self.func_i = [mfem.GridFunctionCoefficient(gf_imag, comp=k + 1)
+                self.func_i = [mfem.GridFunctionCoefficient(gf_imag, k + 1)
                                for k in range(self.dim)]
             else:
                 self.func_i = None
