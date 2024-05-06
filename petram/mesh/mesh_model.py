@@ -429,6 +429,7 @@ class MeshFile(MeshGenerator):
         v['refine'] = True
         v['fix_orientation'] = True
         v['fix_numbering'] = False
+        v['use_2nd'] = False
 
         return v
 
@@ -447,6 +448,7 @@ class MeshFile(MeshGenerator):
               [None, self.fix_orientation, 3, {"text": "FixOrientation"}],
               [None, self.fix_numbering, 3, {
                   "text": "Fix Attr/BdrAttr Numbering"}],
+              [None, self.use_2nd, 3, {"text": "upgrade to 2nd order mesh"}],
               [None, self._mesh_char, 2, None], ]
 
         p2 = MeshGenerator.panel1_param(self)
@@ -455,7 +457,7 @@ class MeshFile(MeshGenerator):
     def get_panel1_value(self):
         v1 = [self.path, None, self.generate_edges,
               self.refine, self.fix_orientation,
-              self.fix_numbering, None]
+              self.fix_numbering, self.use_2nd, None]
 
         v2 = MeshGenerator.get_panel1_value(self)
 
@@ -467,6 +469,7 @@ class MeshFile(MeshGenerator):
         self.refine = 1 if v[3] else 0
         self.fix_orientation = v[4]
         self.fix_numbering = v[5]
+        self.use_2nd = v[6]
 
         MeshGenerator.import_panel1_value(self, v[5:-1])
 
@@ -554,6 +557,9 @@ class MeshFile(MeshGenerator):
         if self.enforce_ncmesh:
             mesh.EnsureNCMesh()
 
+        if self.use_2nd and mesh.GetNodalFESpace() is None:
+            mesh.SetCurvature(2)
+
         self.parent.sdim = mesh.SpaceDimension()
         self._mesh_char = format_mesh_characteristic(mesh)
         try:
@@ -610,7 +616,7 @@ class Mesh1D(MeshGenerator):
                   "validator": check_int_array}],
               ["x0", self.mesh_x0_txt, 0, {"validator": check_float}],
               [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
-              [None, self.use_2nd, 3, {"text": "geneate 2nd order mesh"}],
+              [None, self.use_2nd, 3, {"text": "upgrade to 2nd order mesh"}],
               [None, self._mesh_char, 2, None], ]
 
         return p1
@@ -656,7 +662,7 @@ class Mesh1D(MeshGenerator):
                                   fix_orientation=self.fix_orientation,
                                   sdim=1, x0=self.mesh_x0)
 
-        if self.use_2nd:
+        if self.use_2nd and mesh.GetNodalFESpace() is None:
             mesh.SetCurvature(2)
 
         self.parent.sdim = mesh.SpaceDimension()
@@ -722,7 +728,7 @@ class Mesh2D(MeshGenerator):
                   "validator": check_int_array}],
               ["x0", self.mesh_x0_txt, 0, {"validator": check_float_array}],
               [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
-              [None, self.use_2nd, 3, {"text": "geneate 2nd order mesh"}],
+              [None, self.use_2nd, 3, {"text": "upgrade to 2nd order mesh"}],
               [None, self._mesh_char, 2, None], ]
 
         p2 = MeshGenerator.panel1_param(self)
@@ -779,7 +785,7 @@ class Mesh2D(MeshGenerator):
                                    fix_orientation=self.fix_orientation,
                                    sdim=2, x0=self.mesh_x0)
 
-        if self.use_2nd:
+        if self.use_2nd and mesh.GetNodalFESpace() is None:
             mesh.SetCurvature(2)
         if self.enforce_ncmesh:
             mesh.EnsureNCMesh()
@@ -853,7 +859,7 @@ class Mesh3D(MeshGenerator):
                   "validator": check_int_array}],
               ["x0", self.mesh_x0_txt, 0, {"validator": check_float_array}],
               [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
-              [None, self.use_2nd, 3, {"text": "geneate 2nd order mesh"}],
+              [None, self.use_2nd, 3, {"text": "upgrade to 2nd order mesh"}],
               [None, self._mesh_char, 2, None], ]
 
         p2 = MeshGenerator.panel1_param(self)
@@ -915,7 +921,7 @@ class Mesh3D(MeshGenerator):
                             filename='', refine=self.refine == 1, fix_orientation=self.fix_orientation,
                             sdim=3, x0=self.mesh_x0)
 
-        if self.use_2nd:
+        if self.use_2nd and mesh.GetNodalFESpace() is None:
             mesh.SetCurvature(2)
         if self.enforce_ncmesh:
             mesh.EnsureNCMesh()
