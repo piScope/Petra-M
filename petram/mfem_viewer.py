@@ -1611,13 +1611,15 @@ class MFEMViewer(BookViewer):
     def onWindowClose(self, evt=None):
         if self.editdlg is not None:
             try:
-                self.editdlg.Destroy()
+                self.editdlg.Close()
+                #self.editdlg.Destroy()
             except:
                 pass
             self.editdlg = None
         if self.plotsoldlg is not None:
             try:
-                self.plotsoldlg.Destroy()
+                self.plotsoldlg.Close()
+                #self.plotsoldlg.Destroy()
             except:
                 pass
             self.plotsoldlg = None
