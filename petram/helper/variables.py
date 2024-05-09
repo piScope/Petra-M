@@ -256,6 +256,7 @@ var_g = {'sin': np.sin,
          'nan': np.nan,
          'inf': np.inf,
          'inv': np.linalg.inv,
+         'norm': np.linalg.norm,
          'linspace': np.linspace,
          'logspace': np.logspace,
          'Scan': Scan}
