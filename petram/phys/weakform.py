@@ -185,7 +185,8 @@ class WeakIntegration(Phys):
                                                        real=real,
                                                        is_conj=is_conj,
                                                        shapehint=shape)
-        c_coeff = (c_coeff, )
+        if not isinstance(c_coeff, tuple):
+            c_coeff = (c_coeff, )
 
         if isinstance(self, Bdry):
             adder = a.AddBoundaryIntegrator
