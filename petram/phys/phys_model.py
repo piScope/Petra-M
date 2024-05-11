@@ -1000,8 +1000,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         # if c is text,
         # 1) we assign dim here using physics dim (default)
         # 2) if shapehint is given, we use this (for PyBilininteg)
+        print(c, shape)
         if has_shape:
-            if len(shape) == 1:
+            if shape is None or len(shape) == 0:
+                pass
+            elif len(shape) == 1:
                 dim = shape[0]
             elif len(shape) == 2:
                 assert shape[0] == shape[1], "rectangular shape is not support"
