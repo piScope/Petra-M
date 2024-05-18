@@ -610,12 +610,12 @@ class Model(RestorableOrderedDict):
         '''
         skip_self: not return the top level model
         '''
-        if not self.enabled:
+        if not self.is_enabled():
             return
         if not skip_self:
             yield self
         for k in self.keys():
-            if not self[k].enabled:
+            if not self[k].is_enabled():
                 continue
             for x in self[k].walk_enabled():
                 yield x
