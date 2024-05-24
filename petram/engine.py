@@ -4045,7 +4045,7 @@ class ParallelEngine(Engine):
                 target = None
 
                 srefines = [child[x]
-                            for x in child if child[x].isSerialRefinement]
+                            for x in child if child[x].isSerialRefinement and child[x].enabled]
                 for k in child.keys():
                     o = child[k]
                     if not o.enabled:
