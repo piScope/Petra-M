@@ -2400,13 +2400,13 @@ class Engine(object):
             M = self.finalize_coo_matrix(M_block, is_complex,
                                          convert_real=True, verbose=verbose)
 
-        elif format == 'blk_interleave':  # real coo converted from complex
+        elif format == 'blk_interleave':  # blockoperator (real converted from complex)
             M = M_block.get_global_blkmat_interleave()
 
-        elif format == 'blk_merged':  # real coo converted from complex
-            M = M_block.get_global_blkmat_merged()
+        elif format == 'blk_merged':  # complex blockoperator 
+            M = M_block.get_global_blkmat_merged2(((0, 1), (2,)))
 
-        elif format == 'blk_merged_s':  # real coo converted from complex
+        elif format == 'blk_merged_s':  # complex blockoperator (symmetrix) 
             M = M_block.get_global_blkmat_merged(symmetric=True)
 
         dprint2('exiting finalize_matrix')
