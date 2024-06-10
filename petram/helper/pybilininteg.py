@@ -28,6 +28,7 @@
    Copyright (c) 2024-, S. Shiraiwa (PPPL)
 '''
 import numpy as np
+from numpy.linalg import det, norm
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -43,6 +44,9 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     def __init__(self, *args, **kwargs):
         mfem.PyBilinearFormIntegrator.__init__(self, *args, **kwargs)
         self._q_order = 0
+        self._support_metric = False
+        self._metric = None
+        self._christoffel = None
 
     @property
     def q_order(self):
@@ -68,6 +72,41 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     def coeff_shape(cls, itg_param):
         raise NotImplementedError("subclass must implement coeff_shape")
 
+    def set_metric(self, metric, christoffel, use_covariant_vec=True):
+        #
+        #  g_ij (metric tensor) is set
+
+        #  sqrt(g_ij) dxdydz:
+        #     integration uses sqrt(g_ij) for volume integraiton Jacobian :
+        #
+        #  inter product is computed by
+        #      v_i *u^j   (use_covariant_vec=True)
+        #
+        #     or
+        #
+        #      v^i *u_j   (use_covariant_vec= False)
+        #
+        #
+        #   nabla is treated as covariant derivatives thus
+        #
+        #      d_k v^i = dv^i/dx^k + {i/ j, k} v_^i
+        #      d_k v_i = dv^i/dx^k _ {i/ j, k} v_^i
+
+        if not self._support_metric:
+            raise NotImplementedError(
+                "the integrator does not support metric tensor")
+
+        self._metric = metric
+        self._christoffel = christoffel
+        self.metric = mfem.Vector()
+
+    def eval_metric(self, trans, ip):
+        self._metric.Eval(self.metric, trans, ip)
+        m = self.metric.GetDataArray()
+        mm = int(np.sqrt(m.shape))
+        m = m.reshape(mm, mm)
+        return m
+
 
 class PyVectorMassIntegrator(PyVectorIntegratorBase):
     def __init__(self, lam, vdim1, vdim2=None, ir=None):
@@ -86,13 +125,14 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
 
         '''
         PyVectorIntegratorBase.__init__(self, ir)
+        self._support_metric = True
 
         self.lam = None if lam is None else lam
         if self.lam is None:
             return
 
         self.lam = lam
-        self.lam = lam
+
         if vdim2 is not None:
             self.vdim_te = vdim1
             self.vdim_tr = vdim2
@@ -191,6 +231,10 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 self.lam.Eval(self.val, trans, ip)
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
+                if self._metric is not None:
+                    m = self.eval_metric(trans, ip):
+                    lam /= det(m)
+
                 for i in range(self.vdim_te):  # test
                     for k in range(self.vdim_tr):  # trial
                         self.partelmat.Assign(0.0)
@@ -220,6 +264,10 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 self.lam.Eval(self.val, trans, ip)
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
+                if self._metric is not None:
+                    m = self.eval_metric(trans, ip):
+                    lam /= det(m)
+
                 for i in range(self.vdim_te):  # test
                     self.partelmat.Assign(0.0)
                     for k in range(self.vdim_tr):  # trial
@@ -248,6 +296,10 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
 
                 self.lam.Eval(self.val, trans, ip)
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
+
+                if self._metric is not None:
+                    m = self.eval_metric(trans, ip):
+                    lam /= det(m)
 
                 for k in range(self.vdim_tr):  # trial
                     self.partelmat.Assign(0.0)
@@ -352,7 +404,8 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
         self.tr_dshape.SetSize(tr_nd, dim)
         self.tr_dshapedxt.SetSize(tr_nd, sdim)
 
-        assert sdim == len(self.esflag), "mesh SpaceDim is not same as esflag length"
+        assert sdim == len(
+            self.esflag), "mesh SpaceDim is not same as esflag length"
 
         self.tr_merged.SetSize(tr_nd, self.esdim)
 
@@ -382,7 +435,7 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
 
             # construct merged test/trial shape
             tr_merged_arr[:, self.esflag] = tr_dshapedxt_arr*w1
-                
+
             for k in self.esflag2:
                 tr_merged_arr[:, k] = tr_shape_arr*w2
 
@@ -396,6 +449,7 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
                         partelmat_arr[:, :] += lam[i, k, j]*dudxdvdx[:, :, k]
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
+
 
 class PyVectorWeakPartialIntegrator(PyVectorIntegratorBase):
     def __init__(self, lam, vdim1, vdim2=None, esindex=None, ir=None):
@@ -469,7 +523,8 @@ class PyVectorWeakPartialIntegrator(PyVectorIntegratorBase):
         self.te_dshape.SetSize(te_nd, dim)
         self.te_dshapedxt.SetSize(te_nd, sdim)
 
-        assert sdim == len(self.esflag), "mesh SpaceDim is not same as esflag length"
+        assert sdim == len(
+            self.esflag), "mesh SpaceDim is not same as esflag length"
 
         self.te_merged.SetSize(tr_nd, self.esdim)
 
@@ -499,7 +554,7 @@ class PyVectorWeakPartialIntegrator(PyVectorIntegratorBase):
 
             # construct merged test/trial shape
             te_merged_arr[:, self.esflag] = te_dshapedxt_arr*w1
-                
+
             for k in self.esflag2:
                 te_merged_arr[:, k] = te_shape_arr*w2
 
@@ -540,6 +595,8 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
 
         '''
         PyVectorIntegratorBase.__init__(self, ir)
+        self._support_metric = True
+
         self.lam = lam
         if vdim2 is not None:
             self.vdim_te = vdim1
@@ -657,6 +714,10 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             lam = self.val.GetDataArray().reshape(self.esdim, self.vdim_te,
                                                   self.esdim, self.vdim_tr)
 
+            if self._metric is not None:
+                m = self.eval_metric(trans, ip):
+                lam /= det(m)
+
             for i in range(self.vdim_te):  # test
                 for j in range(self.vdim_tr):  # trial
 
@@ -669,7 +730,6 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
 
-                    
 class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
     def __init__(self, lam, vdim1, vdim2=None, esindex=None, ir=None):
         '''
@@ -829,6 +889,7 @@ class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
+
 class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
     def __init__(self, lam, vdim1, vdim2=None, esindex=None, ir=None):
         '''
@@ -965,4 +1026,3 @@ class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
                                                        l, j]*dudxdvdx[:, k, l, :]
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
-                    
