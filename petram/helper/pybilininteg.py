@@ -607,8 +607,16 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
 
         if esindex is None:
             esindex = list(range(self.vdim_tr))
-        self.esflag = np.where(np.array(esindex) >= 0)[0]
-        self.esflag2 = np.where(np.atleast_1d(esindex) == -1)[0]
+
+        esindex = np.array(esindex)
+        if np.iscomplexobj(esindex):
+            self.esflag = np.where(np.iscoplex(esindex) == False)[0]
+            self.esflag2 = np.where(np.iscoplex(esindex))[0]
+            self.es_weight = esindex[self.esflag2]
+        else:
+            self.esflag = np.where(esindex >= 0)[0]
+            self.esflag2 = np.where(esindex == -1)[0]
+            self.es_weight = np.ones(len(self.esflag2))
         self.esdim = len(esindex)
 
         #print('esdim flag', self.esdim, self.esflag, self.esflag2)
@@ -705,8 +713,8 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             tr_merged_arr[:, self.esflag] = tr_dshapedxt_arr*w1
             te_merged_arr[:, self.esflag] = te_dshapedxt_arr*w1
             for k in self.esflag2:
-                tr_merged_arr[:, k] = tr_shape_arr*w2
-                te_merged_arr[:, k] = te_shape_arr*w2
+                tr_merged_arr[:, k] = tr_shape_arr*w2*self.es_weight[k]
+                te_merged_arr[:, k] = te_shape_arr*w2*self.es_weight[k]
 
             dudxdvdx = np.tensordot(te_merged_arr, tr_merged_arr, 0)*ip.weight
 
