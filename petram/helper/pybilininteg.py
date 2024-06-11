@@ -1,32 +1,33 @@
-'''
- 
-   PyBilinearform:
-     Additional bilinearform Integrator written in Python
-
-     Vector field operator:
-        PyVectorMassIntegrator : 
-            (Mu_j, v_i)   
-             M_ij is rank-2
-
-        PyVectorPartialIntegrator : 
-            (Mdu_j/x_k, v_i) 
-             M_ikj is rank-3
-        PyVectorWeakPartialIntegrator : 
-            (Mu_j, -dv_i/dx_k) 
-             M_ikj is rank-3. Note index order is the same as strong version
-
-        PyVectorDiffusionIntegrator : 
-           (du_j/x_k M dv_i/dx_l) 
-            M_likj is rank-4
-        PyVectorPartialPartialIntegrator : 
-            (M du_j^2/x_kl^2, v_i)
-            M_iklj is rank-4
-        PyVectorWeakPartialPartialIntegrator : (
-            Mu_j, d^2v_i/dx^2) 
-            M_iklj is rank-4. Note index order is the same as strong version
-
-   Copyright (c) 2024-, S. Shiraiwa (PPPL)
-'''
+#
+#
+#   PyBilinearform:
+#     Additional bilinearform Integrator written in Python
+#
+#     Vector field operator:
+#        PyVectorMassIntegrator :
+#            (Mu_j, v_i)
+#             M_ij is rank-2
+#
+#        PyVectorPartialIntegrator :
+#            (Mdu_j/x_k, v_i)
+#             M_ikj is rank-3
+#        PyVectorWeakPartialIntegrator :
+#            (Mu_j, -dv_i/dx_k)
+#             M_ikj is rank-3. Note index order is the same as strong version
+#
+#        PyVectorDiffusionIntegrator :
+#           (du_j/x_k M dv_i/dx_l)
+#            M_likj is rank-4
+#        PyVectorPartialPartialIntegrator :
+#            (M du_j^2/x_kl^2, v_i)
+#            M_iklj is rank-4
+#        PyVectorWeakPartialPartialIntegrator : (
+#            Mu_j, d^2v_i/dx^2)
+#            M_iklj is rank-4. Note index order is the same as strong version
+#
+#   Copyright (c) 2024-, S. Shiraiwa (PPPL)
+#
+#
 import numpy as np
 from numpy.linalg import det, norm
 
@@ -98,6 +99,7 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
 
         self._metric = metric
         self._christoffel = christoffel
+        self._use_covariant_vec = use_covariant_vec
         self.metric = mfem.Vector()
 
     def eval_metric(self, trans, ip):
@@ -232,7 +234,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 if self._metric is not None:
-                    m = self.eval_metric(trans, ip):
+                    m = self.eval_metric(trans, ip)
                     lam /= det(m)
 
                 for i in range(self.vdim_te):  # test
@@ -265,7 +267,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 if self._metric is not None:
-                    m = self.eval_metric(trans, ip):
+                    m = self.eval_metric(trans, ip)
                     lam /= det(m)
 
                 for i in range(self.vdim_te):  # test
@@ -298,7 +300,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 if self._metric is not None:
-                    m = self.eval_metric(trans, ip):
+                    m = self.eval_metric(trans, ip)
                     lam /= det(m)
 
                 for k in range(self.vdim_tr):  # trial
@@ -610,8 +612,8 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
 
         esindex = np.array(esindex)
         if np.iscomplexobj(esindex):
-            self.esflag = np.where(np.iscoplex(esindex) == False)[0]
-            self.esflag2 = np.where(np.iscoplex(esindex))[0]
+            self.esflag = np.where(np.iscomplex(esindex) == False)[0]
+            self.esflag2 = np.where(np.iscomplex(esindex))[0]
             self.es_weight = esindex[self.esflag2]
         else:
             self.esflag = np.where(esindex >= 0)[0]
@@ -619,7 +621,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             self.es_weight = np.ones(len(self.esflag2))
         self.esdim = len(esindex)
 
-        #print('esdim flag', self.esdim, self.esflag, self.esflag2)
+        print('esdim flag', self.esdim, self.esflag, self.esflag2)
 
         self._ir = self.GetIntegrationRule()
 
@@ -712,28 +714,57 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             # construct merged test/trial shape
             tr_merged_arr[:, self.esflag] = tr_dshapedxt_arr*w1
             te_merged_arr[:, self.esflag] = te_dshapedxt_arr*w1
-            for k in self.esflag2:
-                tr_merged_arr[:, k] = tr_shape_arr*w2*self.es_weight[k]
-                te_merged_arr[:, k] = te_shape_arr*w2*self.es_weight[k]
+            for i, k in enumerate(self.esflag2):
+                tr_merged_arr[:, k] = tr_shape_arr*w2*self.es_weight[i]
+                te_merged_arr[:, k] = te_shape_arr*w2*self.es_weight[i]
 
-            dudxdvdx = np.tensordot(te_merged_arr, tr_merged_arr, 0)*ip.weight
+            tr_merged_arr_t = tr_merged_arr.transpose()
+            te_merged_arr_t = te_merged_arr.transpose()
+
+            if self._metric:
+                # shape = sdim, nd, sdim
+                # index : v_p, d/dx^q nd
+                tr_merged_arr_t = np.stack([tr_merged_arr_t]*sdim)
+                te_merged_arr_t = np.stack([tr_merged_arr_t]*sdim)
+                if self._use_covariant_vec:
+                    for k in sdim:
+                        te_merged_arr_t -= np.tensordot(
+                            self_christoffel[:, k, :], te_shape_arr*w2)
+                        tr_merged_arr_t += np.tensordot(
+                            self_christoffel[:, k, :], tr_shape_arr*w2)
+                else:
+                    for k in sdim:
+                        te_merged_arr_t += np.tensordot(
+                            self_christoffel[:, k, :], te_shape_arr*w2)
+                        tr_merged_arr_t -= np.tensordot(
+                            self_christoffel[:, k, :], tr_shape_arr*w2)
+
+            dudxdvdx = np.tensordot(
+                te_merged_arr_t, tr_merged_arr_t, 0)*ip.weight
 
             self.lam.Eval(self.val, trans, ip)
             lam = self.val.GetDataArray().reshape(self.esdim, self.vdim_te,
                                                   self.esdim, self.vdim_tr)
 
             if self._metric is not None:
-                m = self.eval_metric(trans, ip):
+                m = self.eval_metric(trans, ip)
                 lam /= det(m)
 
             for i in range(self.vdim_te):  # test
                 for j in range(self.vdim_tr):  # trial
 
                     self.partelmat.Assign(0.0)
-                    for k in range(self.esdim):
-                        for l in range(self.esdim):
-                            partelmat_arr[:, :] += lam[l, i,
-                                                       k, j]*dudxdvdx[:, l, :, k]
+
+                    if not self._metric:
+                        for k in range(self.esdim):
+                            for l in range(self.esdim):
+                                partelmat_arr[:, :] += lam[l, i,
+                                                           k, j]*dudxdvdx[l, :, k, :]
+                    else:
+                        for k in range(self.esdim):
+                            for l in range(self.esdim):
+                                partelmat_arr[:, :] += lam[l, i,
+                                                           k, j]*dudxdvdx[l, i, :, k, j, :]
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
