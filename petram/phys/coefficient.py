@@ -119,9 +119,13 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
         # if it is one liner array expression. try mfem.jit
         from petram.phys.numba_coefficient import expr_to_numba_coeff
 
+        do_return_complex = return_complex
+        if not real:
+            do_return_complex = True
+
         coeff = expr_to_numba_coeff(exprs, mfem.jit.matrix,
                                     ind_vars, conj, scale, g, l,
-                                    return_complex, shape=(dim, dim))
+                                    do_return_complex, shape=(dim, dim))
         if coeff is None:
             msg = "JIT is not possbile. Continuing with Python mode"
             handle_allow_python_function_coefficient(msg)
@@ -243,9 +247,13 @@ def DCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
     if any([isinstance(ee, str) for ee in exprs]):
         from petram.phys.numba_coefficient import expr_to_numba_coeff
 
+        do_return_complex = return_complex
+        if not real:
+            do_return_complex = True
+
         coeff = expr_to_numba_coeff(exprs, mfem.jit.matrix,
                                     ind_vars, conj, scale, g, l,
-                                    return_complex, shape=(dim, dim),
+                                    do_return_complex, shape=(dim, dim),
                                     diag_mode=True)
         if coeff is None:
             msg = "JIT is not possbile. Continuing with Python mode"
@@ -352,9 +360,14 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
     if any([isinstance(ee, str) for ee in exprs]):
         # if it is one liner array expression. try mfem.jit
         from petram.phys.numba_coefficient import expr_to_numba_coeff
+
+        do_return_complex = return_complex
+        if not real:
+            do_return_complex = True
+
         coeff = expr_to_numba_coeff(exprs, mfem.jit.vector,
                                     ind_vars, conj, scale, g, l,
-                                    return_complex, shape=(dim, ))
+                                    do_return_complex, shape=(dim, ))
         if coeff is None:
             msg = "JIT is not possbile. Continuing with Python mode"
             handle_allow_python_function_coefficient(msg)
@@ -491,8 +504,14 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False,
         if len(exprs) == 1:
             # if it is one liner array expression. try mfem.jit
             from petram.phys.numba_coefficient import expr_to_numba_coeff
+
+            do_return_complex = return_complex
+            if not real:
+                do_return_complex = True
+
             coeff = expr_to_numba_coeff(exprs, mfem.jit.scalar,
-                                        ind_vars, conj, scale, g, l, return_complex)
+                                        ind_vars, conj, scale, g, l,
+                                        do_return_complex)
             if coeff is None:
                 msg = "JIT is not possbile. Continuing with Python mode"
                 handle_allow_python_function_coefficient(msg)
