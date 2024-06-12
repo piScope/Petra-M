@@ -119,7 +119,7 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         return chris
 
     def set_realimag_mode(self, mode):
-        self._realimag = mode
+        self._realimag = (mode == 'real')
 
 
 class PyVectorMassIntegrator(PyVectorIntegratorBase):
@@ -795,7 +795,8 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
-                else:
+            else:
+                for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
                     self.partelmat.Assign(0.0)
 
                     if not self._metric:
