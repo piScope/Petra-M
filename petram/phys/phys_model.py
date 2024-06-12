@@ -27,6 +27,8 @@ else:
     import mfem.ser as mfem
 
 # not that PyCoefficient return only real number array
+
+
 class PhysConstant(mfem.ConstantCoefficient):
     def __init__(self, value):
         self.value = value
@@ -716,7 +718,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             return self.vt3.panel_tip() + [None]
 
     def panel4_param(self):
-        from petram.pi.panel_txt import txt_dudt, txt_du2dt2        
+        from petram.pi.panel_txt import txt_dudt, txt_du2dt2
         setting = {"text": ' '}
         if self.has_essential:
             ll = [['', False, 3, {"text": "Time dependent"}], ]
@@ -804,7 +806,10 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if not isinstance(coeff, tuple):
             coeff = (coeff, )
 
-        coeff = self.process_complex_coefficient(coeff)
+        if hasattr(integrator, "use_complex_coefficient"):
+            pass
+        else:
+            coeff = self.process_complex_coefficient(coeff)
 
         if coeff[0] is None:
             return
@@ -824,6 +829,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
         itg = integrator(*args)
         itg._linked_coeff = coeff  # make sure that coeff is not GCed.
+
+        if hasattr(integrator, "use_complex_coefficient"):
+            itg.set_realimag_mode(self.integrator_realimag_mode)
 
         if transpose:
             itg2 = mfem.TransposeIntegrator(itg)
