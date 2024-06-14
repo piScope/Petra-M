@@ -250,9 +250,10 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                     m = self.eval_metric(trans, ip)
                     lam /= det(m)
 
-                for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
+                for i in range(self.vdim_te):  # test
                     self.partelmat.Assign(0.0)
-                    partelmat_arr[:, :] += lam[i, k]*dudxdvdx[:, :]
+                    for k in range(self.vdim_tr):  # trial
+                        partelmat_arr[:, :] += lam[i, k]*dudxdvdx[:, :]
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*k)
 
