@@ -26,14 +26,6 @@ if use_parallel:
 else:
     import mfem.ser as mfem
 
-# constant
-
-up2 = "\u00B2"  # upper script of 2
-lam = "\u03BB"  # lambda
-txt_dudt = 'du/dt or ' + lam + 'u'
-txt_du2dt2 = 'd' + up2 + "u/dt" + up2 + ' or ' + lam + up2 + "u"
-
-
 # not that PyCoefficient return only real number array
 class PhysConstant(mfem.ConstantCoefficient):
     def __init__(self, value):
@@ -724,6 +716,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             return self.vt3.panel_tip() + [None]
 
     def panel4_param(self):
+        from petram.pi.panel_txt import txt_dudt, txt_du2dt2        
         setting = {"text": ' '}
         if self.has_essential:
             ll = [['', False, 3, {"text": "Time dependent"}], ]

@@ -48,7 +48,7 @@ class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
 
     def OnGetItemTextColour(self, indices):
         item = self.topwindow.model.GetItem(indices)
-        if item.enabled:
+        if item.is_enabled():
             return wx.BLACK
         else:
             return wx.Colour(128, 128, 128)
@@ -968,8 +968,19 @@ class DlgEditModel(SimpleFramePlus):
         indices = [tree.GetIndexOfItem(ii) for ii in items]
         mm = [self.model.GetItem(ii) for ii in indices]
 
+        check = 0
         for m in mm:
             m.enabled = value
+            if hasattr(m, "get_default_ns"):
+                check += len(m.get_default_ns())
+
+        if value and check:
+            # rebuild ns if something with default_ns is enabled
+            viewer = self.GetParent()
+            engine = viewer.engine
+            model = viewer.book.get_pymodel()
+            model.scripts.helpers.rebuild_ns()
+
         self.tree.RefreshItems()
 
         mm = mm[0]

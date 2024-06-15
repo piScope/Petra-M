@@ -922,7 +922,8 @@ class Engine(object):
                 for x in tmp:
                     if x not in all_tmp:
                         all_tmp.append(x)
-            xphys_range = [phys.name() for phys in phys_range if not phys in all_tmp]
+            xphys_range = [phys.name()
+                           for phys in phys_range if not phys in all_tmp]
             if len(xphys_range) > 0:
                 dprint1(
                     "!!!!! These phys are not initiazliaed (FES variable is not available)!!!!!",
@@ -3865,6 +3866,7 @@ class SerialEngine(Engine):
         fe_sizes = [self.fespaces[name].GetTrueVSize()
                     for name in phys.dep_vars]
         dprint1('Number of finite element unknowns: ' + str(fe_sizes))
+        dprint1('Total of finite element unknowns: ' + str(sum(fe_sizes)))
         return fe_sizes
 
     def split_sol_array_fespace(self, sol, P):
@@ -4153,6 +4155,7 @@ class ParallelEngine(Engine):
         myid = MPI.COMM_WORLD.rank
         if (myid == 0):
             dprint1('Number of finite element unknowns: ' + str(fe_sizes))
+            dprint1('Total of finite element unknowns: ' + str(sum(fe_sizes)))
         return fe_sizes
 
     def get_point_essential_tdofs(self, fes, ess_point_array):
