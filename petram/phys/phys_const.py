@@ -1,6 +1,6 @@
-'''
- Physics Constants
-'''
+#
+# Physics Constants
+#
 import numpy as np
 
 epsilon0 = 8.8541878176e-12       # vacuum permittivity
@@ -17,9 +17,9 @@ mass_electron = Da/1822.8884845
 mass_hydrogen = Da*1.008 
 mass_proton = 1.67262192369e-27
 
-'''
- Levi-Civita symbols (2, 3, 4D)
-'''
+#
+# Levi-Civita symbols (2, 3, 4D)
+#
 levi_civita2 = np.zeros((2, 2), dtype=np.float64)
 levi_civita2[0, 1] = 1
 levi_civita2[1, 0] = -1
@@ -62,4 +62,18 @@ levi_civita4[1, 0, 3, 2] = 1
 levi_civita4[2, 1, 0, 3] = -1
 levi_civita4[3, 2, 1, 0] = 1
 
+
+#
+# christoffel
+#
+def christoffel(mode='polar'):
+    from numba import njit
+
+    
+
+
+
+
+
+    
 
