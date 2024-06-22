@@ -385,6 +385,9 @@ def mfem_smoother(name, **kwargs):
 
         use_new_way = True
         if use_new_way:
+            #
+            #  scales matrix so that the diagnal element is real.
+            #
             smoother = complex_smoother(name, m_r, m_i, conv, blockOffsets)
         else:
             smoother = mfem.BlockDiagonalPreconditioner(blockOffsets)
