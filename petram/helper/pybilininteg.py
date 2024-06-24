@@ -30,7 +30,7 @@
 #
 from itertools import product as prod
 import numpy as np
-from numpy.linalg import det, norm
+from numpy.linalg import det, norm, inv
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -76,7 +76,7 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     def coeff_shape(cls, itg_param):
         raise NotImplementedError("subclass must implement coeff_shape")
 
-    def set_metric(self, metric, christoffel, use_covariant_vec=True):
+    def set_metric(self, metric, christoffel, use_covariant_vec=False):
         #
         #  g_ij (metric tensor) is set
 
@@ -84,17 +84,17 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         #     integration uses sqrt(g_ij) for volume integraiton Jacobian :
         #
         #  inter product is computed by
-        #      v_i *u^j   (use_covariant_vec=True)
+        #      v^j *u^j   (use_covariant_vec=False)
         #
         #     or
         #
-        #      v^i *u_j   (use_covariant_vec= False)
+        #      v_i *u_j   (use_covariant_vec= True)
         #
         #
         #   nabla is treated as covariant derivatives thus
         #
         #      d_k v^i = dv^i/dx^k + {i/ j, k} v_^i
-        #      d_k v_i = dv^i/dx^k _ {i/ j, k} v_^i
+        #      d_k v_i = dv^i/dx^k - {i/ j, k} v_^i
 
         if not support_metric:
             raise NotImplementedError(
@@ -109,9 +109,8 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     def eval_metric(self, trans, ip):
         self._metric.Eval(self.metric, trans, ip)
         m = self.metric.GetDataArray()
-        mm = int(np.sqrt(m.shape))
-        m = m.reshape(mm, mm)
-        return m
+        detm = np.prod(m)
+        return m, detm
 
     def eval_christoffel(self, trans, ip, sdim):
         self._christoffel.Eval(self.chris, trans, ip)
@@ -247,8 +246,8 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 if self._metric is not None:
-                    m = self.eval_metric(trans, ip)
-                    lam /= det(m)
+                    _m, detm = self.eval_metric(trans, ip)
+                    lam *= detm
 
                 for i, k in prod(range(self.vdim_te), range(self.vdim_tr)):
                     self.partelmat.Assign(0.0)
@@ -278,8 +277,8 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 if self._metric is not None:
-                    m = self.eval_metric(trans, ip)
-                    lam /= det(m)
+                    _m, detm = self.eval_metric(trans, ip)
+                    lam *= detm
 
                 for i in range(self.vdim_te):  # test
                     self.partelmat.Assign(0.0)
@@ -311,8 +310,8 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 if self._metric is not None:
-                    m = self.eval_metric(trans, ip)
-                    lam /= det(m)
+                    _m, detm = self.eval_metric(trans, ip)
+                    lam *= detm
 
                 for k in range(self.vdim_tr):  # trial
                     self.partelmat.Assign(0.0)
@@ -588,28 +587,40 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
     support_metric = True
 
     def __init__(self, lam, vdim1, vdim2=None, esindex=None, metric=None, *, ir=None):
-        '''
-           integrator for
+        #
+        #   integrator for
+        #
+        #      lmabda(l, i, k. j) gte(i,l) * gtr(j, k)
+        #
+        #       gte : generalized gradient of test function
+        #          j not in exindex: v_i/dx_l
+        #          j in esindex:  v_i
+        #
+        #       gtr : generalized gradient of trial function
+        #          l < sdim d u_j/dx_k
+        #          l >= sdim  u_j
+        #        or
+        #          l not in exindex: u_j/dx_k
+        #          l in esindex:  u_j
+        #
+        #   vdim1 : size of trial space
+        #   vdim2 : size of test space
+        #   esindex: specify the index for extendend space dim for trial
+        #
+        #   when christoffel {i/j, k} is given, dx_k is replaced by
+        #   covariant delivative
+        #
+        #    d_k is covariant delivative
+        #      d_k v^i = dv^i/dx^k + {i/ j, k} v_^i
+        #      d_k v_i = dv^i/dx^k - {i/ j, k} v_^i
+        #
+        #    then we compute lam_ij^kl d_l v^i  d_k u^j  (sqrt(det(g_nn))) dxdydz
+        #    where lam_ij^kl is rank-2,2 tensor
+        #
+        #    for contravariant u and v
+        #    one can use lam_ij^kl = g_ij * coeff^kl for
+        #    diffusion coefficient in curvelinear coodidnates.
 
-              lmabda(l, i, k. j) gte(i,l) * gtr(j, k)
-
-               gte : generalized gradient of test function
-                  j not in exindex: v_i/dx_l
-                  j in esindex:  v_i
-
-               gtr : generalized gradient of trial function
-                  l < sdim d u_j/dx_k
-                  l >= sdim  u_j
-                or
-                  l not in exindex: u_j/dx_k
-                  l in esindex:  u_j
-
-
-           vdim1 : size of trial space
-           vdim2 : size of test space
-           esindex: specify the index for extendend space dim for trial
-
-        '''
         PyVectorIntegratorBase.__init__(self, ir)
 
         if not hasattr(lam, "get_real_coefficient"):
@@ -739,7 +750,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                 tr_merged_arr[k, :] = (
                     tr_shape_arr*w2*self.es_weight[i]).transpose()
                 te_merged_arr[k, :] = (
-                    te_shape_arr*w2*self.es_weight[i]).transpose()
+                    te_shape_arr*w2*self.es_weight[i].conj()).transpose()
 
             if self._metric:
                 # shape = sdim, nd, sdim
@@ -753,13 +764,13 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                     for k in sdim:
                         te_merged_arr_t -= np.tensordot(
                             chris[:, k, :], te_shape_arr*w2)
-                        tr_merged_arr_t += np.tensordot(
+                        tr_merged_arr_t -= np.tensordot(
                             chris[:, k, :], tr_shape_arr*w2)
                 else:
                     for k in sdim:
                         te_merged_arr_t += np.tensordot(
                             chris[:, k, :], te_shape_arr*w2)
-                        tr_merged_arr_t -= np.tensordot(
+                        tr_merged_arr_t += np.tensordot(
                             chris[:, k, :], tr_shape_arr*w2)
                 dudxdvdx = np.tensordot(
                     te_merged_arr_t, tr_merged_arr_t, 0)*ip.weight
@@ -776,8 +787,9 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             lam = lam.reshape(self.esdim, self.vdim_te,
                               self.esdim, self.vdim_tr)
             if self._metric is not None:
-                m = self.eval_metric(trans, ip)
-                lam /= det(m)
+                m, detm = self.eval_metric(trans, ip)
+                lam *= detm
+                m_co = 1/m   # inverse of diagnal matrix
 
             if self._realimag:
                 for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):

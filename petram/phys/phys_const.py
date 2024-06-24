@@ -63,15 +63,6 @@ levi_civita4[2, 1, 0, 3] = -1
 levi_civita4[3, 2, 1, 0] = 1
 
 
-#
-# christoffel
-#
-def christoffel(mode='polar'):
-    from numba import njit
-
-    
-
-
 
 
 
