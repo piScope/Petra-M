@@ -1,7 +1,7 @@
 #
 #   define metric tensor and christoffel for cylindrical coordinate
 #
-from abc import ABC, abstractclassmethod
+from abc import ABC, abstractclassmethod, abstractmethod
 
 import numpy as np
 from numba import njit, void, int32, int64, float64, complex128, types
@@ -19,35 +19,36 @@ class coordinate_system(ABC):
 
     @abstractclassmethod
     def is_diag_metric(cls):
-        pass
+        ...
 
     @abstractclassmethod
     def christoffel(cls):
         #
         #  christoffel symbol
         #
+        ...
 
     @abstractclassmethod
     def metric(cls):
         #
         # metric g_ij (covariant compnent)
         #
-
         # this method should return vector if is_diag_metric=True
         # otherwise, it returns matrix
+        ...
 
-        #
-        # cylindrical
-        #
+#
+# cylindrical
+#
 
 
-class polar_coords(coordinate_system):
+class cylindrical(coordinate_system):
     @classmethod
-    def is_diag_metric(cls):
+    def is_diag_metric(self):
         return True
 
     @classmethod
-    def christoffel(cls):
+    def christoffel(self):
         def func(r, z):
             data2 = np.zeros((3, 3, 3), dtype=np.float64)
             data2[0, 1, 1] = -r
@@ -63,10 +64,11 @@ class polar_coords(coordinate_system):
         def christoffel(ptx):
             return func(ptx[0], ptx[1])
 
-        return NumbaCoefficient(jitter(christoffel))
+        return jitter(christoffel)
+        #return NumbaCoefficient(jitter(christoffel))
 
     @classmethod
-    def metric(cls):
+    def metric(self):
         def func(r, z):
             data2 = np.zeros((3, ), dtype=np.float64)
             data2[0] = 1
@@ -83,4 +85,5 @@ class polar_coords(coordinate_system):
         #
         jitter = mfem.jit.vector(complex=False, shape=(3, ))
 
-        return NumbaCoefficient(jitter(metric))
+        #return NumbaCoefficient(jitter(metric))
+        return jitter(metric)

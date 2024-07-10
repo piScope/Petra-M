@@ -70,13 +70,13 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
             ir = mfem.IntRules.Get(trial_fe.GetGeomType(), order)
 
         self.ir = ir
-        #self.ir = mfem.DiffusionIntegrator.GetRule(trial_fe, test_fe)
+        # self.ir = mfem.DiffusionIntegrator.GetRule(trial_fe, test_fe)
 
     @classmethod
     def coeff_shape(cls, itg_param):
         raise NotImplementedError("subclass must implement coeff_shape")
 
-    def set_metric(self, metric, christoffel, use_covariant_vec=False):
+    def set_metric(self, metric, use_covariant_vec=False):
         #
         #  g_ij (metric tensor) is set
 
@@ -96,35 +96,92 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         #      d_k v^i = dv^i/dx^k + {i/ j, k} v_^i
         #      d_k v_i = dv^i/dx^k - {i/ j, k} v_^i
 
-        if not support_metric:
+        if not self.__class__.support_metric:
             raise NotImplementedError(
                 "the integrator does not support metric tensor")
 
-        self._metric = metric
-        self._christoffel = christoffel
+        mm = metric.metric()
+        cc = metric.christoffel()
+        flag = metric.is_diag_metric()
+
+        self._metric = mm
+        self._christoffel = cc
+        self._metric_diag = flag
+
         self._use_covariant_vec = use_covariant_vec
+
         self.metric = mfem.Vector()
         self.chris = mfem.Vector()
 
     def eval_metric(self, trans, ip):
         self._metric.Eval(self.metric, trans, ip)
         m = self.metric.GetDataArray()
-        detm = np.prod(m)
-        return m, detm
+        if self._metric_diag:
+            # m is vector
+            detm = np.prod(m)
+        else:
+            # m is matrix
+            detm = det(m)
+        return detm
 
-    def eval_christoffel(self, trans, ip, sdim):
+    def eval_christoffel(self, trans, ip, esdim):
         self._christoffel.Eval(self.chris, trans, ip)
-        chris = self.chris.GetDataArray().reshape(sdim, sdim, sdim)
+        chris = self.chris.GetDataArray().reshape(esdim, esdim, esdim)
         return chris
 
     def set_realimag_mode(self, mode):
         self._realimag = (mode == 'real')
 
+    def _proc_vdim1vdim2(self, vdim1, vdim2):
+        if vdim1 == 'cyclindrical2d':
+            vdim1 = 3
+            if vdim2 == 0:
+                esindex = (0, -1, 1)
+            else:
+                esindex = (0, vdim2*1j, 1)
+            vdim2 = 3
+            from petram.helper.curvelinear_coords import cylindrical
+
+            metric = (cylindrical.metric(),
+                      cylindrical.christoffel())
+
+        elif vdim1 == 'cyclindrical1d':
+            vdim1 = 3
+            esindex = [0]
+            esindex.append(vdim2[0]*1j if vdim2[0] != 0 else -1)
+            esindex.append(vdim2[1]*1j if vdim2[1] != 0 else -1)
+            from petram.helper.curvelinear_coords import cylindrical
+
+            metric = (cylindrical.metric(),
+                      cylindrical.christoffel())
+
+        elif vdim1 == 'planer2d':
+            vdim1 = 3
+            if vdim2 == 0:
+                esindex = (0, 1, -1)
+            else:
+                esindex = (0, 1, vdim2*1j)
+            vdim2 = 3
+            metric = None
+
+        elif vdim1 == 'planer1d':
+            vdim1 = 3
+            esindex = [0]
+            esindex.append(vdim2[0]*1j if vdim2[0] != 0 else -1)
+            esindex.append(vdim2[1]*1j if vdim2[1] != 0 else -1)
+            vdim2 = 3
+            metric = None
+        else:
+            pass
+
+        return vdim1, vdim2, esindex, metric
+
 
 class PyVectorMassIntegrator(PyVectorIntegratorBase):
     support_metric = True
 
-    def __init__(self, lam, vdim1, vdim2=None, ir=None):
+    def __init__(self, lam, vdim1, vdim2=None, metric=None, use_covariant_vec=False,
+                 *, ir=None):
         '''
            integrator for
 
@@ -146,6 +203,11 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
             return
 
         self.lam = lam
+
+        if metric is not None:
+            self.set_metric(metric, use_covariant_vec=use_covariant_vec)
+        else:
+            vdim1, vdim2, esindex, metric = self._proc_vdim1vdim2(vdim1, vdim2)
 
         if vdim2 is not None:
             self.vdim_te = vdim1
@@ -221,7 +283,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
         self.tr_shape_arr = self.tr_shape.GetDataArray()
         self.te_shape_arr = self.te_shape.GetDataArray()
 
-        #print("DoF", tr_nd, te_nd)
+        # print("DoF", tr_nd, te_nd)
 
         if (test_fe.GetRangeType() == mfem.FiniteElement.SCALAR and
                 trial_fe.GetRangeType() == mfem.FiniteElement.SCALAR):
@@ -246,7 +308,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 if self._metric is not None:
-                    _m, detm = self.eval_metric(trans, ip)
+                    detm = self.eval_metric(trans, ip)
                     lam *= detm
 
                 for i, k in prod(range(self.vdim_te), range(self.vdim_tr)):
@@ -277,7 +339,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 if self._metric is not None:
-                    _m, detm = self.eval_metric(trans, ip)
+                    detm = self.eval_metric(trans, ip)
                     lam *= detm
 
                 for i in range(self.vdim_te):  # test
@@ -310,7 +372,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 if self._metric is not None:
-                    _m, detm = self.eval_metric(trans, ip)
+                    detm = self.eval_metric(trans, ip)
                     lam *= detm
 
                 for k in range(self.vdim_tr):  # trial
@@ -586,7 +648,8 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
     use_complex_coefficient = True
     support_metric = True
 
-    def __init__(self, lam, vdim1, vdim2=None, esindex=None, metric=None, *, ir=None):
+    def __init__(self, lam, vdim1, vdim2=None, esindex=None, metric=None,
+                 use_covariant_vec=False, *, ir=None):
         #
         #   integrator for
         #
@@ -630,6 +693,11 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             self.lam_real = lam.get_real_coefficient()
             self.lam_imag = lam.get_imag_coefficient()
 
+        if metric is not None:
+            self.set_metric(metric, use_covariant_vec=use_covariant_vec)
+        else:
+            vdim1, vdim2, esindex, metric = self._proc_vdim1vdim2(vdim1, vdim2)
+
         if vdim2 is not None:
             self.vdim_te = vdim1
             self.vdim_tr = vdim2
@@ -651,7 +719,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             self.es_weight = np.ones(len(self.esflag2))
         self.esdim = len(esindex)
 
-        #print('esdim flag', self.esdim, self.esflag, self.esflag2)
+        # print('esdim flag', self.esdim, self.esflag, self.esflag2)
 
         self._ir = self.GetIntegrationRule()
 
@@ -668,9 +736,6 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
         self.partelmat = mfem.DenseMatrix()
         self.valr = mfem.Vector()
         self.vali = mfem.Vector()
-
-        if metric is not None:
-            self.set_metric(*metric)
 
     @classmethod
     def coeff_shape(cls, vdim1, vdim2=None, esindex=None, ir=None):
@@ -755,23 +820,23 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             if self._metric:
                 # shape = sdim, nd, sdim
                 # index : v_p, d/dx^q nd
-                tr_merged_arr_t = np.stack([tr_merged_arr]*sdim)
-                te_merged_arr_t = np.stack([tr_merged_arr]*sdim)
+                tr_merged_arr_t = np.stack([tr_merged_arr]*self.esdim)
+                te_merged_arr_t = np.stack([tr_merged_arr]*self.esdim)
 
-                chris = self.eval_christoffel(trans, ip, sdim)
+                chris = self.eval_christoffel(trans, ip, self.esdim)
 
                 if self._use_covariant_vec:
-                    for k in sdim:
+                    for k in range(self.esdim):
                         te_merged_arr_t -= np.tensordot(
-                            chris[:, k, :], te_shape_arr*w2)
+                            chris[:, k, :], te_shape_arr*w2, 0)
                         tr_merged_arr_t -= np.tensordot(
-                            chris[:, k, :], tr_shape_arr*w2)
+                            chris[:, k, :], tr_shape_arr*w2, 0)
                 else:
-                    for k in sdim:
+                    for k in range(self.esdim):
                         te_merged_arr_t += np.tensordot(
-                            chris[:, k, :], te_shape_arr*w2)
+                            chris[:, k, :], te_shape_arr*w2, 0)
                         tr_merged_arr_t += np.tensordot(
-                            chris[:, k, :], tr_shape_arr*w2)
+                            chris[:, k, :], tr_shape_arr*w2, 0)
                 dudxdvdx = np.tensordot(
                     te_merged_arr_t, tr_merged_arr_t, 0)*ip.weight
 
@@ -787,9 +852,9 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             lam = lam.reshape(self.esdim, self.vdim_te,
                               self.esdim, self.vdim_tr)
             if self._metric is not None:
-                m, detm = self.eval_metric(trans, ip)
+                detm = self.eval_metric(trans, ip)
                 lam *= detm
-                m_co = 1/m   # inverse of diagnal matrix
+                # m_co = 1/m   # inverse of diagnal matrix
 
             if self._realimag:
                 for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
@@ -868,7 +933,7 @@ class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
         self.esdim = len(esindex)
 
         assert self.vdim_tr == self.esdim, "vector dim and extedned spacedim must be the same"
-        #print('esdim flag', self.esflag, self.esflag2)
+        # print('esdim flag', self.esflag, self.esflag2)
 
         self._ir = self.GetIntegrationRule()
 
@@ -1006,7 +1071,7 @@ class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
         self.esdim = len(esindex)
 
         assert self.vdim_tr == self.esdim, "vector dim and extedned spacedim must be the same"
-        #print('esdim flag', self.esflag, self.esflag2)
+        # print('esdim flag', self.esflag, self.esflag2)
 
         self._ir = self.GetIntegrationRule()
 
