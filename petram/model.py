@@ -740,7 +740,6 @@ class Model(RestorableOrderedDict):
     def save_attribute_set(self, skip_def_check):
         ans = []
         for attr in self.attribute():
-            print(self, attr)
             if hasattr(self, attr+"_txt"):
                 continue
             defvalue = self.attribute_set(dict())
