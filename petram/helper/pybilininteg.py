@@ -119,6 +119,7 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         if self._metric_diag:
             # m is vector
             detm = np.prod(m)
+            #m = np.diag(m)
         else:
             # m is matrix
             detm = det(m)
@@ -132,7 +133,9 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     def set_realimag_mode(self, mode):
         self._realimag = (mode == 'real')
 
-    def _proc_vdim1vdim2(self, vdim1, vdim2):
+    @classmethod
+    def _proc_vdim1vdim2(cls, vdim1, vdim2):
+
         if vdim1 == 'cyclindrical2d':
             vdim1 = 3
             if vdim2 == 0:
@@ -140,20 +143,22 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
             else:
                 esindex = (0, vdim2*1j, 1)
             vdim2 = 3
-            from petram.helper.curvelinear_coords import cylindrical
 
-            metric = (cylindrical.metric(),
-                      cylindrical.christoffel())
+            from petram.helper.curvelinear_coords import cylindrical2d
+
+            return True, (vdim1, vdim2, esindex, cylindrical2d)
 
         elif vdim1 == 'cyclindrical1d':
             vdim1 = 3
             esindex = [0]
             esindex.append(vdim2[0]*1j if vdim2[0] != 0 else -1)
             esindex.append(vdim2[1]*1j if vdim2[1] != 0 else -1)
-            from petram.helper.curvelinear_coords import cylindrical
 
-            metric = (cylindrical.metric(),
-                      cylindrical.christoffel())
+            vdim2 = 3
+
+            from petram.helper.curvelinear_coords import cylindrical1d
+
+            return True, (vdim1, vdim2, esindex, cylindrical1d)
 
         elif vdim1 == 'planer2d':
             vdim1 = 3
@@ -163,6 +168,7 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
                 esindex = (0, 1, vdim2*1j)
             vdim2 = 3
             metric = None
+            return True, (vdim1, vdim2, esindex, metric)
 
         elif vdim1 == 'planer1d':
             vdim1 = 3
@@ -171,10 +177,11 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
             esindex.append(vdim2[1]*1j if vdim2[1] != 0 else -1)
             vdim2 = 3
             metric = None
+            return True, (vdim1, vdim2, esindex, metric)
         else:
             pass
 
-        return vdim1, vdim2, esindex, metric
+        return False, None
 
 
 class PyVectorMassIntegrator(PyVectorIntegratorBase):
@@ -204,10 +211,12 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
 
         self.lam = lam
 
+        flag, params = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
+        if flag:
+            vdim1, vdim2, esindex, metric = params
+
         if metric is not None:
             self.set_metric(metric, use_covariant_vec=use_covariant_vec)
-        else:
-            vdim1, vdim2, esindex, metric = self._proc_vdim1vdim2(vdim1, vdim2)
 
         if vdim2 is not None:
             self.vdim_te = vdim1
@@ -693,10 +702,12 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             self.lam_real = lam.get_real_coefficient()
             self.lam_imag = lam.get_imag_coefficient()
 
+        flag, params = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
+        if flag:
+            vdim1, vdim2, esindex, metric = params
+
         if metric is not None:
             self.set_metric(metric, use_covariant_vec=use_covariant_vec)
-        else:
-            vdim1, vdim2, esindex, metric = self._proc_vdim1vdim2(vdim1, vdim2)
 
         if vdim2 is not None:
             self.vdim_te = vdim1
@@ -739,8 +750,15 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
 
     @classmethod
     def coeff_shape(cls, vdim1, vdim2=None, esindex=None, ir=None):
-        if vdim2 is None:
-            vdim2 = vdim1
+
+        flag, params = cls._proc_vdim1vdim2(vdim1, vdim2)
+
+        if flag:
+            vdim1, vdim2, esindex, _metric = params
+        else:
+            if vdim2 is None:
+                vdim2 = vdim1
+
         if esindex is None:
             esdim = vdim2
         else:
