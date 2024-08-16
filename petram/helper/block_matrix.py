@@ -1289,10 +1289,16 @@ class BlockMatrix(object):
 
         '''
         assert self.complex, "this format is complex only"
-
+        
+        rmerging = ((0, 1, 2,), (3, 4))   ## used for RHS
+        cmerging = ((0, 1, 2,), (3, 4))   ## used for X
+        
         roffsets = self.get_local_partitioning_v(size_hint=size_hint)
-        roffsets = np.sum(np.diff(roffsets).reshape(-1, 2), 1)
-        roffsets = np.hstack([0, np.cumsum(roffsets)])
+        self._rsize = np.diff(roffsets)
+
+        rsizes = np.sum(np.diff(roffsets).reshape(-1, 2), 1)
+        rsizes = [np.sum(rsizes[np.array(x)]) for x in rmerging]
+        roffsets = np.hstack([0, np.cumsum(rsizes)])
 
         dprint1("roffsets(vector)", roffsets)
         offset = mfem.intArray(list(roffsets))
@@ -1306,7 +1312,17 @@ class BlockMatrix(object):
 
         # Here I don't like that I am copying the data between two vectors..
         # But, avoiding this takes the large rearangement of program flow...
-        for i in range(self.shape[0]):
+        for i, rows in enumerate(rmerging):
+            vec_r, vec_i = self.get_merged_submblocks_v(rows, symmetric)
+            vv = np.hstack([vec_r, vec_i])
+            vec.GetBlock(i).Assign(vv)
+        return vec
+    
+    def get_merged_submblocks_v(self, rows, symmetric):
+        m = len(rows)
+        arr_r = []
+        arr_i = []        
+        for i in rows:
             if self[i, 0] is not None:
                 if isinstance(self[i, 0], chypre.CHypreVec):
                     rr = self[i, 0][0].GetDataArray()
@@ -1317,26 +1333,30 @@ class BlockMatrix(object):
                             ii = self[i, 0][1].GetDataArray()
                     else:
                         ii = rr * 0
-                    vv = np.hstack([rr, ii])
-                    vec.GetBlock(i).Assign(vv)
+                    arr_r.append(rr)
+                    arr_i.append(ii)
                 elif isinstance(self[i, 0], ScipyCoo):
                     arr = np.atleast_1d(self[i, 0].toarray().squeeze())
+                    arr_r.append(np.real(arr))
                     if symmetric:
-                        arr = np.hstack([np.real(arr), -np.imag(arr)])
+                        arr_i.append(-np.imag(arr))
                     else:
-                        arr = np.hstack([np.real(arr), np.imag(arr)])
-                    vec.GetBlock(i).Assign(arr)
+                        arr_i.append(np.imag(arr))                        
                 else:
                     assert False, "not implemented, " + str(type(self[i, 0]))
             else:
-                vec.GetBlock(i).Assign(0.0)
-        return vec
-
+                arr_r.append(np.zeros((self.rsize[i],)))
+                arr_i.append(np.zeros((self.rsize[i],)))
+        if m>1:
+            return np.hstack(arr_r), np.hstack(arr_i)
+        else:
+            return arr_r[0], arr_i[0]
+        
     def get_global_blkmat_merged(self, symmetric=False):
         '''
         This routine ordered unkonws in the following order
            Re FFE1, Im FES1, ReFES2, Im FES2, ...
-        matrix FES1, FES2...
+        output is ComplexOperator
         '''
         assert self.complex, "this format is complex only"
 
@@ -1370,59 +1390,13 @@ class BlockMatrix(object):
         nicePrint("gc",self.gcsize)
         nicePrint("rp",self.rp)
         nicePrint("cp",self.cp)
-        assert False, "stop for now"
 
-        ii = 0
 
         for jjj in range(len(cmerging)):
-            jfirst = True
             for iii in range(len(rmerging)):
-
-                for i, j in itertools.product(rmerging[iii], cmerging[jjj]):
-                    if self[i, j] is not None:
-                        if use_parallel:
-                            assert isinstance(self[i, j], chypre.CHypreMat), "must by ChypreMat, but has"+                                    str(type(self[i, j]))
-                            gcsr = self[i, j]
-                            cp = self[i, j].GetColPartArray()
-                            rp = self[i, j].GetRowPartArray()
-                            rsize_local = rp[1] - rp[0]
-
-                            if jfirst:
-                                csize_local = cp[1] - cp[0]
-                                csize = allgather(csize_local)
-                                cstarts = np.hstack([0, np.cumsum(csize)])
-                                jfirst = False
-                            s = self[i, j].shape
-                            # if (cp == rp).all() and s[0] == s[1]:
-
-                            if gcsr[0] is None:
-                                gcsa = empty_hypremat((rsize_local, cstarts[-1]), cp)
-                            else:
-                                gcsa = gcsr[0]
-
-                            if gcsr[1] is None:
-                                gcsb = empty_hypremat((rsize_local, cstarts[-1]), cp)
-                            else:
-                                gcsb = gcsr[1]
-
-
-                        else:
-                            assert isinstance(self[i, j], ScipyCoo), "must be ScipyCoo, but is "+ str(type(self[i, j]))
-                            '''
-                            if symmetric:
-                                tmp  = scipy.sparse.bmat([[ self[i, j].real, -self[i, j].imag],
-                                                          [-self[i, j].imag, -self[i, j].real]])
-                            else:
-                                tmp  = scipy.sparse.bmat([[self[i, j].real, -self[i, j].imag],
-                                                          [self[i, j].imag,  self[i, j].real]])
-                            '''
-                            csra = self[i, j].real.tocsr()
-                            csrb = self[i, j].imag.tocsr()
-                            csra.eliminate_zeros()
-                            csrb.eliminate_zeros()
-                            gcsa = mfem.SparseMatrix(csra)
-                            gcsb = mfem.SparseMatrix(csrb)
-
+                rows = rmerging[iii]
+                cols = cmerging[jjj]
+                gcsa, gcsb = self.get_merged_submblocks(rows, cols)
 
                 Hermitian = False if symmetric else True
                 gcsr = mfem.ComplexOperator(
@@ -1432,9 +1406,9 @@ class BlockMatrix(object):
                 gcsr._imag_operator = gcsb
 
                 glcsr.SetBlock(iii, jjj, gcsr)
-
+                
         return glcsr
-
+    
     def check_element_sizes(self):
         m = self.shape[0]
         n = self.shape[1]
@@ -1490,65 +1464,87 @@ class BlockMatrix(object):
         self._grsize = grsize
         self._gcsize = gcsize
 
-    def merge_submblocks(self, rows, cols):
-
+    def get_merged_submblocks(self, rows, cols):
+        '''
+        return subblock. merge them if rows/cols have more than 1 elements
+        '''
         m = len(rows)
         n = len(cols)
 
         if use_parallel:
-            arr_r = mfem.hypreparmatArray2D(m, n)
-            arr_i = mfem.hypreparmatArray2D(m, n)
-            has_real = False
-            has_imag = False
-            for i, j in itertools.product(range(m), range(n)):
-               ir = rows[i]
-               ic = cols[j]
-               if self[ir,ic][0] is not None:
-                   arr_r[i, j] = self[ir,ic][0]
-                   has_real = True
-               if self[ir,ic][1] is not None:
-                   arr_i[i, j] = self[ir,ic][1]
-                   has_imag = True
-               arr_i[i, j] = self[ir,ic][1]
-               m_merged = mfem.HypreParMatrixFromBlocks(arr)
+            if m == 1 and n == 1:
+                mat = self[rows[0], cols[0]]
+                gcsa = mat[0]
+                gcsb = mat[1]
+                if gcsa is None:
+                    gcsa = empty_hypremat((self.rsize[i], self.gcsize[j]),
+                                            self.cp[j])
+                if gcsb is None:                    
+                    gcsa = empty_hypremat((self.rsize[i], self.gcsize[j]),
+                                            self.cp[j])
+            else:
+                arr_r = mfem.hypreparmatArray2D(m, n)
+                arr_i = mfem.hypreparmatArray2D(m, n)
+                has_real = False
+                has_imag = False
+                for i, j in itertools.product(range(m), range(n)):
+                   ir = rows[i]
+                   ic = cols[j]
+                   if self[ir,ic][0] is not None:
+                       arr_r[i, j] = self[ir,ic][0]
+                   elif ir == ic:
+                       empty = empty_hypremat((self.rsize[ir], self.gcsize[ic]),
+                                             self.cp[ic])
+                       arr_r[i, j] = empty
+                   else:
+                       pass
+                   if self[ir,ic][1] is not None:
+                       arr_i[i, j] = self[ir,ic][1]
+                   elif ir == ic:
+                       empty = empty_hypremat((self.rsize[ir], self.gcsize[ic]),
+                                             self.cp[ic])
+                       arr_i[i, j] = empty
+                   else:
+                       pass
+
+                gcsa = mfem.HypreParMatrixFromBlocks(arr_r)
+                gcsb = mfem.HypreParMatrixFromBlocks(arr_i)               
         else:
-            offset1 = [-1]*m
-            offset2 = [-1]*n
-            for i, j in itertools.product(range(m), range(n)):
-                ir = rows[i]
-                ic = cols[j]
-                shape = self[ir,ic].shape
-                if offset1[i] != -1:
-                    assert offset1[i]==shape[0], "Inconsistent Matrix Shape"
-                if offset2[j] != -1:
-                    assert offset2[j]==shape[1], "Inconsistent Matrix Shape"
-                offset1[i]=shape[0]
-                offset2[i]=shape[1]
-
-
-            offset1 = mfem.intArray(np.hstack([0, np.cumsum(offset1)]))
-            offset2 = mfem.intArray(np.hstack([0, np.cumsum(offset2)]))
-
-            mr = mfem.BlockMatrix(offset1, offset2)
-            mi = mfem.BlockMatrix(offset1, offset2)
-
-            for i, j in itertools.product(range(m), range(n)):
-                ir = rows[i]
-                ic = cols[j]
-                csra = self[ir, ic].real.tocsr()
-                csrb = self[ir, ic].imag.tocsr()
+            if m == 1 and n == 1:
+                mat = self[rows[0], cols[0]]                
+                csra = mat.real.tocsr()
+                csrb = mat.imag.tocsr()
                 csra.eliminate_zeros()
                 csrb.eliminate_zeros()
                 gcsa = mfem.SparseMatrix(csra)
                 gcsb = mfem.SparseMatrix(csrb)
+            else:
+                offset1 = [self.rsize[i] for i in rows]
+                offset2 = [self.csize[i] for i in cols]                
+                offset1 = mfem.intArray(list(np.hstack([0, np.cumsum(offset1)])))
+                offset2 = mfem.intArray(list(np.hstack([0, np.cumsum(offset2)])))
 
-                mr.SetBlock(i, j, gcsa)
-                mi.SetBlock(i, j, gcsb)
+                mr = mfem.BlockMatrix(offset1, offset2)
+                mi = mfem.BlockMatrix(offset1, offset2)
 
-            mmr = mr.CreateMonolithic()
-            mmi = mi.CreateMonolithic()
+                for i, j in itertools.product(range(m), range(n)):
+                    ir = rows[i]
+                    ic = cols[j]
+                    if self[ir, ic] is None:
+                        continue
+                    csra = self[ir, ic].real.tocsr()
+                    csrb = self[ir, ic].imag.tocsr()
+                    csra.eliminate_zeros()
+                    csrb.eliminate_zeros()
+                    gcsa = mfem.SparseMatrix(csra)
+                    gcsb = mfem.SparseMatrix(csrb)
+                    mr.SetBlock(i, j, gcsa)
+                    mi.SetBlock(i, j, gcsb)
 
-            self[i, j].shape
+                gcsa = mr.CreateMonolithic()
+                gcsb = mi.CreateMonolithic()
+
+        return gcsa, gcsb
 
 
 
