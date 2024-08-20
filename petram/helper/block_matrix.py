@@ -1490,22 +1490,34 @@ class BlockMatrix(object):
                 for i, j in itertools.product(range(m), range(n)):
                    ir = rows[i]
                    ic = cols[j]
-                   if self[ir,ic][0] is not None:
+
+                   # real part
+                   if self[ir,ic] is None:
+                       if ir == ic:
+                           empty = empty_hypremat((self.rsize[ir], self.gcsize[ic]),
+                                             self.cp[ic])
+                           arr_r[i, j] = empty
+                   elif self[ir,ic][0] is None:
+                       if ir == ic:
+                           empty = empty_hypremat((self.rsize[ir], self.gcsize[ic]),
+                                             self.cp[ic])
+                           arr_r[i, j] = empty
+                   else:
                        arr_r[i, j] = self[ir,ic][0]
-                   elif ir == ic:
-                       empty = empty_hypremat((self.rsize[ir], self.gcsize[ic]),
+                       
+                   # imag part                   
+                   if self[ir,ic] is None:
+                       if ir == ic:
+                          empty = empty_hypremat((self.rsize[ir], self.gcsize[ic]),
                                              self.cp[ic])
-                       arr_r[i, j] = empty
-                   else:
-                       pass
-                   if self[ir,ic][1] is not None:
-                       arr_i[i, j] = self[ir,ic][1]
-                   elif ir == ic:
-                       empty = empty_hypremat((self.rsize[ir], self.gcsize[ic]),
+                          arr_i[i, j] = empty
+                   elif self[ir,ic][1] is None:
+                       if ir == ic:
+                           empty = empty_hypremat((self.rsize[ir], self.gcsize[ic]),
                                              self.cp[ic])
-                       arr_i[i, j] = empty
+                           arr_i[i, j] = empty
                    else:
-                       pass
+                       arr_i[i, j] = self[ir,ic][1]                       
 
                 gcsa = mfem.HypreParMatrixFromBlocks(arr_r)
                 gcsb = mfem.HypreParMatrixFromBlocks(arr_i)               
