@@ -537,6 +537,7 @@ class Solver(SolverBase):
         v['init_only'] = False
         v['assemble_real'] = False
         v['save_parmesh'] = False
+        v['save_sersol'] = False
         v['phys_model'] = ''
         #v['init_setting']   = ''
         v['use_profiler'] = False
@@ -747,7 +748,7 @@ class SolverInstance(ABC):
 
     def save_solution(self, ksol=0, skip_mesh=False,
                       mesh_only=False, save_parmesh=False,
-                      save_mesh_linkdir=None):
+                      save_mesh_linkdir=None,save_sersol=False):
 
         engine = self.engine
         phys_target = self.get_phys()
@@ -765,7 +766,8 @@ class SolverInstance(ABC):
                                     skip_mesh=skip_mesh,
                                     mesh_only=False,
                                     save_parmesh=save_parmesh,
-                                    save_mesh_linkdir=save_mesh_linkdir)
+                                    save_mesh_linkdir=save_mesh_linkdir,
+                                    save_sersol=save_sersol)
             engine.save_extra_to_file(extra_data)
         #engine.is_initialzied = False
 
