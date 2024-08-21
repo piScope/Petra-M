@@ -3336,6 +3336,8 @@ class Engine(object):
         self.clear_solmesh_files(fnamer)
         self.clear_solmesh_files(fnamei)
         if save_sersol:
+            pp =r_x.ParFESpace()
+            pp.GetParMesh().PrintAsSerial("serial.mesh")
             r_x.SaveAsSerial(fnamer,16,0)
             if i_x is not None:
                 i_x.SaveAsSerial(fnamei,16,0)
