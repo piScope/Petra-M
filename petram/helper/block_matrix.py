@@ -361,6 +361,18 @@ class BlockMatrix(object):
         self._rp = None
         self._cp = None
 
+    def cp_size_hint(self, size_hint):
+        size_hint.check_element_sizes()        
+        
+        self._rsize = size_hint._rsize
+        self._csize = size_hint._csize
+        self._grsize = size_hint._grsize
+        self._gcsize = size_hint._gcsize
+        self._rp = size_hint._rp
+        self._cp = size_hint._cp
+        
+        print("rsize/csize(2)", self.rsize, self.csize)
+        
     @property
     def rsize(self):
         if self._grsize is None:
@@ -1289,11 +1301,16 @@ class BlockMatrix(object):
 
         '''
         assert self.complex, "this format is complex only"
+
+        print("here", self, size_hint)
         
         rmerging = ((0, 1, 2,), (3, 4))   ## used for RHS
         cmerging = ((0, 1, 2,), (3, 4))   ## used for X
         
         roffsets = self.get_local_partitioning_v(size_hint=size_hint)
+        if size_hint is not None:
+            self.cp_size_hint(size_hint)
+            
         self._rsize = np.diff(roffsets)
 
         rsizes = np.sum(np.diff(roffsets).reshape(-1, 2), 1)
@@ -1315,13 +1332,15 @@ class BlockMatrix(object):
         for i, rows in enumerate(rmerging):
             vec_r, vec_i = self.get_merged_submblocks_v(rows, symmetric)
             vv = np.hstack([vec_r, vec_i])
+            print("shape", vv.shape)
             vec.GetBlock(i).Assign(vv)
         return vec
     
     def get_merged_submblocks_v(self, rows, symmetric):
         m = len(rows)
         arr_r = []
-        arr_i = []        
+        arr_i = []
+        print("rsize/csize", self.rsize, self.csize)
         for i in rows:
             if self[i, 0] is not None:
                 if isinstance(self[i, 0], chypre.CHypreVec):
