@@ -2387,6 +2387,7 @@ class Engine(object):
     #  step4 : matrix finalization (to form a data being passed to a linear solver)
     #
     def finalize_matrix(self, M_block, mask, is_complex, format='coo',
+                        blk_format=None,
                         verbose=True):
         if verbose:
             dprint1("A (in finalizie_matrix) \n", format, mask)
@@ -2404,10 +2405,11 @@ class Engine(object):
             M = M_block.get_global_blkmat_interleave()
 
         elif format == 'blk_merged':  # real coo converted from complex
-            M = M_block.get_global_blkmat_merged()
+            M = M_block.get_global_blkmat_merged(blk_format=blk_format)
 
         elif format == 'blk_merged_s':  # real coo converted from complex
-            M = M_block.get_global_blkmat_merged(symmetric=True)
+            M = M_block.get_global_blkmat_merged(
+                symmetric=True, blk_format=blk_format)
 
         dprint2('exiting finalize_matrix')
         self.is_assembled = True
@@ -2415,6 +2417,7 @@ class Engine(object):
 
     def finalize_rhs(self,  B_blocks, M_block, X_block,
                      mask, is_complex, format='coo', verbose=True,
+                     blk_format=None,
                      use_residual=False):
         #
         #  RHS = B - A[not solved]*X[not solved]
@@ -2446,10 +2449,12 @@ class Engine(object):
             BB = [b.gather_blkvec_interleave() for b in B_blocks]
 
         elif format == 'blk_merged':
-            BB = [b.gather_blkvec_merged() for b in B_blocks]
+            BB = [b.gather_blkvec_merged(blk_format=blk_format)
+                  for b in B_blocks]
 
         elif format == 'blk_merged_s':
-            BB = [b.gather_blkvec_merged(symmetric=True) for b in B_blocks]
+            BB = [b.gather_blkvec_merged(
+                symmetric=True, blk_format=blk_format) for b in B_blocks]
 
         else:
             assert False, "unsupported format for B"
@@ -2457,14 +2462,17 @@ class Engine(object):
         return BB
 
     def finalize_x(self,  X_block, RHS, mask, is_complex,
-                   format='coo', verbose=True):
+                   format='coo',
+                   verbose=True,
+                   blk_format=None,):
         X_block = X_block.get_subblock(mask[1], [True])
         RHS = RHS.get_subblock(mask[0], [True])
         if format == 'blk_interleave':  # real coo converted from complex
             X = X_block.gather_blkvec_interleave(size_hint=RHS)
 
         elif format == 'blk_merged' or format == 'blk_merged_s':
-            X = X_block.gather_blkvec_merged(size_hint=RHS)
+            X = X_block.gather_blkvec_merged(
+                size_hint=RHS, blk_format=blk_format)
 
         else:
             assert False, "unsupported format for X"
@@ -2792,7 +2800,8 @@ class Engine(object):
             except:
                 assert False, "failed to convert "+p.sel_index_txt
 
-            dprint1("## processing " + str(p) + " defined on  " + str(p.sel_index))
+            dprint1("## processing " + str(p) +
+                    " defined on  " + str(p.sel_index))
 
             dom_choice, bdr_choice, pnt_choice, internal_bdr = p.get_dom_bdr_pnt_choice(
                 self.meshes[p.mesh_idx])

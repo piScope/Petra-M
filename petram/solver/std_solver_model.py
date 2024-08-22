@@ -50,7 +50,8 @@ class StdSolver(Solver):
             [None, self.skip_solve,  3, {"text": "skip linear solve"}],
             [None, self.load_sol,  3, {
                 "text": "load sol file (linear solver is not called)"}],
-            [None, self.sol_file,  0, None], ]
+            [None, self.sol_file,  0, None],
+            ["LS blk. str.", self.sol_file,  0, None], ]
 
     def get_panel1_value(self):
         return (  # self.init_setting,
@@ -62,7 +63,8 @@ class StdSolver(Solver):
             self.use_profiler,
             self.skip_solve,
             self.load_sol,
-            self.sol_file)
+            self.sol_file,
+            self.ls_blk_merge)
 
     def import_panel1_value(self, v):
         # self.init_setting = str(v[0])
@@ -75,6 +77,21 @@ class StdSolver(Solver):
         self.skip_solve = v[6]
         self.load_sol = v[7]
         self.sol_file = v[8]
+        self.ls_blk_merge = v[9]
+
+    def panel1_tip(self):
+        return ["Specify physics model to be solved.",
+                "Check this in order to initialize a solution vector with essential cnd. w/o solving linear system",
+                "Clear working directory when entering this solver phase ",
+                "Construct linear system using real values",
+                "Check this in order to save paralell mesh",
+                "Collect execution time profile during the run ",
+                "Skip solving the linear system (for debugging)",
+                "Check this in order to read the solution vector, instead of generatign a new solution vector",
+                "Directory to read in order to restore the solution vector",
+                "\n".join(("Tweak linear system block structure:",
+                          "ex) (0, 1, 2), (3, 4) will merge (0,1,2) and (3, 4) blocks", "under development")),
+                ]
 
     def get_editor_menus(self):
         return []
@@ -246,10 +263,12 @@ class StandardSolver(SolverInstance):
 
         if update_operator:
             AA = engine.finalize_matrix(A, mask, not self.phys_real,
-                                        format=self.ls_type)
+                                        format=self.ls_type,
+                                        blk_format=self.gui.get_blk_structure())
             self._AA = AA
         BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
-                                 format=self.ls_type)
+                                 format=self.ls_type,
+                                 blk_format=self.gui.get_blk_structure())
 
         if self.linearsolver is None:
             linearsolver = self.allocate_linearsolver(
@@ -268,7 +287,8 @@ class StandardSolver(SolverInstance):
 
         if linearsolver.is_iterative:
             XX = engine.finalize_x(X[0], RHS, mask, not self.phys_real,
-                                   format=self.ls_type)
+                                   format=self.ls_type,
+                                   blk_format=self.gui.get_blk_structure())
         else:
             XX = None
 

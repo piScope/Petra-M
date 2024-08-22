@@ -133,7 +133,7 @@ class SolveStep(SolverBase):
         from petram.solver.nl_solver_model import NLSolver
         from petram.solver.mg_solver_model import MGSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
-        from petram.solver.egn_solver_model import EgnSolver        
+        from petram.solver.egn_solver_model import EgnSolver
         from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
@@ -158,7 +158,7 @@ class SolveStep(SolverBase):
                     # MGSolver,
                     StdSolver,
                     NLSolver,
-                    EgnSolver,                    
+                    EgnSolver,
                     ForLoop,
                     DWCCall, SetVar]
 
@@ -544,6 +544,7 @@ class Solver(SolverBase):
         v['skip_solve'] = False
         v['load_sol'] = False
         v['sol_file'] = ''
+        v['ls_blk_merge'] = ''  # merging linear system blocks
         super(Solver, self).attribute_set(v)
         return v
 
@@ -654,6 +655,17 @@ class Solver(SolverBase):
     @abstractmethod
     def run(self, engine, is_first=True):
         ...
+
+    def get_blk_structure(self):
+        if self.ls_blk_merge.strip() == "":
+            return None
+
+        exprs = self.ls_blk_merge
+        value = eval(exprs)
+
+        dprint1("Block matrix merging : " + str(value))
+
+        return value
 
 
 class SolverInstance(ABC):

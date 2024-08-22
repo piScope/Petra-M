@@ -1295,7 +1295,10 @@ class BlockMatrix(object):
 
         return glcsr
 
-    def gather_blkvec_merged(self, size_hint=None, symmetric=False):
+    def gather_blkvec_merged(self,
+                             size_hint=None,
+                             symmetric=False,
+                             blk_format=None):
         '''
         Construct MFEM::BlockVector
 
@@ -1370,7 +1373,7 @@ class BlockMatrix(object):
         else:
             return arr_r[0], arr_i[0]
 
-    def get_global_blkmat_merged(self, symmetric=False):
+    def get_global_blkmat_merged(self, symmetric=False, blk_format=None):
         '''
         This routine ordered unkonws in the following order
            Re FFE1, Im FES1, ReFES2, Im FES2, ...
