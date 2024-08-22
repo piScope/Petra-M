@@ -2764,6 +2764,7 @@ class Engine(object):
             p.update_dom_selection(all_sel=(allv, alls, alle))
 
     def assign_sel_index(self, phys=None):
+        dprint1('#### assigning sel index ####')
         if len(self.meshes) == 0:
             # dprint1('!!!! mesh is None !!!!')
             return
@@ -2782,6 +2783,16 @@ class Engine(object):
 
             if len(p.sel_index) == 0:
                 continue
+
+            # process domain selection of PhysModule here.
+            from petram.model import convert_sel_txt
+            try:
+                arr = convert_sel_txt(p.sel_index_txt, p._global_ns)
+                p.sel_index = arr
+            except:
+                assert False, "failed to convert "+p.sel_index_txt
+
+            dprint1("## processing " + str(p) + " defined on  " + str(p.sel_index))
 
             dom_choice, bdr_choice, pnt_choice, internal_bdr = p.get_dom_bdr_pnt_choice(
                 self.meshes[p.mesh_idx])
@@ -2891,6 +2902,7 @@ class Engine(object):
             else:
                 ess_bdr1 = []
                 ess_bdr2 = []
+
             for kk in index1:
                 ess_bdr1[kk-1] = 1
             for kk in index2:
