@@ -201,19 +201,40 @@ class DlgPlotSol(SimpleFramePlus):
             style=style,
             **kwargs)
 
-        self.nb = wx.Notebook(self)
+        use_auinb = True
+        if use_auinb:
+            from wx.aui import AuiNotebook
+            style = wx.aui.AUI_NB_TOP | wx.aui.AUI_NB_TAB_SPLIT | wx.aui.AUI_NB_TAB_MOVE | wx.aui.AUI_NB_SCROLL_BUTTONS
+            self.nb = AuiNotebook(self, style=style)
+        else:
+            # Using standard Notebook. This one does not support tooltip
+            self.nb = Notebook(self, style=style)
+
         box = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(box)
         box.Add(self.nb, 1, wx.EXPAND | wx.ALL, 1)
 
         tabs = ['GeomBdr', 'Points', 'Edge', 'Bdr', 'Bdr(arrow)', 'Slice',
                 'Probe', 'Integral', 'Config']
+        tips = ["Geometry plot",
+                "Point cloud",
+                "Plot data on edge (segment)",
+                "Plot data on 2D surface",
+                "Arrow plot on 2D surface",
+                "Slice plot in 3D domain",
+                "Plot probe signals",
+                "Compute integrated data",
+                "Configuration", ]
+
         self.pages = {}
         self.elps = {}
-        for t in tabs:
+        for ipage, t in enumerate(tabs):
             p = wx.Panel(self.nb)
             p.SetBackgroundColour(pane_colour1)
             self.nb.AddPage(p, t)
+            if use_auinb:
+                self.nb.SetPageToolTip(ipage, tips[ipage])
+
             self.pages[t] = p
 
         self.local_soldir = None

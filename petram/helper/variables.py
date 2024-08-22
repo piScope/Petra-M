@@ -2284,7 +2284,9 @@ class GFVectorVariable(GridFunctionVariable):
             if ndim == 3:
                 return gf.GetFaceVectorValues
             elif ndim == 2:
-                return gf.GetVectorValues
+                def func(i, side, ir, d, p, gf=gf):
+                    return gf.GetVectorValues(i, ir, d, p)
+                return func
             else:
                 assert False, "ndim = 1 has no face"
         getvalr = get_method(self.gfr, ndim)
