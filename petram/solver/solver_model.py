@@ -664,8 +664,20 @@ class Solver(SolverBase):
         if self.ls_blk_merge.strip() == "":
             return None
 
-        exprs = self.ls_blk_merge
-        value = eval(exprs)
+        solve_step = self.get_solve_root()
+        num_matrix = solve_step.get_num_matrix(self.get_phys())
+
+        ldepvars = len(self.root()['Phys'].all_dependent_vars(num_matrix,
+                                                              self.get_target_phys(),
+                                                              self.get_target_phys(),))
+        index = np.arange(ldepvars)
+
+        import re
+        # split by comma if it is not inside []
+        split = re.split(r',\s*(?![^[\]]*\])', self.ls_blk_merge)
+
+        l = locals()
+        value = [eval("index["+exp+"]", l) for exp in split]
 
         dprint1("Block matrix merging : " + str(value))
 

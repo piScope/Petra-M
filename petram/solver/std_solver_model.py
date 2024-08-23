@@ -89,8 +89,10 @@ class StdSolver(Solver):
                 "Skip solving the linear system (for debugging)",
                 "Check this in order to read the solution vector, instead of generatign a new solution vector",
                 "Directory to read in order to restore the solution vector",
-                "\n".join(("Tweak linear system block structure:",
-                          "ex) (0, 1, 2), (3, 4) will merge (0,1,2) and (3, 4) blocks", "under development")),
+                "\n".join(("Tweak block linear system by merging blocks:",
+                           "ex) [0, 1, 2], 3: will merge (0,1,2) and (3 to the rest) blocks.",
+                           "    :-3, -3: will merge (0 to -3) and (-3 to the rest) blocks.",
+                           "under development")),
                 ]
 
     def get_editor_menus(self):
