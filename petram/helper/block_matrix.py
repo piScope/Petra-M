@@ -1334,7 +1334,6 @@ class BlockMatrix(object):
         for i, rows in enumerate(rmerging):
             vec_r, vec_i = self.get_merged_submblocks_v(rows, symmetric)
             vv = np.hstack([vec_r, vec_i])
-            print("shape", vv.shape)
             vec.GetBlock(i).Assign(vv)
         return vec
 
@@ -1342,7 +1341,7 @@ class BlockMatrix(object):
         m = len(rows)
         arr_r = []
         arr_i = []
-        print("rsize/csize", self.rsize, self.csize)
+
         for i in rows:
             if self[i, 0] is not None:
                 if isinstance(self[i, 0], chypre.CHypreVec):
