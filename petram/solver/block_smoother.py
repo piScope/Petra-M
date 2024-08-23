@@ -82,24 +82,7 @@ class DiagonalPreconditioner(BlockSmoother):
 
     def get_panel1_value(self):
         # this will set _mat_weight
-        from petram.solver.solver_model import SolveStep
-        p = self.parent
-        while not isinstance(p, SolveStep):
-            p = p.parent
-            if p is None:
-                assert False, "Solver is not under SolveStep"
-        num_matrix = p.get_num_matrix(self.get_phys())
-
-        all_dep_vars = self.root()['Phys'].all_dependent_vars(num_matrix,
-                                                              self.get_phys(),
-                                                              self.get_phys_range())
-
-        prec = [x for x in self.preconditioners if x[0] in all_dep_vars]
-        names = [x[0] for x in prec]
-        for n in all_dep_vars:
-            if not n in names:
-                prec.append((n, ['None', 'None']))
-        self.preconditioners = prec
+        self.preconditioners = self.get_proc_blocknames(self.preconditioners)
 
         value = ((self.adv_mode, [self.adv_prc, ], [self.preconditioners, ]),)
 

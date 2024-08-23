@@ -2402,7 +2402,7 @@ class Engine(object):
                                          convert_real=True, verbose=verbose)
 
         elif format == 'blk_interleave':  # real coo converted from complex
-            M = M_block.get_global_blkmat_interleave()
+            M = M_block.get_global_blkmat_interleave(blk_format=blk_format)
 
         elif format == 'blk_merged':  # real coo converted from complex
             M = M_block.get_global_blkmat_merged(blk_format=blk_format)
@@ -2446,7 +2446,7 @@ class Engine(object):
             BB = np.hstack(BB)
 
         elif format == 'blk_interleave':  # real coo converted from complex
-            BB = [b.gather_blkvec_interleave() for b in B_blocks]
+            BB = [b.gather_blkvec_interleave(blk_format=blk_format) for b in B_blocks]
 
         elif format == 'blk_merged':
             BB = [b.gather_blkvec_merged(blk_format=blk_format)
@@ -2468,7 +2468,8 @@ class Engine(object):
         X_block = X_block.get_subblock(mask[1], [True])
         RHS = RHS.get_subblock(mask[0], [True])
         if format == 'blk_interleave':  # real coo converted from complex
-            X = X_block.gather_blkvec_interleave(size_hint=RHS)
+            X = X_block.gather_blkvec_interleave(size_hint=RHS,
+                                                 blk_format=blk_format)
 
         elif format == 'blk_merged' or format == 'blk_merged_s':
             X = X_block.gather_blkvec_merged(

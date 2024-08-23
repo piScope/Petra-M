@@ -656,6 +656,10 @@ class Solver(SolverBase):
     def run(self, engine, is_first=True):
         ...
 
+    @property
+    def use_blk_merged_structure(self):
+        return (self.ls_blk_merge.strip() != "")
+
     def get_blk_structure(self):
         if self.ls_blk_merge.strip() == "":
             return None
@@ -666,6 +670,23 @@ class Solver(SolverBase):
         dprint1("Block matrix merging : " + str(value))
 
         return value
+
+    def get_ls_blocknames(self):
+        solve_step = self.get_solve_root()
+        num_matrix = solve_step.get_num_matrix(self.get_phys())
+
+        depvars = self.root()['Phys'].all_dependent_vars(num_matrix,
+                                                         self.get_target_phys(),
+                                                         self.get_target_phys(),)
+
+        blk_str = self.get_blk_structure()
+        if blk_str is None:
+            return depvars
+
+        names = []
+        for s in blk_str:
+            names.append("_".join([depvars[i] for i in s]))
+        return names
 
 
 class SolverInstance(ABC):
@@ -1006,6 +1027,18 @@ class LinearSolverModel(SolverBase):
     def supported_linear_system_type(self):
         raise NotImplementedError(
             "bug. this method sould not be called")
+
+    def get_proc_blocknames(self, precs):
+        solver = self.get_solver()
+        blk_names = solver.get_ls_blocknames()
+
+        precs = [x for x in precs if x[0] in blk_names]
+        names = [x[0] for x in precs]
+        for n in blk_names:
+            if not n in names:
+                precs.append((n, ['None', 'None']))
+
+        return precs
 
 
 class LinearSolver(ABC):

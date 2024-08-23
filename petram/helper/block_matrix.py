@@ -1179,7 +1179,7 @@ class BlockMatrix(object):
         roffsets = np.hstack([0, np.cumsum(roffset)])
         return roffsets
 
-    def gather_blkvec_interleave(self, size_hint=None):
+    def gather_blkvec_interleave(self, size_hint=None, blk_format=None):
         '''
         Construct MFEM::BlockVector
 
@@ -1189,6 +1189,7 @@ class BlockMatrix(object):
            vector
         This routine is used together with get_global_blkmat_interleave(self):
         '''
+        assert blk_format is None, "block structure merging is not yet implemented"
 
         roffsets = self.get_local_partitioning_v(convert_real=True,
                                                  interleave=True,
@@ -1230,13 +1231,15 @@ class BlockMatrix(object):
 
         return vec
 
-    def get_global_blkmat_interleave(self):
+    def get_global_blkmat_interleave(self, blk_format=None):
         '''
         This routine ordered unkonws in the following order
            FFE1, FES2,
         If it is complex
            Re FFE1, Im FES1, ReFES2, Im FES2, ...
         '''
+        assert blk_format is None, "block structure merging is not yet implemented"
+
         roffsets, coffsets = self.get_local_partitioning(convert_real=True,
                                                          interleave=True)
         dprint1("Generating MFEM BlockMatrix: shape = " +
@@ -1308,15 +1311,15 @@ class BlockMatrix(object):
         '''
         assert self.complex, "this format is complex only"
 
-        rmerging = ((0, 1, 2,), (3, 4))  # used for RHS
-        cmerging = ((0, 1, 2,), (3, 4))  # used for X
-
         roffsets = self.get_local_partitioning_v(size_hint=size_hint)
         if size_hint is not None:
             self.cp_size_hint(size_hint)
 
         rsizes = np.sum(np.diff(roffsets).reshape(-1, 2), 1)
-        rsizes = [np.sum(rsizes[np.array(x)]) for x in rmerging]
+        if blk_format is None:
+            blk_format = [(x,) for x in range(len(rsizes))]
+
+        rsizes = [np.sum(rsizes[np.array(x)]) for x in blk_format]
         roffsets = np.hstack([0, np.cumsum(rsizes)])
 
         dprint1("roffsets(vector)", roffsets)
@@ -1331,7 +1334,7 @@ class BlockMatrix(object):
 
         # Here I don't like that I am copying the data between two vectors..
         # But, avoiding this takes the large rearangement of program flow...
-        for i, rows in enumerate(rmerging):
+        for i, rows in enumerate(blk_format):
             vec_r, vec_i = self.get_merged_submblocks_v(rows, symmetric)
             vv = np.hstack([vec_r, vec_i])
             vec.GetBlock(i).Assign(vv)
@@ -1380,16 +1383,17 @@ class BlockMatrix(object):
         '''
         assert self.complex, "this format is complex only"
 
-        cmerging = ((0, 1, 2,), (3, 4))
-        rmerging = ((0, 1, 2,), (3, 4))
-
         roffsets, coffsets = self.get_local_partitioning()
 
         rsizes = np.sum(np.diff(roffsets).reshape(-1, 2), 1)
         csizes = np.sum(np.diff(coffsets).reshape(-1, 2), 1)
 
-        rsizes = [np.sum(rsizes[np.array(x)]) for x in rmerging]
-        csizes = [np.sum(csizes[np.array(x)]) for x in cmerging]
+        assert len(rsizes) == len(csizes), "block matrix is not square"
+        if blk_format is None:
+            blk_format = [(x,) for x in range(len(rsizes))]
+
+        rsizes = [np.sum(rsizes[np.array(x)]) for x in blk_format]
+        csizes = [np.sum(csizes[np.array(x)]) for x in blk_format]
 
         roffsets = np.hstack([0, np.cumsum(rsizes)])
         coffsets = np.hstack([0, np.cumsum(csizes)])
@@ -1404,11 +1408,13 @@ class BlockMatrix(object):
         co = mfem.intArray(list(coffsets))
         glcsr = mfem.BlockOperator(ro, co)
 
-        for jjj in range(len(cmerging)):
-            for iii in range(len(rmerging)):
-                rows = rmerging[iii]
-                cols = cmerging[jjj]
+        for jjj in range(len(blk_format)):
+            for iii in range(len(blk_format)):
+                rows = blk_format[iii]
+                cols = blk_format[jjj]
                 gcsa, gcsb = self.get_merged_submblocks(rows, cols)
+                if gcsa is None and gcsb is None:
+                    continue
 
                 Hermitian = False if symmetric else True
                 gcsr = mfem.ComplexOperator(
@@ -1502,6 +1508,8 @@ class BlockMatrix(object):
             if m == 1 and n == 1:
                 i, j = rows[0], cols[0]
                 mat = self[i, j]
+                if mat is None:
+                    return None, None
                 gcsa = mat[0]
                 gcsb = mat[1]
                 if gcsa is None:
@@ -1564,6 +1572,9 @@ class BlockMatrix(object):
         else:
             if m == 1 and n == 1:
                 mat = self[rows[0], cols[0]]
+                if mat is None:
+                    return None, None
+
                 csra = mat.real.tocsr()
                 csrb = mat.imag.tocsr()
                 csra.eliminate_zeros()
