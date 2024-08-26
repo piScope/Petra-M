@@ -94,14 +94,22 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('Preconditioner')
 class PreconditionerBlock(object):
     def __init__(self, func):
         self.func = func
+        self.prc = None
+        self.blockname = ''
 
     def set_param(self, prc, blockname):
         self.prc = prc
         self.blockname = blockname
 
     def __call__(self, *args, **kwargs):
-        kwargs['prc'] = self.prc
-        kwargs['blockname'] = self.blockname
+        if 'prc' not in kwargs:
+            assert self.prc is not None, "prc is not set. use set_param or prc="
+            kwargs['prc'] = self.prc
+
+        if 'blockname' not in kwargs:
+            assert self.blockname is not None, "blockname is not set. use set_param or blockname="
+            kwargs['blockname'] = self.blockname
+
         return self.func(*args, **kwargs)
 
 
@@ -762,7 +770,6 @@ class GenericPreconditioner(mfem.Solver, PrcCommon):
         return self.mult_func(self, *args)
 
     def SetOperator(self, opr):
-        opr = mfem.Opr2BlockOpr(opr)
         self._opr = weakref.ref(opr)
         self.offset = opr.RowOffsets()
         return self.setoperator_func(self, opr)

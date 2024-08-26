@@ -407,8 +407,14 @@ class IterativeSolver(LinearSolver):
         else:
             prc = M
         solver._prc = prc
-        solver.SetPreconditioner(prc)
+
+        # we call solver.SetOperator first, before setting Preconditioner
+        # prec::SetOperator is not called from insider the solver, but called from here
+        # directlry. This makes sure that A is passed as BlockOperator
         solver.SetOperator(A)
+
+        solver.SetPreconditioner(prc)
+        prc.SetOperator(A)
 
         solver.SetAbsTol(atol)
         solver.SetRelTol(rtol)
