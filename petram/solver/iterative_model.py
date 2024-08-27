@@ -383,6 +383,12 @@ class IterativeSolver(LinearSolver):
         if solver_type in ['GMRES', 'FGMRES']:
             solver.SetKDim(kdim)
 
+        # we call solver.SetOperator first, before setting Preconditioner
+        # prec::SetOperator is not called from insider the solver, but called from here
+        # directlry. This makes sure that A is passed as BlockOperator
+
+        solver.SetOperator(A)
+
         if nested:
             inner_solver_type = self.gui.solver_type_in
             if inner_solver_type != "MUMPS":
@@ -396,25 +402,23 @@ class IterativeSolver(LinearSolver):
                     inner_solver.SetKDim(int(self.gui.kdim_in))
                 inner_solver.iterative_mode = False
                 inner_solver.SetOperator(A)
+
                 inner_solver.SetPreconditioner(M)
-                # return inner_solver
-                prc = inner_solver
+                solver.SetPreconditioner(inner_solver)
+
+                M.SetOperator(A)
+
+                inner_solver._prc = M
+                solver._prc = inner_solver
             else:
                 from petram.solver.mumps_model import MUMPSBlockPreconditioner
                 prc = MUMPSBlockPreconditioner(A, gui=self.gui[self.gui.mumps_in],
                                                engine=self.engine)
 
         else:
-            prc = M
-        solver._prc = prc
-
-        # we call solver.SetOperator first, before setting Preconditioner
-        # prec::SetOperator is not called from insider the solver, but called from here
-        # directlry. This makes sure that A is passed as BlockOperator
-        solver.SetOperator(A)
-
-        solver.SetPreconditioner(prc)
-        prc.SetOperator(A)
+            solver.SetPreconditioner(M)
+            M.SetOperator(A)
+            solver._prc = M
 
         solver.SetAbsTol(atol)
         solver.SetRelTol(rtol)
