@@ -218,10 +218,10 @@ class DlgPlotSol(SimpleFramePlus):
                 'Probe', 'Integral', 'Config']
         tips = ["Geometry boundary plot:\n - Plot geometry/mesh boundaries",
                 "Point cloud:\n - Scatter plot (provide coordinates)",
-                "Edge plot:\n - Plot data on the selected geometry edge(s) \n - Define abscissa in Expression(x) for data(x) 2D plot",
-                "Boundary plot:\n - Plot data on the selected geometry boundary surface(s)",
-                "Boundary arrow plot:\n - Arrow plot on the selected geometry boundary surface(s)",
-                "Slice plot:\n - Plot data in a slice of the selected 3D domain(s)",
+                "Edge plot:\n - Plot data on the selected geometry edge(s) or 1D domain(s)\n - Define abscissa in Expression(x) for data(x) 2D plot",
+                "Boundary plot:\n - Plot data on the selected geometry boundary surface(s) or 2D domain(s)",
+                "Boundary arrow plot:\n - Arrow plot on the selected geometry boundary surface(s) or 2D domain(s)",
+                "Slice plot:\n - Plot data in a slice of the selected 3D domain(s) or 2D domain(s) on a grid data",
                 "Probe plot:\n - Plot probe signals (recommended for time/iterative problems)",
                 "Integral:\n - Compute integrated data",
                 "Configuration", ]
