@@ -139,6 +139,12 @@ class PrcCommon(object):
     def get_col_by_name(self, name):
         return self.name.index(name)
 
+    def get_idx_by_name(self, name):
+        return self.name.index(name)
+
+    def get_name_by_idx(self, idx):
+        return self.name[idx]
+
     def get_operator_block(self, r, c):
         # if linked_op exists (= op is set from python).
         # try to get it
