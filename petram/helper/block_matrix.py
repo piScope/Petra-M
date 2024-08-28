@@ -1416,9 +1416,15 @@ class BlockMatrix(object):
                 if gcsa is None and gcsb is None:
                     continue
 
-                Hermitian = False if symmetric else True
-                gcsr = mfem.ComplexOperator(
-                    gcsa, gcsb, False, False, Hermitian)
+                #Hermitian = False if symmetric else True
+                Hermitian = True if symmetric else False
+                if use_parallel:
+                    gcsr = mfem.ComplexHypreParMatrix(
+                        gcsa, gcsb, False, False, Hermitian)
+
+                else:
+                    gcsr = mfem.ComplexSparseMatrix(
+                        gcsa, gcsb, False, False, Hermitian)
 
                 gcsr._real_operator = gcsa
                 gcsr._imag_operator = gcsb

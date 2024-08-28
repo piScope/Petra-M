@@ -544,6 +544,7 @@ def ams(singular=False, **kwargs):
 
 @prc.block
 def boomerAMG(**kwargs):
+    assert use_parallel, "boomerAMG works only in parallel"
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
     print_level = kwargs.pop('print_level', -1)
@@ -551,6 +552,9 @@ def boomerAMG(**kwargs):
     row = prc.get_row_by_name(blockname)
     col = prc.get_col_by_name(blockname)
     mat = prc.get_operator_block(row, col)
+
+    if isinstance(mat, mfem.ComplexHypreParMatrix):
+        mat = mat.GetSystemMatrix()
 
     inv_boomeramg = mfem.HypreBoomerAMG(mat)
     inv_boomeramg.SetPrintLevel(print_level)
@@ -710,7 +714,7 @@ def pcg(atol=0.0, rtol=0.0, max_num_iter=5,
     if use_parallel:
         pcg = mfem.CGSolver(MPI.COMM_WORLD)
     else:
-        pgc = mfem.CGSolver()
+        pcg = mfem.CGSolver()
     pcg.iterative_mode = False
     pcg.SetRelTol(rtol)
     pcg.SetAbsTol(atol)
