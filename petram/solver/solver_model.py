@@ -4,6 +4,8 @@ import numpy as np
 import warnings
 import os
 from petram.model import Model
+from petram.namespace_mixin import NS_mixin
+
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
 
@@ -34,8 +36,16 @@ n
 '''
 
 
-class SolverBase(Model):
+class SolverBase(Model, NS_mixin):
     can_rename = True
+    hide_ns_menu = True
+
+    def __init__(self, *args, **kwargs):
+        super(SolverBase, self).__init__(*args, **kwargs)
+        NS_mixin.__init__(self, *args, **kwargs)
+
+    def get_info_str(self):
+        return NS_mixin.get_info_str(self)
 
     def onItemSelChanged(self, evt):
         '''
@@ -69,6 +79,7 @@ class SolverBase(Model):
 
 
 class SolveStep(SolverBase):
+    hide_ns_menu = False
     has_2nd_panel = False
 
     #
