@@ -1862,12 +1862,22 @@ class GFScalarVariable(GridFunctionVariable):
             else:
                 self.func_i = None
         else:
-            self.isVectorFE = False
-            self.func_r = mfem.GridFunctionCoefficient(gf_real)
-            if gf_imag is not None:
-                self.func_i = mfem.GridFunctionCoefficient(gf_imag)
+            vdim = gf_real.FESpace().GetVDim()
+            if vdim == 1:
+                self.isVectorFE = False
+                self.func_r = mfem.GridFunctionCoefficient(gf_real)
+                if gf_imag is not None:
+                    self.func_i = mfem.GridFunctionCoefficient(gf_imag)
+                else:
+                    self.func_i = None
             else:
-                self.func_i = None
+                self.isVectorFE = True
+                self.func_r = mfem.VectorGridFunctionCoefficient(gf_real)
+                if gf_imag is not None:
+                    self.func_i = mfem.VectorGridFunctionCoefficient(gf_imag)
+                else:
+                    self.func_i = None
+
         self.isDerived = True
 
     def eval_local_from_T_ip(self):
@@ -2175,7 +2185,8 @@ class GFVectorVariable(GridFunctionVariable):
 
         self.dim = gf_real.VectorDim()
         name = gf_real.FESpace().FEColl().Name()
-        if name.startswith("ND") or name.startswith("RT"):
+        #if name.startswith("ND") or name.startswith("RT"):
+        if True:
             self.isVectorFE = True
             self.func_r = mfem.VectorGridFunctionCoefficient(gf_real)
             if gf_imag is not None:
@@ -2183,6 +2194,9 @@ class GFVectorVariable(GridFunctionVariable):
             else:
                 self.func_i = None
 
+
+
+        '''
         else:
             self.isVectorFE = False
             self.func_r = [mfem.GridFunctionCoefficient(gf_real, comp=k + 1)
@@ -2193,12 +2207,14 @@ class GFVectorVariable(GridFunctionVariable):
                                for k in range(self.dim)]
             else:
                 self.func_i = None
+        '''
         self.isDerived = True
 
     def eval_local_from_T_ip(self):
         if not self.isDerived:
             self.set_funcs()
-        if self.isVectorFE:
+
+        if True:
             if self.func_i is None:
                 v = mfem.Vector()
                 self.func_r.Eval(v, self.T, self.ip)
@@ -2209,6 +2225,10 @@ class GFVectorVariable(GridFunctionVariable):
                 self.func_r.Eval(v1, self.T, self.ip)
                 self.func_i.Eval(v2, self.T, self.ip)
                 return v1.GetDataArray().copy() + 1j * v2.GetDataArray().copy()
+
+
+
+        '''
         else:
             if self.func_i is None:
                 return np.array([func_r.Eval(self.T, self.ip) for
@@ -2218,6 +2238,7 @@ class GFVectorVariable(GridFunctionVariable):
                                   1j * func_i.Eval(self.T, self.ip))
                                  for func_r, func_i
                                  in zip(self.func_r, self.func_i)])
+        '''
 
     def nodal_values(self, iele=None, el2v=None, wverts=None,
                      **kwargs):
