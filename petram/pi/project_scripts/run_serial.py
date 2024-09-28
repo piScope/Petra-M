@@ -77,6 +77,7 @@ def run_serial(path='', debug=0, thread=True):
                 print(line)
             if line == 'process terminated':
                 break
+        p.wait()            
     else:
         stdoutdata, stderrdata = p.communicate()
         print(stdoutdata)
