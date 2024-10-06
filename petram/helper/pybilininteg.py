@@ -183,6 +183,26 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
 
         return False, None
 
+    def _proc_esindex(self, esindex):
+        def iscomplex(x):
+            return isinstance(x, (complex, np.complex128, np.complex64))
+
+        flag1 = [not iscomplex(x) for x in esindex]
+        flag2 = [iscomplex(x) for x in esindex]
+
+        esindex = np.array(esindex)
+        if any(flag2):
+            self.esflag = np.where(flag1)[0]
+            self.esflag2 = np.where(flag2)[0]
+            self.es_weight = esindex[flag2]
+        else:
+            self.esflag = np.where(esindex >= 0)[0]
+            self.esflag2 = np.where(esindex == -1)[0]
+            self.es_weight = np.ones(len(self.esflag2))
+        self.esdim = len(esindex)
+
+        #print("weight", self.esflag, self.esflag2, self.es_weight)
+
 
 class PyVectorMassIntegrator(PyVectorIntegratorBase):
     support_metric = True
@@ -487,9 +507,6 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
         self.tr_dshape.SetSize(tr_nd, dim)
         self.tr_dshapedxt.SetSize(tr_nd, sdim)
 
-        assert sdim == len(
-            self.esflag), "mesh SpaceDim is not same as esflag length"
-
         self.tr_merged.SetSize(tr_nd, self.esdim)
 
         tr_shape_arr = self.tr_shape.GetDataArray()
@@ -586,7 +603,7 @@ class PyVectorWeakPartialIntegrator(PyVectorIntegratorBase):
         if self.lam is None:
             return
         if self._ir is None:
-            self.set_ir(trial_fe,  test_fe, trans)
+            self.set_ir(trial_fe, test_fe, trans)
 
         tr_nd = trial_fe.GetDof()
         te_nd = test_fe.GetDof()
@@ -605,9 +622,6 @@ class PyVectorWeakPartialIntegrator(PyVectorIntegratorBase):
         self.te_shape.SetSize(te_nd)
         self.te_dshape.SetSize(te_nd, dim)
         self.te_dshapedxt.SetSize(te_nd, sdim)
-
-        assert sdim == len(
-            self.esflag), "mesh SpaceDim is not same as esflag length"
 
         self.te_merged.SetSize(tr_nd, self.esdim)
 
@@ -659,6 +673,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
 
     def __init__(self, lam, vdim1, vdim2=None, esindex=None, metric=None,
                  use_covariant_vec=False, *, ir=None):
+
         #
         #   integrator for
         #
@@ -675,8 +690,8 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
         #          l not in exindex: u_j/dx_k
         #          l in esindex:  u_j
         #
-        #   vdim1 : size of trial space
-        #   vdim2 : size of test space
+        #   vdim1 : size of test space
+        #   vdim2 : size of trial space
         #   esindex: specify the index for extendend space dim for trial
         #
         #   when christoffel {i/j, k} is given, dx_k is replaced by
@@ -692,6 +707,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
         #    for contravariant u and v
         #    one can use lam_ij^kl = g_ij * coeff^kl for
         #    diffusion coefficient in curvelinear coodidnates.
+        #
 
         PyVectorIntegratorBase.__init__(self, ir)
 
@@ -719,16 +735,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
         if esindex is None:
             esindex = list(range(self.vdim_tr))
 
-        esindex = np.array(esindex)
-        if np.iscomplexobj(esindex):
-            self.esflag = np.where(np.iscomplex(esindex) == False)[0]
-            self.esflag2 = np.where(np.iscomplex(esindex))[0]
-            self.es_weight = esindex[self.esflag2]
-        else:
-            self.esflag = np.where(esindex >= 0)[0]
-            self.esflag2 = np.where(esindex == -1)[0]
-            self.es_weight = np.ones(len(self.esflag2))
-        self.esdim = len(esindex)
+        self._proc_esindex(esindex)
 
         # print('esdim flag', self.esdim, self.esflag, self.esflag2)
 
@@ -946,11 +953,10 @@ class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
 
         if esindex is None:
             esindex = list(range(self.vdim_tr))
-        self.esflag = np.where(np.array(esindex) >= 0)[0]
-        self.esflag2 = np.where(np.atleast_1d(esindex) == -1)[0]
-        self.esdim = len(esindex)
 
-        assert self.vdim_tr == self.esdim, "vector dim and extedned spacedim must be the same"
+        self._proc_esindex(esindex)
+
+        # assert self.vdim_tr == self.esdim, "vector dim and extedned spacedim must be the same"
         # print('esdim flag', self.esflag, self.esflag2)
 
         self._ir = self.GetIntegrationRule()
@@ -1036,14 +1042,14 @@ class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
                 for j in self.esflag:
                     tr_merged_arr[:, i, j] = hess[:, i, j]
             for i in self.esflag:
-                for j in self.esflag2:
-                    tr_merged_arr[:, i, j] = tr_dshapedxt_arr[:, i]
-            for i in self.esflag2:
+                for kk, j in enumerate(self.esflag2):
+                    tr_merged_arr[:, i, j] = tr_dshapedxt_arr[:, i]*self.es_weight[kk]
+            for kk, i in enumerate(self.esflag2):
                 for j in self.esflag:
-                    tr_merged_arr[:, i, j] = tr_dshapedxt_arr[:, j]
-            for i in self.esflag2:
-                for j in self.esflag2:
-                    tr_merged_arr[:, i, j] = tr_shape_arr
+                    tr_merged_arr[:, i, j] = tr_dshapedxt_arr[:, j]*self.es_weight[kk]
+            for kk, i in enumerate(self.esflag2):
+                for ll, j in enumerate(self.esflag2):
+                    tr_merged_arr[:, i, j] = tr_shape_arr*self.es_weight[kk]*self.es_weight[ll]
 
             detJ = trans.Weight()
             weight = ip.weight
@@ -1088,7 +1094,7 @@ class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
         self.esflag2 = np.where(np.atleast_1d(esindex) == -1)[0]
         self.esdim = len(esindex)
 
-        assert self.vdim_tr == self.esdim, "vector dim and extedned spacedim must be the same"
+        #assert self.vdim_tr == self.esdim, "vector dim and extedned spacedim must be the same"
         # print('esdim flag', self.esflag, self.esflag2)
 
         self._ir = self.GetIntegrationRule()
