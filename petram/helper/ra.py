@@ -226,6 +226,27 @@ class poly_fraction():
             txt.append(str((c, d)))
         return "\n".join(txt)+"\n"
 
+    def make_numba_func(self, return_float=False):
+        from numba import njit
+        c0 = self.c0
+        c_arr = self.c_arr
+        d_arr = self.d_arr
+        if return_float:
+            @njit("float64(float64)")
+            def func(x):
+                value = c0
+                for c, d in zip(c_arr, d_arr):            
+                    value = value + c / (x - d)
+                return value.real
+        else:
+            @njit("complex128(float64)")
+            def func(x):
+                value = c0
+                for c, d in zip(c_arr, d_arr):            
+                    value = value + c / (x - d)
+                return value
+
+        return func
 
 def calc_decomposition(func, x, mmax, xp=None, viewer=None, **kwargs):
     if xp is None:
@@ -260,9 +281,9 @@ def calc_decomposition(func, x, mmax, xp=None, viewer=None, **kwargs):
     c_arr = np.array(c_arr)
     d_arr = np.array(d_arr)
 
-    if np.any([d.real > 0 and d.imag == 0 for d in roots]):
-        import warnings
-        warnings.warn("Decomposition is not stable. ", RuntimeWarning)
+    #if np.any([d.real > 0 and d.imag == 0 for d in roots]):
+    #    import warnings
+    #    warnings.warn("Decomposition is not stable. ", RuntimeWarning)
 
     tmp = 0j
     for c, d in zip(c_arr, d_arr):
@@ -317,9 +338,9 @@ def calc_decompositions(funcs, x, mmax, xp, viewer=None, **kwargs):
             c_arr.append(poly_p(root)/poly_q_prime(root))
             d_arr.append(root)
 
-        if np.any([d.real > 0 and d.imag == 0 for d in roots]):
-            import warnings
-            warnings.warn("Decomposition is not stable. ", RuntimeWarning)
+        #if np.any([d.real > 0 and d.imag == 0 for d in roots]):
+        #    import warnings
+        #    warnings.warn("Decomposition is not stable. ", RuntimeWarning)
 
         c_arr = np.array(c_arr)
         d_arr = np.array(d_arr)
@@ -346,7 +367,7 @@ def calc_decompositions(funcs, x, mmax, xp, viewer=None, **kwargs):
 
 
 def find_decomposition(func, x, xp=None, viewer=None, mmin=2, mmax=8,
-                       tol=None, **kwargs):
+                       tol=None, verbose=False, **kwargs):
     '''
     find rational approximation of func (callable)
        x = parameter range to fit
@@ -360,8 +381,10 @@ def find_decomposition(func, x, xp=None, viewer=None, mmin=2, mmax=8,
             success = np.all([d.real < 0 for d in fit.d_arr])
             if success:
                 if tol is None or err < tol:
+                    if verbose:
+                        print("fit success nterms="+str(mm) + ", err="+str(err))
                     break
-
+            
         mm = mm + 1
     return fit, success, err
 
