@@ -203,16 +203,30 @@ def make_numbafunc_from_table(i=0, table=func_table, limit=len(func_table)):
     if i == len(table)-1:
        @njit("float64(int32, float64)")
        def fend(nn, x):
-           return func(np.abs(x))
+           if nn % 2 == 0:
+               return func(np.abs(x))
+           else:
+               if x < 0:
+                   return -func(-x)
+               else:
+                   return -func(x)
        return fend
 
     wrapp = make_numbafunc_from_table(i+1)           
     @njit("float64(int32, float64)")
     def wrap(nn, x):
+        if nn < 0:
+            nn = -nn
         if nn > limit:
             raise ValueError
         if nn == i:
-            return func(np.abs(x))
+           if nn % 2 == 0:
+               return func(np.abs(x))
+           else:
+               if x < 0:
+                   return -func(-x)
+               else:
+                   return func(x)
         return wrapp(nn, x)
     return wrap
 
