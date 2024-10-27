@@ -75,6 +75,7 @@ def generate_pix(data, header):
         filename = os.path.join(save_path, header + name + '.png')
         print('filename', filename)
         ed = ax.transAxes.transform([(0, 0), (1, 1)])
+        dpi = 72*2
         bbox = Bbox.from_extents(
             ed[0, 0]/dpi, ed[0, 1]/dpi, ed[1, 0]/dpi, ed[1, 1]/dpi)
         plt.savefig(filename, dpi=dpi2, format='png', bbox_inches=bbox)

@@ -66,3 +66,4 @@
 | PyVectorPartialPartialIntegrator      | H1v, H1 | H1v, L2v, H1, L2 | M  |  $(\lambda_\{iklj}\partial_k \partial_l u_j, v_i)$    | |1D, 2D, 3D |
 | PyVectorWeakPartialIntegrator         | H1v, L2v, H1, L2 | H1v, H1 | M  |  $(-\lambda_\{ikj} u_\{j}, \partial_k v_i)$              | |1D, 2D, 3D |
 | PyVectorWeakPartialPartialIntegrator  | H1v, L2v, H1, L2 | H1v, H1 | M  |  $(\lambda_\{iklj} u_\{j}, \partial_l \partial_k v_i)$    | |1D, 2D, 3D |
+| PyVectorFEPartialIntegrator  | ND | ND | M  |  $(\lambda_\{ikj}\partial_k u_j, v_i)$  | |2D, 3D |
