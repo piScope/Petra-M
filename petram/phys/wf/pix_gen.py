@@ -45,9 +45,9 @@ def generate_pix(data, header):
         __file__), '..', '..', 'data', 'icon')
 
     dpi = 72
-    dpi2 = dpi*8
+    dpi2 = dpi*6
 
-    F = plt.figure(num=None, figsize=(3.5, 0.3), dpi=dpi, facecolor='w')
+    F = plt.figure(num=None, figsize=(5.0, 0.3), dpi=dpi, facecolor='w')
     x = [0, 1, 1, 0, 0]
     y = [1, 1, 0, 0, 1]
 
@@ -70,12 +70,12 @@ def generate_pix(data, header):
         plt.text(0.01, 0.3, txt1)
 
         if txt2 != "":
-            plt.text(0.51, 0.3, txt2)
+            plt.text(0.55, 0.3, txt2)
 
         filename = os.path.join(save_path, header + name + '.png')
         print('filename', filename)
         ed = ax.transAxes.transform([(0, 0), (1, 1)])
-        dpi = 72*2
+        #dpi = 72*2
         bbox = Bbox.from_extents(
             ed[0, 0]/dpi, ed[0, 1]/dpi, ed[1, 0]/dpi, ed[1, 1]/dpi)
         plt.savefig(filename, dpi=dpi2, format='png', bbox_inches=bbox)

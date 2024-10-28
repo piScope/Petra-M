@@ -1031,8 +1031,12 @@ class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
             trial_fe.CalcPhysHessian(trans, self.tr_hshape)
 
             if dim == 3:
-                hess = tr_hshape_arr[:, [0, 1, 2, 1, 5,
-                                         3, 2, 3, 4]].reshape(tr_nd, 3, 3)
+                #u_xx, u_xy, u_xz, u_yz, u_zz, u_yy
+                # hess = tr_hshape_arr[:, [0, 1, 2, 1, 5,
+                #                         3, 2, 3, 4]].reshape(tr_nd, 3, 3)
+                #u_xx, u_xy, u_xz, u_yy, u_yz, u_zz
+                hess = tr_hshape_arr[:, [0, 1, 2, 1, 3,
+                                         4, 2, 4, 5]].reshape(tr_nd, 3, 3)
             elif dim == 2:
                 hess = tr_hshape_arr[:, [0, 1, 1, 2]].reshape(tr_nd, 2, 2)
             elif dim == 1:
@@ -1043,13 +1047,16 @@ class PyVectorPartialPartialIntegrator(PyVectorIntegratorBase):
                     tr_merged_arr[:, i, j] = hess[:, i, j]
             for i in self.esflag:
                 for kk, j in enumerate(self.esflag2):
-                    tr_merged_arr[:, i, j] = tr_dshapedxt_arr[:, i]*self.es_weight[kk]
+                    tr_merged_arr[:, i, j] = tr_dshapedxt_arr[:,
+                                                              i]*self.es_weight[kk]
             for kk, i in enumerate(self.esflag2):
                 for j in self.esflag:
-                    tr_merged_arr[:, i, j] = tr_dshapedxt_arr[:, j]*self.es_weight[kk]
+                    tr_merged_arr[:, i, j] = tr_dshapedxt_arr[:,
+                                                              j]*self.es_weight[kk]
             for kk, i in enumerate(self.esflag2):
                 for ll, j in enumerate(self.esflag2):
-                    tr_merged_arr[:, i, j] = tr_shape_arr*self.es_weight[kk]*self.es_weight[ll]
+                    tr_merged_arr[:, i, j] = tr_shape_arr * \
+                        self.es_weight[kk]*self.es_weight[ll]
 
             detJ = trans.Weight()
             weight = ip.weight
@@ -1169,8 +1176,13 @@ class PyVectorWeakPartialPartialIntegrator(PyVectorIntegratorBase):
             test_fe.CalcPhysHessian(trans, self.te_hshape)
 
             if dim == 3:
-                hess = te_hshape_arr[:, [0, 1, 2, 1, 5,
-                                         3, 2, 3, 4]].reshape(te_nd, 3, 3)
+                #u_xx, u_xy, u_xz, u_yz, u_zz, u_yy
+                # hess = tr_hshape_arr[:, [0, 1, 2, 1, 5,
+                #                         3, 2, 3, 4]].reshape(tr_nd, 3, 3)
+                #u_xx, u_xy, u_xz, u_yy, u_yz, u_zz
+                hess = tr_hshape_arr[:, [0, 1, 2, 1, 3,
+                                         4, 2, 4, 5]].reshape(tr_nd, 3, 3)
+
             elif dim == 2:
                 hess = te_hshape_arr[:, [0, 1, 1, 2]].reshape(te_nd, 2, 2)
             elif dim == 1:
