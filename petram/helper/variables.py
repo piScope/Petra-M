@@ -222,7 +222,7 @@ def cosd(x): return np.cos(x * np.pi / 180.)
 def sind(x): return np.sin(x * np.pi / 180.)
 def tand(x): return np.tan(x * np.pi / 180.)
 
-from petram.solver.parametric_scanner import Scan
+
 var_g = {'sin': np.sin,
          'cos': np.cos,
          'tan': np.tan,
@@ -250,7 +250,7 @@ var_g = {'sin': np.sin,
          'min': np.min,
          'sign': np.sign,
          'ones': np.ones,
-         'eye':np.eye,
+         'eye': np.eye,
          'diag': np.diag,
          'zeros': np.zeros,
          'nan': np.nan,
@@ -892,7 +892,7 @@ class DomainVariable(Variable):
 
         for domains in self.domains.keys():
             if (current_domain is not None and
-                    domains != current_domain):
+                    current_domain not in domains):
                 continue
 
             iele0 = np.zeros(iele.shape, dtype=int) - 1
@@ -952,7 +952,7 @@ class DomainVariable(Variable):
 
         for domains in self.domains.keys():
             if (current_domain is not None and
-                    domains != current_domain):
+                    current_domain not in domains):
                 continue
 
             w = np.zeros(ifaces.shape)
@@ -999,7 +999,7 @@ class DomainVariable(Variable):
 
         for domains in self.domains.keys():
             if (current_domain is not None and
-                    domains != current_domain):
+                    current_domain not in domains):
                 continue
 
             '''
@@ -1927,7 +1927,8 @@ class GFScalarVariable(GridFunctionVariable):
                 for k, idx in m:
                     ret[idx] = ret[idx] + arr[k] * 1j
 
-        ret = ret / wverts
+        flag = wverts > 0
+        ret[flag] = ret[flag] / wverts[flag]
 
         return ret
 
@@ -1989,6 +1990,7 @@ class GFScalarVariable(GridFunctionVariable):
             ir = irs[gtype]
             getvalr(i, 2, ir, d, p)  # side = 2 (automatic?)
             v = d.GetDataArray().copy()
+
             if isVector:
                 v = v[self.comp - 1, :]
 
