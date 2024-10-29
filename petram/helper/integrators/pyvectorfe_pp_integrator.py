@@ -46,7 +46,13 @@ class PyVectorFEPartialPartialIntegrator(PyVectorFEIntegratorBase):
 
     @classmethod
     def set_ir(self, trial_fe,  test_fe, trans, delta=0):
-        order = trial_fe.GetOrder() + test_fe.GetOrder()
+
+        if trial_fe.Space() == mfem.FunctionSpace.rQk:
+            ir = mfem.RefinedIntRules.Get(trial_fe.GetGeomType(), order)
+            order = trial_fe.GetOrder() + test_fe.GetOrder() - 2
+        else:
+            order = trial_fe.GetOrder() + test_fe.GetOrder() - 1
+
         ir = mfem.IntRules.Get(trial_fe.GetGeomType(), order)
 
         self.ir = ir
@@ -55,7 +61,8 @@ class PyVectorFEPartialPartialIntegrator(PyVectorFEIntegratorBase):
     def get_ds(ir, trans):
         ptx = [trans.Transform(ir.IntPoint(i)) for i in range(ir.GetNPoints())]
         ds = np.sqrt(np.sqrt(2e-16))*np.max(pdist(ptx))
-        return ds
+        #ds2 = np.sqrt(2e-16)*np.max(pdist(ptx))
+        return ds*100
 
     def get_hessian(self, fe, ip, trans, itrans, ds):
 
@@ -96,30 +103,30 @@ class PyVectorFEPartialPartialIntegrator(PyVectorFEIntegratorBase):
                   + 16*hmats[1, 2].GetDataArray()
                   - 30*hmats[2, 2].GetDataArray()
                   + 16*hmats[3, 2].GetDataArray()
-                  - hmats[4, 2].GetDataArray())/12/ds**2
+                  - hmats[4, 2].GetDataArray())/12
             yy = (-hmats[2, 0].GetDataArray()
                   + 16*hmats[2, 1].GetDataArray()
                   - 30*hmats[2, 2].GetDataArray()
                   + 16*hmats[2, 3].GetDataArray()
-                  - hmats[2, 4].GetDataArray())/12/ds**2
+                  - hmats[2, 4].GetDataArray())/12
 
             def dx(i):
                 x0 = (hmats[i, 0].GetDataArray()
                       - 8*hmats[i, 1].GetDataArray()
                       + 8*hmats[i, 3].GetDataArray()
-                      - hmats[i, 4].GetDataArray())/12/ds
+                      - hmats[i, 4].GetDataArray())/12
                 return x0
 
             def dy(i):
                 x0 = (hmats[0, i].GetDataArray()
                       - 8*hmats[1, i].GetDataArray()
                       + 8*hmats[3, i].GetDataArray()
-                      - hmats[4, i].GetDataArray())/12/ds
+                      - hmats[4, i].GetDataArray())/12
                 return x0
-            xy = (dx(0) - 8*dx(1) + 8*dx(3) - dx(4))/12/ds
-            #yx =  (dy(0) - 8*dy(1) + 8*dy(3) - dy(4))/12/ds
+            xy = (dx(0) - 8*dx(1) + 8*dx(3) - dx(4))/12
+            yx = (dy(0) - 8*dy(1) + 8*dy(3) - dy(4))/12
 
-            ret = [xx, xy, xy, yy]
+            ret = [xx, (xy+yx)/2, (xy+yx)/2., yy]
 
         elif sdim == 3:
             hmats = np.array(self._hmats).reshape(5, 5, 5)
@@ -136,47 +143,48 @@ class PyVectorFEPartialPartialIntegrator(PyVectorFEIntegratorBase):
                   + 16*hmats[1, 2, 2].GetDataArray()
                   - 30*hmats[2, 2, 2].GetDataArray()
                   + 16*hmats[3, 2, 2].GetDataArray()
-                  - hmats[4, 2, 2].GetDataArray())/12/ds**2
+                  - hmats[4, 2, 2].GetDataArray())/12
             yy = (-hmats[2, 0, 2].GetDataArray()
                   + 16*hmats[2, 1, 2].GetDataArray()
                   - 30*hmats[2, 2, 2].GetDataArray()
                   + 16*hmats[2, 3, 2].GetDataArray()
-                  - hmats[2, 4, 2].GetDataArray())/12/ds**2
+                  - hmats[2, 4, 2].GetDataArray())/12
             zz = (-hmats[2, 2, 0].GetDataArray()
                   + 16*hmats[2, 2, 1].GetDataArray()
                   - 30*hmats[2, 2, 2].GetDataArray()
                   + 16*hmats[2, 2, 3].GetDataArray()
-                  - hmats[2, 2, 4].GetDataArray())/12/ds**2
+                  - hmats[2, 2, 4].GetDataArray())/12
 
             def dx(i, j):
                 x0 = (hmats[0, i, j].GetDataArray()
                       - 8*hmats[1, i, j].GetDataArray()
                       + 8*hmats[3, i, j].GetDataArray()
-                      - hmats[4, i, j].GetDataArray())/12/ds
+                      - hmats[4, i, j].GetDataArray())/12
                 return x0
 
             def dy(i, j):
                 x0 = (hmats[i, 0, j].GetDataArray()
                       - 8*hmats[i, 1, j].GetDataArray()
                       + 8*hmats[i, 3, j].GetDataArray()
-                      - hmats[i, 4, j].GetDataArray())/12/ds
+                      - hmats[i, 4, j].GetDataArray())/12
                 return x0
 
             def dz(i, j):
                 x0 = (hmats[i, j, 0].GetDataArray()
                       - 8*hmats[i, j, 1].GetDataArray()
                       + 8*hmats[i, j, 3].GetDataArray()
-                      - hmats[i, j, 4].GetDataArray())/12/ds
+                      - hmats[i, j, 4].GetDataArray())/12
                 return x0
 
-            xy = (dx(0, 2) - 8*dx(1, 2) + 8*dx(3, 2) - dx(4, 2))/12/ds
-            xz = (dx(2, 0) - 8*dx(2, 1) + 8*dx(2, 3) - dx(2, 4))/12/ds
-            yz = (dy(2, 0) - 8*dy(2, 1) + 8*dy(2, 3) - dy(2, 4))/12/ds
+            xy = (dx(0, 2) - 8*dx(1, 2) + 8*dx(3, 2) - dx(4, 2))/12
+            xz = (dx(2, 0) - 8*dx(2, 1) + 8*dx(2, 3) - dx(2, 4))/12
+            yz = (dy(2, 0) - 8*dy(2, 1) + 8*dy(2, 3) - dy(2, 4))/12
 
             ret = [xx, xy, xz, xy, yy, yz, xz, yz, zz]
 
         # shape sdim (dir. grad), Dof, sdim
-        ret = np.stack(ret).reshape(sdim, sdim, fe.GetDof(), sdim)
+        w = ds**2
+        ret = np.stack(ret).reshape(sdim, sdim, fe.GetDof(), sdim)/w
         return ret
 
     def AssembleElementMatrix(self, el, trans, elmat):
@@ -224,7 +232,7 @@ class PyVectorFEPartialPartialIntegrator(PyVectorFEIntegratorBase):
             udvdx = np.tensordot(self.te_vshape.GetDataArray(),
                                  hshape, 0) * ip.weight * trans.Weight()
             # if i == 0:
-            #    print("hshape xx", hshape[0,0,:,:])
+            #    print("hshape xx", hshape[0,1,:,:])
 
             for ii, jj, kk, ll in prod(rr, rr, rr, rr):
                 partelmat_arr += lam[ii, kk, ll, jj] * \
