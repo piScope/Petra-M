@@ -60,7 +60,6 @@ def process_iverts2nodals(mesh, iverts):
             wverts[idx] = wverts[idx]+1
 
     # idx of element needs to be evaluated
-
     return {'ieles': np.array(ieles),
             'elvert2facevert': elvert2facevert,
             'locs': np.stack([mesh.GetVertexArray(k) for k in iverts_f]),
@@ -152,7 +151,8 @@ def get_emesh_idx(obj, exprs, solvars, phys):
         return ret
 
 
-def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False):
+def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False,
+                   current_domain=None):
     '''
     evaluate nodal valus based on preproceessed 
     geometry data
@@ -188,6 +188,7 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False):
     new_names = []
     name_translation = {}
 
+    target_names = list(names[:])
     all_names = list(names[:])
 
     def get_names(names):
@@ -246,10 +247,11 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False):
             new_names.append(n)
             name_translation[n] = n
 
+    flags = {n: False for n in target_names}
     for n in new_names:
         if (n in g and isinstance(g[n], Variable)):
             if not g[n] in obj.knowns:
-                obj.knowns[g[n]] = (
+                ret = (
                     g[n].nodal_values(iele=obj.ieles,
                                       ibele=obj.ibeles,
                                       elattr=obj.elattr,
@@ -261,12 +263,17 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False):
                                       iverts_f=obj.iverts_f,
                                       g=g,
                                       knowns=obj.knowns,
+                                      current_domain=current_domain,
                                       edge_evaluator=edge_evaluator))
-
+                obj.knowns[g[n]] = ret
             ll_name.append(name_translation[n])
             ll_value.append(obj.knowns[g[n]])
         elif (n in g):
             var_g2[n] = g[n]
+
+        flags[n] = True
+        if all(flags.values()):
+            break
 
     if len(ll_value) > 0:
         val = np.array([eval(code, var_g2, dict(zip(ll_name, v)))
@@ -352,7 +359,8 @@ class BdrNodalEvaluator(EvaluatorAgent):
                                          emesh_idx=emesh_idx[0],
                                          decimate=decimate)
 
-        val = eval_at_nodals(self, expr, solvars, phys)
+        val = eval_at_nodals(self, expr, solvars, phys,
+                             current_domain=self.battrs[0])
 
         if val is None:
             return None, None, None

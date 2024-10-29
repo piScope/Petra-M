@@ -23,7 +23,7 @@ else:
 Geom = mfem.Geometry()
 
 
-def eval_on_faces(obj, expr, solvars, phys):
+def eval_on_faces(obj, expr, solvars, phys, current_domain=None):
     '''
     evaluate nodal valus based on preproceessed 
     geometry data
@@ -57,6 +57,7 @@ def eval_on_faces(obj, expr, solvars, phys):
     new_names = []
     name_translation = {}
 
+    target_names = list(names[:])
     all_names = list(names[:])
 
     def get_names(names):
@@ -112,10 +113,11 @@ def eval_on_faces(obj, expr, solvars, phys):
             new_names.append(n)
             name_translation[n] = n
 
+    flags = {n: False for n in target_names}
     for n in new_names:
         if (n in g and isinstance(g[n], Variable)):
             if not g[n] in obj.knowns:
-                obj.knowns[g[n]] = (
+                ret = (
                     g[n].ncface_values(ifaces=obj.ifaces,
                                        irs=obj.irs,
                                        gtypes=obj.gtypes,
@@ -123,12 +125,18 @@ def eval_on_faces(obj, expr, solvars, phys):
                                        attr1=obj.elattr1,
                                        attr2=obj.elattr2,
                                        g=g, knowns=obj.knowns,
+                                       current_domain=current_domain,
                                        mesh=obj.mesh()[obj.emesh_idx]))
 
+                obj.knowns[g[n]] = ret
             ll_name.append(name_translation[n])
             ll_value.append(obj.knowns[g[n]])
         elif (n in g):
             var_g2[n] = g[n]
+
+        flags[n] = True
+        if all(flags.values()):
+            break
 
     if len(ll_value) > 0:
         val = np.array([eval(code, var_g2, dict(zip(ll_name, v)))
@@ -139,6 +147,7 @@ def eval_on_faces(obj, expr, solvars, phys):
         val = np.array([eval(code, var_g2)]*len(obj.ptx))
 
     return val
+
 
 class NCFaceEvaluator(EvaluatorAgent):
     def __init__(self, battrs, **kwargs):
@@ -281,7 +290,9 @@ class NCFaceEvaluator(EvaluatorAgent):
         if (refine != self.refine or self.emesh_idx != emesh_idx[0]):
             self.refine = refine
             self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
-        val = eval_on_faces(self, expr, solvars, phys)
+
+        val = eval_on_faces(self, expr, solvars, phys,
+                            current_domain=self.battrs[0])
         if val is None:
             return None, None, None
 

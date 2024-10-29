@@ -70,6 +70,7 @@ def run_parallel(path='', nproc=1, debug=0, thread=True):
                     line = '\n'.join(
                         [x for x in line.split('\n') if len(x) > 0])
                 print(line)
+        p.wait()
     else:
         stdoutdata, stderrdata = p.communicate()
         print(stdoutdata)

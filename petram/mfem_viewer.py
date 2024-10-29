@@ -422,7 +422,7 @@ class MFEMViewer(BookViewer):
         ns_names = []
         for node in od.walk():
             if node.has_ns():
-                if node.ns_name is None:
+                if node.get_ns_name() is None:
                     continue
                 if not node.ns_name in ns_names:
                     ns_names.append(node.ns_name)
