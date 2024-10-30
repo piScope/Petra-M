@@ -893,7 +893,7 @@ class DomainVariable(Variable):
 
         for domains in self.domains.keys():
             if (current_domain is not None and
-                    domains != current_domain):
+                    current_domain not in domains):
                 continue
 
             iele0 = np.zeros(iele.shape, dtype=int) - 1
@@ -953,7 +953,7 @@ class DomainVariable(Variable):
 
         for domains in self.domains.keys():
             if (current_domain is not None and
-                    domains != current_domain):
+                    current_domain not in domains):
                 continue
 
             w = np.zeros(ifaces.shape)
@@ -1000,7 +1000,7 @@ class DomainVariable(Variable):
 
         for domains in self.domains.keys():
             if (current_domain is not None and
-                    domains != current_domain):
+                    current_domain not in domains):
                 continue
 
             '''
@@ -1928,7 +1928,8 @@ class GFScalarVariable(GridFunctionVariable):
                 for k, idx in m:
                     ret[idx] = ret[idx] + arr[k] * 1j
 
-        ret = ret / wverts
+        flag = wverts > 0
+        ret[flag] = ret[flag] / wverts[flag]
 
         return ret
 
@@ -1991,6 +1992,7 @@ class GFScalarVariable(GridFunctionVariable):
             ir = irs[gtype]
             getvalr(i, 2, ir, d, p)  # side = 2 (automatic?)
             v = d.GetDataArray().copy()
+
             if isVector:
                 v = v[self.comp - 1, :]
 
