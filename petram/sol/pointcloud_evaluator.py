@@ -195,6 +195,7 @@ class PointcloudEvaluator(EvaluatorAgent):
         new_names = []
         name_translation = {}
 
+        target_names = list(names[:])
         all_names = list(names[:])
 
         def get_names(names):
@@ -250,6 +251,7 @@ class PointcloudEvaluator(EvaluatorAgent):
                 new_names.append(n)
                 name_translation[n] = n
 
+        flags = {n: False for n in target_names}
         for n in new_names:
             if (n in g and isinstance(g[n], Variable)):
                 if not g[n] in self.knowns:
@@ -268,6 +270,10 @@ class PointcloudEvaluator(EvaluatorAgent):
                 ll_value.append(self.knowns[g[n]])
             elif (n in g):
                 var_g2[n] = g[n]
+
+            flags[n] = True
+            if all(flags.values()):
+                break
 
         if len(ll_value) > 0:
             val = np.array([eval(code, var_g2, dict(zip(ll_name, v)))
