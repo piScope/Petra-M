@@ -1018,19 +1018,26 @@ class DomainVariable(Variable):
                 for key in self.gdomains[domains]:
                     gdomain[key] = self.gdomains[domains][key]
 
-            idx = np.in1d(valid_attrs, domains)
+            # restricting point evaluation to a specific domain
+            check = np.in1d(valid_attrs, domains)
+            counts2 = np.sum(check)
+            locs2 = locs[check, :]
             attrs2 = attrs.copy()
-            attrs2[np.in1d(attrs, domains)] = -1
-            v = expr.point_values(counts=counts, locs=locs, points=points,
-                                  attrs=attrs, elem_ids=elem_ids,
+            attrs2[np.in1d(attrs, domains, invert=True)] = -1
+
+            if counts2 == 0:
+                continue
+            v = expr.point_values(counts=counts2, locs=locs2,  # points=points,
+                                  attrs=attrs2, elem_ids=elem_ids,
                                   mesh=mesh, int_points=int_points, g=gdomain,
                                   current_domain=domains,
-                                  knowns=knowns)
+                                  knowns=None)
             if ret is None:
-                ret = v
-            else:
-                idx = np.in1d(valid_attrs, domains)
-                ret[idx] = v[idx]
+                s = list(v.shape)
+                s[0] = counts
+                ret = np.zeros(s, dtype=v.dtype)
+
+            ret[check, ...] = v
 
         return ret
 
