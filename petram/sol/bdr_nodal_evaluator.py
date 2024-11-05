@@ -212,8 +212,8 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False,
                 name_translation[x] = x
 
             ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
-            if g[n].has_dependency():
-                g[n].forget_jitted_coefficient()
+            # if g[n].has_dependency():
+            #    g[n].forget_jitted_coefficient()
             g[n].set_coeff(ind_vars, g)
             new_names.append(n)
             name_translation[n] = n
@@ -265,6 +265,8 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False,
                                       knowns=obj.knowns,
                                       current_domain=current_domain,
                                       edge_evaluator=edge_evaluator))
+                if ret is None:
+                    return None
                 obj.knowns[g[n]] = ret
             ll_name.append(name_translation[n])
             ll_value.append(obj.knowns[g[n]])

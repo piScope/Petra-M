@@ -679,6 +679,11 @@ class ExpressionVariable(Variable):
                 l[n] = g[n].nodal_values(iele=iele, el2v=el2v, locs=locs,
                                          wverts=wverts, elvertloc=elvertloc,
                                          g=g, **kwargs)
+
+                # if reutrn is None (failed to evaluate). return None
+                if l[n] is None:
+                    return None
+
                 ll_name.append(n)
                 ll_value.append(l[n])
             elif (n in g):
@@ -712,6 +717,7 @@ class ExpressionVariable(Variable):
         ll_name = []
         ll_value = []
         var_g2 = var_g.copy()
+
         for n in self.names:
             if (n in g and isinstance(g[n], Variable)):
                 m = getattr(g[n], method)
@@ -720,6 +726,11 @@ class ExpressionVariable(Variable):
                          gtypes=gtypes, locs=locs,
                          attr1=attr1, attr2=attr2,
                          g=g, **kwargs)
+
+                # if reutrn is None (failed to evaluate). return None
+                if l[n] is None:
+                    return None
+
                 ll_name.append(n)
                 ll_value.append(l[n])
             elif (n in g):
@@ -911,7 +922,7 @@ class DomainVariable(Variable):
                     gdomain[key] = self.gdomains[domains][key]
 
             v = expr.nodal_values(iele=iele0, elattr=elattr,
-                                  current_domain=domains,
+                                  current_domain=current_domain,
                                   g=gdomain, **kwargs)
 
             if w is None:
@@ -923,6 +934,9 @@ class DomainVariable(Variable):
 
             #ret = v if ret is None else add(ret, v)
             ret = v if ret is None else ret + v
+
+        if ret is None:
+            return None
 
         idx = np.where(w != 0)[0]
         #ret2 = ret.copy()
@@ -953,7 +967,7 @@ class DomainVariable(Variable):
 
         for domains in self.domains.keys():
             if (current_domain is not None and
-                    current_domain not in domains):
+                    int(current_domain) not in domains):
                 continue
 
             w = np.zeros(ifaces.shape)
@@ -975,11 +989,12 @@ class DomainVariable(Variable):
             v = m(ifaces=ifaces, irs=irs,
                   gtypes=gtypes, locs=locs, attr1=attr1,
                   attr2=attr2, g=gdomain,
-                  current_domain=domains,
+                  current_domain=current_domain,
                   **kwargs)
 
             v = multi(v, w2)
             ret = v if ret is None else ret + v
+
             #ret = v if ret is None else add(ret, v)
         return ret
 
@@ -1030,7 +1045,7 @@ class DomainVariable(Variable):
             v = expr.point_values(counts=counts2, locs=locs2,  # points=points,
                                   attrs=attrs2, elem_ids=elem_ids,
                                   mesh=mesh, int_points=int_points, g=gdomain,
-                                  current_domain=domains,
+                                  current_domain=current_domain,
                                   knowns=None)
             if ret is None:
                 s = list(v.shape)

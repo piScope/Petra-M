@@ -189,7 +189,13 @@ class EvaluatorCommon(Evaluator):
 
         pp_root = self.mfem_model()["PostProcess"]
         solvars = pp_root.add_solvars(solsets.set, solvars)
+
         print("=== solvars= ===", solvars[0])
+        from petram.helper.variables import NumbaCoefficientVariable
+        for vv in solvars:
+            for key in vv:
+                if isinstance(vv[key], NumbaCoefficientVariable):
+                    vv[key].forget_jitted_coefficient()
 
         self.solvars[self.solfiles] = solvars
 

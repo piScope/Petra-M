@@ -75,8 +75,8 @@ def eval_on_edges(obj, expr, solvars, phys):
 
         elif (n in g and isinstance(g[n], NumbaCoefficientVariable)):
             ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
-            if g[n].has_dependency():
-                g[n].forget_jitted_coefficient()
+            # if g[n].has_dependency():
+            #    g[n].forget_jitted_coefficient()
             g[n].set_coeff(ind_vars, g)
             new_names.append(n)
             name_translation[n] = n

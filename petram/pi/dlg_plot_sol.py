@@ -371,8 +371,9 @@ class DlgPlotSol(SimpleFramePlus):
                                                 'choices': choices}],
                   [None, False, 3, {"text": 'dynamic extension'}],
                   [None, True, 3, {"text": 'merge solutions'}],
-                  ['Refine', 1, 104, s4],
-                  [None, True, 3, {"text": 'averaging'}], ]
+                  [None,  (True, ['1'], ), 127,
+                   ({"text": 'Averaging'},
+                    {"elp": [['Refine', 1, 104, s4], ]}, )], ]
 
             tip = ("Expression", None, "Expression for x (2D plot)",
                    None,
@@ -428,8 +429,9 @@ class DlgPlotSol(SimpleFramePlus):
                                                 'choices': choices}],
                   [None, False, 3, {"text": 'dynamic extenstion'}],
                   [None, True, 3, {"text": 'merge solutions'}],
-                  ['Refine', 1, 104, s4],
-                  [None, True, 3, {"text": 'averaging'}],
+                  [None,  (True, ['1'], ), 127,
+                   ({"text": 'Averaging'},
+                    {"elp": [['Refine', 1, 104, s4], ]}, )],
                   ['Decimate elements', '1', 0, {}, ], ]
 
             tip = ("Expression", None,
@@ -1274,7 +1276,8 @@ class DlgPlotSol(SimpleFramePlus):
             cls = WaveViewer
         else:
             cls = None
-        refine = int(value[6])
+
+        refine = int(value[6][1][0])
 
         data, data_x, battrs = self.eval_edge(mode='plot', refine=refine)
         if data is None:
@@ -1289,7 +1292,8 @@ class DlgPlotSol(SimpleFramePlus):
     def onExportR1Edge(self, evt):
         remote, base, subs = self.get_current_choices()
         value = self.elps['Edge'] .GetValue()
-        refine = int(value[6])
+
+        refine = int(value[6][1][0])
 
         all_data = []
         for s in subs:
@@ -1392,7 +1396,7 @@ class DlgPlotSol(SimpleFramePlus):
         from petram.sol.evaluators import area_tri
 
         value = self.elps['Edge'] .GetValue()
-        refine = int(value[6])
+        refine = int(value[6][1][0])
         data, data_x, battrs = self.eval_edge(mode='integ', refine=refine)
         if data is None:
             return
@@ -1425,7 +1429,7 @@ class DlgPlotSol(SimpleFramePlus):
             do_merge1 = value[5]
         else:
             do_merge1 = True
-        average = value[7]
+        average = value[6][0]
 
         exprs = [expr, expr_x] if expr_x != '' else [expr]
         data, void = self.evaluate_sol_edge(expr, battrs, phys_path,
@@ -1467,14 +1471,18 @@ class DlgPlotSol(SimpleFramePlus):
     def onApplyBdr(self, evt):
         value = self.elps['Bdr'] .GetValue()
         expr = str(value[0]).strip()
+        if len(expr) == 0:
+            return
 
         if value[7]:
             from ifigure.widgets.wave_viewer import WaveViewer
             cls = WaveViewer
         else:
             cls = None
-        refine = int(value[9])
-        use_pointfill = int(value[11]) > 1
+
+        refine = int(value[9][1][0])
+
+        use_pointfill = int(value[10]) > 1
         data, battrs = self.eval_bdr(mode='plot', refine=refine)
         if data is None:
             return
@@ -1641,8 +1649,8 @@ class DlgPlotSol(SimpleFramePlus):
             do_merge1 = False
             do_merge2 = False
 
-        average = value[10]
-        decimate = int(value[11])
+        average = value[9][0]
+        decimate = int(value[10])
         data, battrs2 = self.evaluate_sol_bdr(expr, battrs, phys_path,
                                               do_merge1, do_merge2,
                                               export_type=export_type,

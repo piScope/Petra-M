@@ -77,8 +77,8 @@ def eval_on_faces(obj, expr, solvars, phys, current_domain=None):
 
         elif (n in g and isinstance(g[n], NumbaCoefficientVariable)):
             ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
-            if g[n].has_dependency():
-                g[n].forget_jitted_coefficient()
+            # if g[n].has_dependency():
+            #    g[n].forget_jitted_coefficient()
             g[n].set_coeff(ind_vars, g)
             new_names.append(n)
             name_translation[n] = n
@@ -127,7 +127,8 @@ def eval_on_faces(obj, expr, solvars, phys, current_domain=None):
                                        g=g, knowns=obj.knowns,
                                        current_domain=current_domain,
                                        mesh=obj.mesh()[obj.emesh_idx]))
-
+                if ret is None:
+                    return None
                 obj.knowns[g[n]] = ret
             ll_name.append(name_translation[n])
             ll_value.append(obj.knowns[g[n]])
