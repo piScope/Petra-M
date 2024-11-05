@@ -849,7 +849,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     #
 
     def do_add_scalar_expr(self, v, suffix, ind_vars, name, f_name,
-                           add_diag=False):
+                           add_diag=False, vars=None):
 
         from petram.helper.variables import add_expression, add_constant
         from petram.helper.variables import NativeCoefficientGenBase
@@ -862,12 +862,14 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             kywds['bdrs'] = self._sel_index
             kywds['gbdr'] = self._global_ns
 
+        if vars is None:
+            vars = []
+
         if isinstance(f_name, NativeCoefficientGenBase):
             pass
         elif isinstance(f_name, str):
             add_expression(v, name, suffix, ind_vars, f_name,
-                           [], **kywds)
-
+                           vars, **kywds)
         else:
             add_constant(v, name, suffix, f_name, **kywds)
 
@@ -885,7 +887,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                            'diag([1]*' + str(size) + ')*' + name,
                            [name], **kywds)
 
-    def do_add_matrix_expr(self, v, suffix, ind_vars, name, f_name):
+    def do_add_matrix_expr(self, v, suffix, ind_vars, name, f_name, vars=None):
 
         from petram.helper.variables import add_expression, add_constant
         from petram.helper.variables import NativeCoefficientGenBase
@@ -898,6 +900,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             kywds['bdrs'] = self._sel_index
             kywds['gbdr'] = self._global_ns
 
+        if vars is None:
+            vars = []
+
         if isinstance(f_name, NativeCoefficientGenBase):
             pass
         elif len(f_name) == 1:
@@ -906,7 +911,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             else:
                 expr = f_name[0]
             add_expression(v, name, suffix, ind_vars, expr,
-                           [], **kywds)
+                           vars, **kywds)
         else:  # elemental format
             expr_txt = [x.__repr__() if not isinstance(x, str) else x
                         for x in f_name]
@@ -915,7 +920,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             c = '[' + ','.join(expr_txt[6:]) + ']'
             expr = '[' + ','.join((a, b, c)) + ']'
             add_expression(v, name, suffix, ind_vars, expr,
-                           [], **kywds)
+                           vars, **kywds)
 
     def do_add_matrixlike_component_expr_scalar(
             self, v, suffix, ind_vars, var, name):
