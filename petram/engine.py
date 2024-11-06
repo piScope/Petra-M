@@ -2612,7 +2612,8 @@ class Engine(object):
     def save_sol_to_file(self, phys_target, skip_mesh=False,
                          mesh_only=False,
                          save_parmesh=False,
-                         save_mesh_linkdir=None):
+                         save_mesh_linkdir=None,
+                         save_sersol=False):
         if not skip_mesh:
             m1 = [self.save_mesh0(save_mesh_linkdir), ]
             mesh_filenames = self.save_mesh(phys_target, save_mesh_linkdir)
@@ -2630,7 +2631,7 @@ class Engine(object):
                 ifes = self.r_ifes(name)
                 r_x = self.r_x[ifes]
                 i_x = self.i_x[ifes]
-                self.save_solfile_fespace(name, emesh_idx, r_x, i_x)
+                self.save_solfile_fespace(name, emesh_idx, r_x, i_x, save_sersol=save_sersol)
 
     def extrafile_name(self):
         return 'sol_extended.data'
@@ -3350,13 +3351,19 @@ class Engine(object):
                     os.remove(f)
         MPI.COMM_WORLD.Barrier()
 
-    def save_solfile_fespace(self, name, mesh_idx, r_x, i_x):
+    def save_solfile_fespace(self, name, mesh_idx, r_x, i_x, save_sersol=False):
         fnamer, fnamei = self.solfile_name(name, mesh_idx)
         suffix = self.solfile_suffix()
 
         self.clear_solmesh_files(fnamer)
         self.clear_solmesh_files(fnamei)
-
+        if save_sersol:
+            pp =r_x.ParFESpace()
+            pp.GetParMesh().PrintAsSerial("serial.mesh")
+            r_x.SaveAsSerial(fnamer,16,0)
+            if i_x is not None:
+                i_x.SaveAsSerial(fnamei,16,0)
+            
         fnamer = fnamer+suffix
         fnamei = fnamei+suffix
 

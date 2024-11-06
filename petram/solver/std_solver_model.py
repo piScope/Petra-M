@@ -51,7 +51,9 @@ class StdSolver(Solver):
             [None, self.load_sol,  3, {
                 "text": "load sol file (linear solver is not called)"}],
             [None, self.sol_file,  0, None],
-            ["LS blk. str.", self.sol_file,  0, None], ]
+            ["LS blk. str.", self.sol_file,  0, None], 
+            [None,  self.save_sersol,  3, {"text": "save serial solution"}]]
+
 
     def get_panel1_value(self):
         return (  # self.init_setting,
@@ -64,7 +66,9 @@ class StdSolver(Solver):
             self.skip_solve,
             self.load_sol,
             self.sol_file,
-            self.ls_blk_merge)
+            self.ls_blk_merge,
+            self.save_sersol)
+
 
     def import_panel1_value(self, v):
         # self.init_setting = str(v[0])
@@ -78,7 +82,8 @@ class StdSolver(Solver):
         self.load_sol = v[7]
         self.sol_file = v[8]
         self.ls_blk_merge = v[9]
-
+        self.save_sersol = v[10]
+        
     def panel1_tip(self):
         return ["Specify physics model to be solved.",
                 "Check this in order to initialize a solution vector with essential cnd. w/o solving linear system",
@@ -93,6 +98,7 @@ class StdSolver(Solver):
                            "ex) [0, 1, 2], 3: will merge (0,1,2) and (3 to the rest) blocks.",
                            "    :-3, -3: will merge (0 to -3) and (-3 to the rest) blocks.",
                            "under development")),
+                "Save solution in a serial format"
                 ]
 
     def get_editor_menus(self):
@@ -172,11 +178,12 @@ class StdSolver(Solver):
             update_operator = engine.check_block_matrix_changed(
                 instance.blk_mask)
             instance.solve(update_operator=update_operator)
-
+       
         instance.save_solution(ksol=0,
                                skip_mesh=False,
                                mesh_only=False,
-                               save_parmesh=self.save_parmesh)
+                               save_parmesh=self.save_parmesh,
+                               save_sersol=self.save_sersol)
         engine.sol = instance.sol
 
         instance.save_probe()
