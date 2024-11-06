@@ -500,7 +500,6 @@ class Constant(Variable):
         return np.tile(self.value, len(locs)).reshape(shape)
 
     def point_values(self, locs=None, **kwargs):
-        print(locs, locs.shape, self.value, np.array(self.value).shape)
         size = len(locs)
         shape = [size] + list(np.array(self.value).shape)
         return np.tile(self.value, len(locs)).reshape(shape)
