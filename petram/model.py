@@ -782,7 +782,7 @@ class Model(RestorableOrderedDict):
             script.append(self._script_name + '.'+attr + ' = ' +
                           value.__repr__())
 
-        if (self.has_ns() or self.has_nsref()) and self.ns_name is not None:
+        if (self.has_ns() or self.has_nsref()) and self.get_ns_name() is not None:
             script.append(self._script_name + '.ns_name = "' +
                           self.ns_name + '"')
 
