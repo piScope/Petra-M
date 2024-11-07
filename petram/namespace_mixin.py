@@ -119,7 +119,7 @@ class NS_mixin(object):
         p = self
         while p is not None:
             if isinstance(p, NS_mixin):
-                if p.ns_name is not None:
+                if p.get_ns_name() is not None:
                     chain.append(p)
 #                elif len(p.get_default_ns()) != 0:
 #                    chain.append(p)
