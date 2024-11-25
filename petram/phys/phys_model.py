@@ -26,15 +26,9 @@ if use_parallel:
 else:
     import mfem.ser as mfem
 
-# constant
-
-up2 = "\u00B2"  # upper script of 2
-lam = "\u03BB"  # lambda
-txt_dudt = 'du/dt or ' + lam + 'u'
-txt_du2dt2 = 'd' + up2 + "u/dt" + up2 + ' or ' + lam + up2 + "u"
-
-
 # not that PyCoefficient return only real number array
+
+
 class PhysConstant(mfem.ConstantCoefficient):
     def __init__(self, value):
         self.value = value
@@ -724,6 +718,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             return self.vt3.panel_tip() + [None]
 
     def panel4_param(self):
+        from petram.pi.panel_txt import txt_dudt, txt_du2dt2
         setting = {"text": ' '}
         if self.has_essential:
             ll = [['', False, 3, {"text": "Time dependent"}], ]
@@ -800,16 +795,21 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             return coeff
 
     def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None,
-                       transpose=False, ir=None):
+                       transpose=False, ir=None, itg_params=None):
         if coeff is None:
             return
+        if itg_params is None:
+            itg_params = []
         if vt is None:
             vt = self.vt
         # if vt[name].ndim == 0:
         if not isinstance(coeff, tuple):
             coeff = (coeff, )
 
-        coeff = self.process_complex_coefficient(coeff)
+        if hasattr(integrator, "use_complex_coefficient"):
+            pass
+        else:
+            coeff = self.process_complex_coefficient(coeff)
 
         if coeff[0] is None:
             return
@@ -819,11 +819,19 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             coeff = self.restrict_coeff(coeff, engine, vec=True, idx=idx)
         elif isinstance(coeff[0], mfem.MatrixCoefficient):
             coeff = self.restrict_coeff(coeff, engine, matrix=True, idx=idx)
+        elif issubclass(integrator, mfem.PyBilinearFormIntegrator):
+            pass
         else:
             assert False, "Unknown coefficient type: " + str(type(coeff[0]))
 
-        itg = integrator(*coeff)
+        args = list(coeff)
+        args.extend(itg_params)
+
+        itg = integrator(*args)
         itg._linked_coeff = coeff  # make sure that coeff is not GCed.
+
+        if hasattr(integrator, "use_complex_coefficient"):
+            itg.set_realimag_mode(self.integrator_realimag_mode)
 
         if transpose:
             itg2 = mfem.TransposeIntegrator(itg)
@@ -985,13 +993,36 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                             **kywds)
 
     def get_coefficient_from_expression(
-            self, c, cotype, use_dual=False, real=True, is_conj=False):
+            self, c, cotype, use_dual=False, real=True, is_conj=False, shapehint=None):
         from petram.phys.coefficient import SCoeff, VCoeff, DCoeff, MCoeff
 
-        if self.get_root_phys().vdim > 1:
-            dim = self.get_root_phys().vdim
+        try:
+            shape = c.shape
+            has_shape = True
+        except:
+            has_shape = False
+
+        # if c is already evaluated, it may has shape
+        # if c is text,
+        # 1) we assign dim here using physics dim (default)
+        # 2) if shapehint is given, we use this (for PyBilininteg)
+        if has_shape:
+            if shape is None or len(shape) == 0:
+                pass
+            elif len(shape) == 1:
+                dim = shape[0]
+            elif len(shape) == 2:
+                assert shape[0] == shape[1], "rectangular shape is not support"
+            else:
+                assert False, "TensorCoefficient not supported"
+
+        elif shapehint is not None:
+            dim = np.prod(shapehint)
         else:
-            dim = self.get_root_phys().geom_dim
+            if self.get_root_phys().vdim > 1:
+                dim = self.get_root_phys().vdim
+            else:
+                dim = self.get_root_phys().geom_dim
 
         return_complex = self.get_root_phys().is_complex()
 
@@ -1035,6 +1066,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         jit compile coefficient
         '''
         pass
+
 
 data = [("order", VtableElement("order", type='int',
                                 guilabel="order", no_func=True,

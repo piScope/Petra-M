@@ -284,6 +284,85 @@ def _create_smoother(name, mat):
     return smoother
 
 
+def complex_smoother(name, m_r, m_i, conv, blockOffsets):
+    import numpy as np
+    import scipy.sparse as sp
+
+    if use_parallel:
+        from mfem.common.parcsr_extra import ToHypreParCSR, ToScipyCoo
+        from mfem.common.chypre import CHypreMat
+        d_r = mfem.Vector()
+        d_i = mfem.Vector()
+
+        rows = m_r.GetRowPartArray()
+
+        mm = ToScipyCoo(m_r) + 1j*ToScipyCoo(m_i)
+        m, n = mm.shape
+
+        mat = sp.lil_matrix((m, n), dtype=np.complex128)
+        for i in range(m):
+            mat[i, rows[0]+i] = mm[i, rows[0]+i]
+
+        scale = CHypreMat(mat.real.tocsr(), mat.imag.tocsr())
+        mat = CHypreMat(m_r, m_i)
+
+        sp_mat = (mat.dot(scale)).real
+        gsca = scale.real
+        gscb = scale.imag
+
+    else:
+        from mfem.common.sparse_utils import sparsemat_to_scipycsr
+
+        mm_r = sparsemat_to_scipycsr(m_r, np.float64)
+        mm_i = sparsemat_to_scipycsr(m_i, np.float64)
+
+        d_r = mm_r.diagonal()
+        d_i = mm_i.diagonal()
+
+        scale = sp.diags(1./(d_r + 1j*d_i))
+        mat = (mm_r + 1j*mm_i).dot(scale).real
+
+        sp_mat = mfem.SparseMatrix(mat)
+        gsca = mfem.SparseMatrix(scale.real.tocsr())
+        gscb = mfem.SparseMatrix(scale.imag.tocsr())
+
+    hermitian = (conv == mfem.ComplexOperator.HERMITIAN)
+    blk = mfem.ComplexOperator(gsca,
+                               gscb,
+                               False,
+                               False,
+                               hermitian)
+
+    blk._real_operator = gsca
+    blk._imag_operator = gscb
+
+    smoother = mfem.BlockDiagonalPreconditioner(blockOffsets)
+    pc_r = _create_smoother(name, sp_mat)
+    pc_i = mfem.ScaledOperator(pc_r,
+                               1 if conv == mfem.ComplexOperator.HERMITIAN else -1)
+
+    smoother.SetDiagonalBlock(0, pc_r)
+    smoother.SetDiagonalBlock(1, pc_i)
+    smoother._smoothers = (pc_r, pc_i, sp_mat)
+
+    class ComplexPreconditioner(mfem.Solver):
+        def __init__(self, smoother, blk):
+            self._smoother = smoother
+            self._blk = blk
+            self._tmp = mfem.Vector()
+            mfem.Solver.__init__(self,
+                                 smoother.Height(),
+                                 smoother.Width(),)
+
+        def Mult(self, x, y):
+            self._tmp.SetSize(x.Size())
+            self._blk.Mult(x, self._tmp)
+            self._smoother.Mult(self._tmp, y)
+
+    smoother = ComplexPreconditioner(smoother, blk)
+    return smoother
+
+
 def mfem_smoother(name, **kwargs):
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
@@ -301,17 +380,24 @@ def mfem_smoother(name, **kwargs):
         blockOffsets[2] = mat.Height()//2
         blockOffsets.PartialSum()
 
-        smoother = mfem.BlockDiagonalPreconditioner(blockOffsets)
-
         m_r = mat._real_operator
-        #m_i = mat._imag_operator
-        pc_r = _create_smoother(name, m_r)
-        pc_i = mfem.ScaledOperator(pc_r,
-                                   1 if conv == mfem.ComplexOperator.HERMITIAN else -1)
+        m_i = mat._imag_operator
 
-        smoother.SetDiagonalBlock(0, pc_r)
-        smoother.SetDiagonalBlock(1, pc_i)
-        smoother._smoothers = (pc_r, pc_i)
+        use_new_way = True
+        if use_new_way:
+            #
+            #  scales matrix so that the diagnal element is real.
+            #
+            smoother = complex_smoother(name, m_r, m_i, conv, blockOffsets)
+        else:
+            smoother = mfem.BlockDiagonalPreconditioner(blockOffsets)
+            pc_r = _create_smoother(name, m_r)
+            pc_i = mfem.ScaledOperator(pc_r,
+                                       1 if conv == mfem.ComplexOperator.HERMITIAN else -1)
+
+            smoother.SetDiagonalBlock(0, pc_r)
+            smoother.SetDiagonalBlock(1, pc_i)
+            smoother._smoothers = (pc_r, pc_i)
 
     else:
         smoother = _create_smoother(name, mat)

@@ -610,12 +610,12 @@ class Model(RestorableOrderedDict):
         '''
         skip_self: not return the top level model
         '''
-        if not self.enabled:
+        if not self.is_enabled():
             return
         if not skip_self:
             yield self
         for k in self.keys():
-            if not self[k].enabled:
+            if not self[k].is_enabled():
                 continue
             for x in self[k].walk_enabled():
                 yield x
@@ -740,6 +740,8 @@ class Model(RestorableOrderedDict):
     def save_attribute_set(self, skip_def_check):
         ans = []
         for attr in self.attribute():
+            if hasattr(self, attr+"_txt"):
+                continue
             defvalue = self.attribute_set(dict())
             value = self.attribute(attr)
             mycheck = True

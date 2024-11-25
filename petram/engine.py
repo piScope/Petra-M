@@ -922,7 +922,8 @@ class Engine(object):
                 for x in tmp:
                     if x not in all_tmp:
                         all_tmp.append(x)
-            xphys_range = [phys.name() for phys in phys_range if not phys in all_tmp]
+            xphys_range = [phys.name()
+                           for phys in phys_range if not phys in all_tmp]
             if len(xphys_range) > 0:
                 dprint1(
                     "!!!!! These phys are not initiazliaed (FES variable is not available)!!!!!",
@@ -2602,7 +2603,8 @@ class Engine(object):
     def save_sol_to_file(self, phys_target, skip_mesh=False,
                          mesh_only=False,
                          save_parmesh=False,
-                         save_mesh_linkdir=None):
+                         save_mesh_linkdir=None,
+                         save_sersol=False):
         if not skip_mesh:
             m1 = [self.save_mesh0(save_mesh_linkdir), ]
             mesh_filenames = self.save_mesh(phys_target, save_mesh_linkdir)
@@ -2620,7 +2622,7 @@ class Engine(object):
                 ifes = self.r_ifes(name)
                 r_x = self.r_x[ifes]
                 i_x = self.i_x[ifes]
-                self.save_solfile_fespace(name, emesh_idx, r_x, i_x)
+                self.save_solfile_fespace(name, emesh_idx, r_x, i_x, save_sersol=save_sersol)
 
     def extrafile_name(self):
         return 'sol_extended.data'
@@ -3327,13 +3329,19 @@ class Engine(object):
                     os.remove(f)
         MPI.COMM_WORLD.Barrier()
 
-    def save_solfile_fespace(self, name, mesh_idx, r_x, i_x):
+    def save_solfile_fespace(self, name, mesh_idx, r_x, i_x, save_sersol=False):
         fnamer, fnamei = self.solfile_name(name, mesh_idx)
         suffix = self.solfile_suffix()
 
         self.clear_solmesh_files(fnamer)
         self.clear_solmesh_files(fnamei)
-
+        if save_sersol:
+            pp =r_x.ParFESpace()
+            pp.GetParMesh().PrintAsSerial("serial.mesh")
+            r_x.SaveAsSerial(fnamer,16,0)
+            if i_x is not None:
+                i_x.SaveAsSerial(fnamei,16,0)
+            
         fnamer = fnamer+suffix
         fnamei = fnamei+suffix
 
@@ -3865,6 +3873,7 @@ class SerialEngine(Engine):
         fe_sizes = [self.fespaces[name].GetTrueVSize()
                     for name in phys.dep_vars]
         dprint1('Number of finite element unknowns: ' + str(fe_sizes))
+        dprint1('Total of finite element unknowns: ' + str(sum(fe_sizes)))
         return fe_sizes
 
     def split_sol_array_fespace(self, sol, P):
@@ -4045,7 +4054,7 @@ class ParallelEngine(Engine):
                 target = None
 
                 srefines = [child[x]
-                            for x in child if child[x].isSerialRefinement]
+                            for x in child if child[x].isSerialRefinement and child[x].enabled]
                 for k in child.keys():
                     o = child[k]
                     if not o.enabled:
@@ -4153,6 +4162,7 @@ class ParallelEngine(Engine):
         myid = MPI.COMM_WORLD.rank
         if (myid == 0):
             dprint1('Number of finite element unknowns: ' + str(fe_sizes))
+            dprint1('Total of finite element unknowns: ' + str(sum(fe_sizes)))
         return fe_sizes
 
     def get_point_essential_tdofs(self, fes, ess_point_array):

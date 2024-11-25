@@ -50,7 +50,9 @@ class StdSolver(Solver):
             [None, self.skip_solve,  3, {"text": "skip linear solve"}],
             [None, self.load_sol,  3, {
                 "text": "load sol file (linear solver is not called)"}],
-            [None, self.sol_file,  0, None], ]
+            [None, self.sol_file,  0, None],
+            [None,
+             self.save_sersol,  3, {"text": "save serial solution"}]]
 
     def get_panel1_value(self):
         return (  # self.init_setting,
@@ -62,7 +64,8 @@ class StdSolver(Solver):
             self.use_profiler,
             self.skip_solve,
             self.load_sol,
-            self.sol_file)
+            self.sol_file,
+            self.save_sersol)
 
     def import_panel1_value(self, v):
         # self.init_setting = str(v[0])
@@ -75,6 +78,7 @@ class StdSolver(Solver):
         self.skip_solve = v[6]
         self.load_sol = v[7]
         self.sol_file = v[8]
+        self.save_sersol = v[9]
 
     def get_editor_menus(self):
         return []
@@ -153,11 +157,12 @@ class StdSolver(Solver):
             update_operator = engine.check_block_matrix_changed(
                 instance.blk_mask)
             instance.solve(update_operator=update_operator)
-
+       
         instance.save_solution(ksol=0,
                                skip_mesh=False,
                                mesh_only=False,
-                               save_parmesh=self.save_parmesh)
+                               save_parmesh=self.save_parmesh,
+                               save_sersol=self.save_sersol)
         engine.sol = instance.sol
 
         instance.save_probe()

@@ -372,7 +372,6 @@ def plot_geometry(viewer, ret, geo_phys='geometrical', lw=0):
 
 
 def oplot_meshed(viewer, ret):
-    print("oplot_meshed")
     ax = viewer.get_axes()
     for name, obj in ax.get_children():
         if name.endswith('_meshed'):

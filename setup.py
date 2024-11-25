@@ -17,11 +17,11 @@ with open(path.join(here, 'README.md')) as f:
 setup(
     name='PetraM_Base',
 
-    version='2.1.40',
+    version='2.1.46',
 
     description='PetraM base package',
     long_description=long_description,
-    long_description_content_type = 'text/markdown',    
+    long_description_content_type = 'text/markdown',     
     url='https://github.com/piScope/PetraM',
     author='S. Shiraiwa',
     author_email='shiraiwa@prenceton.edu',
