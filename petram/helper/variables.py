@@ -884,11 +884,12 @@ class DomainVariable(Variable):
         if T.GetDimension() == self.topo_info[0]:
             # domain mode
             attrs = [attr]
-
+            self._dom_mode = 1
         elif T.GetDimension() == self.topo_info[0] - 1:
             # boundary mode
             attrs = self.topo_info[1][attr]
-
+            self._dom_mode = 0
+            
         self.domain_target = []
         for domains in self.domains.keys():
             for a in attrs:
@@ -901,11 +902,17 @@ class DomainVariable(Variable):
             return 0.0
         # we return average for now. when domain variable is
         # evaluated on the boundary, it computes the aveage on both side.
+        #
+        # for the domain, we return a sum of contributions. 
+        
         values = [self.domains[x]() for x in self.domain_target]
         ans = values[0]
         for v in values[1:]:
             ans = ans + v
-        return ans / len(values)
+            
+        if not self._dom_mode:
+            return ans / len(values)
+        return ans
 
     def get_emesh_idx(self, idx=None, g=None):
         if idx is None:
