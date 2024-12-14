@@ -122,6 +122,9 @@ class Coefficient_Evaluator(object):
         self.real = real
         self.variables = []
 
+        # 'x, y, z' -> 'x', 'y', 'z'
+        self.ind_vars = [x.strip() for x in ind_vars.split(',')]
+
         self.co = []
 
         for expr in exprs:
@@ -142,14 +145,14 @@ class Coefficient_Evaluator(object):
                             self.variables.append((nn, self.g[nn]))
                         for nn in self.g[n].grad:
                             self.variables.append((nn, self.g[nn]))
+
+                        self.g[n].set_coeff(self.ind_vars, self.g)
                     else:
                         pass
                 self.co.append(code)
             else:
                 self.co.append(expr)
 
-        # 'x, y, z' -> 'x', 'y', 'z'
-        self.ind_vars = [x.strip() for x in ind_vars.split(',')]
         self.exprs = exprs
         self.flags = [isinstance(co, types.CodeType) for co in self.co]
         self.variables_dd = dict(self.variables)

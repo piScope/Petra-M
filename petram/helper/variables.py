@@ -427,6 +427,10 @@ class Variable():
 
     def get_jitted_coefficient(self, *args):
         return None
+
+    def set_coeff(self, ind_vars, ll):
+        self.global_context = ll
+
     '''
     def make_callable(self):
         raise NotImplementedError("Subclass need to implement")
@@ -644,14 +648,15 @@ class ExpressionVariable(Variable):
 
     def __call__(self, **kwargs):
         l = {}
-        print("self", self, self.expr, self.ind_vars)
+
         for k, name in enumerate(self.ind_vars):
-            dprint1(k, name)
             l[name] = self.x[k]
         keys = self.variables.keys()
         for k in keys:
             l[k] = self.variables[k]()
-        return (eval_code(self.co, var_g, l))
+
+        return (eval_code(self.co, self.global_context, l))
+        # return (eval_code(self.co, var_g, l))
 
     def get_emesh_idx(self, idx=None, g=None):
         if idx is None:
@@ -790,6 +795,12 @@ class ExpressionVariable(Variable):
                 value = np.stack([value] * size)
 
         return value
+
+    def set_coeff(self, ind_vars, ll):
+        self.global_context = ll
+        for n in self.names:
+            if (n in ll and isinstance(ll[n], Variable)):
+                ll[n].set_coeff(ind_vars, ll)
 
 
 class DomainVariable(Variable):
@@ -1062,6 +1073,11 @@ class DomainVariable(Variable):
 
         return ret
 
+    def set_coeff(self, ind_vars, ll):
+        self.global_context = ll
+        for n in self.domains:
+            self.domains[n].set_coeff(ind_vars, ll)
+
 
 def _copy_func_and_apply_params(f, params):
     import copy
@@ -1107,19 +1123,18 @@ class PyFunctionVariable(Variable):
         self.x = (0, 0, 0)
         self.shape = shape
 
-        print("PyFunction", func, dependency)
+        kwnames = _get_kwargs(self.func)
+        self.dep2kw = dep2kw = dict(zip(self.dependency, kwnames))
 
     def __repr__(self):
         return "PyFunction"
 
-    def _get_dep2kw(self):
-        kwnames = _get_kwargs(self.func)
-        dep2kw = dict(zip(self.dependency, kwnames))
-        return dep2kw
-
     def set_point(self, T, ip, g, l, t=None):
         self.x = T.Transform(ip)
         self.t = t
+        for n in self.dependency:
+            if (n in g and isinstance(g[n], Variable)):
+                g[n].set_point(T, ip, g, l, t=t)
 
     def __call__(self, **kwargs):
         if self.t is not None:
@@ -1127,9 +1142,15 @@ class PyFunctionVariable(Variable):
         else:
             args = tuple(self.x)
 
-        kwargs = {n: locals()[n]() for n in self.dependency}
-        return np.array(self.func(*args, **kwargs), copy=False)
-        #return np.array(self.func(*args, **kwargs), copy=False)
+        for n in self.dependency:
+            if n in self.global_context:
+                _tmp = self.global_context[n]()
+                kw = self.dep2kw[n]
+                kwargs[kw] = _tmp if np.isscalar(
+                    _tmp) else np.array(_tmp, copy=False)
+
+        _tmp = self.func(*args, **kwargs)
+        return _tmp if np.isscalar(_tmp) else np.array(_tmp, copy=False)
 
     def nodal_values(self, iele=None, el2v=None, locs=None,
                      wverts=None, elvertloc=None, g=None, knowns=None,
@@ -1151,7 +1172,7 @@ class PyFunctionVariable(Variable):
         ret = np.zeros(shape, dtype=dtype)
         wverts = np.zeros(size)
 
-        dep2kw = self._get_dep2kw()
+        dep2kw = self.dep2kw
 
         for kk, m, loc in zip(iele, el2v, elvertloc):
             if kk < 0:
@@ -1201,7 +1222,7 @@ class PyFunctionVariable(Variable):
 
         ret = [None] * len(locs)
 
-        dep2kw = self._get_dep2kw()
+        dep2kw = self.dep2kw
 
         for idx, xyz in enumerate(locs):
             '''
@@ -1259,7 +1280,7 @@ class PyFunctionVariable(Variable):
 
         valid_attrs = attrs[attrs != -1]
 
-        dep2kw = self._get_dep2kw()
+        dep2kw = self.dep2kw
 
         jj = 0
         for i in range(counts):
@@ -1290,6 +1311,12 @@ class PyFunctionVariable(Variable):
             ret[i, ...] = value
 
         return ret
+
+    def set_coeff(self, ind_vars, ll):
+        self.global_context = ll
+        for n in self.dependency:
+            if (n in ll and isinstance(ll[n], Variable)):
+                ll[n].set_coeff(ind_vars, ll)
 
 
 class CoefficientVariable(Variable):
@@ -1323,15 +1350,25 @@ class CoefficientVariable(Variable):
     def eval_local_from_T_ip(self):
         call_eval = self.get_call_eval()
 
+        #
+        # (note 2024.12.14) removed wrapping np.array. this was necessary
+        # because numba function distinguish np.array(scalar) and scalar, 
+        # causing type mismatch error. keeping this note for future check
+        #
+        
         T, ip = self.T, self.ip
         if (self.coeff[0] is not None and
                 self.coeff[1] is not None):
-            value = (np.array(call_eval(self.coeff[0], T, ip)) +
-                     1j * np.array(self.coeff[1], T, ip))
+            # value = (np.array(call_eval(self.coeff[0], T, ip)) +
+            #         1j * np.array(self.coeff[1], T, ip))
+            value = (call_eval(self.coeff[0], T, ip) +
+                     1j * call_eval(self.coeff[1], T, ip))
         elif self.coeff[0] is not None:
-            value = np.array(call_eval(self.coeff[0], T, ip))
+            #value = np.array(call_eval(self.coeff[0], T, ip))
+            value = call_eval(self.coeff[0], T, ip)
         elif self.coeff[1] is not None:
-            value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+            #value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+            value = 1j * call_eval(self.coeff[1], T, ip)
         else:
             assert False, "coeff is (None, None)"
         return value
@@ -2729,6 +2766,7 @@ def project_variable_to_gf(c, ind_vars, gfr, gfi,
                 cc = coeff.get_imag_coefficient()
         else:
             cc = coeff
+
         gf.ProjectCoefficient(cc)
 
     project_coeff(gfr, coeff_dim, c, ind_vars, True)
