@@ -146,6 +146,7 @@ class Coefficient_Evaluator(object):
                         for nn in self.g[n].grad:
                             self.variables.append((nn, self.g[nn]))
 
+                        self.g[n].set_context(self.g)
                         self.g[n].set_coeff(self.ind_vars, self.g)
                     else:
                         pass

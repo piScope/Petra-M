@@ -429,8 +429,10 @@ class Variable():
         return None
 
     def set_coeff(self, ind_vars, ll):
-        self.global_context = ll
+        pass
 
+    def set_context(self, ll):
+        self.global_context = ll
     '''
     def make_callable(self):
         raise NotImplementedError("Subclass need to implement")
@@ -797,10 +799,15 @@ class ExpressionVariable(Variable):
         return value
 
     def set_coeff(self, ind_vars, ll):
-        self.global_context = ll
         for n in self.names:
             if (n in ll and isinstance(ll[n], Variable)):
                 ll[n].set_coeff(ind_vars, ll)
+
+    def set_context(self, ll):
+        self.global_context = ll
+        for n in self.names:
+            if (n in ll and isinstance(ll[n], Variable)):
+                ll[n].set_context(ll)
 
 
 class DomainVariable(Variable):
@@ -1074,9 +1081,13 @@ class DomainVariable(Variable):
         return ret
 
     def set_coeff(self, ind_vars, ll):
-        self.global_context = ll
         for n in self.domains:
             self.domains[n].set_coeff(ind_vars, ll)
+
+    def set_context(self, ll):
+        self.global_context = ll
+        for n in self.domains:
+            self.domains[n].set_context(ll)
 
 
 def _copy_func_and_apply_params(f, params):
@@ -1313,10 +1324,15 @@ class PyFunctionVariable(Variable):
         return ret
 
     def set_coeff(self, ind_vars, ll):
-        self.global_context = ll
         for n in self.dependency:
             if (n in ll and isinstance(ll[n], Variable)):
                 ll[n].set_coeff(ind_vars, ll)
+
+    def set_context(self, ll):
+        self.global_context = ll
+        for n in self.dependency:
+            if (n in ll and isinstance(ll[n], Variable)):
+                ll[n].set_context(ll)
 
 
 class CoefficientVariable(Variable):
@@ -1352,10 +1368,10 @@ class CoefficientVariable(Variable):
 
         #
         # (note 2024.12.14) removed wrapping np.array. this was necessary
-        # because numba function distinguish np.array(scalar) and scalar, 
+        # because numba function distinguish np.array(scalar) and scalar,
         # causing type mismatch error. keeping this note for future check
         #
-        
+
         T, ip = self.T, self.ip
         if (self.coeff[0] is not None and
                 self.coeff[1] is not None):
