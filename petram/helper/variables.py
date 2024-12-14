@@ -622,6 +622,10 @@ class ExpressionVariable(Variable):
         self.expr = expr
         self.ind_vars = ind_vars
         self.variables = WVD()
+
+        if isinstance(ind_vars, str):
+            import traceback
+            traceback.print_stack()
         # print 'Check Expression', expr.__repr__(), names
 
     def get_names(self):
@@ -640,7 +644,9 @@ class ExpressionVariable(Variable):
 
     def __call__(self, **kwargs):
         l = {}
+        print("self", self, self.expr, self.ind_vars)
         for k, name in enumerate(self.ind_vars):
+            dprint1(k, name)
             l[name] = self.x[k]
         keys = self.variables.keys()
         for k in keys:
@@ -870,7 +876,7 @@ class DomainVariable(Variable):
             for a in attrs:
                 if a in domains:
                     self.domains[domains].set_point(T, ip, g, l, t=t)
-                self.domain_target.append(domains)
+                    self.domain_target.append(domains)
 
     def __call__(self, **kwargs):
         if len(self.domain_target) == 0:
@@ -1101,6 +1107,8 @@ class PyFunctionVariable(Variable):
         self.x = (0, 0, 0)
         self.shape = shape
 
+        print("PyFunction", func, dependency)
+
     def __repr__(self):
         return "PyFunction"
 
@@ -1119,9 +1127,9 @@ class PyFunctionVariable(Variable):
         else:
             args = tuple(self.x)
 
-        #kwargs = {n: locals()[n]() for n in self.dependency}
-        # return np.array(self.func(*args, **kwargs), copy=False)
+        kwargs = {n: locals()[n]() for n in self.dependency}
         return np.array(self.func(*args, **kwargs), copy=False)
+        #return np.array(self.func(*args, **kwargs), copy=False)
 
     def nodal_values(self, iele=None, el2v=None, locs=None,
                      wverts=None, elvertloc=None, g=None, knowns=None,

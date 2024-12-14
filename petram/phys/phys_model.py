@@ -157,6 +157,7 @@ class Coefficient_Evaluator(object):
     def EvalValue(self, x):
         for k, name in enumerate(self.ind_vars):
             self.l[name] = x[k]
+
         for n, v in self.variables:
             kwargs = {}
             for nn in v.dependency:
