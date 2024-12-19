@@ -3627,11 +3627,15 @@ class Engine(object):
             previous SolveStep. In order to use values from the previous step,
             a user needs to load in using InitSetting
         '''
-        from petram.helper.variables import Variables
+        from petram.helper.variables import Variables, Variable
         variables = Variables()
 
         self.access_idx = 0
         for phys in phys_range:
+            suffix = phys.dep_vars_suffix
+            ind_vars = [x.strip() for x in phys.ind_vars.split(',')]
+        
+            
             for name in phys.dep_vars:
                 if not self.has_rfes(name):
                     continue
@@ -3640,11 +3644,30 @@ class Engine(object):
                 igf = self.i_x[rifes]
                 phys.add_variables(variables, name, rgf, igf)
 
+            # collect all definition (domain specific expressions) from children
+            n = phys.dep_vars[0]
+            for mm in phys.walk():
+                if not mm.enabled:
+                    continue
+                if mm is self:
+                    continue
+
+                mm.add_domain_variables(variables, n, suffix, ind_vars)
+                mm.add_bdr_variables(variables, n, suffix, ind_vars)
+
+        from petram.mesh.mesh_utils import get_reverse_connectivity
+        
+        get_reverse_connectivity(self.meshes[0])
+        for var in variables:
+            if isinstance(variables[var], Variable):
+                variables[var].add_topological_info(self.meshes[0])
+                
         keys = list(self.model._variables)
         # self.model._variables.clear()
-        if verbose:
+        #if verbose:
+        if True:
             dprint1("===  List of variables ===")
-            dprint1(variables)
+            dprint1(variables)#, notrim=True)
         for k in variables.keys():
             # if k in self.model._variables:
             #   dprint1("Note : FES variable from previous step exists, but overwritten. \n" +

@@ -414,7 +414,9 @@ class IterativeSolver(LinearSolver):
                 from petram.solver.mumps_model import MUMPSBlockPreconditioner
                 prc = MUMPSBlockPreconditioner(A, gui=self.gui[self.gui.mumps_in],
                                                engine=self.engine)
-
+                solver._prc = prc
+                solver.SetPreconditioner(prc)
+                prc.SetOperator(A)
         else:
             solver.SetPreconditioner(M)
             M.SetOperator(A)
