@@ -630,9 +630,9 @@ class ExpressionVariable(Variable):
         self.variables = WVD()
 
         if isinstance(ind_vars, str):
-            import traceback
             traceback.print_stack()
-        # print 'Check Expression', expr.__repr__(), names
+            assert False, "ind_vars should not be string(debug)"
+
 
     def get_names(self):
         return self.names
@@ -807,6 +807,7 @@ class ExpressionVariable(Variable):
         self.global_context = ll
         for n in self.names:
             if (n in ll and isinstance(ll[n], Variable)):
+                print("expression variable", n, ll[n])                
                 ll[n].set_context(ll)
 
 
@@ -830,7 +831,7 @@ class DomainVariable(Variable):
         return ret
 
     def __repr__(self):
-        return "DomainVariable"
+        return "DomainVariable"+str(self.domains)
 
     def _add_something(self, something, gsomething, domains):
         doms = tuple(sorted(domains))
@@ -1094,6 +1095,7 @@ class DomainVariable(Variable):
     def set_context(self, ll):
         self.global_context = ll
         for n in self.domains:
+            print("domain variable", n, self.domains[n])
             self.domains[n].set_context(ll)
 
 

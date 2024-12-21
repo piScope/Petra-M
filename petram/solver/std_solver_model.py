@@ -45,15 +45,15 @@ class StdSolver(Solver):
              self.assemble_real,  3, {"text": "convert to real matrix (complex prob.)"}],
             [None,
              self.save_parmesh,  3, {"text": "save parallel mesh"}],
+            [None,  self.save_sersol,  3, {
+                "text": "save serialized solution (for MPI run)"}],
             [None,
              self.use_profiler,  3, {"text": "use profiler"}],
             [None, self.skip_solve,  3, {"text": "skip linear solve"}],
             [None, self.load_sol,  3, {
                 "text": "load sol file (linear solver is not called)"}],
             [None, self.sol_file,  0, None],
-            ["LS blk. str.", self.sol_file,  0, None], 
-            [None,  self.save_sersol,  3, {"text": "save serial solution"}]]
-
+            ["LS blk. str.", self.sol_file,  0, None], ]
 
     def get_panel1_value(self):
         return (  # self.init_setting,
@@ -62,13 +62,12 @@ class StdSolver(Solver):
             self.clear_wdir,
             self.assemble_real,
             self.save_parmesh,
+            self.save_sersol,
             self.use_profiler,
             self.skip_solve,
             self.load_sol,
             self.sol_file,
-            self.ls_blk_merge,
-            self.save_sersol)
-
+            self.ls_blk_merge,)
 
     def import_panel1_value(self, v):
         # self.init_setting = str(v[0])
@@ -77,13 +76,13 @@ class StdSolver(Solver):
         self.clear_wdir = v[2]
         self.assemble_real = v[3]
         self.save_parmesh = v[4]
-        self.use_profiler = v[5]
-        self.skip_solve = v[6]
-        self.load_sol = v[7]
-        self.sol_file = v[8]
-        self.ls_blk_merge = v[9]
-        self.save_sersol = v[10]
-        
+        self.save_sersol = v[5]
+        self.use_profiler = v[6]
+        self.skip_solve = v[7]
+        self.load_sol = v[8]
+        self.sol_file = v[9]
+        self.ls_blk_merge = v[10]
+
     def panel1_tip(self):
         return ["Specify physics model to be solved.",
                 "Check this in order to initialize a solution vector with essential cnd. w/o solving linear system",
@@ -178,7 +177,7 @@ class StdSolver(Solver):
             update_operator = engine.check_block_matrix_changed(
                 instance.blk_mask)
             instance.solve(update_operator=update_operator)
-       
+
         instance.save_solution(ksol=0,
                                skip_mesh=False,
                                mesh_only=False,

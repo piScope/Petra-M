@@ -2446,7 +2446,8 @@ class Engine(object):
             BB = np.hstack(BB)
 
         elif format == 'blk_interleave':  # real coo converted from complex
-            BB = [b.gather_blkvec_interleave(blk_format=blk_format) for b in B_blocks]
+            BB = [b.gather_blkvec_interleave(
+                blk_format=blk_format) for b in B_blocks]
 
         elif format == 'blk_merged':
             BB = [b.gather_blkvec_merged(blk_format=blk_format)
@@ -2614,9 +2615,11 @@ class Engine(object):
                          save_parmesh=False,
                          save_mesh_linkdir=None,
                          save_sersol=False):
+
         if not skip_mesh:
-            m1 = [self.save_mesh0(save_mesh_linkdir), ]
-            mesh_filenames = self.save_mesh(phys_target, save_mesh_linkdir)
+            m1 = [self.save_mesh0(save_mesh_linkdir, save_sersol), ]
+            mesh_filenames = self.save_mesh(
+                phys_target, save_mesh_linkdir, save_sersol)
             mesh_filenames = m1 + mesh_filenames
 
         if save_parmesh:
@@ -2631,7 +2634,8 @@ class Engine(object):
                 ifes = self.r_ifes(name)
                 r_x = self.r_x[ifes]
                 i_x = self.i_x[ifes]
-                self.save_solfile_fespace(name, emesh_idx, r_x, i_x, save_sersol=save_sersol)
+                self.save_solfile_fespace(
+                    name, emesh_idx, r_x, i_x, save_sersol=save_sersol)
 
     def extrafile_name(self):
         return 'sol_extended.data'
@@ -3357,13 +3361,18 @@ class Engine(object):
 
         self.clear_solmesh_files(fnamer)
         self.clear_solmesh_files(fnamei)
-        if save_sersol:
-            pp =r_x.ParFESpace()
-            pp.GetParMesh().PrintAsSerial("serial.mesh")
-            r_x.SaveAsSerial(fnamer,16,0)
+
+        if save_sersol and use_parallel:
+            # (This is not implemented in MFEM)
+            # if self.get_savegz():
+            #    r_x.SaveAsSerialGZ(fnamer,16,0)
+            #    if i_x is not None:
+            #         i_x.SaveAsSerialGZ(fnamei,16,0)
+            # else:
+            r_x.SaveAsSerial(fnamer, 16, 0)
             if i_x is not None:
-                i_x.SaveAsSerial(fnamei,16,0)
-            
+                i_x.SaveAsSerial(fnamei, 16, 0)
+
         fnamer = fnamer+suffix
         fnamei = fnamei+suffix
 
@@ -3376,12 +3385,13 @@ class Engine(object):
             if i_x is not None:
                 i_x.Save(fnamei, 8)
 
-    def save_mesh0(self, save_mesh_linkdir=None):
+    def save_mesh0(self, save_mesh_linkdir=None, save_sersol=False):
         mesh_names = []
         suffix = self.solfile_suffix()
         mesh = self.emeshes[0]
         header = 'solmesh_0'
-        self.clear_solmesh_files(header)
+        sheader = 'solsermesh_0'
+        self.clear_solmesh_files(sheader)
         name = header+suffix
 
         if save_mesh_linkdir is None:
@@ -3389,13 +3399,18 @@ class Engine(object):
                 mesh.PrintGZ(name, 16)
             else:
                 mesh.Print(name, 16)
+
+            if save_sersol and use_parallel:
+                self.clear_solmesh_files(sheader)
+                self.save_sermesh(mesh, sheader)
+
         else:
             src = os.path.join(save_mesh_linkdir, name)
             dst = os.path.join(os.getcwd(), name)
             os.symlink(src, dst)
         return name
 
-    def save_mesh(self, phys_target, save_mesh_linkdir=None):
+    def save_mesh(self, phys_target, save_mesh_linkdir=None, save_sersol=False):
         mesh_names = []
         suffix = self.solfile_suffix()
 
@@ -3421,6 +3436,11 @@ class Engine(object):
                     mesh.PrintGZ(name, 16)
                 else:
                     mesh.Print(name, 16)
+
+                if save_sersol and use_parallel:
+                    sheader = 'solsermesh_' + str(k)
+                    self.clear_solmesh_files(sheader)
+                    self.save_sermesh(mesh, sheader)
             else:
                 src = os.path.join(save_mesh_linkdir, name)
                 dst = os.path.join(os.getcwd(), name)
@@ -3429,6 +3449,23 @@ class Engine(object):
             mesh_names.append(name)
 
         return mesh_names
+
+    def save_sermesh(self, mesh, sname):
+        """
+        save serialized mesh. sname should not include suffix, like .00000
+
+        """
+        if not use_parallel:
+            return
+
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
+
+        # (this does not work at moment)
+        # if self.get_savegz():
+        #    mesh.PrintAsSerialGZ(sname)
+        # else:
+        mesh.PrintAsSerial(sname)
 
     @property  # ALL dependent variables including Lagrange multipliers
     def dep_vars(self):
@@ -3634,8 +3671,7 @@ class Engine(object):
         for phys in phys_range:
             suffix = phys.dep_vars_suffix
             ind_vars = [x.strip() for x in phys.ind_vars.split(',')]
-        
-            
+
             for name in phys.dep_vars:
                 if not self.has_rfes(name):
                     continue
@@ -3656,18 +3692,18 @@ class Engine(object):
                 mm.add_bdr_variables(variables, n, suffix, ind_vars)
 
         from petram.mesh.mesh_utils import get_reverse_connectivity
-        
+
         get_reverse_connectivity(self.meshes[0])
         for var in variables:
             if isinstance(variables[var], Variable):
                 variables[var].add_topological_info(self.meshes[0])
-                
+
         keys = list(self.model._variables)
         # self.model._variables.clear()
-        #if verbose:
+        # if verbose:
         if True:
             dprint1("===  List of variables ===")
-            dprint1(variables)#, notrim=True)
+            dprint1(variables, notrim=True)
         for k in variables.keys():
             # if k in self.model._variables:
             #   dprint1("Note : FES variable from previous step exists, but overwritten. \n" +
@@ -4255,9 +4291,9 @@ class ParallelEngine(Engine):
             mesh_name = header+'.'+smyid
             mesh.ParPrintToFile(mesh_name, 16)
 
-            header = 'solsermesh_' + str(k)
-            mesh_name = header+'.mesh'
-            mesh.PrintAsSerial(mesh_name)
+            #header = 'solsermesh_' + str(k)
+            #mesh_name = header+'.mesh'
+            # mesh.PrintAsSerial(mesh_name)
 
     def solfile_suffix(self):
         from mpi4py import MPI
