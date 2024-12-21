@@ -614,7 +614,7 @@ class CoordVariable(Variable):
 
 
 class ExpressionVariable(Variable):
-    def __init__(self, expr, ind_vars, complex=False):
+    def __init__(self, expr, ind_vars, complex=False, gns=None):
         super(ExpressionVariable, self).__init__(complex=complex)
 
         variables = []
@@ -627,12 +627,12 @@ class ExpressionVariable(Variable):
         self.names = names
         self.expr = expr
         self.ind_vars = ind_vars
+        self.gns = gns
         self.variables = WVD()
 
         if isinstance(ind_vars, str):
             traceback.print_stack()
             assert False, "ind_vars should not be string(debug)"
-
 
     def get_names(self):
         return self.names
@@ -644,9 +644,13 @@ class ExpressionVariable(Variable):
         self.x = T.Transform(ip)
         #print("setting x", self, self.x)
         for n in self.names:
-            if (n in g and isinstance(g[n], Variable)):
-                g[n].set_point(T, ip, g, l, t=t)
-                self.variables[n] = g[n]
+            if n in self.global_context:
+                var = self.global_context[n]
+            elif n in g:
+                var = g[n]
+            if isinstance(var, Variable):
+                var.set_point(T, ip, g, l, t=t)
+                self.variables[n] = var
 
     def __call__(self, **kwargs):
         l = {}
@@ -800,15 +804,22 @@ class ExpressionVariable(Variable):
 
     def set_coeff(self, ind_vars, ll):
         for n in self.names:
-            if (n in ll and isinstance(ll[n], Variable)):
-                ll[n].set_coeff(ind_vars, ll)
+            if n in self.global_context:
+                var = self.global_context[n]
+            elif n in ll:
+                var = self.ll[n]
+            if isinstance(var, Variable):
+                var.set_coeff(ind_vars, ll)
 
     def set_context(self, ll):
-        self.global_context = ll
+        self.global_context = self.gns.copy()
+
         for n in self.names:
+            if n in self.gns:
+                continue
             if (n in ll and isinstance(ll[n], Variable)):
-                print("expression variable", n, ll[n])                
                 ll[n].set_context(ll)
+                self.global_context[n] = ll[n]
 
 
 class DomainVariable(Variable):
@@ -822,7 +833,8 @@ class DomainVariable(Variable):
         domains = sorted(domains)
         self.gdomains[tuple(domains)] = gdomain
         self.domains[tuple(domains)] = ExpressionVariable(expr, ind_vars,
-                                                          complex=complex)
+                                                          complex=complex,
+                                                          gns=gdomain)
 
     def get_names(self):
         ret = []
@@ -868,7 +880,8 @@ class DomainVariable(Variable):
 
     def add_expression(self, expr, ind_vars, domains, gdomain, complex=False):
         new_expr = ExpressionVariable(expr, ind_vars,
-                                      complex=complex)
+                                      complex=complex,
+                                      gns=gdomain)
         self._add_something(new_expr, gdomain, domains)
         if complex:
             self.complex = True
@@ -890,7 +903,7 @@ class DomainVariable(Variable):
             # boundary mode
             attrs = self.topo_info[1][attr]
             self._dom_mode = 0
-            
+
         self.domain_target = []
         for domains in self.domains.keys():
             for a in attrs:
@@ -904,13 +917,13 @@ class DomainVariable(Variable):
         # we return average for now. when domain variable is
         # evaluated on the boundary, it computes the aveage on both side.
         #
-        # for the domain, we return a sum of contributions. 
-        
+        # for the domain, we return a sum of contributions.
+
         values = [self.domains[x]() for x in self.domain_target]
         ans = values[0]
         for v in values[1:]:
             ans = ans + v
-            
+
         if not self._dom_mode:
             return ans / len(values)
         return ans
@@ -1121,7 +1134,7 @@ def _get_kwargs(func):
     sig = signature(func)
 
     kwnames = [x for x in sig.parameters
-               if sig.parameters[x].default != sig.parameters[x].empty]
+               if sig.parameters[x].default is not sig.parameters[x].empty]
     return kwnames
     dep2kw = dict(zip(self.dependency, kwnames))
 
@@ -2582,8 +2595,9 @@ class SurfExpressionVariable(ExpressionVariable, SurfVariable):
     expression valid on surface
     '''
 
-    def __init__(self, expr, ind_vars, sdim, complex=False):
-        ExpressionVariable.__init__(self, expr, ind_vars, complex=complex)
+    def __init__(self, expr, ind_vars, sdim, complex=False, gns=None):
+        ExpressionVariable.__init__(
+            self, expr, ind_vars, complex=complex, gns=None)
         SurfVariable.__init__(self, sdim, complex=complex)
 
     def __repr__(self):
@@ -2669,7 +2683,7 @@ def add_elements(solvar, name, suffix, ind_vars, solr,
 def add_component_expression(solvar, name, suffix, ind_vars, expr, vars,
                              componentname,
                              domains=None, bdrs=None, complex=None,
-                             gdomain=None, gbdr=None):
+                             gdomain=None, gbdr=None, gns=None):
     expr = append_suffix_to_expression(expr, vars, suffix)
 
     if isinstance(componentname, int):
@@ -2691,12 +2705,13 @@ def add_component_expression(solvar, name, suffix, ind_vars, expr, vars,
 
     else:
         solvar[cname] = ExpressionVariable(expr, ind_vars,
-                                           complex=complex)
+                                           complex=complex,
+                                           gns=gns)
 
 
 def add_expression(solvar, name, suffix, ind_vars, expr, vars,
                    domains=None, bdrs=None, complex=None,
-                   gdomain=None, gbdr=None):
+                   gdomain=None, gbdr=None, gns=None):
 
     expr = append_suffix_to_expression(expr, vars, suffix)
 
@@ -2716,11 +2731,12 @@ def add_expression(solvar, name, suffix, ind_vars, expr, vars,
 
     else:
         solvar[name + suffix] = ExpressionVariable(expr, ind_vars,
-                                                   complex=complex)
+                                                   complex=complex,
+                                                   gns=gns)
 
 
 def add_constant(solvar, name, suffix, value, domains=None,
-                 gdomain=None, bdrs=None, gbdr=None):
+                 gdomain=None, bdrs=None, gbdr=None, gns=None):
 
     if domains is not None:
         if (name + suffix) in solvar:

@@ -140,5 +140,5 @@ class PyVectorFEPartialIntegrator(PyVectorIntegratorBase):
                                  dshape)* ip.weight * trans.Weight()
             
 
-           for ii, jj, kk in prod(rr, rr, rr):
-               elmat[:,:] += lam[ii, jj, kk]*udvdx[:, ii, jj, :, kk]
+            for ii, jj, kk in prod(rr, rr, rr):
+                elmat[:,:] += lam[ii, jj, kk]*udvdx[:, ii, jj, :, kk]

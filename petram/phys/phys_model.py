@@ -874,6 +874,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         elif isinstance(self, Bdry):
             kywds['bdrs'] = self._sel_index
             kywds['gbdr'] = self._global_ns
+        else:
+            kywds['gns'] = self._global_ns
 
         if vars is None:
             vars = []
@@ -912,6 +914,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         elif isinstance(self, Bdry):
             kywds['bdrs'] = self._sel_index
             kywds['gbdr'] = self._global_ns
+        else:
+            kywds['gns'] = self._global_ns
 
         if vars is None:
             vars = []
@@ -956,6 +960,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         elif isinstance(self, Bdry):
             kywds['bdrs'] = self._sel_index
             kywds['gbdr'] = self._global_ns
+        else:
+            kywds['gns'] = self._global_ns
 
         ll = len(var)
         for lll in product(var, var):
@@ -987,6 +993,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         elif isinstance(self, Bdry):
             kywds['bdrs'] = self._sel_index
             kywds['gbdr'] = self._global_ns
+        else:
+            kywds['gns'] = self._global_ns
 
         ll = len(var)
         for lll in product(var, var):
