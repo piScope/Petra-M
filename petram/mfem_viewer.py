@@ -889,12 +889,14 @@ class MFEMViewer(BookViewer):
                         faces.extend(sl[key])
                     else:
                         print('Volume: ' + str(key) + " not found")
+
                 obj.setSelectedIndex(faces)
                 if len(obj._artists) > 0:
                     self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
-        wx.CallAfter(self.canvas.refresh_hl)
+        self.canvas.refresh_hl()
+        # wx.CallAfter(self.canvas.refresh_hl)
 
     def highlight_face(self, i):
         '''
@@ -923,7 +925,8 @@ class MFEMViewer(BookViewer):
                              tuple(i),
                              self._dom_bdr_sel[2],
                              self._dom_bdr_sel[3],)
-        wx.CallAfter(self.canvas.refresh_hl)
+        self.canvas.refresh_hl()
+        # wx.CallAfter(self.canvas.refresh_hl)
 
     def highlight_edge(self, i, unselect=True):
         '''
@@ -952,8 +955,8 @@ class MFEMViewer(BookViewer):
                              self._dom_bdr_sel[1],
                              tuple(i),
                              self._dom_bdr_sel[3],)
-
-        wx.CallAfter(self.canvas.refresh_hl)
+        self.canvas.refresh_hl()
+        # wx.CallAfter(self.canvas.refresh_hl)
 
     def highlight_point(self, i, unselect=True):
         '''
@@ -982,8 +985,8 @@ class MFEMViewer(BookViewer):
                              self._dom_bdr_sel[1],
                              self._dom_bdr_sel[2],
                              tuple(i),)
-
-        wx.CallAfter(self.canvas.refresh_hl)
+        self.canvas.refresh_hl()
+        # wx.CallAfter(self.canvas.refresh_hl)
 
     def highlight_none(self):
         self.canvas.unselect_all()
@@ -1612,14 +1615,14 @@ class MFEMViewer(BookViewer):
         if self.editdlg is not None:
             try:
                 self.editdlg.Close()
-                #self.editdlg.Destroy()
+                # self.editdlg.Destroy()
             except:
                 pass
             self.editdlg = None
         if self.plotsoldlg is not None:
             try:
                 self.plotsoldlg.Close()
-                #self.plotsoldlg.Destroy()
+                # self.plotsoldlg.Destroy()
             except:
                 pass
             self.plotsoldlg = None

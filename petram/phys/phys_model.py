@@ -726,7 +726,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         from petram.pi.panel_txt import txt_dudt, txt_du2dt2
         setting = {"text": ' '}
         if self.has_essential:
-            ll = [['', False, 3, {"text": "Time dependent"}], ]
+            ll = [['Time dependent', False, 3, {"text": ""}], ]
 
         else:
             ll = [['u', True, 3, {"text": ""}],
@@ -734,6 +734,12 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                   [txt_du2dt2, False, 3, {"text": ""}],
                   ['Gradient', False, 3, {"text": ""}],
                   ['Varying (in time/for loop) Term.', False, 3, {"text": ""}], ]
+
+        if isinstance(self, Bdry):
+            ll.append(["Derived boundary variables", "", 2, None])
+        if isinstance(self, Domain):
+            ll.append(["Derived domain variables", "", 2, None])
+
         if self.allow_custom_intorder:
             ll.append(['Increase int. order', '0', 400, ''])
         return ll
@@ -761,9 +767,59 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         else:
             ret = self.timestep_config[0:3] + \
                 [self.isJacobian, self.isTimeDependent]
+
+        if self.derived_dom_bdr_variables is not None:
+            ret = ret + [self.nicetxt_derived_dom_bdr_variables()]
+
         if self.allow_custom_intorder:
             ret = ret + [self.add_intorder]
+
         return ret
+
+    @property
+    def derived_dom_bdr_variables(self):
+        if not isinstance(self, (Bdry, Domain)):
+            return None
+
+        if not hasattr(self, "_derived_dom_bdr"):
+            tmp = []
+
+            p = self.get_root_phys()
+
+            ind_vars = [x.strip() for x in p.ind_vars.split(',')]
+            suffix = p.dep_vars_suffix
+            n = p.dep_vars[0]
+
+            v = {}
+
+            if isinstance(self, Domain):
+                self.add_domain_variables(v, n, suffix, ind_vars)
+            if isinstance(self, Bdry):
+                self.add_bdr_variables(v, n, suffix, ind_vars)
+
+            tmp = sorted([x for x in list(v) if not x.startswith('_')])
+
+        else:
+            tmp = self._derived_dom_bdr
+
+        if len(self._sel_index) != 0:
+            self._derived_dom_bdr = tmp
+        else:
+            return []
+
+        return self._derived_dom_bdr
+
+    def nicetxt_derived_dom_bdr_variables(self, l=60):
+        from textwrap import wrap
+
+        splitted = wrap('. '.join(self.derived_dom_bdr_variables), l,
+                        fix_sentence_endings=True)
+        tmp = [','.join(x.split('.')) for x in splitted]
+        txt = "\n".join(tmp)
+
+        if len(txt) == 0:
+            return "(none)"
+        return txt
 
     @property
     def geom_dim(self):

@@ -530,8 +530,9 @@ class SumVariable(Variable):
         self.variables.append(v)
         self.gvariables.append(g)
 
-    def set_point(self, T, ip, _g, l, t=None):
-        for v, g in zip(self.variables, self.gvariables):
+    def set_point(self, T, ip, g, l, t=None):
+        # for v, g in zip(self.variables, self.gvariables):
+        for v in self.variables:
             v.set_point(T, ip, g, l, t=t)
 
     def __call__(self, **kwargs):
@@ -573,6 +574,15 @@ class SumVariable(Variable):
             g.update(g2)
             v1 = v1 + v.point_values(g=g, **kwargs)
         return v1
+
+    def set_coeff(self, ind_vars, ll):
+        for v in self.variables:
+            v.set_coeff(ind_vars, ll)
+
+    def set_context(self, ll):
+        self.global_context = ll
+        for v in self.variables:
+            v.set_context(ll)
 
 
 class CoordVariable(Variable):
@@ -642,7 +652,7 @@ class ExpressionVariable(Variable):
 
     def set_point(self, T, ip, g, l, t=None):
         self.x = T.Transform(ip)
-        #print("setting x", self, self.x)
+        #print("setting x", self, self.x, self.names, list(self.global_context), list(g))
         for n in self.names:
             if n in self.global_context:
                 var = self.global_context[n]
@@ -654,7 +664,6 @@ class ExpressionVariable(Variable):
 
     def __call__(self, **kwargs):
         l = {}
-
         for k, name in enumerate(self.ind_vars):
             l[name] = self.x[k]
         keys = self.variables.keys()

@@ -170,6 +170,10 @@ class DlgEditModel(SimpleFramePlus):
         self.Bind(EDITLIST_CHANGING, self.OnEL_Changing)
         self.Bind(EDITLIST_SETFOCUS, self.OnEL_SetFocus)
         self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
+
+        self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGING, self.OnPageChanging)
+        #self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.OnPageChanged)
+
         self._focus_idx = None
         self._focus_obj = None
         self._copied_item = None
@@ -191,6 +195,21 @@ class DlgEditModel(SimpleFramePlus):
     def OnChildFocus(self, evt):
         self.GetParent()._palette_focus = 'edit'
         evt.Skip()
+
+    def OnPageChanging(self, evt):
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+
+        flag, idx = self.check_el_chagend(mm)
+        print("page changing", flag, idx)
+        if flag:
+            self.import_selected_panel_value(evt)
+            if idx == 1:  # if panel 2 : update highlight
+                wx.CallAfter(self.update_highlight, mm)
+        evt.Skip()
+
+    # def OnPageChanged(self, evt):
+    #    pass
 
     def OnItemRightClick(self, e):
         tree = self.tree
@@ -673,11 +692,110 @@ class DlgEditModel(SimpleFramePlus):
             p4panel.Hide()
             self.p1.Layout()
 
-        self._focus_idx = None
+        self.update_highlight(mm)
 
+        if evt is not None:
+            mm.onItemSelChanged(evt)
+            evt.Skip()
+
+        if not self._enable:
+            self.Enable(False)
+
+    def OnClose(self, evt):
+        wx.GetApp().rm_palette(self)
+        self.GetParent().editdlg = None
+        evt.Skip()
+
+    def generate_panel(self, mm):
+        if mm.fullname() in self.panels and not mm.always_new_panel:
+            self.update_panel_label(mm)
+        else:
+            self.panels[mm.fullname()] = (ScrolledEditListPanel(self.p1,
+                                                                list=mm.panel1_param(),
+                                                                tip=mm.panel1_tip()),
+                                          EditListPanel(self.p2, list=mm.panel2_param(),
+                                                        tip=mm.panel2_tip()),
+                                          EditListPanel(self.p3, list=mm.panel3_param(),
+                                                        tip=mm.panel3_tip()),
+                                          EditListPanel(self.p4, list=mm.panel4_param(),
+                                                        tip=mm.panel4_tip()),)
+
+    def update_panel_label(self, mm):
+        self.panels[mm.fullname()][0].update_label(mm.panel1_param())
+        self.panels[mm.fullname()][1].update_label(mm.panel2_param())
+        self.panels[mm.fullname()][2].update_label(mm.panel3_param())
+        self.panels[mm.fullname()][3].update_label(mm.panel4_param())
+
+    def import_selected_panel_value(self, evt=None):
+        if self.tree.GetSelection() is None:
+            return
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+
+        p1children = self.p1sizer.GetChildren()
+        phys = None
+        viewer_update = False
+        if len(p1children) > 0:
+            elp1 = p1children[0].GetWindow()
+            v1 = elp1.GetValue()
+
+            viewer_update = mm.import_panel1_value(v1) or viewer_update
+            try:
+                phys = mm.get_root_phys()
+            except:
+                pass
+            elp1.SetValue(mm.get_panel1_value())
+            elp1.update_label(mm.panel1_param())
+
+        if mm.has_2nd_panel:
+            p2children = self.p2sizer.GetChildren()
+            if len(p2children) > 0:
+                elp2 = p2children[0].GetWindow()
+                v2 = elp2.GetValue()
+                viewer_update = mm.import_panel2_value(v2) or viewer_update
+                elp2.SetValue(mm.get_panel2_value())
+
+        if mm.has_3rd_panel:
+            p3children = self.p3sizer.GetChildren()
+            if len(p3children) > 0:
+                elp3 = p3children[0].GetWindow()
+                v3 = elp3.GetValue()
+                viewer_update = mm.import_panel3_value(v3) or viewer_update
+                elp3.SetValue(mm.get_panel3_value())
+
+        if mm.has_4th_panel:
+            p4children = self.p4sizer.GetChildren()
+            if len(p4children) > 0:
+                elp4 = p4children[0].GetWindow()
+                v4 = elp4.GetValue()
+                viewer_update = mm.import_panel4_value(v4) or viewer_update
+                elp4.SetValue(mm.get_panel4_value())
+
+        if phys is not None:
+            viewer = self.GetParent()
+            try:
+                viewer.engine.run_mesh_extension_prep(reset=True)
+                engine = viewer.engine.assign_sel_index(phys)
+            except:
+                traceback.print_exc()
+
+        if viewer_update:
+            flag1 = mm.update_after_ELChanged(self)
+            if evt is not None:
+                flag2 = mm.update_after_ELChanged2(evt)
+            else:
+                flag2 = False
+            if flag1 or flag2:
+                wx.CallAfter(self.show_panel, mm)
+
+        self.tree.RefreshItems()
+        return viewer_update
+
+    def update_highlight(self, mm):
         from petram.model import Bdry, Domain, Point, Pair
         from petram.phys.phys_model import PhysModule
 
+        self._focus_idx = None
         viewer = self.GetParent()
         engine = viewer.engine
 
@@ -792,110 +910,66 @@ class DlgEditModel(SimpleFramePlus):
         else:
             pass
 
-        if evt is not None:
-            mm.onItemSelChanged(evt)
-            evt.Skip()
+    def check_el_chagend(self, mm):
+        if self.nb.GetPageCount() == 0:
+            return False, -1
 
-        if not self._enable:
-            self.Enable(False)
+        nbsel = self.nb.GetSelection()
 
-    def OnClose(self, evt):
-        wx.GetApp().rm_palette(self)
-        self.GetParent().editdlg = None
-        evt.Skip()
-
-    def generate_panel(self, mm):
-        if mm.fullname() in self.panels and not mm.always_new_panel:
-            self.update_panel_label(mm)
-        else:
-            self.panels[mm.fullname()] = (ScrolledEditListPanel(self.p1,
-                                                                list=mm.panel1_param(),
-                                                                tip=mm.panel1_tip()),
-                                          EditListPanel(self.p2, list=mm.panel2_param(),
-                                                        tip=mm.panel2_tip()),
-                                          EditListPanel(self.p3, list=mm.panel3_param(),
-                                                        tip=mm.panel3_tip()),
-                                          EditListPanel(self.p4, list=mm.panel4_param(),
-                                                        tip=mm.panel4_tip()),)
-
-    def update_panel_label(self, mm):
-        self.panels[mm.fullname()][0].update_label(mm.panel1_param())
-        self.panels[mm.fullname()][1].update_label(mm.panel2_param())
-        self.panels[mm.fullname()][2].update_label(mm.panel3_param())
-        self.panels[mm.fullname()][3].update_label(mm.panel4_param())
-
-    def import_selected_panel_value(self, evt=None):
-        if self.tree.GetSelection() is None:
-            return
-        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
-        mm = self.model.GetItem(indices)
+        def compare_elp(v, vtmp):
+            for x, y in zip(v, vtmp):
+                if x != y:
+                    return True
+            return False
 
         p1children = self.p1sizer.GetChildren()
-        phys = None
-        viewer_update = False
-        if len(p1children) > 0:
+        if len(p1children) > 0 and nbsel == 0:
             elp1 = p1children[0].GetWindow()
             v1 = elp1.GetValue()
+            v1tmp = mm.get_panel1_value()
+            return compare_elp(v1, v1tmp), 0
 
-            viewer_update = mm.import_panel1_value(v1) or viewer_update
-            try:
-                phys = mm.get_root_phys()
-            except:
-                pass
-            elp1.SetValue(mm.get_panel1_value())
-            elp1.update_label(mm.panel1_param())
-
-        if mm.has_2nd_panel:
+        if nbsel == 1 and mm.has_2nd_panel:
             p2children = self.p2sizer.GetChildren()
             if len(p2children) > 0:
                 elp2 = p2children[0].GetWindow()
                 v2 = elp2.GetValue()
-                viewer_update = mm.import_panel2_value(v2) or viewer_update
-                elp2.SetValue(mm.get_panel2_value())
+                v2tmp = mm.get_panel2_value()
+                return compare_elp(v2, v2tmp), 1
 
-        if mm.has_3rd_panel:
+        if nbsel == 2 and mm.has_3rd_panel:
             p3children = self.p3sizer.GetChildren()
             if len(p3children) > 0:
                 elp3 = p3children[0].GetWindow()
                 v3 = elp3.GetValue()
-                viewer_update = mm.import_panel3_value(v3) or viewer_update
-                elp3.SetValue(mm.get_panel3_value())
+                v3tmp = mm.get_panel3_value()
+                return compare_elp(v3, v3tmp), 2
 
-        if mm.has_4th_panel:
+        if nbsel == 3 and mm.has_4th_panel:
             p4children = self.p4sizer.GetChildren()
             if len(p4children) > 0:
                 elp4 = p4children[0].GetWindow()
                 v4 = elp4.GetValue()
-                viewer_update = mm.import_panel4_value(v4) or viewer_update
-                elp4.SetValue(mm.get_panel4_value())
+                v4tmp = mm.get_panel4_value()
+                return compare_elp(v4, v4tmp), 3
 
-        if phys is not None:
-            viewer = self.GetParent()
-            try:
-                viewer.engine.run_mesh_extension_prep(reset=True)
-                engine = viewer.engine.assign_sel_index(phys)
-            except:
-                traceback.print_exc()
-
-        if viewer_update:
-            flag1 = mm.update_after_ELChanged(self)
-            if evt is not None:
-                flag2 = mm.update_after_ELChanged2(evt)
-            else:
-                flag2 = False
-            if flag1 or flag2:
-                wx.CallAfter(self.show_panel, mm)
-
-        self.tree.RefreshItems()
-        return viewer_update
+        return False, -1
 
     def OnEL_Changed(self, evt):
+
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+
+        is_open, _tname, _idx, _labels = self.isSelectionPanelOpen()
         viewer_update = self.import_selected_panel_value(evt)
+        if is_open:
+            self.update_highlight(mm)
         evt.Skip()
 
     def OnEL_Changing(self, evt):
-        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
-        mm = self.model.GetItem(indices)
+        pass
+        #indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        #mm = self.model.GetItem(indices)
 
     def set_model(self, model):
         self.model = model

@@ -344,7 +344,17 @@ class VtableElement(object):
 
         elif len(self.shape) == 0:
             if self.no_func:
-                return getattr(obj, self.name)
+                value = getattr(obj, self.name)
+
+                if self.type != 'string' and isinstance(value, str):
+                    kwargs = {}
+                    kwargs['chk_'+self.type] = True
+                    v = str(getattr(obj, self.name+'_txt'))
+                    value = obj.eval_phys_expr(v, self.name, **kwargs)[0]
+                    setattr(obj, self.name, value)
+
+                return value
+
             elif self.type == 'string':
                 return str(getattr(obj, self.name))
             else:
