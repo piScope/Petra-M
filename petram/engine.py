@@ -104,6 +104,25 @@ class Engine(object):
 
         self._ppname_postfix = ''
 
+    def show_variables(self):
+        try:
+            from mpi4py import MPI
+        except:
+            from petram.helper.dummy_mpi import MPI
+        myid = MPI.COMM_WORLD.rank
+
+        if myid == 0:
+            print("===  List of variables ===")
+        names = [x for x in self.model._variables if not x.startswith("_")]
+        try:
+            for x in names:
+                if myid == 0:
+                    print(":".join((x, self.model._variables[x].__repr__())))
+        except:
+            print("error during show_variables")
+            import tranceback
+            traceback.print_exc()
+
     def initialize_datastorage(self):
         self.is_assembled = False
         self.is_initialized = False
@@ -883,8 +902,6 @@ class Engine(object):
             else:
                 raise NotImplementedError("unknown init mode")
 
-        self.add_FESvariable_to_NS(phys_range, verbose=True)
-
     def run_apply_init_autozero(self, phys_range):
 
         # mode
@@ -928,6 +945,8 @@ class Engine(object):
                 dprint1(
                     "!!!!! These phys are not initiazliaed (FES variable is not available)!!!!!",
                     xphys_range)
+
+        self.add_FESvariable_to_NS(phys_range, verbose=False)
 
     def run_apply_essential(self, phys_target, phys_range, update=False):
         L = len(self.r_dep_vars)
@@ -3701,14 +3720,16 @@ class Engine(object):
         keys = list(self.model._variables)
         # self.model._variables.clear()
         # if verbose:
-        if True:
-            dprint1("===  List of variables ===")
-            dprint1(variables, notrim=True)
         for k in variables.keys():
             # if k in self.model._variables:
             #   dprint1("Note : FES variable from previous step exists, but overwritten. \n" +
             #           "Use InitSetting to load value from previous SolveStep: ", k)
             self.model._variables[k] = variables[k]
+
+        if verbose:
+            dprint1("===  List of variables ===")
+            names = [x for x in self.model._variables if not x.startswith("_")]
+            dprint1(", ".join(sorted(names)), notrim=True)
 
     def set_update_flag(self, mode):
         for k in self.model['Phys'].keys():

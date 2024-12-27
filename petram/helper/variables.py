@@ -399,6 +399,9 @@ class Variable():
         return list(set(list(self.dependency) + list(self.div) +
                         list(self.curl) + list(self.grad)))
 
+    def prep_names(self, ind_vars):
+        return self.get_names()
+
     def get_emesh_idx(self, idx=None, g=None):
         if idx is None:
             idx = []
@@ -525,6 +528,12 @@ class SumVariable(Variable):
 
         return ret
 
+    def prep_names(self, ind_vars):
+        ret = []
+        for x in self.variables:
+            ret.extend(x.prep_names(ind_vars))
+        return ret
+
     def add_expression(self, v, g):
         self.complex = self.complex or v.complex
         self.variables.append(v)
@@ -640,11 +649,35 @@ class ExpressionVariable(Variable):
         self.gns = gns
         self.variables = WVD()
 
+        self.all_names = []
+        self.name_translation = {}
+
         if isinstance(ind_vars, str):
             traceback.print_stack()
             assert False, "ind_vars should not be string(debug)"
 
     def get_names(self):
+        return self.names
+
+    def prep_names(self, ind_vars):
+        #print("prep_names", self, list(self.gns))
+
+        all_names = []
+        name_translation = {}
+
+        for n in self.names:
+            if (n in self.gns and
+                    isinstance(self.gns[n], NumbaCoefficientVariable)):
+                for x in self.gns[n].dependency:
+                    all_names.append(x)
+                    self.name_translation[x] = x
+
+                # if g[n].has_dependency():
+                #    g[n].forget_jitted_coefficient()
+                self.gns[n].set_coeff(ind_vars, self.gns)
+                all_names.append(n)
+                self.name_translation[n] = n
+        self.all_names = all_names
         return self.names
 
     def __repr__(self):
@@ -849,6 +882,13 @@ class DomainVariable(Variable):
         ret = []
         for x in self.domains:
             ret.extend(self.domains[x].get_names())
+        return ret
+
+    def prep_names(self, ind_vars):
+        #print("prep_names", self)
+        ret = []
+        for x in self.domains:
+            ret.extend(self.domains[x].prep_names(ind_vars))
         return ret
 
     def __repr__(self):
@@ -2264,6 +2304,7 @@ class GFScalarVariable(GridFunctionVariable):
         return data
 
     def get_jitted_coefficient(self, ind_vars, locals):
+
         if not self.isDerived:
             self.set_funcs()
 

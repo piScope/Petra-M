@@ -191,6 +191,7 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False,
     target_names = list(names[:])
     all_names = list(names[:])
 
+    """
     def get_names(names):
         for n in names:
             if (n in g and isinstance(g[n], Variable)):
@@ -198,7 +199,13 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False,
                 for x in new_names:
                     all_names.append(x)
                 get_names(new_names)
-    get_names(names)
+    """
+    # def get_names(names):
+    ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
+    for n in names:
+        if (n in g and isinstance(g[n], Variable)):
+            all_names.extend(g[n].prep_names(ind_vars))
+    # get_names(names)
 
     for n in all_names:
         if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
@@ -211,7 +218,6 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False,
                 new_names.append(x)
                 name_translation[x] = x
 
-            ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
             # if g[n].has_dependency():
             #    g[n].forget_jitted_coefficient()
             g[n].set_coeff(ind_vars, g)
@@ -303,11 +309,12 @@ class BdrNodalEvaluator(EvaluatorAgent):
         self.decimate = decimate
         self.knowns = WKD()
         self.iverts = []
+        self.meshdim = mesh.Dimension()
 
-        if mesh.Dimension() == 3:
+        if self.meshdim == 3:
             getarray = mesh.GetBdrArray
             getelement = mesh.GetBdrElement
-        elif mesh.Dimension() == 2:
+        elif self.meshdim == 2:
             getarray = mesh.GetDomainArray
             getelement = mesh.GetElement
         else:
@@ -349,9 +356,7 @@ class BdrNodalEvaluator(EvaluatorAgent):
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
         if len(emesh_idx) > 1:
             assert False, "expression involves multiple mesh (emesh length != 1)"
-        # if len(emesh_idx) < 1:
-        #    assert False, "expression is not defined on any mesh"
-        # (this could happen when expression is pure geometryical like "x+y")
+
         decimate = kwargs.pop('decimate', 1)
 
         if len(emesh_idx) == 1:
@@ -361,8 +366,15 @@ class BdrNodalEvaluator(EvaluatorAgent):
                                          emesh_idx=emesh_idx[0],
                                          decimate=decimate)
 
+        if self.meshdim == 3:
+            current_domain = None
+        elif self.meshdim == 2:
+            current_domain = self.battrs[0]
+        else:
+            assert False, "BdrNodal Evaluator is not supported for this dimension"
+
         val = eval_at_nodals(self, expr, solvars, phys,
-                             current_domain=self.battrs[0])
+                             current_domain=current_domain)
 
         if val is None:
             return None, None, None

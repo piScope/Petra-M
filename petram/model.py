@@ -833,6 +833,7 @@ class Model(RestorableOrderedDict):
         script.append('    s.run(eng, is_first=is_first)')
         script.append('    is_first=False')
         script.append('')
+        script.append('eng.show_variables()')
         script.append('if myid == 0:')
         script.append('    print("End Time " + ')
         script.append(
