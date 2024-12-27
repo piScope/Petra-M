@@ -738,8 +738,7 @@ class ExpressionVariable(Variable):
                 l[n] = g[n].nodal_values(iele=iele, el2v=el2v, locs=locs,
                                          wverts=wverts, elvertloc=elvertloc,
                                          g=g, **kwargs)
-
-                # if reutrn is None (failed to evaluate). return None
+                # if return is None (failed to evaluate). return None
                 if l[n] is None:
                     return None
 
@@ -1469,7 +1468,9 @@ class CoefficientVariable(Variable):
         size = len(iverts_f)
         #wverts = np.zeros(size)
         ret = None
+
         if ibele is None:
+            print("ibele = None : we can not evaulate CoefficientVariable in this case (edge for dim=3 ")
             return
 
         if mesh.Dimension() == 3:
@@ -1492,6 +1493,7 @@ class CoefficientVariable(Variable):
                 assert False, "BdrNodal Evaluator does not support dim=1"
 
         call_eval = self.get_call_eval()
+
 
         for ibe in ibele:
             el = getelement(ibe)
