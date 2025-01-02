@@ -113,7 +113,8 @@ class Engine(object):
 
         if myid == 0:
             print("===  List of variables ===")
-        names = [x for x in self.model._variables if not x.startswith("_")]
+        #names = [x for x in self.model._variables if not x.startswith("_")]
+        names = [x for x in self.model._variables]
         try:
             for x in names:
                 if myid == 0:

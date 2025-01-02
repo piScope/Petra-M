@@ -292,7 +292,8 @@ class Variable():
 
     def __init__(self, complex=False, dependency=None, grad=None, curl=None, div=None):
         self.complex = complex
-
+        self._valid_nodes = None
+        
         # dependency stores a list of Finite Element space discrite variable
         # names whose set_point has to be called
         self.dependency = [] if dependency is None else dependency
@@ -399,7 +400,7 @@ class Variable():
         return list(set(list(self.dependency) + list(self.div) +
                         list(self.curl) + list(self.grad)))
 
-    def prep_names(self, ind_vars):
+    def prep_names(self, ind_vars, g):
         return self.get_names()
 
     def get_emesh_idx(self, idx=None, g=None):
@@ -436,6 +437,13 @@ class Variable():
 
     def set_context(self, ll):
         self.global_context = ll
+        
+    def check_valid_nodes(self, idx):
+        if idx is None:
+            return self._valid_nodes
+        return np.logical_and(idx, self._valid_nodes)
+        
+
     '''
     def make_callable(self):
         raise NotImplementedError("Subclass need to implement")
@@ -500,9 +508,14 @@ class Constant(Variable):
             for pair, xyz in zip(m, loc):
                 idx = pair[1]
                 ret[idx] = self.value
-
+                wverts[idx] = 1
+                
+        self._valid_nodes = wverts # used in check_valid_nodes
+        
         return ret
 
+
+        
     def ncface_values(self, locs=None, **kwargs):
         size = len(locs)
         shape = [size] + list(np.array(self.value).shape)
@@ -528,10 +541,10 @@ class SumVariable(Variable):
 
         return ret
 
-    def prep_names(self, ind_vars):
+    def prep_names(self, ind_vars, g):
         ret = []
         for x in self.variables:
-            ret.extend(x.prep_names(ind_vars))
+            ret.extend(x.prep_names(ind_vars, g))
         return ret
 
     def add_expression(self, v, g):
@@ -659,22 +672,27 @@ class ExpressionVariable(Variable):
     def get_names(self):
         return self.names
 
-    def prep_names(self, ind_vars):
-        #print("prep_names", self, list(self.gns))
-
+    def prep_names(self, ind_vars, g):
+        #
+        #  called from plot solution.
+        #    self.gns contains names from namespace (can be none)
+        #    g contains local namespace + solution variables
+        
         all_names = []
         name_translation = {}
+        self.set_context(g)
+        gc = self.global_context
 
         for n in self.names:
-            if (n in self.gns and
-                    isinstance(self.gns[n], NumbaCoefficientVariable)):
-                for x in self.gns[n].dependency:
+            if (n in gc and
+                    isinstance(gc[n], NumbaCoefficientVariable)):
+                for x in gc[n].dependency:
                     all_names.append(x)
                     self.name_translation[x] = x
 
                 # if g[n].has_dependency():
                 #    g[n].forget_jitted_coefficient()
-                self.gns[n].set_coeff(ind_vars, self.gns)
+                gc[n].set_coeff(ind_vars, gc)
                 all_names.append(n)
                 self.name_translation[n] = n
         self.all_names = all_names
@@ -687,7 +705,9 @@ class ExpressionVariable(Variable):
         self.x = T.Transform(ip)
         #print("setting x", self, self.x, self.names, list(self.global_context), list(g))
         for n in self.names:
-            if n in self.global_context:
+            if n in self.gns:
+                var = self.gns[n]
+            elif n in self.global_context:
                 var = self.global_context[n]
             elif n in g:
                 var = g[n]
@@ -704,7 +724,7 @@ class ExpressionVariable(Variable):
             l[k] = self.variables[k]()
 
         return (eval_code(self.co, self.global_context, l))
-        # return (eval_code(self.co, var_g, l))
+        #return (eval_code(self.co, var_g, l))
 
     def get_emesh_idx(self, idx=None, g=None):
         if idx is None:
@@ -717,7 +737,7 @@ class ExpressionVariable(Variable):
     def nodal_values(self, iele=None, el2v=None, locs=None,
                      wverts=None, elvertloc=None, g=None,
                      **kwargs):
-        #print("Entering nodal(expr)", self.expr)
+        print("Entering nodal(expr)", self.expr)
         size = len(wverts)
         dtype = np.complex128 if self.complex else np.float64
         ret = np.zeros(size, dtype=dtype)
@@ -733,19 +753,25 @@ class ExpressionVariable(Variable):
         ll_value = []
         var_g2 = var_g.copy()
 
+        valid_nodes = None
+        
         for n in self.names:
             if (n in g and isinstance(g[n], Variable)):
+                print(n, g[n])
                 l[n] = g[n].nodal_values(iele=iele, el2v=el2v, locs=locs,
                                          wverts=wverts, elvertloc=elvertloc,
                                          g=g, **kwargs)
+                valid_nodes = g[n].check_valid_nodes(valid_nodes)
                 # if return is None (failed to evaluate). return None
                 if l[n] is None:
                     return None
-
+                print("l[n]", n, l[n], valid_nodes)
                 ll_name.append(n)
                 ll_value.append(l[n])
             elif (n in g):
-                var_g2[n] = g[n]
+                var_g2[n] = g[n] 
+        print("ll_name", ll_name)
+        print("valid", sum(valid_nodes), len(valid_nodes))
         if len(ll_name) > 0:
             value = np.array([eval(self.co, var_g2, dict(zip(ll_name, v)))
                               for v in zip(*ll_value)])
@@ -756,6 +782,8 @@ class ExpressionVariable(Variable):
             if value.ndim > 0:
                 value = np.stack([value] * size)
         #value = np.array(eval_code(self.co, var_g, l), copy=False)
+
+        print("value here", value)
         from petram.helper.right_broadcast import multi
 
         ret = multi(ret, value)
@@ -853,10 +881,18 @@ class ExpressionVariable(Variable):
                 var.set_coeff(ind_vars, ll)
 
     def set_context(self, ll):
-        self.global_context = self.gns.copy()
+        #print('set context', self, self.names)
+        #if self.gns is not None: print("gns", list(self.gns))
+        #print("context", list(ll))
+        
+        if self.gns is not None:
+            self.global_context = self.gns.copy()
+        else:
+            self.global_context = {}
+        self.global_context.update(ll)
 
         for n in self.names:
-            if n in self.gns:
+            if self.gns is not None and n in self.gns:
                 continue
             if (n in ll and isinstance(ll[n], Variable)):
                 ll[n].set_context(ll)
@@ -883,11 +919,11 @@ class DomainVariable(Variable):
             ret.extend(self.domains[x].get_names())
         return ret
 
-    def prep_names(self, ind_vars):
+    def prep_names(self, ind_vars, g):
         #print("prep_names", self)
         ret = []
         for x in self.domains:
-            ret.extend(self.domains[x].prep_names(ind_vars))
+            ret.extend(self.domains[x].prep_names(ind_vars, g))
         return ret
 
     def __repr__(self):
@@ -1018,6 +1054,7 @@ class DomainVariable(Variable):
                                   current_domain=current_domain,
                                   g=gdomain, **kwargs)
 
+            print(v)
             if w is None:
                 a = np.sum(np.abs(v.reshape(len(v), -1)), -1)
                 w = (a != 0).astype(float)
@@ -1279,14 +1316,19 @@ class PyFunctionVariable(Variable):
 
                 ret[idx] = ret[idx] + self.func(*xyz, **kwargs)
                 wverts[idx] = wverts[idx] + 1
+        print(ret)
         ret = np.stack([x for x in ret if x is not None])
 
-        idx = np.where(wverts == 0)[0]
+        
+
+        self._valid_nodes = (wverts != 0)
+        
+        idx = np.where(wverts == 0)[0]        
         wverts[idx] = 1.0
 
         from petram.helper.right_broadcast import div
         ret = div(ret, wverts)
-
+        print(ret)
         return ret
 
     def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
@@ -1680,6 +1722,8 @@ class NumbaCoefficientVariable(CoefficientVariable):
         self.x = (0, 0, 0)
         self.shape = shape
         self.td = td
+
+        print(self.shape)
         if len(self.shape) == 0:
             self.kind = 'scalar'
         elif len(self.shape) == 1:
