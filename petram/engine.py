@@ -104,25 +104,18 @@ class Engine(object):
 
         self._ppname_postfix = ''
 
-    def show_variables(self, show_hidden=False):
+    def show_variables(self, show_hidden=True):
         try:
             from mpi4py import MPI
         except:
             from petram.helper.dummy_mpi import MPI
         myid = MPI.COMM_WORLD.rank
 
-        if myid == 0:
-            print("===  List of variables ===")
-
-        if show_hidden:
-            names = [x for x in self.model._variables]
-        else:
-            names = [x for x in self.model._variables if not x.startswith("_")]
-
         try:
-            for x in names:
-                if myid == 0:
-                    print(":".join((x, self.model._variables[x].__repr__())))
+            if myid == 0:
+                print("===  List of variables ===")
+                txt = self.model._variables.long_repr(show_hidden)
+                print(txt)
         except:
             print("error during show_variables")
             import tranceback
@@ -3692,7 +3685,10 @@ class Engine(object):
         variables = Variables()
 
         self.access_idx = 0
+
         for phys in phys_range:
+            tmp_variables = Variables()
+
             suffix = phys.dep_vars_suffix
             ind_vars = [x.strip() for x in phys.ind_vars.split(',')]
 
@@ -3702,7 +3698,7 @@ class Engine(object):
                 rifes = self.r_ifes(name)
                 rgf = self.r_x[rifes]
                 igf = self.i_x[rifes]
-                phys.add_variables(variables, name, rgf, igf)
+                phys.add_variables(tmp_variables, name, rgf, igf)
 
             # collect all definition (domain specific expressions) from children
             n = phys.dep_vars[0]
@@ -3712,8 +3708,10 @@ class Engine(object):
                 if mm is self:
                     continue
 
-                mm.add_domain_variables(variables, n, suffix, ind_vars)
-                mm.add_bdr_variables(variables, n, suffix, ind_vars)
+                mm.add_domain_variables(tmp_variables, n, suffix, ind_vars)
+                mm.add_bdr_variables(tmp_variables, n, suffix, ind_vars)
+
+            variables.update(tmp_variables)
 
         from petram.mesh.mesh_utils import get_reverse_connectivity
 
@@ -3731,10 +3729,9 @@ class Engine(object):
             #           "Use InitSetting to load value from previous SolveStep: ", k)
             self.model._variables[k] = variables[k]
 
-        #if verbose:
-        if True:
-            self.show_variables()            
-
+        # if verbose:
+        dprint1("variables defined this point:",
+                variables.short_repr(False), notrim=True)
 
     def set_update_flag(self, mode):
         for k in self.model['Phys'].keys():
