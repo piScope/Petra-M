@@ -432,8 +432,7 @@ class Variable():
         return self.ncface_values(*args, **kwargs)
 
     def point_values(self, *args, **kwargs):
-        print(self)
-        raise NotImplementedError("Subclass need to implement")
+        raise NotImplementedError("Subclass need to implement:" + str(self))
 
     def add_topological_info(self, mesh):
         if not isinstance(self, DomainVariable):
@@ -1776,7 +1775,6 @@ class NumbaCoefficientVariable(CoefficientVariable):
         self.shape = shape
         self.td = td
 
-        print(self.shape)
         if len(self.shape) == 0:
             self.kind = 'scalar'
         elif len(self.shape) == 1:
