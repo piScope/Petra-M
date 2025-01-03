@@ -104,7 +104,7 @@ class Engine(object):
 
         self._ppname_postfix = ''
 
-    def show_variables(self):
+    def show_variables(self, show_hidden=False):
         try:
             from mpi4py import MPI
         except:
@@ -113,8 +113,12 @@ class Engine(object):
 
         if myid == 0:
             print("===  List of variables ===")
-        #names = [x for x in self.model._variables if not x.startswith("_")]
-        names = [x for x in self.model._variables]
+
+        if show_hidden:
+            names = [x for x in self.model._variables]
+        else:
+            names = [x for x in self.model._variables if not x.startswith("_")]
+
         try:
             for x in names:
                 if myid == 0:
@@ -3727,10 +3731,10 @@ class Engine(object):
             #           "Use InitSetting to load value from previous SolveStep: ", k)
             self.model._variables[k] = variables[k]
 
-        if verbose:
-            dprint1("===  List of variables ===")
-            names = [x for x in self.model._variables if not x.startswith("_")]
-            dprint1(", ".join(sorted(names)), notrim=True)
+        #if verbose:
+        if True:
+            self.show_variables()            
+
 
     def set_update_flag(self, mode):
         for k in self.model['Phys'].keys():

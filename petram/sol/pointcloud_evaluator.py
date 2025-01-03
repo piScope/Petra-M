@@ -211,7 +211,7 @@ class PointcloudEvaluator(EvaluatorAgent):
         ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
         for n in names:
             if (n in g and isinstance(g[n], Variable)):
-                all_names.extend(g[n].prep_names(ind_vars))
+                all_names.extend(g[n].prep_names(ind_vars, g))
 
         for n in all_names:
             if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
