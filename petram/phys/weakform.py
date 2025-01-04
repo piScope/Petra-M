@@ -199,13 +199,21 @@ class WeakIntegration(Phys):
                             itg_params=itg_params)
 
     def add_bf_contribution(self, engine, a, real=True, kfes=0):
+        if self.get_root_phys().element.startswith("L2") and isinstance(self, Domain):
+            assert False, "L2 element can have only domain contributions"
         self.add_contribution(engine, a, real=real)
 
     def add_lf_contribution(self, engine, b, real=True, kfes=0):
+        if self.get_root_phys().element.startswith("L2") and not isinstance(self, Domain):
+            assert False, "L2 element can have only domain contributions"
+
         self.add_contribution(engine, b, real=real)
 
     def add_mix_contribution2(self, engine, mbf, r, c,  is_trans, is_conj,
                               real=True):
+        if self.get_root_phys().element.startswith("L2") and not isinstance(self, Domain):
+            assert False, "L2 element can have only domain contributions"
+
         self.add_contribution(engine, mbf, real=real,
                               is_trans=is_trans, is_conj=is_conj)
 
