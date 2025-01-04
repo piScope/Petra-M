@@ -1124,33 +1124,32 @@ class DomainVariable(Variable):
 
     def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
                     g=None, attr1=None, attr2=None, locs=None,
-                    current_domain=None, **kwargs):
+                    current_domain=None, knowns=None, **kwargs):
         from petram.helper.right_broadcast import add, multi
 
         ret = None
 
-        w = ifaces * 0  # w : 0 , 0.5, 1
+        w = (ifaces * 0.0).astype(np.float32, copy=False)  # w : 0 , 0.5, 1
+
         for domains in self.domains:
             idx = np.in1d(attr1, domains)
             w[idx] = w[idx] + 1.0
             idx = np.in1d(attr2, domains)
             w[idx] = w[idx] + 1.0
+
         w[w > 0] = 1. / w[w > 0]
 
         npts = [irs[gtype].GetNPoints() for gtype in gtypes]
         base_weight = np.repeat(w, npts)
         # 1 for exterior face, 0.5 for internal faces
 
+        tmp_ret = {}
+        w = np.zeros(ifaces.shape)
+
         for domains in self.domains.keys():
             if (current_domain is not None and
                     int(current_domain) not in domains):
                 continue
-
-            w = np.zeros(ifaces.shape)
-            w[np.in1d(attr1, domains)] += 1.0
-            w[np.in1d(attr2, domains)] += 1.0
-            w2 = base_weight * np.repeat(w, npts)
-
             expr = self.domains[domains]
 
             if self.gdomains[domains] is None:
@@ -1162,16 +1161,36 @@ class DomainVariable(Variable):
             m = getattr(expr, method)
             #kwargs['weight'] = w2
 
-            v = m(ifaces=ifaces, irs=irs,
-                  gtypes=gtypes, locs=locs, attr1=attr1,
-                  attr2=attr2, g=gdomain,
-                  current_domain=current_domain,
-                  **kwargs)
+            for dom in domains:
+                if dom == current_domain or current_domain is None:
+                    w *= 0.0
+                    w[np.in1d(attr1, dom)] += 1.0
+                    w[np.in1d(attr2, dom)] += 1.0
+                    w2 = base_weight * np.repeat(w, npts)
 
-            v = multi(v, w2)
-            ret = v if ret is None else ret + v
+                    v = m(ifaces=ifaces, irs=irs,
+                          gtypes=gtypes, locs=locs, attr1=attr1,
+                          attr2=attr2, g=gdomain,
+                          current_domain=dom, knowns=None,
+                          **kwargs)
 
-            #ret = v if ret is None else add(ret, v)
+                    v = multi(v, w2)
+                    if dom not in tmp_ret:
+                        tmp_ret[dom] = v
+                    else:
+                        assert False, "Should not come here. Check implementation of SumVariable"
+
+        dtype = np.complex128 if np.any(
+            [np.iscomplexobj(tmp_ret[x]) for x in tmp_ret]) else np.float64
+        ret = None
+        for x in tmp_ret:
+            if ret is None:
+                ret = tmp_ret[x].astype(dtype, copy=False)
+            else:
+                ret += tmp_ret[x]
+        if ret is None:
+            return None
+
         return ret
 
     def ncface_values(self, *args, **kwargs):
@@ -1320,8 +1339,6 @@ class PyFunctionVariable(Variable):
                      wverts=None, elvertloc=None, g=None, knowns=None,
                      **kwargs):
 
-        #print("Entering PyFunction", self.func)
-
         if locs is None:
             return
         if g is None:
@@ -1376,12 +1393,12 @@ class PyFunctionVariable(Variable):
         from petram.helper.right_broadcast import div
         ret[idx] = div(ret[idx], _check[idx])
 
-        #print("Exiting PyFunction", self._valid_nodes, ret[:,0,0])
         return ret
 
     def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
                     g=None, attr1=None, attr2=None, locs=None,
                     knowns=None, **kwargs):
+
         if locs is None:
             return
         if g is None:
