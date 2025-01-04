@@ -692,11 +692,11 @@ class DlgEditModel(SimpleFramePlus):
             p4panel.Hide()
             self.p1.Layout()
 
-        self.update_highlight(mm)
-
         if evt is not None:
             mm.onItemSelChanged(evt)
             evt.Skip()
+
+        self.update_highlight(mm)
 
         if not self._enable:
             self.Enable(False)

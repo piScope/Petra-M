@@ -677,6 +677,14 @@ class ExpressionVariable(Variable):
         self.names = names
         self.expr = expr
         self.ind_vars = ind_vars
+
+        if gns is None:
+            # (note)
+            # gns is None if add_expression is directly used, instead of using
+            # the do_add_*_expr method in Phys class.
+            # In this case, the expression should not depend explicitly on
+            # the namespace variable.
+            gns = {}
         self.gns = gns
         self.variables = WVD()
 
