@@ -2681,11 +2681,13 @@ class SurfNormal(SurfVariable):
     def set_point(self, T, ip, g, l, t=None):
         nor = mfem.Vector(self.sdim)
         mfem.CalcOrtho(T.Jacobian(), nor)
-        self.nor = nor.GetDataArray().copy()
+        l = np.sqrt(np.sum(nor.GetDataArray()**2))
+        self.nor = nor.GetDataArray().copy()/l
 
     def get_jitted_coefficient(self, ind_vars, locals):
-        norm = mfem.VectorBdrNormalCoefficient(len(ind_vars))
-        return norm
+        return None
+        #norm = mfem.VectorBdrNormalCoefficient(len(ind_vars))
+        #return norm
 
     def __call__(self, **kwargs):
         if self.comp == -1:
