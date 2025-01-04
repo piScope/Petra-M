@@ -289,7 +289,7 @@ class Variables(dict):
             names = list(self)
         else:
             names = [x for x in list(self) if not x.startswith("_")]
-
+        names = sorted(names)
         lines = [":".join((x, self[x].__repr__())) for x in names]
         return "\n".join(lines)
 
@@ -298,6 +298,7 @@ class Variables(dict):
             names = list(self)
         else:
             names = [x for x in list(self) if not x.startswith("_")]
+        names = sorted(names)
         return ", ".join(names)
 
 
@@ -1131,20 +1132,12 @@ class DomainVariable(Variable):
 
         w = (ifaces * 0.0).astype(np.float32, copy=False)  # w : 0 , 0.5, 1
 
-        for domains in self.domains:
-            idx = np.in1d(attr1, domains)
-            w[idx] = w[idx] + 1.0
-            idx = np.in1d(attr2, domains)
-            w[idx] = w[idx] + 1.0
-
-        w[w > 0] = 1. / w[w > 0]
-
         npts = [irs[gtype].GetNPoints() for gtype in gtypes]
-        base_weight = np.repeat(w, npts)
+
         # 1 for exterior face, 0.5 for internal faces
 
         tmp_ret = {}
-        w = np.zeros(ifaces.shape)
+        w = np.zeros(ifaces.shape, dtype=np.float64)
 
         for domains in self.domains.keys():
             if (current_domain is not None and
@@ -1164,9 +1157,9 @@ class DomainVariable(Variable):
             for dom in domains:
                 if dom == current_domain or current_domain is None:
                     w *= 0.0
-                    w[np.in1d(attr1, dom)] += 1.0
-                    w[np.in1d(attr2, dom)] += 1.0
-                    w2 = base_weight * np.repeat(w, npts)
+                    w[np.in1d(attr1, dom)] += 0.5
+                    w[np.in1d(attr2, dom)] += 0.5
+                    w2 = np.repeat(w, npts)
 
                     v = m(ifaces=ifaces, irs=irs,
                           gtypes=gtypes, locs=locs, attr1=attr1,

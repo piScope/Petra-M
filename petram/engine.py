@@ -3730,8 +3730,8 @@ class Engine(object):
             self.model._variables[k] = variables[k]
 
         # if verbose:
-        dprint1("variables defined this point:",
-                variables.short_repr(False), notrim=True)
+        dprint1("variables defined at this point:",
+                self.model._variables.short_repr(False), notrim=True)
 
     def set_update_flag(self, mode):
         for k in self.model['Phys'].keys():
