@@ -698,6 +698,9 @@ class DlgEditModel(SimpleFramePlus):
 
         self.update_highlight(mm)
 
+        #viewer = self.GetParent()
+        #print("selection here (2)", viewer._dom_bdr_sel)
+
         if not self._enable:
             self.Enable(False)
 
