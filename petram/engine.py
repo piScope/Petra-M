@@ -3197,22 +3197,14 @@ class Engine(object):
     def check_ns_name_conflict(self):
         errors = []
         for node in self.model.walk():
-            if node.has_ns():
-                try:
-                    node.check_ns_name_conflict()
-
-                except Exception as e:
-                    node._global_ns = {}
-                    m = traceback.format_exc()
-                    errors.append("failed to build ns for " + node.fullname() +
-                                  "\n" + m)
-            else:
-                # node._global_ns = None
-                node._local_ns = self.model.root()._variables
+            if not hasattr(node, "check_ns_name_conflict"):
+                continue
+            flag, names = node.check_ns_name_conflict()
+            if not flag:
+                errors.append(node.fullname() + " : " + ", ".join(names))
 
         if len(errors) > 0:
-            dprint1("\n".join(errors), notrim=True)
-            assert False, "\n".join(errors)
+            assert False, "Name conflict between namespace and pre-defined variables.\n" + "\n".join(errors)
 
     def preprocess_ns(self, ns_folder, data_folder):
         '''

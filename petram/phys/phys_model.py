@@ -733,7 +733,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                   [txt_dudt, False, 3, {"text": ""}],
                   [txt_du2dt2, False, 3, {"text": ""}],
                   ['Gradient', False, 3, {"text": ""}],
-                  ['Varying (in time/for loop) Term.', False, 3, {"text": ""}], ]
+                  ['Varying term \n (in time/for loop)', False, 3, {"text": ""}], ]
 
         if isinstance(self, Bdry):
             ll.append(["Boundary variables", "", 2, None])

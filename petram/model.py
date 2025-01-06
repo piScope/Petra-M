@@ -660,7 +660,7 @@ class Model(RestorableOrderedDict):
     def derived_variables(self):
         return []
 
-    def nicetxt_derived_variables(self, l=60):
+    def nicetxt_derived_variables(self, l=50):
         from textwrap import wrap
 
         splitted = wrap('. '.join(self.derived_variables), l,
