@@ -654,6 +654,23 @@ class Model(RestorableOrderedDict):
         for key, value in new_cnt:
             parent[key] = value
 
+
+    @property
+    def derived_variables(self):
+        return []
+
+    def nicetxt_derived_variables(self, l=60):
+        from textwrap import wrap
+
+        splitted = wrap('. '.join(self.derived_variables), l,
+                        fix_sentence_endings=True)
+        tmp = [','.join(x.split('.')) for x in splitted]
+        txt = "\n".join(tmp)
+
+        if len(txt) == 0:
+            return "(none)"
+        return txt
+
     def split_digits(self):
         '''
         split tailing digits

@@ -487,6 +487,15 @@ class TestVariable(Variable):
         return locs[:, 0] * 0 + 2.0
 
 
+class PlaceholderVariable(Variable):
+    def __init__(self, name, *args, **kwargs):
+        self._ph_name = name
+        super(PlaceholderVariable, self).__init__(*args, **kwargs)
+
+    def __repr__(self):
+        return "Placeholder(" + str(self._ph_name) + ")"
+
+
 class Constant(Variable):
     def __init__(self, value, comp=-1):
         super(Constant, self).__init__(complex=np.iscomplexobj(value))
@@ -790,8 +799,7 @@ class ExpressionVariable(Variable):
                 l[n] = g[n].nodal_values(iele=iele, el2v=el2v, locs=locs,
                                          wverts=wverts, elvertloc=elvertloc,
                                          current_domain=current_domain,
-                                         elattr=elattr,
-                                         g=g, **kwargs)
+                                         elattr=elattr, g=g, **kwargs)
                 _check = g[n].check_valid_nodes(_check)
                 # if return is None (failed to evaluate). return None
                 if l[n] is None:
@@ -1095,8 +1103,8 @@ class DomainVariable(Variable):
             for dom in domains:
                 if dom == current_domain or current_domain is None:
                     v = expr.nodal_values(iele=iele0, elattr=elattr, wverts=wverts,
-                                          current_domain=dom, g=gdomain, kwnows=None,
-                                          **kwargs)
+                                          current_domain=dom, g=gdomain,
+                                          knowns=None, **kwargs)
                     idx = expr._valid_nodes
                     if dom not in tmp_ret:
                         tmp_ret[dom] = np.zeros(v.shape, dtype=v.dtype)
@@ -2687,7 +2695,7 @@ class SurfNormal(SurfVariable):
     def get_jitted_coefficient(self, ind_vars, locals):
         return None
         #norm = mfem.VectorBdrNormalCoefficient(len(ind_vars))
-        #return norm
+        # return norm
 
     def __call__(self, **kwargs):
         if self.comp == -1:
@@ -2842,24 +2850,38 @@ def append_suffix_to_expression(expr, vars, suffix):
 def add_scalar(solvar, name, suffix, ind_vars, solr,
                soli=None, deriv=None, vars=None):
     name = append_suffix_to_expression(name, vars, suffix)
-    solvar[name] = GFScalarVariable(solr, soli, comp=1, deriv=deriv)
+    if solr is None:
+        solvar[name] = PlaceholderVariable(name)
+    else:
+        solvar[name] = GFScalarVariable(solr, soli, comp=1, deriv=deriv)
 
 
 def add_components(solvar, name, suffix, ind_vars, solr,
                    soli=None, deriv=None, vars=None):
     name = append_suffix_to_expression(name, vars, suffix)
-    solvar[name] = GFVectorVariable(solr, soli, deriv=deriv)
+
+    if solr is None:
+        solvar[name] = PlaceholderVariable(name)
+    else:
+        solvar[name] = GFVectorVariable(solr, soli, deriv=deriv)
+
     for k, p in enumerate(ind_vars):
-        solvar[name + p] = GFScalarVariable(solr, soli, comp=k + 1,
-                                            deriv=deriv)
+        if solr is None:
+            solvar[name + p] = PlaceholderVariable(name+p)
+        else:
+            solvar[name + p] = GFScalarVariable(solr, soli, comp=k + 1,
+                                                deriv=deriv)
 
 
 def add_elements(solvar, name, suffix, ind_vars, solr,
                  soli=None, deriv=None, elements=None):
     elements = elements if elements is not None else []
     for k, p in enumerate(ind_vars):
-        solvar[name + suffix + p] = GFScalarVariable(solr, soli, comp=k + 1,
-                                                     deriv=deriv)
+        if solr is None:
+            solvar[name + suffix + p] = PlaceholderVariable(name+suffix+p)
+        else:
+            solvar[name + suffix + p] = GFScalarVariable(solr, soli, comp=k + 1,
+                                                         deriv=deriv)
 
 
 def add_component_expression(solvar, name, suffix, ind_vars, expr, vars,

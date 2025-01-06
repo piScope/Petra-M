@@ -117,7 +117,7 @@ class Coefficient_Evaluator(object):
         # (2024 this needs to be copied for parametric scan works)
         self.g = g.copy()
 
-        for key in l.keys():
+        for key in l:
             self.g[key] = l[key]
         self.real = real
         self.variables = []
@@ -768,8 +768,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             ret = self.timestep_config[0:3] + \
                 [self.isJacobian, self.isTimeDependent]
 
-        if self.derived_dom_bdr_variables is not None:
-            ret = ret + [self.nicetxt_derived_dom_bdr_variables()]
+        if self.derived_variables is not None:
+            ret = ret + [self.nicetxt_derived_variables()]
 
         if self.allow_custom_intorder:
             ret = ret + [self.add_intorder]
@@ -777,18 +777,26 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         return ret
 
     @property
-    def derived_dom_bdr_variables(self):
+    def derived_variables(self):
         if not isinstance(self, (Bdry, Domain)):
-            return None
+            return []
 
+        p = self.get_root_phys()
+        ind_vars = [x.strip() for x in p.ind_vars.split(',')]
+        suffix = p.dep_vars_suffix
+        n = p.dep_vars[0]
+
+        check_names = False
         if not hasattr(self, "_derived_dom_bdr"):
+            check_names = True
+        else:
+            if (self._derived_dom_bdr_param[1] != ind_vars or
+                self._derived_dom_bdr_param[1] != suffix or
+                    self._derived_dom_bdr_param[2] != n):
+                check_names = True
+
+        if check_names:
             tmp = []
-
-            p = self.get_root_phys()
-
-            ind_vars = [x.strip() for x in p.ind_vars.split(',')]
-            suffix = p.dep_vars_suffix
-            n = p.dep_vars[0]
 
             v = {}
 
@@ -799,27 +807,22 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
             tmp = sorted([x for x in list(v) if not x.startswith('_')])
 
+            self._derived_dom_bdr_param = (ind_vars, suffix, n)
         else:
             tmp = self._derived_dom_bdr
 
-        if len(self._sel_index) != 0:
+        if not self.is_enabled():
+            if hasattr(self, "_derived_dom_bdr"):
+                del self._derived_dom_bdr
+            return []
+
+        elif len(self._sel_index) != 0:
             self._derived_dom_bdr = tmp
+
         else:
             return []
 
         return self._derived_dom_bdr
-
-    def nicetxt_derived_dom_bdr_variables(self, l=60):
-        from textwrap import wrap
-
-        splitted = wrap('. '.join(self.derived_dom_bdr_variables), l,
-                        fix_sentence_endings=True)
-        tmp = [','.join(x.split('.')) for x in splitted]
-        txt = "\n".join(tmp)
-
-        if len(txt) == 0:
-            return "(none)"
-        return txt
 
     @property
     def geom_dim(self):

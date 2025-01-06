@@ -201,7 +201,7 @@ class DlgEditModel(SimpleFramePlus):
         mm = self.model.GetItem(indices)
 
         flag, idx = self.check_el_chagend(mm)
-        print("page changing", flag, idx)
+
         if flag:
             self.import_selected_panel_value(evt)
             if idx == 1:  # if panel 2 : update highlight
