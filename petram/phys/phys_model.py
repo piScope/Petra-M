@@ -736,9 +736,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                   ['Varying (in time/for loop) Term.', False, 3, {"text": ""}], ]
 
         if isinstance(self, Bdry):
-            ll.append(["Derived boundary variables", "", 2, None])
+            ll.append(["Boundary variables", "", 2, None])
         if isinstance(self, Domain):
-            ll.append(["Derived domain variables", "", 2, None])
+            ll.append(["Domain variables", "", 2, None])
 
         if self.allow_custom_intorder:
             ll.append(['Increase int. order', '0', 400, ''])
@@ -768,8 +768,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             ret = self.timestep_config[0:3] + \
                 [self.isJacobian, self.isTimeDependent]
 
-        if self.derived_variables is not None:
-            ret = ret + [self.nicetxt_derived_variables()]
+        ret = ret + [self.nicetxt_derived_variables()]
 
         if self.allow_custom_intorder:
             ret = ret + [self.add_intorder]
@@ -784,6 +783,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         p = self.get_root_phys()
         ind_vars = [x.strip() for x in p.ind_vars.split(',')]
         suffix = p.dep_vars_suffix
+        nn = ", ".join(p.dep_vars)
         n = p.dep_vars[0]
 
         check_names = False
@@ -792,7 +792,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         else:
             if (self._derived_dom_bdr_param[1] != ind_vars or
                 self._derived_dom_bdr_param[1] != suffix or
-                    self._derived_dom_bdr_param[2] != n):
+                    self._derived_dom_bdr_param[2] != nn):
                 check_names = True
 
         if check_names:
@@ -807,7 +807,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
             tmp = sorted([x for x in list(v) if not x.startswith('_')])
 
-            self._derived_dom_bdr_param = (ind_vars, suffix, n)
+            self._derived_dom_bdr_param = (ind_vars, suffix, nn)
         else:
             tmp = self._derived_dom_bdr
 
@@ -1166,6 +1166,46 @@ class PhysModule(Phys):
         self.vt_order.preprocess_params(self)
 
     @property
+    def derived_variables(self):
+        p = self.get_root_phys()
+        ind_vars = [x.strip() for x in p.ind_vars.split(',')]
+        suffix = p.dep_vars_suffix
+        nn = ", ".join(p.dep_vars)
+
+        check_names = False
+        if not hasattr(self, "_derived_model_var"):
+            check_names = True
+        else:
+            if (self._derived_model_var_param[1] != ind_vars or
+                self._derived_model_var_param[1] != suffix or
+                    self._derived_model_var_param[2] != nn):
+                check_names = True
+
+        if check_names:
+            tmp = []
+
+            v = {}
+
+            for n in self.dep_vars:
+                self.add_variables(v, n, None, None)
+
+            tmp = sorted([x for x in list(v) if not x.startswith('_')])
+
+            self._derived_model_var_param = (ind_vars, suffix, nn)
+        else:
+            tmp = self._derived_model_var
+
+        if not self.is_enabled():
+            if hasattr(self, "_derived_model_bdr"):
+                del self._derived_model_var
+            return []
+
+        else:
+            self._derived_model_var = tmp
+
+        return self._derived_model_var
+
+    @property
     def geom_dim(self):  # dim of geometry
         return len(self.ind_vars.split(','))
 
@@ -1312,6 +1352,20 @@ class PhysModule(Phys):
 
         self.update_dom_selection()
         return True
+
+    def panel4_param(self):
+        ll = (["Model variables", "", 2, None],)
+        return ll
+
+    def panel4_tip(self):
+        return None
+
+    def import_panel4_value(self, value):
+        pass
+
+    def get_panel4_value(self):
+        ret = [self.nicetxt_derived_variables()]
+        return ret
 
     @property
     def dep_vars(self):

@@ -205,6 +205,14 @@ class NS_mixin(object):
         return {}
 
     def check_ns_name_conflict(self):
+        '''
+        check if derived_variable and namespace variable does not conflict
+        each other
+
+        this check needs to run after preprocessing of vtable is performed.
+        thus it is called from mfem_veiwer (via GUI interaction), separately
+        from eval_ns.
+        '''
         ll = self.derived_variables
         if self._local_ns is not None:
             for x in list(self._local_ns) and x not in ll:
@@ -377,13 +385,6 @@ class NS_mixin(object):
         result, invalid = self.eval_attribute_expr(invalid)
         for k in result:
             setattr(self, k, result[k])
-
-        #
-        # step 6 : verify ns
-        #
-        check, names = self.check_ns_name_conflict()
-        if not check:
-            assert False, "Name conflict: " + ", ".join(names)
 
         # if self is not self.root()["General"] (Let's set it in General too)
         from petram.helper.dot_dict import DotDict

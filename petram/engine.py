@@ -3194,6 +3194,26 @@ class Engine(object):
             dprint1("\n".join(errors), notrim=True)
             assert False, "\n".join(errors)
 
+    def check_ns_name_conflict(self):
+        errors = []
+        for node in self.model.walk():
+            if node.has_ns():
+                try:
+                    node.check_ns_name_conflict()
+
+                except Exception as e:
+                    node._global_ns = {}
+                    m = traceback.format_exc()
+                    errors.append("failed to build ns for " + node.fullname() +
+                                  "\n" + m)
+            else:
+                # node._global_ns = None
+                node._local_ns = self.model.root()._variables
+
+        if len(errors) > 0:
+            dprint1("\n".join(errors), notrim=True)
+            assert False, "\n".join(errors)
+
     def preprocess_ns(self, ns_folder, data_folder):
         '''
         folders are tree object

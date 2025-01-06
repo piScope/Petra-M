@@ -200,7 +200,8 @@ class Model(RestorableOrderedDict):
 
     @property
     def has_4th_panel(self):
-        return self.has_3rd_panel and self._has_4th_panel
+        #return self.has_3rd_panel and self._has_4th_panel
+        return self._has_4th_panel
 
     def get_info_str(self):
         return ""

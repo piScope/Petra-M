@@ -271,7 +271,6 @@ class MFEMViewer(BookViewer):
                                    updateall=True,
                                    skip_plot_geometry=skip_plot_geometry)
 
-
     def set_figure_data(self, view_mode, name, data):
         if not view_mode in self._figure_data:
             self._figure_data[view_mode] = {}
@@ -1864,6 +1863,7 @@ class MFEMViewer(BookViewer):
         engine = self.engine
         engine.preprocess_ns(model.namespaces, model.datasets)
         engine.build_ns()
+        engine.check_ns_name_conflict()
         engine.run_preprocess(model.namespaces, model.datasets)
 
     def rebuild_ns(self):
@@ -1871,6 +1871,7 @@ class MFEMViewer(BookViewer):
         model = self.model
         engine.preprocess_ns(model.namespaces, model.datasets)
         engine.build_ns()
+        engine.check_ns_name_conflict()
 
     def get_internal_bc(self):
         d = self._s_v_loop['phys'][1]
