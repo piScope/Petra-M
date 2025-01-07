@@ -304,7 +304,7 @@ class WF(PhysModule):
         from petram.helper.variables import add_expression
         from petram.helper.variables import add_surf_normals
         from petram.helper.variables import add_constant
-        from petram.helper.variables import GFScalarVariable
+        from petram.helper.variables import GFScalarVariable, PlaceholderVariable
 
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
         suffix = self.dep_vars_suffix
@@ -346,5 +346,8 @@ class WF(PhysModule):
                     names = self.dep_vars_base_txt.split(',')
                     for k, n in enumerate(names):
                         name = n + suffix
-                        v[name] = GFScalarVariable(solr, soli, comp=k+1)
+                        if solr is not None:
+                             v[name] = GFScalarVariable(solr, soli, comp=k+1)
+                        else:
+                             v[name] = PlaceholderVariable(name)
         return v
