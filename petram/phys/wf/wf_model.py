@@ -14,7 +14,6 @@ from petram.phys.phys_model import Phys, PhysModule
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('WF_Model')
 
-txt_predefined = ''
 model_basename = 'WF'
 
 
@@ -230,19 +229,20 @@ class WF(PhysModule):
             ["indpendent vars.", self.ind_vars, 0, {}],
             ["complex", self.is_complex_valued, 3, {"text": ""}],
             a, b,
-            ["derived vars.", ','.join(self.der_vars), 2, {}],
-            ["predefined ns vars.", txt_predefined, 2, {}],
+            ["FES vers.", "", 2, {}],
+            ["ns vars.", "", 2, {}],
             ["generate d/dt...", self.generate_dt_fespace, 3, {"text": ' '}], ])
         return panels
 
     def get_panel1_value(self):
         names = self.dep_vars_base_txt
-        names2 = ', '.join(self.der_vars)
+        names2 = ', '.join(list(self.get_default_ns()))
+        fesnames = ', '.join(self.dep_vars)
         val = super(WF, self).get_panel1_value()
 
         val.extend([self.ind_vars, self.is_complex_valued,
                     self.dep_vars_suffix,
-                    names, names2, txt_predefined,
+                    names, fesnames, names2,
                     self.generate_dt_fespace])
         return val
 
@@ -345,7 +345,7 @@ class WF(PhysModule):
                     for k, n in enumerate(names):
                         name = n + suffix
                         if solr is not None:
-                             v[name] = GFScalarVariable(solr, soli, comp=k+1)
+                            v[name] = GFScalarVariable(solr, soli, comp=k+1)
                         else:
-                             v[name] = PlaceholderVariable(name)
+                            v[name] = PlaceholderVariable(name)
         return v
