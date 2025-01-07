@@ -213,7 +213,7 @@ class NS_mixin(object):
         thus it is called from mfem_veiwer (via GUI interaction), separately
         from eval_ns.
         '''
-        ll = self.derived_variables
+        ll = self.derived_variables + self.probe_variables
         if self._local_ns is not None:
             for x in list(self._local_ns) and x not in ll:
                 ll.append(x)
