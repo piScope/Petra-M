@@ -200,7 +200,7 @@ class Model(RestorableOrderedDict):
 
     @property
     def has_4th_panel(self):
-        #return self.has_3rd_panel and self._has_4th_panel
+        # return self.has_3rd_panel and self._has_4th_panel
         return self._has_4th_panel
 
     def get_info_str(self):
@@ -655,15 +655,32 @@ class Model(RestorableOrderedDict):
         for key, value in new_cnt:
             parent[key] = value
 
-
     @property
     def derived_variables(self):
+        return []
+
+    @property
+    def probe_variables(self):
+        if hasattr(self, "get_probe"):
+            return [self.get_probe()]
         return []
 
     def nicetxt_derived_variables(self, l=50):
         from textwrap import wrap
 
         splitted = wrap('. '.join(self.derived_variables), l,
+                        fix_sentence_endings=True)
+        tmp = [','.join(x.split('.')) for x in splitted]
+        txt = "\n".join(tmp)
+
+        if len(txt) == 0:
+            return "(none)"
+        return txt
+
+    def nicetxt_probe_variables(self, l=50):
+        from textwrap import wrap
+
+        splitted = wrap('. '.join(self.probe_variables), l,
                         fix_sentence_endings=True)
         tmp = [','.join(x.split('.')) for x in splitted]
         txt = "\n".join(tmp)

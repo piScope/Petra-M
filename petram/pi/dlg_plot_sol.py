@@ -299,7 +299,7 @@ class DlgPlotSol(SimpleFramePlus):
             elp1 = [['x:', '0', 500, {}],
                     ['y:', '0', 500, {}],
                     ['z:', '0', 500, {}], ]
-            
+
             tip1 = ('x coordinates of points',
                     'y coordinates of points',
                     'z coordinates of points',)
@@ -307,7 +307,7 @@ class DlgPlotSol(SimpleFramePlus):
             elp2 = [['start point:', '0., 0., 0.', 0, {}],
                     ['end point:', '1., 0., 0.', 0, {}],
                     ['resolution:', '30', 0, {}], ]
-            
+
             tip2 = ('initial point of line',
                     'final point of the line',
                     'number of points on the line')
@@ -318,7 +318,7 @@ class DlgPlotSol(SimpleFramePlus):
                                     'call_fit': False},
                                    {'elp': elp1, 'tip': tip1},
                                    {'elp': elp2, 'tip': tip2},)]
-            
+
             ll = [
                 [
                     'Expression', '', 500, {}], ss, [
@@ -335,7 +335,7 @@ class DlgPlotSol(SimpleFramePlus):
                    "Select the domain containing the points",
                    "Select the namespace to use to evaluate the variables",
                    "Generate animation using phasing")
-            
+
             elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Points'] = elp
@@ -364,14 +364,14 @@ class DlgPlotSol(SimpleFramePlus):
 
             s4 = {"style": wx.TE_PROCESS_ENTER,
                   "choices": [str(x + 1) for x in range(10)]}
-            
+
             ll = [['Expression', '', 500, {}],
                   ["-> more...", None, None,
                       {"tlb_resize_samewidth": True, "colour": pane_colour2}, ],
                   ['Expression(x)', '', 500, {}],
                   ["<-"],
                   ['Edges', 'all', 4, {'style': wx.CB_DROPDOWN,
-                                           'choices': ['all', 'visible', 'hidden']}],
+                                       'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
                   [None, False, 3, {"text": 'animate'}],
@@ -390,7 +390,7 @@ class DlgPlotSol(SimpleFramePlus):
                    None,
                    "Data point refinement",
                    None)
-            
+
             elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Edge'] = elp
@@ -432,7 +432,7 @@ class DlgPlotSol(SimpleFramePlus):
                   ['Scale', '1.0', 500, {}],
                   ["<-"],
                   ['Boundaries', 'all', 4, {'style': wx.CB_DROPDOWN,
-                                           'choices': ['all', 'visible', 'hidden']}],
+                                            'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
                   [None, False, 3, {"text": 'animate'}],
@@ -441,7 +441,7 @@ class DlgPlotSol(SimpleFramePlus):
                    ({"text": 'Averaging'},
                     {"elp": [['Refine', 1, 104, s4], ]}, )],
                   ['Decimate elements', '1', 0, {}, ], ]
-            
+
             tip = ("Expression to evaluate on the boundary",
                    None,
                    "Offset X (evaluated using solution namespace)",
@@ -487,14 +487,14 @@ class DlgPlotSol(SimpleFramePlus):
                   ['Expression(v)', '', 500, {}],
                   ['Expression(w)', '', 500, {}],
                   ['Boundaries', 'all', 4, {'style': wx.CB_DROPDOWN,
-                                           'choices': ['all', 'visible', 'hidden']}],
+                                            'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
                   [None, False, 3, {
                       "text": 'animate (does not work)'}],
                   [None, True, 3, {"text": 'merge solutions'}],
                   ['Arrow count', 300, 400, None], ]
-     
+
             tip = ("Expression for arrow coordinate 1 (u)",
                    "Expression for arrow coordinate 2 (v)",
                    "Expression for arrow coordinate 3 (w)",
@@ -546,7 +546,7 @@ class DlgPlotSol(SimpleFramePlus):
             ll = [['Expression', '', 500, {}],
                   ss,
                   ['Domains', 'all', 4, {'style': wx.CB_DROPDOWN,
-                                           'choices': ['all', 'visible', 'hidden']}],
+                                         'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
                   [None, False, 3, {"text": 'animate'}],
@@ -619,7 +619,7 @@ class DlgPlotSol(SimpleFramePlus):
             tip = ("Expression to evaluate",
                    "Expression for x (2D plot)",
                    "Namespace used to evaluate variables")
-            
+
             elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Probe'] = elp
@@ -2581,14 +2581,14 @@ class DlgPlotSol(SimpleFramePlus):
     def onExportProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
         xdata, data = self.eval_probe(mode='plot')
-
+        print(xdata, data)
         if data is None:
             return
         if xdata is None:
             return
-        if len(data.shape) == 0:
-            return
+
         data = {'xdata': xdata, 'data': data}
+        print(data)
         self.export_to_piScope_shell(data, 'probe_data')
 
     def make_plot_probe(self, data, expr='', xexpr='', cls=None):

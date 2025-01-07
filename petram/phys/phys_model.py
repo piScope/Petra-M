@@ -739,6 +739,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             ll.append(["Boundary variables", "", 2, None])
         if isinstance(self, Domain):
             ll.append(["Domain variables", "", 2, None])
+        ll.append(["Probe variables", "", 2, None])
 
         if self.allow_custom_intorder:
             ll.append(['Increase int. order', '0', 400, ''])
@@ -769,6 +770,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                 [self.isJacobian, self.isTimeDependent]
 
         ret = ret + [self.nicetxt_derived_variables()]
+        ret = ret + [self.nicetxt_probe_variables()]
 
         if self.allow_custom_intorder:
             ret = ret + [self.add_intorder]
