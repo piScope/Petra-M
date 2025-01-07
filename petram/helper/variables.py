@@ -1068,7 +1068,7 @@ class DomainVariable(Variable):
 
         ret = None
         w = None
-        #print("Entring Domain variable:: nodal_values", self, current_domain)
+        #print("Entering Domain variable:: nodal_values", self, current_domain)
 
         '''
         note) 
@@ -1173,8 +1173,9 @@ class DomainVariable(Variable):
             for dom in domains:
                 if dom == current_domain or current_domain is None:
                     w *= 0.0
-                    w[np.in1d(attr1, dom)] += 0.5
-                    w[np.in1d(attr2, dom)] += 0.5
+                    w[np.in1d(attr1, dom)] += 1.0
+                    w[np.in1d(attr2, dom)] += 1.0
+                    w[w != 0] = 1./w[w != 0]
                     w2 = np.repeat(w, npts)
 
                     v = m(ifaces=ifaces, irs=irs,
