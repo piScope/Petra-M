@@ -104,6 +104,23 @@ class Engine(object):
 
         self._ppname_postfix = ''
 
+    def show_variables(self, show_hidden=True):
+        try:
+            from mpi4py import MPI
+        except:
+            from petram.helper.dummy_mpi import MPI
+        myid = MPI.COMM_WORLD.rank
+
+        try:
+            if myid == 0:
+                print("===  List of variables ===")
+                txt = self.model._variables.long_repr(show_hidden)
+                print(txt)
+        except:
+            print("error during show_variables")
+            import tranceback
+            traceback.print_exc()
+
     def initialize_datastorage(self):
         self.is_assembled = False
         self.is_initialized = False
@@ -883,8 +900,6 @@ class Engine(object):
             else:
                 raise NotImplementedError("unknown init mode")
 
-        self.add_FESvariable_to_NS(phys_range, verbose=True)
-
     def run_apply_init_autozero(self, phys_range):
 
         # mode
@@ -928,6 +943,8 @@ class Engine(object):
                 dprint1(
                     "!!!!! These phys are not initiazliaed (FES variable is not available)!!!!!",
                     xphys_range)
+
+        self.add_FESvariable_to_NS(phys_range, verbose=False)
 
     def run_apply_essential(self, phys_target, phys_range, update=False):
         L = len(self.r_dep_vars)
@@ -3177,6 +3194,18 @@ class Engine(object):
             dprint1("\n".join(errors), notrim=True)
             assert False, "\n".join(errors)
 
+    def check_ns_name_conflict(self):
+        errors = []
+        for node in self.model.walk():
+            if not hasattr(node, "check_ns_name_conflict"):
+                continue
+            flag, names = node.check_ns_name_conflict()
+            if not flag:
+                errors.append(node.fullname() + " : " + ", ".join(names))
+
+        if len(errors) > 0:
+            assert False, "Name conflict between namespace and pre-defined variables.\n" + "\n".join(errors)
+
     def preprocess_ns(self, ns_folder, data_folder):
         '''
         folders are tree object
@@ -3668,7 +3697,10 @@ class Engine(object):
         variables = Variables()
 
         self.access_idx = 0
+
         for phys in phys_range:
+            tmp_variables = Variables()
+
             suffix = phys.dep_vars_suffix
             ind_vars = [x.strip() for x in phys.ind_vars.split(',')]
 
@@ -3678,7 +3710,7 @@ class Engine(object):
                 rifes = self.r_ifes(name)
                 rgf = self.r_x[rifes]
                 igf = self.i_x[rifes]
-                phys.add_variables(variables, name, rgf, igf)
+                phys.add_variables(tmp_variables, name, rgf, igf)
 
             # collect all definition (domain specific expressions) from children
             n = phys.dep_vars[0]
@@ -3688,8 +3720,10 @@ class Engine(object):
                 if mm is self:
                     continue
 
-                mm.add_domain_variables(variables, n, suffix, ind_vars)
-                mm.add_bdr_variables(variables, n, suffix, ind_vars)
+                mm.add_domain_variables(tmp_variables, n, suffix, ind_vars)
+                mm.add_bdr_variables(tmp_variables, n, suffix, ind_vars)
+
+            variables.update(tmp_variables)
 
         from petram.mesh.mesh_utils import get_reverse_connectivity
 
@@ -3701,14 +3735,15 @@ class Engine(object):
         keys = list(self.model._variables)
         # self.model._variables.clear()
         # if verbose:
-        if True:
-            dprint1("===  List of variables ===")
-            dprint1(variables, notrim=True)
         for k in variables.keys():
             # if k in self.model._variables:
             #   dprint1("Note : FES variable from previous step exists, but overwritten. \n" +
             #           "Use InitSetting to load value from previous SolveStep: ", k)
             self.model._variables[k] = variables[k]
+
+        # if verbose:
+        dprint1("variables defined at this point:",
+                self.model._variables.short_repr(False), notrim=True)
 
     def set_update_flag(self, mode):
         for k in self.model['Phys'].keys():

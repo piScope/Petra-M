@@ -60,6 +60,7 @@ def eval_on_faces(obj, expr, solvars, phys, current_domain=None):
     target_names = list(names[:])
     all_names = list(names[:])
 
+    '''
     def get_names(names):
         for n in names:
             if (n in g and isinstance(g[n], Variable)):
@@ -68,6 +69,11 @@ def eval_on_faces(obj, expr, solvars, phys, current_domain=None):
                     all_names.append(x)
                 get_names(new_names)
     get_names(names)
+    '''
+    ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
+    for n in names:
+        if (n in g and isinstance(g[n], Variable)):
+            all_names.extend(g[n].prep_names(ind_vars, g))
 
     for n in all_names:
         if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
@@ -201,6 +207,8 @@ class NCFaceEvaluator(EvaluatorAgent):
         else:
             assert False, "NCFace Evaluator is not supported for this dimension"
 
+        self.meshdim = mesh.Dimension()
+
         x = [getarray(battr) for battr in battrs]
         if np.sum([len(xx) for xx in x]) == 0:
             return
@@ -292,8 +300,15 @@ class NCFaceEvaluator(EvaluatorAgent):
             self.refine = refine
             self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
 
+        if self.meshdim == 3:
+            current_domain = None
+        elif self.meshdim == 2:
+            current_domain = self.battrs[0]
+        else:
+            assert False, "BdrNodal Evaluator is not supported for this dimension"
+
         val = eval_on_faces(self, expr, solvars, phys,
-                            current_domain=self.battrs[0])
+                            current_domain=current_domain)
         if val is None:
             return None, None, None
 
