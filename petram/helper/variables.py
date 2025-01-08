@@ -713,7 +713,7 @@ class ExpressionVariable(Variable):
         #    self.gns contains names from namespace (can be none)
         #    g contains local namespace + solution variables
 
-        #all_names = []
+        all_names = []
         #name_translation = {}
 
         self.set_context(g)
