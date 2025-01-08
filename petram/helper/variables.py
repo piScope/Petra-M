@@ -697,8 +697,8 @@ class ExpressionVariable(Variable):
         self.gns = gns
         self.variables = WVD()
 
-        self.all_names = []
-        self.name_translation = {}
+        #self.all_names = []
+        #self.name_translation = {}
 
         if isinstance(ind_vars, str):
             traceback.print_stack()
@@ -713,24 +713,20 @@ class ExpressionVariable(Variable):
         #    self.gns contains names from namespace (can be none)
         #    g contains local namespace + solution variables
 
-        all_names = []
-        name_translation = {}
+        #all_names = []
+        #name_translation = {}
+
         self.set_context(g)
         gc = self.global_context
 
         for n in self.names:
-            if (n in gc and
-                    isinstance(gc[n], NumbaCoefficientVariable)):
-                for x in gc[n].dependency:
-                    all_names.append(x)
-                    self.name_translation[x] = x
-
-                # if g[n].has_dependency():
-                #    g[n].forget_jitted_coefficient()
-                gc[n].set_coeff(ind_vars, gc)
-                all_names.append(n)
-                self.name_translation[n] = n
-        self.all_names = all_names
+            if not n in gc:
+                print("gc does not contain: ", n)
+                continue
+            else:
+                if isinstance(gc[n], Variable):
+                    gc[n].prep_names(ind_vars, gc)
+        #self.all_names = all_names
         return self.names
 
     def __repr__(self):
@@ -825,9 +821,6 @@ class ExpressionVariable(Variable):
         from petram.helper.right_broadcast import multi
         ret = multi(ret, value)
 
-        #print("exiting expression", self.expr, self._valid_nodes)
-        #print("return (expr)", ret.shape)
-
         return ret
 
     def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
@@ -911,6 +904,7 @@ class ExpressionVariable(Variable):
         return value
 
     def set_coeff(self, ind_vars, ll):
+        #print('set coeff', self, self.names)
         for n in self.names:
             if n in self.global_context:
                 var = self.global_context[n]
@@ -1142,10 +1136,9 @@ class DomainVariable(Variable):
     def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
                     g=None, attr1=None, attr2=None, locs=None,
                     current_domain=None, knowns=None, **kwargs):
-
         '''
         compute values on face/edge boundary.
-          
+
         for the internal boundary, contribution from both sides will
         be averaged. However, if the boundary matches with the parallel
         mesh baoundary, only one side contribution is counted. At moment,
@@ -1163,7 +1156,7 @@ class DomainVariable(Variable):
 
         tmp_ret = {}
         w = np.zeros(ifaces.shape, dtype=np.float64)
-        wt = np.zeros(ifaces.shape, dtype=np.float64)        
+        wt = np.zeros(ifaces.shape, dtype=np.float64)
 
         for domains in self.domains.keys():
             if (current_domain is not None and
@@ -1190,7 +1183,6 @@ class DomainVariable(Variable):
                     w2 = np.repeat(w, npts)
                     wt += w
 
-
                     v = m(ifaces=ifaces, irs=irs,
                           gtypes=gtypes, locs=locs, attr1=attr1,
                           attr2=attr2, g=gdomain,
@@ -1213,7 +1205,7 @@ class DomainVariable(Variable):
                 ret += tmp_ret[x]
         wt2 = np.repeat(1./wt, npts)
         print(wt2)
-        ret =  multi(ret, wt2)        
+        ret = multi(ret, wt2)
         if ret is None:
             return None
 
@@ -1337,6 +1329,11 @@ class PyFunctionVariable(Variable):
 
     def __repr__(self):
         return "PyFunction"
+
+    def prep_names(self, ind_vars, g):
+        for n in self.dependency:
+            if (n in g and isinstance(g[n], Variable)):
+                g[n].prep_names(ind_vars, g)
 
     def set_point(self, T, ip, g, l, t=None):
         self.x = T.Transform(ip)
@@ -1832,6 +1829,9 @@ class NumbaCoefficientVariable(CoefficientVariable):
     def has_dependency(self):
         return ((len(self.dependency) + len(self.grad) +
                  len(self.div) + len(self.curl)) > 0)
+
+    def prep_names(self, ind_vars, gc):
+        self.set_coeff(ind_vars, gc)
 
     def forget_jitted_coefficient(self):
         self._jitted = None
