@@ -1142,6 +1142,15 @@ class DomainVariable(Variable):
     def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
                     g=None, attr1=None, attr2=None, locs=None,
                     current_domain=None, knowns=None, **kwargs):
+
+        '''
+        compute values on face/edge boundary.
+          
+        for the internal boundary, contribution from both sides will
+        be averaged. However, if the boundary matches with the parallel
+        mesh baoundary, only one side contribution is counted. At moment,
+        there is no quick fix to this.
+        '''
         from petram.helper.right_broadcast import add, multi
 
         ret = None
@@ -1176,7 +1185,7 @@ class DomainVariable(Variable):
                     w *= 0.0
                     w[np.in1d(attr1, dom)] += 1.0
                     w[np.in1d(attr2, dom)] += 1.0
-                    print(attr1, attr2, dom, w)                    
+
                     w[w != 0] = 1./w[w != 0]
                     w2 = np.repeat(w, npts)
                     wt += w
