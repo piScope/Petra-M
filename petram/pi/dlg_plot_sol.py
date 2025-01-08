@@ -868,7 +868,6 @@ class DlgPlotSol(SimpleFramePlus):
                                        self.config['cs_soldir'])
 
         except AssertionError as err:
-            print(err.args[0])
             dlg.Destroy()
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
@@ -2581,14 +2580,14 @@ class DlgPlotSol(SimpleFramePlus):
     def onExportProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
         xdata, data = self.eval_probe(mode='plot')
-        print(xdata, data)
+
         if data is None:
             return
         if xdata is None:
             return
 
         data = {'xdata': xdata, 'data': data}
-        print(data)
+
         self.export_to_piScope_shell(data, 'probe_data')
 
     def make_plot_probe(self, data, expr='', xexpr='', cls=None):
