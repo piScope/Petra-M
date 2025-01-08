@@ -725,7 +725,9 @@ class ExpressionVariable(Variable):
                 continue
             else:
                 if isinstance(gc[n], Variable):
-                    gc[n].prep_names(ind_vars, gc)
+                    names = gc[n].prep_names(ind_vars, gc)
+                    all_names.extend(names)
+                    all_names.append(n)
         #self.all_names = all_names
         return self.names
 
@@ -953,7 +955,6 @@ class DomainVariable(Variable):
         return ret
 
     def prep_names(self, ind_vars, g):
-        #print("prep_names", self)
         ret = []
         for x in self.domains:
             ret.extend(self.domains[x].prep_names(ind_vars, g))
@@ -1331,10 +1332,14 @@ class PyFunctionVariable(Variable):
         return "PyFunction"
 
     def prep_names(self, ind_vars, g):
+        ret = []
         for n in self.dependency:
             if (n in g and isinstance(g[n], Variable)):
-                g[n].prep_names(ind_vars, g)
-
+                names = g[n].prep_names(ind_vars, g)
+                ret.extend(names)
+                ret.append(n)
+        return ret
+    
     def set_point(self, T, ip, g, l, t=None):
         self.x = T.Transform(ip)
         self.t = t
@@ -1832,6 +1837,7 @@ class NumbaCoefficientVariable(CoefficientVariable):
 
     def prep_names(self, ind_vars, gc):
         self.set_coeff(ind_vars, gc)
+        return []
 
     def forget_jitted_coefficient(self):
         self._jitted = None
