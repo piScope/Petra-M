@@ -139,7 +139,7 @@ class Grad(DSInterpolator):
         fes1 = engine.fespaces[name]
         element = 'ND_FECollection'
 
-        is_new, fec, fes2 = engine.get_or_allocate_fecfes(self.interpolation_name,
+        _is_new, fes2 = engine.get_or_allocate_fecfes(self.interpolation_name,
                                                           emesh_idx,
                                                           element,
                                                           self.order,
@@ -220,7 +220,7 @@ class Curl(DSInterpolator):
         else:
             assert False, "curl supports 2D/3D only"
             
-        is_new, fec, fes2 = engine.get_or_allocate_fecfes(self.interpolation_name,
+        _is_new, fes2 = engine.get_or_allocate_fecfes(self.interpolation_name,
                                                           emesh_idx,
                                                           element,
                                                           self.order,
@@ -291,7 +291,7 @@ class Div(DSInterpolator):
         fes1 = engine.fespaces[name]
         element = 'L2_FECollection'
 
-        is_new, fec, fes2 = engine.get_or_allocate_fecfes(self.interpolation_name,
+        _is_new, fes2 = engine.get_or_allocate_fecfes(self.interpolation_name,
                                                           emesh_idx,
                                                           element,
                                                           self.order,

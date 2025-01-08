@@ -59,4 +59,12 @@
 | VectorCurlCurlIntegrator              | H1v, L2v |  | S          |  $(\lambda\curl\vec\{u},\curl\vec\{v})$ | |2D, 3D     |
 | VectorDiffusionIntegrator             | H1v, L2v |  | S          |  $(\lambda\grad u_i,\grad v_i)$         | |1D, 2D, 3D | 
 | ElasticityIntegrator                  | H1v, L2v |  | S*2        |  $(c_\{ikjl}\grad u_j,\grad v_i)$       | |1D, 2D, 3D |
-| VectorDivergenceIntegrator            | H1v, L2v | H1, L2   | S          |  $(\lambda\div\vec\{u},v)$              | |1D, 2D, 3D |
+| VectorDivergenceIntegrator            | H1v, L2v | H1, L2   | S  |  $(\lambda\div\vec\{u},v)$              | |1D, 2D, 3D |
+| PyVectorMassIntegrator                | H1v, L2v, H1, L2, ND, RT | H1v, L2v, H1, L2, ND, RT | M  |  $(\lambda_\{ij}{u}_j,\{v}_i)$                  | |1D, 2D, 3D |
+| PyVectorPartialIntegrator             | H1v, H1  | H1v, L2v, H1, L2  | M  |  $(\lambda_\{ikj}\partial_k u_j, v_i)$               | |1D, 2D, 3D |
+| PyVectorDiffusionIntegrator           | H1v, H1  |  | M  |  $(\lambda_\{likj}\partial_k u_j,\partial_l v_i)$    | |1D, 2D, 3D |
+| PyVectorPartialPartialIntegrator      | H1v, H1 | H1v, L2v, H1, L2 | M  |  $(\lambda_\{iklj}\partial_k \partial_l u_j, v_i)$    | |1D, 2D, 3D |
+| PyVectorWeakPartialIntegrator         | H1v, L2v, H1, L2 | H1v, H1 | M  |  $(-\lambda_\{ikj} u_\{j}, \partial_k v_i)$              | |1D, 2D, 3D |
+| PyVectorWeakPartialPartialIntegrator  | H1v, L2v, H1, L2 | H1v, H1 | M  |  $(\lambda_\{iklj} u_\{j}, \partial_l \partial_k v_i)$    | |1D, 2D, 3D |
+| PyVectorFEPartialIntegrator  | ND | ND | M  |  $(\lambda_\{ikj}\partial_k u_j, v_i)$  | |2D, 3D |
+| PyVectorFEPartialPartialIntegrator  | ND | ND | M  |  $(\lambda_\{iklj}\partial_k \partial_l u_j, v_i)$   | |2D, 3D |

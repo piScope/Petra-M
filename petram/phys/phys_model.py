@@ -1,4 +1,5 @@
 from __future__ import print_function
+from petram.debug import handle_allow_python_function_coefficient
 from petram.phys.vtable import VtableElement, Vtable
 from petram.helper.variables import Variable, eval_code
 from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
@@ -10,13 +11,13 @@ from os.path import dirname, basename, isfile, join
 import warnings
 import glob
 import types
-import parser
 import numbers
 from abc import abstractmethod
 
 import petram
 from petram.model import Model, Bdry, Domain
 from petram.namespace_mixin import NS_mixin
+
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Phys')
 
@@ -24,7 +25,6 @@ if use_parallel:
     import mfem.par as mfem
 else:
     import mfem.ser as mfem
-
 
 # not that PyCoefficient return only real number array
 
@@ -40,22 +40,24 @@ class PhysConstant(mfem.ConstantCoefficient):
 
 class PhysVectorConstant(mfem.VectorConstantCoefficient):
     def __init__(self, value):
-        self.value = mfem.Vector(value)
-        mfem.VectorConstantCoefficient.__init__(self, self.value)
+        self._value = mfem.Vector(value)
+        self.value = self._value.GetDataArray()
+        mfem.VectorConstantCoefficient.__init__(self, value)
 
     def __repr__(self):
-        return self.__class__.__name__ + "(" + str(self.value) + ")"
+        return self.__class__.__name__ + "(" + str(self._value) + ")"
 
 
 class PhysMatrixConstant(mfem.MatrixConstantCoefficient):
     def __init__(self, value):
         v = mfem.Vector(np.transpose(value).flatten())
         m = mfem.DenseMatrix(v.GetData(), value.shape[0], value.shape[1])
-        self.value = (v, m)
+        self._value = (v, m)
+        self.value = m.GetDataArray()
         mfem.MatrixConstantCoefficient.__init__(self, m)
 
     def __repr__(self):
-        return self.__class__.__name__ + "(" + str(self.value) + ")"
+        return self.__class__.__name__ + "(" + str(self._value) + ")"
 
 
 def try_eval(exprs, l, g):
@@ -65,12 +67,12 @@ def try_eval(exprs, l, g):
     if not evaluate w/o knowing any Variables
     '''
     try:
-        value = eval(exprs, l, g)
+        value = eval(exprs, g, l)
         if isinstance(value, list):
             return True, [value]
         ll = [x for x in l if not isinstance(x, Variable)]
         gg = [x for x in g if not isinstance(x, Variable)]
-        value = eval(exprs, ll, gg)
+        value = eval(exprs, gg, ll)
         return True, [value]
     except BaseException:
         return False, exprs
@@ -92,7 +94,8 @@ class Coefficient_Evaluator(object):
               if =Varialbe in matrix form, it is passed as [['Variable']]
         '''
         flag, exprs = try_eval(exprs, l, g)
-        #print("after try_eval", flag, exprs)
+
+        # print("after try_eval", flag, exprs)
         if not flag:
             if isinstance(exprs, str):
                 exprs = [exprs]
@@ -106,39 +109,51 @@ class Coefficient_Evaluator(object):
                 pass
         if isinstance(exprs, list) and isinstance(exprs[0], list):
             exprs = exprs[0]
-        #dprint1("final exprs", exprs)
+        # dprint1("final exprs", exprs)
         self.l = {}
+
         # TODO g must be copied since some may passs _global_ns.
         # (I don't do it now since it requires a substantial testing)
-        self.g = g
-        for key in l.keys():
+        # (2024 this needs to be copied for parametric scan works)
+        self.g = g.copy()
+
+        for key in l:
             self.g[key] = l[key]
         self.real = real
         self.variables = []
+
+        # 'x, y, z' -> 'x', 'y', 'z'
+        self.ind_vars = [x.strip() for x in ind_vars.split(',')]
 
         self.co = []
 
         for expr in exprs:
             if isinstance(expr, str):
-                st = parser.expr(expr.strip())
-                code = st.compile('<string>')
+                code = compile(expr.strip(), '<string>', 'eval')
                 names = code.co_names
                 for n in names:
-                    if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
-                        coeff_var = CoefficientVariable(g[n], l, g)
+                    if (n in self.g and isinstance(self.g[n], NativeCoefficientGenBase)):
+                        coeff_var = CoefficientVariable(self.g[n], l, self.g)
                         self.variables.append((n, coeff_var))
-                    elif n in g and isinstance(g[n], Variable):
-                        self.variables.append((n, g[n]))
-                        for nn in g[n].dependency:
-                            self.variables.append((nn, g[nn]))
+                    elif n in self.g and isinstance(self.g[n], Variable):
+                        self.variables.append((n, self.g[n]))
+                        for nn in self.g[n].dependency:
+                            self.variables.append((nn, self.g[nn]))
+                        for nn in self.g[n].div:
+                            self.variables.append((nn, self.g[nn]))
+                        for nn in self.g[n].curl:
+                            self.variables.append((nn, self.g[nn]))
+                        for nn in self.g[n].grad:
+                            self.variables.append((nn, self.g[nn]))
+
+                        self.g[n].set_context(self.g)
+                        self.g[n].set_coeff(self.ind_vars, self.g)
                     else:
                         pass
                 self.co.append(code)
             else:
                 self.co.append(expr)
 
-        # 'x, y, z' -> 'x', 'y', 'z'
-        self.ind_vars = [x.strip() for x in ind_vars.split(',')]
         self.exprs = exprs
         self.flags = [isinstance(co, types.CodeType) for co in self.co]
         self.variables_dd = dict(self.variables)
@@ -146,8 +161,17 @@ class Coefficient_Evaluator(object):
     def EvalValue(self, x):
         for k, name in enumerate(self.ind_vars):
             self.l[name] = x[k]
+
         for n, v in self.variables:
-            kwargs = {nn: self.variables_dd[nn]() for nn in v.dependency}
+            kwargs = {}
+            for nn in v.dependency:
+                kwargs[nn] = self.variables_dd[nn]()
+            for nn in v.grad:
+                kwargs['grad'+nn] = self.variables_dd[nn].eval_grad()
+            for nn in v.curl:
+                kwargs['curl'+nn] = self.variables_dd[nn].eval_curl()
+            for nn in v.div:
+                kwargs['div'+nn] = self.variables_dd[nn].eval_div()
             self.l[n] = v(**kwargs)
 
         val = [eval_code(co, self.g, self.l, flag=flag)
@@ -162,6 +186,9 @@ class PhysCoefficient(mfem.PyCoefficient, Coefficient_Evaluator):
         #    exprs = [exprs]
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)
         mfem.PyCoefficient.__init__(self)
+
+        handle_allow_python_function_coefficient(
+            "Python function coefficient is created")
 
     def __repr__(self):
         return self.__class__.__name__ + "(PhysCoefficeint)"
@@ -190,6 +217,9 @@ class VectorPhysCoefficient(mfem.VectorPyCoefficient, Coefficient_Evaluator):
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)
         mfem.VectorPyCoefficient.__init__(self, sdim)
         self.sdim = sdim
+
+        handle_allow_python_function_coefficient(
+            "Python function coefficient is created")
 
     def __repr__(self):
         return self.__class__.__name__ + "(VectorPhysCoefficeint)"
@@ -222,6 +252,9 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
         self.sdim = sdim
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)
         mfem.MatrixPyCoefficient.__init__(self, sdim)
+
+        handle_allow_python_function_coefficient(
+            "Python function coefficient is created")
 
     def __repr__(self):
         return self.__class__.__name__ + "(MatrixPhysCoefficeint)"
@@ -297,6 +330,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         v['timestep_weight'] = ["1", "0", "0"]
         v['isTimeDependent'] = False
         v['isTimeDependent_RHS'] = False
+        v['isJacobian'] = False
         v['add_intorder'] = 0
         return v
 
@@ -341,12 +375,12 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                     mesh.bdr_attributes.ToList()),
                 engine.max_bdrattr)
 
-        #print("get_restriction_array", self, self._sel_index, size)
         arr = [0] * size
         if idx is None:
             idx = self._sel_index
         for k in idx:
             arr[k - 1] = 1
+
         return intArray(arr)
 
     def restrict_coeff(self, coeff, engine, vec=False, matrix=False,
@@ -413,7 +447,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         raise NotImplementedError(
             "you must specify this method in subclass")
 
-    def get_exter_NDoF(self, kfes=0):
+    def get_extra_NDoF(self, kfes=0):
         return 0
 
     def has_extra_DoF(self, kfes=0):
@@ -462,6 +496,27 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             if mode == 'B':
                 return True
         return False
+
+    def has_extra_coupling(self):
+        '''
+        True if it define coupling between Lagrange multipliers
+        '''
+        return False
+
+    def extra_coupling_names(self):
+        '''
+        return its own extra_name, and paired (coupled) extra_names
+        '''
+        return None, []
+
+    def get_extra_coupling(self, target_name):
+        '''
+        [    t2][paired extra]
+        [t1    ][extra]
+        t1 = (size of extra, size of targert_extra)
+        t2 = (size of target_extra, size of extra)
+        '''
+        return None, None
 
     def has_bf_contribution(self, kfes):
         return False
@@ -520,7 +575,19 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     '''
 
     def set_matrix_weight(self, w):
-        self._mat_weight = w
+        '''
+        matrix weight = [y, dy/dt, dy/dt^2, Jac(y), Jac(dy/dt), Jac(dy/dt^2)
+        '''
+        from petram.engine import max_matrix_num
+        ww = [0]*max_matrix_num
+
+        for i, val in enumerate(w):
+            ww[i] = val
+        if self.isJacobian:
+            ww[:(max_matrix_num//2)] = [False]*(max_matrix_num//2)
+        else:
+            ww[(max_matrix_num//2):] = [False]*(max_matrix_num//2)
+        self._mat_weight = ww
 
     def get_matrix_weight(self):
         return self._mat_weight
@@ -604,10 +671,10 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         '''
         pass
 
-    def add_domain_variables(self, v, n, suffix, ind_vars, solr, soli=None):
+    def add_domain_variables(self, v, n, suffix, ind_vars):
         pass
 
-    def add_bdr_variables(self, v, n, suffix, ind_vars, solr, soli=None):
+    def add_bdr_variables(self, v, n, suffix, ind_vars):
         pass
 
     def panel1_param(self):
@@ -656,18 +723,24 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             return self.vt3.panel_tip() + [None]
 
     def panel4_param(self):
+        from petram.pi.panel_txt import txt_dudt, txt_du2dt2
         setting = {"text": ' '}
         if self.has_essential:
-            ll = [['', False, 3, {"text": "Time dependent"}], ]
+            ll = [['Time dependent', False, 3, {"text": ""}], ]
 
         else:
-            ll = [['y(t)', True, 3, {"text": ""}],
-                  ['dy/dt', False, 3, {"text": ""}],
-                  ['d2y/dt2', False, 3, {"text": ""}],
-                  ['Time Varing Term.', False, 3, {"text": ""}], ]
-#              ['M(t)',     "1", 0],
-#              ['M(t-dt)',  "0", 0],
-#              ['M(t-2dt)', "0", 0],]
+            ll = [['u', True, 3, {"text": ""}],
+                  [txt_dudt, False, 3, {"text": ""}],
+                  [txt_du2dt2, False, 3, {"text": ""}],
+                  ['Gradient', False, 3, {"text": ""}],
+                  ['Varying term \n (in time/for loop)', False, 3, {"text": ""}], ]
+
+        if isinstance(self, Bdry):
+            ll.append(["Boundary variables", "", 2, None])
+        if isinstance(self, Domain):
+            ll.append(["Domain variables", "", 2, None])
+        ll.append(["Probe variables", "", 2, None])
+
         if self.allow_custom_intorder:
             ll.append(['Increase int. order', '0', 400, ''])
         return ll
@@ -683,7 +756,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             self.timestep_config[0] = value[0]
             self.timestep_config[1] = value[1]
             self.timestep_config[2] = value[2]
-            self.isTimeDependent = value[3]
+            self.isJacobian = value[3]
+            self.isTimeDependent = value[4]
 
         if self.allow_custom_intorder:
             self.add_intorder = int(value[-1])
@@ -692,10 +766,65 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if self.has_essential:
             ret = [self.isTimeDependent]
         else:
-            ret = self.timestep_config[0:3] + [self.isTimeDependent]
+            ret = self.timestep_config[0:3] + \
+                [self.isJacobian, self.isTimeDependent]
+
+        ret = ret + [self.nicetxt_derived_variables()]
+        ret = ret + [self.nicetxt_probe_variables()]
+
         if self.allow_custom_intorder:
             ret = ret + [self.add_intorder]
+
         return ret
+
+    @property
+    def derived_variables(self):
+        if not isinstance(self, (Bdry, Domain)):
+            return []
+
+        p = self.get_root_phys()
+        ind_vars = [x.strip() for x in p.ind_vars.split(',')]
+        suffix = p.dep_vars_suffix
+        nn = ", ".join(p.dep_vars)
+        n = p.dep_vars[0]
+
+        check_names = False
+        if not hasattr(self, "_derived_dom_bdr"):
+            check_names = True
+        else:
+            if (self._derived_dom_bdr_param[1] != ind_vars or
+                self._derived_dom_bdr_param[1] != suffix or
+                    self._derived_dom_bdr_param[2] != nn):
+                check_names = True
+
+        if check_names:
+            tmp = []
+
+            v = {}
+
+            if isinstance(self, Domain):
+                self.add_domain_variables(v, n, suffix, ind_vars)
+            if isinstance(self, Bdry):
+                self.add_bdr_variables(v, n, suffix, ind_vars)
+
+            tmp = sorted([x for x in list(v) if not x.startswith('_')])
+
+            self._derived_dom_bdr_param = (ind_vars, suffix, nn)
+        else:
+            tmp = self._derived_dom_bdr
+
+        if not self.is_enabled():
+            if hasattr(self, "_derived_dom_bdr"):
+                del self._derived_dom_bdr
+            return []
+
+        elif len(self._sel_index) != 0:
+            self._derived_dom_bdr = tmp
+
+        else:
+            return []
+
+        return self._derived_dom_bdr
 
     @property
     def geom_dim(self):
@@ -721,6 +850,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             self._realimag_mode = "imag"
 
     def process_complex_coefficient(self, coeff):
+        if not hasattr(coeff[0], "get_real_coefficient"):
+            return coeff
+
         if self.integrator_realimag_mode == "real":
             return sum(((coeff[0].get_real_coefficient(),), coeff[1:]), ())
         elif self.integrator_realimag_mode == "imag":
@@ -729,16 +861,21 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             return coeff
 
     def add_integrator(self, engine, name, coeff, adder, integrator, idx=None, vt=None,
-                       transpose=False, ir=None):
+                       transpose=False, ir=None, itg_params=None):
         if coeff is None:
             return
+        if itg_params is None:
+            itg_params = []
         if vt is None:
             vt = self.vt
         # if vt[name].ndim == 0:
         if not isinstance(coeff, tuple):
             coeff = (coeff, )
 
-        coeff = self.process_complex_coefficient(coeff)
+        if hasattr(integrator, "use_complex_coefficient"):
+            pass
+        else:
+            coeff = self.process_complex_coefficient(coeff)
 
         if coeff[0] is None:
             return
@@ -748,12 +885,19 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             coeff = self.restrict_coeff(coeff, engine, vec=True, idx=idx)
         elif isinstance(coeff[0], mfem.MatrixCoefficient):
             coeff = self.restrict_coeff(coeff, engine, matrix=True, idx=idx)
+        elif issubclass(integrator, mfem.PyBilinearFormIntegrator):
+            pass
         else:
             assert False, "Unknown coefficient type: " + str(type(coeff[0]))
 
-        #dprint1("coeff here", coeff)
-        itg = integrator(*coeff)
+        args = list(coeff)
+        args.extend(itg_params)
+
+        itg = integrator(*args)
         itg._linked_coeff = coeff  # make sure that coeff is not GCed.
+
+        if hasattr(integrator, "use_complex_coefficient"):
+            itg.set_realimag_mode(self.integrator_realimag_mode)
 
         if transpose:
             itg2 = mfem.TransposeIntegrator(itg)
@@ -779,7 +923,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     #
 
     def do_add_scalar_expr(self, v, suffix, ind_vars, name, f_name,
-                           add_diag=False):
+                           add_diag=False, vars=None):
 
         from petram.helper.variables import add_expression, add_constant
         from petram.helper.variables import NativeCoefficientGenBase
@@ -791,13 +935,17 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         elif isinstance(self, Bdry):
             kywds['bdrs'] = self._sel_index
             kywds['gbdr'] = self._global_ns
+        else:
+            kywds['gns'] = self._global_ns
+
+        if vars is None:
+            vars = []
 
         if isinstance(f_name, NativeCoefficientGenBase):
             pass
         elif isinstance(f_name, str):
             add_expression(v, name, suffix, ind_vars, f_name,
-                           [], **kywds)
-
+                           vars, **kywds)
         else:
             add_constant(v, name, suffix, f_name, **kywds)
 
@@ -815,7 +963,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                            'diag([1]*' + str(size) + ')*' + name,
                            [name], **kywds)
 
-    def do_add_matrix_expr(self, v, suffix, ind_vars, name, f_name):
+    def do_add_matrix_expr(self, v, suffix, ind_vars, name, f_name, vars=None):
 
         from petram.helper.variables import add_expression, add_constant
         from petram.helper.variables import NativeCoefficientGenBase
@@ -827,6 +975,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         elif isinstance(self, Bdry):
             kywds['bdrs'] = self._sel_index
             kywds['gbdr'] = self._global_ns
+        else:
+            kywds['gns'] = self._global_ns
+
+        if vars is None:
+            vars = []
 
         if isinstance(f_name, NativeCoefficientGenBase):
             pass
@@ -836,7 +989,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             else:
                 expr = f_name[0]
             add_expression(v, name, suffix, ind_vars, expr,
-                           [], **kywds)
+                           vars, **kywds)
         else:  # elemental format
             expr_txt = [x.__repr__() if not isinstance(x, str) else x
                         for x in f_name]
@@ -845,7 +998,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             c = '[' + ','.join(expr_txt[6:]) + ']'
             expr = '[' + ','.join((a, b, c)) + ']'
             add_expression(v, name, suffix, ind_vars, expr,
-                           [], **kywds)
+                           vars, **kywds)
 
     def do_add_matrixlike_component_expr_scalar(
             self, v, suffix, ind_vars, var, name):
@@ -868,6 +1021,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         elif isinstance(self, Bdry):
             kywds['bdrs'] = self._sel_index
             kywds['gbdr'] = self._global_ns
+        else:
+            kywds['gns'] = self._global_ns
 
         ll = len(var)
         for lll in product(var, var):
@@ -899,6 +1054,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         elif isinstance(self, Bdry):
             kywds['bdrs'] = self._sel_index
             kywds['gbdr'] = self._global_ns
+        else:
+            kywds['gns'] = self._global_ns
 
         ll = len(var)
         for lll in product(var, var):
@@ -910,13 +1067,38 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                             **kywds)
 
     def get_coefficient_from_expression(
-            self, c, cotype, use_dual=False, real=True, is_conj=False):
+            self, c, cotype, use_dual=False, real=True, is_conj=False, shapehint=None):
         from petram.phys.coefficient import SCoeff, VCoeff, DCoeff, MCoeff
 
-        if self.get_root_phys().vdim > 1:
-            dim = self.get_root_phys().vdim
+        try:
+            shape = c.shape
+            has_shape = True
+        except:
+            has_shape = False
+
+        # if c is already evaluated, it may has shape
+        # if c is text,
+        # 1) we assign dim here using physics dim (default)
+        # 2) if shapehint is given, we use this (for PyBilininteg)
+        if has_shape:
+            if shape is None or len(shape) == 0:
+                pass
+            elif len(shape) == 1:
+                dim = shape[0]
+            elif len(shape) == 2:
+                assert shape[0] == shape[1], "rectangular shape is not support"
+            else:
+                assert False, "TensorCoefficient not supported"
+
+        elif shapehint is not None:
+            dim = np.prod(shapehint)
         else:
-            dim = self.get_root_phys().geom_dim
+            if self.get_root_phys().vdim > 1:
+                dim = self.get_root_phys().vdim
+            else:
+                dim = self.get_root_phys().geom_dim
+
+        return_complex = self.get_root_phys().is_complex()
 
         if cotype == 'S':
             # for b in self.itg_choice():
@@ -925,27 +1107,39 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             if not use_dual:
                 c_coeff = SCoeff(c, self.get_root_phys().ind_vars,
                                  self._local_ns, self._global_ns,
+                                 return_complex=return_complex,
                                  real=real, conj=is_conj)
             else:  # so far this is only for an elastic integrator
                 c_coeff = (SCoeff(c, self.get_root_phys().ind_vars,
                                   self._local_ns, self._global_ns,
+                                  return_complex=return_complex,
                                   real=real, conj=is_conj, component=0),
                            SCoeff(c, self.get_root_phys().ind_vars,
                                   self._local_ns, self._global_ns,
+                                  return_complex=return_complex,
                                   real=real, conj=is_conj, component=1))
         elif cotype == 'V':
             c_coeff = VCoeff(dim, c, self.get_root_phys().ind_vars,
                              self._local_ns, self._global_ns,
+                             return_complex=return_complex,
                              real=real, conj=is_conj)
         elif cotype == 'M':
             c_coeff = MCoeff(dim, c, self.get_root_phys().ind_vars,
                              self._local_ns, self._global_ns,
+                             return_complex=return_complex,
                              real=real, conj=is_conj)
         elif cotype == 'D':
             c_coeff = DCoeff(dim, c, self.get_root_phys().ind_vars,
                              self._local_ns, self._global_ns,
+                             return_complex=return_complex,
                              real=real, conj=is_conj)
         return c_coeff
+
+    def compile_coeffs(self, *kargs):
+        '''
+        jit compile coefficient
+        '''
+        pass
 
 
 data = [("order", VtableElement("order", type='int',
@@ -972,6 +1166,46 @@ class PhysModule(Phys):
 
     def preprocess_params(self, engine):
         self.vt_order.preprocess_params(self)
+
+    @property
+    def derived_variables(self):
+        p = self.get_root_phys()
+        ind_vars = [x.strip() for x in p.ind_vars.split(',')]
+        suffix = p.dep_vars_suffix
+        nn = ", ".join(p.dep_vars)
+
+        check_names = False
+        if not hasattr(self, "_derived_model_var"):
+            check_names = True
+        else:
+            if (self._derived_model_var_param[1] != ind_vars or
+                self._derived_model_var_param[1] != suffix or
+                    self._derived_model_var_param[2] != nn):
+                check_names = True
+
+        if check_names:
+            tmp = []
+
+            v = {}
+
+            for n in self.dep_vars:
+                self.add_variables(v, n, None, None)
+
+            tmp = sorted([x for x in list(v) if not x.startswith('_')])
+
+            self._derived_model_var_param = (ind_vars, suffix, nn)
+        else:
+            tmp = self._derived_model_var
+
+        if not self.is_enabled():
+            if hasattr(self, "_derived_model_bdr"):
+                del self._derived_model_var
+            return []
+
+        else:
+            self._derived_model_var = tmp
+
+        return self._derived_model_var
 
     @property
     def geom_dim(self):  # dim of geometry
@@ -1008,8 +1242,7 @@ class PhysModule(Phys):
         RT
         '''
 
-    @property
-    def fes_order(self):
+    def fes_order(self, idx):
         self.vt_order.preprocess_params(self)
         return self.order
 
@@ -1074,6 +1307,7 @@ class PhysModule(Phys):
 
     def panel2_param(self):
         import wx
+
         if self.geom_dim == 3:
             choice = ("Volume", "Surface", "Edge")
         elif self.geom_dim == 2:
@@ -1081,14 +1315,21 @@ class PhysModule(Phys):
         elif self.geom_dim == 1:
             choice = ("Edge", )
 
+        from petram.model import validate_sel
+
         if self.dim_fixed:
             return [["index", 'all', 0, {'changing_event': True,
-                                         'setfocus_event': True}, ]]
+                                         'setfocus_event': True,
+                                         'validator': validate_sel,
+                                         'validator_param': self}, ]]
+
         else:
             p = ["Type", choice[0], 4,
                  {"style": wx.CB_READONLY, "choices": choice}]
             return [p, ["index", 'all', 0, {'changing_event': True,
-                                            'setfocus_event': True}, ]]
+                                            'setfocus_event': True,
+                                            'validator': validate_sel,
+                                            'validator_param': self}, ]]
 
     def get_panel2_value(self):
         choice = ["Point", "Edge", "Surface", "Volume", ]
@@ -1113,6 +1354,20 @@ class PhysModule(Phys):
 
         self.update_dom_selection()
         return True
+
+    def panel4_param(self):
+        ll = (["Model variables", "", 2, None],)
+        return ll
+
+    def panel4_tip(self):
+        return None
+
+    def import_panel4_value(self, value):
+        pass
+
+    def get_panel4_value(self):
+        ret = [self.nicetxt_derived_variables()]
+        return ret
 
     @property
     def dep_vars(self):
@@ -1145,6 +1400,17 @@ class PhysModule(Phys):
     def is_complex(self):
         return False
 
+    _possible_constraints = None
+
+    @classmethod
+    def _set_possible_constraints(cls, name):
+        '''
+        utility to define a possible constraints dynamically expandable.
+        '''
+        from petram.helper.phys_module_util import get_phys_constraints
+        constraints = get_phys_constraints(name)
+        cls._possible_constraints = constraints
+
     def get_possible_domain(self):
         from petram.phys.wf.wf_constraints import WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint
         return [WF_WeakDomainBilinConstraint, WF_WeakDomainLinConstraint]
@@ -1154,19 +1420,20 @@ class PhysModule(Phys):
         return [WF_WeakBdryBilinConstraint, WF_WeakBdryLinConstraint]
 
     def get_possible_point(self):
-        from petram.phys.wf.wf_constraints import WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint
-        #from wf_essential import WF_Essential
-        # return [WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint]
-        # Bilinear form does not suppoert delta coefficent
-        return [WF_WeakPointLinConstraint]
+        from petram.phys.wf.wf_constraints import (WF_WeakPointBilinConstraint,
+                                                   WF_WeakPointLinConstraint)
+
+        # (note) BilinearForm does not suppoert delta coefficent
+        return [WF_WeakPointBilinConstraint, WF_WeakPointLinConstraint]
 
     def get_possible_child(self):
         from petram.phys.aux_variable import AUX_Variable
         from petram.phys.aux_operator import AUX_Operator
-        return [AUX_Variable, AUX_Operator]
+        from petram.phys.variable_coupling import VariableCoupling
+        return [AUX_Variable, AUX_Operator, VariableCoupling]
 
     def get_possible_pair(self):
-        from projection import BdrProjection, DomainProjection
+        from petram.phys.projection import BdrProjection, DomainProjection
         return [DomainProjection, BdrProjection, ]
 
     def soldict_to_solvars(self, soldict, variables):
@@ -1176,23 +1443,22 @@ class PhysModule(Phys):
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
 
         for k in keys:
-            n = k.split('_')[0]
+            n = "_".join(k.split('_')[:-1])
             if n in depvars:
                 sol = soldict[k]
                 solr = sol[0]
                 soli = sol[1] if len(sol) > 1 else None
                 self.add_variables(variables, n, solr, soli)
 
-                # collect all definition from children
-                for mm in self.walk():
-                    if not mm.enabled:
-                        continue
-                    if mm is self:
-                        continue
-                    mm.add_domain_variables(variables, n, suffix, ind_vars,
-                                            solr, soli)
-                    mm.add_bdr_variables(variables, n, suffix, ind_vars,
-                                         solr, soli)
+        # collect all definition (domain specific expressions) from children
+        for mm in self.walk():
+            if not mm.enabled:
+                continue
+            if mm is self:
+                continue
+
+            mm.add_domain_variables(variables, n, suffix, ind_vars)
+            mm.add_bdr_variables(variables, n, suffix, ind_vars)
 
     def onItemSelChanged(self, evt):
         '''
@@ -1209,6 +1475,9 @@ class PhysModule(Phys):
         from petram.mesh.mesh_extension import MeshExtInfo
 
         info = MeshExtInfo(dim=self.dim, base=self.mesh_idx)
+
+        if len(self.sel_index) == 0:
+            return None
         if self.sel_index[0] != 'all':
             info.set_selection(self.sel_index)
         else:
@@ -1248,7 +1517,7 @@ class PhysModule(Phys):
         txt = ','.join(probes)
         return txt
 
-    def get_dom_bdr_choice(self, mesh):
+    def get_dom_bdr_pnt_choice(self, mesh):
 
         from collections import defaultdict
 
@@ -1273,10 +1542,11 @@ class PhysModule(Phys):
         d = mesh.extended_connectivity[kk]
 
         if d is None:
-            return [], [], []
+            return [], [], [], []
 
         dom_choice = list(d)
-        bdr_choice = sum([list(d[x]) for x in d], [])
+        bdr_choice = list(set(np.hstack([list(d[x]) for x in d])))
+        pnt_choice = list(mesh.extended_connectivity["vert2vert"])
 
         if self.sel_index[0] != 'all':
             dom_choice = [int(x) for x in self.sel_index]
@@ -1294,5 +1564,5 @@ class PhysModule(Phys):
 
         # return unique list
         return list(set(dom_choice)), list(
-            set(bdr_choice)), list(set(internal_bdr))
+            set(bdr_choice)), list(set(pnt_choice)), list(set(internal_bdr)),
         # return dom_choice, bdr_choice

@@ -24,6 +24,7 @@ if use_parallel:
 else:
     import mfem.ser as mfem
     default_kind = 'scipy'
+    num_proc = 1
 
 SparseSmootherCls = {"Jacobi": (mfem.DSmoother, 0),
                      "l1Jacobi": (mfem.DSmoother, 1),
@@ -110,28 +111,13 @@ class Iterative(LinearSolverModel, NS_mixin):
                 [None, self.use_ls_reducer, 3, {
                     "text": "Reduce linear system when possible"}],
                 [None, (self.merge_real_imag, (self.use_block_symmetric,)),
-                 27, ({"text": "Use ComplexOperator"}, {"elp": mm},)], ]
+                 27, ({"text": "Use ComplexOperator"}, {"elp": mm},)],
+                ["use dist, SOL (dev.)", self.use_dist_sol, 3, {"text": ""}], ]
 
     def get_panel1_value(self):
         # this will set _mat_weight
-        from petram.solver.solver_model import SolveStep
-        p = self.parent
-        while not isinstance(p, SolveStep):
-            p = p.parent
-            if p is None:
-                assert False, "Solver is not under SolveStep"
-        num_matrix = p.get_num_matrix(self.get_phys())
 
-        all_dep_vars = self.root()['Phys'].all_dependent_vars(num_matrix,
-                                                              self.get_phys(),
-                                                              self.get_phys_range())
-
-        prec = [x for x in self.preconditioners if x[0] in all_dep_vars]
-        names = [x[0] for x in prec]
-        for n in all_dep_vars:
-            if not n in names:
-                prec.append((n, ['None', 'None']))
-        self.preconditioners = prec
+        self.preconditioners = self.get_proc_blocknames(self.preconditioners)
 
         single1 = [int(self.log_level), int(self.maxiter),
                    self.reltol, self.abstol]
@@ -151,7 +137,8 @@ class Iterative(LinearSolverModel, NS_mixin):
                  (self.adv_mode, [self.adv_prc, ], [self.preconditioners, ]),
                  self.write_mat, self.assert_no_convergence,
                  self.use_ls_reducer,
-                 (self.merge_real_imag, [self.use_block_symmetric, ]),)
+                 (self.merge_real_imag, [self.use_block_symmetric, ]),
+                 self.use_dist_sol)
 
         return value
 
@@ -187,6 +174,7 @@ class Iterative(LinearSolverModel, NS_mixin):
         self.adv_prc = v[1][1][0]
         self.merge_real_imag = bool(v[5][0])
         self.use_block_symmetric = bool(v[5][1][0])
+        self.use_dist_sol = bool(v[6])
 
     def attribute_set(self, v):
         v = super(Iterative, self).attribute_set(v)
@@ -224,6 +212,9 @@ class Iterative(LinearSolverModel, NS_mixin):
                     return False, "Iterative does not support complex.", "A complex problem must be converted to a real value problem"
         return True, "", ""
 
+    def does_linearsolver_choose_linearsystem_type(self):
+        return True
+
     def linear_system_type(self, assemble_real, phys_real):
         if phys_real:
             if assemble_real:
@@ -256,15 +247,16 @@ class Iterative(LinearSolverModel, NS_mixin):
             from mpi4py import MPI
             myid = MPI.COMM_WORLD.rank
 
-            offset = M.RowOffsets().ToList()
-            of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
-                  for o in offset]
-            if myid != 0:
-                return
+            of = M.RowOffsets().ToList()
+
+            if not self.use_dist_sol:
+                of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
+                      for o in of]
+                if myid != 0:
+                    return
 
         else:
-            offset = M.RowOffsets()
-            of = offset.ToList()
+            of = M.RowOffsets().ToList()
 
         rows = M.NumRowBlocks()
         s = solall.shape
@@ -286,15 +278,15 @@ class Iterative(LinearSolverModel, NS_mixin):
             from mpi4py import MPI
             myid = MPI.COMM_WORLD.rank
 
-            offset = M.RowOffsets().ToList()
-            of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
-                  for o in offset]
-            if myid != 0:
-                return
-
+            of = M.RowOffsets().ToList()
+            if not self.use_dist_sol:
+                of = [np.sum(MPI.COMM_WORLD.allgather(np.int32(o)))
+                      for o in of]
+                if myid != 0:
+                    return
         else:
-            offset = M.RowOffsets()
-            of = offset.ToList()
+            of = M.RowOffsets().ToList()
+
         dprint1(of)
         rows = M.NumRowBlocks()
         s = solall.shape
@@ -391,6 +383,12 @@ class IterativeSolver(LinearSolver):
         if solver_type in ['GMRES', 'FGMRES']:
             solver.SetKDim(kdim)
 
+        # we call solver.SetOperator first, before setting Preconditioner
+        # prec::SetOperator is not called from insider the solver, but called from here
+        # directlry. This makes sure that A is passed as BlockOperator
+
+        solver.SetOperator(A)
+
         if nested:
             inner_solver_type = self.gui.solver_type_in
             if inner_solver_type != "MUMPS":
@@ -404,19 +402,25 @@ class IterativeSolver(LinearSolver):
                     inner_solver.SetKDim(int(self.gui.kdim_in))
                 inner_solver.iterative_mode = False
                 inner_solver.SetOperator(A)
+
                 inner_solver.SetPreconditioner(M)
-                # return inner_solver
-                prc = inner_solver
+                solver.SetPreconditioner(inner_solver)
+
+                M.SetOperator(A)
+
+                inner_solver._prc = M
+                solver._prc = inner_solver
             else:
                 from petram.solver.mumps_model import MUMPSBlockPreconditioner
                 prc = MUMPSBlockPreconditioner(A, gui=self.gui[self.gui.mumps_in],
                                                engine=self.engine)
-
+                solver._prc = prc
+                solver.SetPreconditioner(prc)
+                prc.SetOperator(A)
         else:
-            prc = M
-        solver._prc = prc
-        solver.SetPreconditioner(prc)
-        solver.SetOperator(A)
+            solver.SetPreconditioner(M)
+            M.SetOperator(A)
+            solver._prc = M
 
         solver.SetAbsTol(atol)
         solver.SetRelTol(rtol)
@@ -427,6 +431,10 @@ class IterativeSolver(LinearSolver):
 
     def make_preconditioner(self, A, name=None, parallel=False):
         name = self.Aname if name is None else name
+
+        solver = self.gui.get_solver()
+        if solver.use_blk_merged_structure:
+            name = solver.get_ls_blocknames()
 
         if self.gui.adv_mode:
             expr = self.gui.adv_prc
@@ -499,6 +507,7 @@ class IterativeSolver(LinearSolver):
             for j in range(rows):
                 v = bb.GetBlock(j)
                 v.Print('rhs_' + str(i) + '_' + str(j) + suffix)
+                #np.save('rhs_' + str(i) + '_' + str(j) + suffix, v.GetDataArray())
         if x is not None:
             for j in range(rows):
                 xx = x.GetBlock(j)
@@ -506,6 +515,7 @@ class IterativeSolver(LinearSolver):
 
     @flush_stdout
     def call_mult(self, solver, bb, xx):
+        #print(np.sum(bb.GetDataArray()), np.sum(xx.GetDataArray()))
         solver.Mult(bb, xx)
         max_iter = solver.GetNumIterations()
         tol = solver.GetFinalNorm()
@@ -525,6 +535,10 @@ class IterativeSolver(LinearSolver):
 
         # solve the problem and gather solution to head node...
         # may not be the best approach
+
+        distributed_sol = (use_parallel and
+                           num_proc > 1 and
+                           self.gui.use_dist_sol)
 
         from petram.helper.mpi_recipes import gather_vector
         offset = A.RowOffsets()
@@ -549,33 +563,39 @@ class IterativeSolver(LinearSolver):
                 self.call_mult(self.solver, bb, xx)
 
             s = []
-            for i in range(offset.Size() - 1):
-                v = xx.GetBlock(i).GetDataArray()
-                if self.gui.merge_real_imag:
-                    w = int(len(v) // 2)
-                    vv1 = gather_vector(v[:w])
-                    vv2 = gather_vector(v[w:])
-                    vv = np.hstack((vv1, vv2))
-                else:
-                    vv = gather_vector(v)
-                if myid == 0:
+            if distributed_sol:
+                for i in range(offset.Size() - 1):
+                    vv = xx.GetBlock(i).GetDataArray()
                     s.append(vv)
-                else:
-                    pass
-            if myid == 0:
                 sol.append(np.hstack(s))
+            else:
+                for i in range(offset.Size() - 1):
+                    v = xx.GetBlock(i).GetDataArray()
+                    if self.gui.merge_real_imag:
+                        w = int(len(v) // 2)
+                        vv1 = gather_vector(v[:w])
+                        vv2 = gather_vector(v[w:])
+                        vv = np.hstack((vv1, vv2))
+                    else:
+                        vv = gather_vector(v)
+                    if myid == 0:
+                        s.append(vv)
+                    else:
+                        pass
+                if myid == 0:
+                    sol.append(np.hstack(s))
 
-        if myid == 0:
-            sol = np.transpose(np.vstack(sol))
-            return sol
-        else:
+        if myid != 0 and not distributed_sol:
             return None
+
+        sol = np.transpose(np.vstack(sol))
+        return sol
 
     def solve_serial(self, A, b, x=None):
         if self.gui.write_mat:
             self. write_mat(A, b, x)
 
-        M = self.M
+        #M = self.M
         solver = self.solver
 
         sol = []
@@ -595,74 +615,3 @@ class IterativeSolver(LinearSolver):
             sol.append(xx.GetDataArray().copy())
         sol = np.transpose(np.vstack(sol))
         return sol
-
-        '''
-        prcs = dict(self.gui.preconditioners)
-        name = self.Aname
-        assert not self.gui.parent.is_complex(), "can not solve complex"
-        if self.gui.parent.is_converted_from_complex():
-           name = sum([[n, n] for n in name], [])
-
-
-        for k, n in enumerate(name):
-
-           prc = prcs[n][0]
-           if prc == "None": continue
-           name = "".join([tmp for tmp in prc if not tmp.isdigit()])
-           A0 = get_block(A, k, k)
-           cls = SparseSmootherCls[name][0]
-           arg = SparseSmootherCls[name][1]
-           if name == 'MUMPS':
-               invA0 = cls(A0, gui=self.gui[prc], engine=self.engine)
-
-           elif name.startswith('schur'):
-               args = name.split("(")[-1].split(")")[0].split(",")
-               dprint1("setting up schur for ", args)
-               if len(args) > 1:
-                   assert False, "not yet supported"
-               for arg in args:
-                    r1 = self.engine.dep_var_offset(arg.strip())
-                    c1 = self.engine.r_dep_var_offset(arg.strip())
-                    B  =  get_block(A, k, c1)
-                    Bt =  get_block(A, r1, k)
-                    B0 = get_block(A, r1, c1)
-                    Md = mfem.Vector(M0.Height())
-                    B0.GetDiag(Md)
-                    for i in range(Md.Size()):
-                        if Md[i] != 0.:
-                            Bt.ScaleRow(i, 1/Md[i])
-                        else:
-                            assert False, "diagnal element of matrix is zero"
-
-                    S = mfem.Mult(B, Bt)
-                    invA0 = mfem.DSmoother(S)
-                    invA0.iterative_mode = False
-
-           else:
-               invA0 = cls(A0, arg)
-           invA0.iterative_mode = False
-           M.SetDiagonalBlock(k, invA0)
-        '''
-        '''
-        We should support Shur complement type preconditioner
-        if offset.Size() > 2:
-            B =  get_block(A, 1, 0)
-            MinvBt = get_block(A, 0, 1)
-            Md = mfem.Vector(get_block(A, 0, 0).Height())
-            get_block(A, 0, 0).GetDiag(Md)
-            for i in range(Md.Size()):
-                if Md[i] != 0.:
-                    MinvBt.ScaleRow(i, 1/Md[i])
-                else:
-                    assert False, "diagnal element of matrix is zero"
-            S = mfem.Mult(B, MinvBt)
-            S.iterative_mode = False
-            SS = mfem.DSmoother(S)
-            SS.iterative_mode = False
-            M.SetDiagonalBlock(1, SS)
-        '''
-
-        '''
-        int GMRES(const Operator &A, Vector &x, const Vector &b, Solver &M,
-          int &max_iter, int m, double &tol, double atol, int printit)
-        '''

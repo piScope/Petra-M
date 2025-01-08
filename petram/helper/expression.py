@@ -1,4 +1,3 @@
-import parser
 import weakref
 
 import petram.helper.operators as ops
@@ -65,8 +64,7 @@ class Expression(object):
 
         super(Expression, self).__init__()
         variables = []
-        st = parser.expr(expr)
-        code = st.compile('<string>')
+        code = compile(expr, '<string>', 'eval')
         names = code.co_names
         self.co = code
 

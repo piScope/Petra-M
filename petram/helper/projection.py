@@ -45,7 +45,7 @@ def fes_mapping(element1, order1, dim1, dim2):
     msg = ("mapping not supported from " + element1 +
            " dim: "+str(dim1) + " " + str(dim2))
     if dim1 == dim2:
-        ret = element1, order1, 1
+        ret = element1, order1, 2
 
     elif element1.startswith("ND"):
         if dim1 == 3 and dim2 == 2:
@@ -54,8 +54,8 @@ def fes_mapping(element1, order1, dim1, dim2):
             ret = "L2_FECollection", order1-1, 2
         elif dim1 == 2 and dim2 == 3:
             ret = "ND_FECollection", order1, 1
-        elif dim1 == dim2:
-            ret = "ND_FECollection", order1, 1
+#        elif dim1 == dim2:
+#            ret = "ND_FECollection", order1, 1
         else:
             assert False, msg
 
@@ -64,8 +64,8 @@ def fes_mapping(element1, order1, dim1, dim2):
             ret = "L2_FECollection", order1 - 1, 2
         elif dim1 == 2 and dim2 == 1:
             ret = "L2_FECollection", order1 - 1, 2
-        elif dim1 == dim2:
-            ret = "RT_FECollection", order1, 1
+#        elif dim1 == dim2:
+#            ret = "RT_FECollection", order1, 1
         else:
             assert False, msg
 
@@ -99,12 +99,12 @@ def find_fes_mapping(phys1, fes_idx1, phys2, fes_idx2):
     fec_type1 = phys1.get_fec_type(fes_idx1)
     dim1 = phys1.dim
     sdim1 = phys1.geom_dim
-    order1 = phys1.fes_order
+    order1 = phys1.fes_order(fes_idx1)
 
     fec_type2 = phys2.get_fec_type(fes_idx2)
     dim2 = phys2.dim
-    sdim2 = phys1.geom_dim
-    order2 = phys1.fes_order
+    sdim2 = phys2.geom_dim
+    order2 = phys2.fes_order(fes_idx2)
 
     if emesh1 == emesh2:
         return fec_type1, order1

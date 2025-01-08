@@ -3,6 +3,8 @@
     Model Tree to stroe MFEM model parameters
 
 '''
+from petram.utils import (check_cluster_access,
+                          check_addon_access)
 from petram.namespace_mixin import NS_mixin
 import numpy as np
 from petram.model import Model
@@ -11,9 +13,13 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MFEMModel')
 
 
+has_addon_access = check_addon_access()
+has_cluster_access = check_cluster_access()
+
+
 class MFEM_GeneralRoot(Model, NS_mixin):
     can_delete = False
-    has_2nd_panel = False
+    has_2nd_panel = True
 
     def __init__(self, *args, **kwargs):
         Model.__init__(self, *args, **kwargs)
@@ -27,6 +33,15 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         v['dwc_object_name'] = ''
         v['mesh_gen'] = ''
         v['geom_gen'] = ''
+        v['diagpolicy'] = 'one'
+        v['partitioning'] = 'auto'
+        v['submeshpartitioning'] = 'auto'
+        v['autofilldiag'] = 'off'
+        v['savegz'] = 'on'
+        v['allow_fallback_nonjit'] = 'allow'
+        v['debug_numba_jit'] = 'off'
+        v['trim_debug_print'] = 'on'
+        v['warning_control'] = 'once'
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
 
@@ -56,14 +71,58 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         import petram.debug
         petram.debug.debug_default_level = int(self.debug_level)
 
+    def panel2_tabname(self):
+        return "Extra."
+
+    def panel2_param(self):
+        return [["DiagPolicy", None, 1, {"values": ["one", "keep"]}],
+                ["File compression", None, 1, {"values": ["on", "off"]}],
+                ["Mesh partitioning", None, 1, {
+                    "values": ["auto", "by attribute"]}],
+                ["SubMesh partitioning", None, 1, {
+                    "values": ["auto", "safe"]}],
+                ["Autofill emtpy diag rows", None,
+                    1, {"values": ["on", "off"]}],
+                ["Fallback Python coefficient", None,
+                    1, {"values": ["allow", "warn", "error", "always use Python coeff."]}],
+                ["Check numba JIT process", None,
+                    1, {"values": ["on", "off"]}],
+                ["Trim debug print text", None,
+                    1, {"values": ["on", "off"]}],
+                ["Warning control", None,
+                    1, {"values": ["default", "error", "ignore", "always",
+                                   "module", "once"]}],
+                ]
+
+    def get_panel2_value(self):
+        return (self.diagpolicy, self.savegz, self.partitioning, self.submeshpartitioning,
+                self.autofilldiag, self.allow_fallback_nonjit, self.debug_numba_jit,
+                self.trim_debug_print, self.warning_control)
+
+    def import_panel2_value(self, v):
+        self.diagpolicy = v[0]
+        self.savegz = v[1]
+        self.partitioning = v[2]
+        self.submeshpartitioning = v[3]
+        self.autofilldiag = v[4]
+        self.allow_fallback_nonjit = v[5]
+        self.debug_numba_jit = v[6]
+        self.trim_debug_print = v[7]
+        self.warning_control = v[8]
+
     def run(self):
         import petram.debug
         if petram.debug.debug_default_level == 0:
             petram.debug.debug_default_level = int(self.debug_level)
 
+        petram.debug.trim_debug_print = bool(self.trim_debug_print == 'on')
+
         if not hasattr(self.root(), "_variables"):
             from petram.helper.variables import Variables
             self.root()._variables = Variables()
+
+        if not hasattr(self, "warning_control"):
+            self.warning_control = 'once'
 
         self.root()._parameters = {}
         self.root()._init_done = True
@@ -75,6 +134,10 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         import petram.helper.functions
         return petram.helper.functions.f.copy()
 
+    def save_attribute_set(self, skip_def_check):
+        ret = Model.save_attribute_set(self, skip_def_check)
+        return [x for x in ret if x != '_variable']
+
 
 class MFEM_PhysRoot(Model):
     can_delete = False
@@ -84,7 +147,53 @@ class MFEM_PhysRoot(Model):
         ans = []
         from petram.helper.phys_module_util import all_phys_models
         models, classes = all_phys_models()
+
+        tmp = sorted([(cls.__name__, cls) for cls in classes])
+        classes = [x[1] for x in tmp]
+
         return classes
+
+    def get_possible_child_menu(self):
+        '''
+        return hierachial menus
+        '''
+        ans = []
+        from petram.helper.phys_module_util import all_phys_models
+        models, classes = all_phys_models()
+
+        name_class = sorted([(cls.__name__, cls) for cls in classes])
+
+        import wx
+        petram_model = wx.GetApp().TopWindow.proj.setting.parameters.eval('PetraM')
+        mesh = petram_model.variables.eval('mesh')
+        if mesh is None:
+            return []
+
+        sdim = mesh.SpaceDimension()
+
+        allkeys = ['3D', '2D', '2Da', '1D']
+        if sdim == 3:
+            keys = ['3D']
+        elif sdim == 2:
+            keys = ['2D', '2Da']
+        else:
+            keys = ['1D']
+
+        menus = []
+
+        for n, cls in name_class:
+            hitkey = ''
+            for k in allkeys:
+                if n.find(k) != -1:
+                    hitkey = k
+                    break
+            if hitkey == '':
+                menus.append(("", cls))
+            else:
+                if hitkey in keys:
+                    menus.append(("", cls))
+
+        return menus
 
     def make_solvars(self, solsets, g=None):
         from petram.mesh.mesh_utils import (get_extended_connectivity,
@@ -125,18 +234,23 @@ class MFEM_PhysRoot(Model):
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys')
 
-    def dependent_values(self):
+    def dependent_values(self, include_disabled=False):
         '''
         return dependent_values
            names: name of values
            pnames: list of physics module
            pindex: index of dependent value in the physics module
         '''
-        names = sum([c.dep_vars for c in self.iter_enabled()], [])
+        if include_disabled:
+            method = self.get_children
+        else:
+            method = self.iter_enabled
+
+        names = sum([c.dep_vars for c in method()], [])
         pnames = sum([[c.name()] * len(c.dep_vars)
-                      for c in self.iter_enabled()], [])
+                      for c in method()], [])
         pindex = sum([list(range(len(c.dep_vars)))
-                      for c in self.iter_enabled()], [])
+                      for c in method()], [])
 
         return names, pnames, pindex
 
@@ -401,8 +515,10 @@ class MFEM_ModelRoot(Model):
             for od in self.walk():
                 if hasattr(od, 'use_relative_path'):
                     od.use_relative_path()
-        pickle.dump(self, open(path, 'wb'))
+        fid = open(path, 'wb')
+        pickle.dump(self, fid)
         if meshfile_relativepath:
             for od in self.walk():
                 if hasattr(od, 'use_relative_path'):
                     od.restore_fullpath()
+        fid.close()

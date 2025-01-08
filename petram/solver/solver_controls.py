@@ -10,6 +10,14 @@ format_memory_usage = debug.format_memory_usage
 class SolveControl(SolverBase):
     has_2nd_panel = False
 
+    def get_phys(self):
+        my_solve_step = self.get_solve_root()
+        return my_solve_step.get_phys()
+
+    def get_phys_range(self):
+        my_solve_step = self.get_solve_root()
+        return my_solve_step.get_phys_range()
+
 
 data = [("max_count", VtableElement("max_count",
                                     type='int',
@@ -49,10 +57,10 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
         ret1 = [["dwc", self.dwc_name, 0, {}, ],
                 ["args.", self.dwc_args, 0, {}, ], ]
         value1 = [self.dwc_name, self.dwc_args]
-        panel2 = [[None, [False, value1, ], 27, [{'text': 'Use DWC (postprocess)'},
+        panel2 = [[None, [False, value1, ], 27, [{'text': 'use DWC (postprocess)'},
                                                  {'elp': ret1}, ]], ]
 
-        return ([["Postporcess solution", self.postprocess_sol, 0, {}, ],
+        return ([["Postprocess solution", self.postprocess_sol, 0, {}, ],
                  ["Counter name", self.counter_name, 0, {}, ]] + panels + panel2)
 
     def get_panel1_value(self):
@@ -106,8 +114,45 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
         names = [n.strip() for n in names if n.strip() != '']
         return [self.root()['PostProcess'][n] for n in names]
 
+    def iter_active_solvers(self, with_control=False):
+        steps = self.get_active_steps(with_control=False)
+        for s in steps:
+            for s2 in s.get_active_solvers():
+                yield s2
+
+    def get_target_phys(self):
+        ret = []
+        for s in self.iter_active_solvers():
+            for item in s.get_target_phys():
+                if item not in ret:
+                    ret.append(item)
+        return ret
+
+    def get_child_solver(self):
+        ret = []
+        for s in self.iter_active_solvers():
+            ret.extend(s.get_child_solver())
+        return ret
+
+    def get_custom_init(self):
+        ret = []
+        for s in self.iter_active_solvers():
+            ret.extend(s.get_custom_init())
+        return ret
+
+    def get_matrix_weight(self, timestep_config):  # , timestep_weight):
+        ret = []
+        s1, s2, s3 = 0, 0, 0
+        for s in self.iter_active_solvers():
+            n1, n2, n3 = s.get_matrix_weight(timestep_config)
+            s1 = max(s1, n1)
+            s2 = max(s2, n2)
+            s3 = max(s3, n3)
+        return s1, s2, s3
+
     def run(self, engine, is_first=True):
-        dprint1("!!!!! Entering SolveLoop :" + self.name() + " !!!!!")
+        dprint1("!!!!! Entering SolveLoop : (is_first =",
+                is_first, ") " + self.name() + " !!!!!")
 
         steps = self.get_active_steps(with_control=True)
         self.vt_loop.preprocess_params(self)
@@ -126,7 +171,7 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
                 elif isinstance(s, DWCCall):
                     do_continue = s.run(engine, i)
                 else:
-                    s.run(engine, is_first=is_first)
+                    is_first = s.run(engine, is_first=is_first)
                     if s.solve_error[0]:
                         dprint1(
                             "Loop failed " +
@@ -150,6 +195,96 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
                             callername=self.name(),
                             dwcname=self.dwc_name,
                             args=self.dwc_args)
+
+
+class InnerForLoop(ForLoop):
+    '''
+    InnerForLoop is placed insde SolveStep
+    Loop supports only standard stationary solver
+    '''
+
+    def get_active_solvers(self, with_control=False):
+        steps = []
+        for x in self.iter_enabled():
+            if not x.enabled:
+                continue
+
+            if isinstance(x, Break) and with_control:
+                steps.append(x)
+            elif isinstance(x, Continue) and with_control:
+                steps.append(x)
+            elif isinstance(x, DWCCall) and with_control:
+                steps.append(x)
+            elif len(list(x.iter_enabled())) > 0:
+                steps.append(x)
+
+        return steps
+
+    def iter_active_solvers(self):
+        solvers = self.get_active_solvers(with_control=False)
+        for s in solvers:
+            yield s
+
+    def free_instance(self):
+        for s in self.iter_active_solvers():
+            s.free_instance()
+
+    def get_num_levels(self):
+        return 1
+
+    def create_refined_levels(self, engine, lvl):
+        '''
+        create refined levels and return True if it is created.
+        default False (no refined level)
+        '''
+        return False
+
+    def get_possible_child(self):
+        #from solver.solinit_model import SolInit
+        from petram.solver.std_solver_model import StdSolver
+        from petram.solver.mg_solver_model import MGSolver
+        from petram.solver.timedomain_solver_model import TimeDomain
+        from petram.solver.set_var import SetVar
+        from petram.solver.distance_solver import DistanceSolver
+
+        try:
+            from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
+            return [StdSolver,
+                    TimeDomain,
+                    StdMeshAdaptSolver,
+                    Break, Continue,
+                    DWCCall, SetVar, ]
+
+        except:
+            return [StdSolver,
+                    TimeDomain,
+                    Break, Continue,
+                    DWCCall, SetVar]
+
+    def get_possible_child_menu(self):
+        #from solver.solinit_model import SolInit
+        from petram.solver.std_solver_model import StdSolver
+        from petram.solver.mg_solver_model import MGSolver
+        from petram.solver.timedomain_solver_model import TimeDomain
+        from petram.solver.set_var import SetVar
+        from petram.solver.distance_solver import DistanceSolver
+
+        try:
+            from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
+            return [("", StdSolver),
+                    ("", TimeDomain),
+                    ("extra", StdMeshAdaptSolver),
+                    ("", Break),
+                    ("", Continue),
+                    ("", DWCCall),
+                    ("!", SetVar)]
+        except:
+            return [("", StdSolver),
+                    ("", TimeDomain),
+                    ("extra", Break),
+                    ("", Continue),
+                    ("", DWCCall),
+                    ("!", SetVar)]
 
 
 class Break(SolveControl, NS_mixin):
@@ -276,6 +411,7 @@ class DWCCall(SolveControl):
     def attribute_set(self, v):
         v['dwc_args'] = ''
         v['dwc_name'] = ''
+        v['dwc_callname'] = 'call'
         super(DWCCall, self).attribute_set(v)
         return v
 
@@ -284,18 +420,29 @@ class DWCCall(SolveControl):
 
     def panel1_param(self):
         panels = [["dwc", self.dwc_name, 0, {}, ],
+                  ["method", self.dwc_callname, 0, {}, ],
                   ["args.", self.dwc_args, 0, {}, ], ]
 
         return panels
 
     def get_panel1_value(self):
-        return [self.dwc_name, self.dwc_args]
+        return [self.dwc_name, self.dwc_callname, self.dwc_args]
 
     def import_panel1_value(self, v):
         self.dwc_name = v[0]
-        self.dwc_args = v[1]
+        self.dwc_callname = v[1]
+        self.dwc_args = v[2]
 
     def get_target_phys(self):
+        return []
+
+    def get_child_solver(self):
+        return []
+
+    def get_matrix_weight(self, _timestep_config):
+        return []
+
+    def get_custom_init(self):
         return []
 
     def get_all_phys(self):
@@ -304,7 +451,7 @@ class DWCCall(SolveControl):
 
     def run(self, engine, is_first=True):
         engine.call_dwc(self.get_all_phys(),
-                        method="call",
+                        method=self.dwc_callname,
                         callername=self.name(),
                         dwcname=self.dwc_name,
                         args=self.dwc_args)

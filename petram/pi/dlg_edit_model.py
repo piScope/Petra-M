@@ -35,20 +35,20 @@ class ModelTree(treemixin.VirtualTree, wx.TreeCtrl):
         item = self.topwindow.model.GetItem(indices)
         txt = self.topwindow.model.GetItemText(indices)
 
-        if item.has_ns() or item.has_nsref():
-            info = item.get_info_str()
-            if info != "":
-                txt = txt + "(" + info + ")"
+        # if item.has_ns() or item.has_nsref():
+        info = item.get_info_str()
+        if info != "":
+            txt = txt + "(" + info + ")"
         if hasattr(item, 'isGeom') and hasattr(item, '_newobjs'):
             if len(item._newobjs) < 10:
-               txt = txt + '('+','.join(item._newobjs) + ')'
+                txt = txt + '('+','.join(item._newobjs) + ')'
             else:
-               txt = txt + '(total '+str(len(item._newobjs)) + ' items)'
+                txt = txt + '(total '+str(len(item._newobjs)) + ' items)'
         return txt
 
     def OnGetItemTextColour(self, indices):
         item = self.topwindow.model.GetItem(indices)
-        if item.enabled:
+        if item.is_enabled():
             return wx.BLACK
         else:
             return wx.Colour(128, 128, 128)
@@ -97,8 +97,8 @@ class DlgEditModel(SimpleFramePlus):
                  wx.CLOSE_BOX |
                  wx.MINIMIZE_BOX |
                  wx.RESIZE_BORDER |
-                 wx.FRAME_FLOAT_ON_PARENT |
-                 wx.FRAME_TOOL_WINDOW)
+                 wx.FRAME_FLOAT_ON_PARENT)
+        #        wx.FRAME_TOOL_WINDOW  this style may not work on Mac/Windows
 
         #style = wx.RESIZE_BORDER
         super(DlgEditModel, self).__init__(parent, id, title, style=style)
@@ -106,17 +106,32 @@ class DlgEditModel(SimpleFramePlus):
         self.splitter = wx.SplitterWindow(self, wx.ID_ANY,
                                           style=wx.SP_NOBORDER | wx.SP_LIVE_UPDATE | wx.SP_3DSASH)
 
-        self.tree = ModelTree(self.splitter, topwindow=self,
+        p0 = wx.Panel(self.splitter)
+        p0.SetSizer(wx.BoxSizer(wx.HORIZONTAL))
+        p0sizer = wx.BoxSizer(wx.VERTICAL)
+        p0.GetSizer().Add(p0sizer, 1, wx.EXPAND)
+
+        self.tree = ModelTree(p0, topwindow=self,
                               style=wx.TR_DEFAULT_STYLE | wx.TR_MULTIPLE)
+
+        from ifigure.utils.wx3to4 import wxNamedColour
+        p0.SetBackgroundColour(wxNamedColour('White'))
+
+        p0sizer.Add(self.tree, 1, wx.EXPAND | wx.ALL, 1)
         #self.tree.SetSizeHints(150, -1, maxW=150)
         self.nb = wx.Notebook(self.splitter)
-        self.splitter.SplitVertically(self.tree, self.nb)
+        self.splitter.SplitVertically(p0, self.nb)
         self.splitter.SetMinimumPaneSize(150)
+        wx.CallAfter(self.splitter.SetSashPosition, 150, True)
 
         self.p1 = wx.Panel(self.nb)
         self.p2 = wx.Panel(self.nb)
         self.p3 = wx.Panel(self.nb)
         self.p4 = wx.Panel(self.nb)
+        self.p1.SetBackgroundColour(wx.Colour(235, 235, 235, 255))
+        self.p2.SetBackgroundColour(wx.Colour(235, 235, 235, 255))
+        self.p3.SetBackgroundColour(wx.Colour(235, 235, 235, 255))
+        self.p4.SetBackgroundColour(wx.Colour(235, 235, 235, 255))
         self.nb.AddPage(self.p1, "Config.")
 #        self.nb.AddPage(self.p2, "Selection")
         self.p1.SetSizer(wx.BoxSizer(wx.HORIZONTAL))
@@ -155,13 +170,19 @@ class DlgEditModel(SimpleFramePlus):
         self.Bind(EDITLIST_CHANGING, self.OnEL_Changing)
         self.Bind(EDITLIST_SETFOCUS, self.OnEL_SetFocus)
         self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
+
+        self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGING, self.OnPageChanging)
+        #self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.OnPageChanged)
+
         self._focus_idx = None
         self._focus_obj = None
         self._copied_item = None
         self._opened_dlg = None
         self._enable = True
         self.SetSize((600, 400))
-        
+        self._nb_current_sel = 0
+        self._nb_current_selt = ''
+
         wx.CallAfter(self.CentreOnParent)
         #hbox = wx.BoxSizer(wx.HORIZONTAL)
         #self.GetSizer().Add(hbox, 0, wx.EXPAND|wx.ALL,5)
@@ -176,6 +197,21 @@ class DlgEditModel(SimpleFramePlus):
     def OnChildFocus(self, evt):
         self.GetParent()._palette_focus = 'edit'
         evt.Skip()
+
+    def OnPageChanging(self, evt):
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+
+        flag, idx = self.check_el_chagend(mm)
+
+        if flag:
+            self.import_selected_panel_value(evt)
+            if idx == 1:  # if panel 2 : update highlight
+                wx.CallAfter(self.update_highlight, mm)
+        evt.Skip()
+
+    # def OnPageChanged(self, evt):
+    #    pass
 
     def OnItemRightClick(self, e):
         tree = self.tree
@@ -240,7 +276,8 @@ class DlgEditModel(SimpleFramePlus):
                         viewer = self.GetParent()
                         viewer.model.scripts.helpers.rebuild_ns()
                         engine = viewer.engine
-                        model.GetItem(indices)[name].postprocess_after_add(engine)
+                        model.GetItem(indices)[
+                            name].postprocess_after_add(engine)
                         tree.RefreshItems()
 
                         viewer.engine.run_mesh_extension_prep(reset=True)
@@ -261,7 +298,7 @@ class DlgEditModel(SimpleFramePlus):
                         menus = menus+[('!', None, None), ]
                     else:
                         menus = menus+[('+'+submenu, None, None), ]
-                        if add_func is not None:                        
+                        if add_func is not None:
                             menus = menus+[('Add '+txt, add_func, None), ]
                 else:
                     menus = menus+[('Add '+txt, add_func, None), ]
@@ -438,6 +475,9 @@ class DlgEditModel(SimpleFramePlus):
         if self.tree.GetSelection() is None:
             return
 
+        self._nb_current_sel = self.nb.GetSelection()
+        self._nb_current_selt = self.nb.GetPageText(self.nb.GetSelection())
+
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
 
@@ -506,9 +546,17 @@ class DlgEditModel(SimpleFramePlus):
         self._cpanels = self.panels[mm.fullname()]
         p1panel, p2panel, p3panel, p4panel = self.panels[mm.fullname()]
 
+        if self.nb.GetPageCount() > 3:
+            self.nb.RemovePage(3)
+        if self.nb.GetPageCount() > 2:
+            self.nb.RemovePage(2)
+
         if mm.has_2nd_panel:
             if self.nb.GetPageCount() == 1:
-                self.nb.AddPage(self.p2, "Selection")
+                self.nb.AddPage(self.p2, mm.panel2_tabname())
+            else:
+                self.nb.SetPageText(1, mm.panel2_tabname())
+
             self.p1sizer.Add(p1panel, 1, wx.EXPAND | wx.ALL, 1)
             self.p2sizer.Add(p2panel, 1, wx.EXPAND | wx.ALL, 1)
             p1panel.SetValue(mm.get_panel1_value())
@@ -517,9 +565,13 @@ class DlgEditModel(SimpleFramePlus):
             p2panel.Show()
             self.p1.Layout()
             self.p2.Layout()
-            if mm.has_3rd_panel:
+            has_3rd = mm.has_3rd_panel
+            has_4th = mm.has_4th_panel
+            if has_3rd:
                 if self.nb.GetPageCount() == 2:
-                    self.nb.AddPage(self.p3, "Init/NL.")
+                    self.nb.AddPage(self.p3, mm.panel3_tabname())
+                else:
+                    self.nb.SetPageText(2, mm.panel3_tabname())
 
                 self.p3sizer.Add(p3panel, 1, wx.EXPAND | wx.ALL, 1)
                 p3panel.SetValue(mm.get_panel3_value())
@@ -532,18 +584,32 @@ class DlgEditModel(SimpleFramePlus):
                     self.nb.RemovePage(2)
                 p3panel.Hide()
 
-            if mm.has_4th_panel:
-                if self.nb.GetPageCount() == 3:
-                    self.nb.AddPage(self.p4, "Time Dep./Adv.")
+            if has_4th:
+                pc = self.nb.GetPageCount()
+                if pc == 2:
+                    self.nb.AddPage(self.p4, mm.panel4_tabname())
+                elif pc == 3:
+                    if has_3rd:
+                        self.nb.AddPage(self.p4, mm.panel4_tabname())
+                    else:
+                        self.nb.SetPageText(2, mm.panel4_tabname())
+                elif pc == 4:
+                    self.nb.SetPageText(3, mm.panel4_tabname())
+                else:
+                    pass
+
                 self.p4sizer.Add(p4panel, 1, wx.EXPAND | wx.ALL, 1)
                 p4panel.SetValue(mm.get_panel4_value())
                 p4panel.Show()
                 #for c in p4panel.GetChildren(): c.Show()
                 self.p4.Layout()
             else:
-                if self.nb.GetPageCount() > 3:
+                if self.nb.GetPageCount() == 4 and has_3rd:
                     self.nb.RemovePage(3)
+                elif self.nb.GetPageCount() == 3 and not has_3rd:
+                    self.nb.RemovePage(2)
                 p4panel.Hide()
+
         else:
             if self.nb.GetPageCount() > 3:
                 self.nb.RemovePage(3)
@@ -563,6 +629,7 @@ class DlgEditModel(SimpleFramePlus):
             self.Enable(False)
 
     def OnItemSelChanged(self, evt=None):
+
         if self.tree.GetSelection() is None:
             return
 
@@ -572,7 +639,6 @@ class DlgEditModel(SimpleFramePlus):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
 #        if not mm.__class__ in self.panels.keys():
-
         for k in self.panels.keys():
             p1panel, p2panel, p3panel, p4panel = self.panels[k]
             self.p1sizer.Detach(p1panel)
@@ -588,9 +654,17 @@ class DlgEditModel(SimpleFramePlus):
         self._cpanels = self.panels[mm.fullname()]
         p1panel, p2panel, p3panel, p4panel = self.panels[mm.fullname()]
 
+        if self.nb.GetPageCount() > 3:
+            self.nb.RemovePage(3)
+        if self.nb.GetPageCount() > 2:
+            self.nb.RemovePage(2)
+
         if mm.has_2nd_panel:
             if self.nb.GetPageCount() == 1:
-                self.nb.AddPage(self.p2, "Selection")
+                self.nb.AddPage(self.p2, mm.panel2_tabname())
+            else:
+                self.nb.SetPageText(1, mm.panel2_tabname())
+
             self.p1sizer.Add(p1panel, 1, wx.EXPAND | wx.ALL, 1)
             self.p2sizer.Add(p2panel, 1, wx.EXPAND | wx.ALL, 1)
             p1panel.SetValue(mm.get_panel1_value())
@@ -599,33 +673,51 @@ class DlgEditModel(SimpleFramePlus):
             p2panel.Show()
             self.p1.Layout()
             self.p2.Layout()
-            if mm.has_3rd_panel:
+
+            has_3rd = mm.has_3rd_panel
+            has_4th = mm.has_4th_panel
+
+            if has_3rd:
                 if self.nb.GetPageCount() == 2:
-                    self.nb.AddPage(self.p3, "Init/NL.")
+                    self.nb.AddPage(self.p3, mm.panel3_tabname())
+                else:
+                    self.nb.SetPageText(2, mm.panel3_tabname())
 
                 self.p3sizer.Add(p3panel, 1, wx.EXPAND | wx.ALL, 1)
                 p3panel.SetValue(mm.get_panel3_value())
                 p3panel.Show()
                 self.p3.Layout()
             else:
-                if self.nb.GetPageCount() > 3:
-                    self.nb.RemovePage(3)
-                if self.nb.GetPageCount() > 2:
-                    self.nb.RemovePage(2)
                 p3panel.Hide()
 
-            if mm.has_4th_panel:
-                if self.nb.GetPageCount() == 3:
-                    self.nb.AddPage(self.p4, "Time Dep./Adv.")
+            if has_4th:
+                pc = self.nb.GetPageCount()
+                if pc == 2:
+                    self.nb.AddPage(self.p4, mm.panel4_tabname())
+                elif pc == 3:
+                    if has_3rd:
+                        self.nb.AddPage(self.p4, mm.panel4_tabname())
+                    else:
+                        self.nb.SetPageText(2, mm.panel4_tabname())
+                elif pc == 4:
+                    self.nb.SetPageText(3, mm.panel4_tabname())
+                else:
+                    pass
+
                 self.p4sizer.Add(p4panel, 1, wx.EXPAND | wx.ALL, 1)
                 p4panel.SetValue(mm.get_panel4_value())
                 p4panel.Show()
                 #for c in p4panel.GetChildren(): c.Show()
                 self.p4.Layout()
             else:
-                if self.nb.GetPageCount() > 3:
-                    self.nb.RemovePage(3)
                 p4panel.Hide()
+
+            npages = int(has_3rd + has_4th)
+            if self.nb.GetPageCount() == 4 and npages < 2:
+                self.nb.RemovePage(3)
+            if self.nb.GetPageCount() == 3 and npages < 1:
+                self.nb.RemovePage(2)
+
         else:
             if self.nb.GetPageCount() > 3:
                 self.nb.RemovePage(3)
@@ -641,14 +733,119 @@ class DlgEditModel(SimpleFramePlus):
             p4panel.Hide()
             self.p1.Layout()
 
-        self._focus_idx = None
-        
-        from petram.model import Bdry, Domain, Pair
+        labels = [self.nb.GetPageText(i)
+                  for i in range(self.nb.GetPageCount())]
+        for ii, l in enumerate(labels):
+            if l == self._nb_current_selt:
+                self.nb.ChangeSelection(ii)
+
+        if evt is not None:
+            mm.onItemSelChanged(evt)
+            evt.Skip()
+
+        self.update_highlight(mm)
+
+        if not self._enable:
+            self.Enable(False)
+
+    def OnClose(self, evt):
+        wx.GetApp().rm_palette(self)
+        self.GetParent().editdlg = None
+        evt.Skip()
+
+    def generate_panel(self, mm):
+        if mm.fullname() in self.panels and not mm.always_new_panel:
+            self.update_panel_label(mm)
+        else:
+            self.panels[mm.fullname()] = (ScrolledEditListPanel(self.p1,
+                                                                list=mm.panel1_param(),
+                                                                tip=mm.panel1_tip()),
+                                          EditListPanel(self.p2, list=mm.panel2_param(),
+                                                        tip=mm.panel2_tip()),
+                                          EditListPanel(self.p3, list=mm.panel3_param(),
+                                                        tip=mm.panel3_tip()),
+                                          EditListPanel(self.p4, list=mm.panel4_param(),
+                                                        tip=mm.panel4_tip()),)
+
+    def update_panel_label(self, mm):
+        self.panels[mm.fullname()][0].update_label(mm.panel1_param())
+        self.panels[mm.fullname()][1].update_label(mm.panel2_param())
+        self.panels[mm.fullname()][2].update_label(mm.panel3_param())
+        self.panels[mm.fullname()][3].update_label(mm.panel4_param())
+
+    def import_selected_panel_value(self, evt=None):
+        if self.tree.GetSelection() is None:
+            return
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+
+        p1children = self.p1sizer.GetChildren()
+        phys = None
+        viewer_update = False
+        if len(p1children) > 0:
+            elp1 = p1children[0].GetWindow()
+            v1 = elp1.GetValue()
+
+            viewer_update = mm.import_panel1_value(v1) or viewer_update
+            try:
+                phys = mm.get_root_phys()
+            except:
+                pass
+            elp1.SetValue(mm.get_panel1_value())
+            elp1.update_label(mm.panel1_param())
+
+        if mm.has_2nd_panel:
+            p2children = self.p2sizer.GetChildren()
+            if len(p2children) > 0:
+                elp2 = p2children[0].GetWindow()
+                v2 = elp2.GetValue()
+                viewer_update = mm.import_panel2_value(v2) or viewer_update
+                elp2.SetValue(mm.get_panel2_value())
+
+        if mm.has_3rd_panel:
+            p3children = self.p3sizer.GetChildren()
+            if len(p3children) > 0:
+                elp3 = p3children[0].GetWindow()
+                v3 = elp3.GetValue()
+                viewer_update = mm.import_panel3_value(v3) or viewer_update
+                elp3.SetValue(mm.get_panel3_value())
+
+        if mm.has_4th_panel:
+            p4children = self.p4sizer.GetChildren()
+            if len(p4children) > 0:
+                elp4 = p4children[0].GetWindow()
+                v4 = elp4.GetValue()
+                viewer_update = mm.import_panel4_value(v4) or viewer_update
+                elp4.SetValue(mm.get_panel4_value())
+
+        if phys is not None:
+            viewer = self.GetParent()
+            try:
+                viewer.engine.run_mesh_extension_prep(reset=True)
+                engine = viewer.engine.assign_sel_index(phys)
+            except:
+                traceback.print_exc()
+
+        if viewer_update:
+            flag1 = mm.update_after_ELChanged(self)
+            if evt is not None:
+                flag2 = mm.update_after_ELChanged2(evt)
+            else:
+                flag2 = False
+            if flag1 or flag2:
+                wx.CallAfter(self.show_panel, mm)
+
+        self.tree.RefreshItems()
+        return viewer_update
+
+    def update_highlight(self, mm):
+        from petram.model import Bdry, Domain, Point, Pair
         from petram.phys.phys_model import PhysModule
-        
+
+        self._focus_idx = None
         viewer = self.GetParent()
         engine = viewer.engine
-        
+
         if isinstance(mm, PhysModule):
             if not mm.enabled:
                 viewer.highlight_none()
@@ -672,7 +869,7 @@ class DlgEditModel(SimpleFramePlus):
                         viewer._dom_bdr_sel = ([], [], mm._phys_sel_index, [],)
                     else:
                         pass
-                    
+
         elif hasattr(mm, '_sel_index'):
             self._focus_idx = 0
             if not mm.enabled:
@@ -720,7 +917,17 @@ class DlgEditModel(SimpleFramePlus):
                     viewer._dom_bdr_sel = ([], [], mm._sel_index, [],)
                 else:
                     pass
-                
+
+            elif isinstance(mm, Point):
+                if not hasattr(mm, '_sel_index') or mm.sel_index == 'remaining':
+                    phys = mm.get_root_phys()
+                    engine.assign_phys_pp_sel_index()
+                    engine.assign_sel_index(phys)
+
+                viewer.change_panel_button('vertex')
+                viewer.highlight_point(mm._sel_index)
+                viewer._dom_bdr_sel = ([], [], [], mm._sel_index)
+
         elif isinstance(mm, AUX_Operator) or isinstance(mm, AUX_Variable):
             if not mm.enabled:
                 viewer.highlight_none()
@@ -746,109 +953,70 @@ class DlgEditModel(SimpleFramePlus):
                             [], [], mm2._phys_sel_index, [],)
                     else:
                         pass
-                    
+
         else:
             pass
-        
-        if evt is not None:
-            mm.onItemSelChanged(evt)
-            evt.Skip()
 
-        if not self._enable:
-            self.Enable(False)
+    def check_el_chagend(self, mm):
+        if self.nb.GetPageCount() == 0:
+            return False, -1
 
-    def OnClose(self, evt):
-        wx.GetApp().rm_palette(self)
-        self.GetParent().editdlg = None
-        evt.Skip()
+        nbsel = self.nb.GetSelection()
 
-    def generate_panel(self, mm):
-        if mm.fullname() in self.panels and not mm.always_new_panel:
-            self.update_panel_label(mm)
-        else:
-            self.panels[mm.fullname()] = (ScrolledEditListPanel(self.p1,
-                                                                list=mm.panel1_param(),
-                                                                tip=mm.panel1_tip()),
-                                          EditListPanel(self.p2, list=mm.panel2_param(),
-                                                        tip=mm.panel2_tip()),
-                                          EditListPanel(self.p3, list=mm.panel3_param(),
-                                                        tip=mm.panel3_tip()),
-                                          EditListPanel(self.p4, list=mm.panel4_param(),
-                                                        tip=mm.panel4_tip()),)
-
-    def update_panel_label(self, mm):
-        self.panels[mm.fullname()][0].update_label(mm.panel1_param())
-        self.panels[mm.fullname()][1].update_label(mm.panel2_param())
-        self.panels[mm.fullname()][2].update_label(mm.panel3_param())
-        self.panels[mm.fullname()][3].update_label(mm.panel4_param())
-
-    def import_selected_panel_value(self, evt=None):
-        if self.tree.GetSelection() is None:
-            return
-        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
-        mm = self.model.GetItem(indices)
+        def compare_elp(v, vtmp):
+            for x, y in zip(v, vtmp):
+                if x != y:
+                    return True
+            return False
 
         p1children = self.p1sizer.GetChildren()
-        phys = None
-        viewer_update = False
-        if len(p1children) > 0:
+        if len(p1children) > 0 and nbsel == 0:
             elp1 = p1children[0].GetWindow()
             v1 = elp1.GetValue()
-            viewer_update = mm.import_panel1_value(v1) or viewer_update
-            try:
-                phys = mm.get_root_phys()
-            except:
-                pass
-            elp1.SetValue(mm.get_panel1_value())
+            v1tmp = mm.get_panel1_value()
+            return compare_elp(v1, v1tmp), 0
 
-        if mm.has_2nd_panel:
+        if nbsel == 1 and mm.has_2nd_panel:
             p2children = self.p2sizer.GetChildren()
             if len(p2children) > 0:
                 elp2 = p2children[0].GetWindow()
                 v2 = elp2.GetValue()
-                viewer_update = mm.import_panel2_value(v2) or viewer_update
-                elp2.SetValue(mm.get_panel2_value())
+                v2tmp = mm.get_panel2_value()
+                return compare_elp(v2, v2tmp), 1
 
-        if mm.has_3rd_panel:
+        if nbsel == 2 and mm.has_3rd_panel:
             p3children = self.p3sizer.GetChildren()
             if len(p3children) > 0:
                 elp3 = p3children[0].GetWindow()
                 v3 = elp3.GetValue()
-                viewer_update = mm.import_panel3_value(v3) or viewer_update
-                elp3.SetValue(mm.get_panel3_value())
+                v3tmp = mm.get_panel3_value()
+                return compare_elp(v3, v3tmp), 2
 
-        if mm.has_4th_panel:
+        if nbsel == 3 and mm.has_4th_panel:
             p4children = self.p4sizer.GetChildren()
             if len(p4children) > 0:
                 elp4 = p4children[0].GetWindow()
                 v4 = elp4.GetValue()
-                viewer_update = mm.import_panel4_value(v4) or viewer_update
-                elp4.SetValue(mm.get_panel4_value())
+                v4tmp = mm.get_panel4_value()
+                return compare_elp(v4, v4tmp), 3
 
-        if phys is not None:
-            viewer = self.GetParent()
-            try:
-                viewer.engine.run_mesh_extension_prep(reset=True)
-                engine = viewer.engine.assign_sel_index(phys)
-            except:
-                traceback.print_exc()
-        
-        if viewer_update:
-             mm.update_after_ELChanged(self)
-             if evt is not None:
-                 mm.update_after_ELChanged2(evt)
-             wx.CallAfter(self.show_panel, mm)
-                 
-        self.tree.RefreshItems()
-        return viewer_update
+        return False, -1
 
     def OnEL_Changed(self, evt):
-        viewer_update=self.import_selected_panel_value(evt)
+
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+
+        is_open, _tname, _idx, _labels = self.isSelectionPanelOpen()
+        viewer_update = self.import_selected_panel_value(evt)
+        if is_open:
+            self.update_highlight(mm)
         evt.Skip()
 
     def OnEL_Changing(self, evt):
-        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
-        mm = self.model.GetItem(indices)
+        pass
+        #indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        #mm = self.model.GetItem(indices)
 
     def set_model(self, model):
         self.model = model
@@ -921,8 +1089,19 @@ class DlgEditModel(SimpleFramePlus):
         indices = [tree.GetIndexOfItem(ii) for ii in items]
         mm = [self.model.GetItem(ii) for ii in indices]
 
+        check = 0
         for m in mm:
             m.enabled = value
+            if hasattr(m, "get_default_ns"):
+                check += len(m.get_default_ns())
+
+        if value and check:
+            # rebuild ns if something with default_ns is enabled
+            viewer = self.GetParent()
+            engine = viewer.engine
+            model = viewer.book.get_pymodel()
+            model.scripts.helpers.rebuild_ns()
+
         self.tree.RefreshItems()
 
         mm = mm[0]
@@ -1224,4 +1403,3 @@ class DlgEditModel(SimpleFramePlus):
         wx.GetApp().Yield()
 
         return dlg
-        

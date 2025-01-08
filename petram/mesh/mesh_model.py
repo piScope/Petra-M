@@ -4,7 +4,6 @@ from petram.namespace_mixin import NS_mixin
 from petram.model import Model
 import os
 import numpy as np
-import parser
 import mfem
 from abc import abstractmethod
 
@@ -27,7 +26,8 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('MeshModel')
 
 class Mesh(Model, NS_mixin):
     isMeshGenerator = False
-    isRefinement = False
+    isRefinement = False         # refinement performed in either serial/parallel
+    isSerialRefinement = False   # refinement performed in serial
 
     def __init__(self, *args, **kwargs):
         super(Mesh, self).__init__(*args, **kwargs)
@@ -54,6 +54,29 @@ class Mesh(Model, NS_mixin):
 class MeshGenerator(Mesh):
     isMeshGenerator = True
     isRefinement = False
+    isSerialRefinement = False   # refinement performed in serial
+
+    def attribute_set(self, v):
+        v = super(MeshGenerator, self).attribute_set(v)
+        v['enforce_ncmesh'] = False
+        return v
+
+    def panel1_param(self):
+        panels = super(MeshGenerator, self).panel1_param()
+
+        p1 = [None, False, 3, {"text": "EnforceNCMesh"}]
+
+        panels.append(p1)
+        return panels
+
+    def get_panel1_value(self):
+        values = super(MeshGenerator, self).get_panel1_value()
+        values.append(self.enforce_ncmesh)
+        return values
+
+    def import_panel1_value(self, v):
+        super(MeshGenerator, self).import_panel1_value(v[:-1])
+        self.enforce_ncmesh = v[-1]
 
     def run_serial(self, mesh=None):
         # By default this will call run. Sub-classes can re-implement this.
@@ -74,25 +97,36 @@ class MFEMMesh(Model):
         try:
             from petram.mesh.pumimesh_model import PumiMesh
             return [MeshFile, PumiMesh, Mesh1D, Mesh2D, Mesh3D,
-                    UniformRefinement, DomainRefinement]
+                    UniformRefinement, DomainRefinement, BoundaryRefinement, Scale]
         except BaseException:
             return [MeshFile, Mesh1D, Mesh2D, Mesh3D, UniformRefinement,
-                    DomainRefinement]
+                    DomainRefinement, BoundaryRefinement, Scale]
 
     def get_possible_child_menu(self):
         try:
             from petram.mesh.pumimesh_model import PumiMesh
-            return [("", MeshFile), ("Other Meshes", Mesh1D),
-                    ("", Mesh2D), ("", Mesh3D), ("!", PumiMesh),
-                    ("Refinement...", UniformRefinement), ("!", DomainRefinement)]
+            return [("", MeshFile),
+                    ("Other Meshes", Mesh1D),
+                    ("", Mesh2D),
+                    ("", Mesh3D),
+                    ("!", PumiMesh),
+                    ("", Scale),
+                    ("Refinement...", UniformRefinement),
+                    ("", DomainRefinement),
+                    ("!", BoundaryRefinement)]
         except BaseException:
-            return [("", MeshFile), ("Other Meshes", Mesh1D),
-                    ("", Mesh2D), ("!", Mesh3D), ("Refinement...", UniformRefinement),
-                    ("!", DomainRefinement)]
+            return [("", MeshFile),
+                    ("Other Meshes", Mesh1D),
+                    ("", Mesh2D),
+                    ("!", Mesh3D),
+                    ("", Scale),
+                    ("Refinement...", UniformRefinement),
+                    ("", DomainRefinement),
+                    ("!", BoundaryRefinement)]
 
     def panel1_param(self):
         if not hasattr(self, "_topo_check_char"):
-            self._topo_check_char = ''
+            self._topo_check_char = "\n".join([' '*15, ' '*15, ' '*15, ' '*15])
             self._invalid_data = None
         import wx
         return [[None, None, 341, {"label": "Reload mesh",
@@ -128,15 +162,18 @@ class MFEMMesh(Model):
         return 'mfem'
 
     def get_special_menu(self, evt):
-        #menu =[["Reload Mesh", self.reload_mfem_mesh, None,],]
+        # menu =[["Reload Mesh", self.reload_mfem_mesh, None,],]
         menu = [["+Mesh parameters...", None, None],
-                ["Compute minSJac", self.compute_scaled_jac, None], ]
+                ["Plot low quality elements", self.plot_lowqualities, None], ]
+
         if (self._invalid_data is not None and
                 len(self._invalid_data[0]) > 0):
             menu.append(["Plot invalid faces", self.plot_invalids, None])
         if (self._invalid_data is not None and
                 len(self._invalid_data[2]) > 0):
             menu.append(["Plot inverted elements", self.plot_inverted, None])
+
+        menu.append(["Compute minSJac", self.compute_scaled_jac, None])
         menu.append(["!", None, None])
         return menu
 
@@ -165,12 +202,19 @@ class MFEMMesh(Model):
             if mesh is None:
                 out = 'Mesh is not loaded'
             else:
-                invalids, invalid_attrs, inverted = find_invalid_topology(mesh)
-                if len(invalids) == 0:
-                    out = 'No error'
+                invalids, invalid_attrs, inverted, sj_min_max = find_invalid_topology(
+                    mesh)
+                if sj_min_max[0] < 0:
+                    out = "\n".join(["Some elements are inverted",
+                                     "min(ScaledJac) = " + str(sj_min_max[0]),
+                                     "max(ScaledJac) = " + str(sj_min_max[1]), ])
+                elif len(invalids) == 0:
+                    out = "\n".join(["No error",
+                                     "min(ScaledJac) = " + str(sj_min_max[0]),
+                                     "max(ScaledJac) = " + str(sj_min_max[1]), ])
                 else:
                     out = format_error(invalids, invalid_attrs, inverted)
-                self._invalid_data = invalids, invalid_attrs, inverted
+                self._invalid_data = invalids, invalid_attrs, inverted, sj_min_max
             self._topo_check_char = out
 
             import wx
@@ -246,6 +290,56 @@ class MFEMMesh(Model):
         setup_figure(win)
         win.view('noclip')
         plot_elements(mesh, inverted, refine=10, win=win)
+
+    def plot_lowqualities(self, evt):
+        from petram.mesh.mesh_inspect import plot_elements
+
+        editor = evt.GetEventObject().GetTopLevelParent()
+        viewer = editor.GetParent()
+
+        mesh = viewer.model.variables.getvar('mesh')
+        if mesh is None:
+            return
+        dim = mesh.Dimension()
+        sdim = mesh.SpaceDimension()
+
+        if sdim != dim:
+            return
+
+        import wx
+        from ifigure.utils.edit_list import DialogEditList
+
+        l = [["minimum kappa :", str(1000),  0, {'noexpand': True}], ]
+
+        value = DialogEditList(l, parent=editor,
+                               title="Enter mimimum kappa...",
+                               style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        if not value[0]:
+            return
+        minkappa = float(value[1][0])
+
+        J = mfem.DenseMatrix(sdim, dim)
+
+        def GetElementJacobian(mesh, i):
+            bgeom = mesh.GetElementBaseGeometry(i)
+            T = mesh.GetElementTransformation(i)
+            T.SetIntPoint(mfem.Geometries.GetCenter(bgeom))
+            mfem.Geometries.JacToPerfJac(bgeom, T.Jacobian(), J)
+
+        lowq_elements = []
+        for i in range(mesh.GetNE()):
+            GetElementJacobian(mesh, i)
+            kappa = J.CalcSingularvalue(0) / J.CalcSingularvalue(dim-1)
+            if kappa > minkappa:
+                lowq_elements.append(i)
+
+        print("number of low Q elements: " + str(len(lowq_elements)))
+        from ifigure.interactive import figure
+        from petram.mfem_viewer import setup_figure
+        win = figure()
+        setup_figure(win)
+        win.view('noclip')
+        plot_elements(mesh, lowq_elements, refine=10, win=win)
 
     @property
     def sdim(self):
@@ -334,6 +428,8 @@ class MeshFile(MeshGenerator):
         v['generate_edges'] = 1
         v['refine'] = True
         v['fix_orientation'] = True
+        v['fix_numbering'] = False
+        v['use_2nd'] = False
 
         return v
 
@@ -341,27 +437,41 @@ class MeshFile(MeshGenerator):
         if not hasattr(self, "_mesh_char"):
             self._mesh_char = ''
         wc = "ANY|*|MFEM|*.mesh|GMSH|*.gmsh"
-        ret = [["Path", self.path, 45, {'wildcard': wc}],
-               ["",
-                "rule: {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir.",
-                2,
-                None],
-               [None, self.generate_edges == 1,
-                3, {"text": "Generate edges"}],
-               [None, self.refine == 1, 3, {"text": "Refine"}],
-               [None, self.fix_orientation, 3, {"text": "FixOrientation"}],
-               [None, self._mesh_char, 2, None], ]
-        return ret
+        p1 = [["Path", self.path, 45, {'wildcard': wc}],
+              ["",
+               "note: ~ and environmental variables are expanded. \n    In addition, {petram}=$PetraM, {mfem}=PyMFEM, \n     {home}=~ ,{model}=project file dir.",
+               2,
+               None],
+              [None, self.generate_edges == 1,
+               3, {"text": "Generate edges"}],
+              [None, self.refine == 1, 3, {"text": "Refine"}],
+              [None, self.fix_orientation, 3, {"text": "FixOrientation"}],
+              [None, self.fix_numbering, 3, {
+                  "text": "Fix Attr/BdrAttr Numbering"}],
+              [None, self.use_2nd, 3, {"text": "upgrade to 2nd order mesh"}],
+              [None, self._mesh_char, 2, None], ]
+
+        p2 = MeshGenerator.panel1_param(self)
+        return p1[:-1] + p2 + p1[-1:]
 
     def get_panel1_value(self):
-        return (self.path, None, self.generate_edges,
-                self.refine, self.fix_orientation, None)
+        v1 = [self.path, None, self.generate_edges,
+              self.refine, self.fix_orientation,
+              self.fix_numbering, self.use_2nd, None]
+
+        v2 = MeshGenerator.get_panel1_value(self)
+
+        return v1[:-1] + v2 + v1[-1:]
 
     def import_panel1_value(self, v):
         self.path = str(v[0])
         self.generate_edges = 1 if v[2] else 0
         self.refine = 1 if v[3] else 0
         self.fix_orientation = v[4]
+        self.fix_numbering = v[5]
+        self.use_2nd = v[6]
+
+        MeshGenerator.import_panel1_value(self, v[5:-1])
 
     def use_relative_path(self):
         self._path_bk = self.path
@@ -370,7 +480,7 @@ class MeshFile(MeshGenerator):
             self.path = os.path.basename(self.get_real_path())
         except AssertionError as error:
             if error.args[0].startswith("Mesh file does not exist :"):
-               pass
+                pass
         except BaseException:
             raise
 
@@ -389,6 +499,10 @@ class MeshFile(MeshGenerator):
                     continue
                 if hasattr(parent[key], 'get_meshfile_path'):
                     return parent[key].get_meshfile_path()
+        import os
+        path = os.path.expanduser(path)
+        path = os.path.expandvars(path)
+
         if path.find('{mfem}') != -1:
             path = path.replace('{mfem}', PyMFEM_PATH)
         if path.find('{petram}') != -1:
@@ -429,6 +543,23 @@ class MeshFile(MeshGenerator):
         args = (path, self.generate_edges, self.refine, self.fix_orientation)
 
         mesh = mfem.Mesh(*args)
+
+        if self.fix_numbering:
+            attr = mesh.GetAttributeArray()
+            _c, attr = np.unique(attr, return_inverse=True)
+            for i, k in enumerate(attr):
+                mesh.SetAttribute(i, k+1)
+            attr = mesh.GetBdrAttributeArray()
+            _c, attr = np.unique(attr, return_inverse=True)
+            for i, k in enumerate(attr):
+                mesh.SetBdrAttribute(i, k+1)
+
+        if self.enforce_ncmesh:
+            mesh.EnsureNCMesh()
+
+        if self.use_2nd and mesh.GetNodalFESpace() is None:
+            mesh.SetCurvature(2)
+
         self.parent.sdim = mesh.SpaceDimension()
         self._mesh_char = format_mesh_characteristic(mesh)
         try:
@@ -452,6 +583,7 @@ class Mesh1D(MeshGenerator):
         v['fix_orientation'] = True
         v['mesh_x0_txt'] = "0.0"
         v['mesh_x0'] = 0.0
+        v['use_2nd'] = False
         return v
 
     def panel1_param(self):
@@ -479,22 +611,26 @@ class Mesh1D(MeshGenerator):
             except BaseException:
                 return False
 
-        return [["Length", self.length_txt, 0, {"validator": check_float_array}],
-                ["N segments", self.nsegs_txt, 0, {
-                    "validator": check_int_array}],
-                ["x0", self.mesh_x0_txt, 0, {"validator": check_float}],
-                [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
-                [None, self._mesh_char, 2, None], ]
+        p1 = [["Length", self.length_txt, 0, {"validator": check_float_array}],
+              ["N segments", self.nsegs_txt, 0, {
+                  "validator": check_int_array}],
+              ["x0", self.mesh_x0_txt, 0, {"validator": check_float}],
+              [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
+              [None, self.use_2nd, 3, {"text": "upgrade to 2nd order mesh"}],
+              [None, self._mesh_char, 2, None], ]
+
+        return p1
 
     def get_panel1_value(self):
-        return (self.length_txt, self.nsegs_txt, self.mesh_x0_txt, None, None)
+        v1 = [self.length_txt, self.nsegs_txt,
+              self.mesh_x0_txt, None, self.use_2nd, None, ]
+        return v1
 
     def import_panel1_value(self, v):
         self.length_txt = str(v[0])
         self.nsegs_txt = str(v[1])
         self.mesh_x0_txt = str(v[2])
-
-        success = self.eval_strings()
+        self.use_2nd = bool(v[4])
 
     def eval_strings(self):
         g = self._global_ns.copy()
@@ -525,6 +661,10 @@ class Mesh1D(MeshGenerator):
                                   refine=self.refine == 1,
                                   fix_orientation=self.fix_orientation,
                                   sdim=1, x0=self.mesh_x0)
+
+        if self.use_2nd and mesh.GetNodalFESpace() is None:
+            mesh.SetCurvature(2)
+
         self.parent.sdim = mesh.SpaceDimension()
         self._mesh_char = format_mesh_characteristic(mesh)
         try:
@@ -551,6 +691,7 @@ class Mesh2D(MeshGenerator):
         v['fix_orientation'] = True
         v['mesh_x0_txt'] = "0.0, 0.0"
         v['mesh_x0'] = (0.0, 0.0, )
+        v['use_2nd'] = False
         return v
 
     def panel1_param(self):
@@ -578,20 +719,27 @@ class Mesh2D(MeshGenerator):
             except BaseException:
                 return False
 
-        return [["Length(x)", self.xlength_txt, 0, {"validator": check_float_array}],
-                ["N segments(x)", self.xnsegs_txt, 0, {
-                    "validator": check_int_array}],
-                ["Length(y)", self.ylength_txt, 0, {
-                    "validator": check_float_array}],
-                ["N segments(y)", self.ynsegs_txt, 0, {
-                    "validator": check_int_array}],
-                ["x0", self.mesh_x0_txt, 0, {"validator": check_float_array}],
-                [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
-                [None, self._mesh_char, 2, None], ]
+        p1 = [["Length(x)", self.xlength_txt, 0, {"validator": check_float_array}],
+              ["N segments(x)", self.xnsegs_txt, 0, {
+                  "validator": check_int_array}],
+              ["Length(y)", self.ylength_txt, 0, {
+                  "validator": check_float_array}],
+              ["N segments(y)", self.ynsegs_txt, 0, {
+                  "validator": check_int_array}],
+              ["x0", self.mesh_x0_txt, 0, {"validator": check_float_array}],
+              [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
+              [None, self.use_2nd, 3, {"text": "upgrade to 2nd order mesh"}],
+              [None, self._mesh_char, 2, None], ]
+
+        p2 = MeshGenerator.panel1_param(self)
+        return p1[:-1] + p2 + p1[-1:]
 
     def get_panel1_value(self):
-        return (self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
-                self.mesh_x0_txt, None, None)
+        v1 = [self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
+              self.mesh_x0_txt, None, self.use_2nd, None]
+        v2 = MeshGenerator.get_panel1_value(self)
+
+        return v1[:-1] + v2 + v1[-1:]
 
     def import_panel1_value(self, v):
         self.xlength_txt = str(v[0])
@@ -599,8 +747,9 @@ class Mesh2D(MeshGenerator):
         self.ylength_txt = str(v[2])
         self.ynsegs_txt = str(v[3])
         self.mesh_x0_txt = str(v[4])
+        self.use_2nd = bool(v[6])
 
-        success = self.eval_strings()
+        MeshGenerator.import_panel1_value(self, v[7:-1])
 
     def eval_strings(self):
         g = self._global_ns.copy()
@@ -636,6 +785,11 @@ class Mesh2D(MeshGenerator):
                                    fix_orientation=self.fix_orientation,
                                    sdim=2, x0=self.mesh_x0)
 
+        if self.use_2nd and mesh.GetNodalFESpace() is None:
+            mesh.SetCurvature(2)
+        if self.enforce_ncmesh:
+            mesh.EnsureNCMesh()
+
         self.parent.sdim = mesh.SpaceDimension()
         self._mesh_char = format_mesh_characteristic(mesh)
 
@@ -664,6 +818,7 @@ class Mesh3D(MeshGenerator):
         v['fix_orientation'] = True
         v['mesh_x0_txt'] = "0.0, 0.0, 0.0"
         v['mesh_x0'] = (0.0, 0.0, 0.0)
+        v['use_2nd'] = False
         return v
 
     def panel1_param(self):
@@ -691,24 +846,32 @@ class Mesh3D(MeshGenerator):
             except BaseException:
                 return False
 
-        return [["Length(x)", self.xlength_txt, 0, {"validator": check_float_array}],
-                ["N segments(x)", self.xnsegs_txt, 0, {
-                    "validator": check_int_array}],
-                ["Length(y)", self.ylength_txt, 0, {
-                    "validator": check_float_array}],
-                ["N segments(y)", self.ynsegs_txt, 0, {
-                    "validator": check_int_array}],
-                ["Length(z)", self.zlength_txt, 0, {
-                    "validator": check_float_array}],
-                ["N segments(z)", self.znsegs_txt, 0, {
-                    "validator": check_int_array}],
-                ["x0", self.mesh_x0_txt, 0, {"validator": check_float_array}],
-                [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
-                [None, self._mesh_char, 2, None], ]
+        p1 = [["Length(x)", self.xlength_txt, 0, {"validator": check_float_array}],
+              ["N segments(x)", self.xnsegs_txt, 0, {
+                  "validator": check_int_array}],
+              ["Length(y)", self.ylength_txt, 0, {
+                  "validator": check_float_array}],
+              ["N segments(y)", self.ynsegs_txt, 0, {
+                  "validator": check_int_array}],
+              ["Length(z)", self.zlength_txt, 0, {
+                  "validator": check_float_array}],
+              ["N segments(z)", self.znsegs_txt, 0, {
+                  "validator": check_int_array}],
+              ["x0", self.mesh_x0_txt, 0, {"validator": check_float_array}],
+              [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
+              [None, self.use_2nd, 3, {"text": "upgrade to 2nd order mesh"}],
+              [None, self._mesh_char, 2, None], ]
+
+        p2 = MeshGenerator.panel1_param(self)
+
+        return p1[:-1] + p2 + p1[-1:]
 
     def get_panel1_value(self):
-        return (self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
-                self.zlength_txt, self.znsegs_txt, self.mesh_x0_txt, None, None)
+        v1 = [self.xlength_txt, self.xnsegs_txt, self.ylength_txt, self.ynsegs_txt,
+              self.zlength_txt, self.znsegs_txt, self.mesh_x0_txt, None, self.use_2nd, None]
+        v2 = MeshGenerator.get_panel1_value(self)
+
+        return v1[:-1] + v2 + v1[-1:]
 
     def import_panel1_value(self, v):
         self.xlength_txt = str(v[0])
@@ -718,8 +881,9 @@ class Mesh3D(MeshGenerator):
         self.zlength_txt = str(v[4])
         self.znsegs_txt = str(v[5])
         self.mesh_x0_txt = str(v[6])
+        self.use_2nd = bool(v[8])
 
-        success = self.eval_strings()
+        MeshGenerator.import_panel1_value(self, v[9:-1])
 
     def eval_strings(self):
         g = self._global_ns.copy()
@@ -756,6 +920,12 @@ class Mesh3D(MeshGenerator):
         mesh = hex_box_mesh(self.xlength, self.xnsegs, self.ylength, self.ynsegs, self.zlength, self.znsegs,
                             filename='', refine=self.refine == 1, fix_orientation=self.fix_orientation,
                             sdim=3, x0=self.mesh_x0)
+
+        if self.use_2nd and mesh.GetNodalFESpace() is None:
+            mesh.SetCurvature(2)
+        if self.enforce_ncmesh:
+            mesh.EnsureNCMesh()
+
         self.parent.sdim = mesh.SpaceDimension()
         self._mesh_char = format_mesh_characteristic(mesh)
 
@@ -811,13 +981,49 @@ class UniformRefinement(Mesh):
         return mesh
 
 
+class Scale(Mesh):
+    def attribute_set(self, v):
+        v = super(Scale, self).attribute_set(v)
+        v['scale'] = '1.0, 1.0, 1.0'
+        v['scale_ns'] = 'global'
+        return v
+
+    def panel1_param(self):
+        return [["scale", self.scale, 0, {}, ],
+                ["NS for expr.", self.scale_ns, 0, {}], ]
+
+    def import_panel1_value(self, v):
+        self.scale = str(v[0])
+        self.scale_ns = str(v[1])
+
+    def get_panel1_value(self):
+        return (str(self.scale),
+                str(self.scale_ns), )
+
+    def run(self, mesh):
+        if self.scale != '':
+            code = compile(self.scale, '<string>', 'eval')
+            names = list(code.co_names)
+            ns_obj, ns_g = self.find_ns_by_name(self.scale_ns)
+
+        ll = {}
+        value = eval(code, ns_g, ll)
+
+        sdim = mesh.SpaceDimension()
+        # nicePrint("refining elements domain choice", domains)
+        for v in mesh.GetVertexArray():
+            for i in range(sdim):
+                v[i] = v[i]*value[i]
+
+        return mesh
+
+
 class DomainRefinement(Mesh):
     isRefinement = True
     has_2nd_panel = False
 
     def __init__(self, parent=None, **kwargs):
         self.num_refine = kwargs.pop("num_refine", "0")
-        self.domain_txt = kwargs.pop("domain_txt", "")
         self.expression = kwargs.pop("expression", "")
         super(DomainRefinement, self).__init__(parent=parent, **kwargs)
 
@@ -830,26 +1036,30 @@ class DomainRefinement(Mesh):
     def attribute_set(self, v):
         v = super(DomainRefinement, self).attribute_set(v)
         v['num_refine'] = '0'
-        v['domain_txt'] = ''
         v['expression'] = ''
         v['expression_ns'] = 'global'
         return v
 
     def panel1_param(self):
+        from petram.model import validate_sel
+
         return [["Number", str(self.num_refine), 0, {}],
-                ["Domains", self.domain_txt, 0, {}],
-                ["Expr.", self.expression, 0, {}],
+                ["Domains", self.sel_index_txt, 0, {'changing_event': True,
+                                                    'setfocus_event': True,
+                                                    'validator': validate_sel,
+                                                    'validator_param': self}, ],
+                ["Expr.", self.expression, 0, {}, ],
                 ["NS for expr.", self.expression_ns, 0, {}], ]
 
     def import_panel1_value(self, v):
         self.num_refine = str(v[0])
-        self.domain_txt = str(v[1])
+        self.sel_index_txt = str(v[1])
         self.expression = str(v[2])
         self.expression_ns = str(v[3])
 
     def get_panel1_value(self):
         return (str(self.num_refine),
-                str(self.domain_txt),
+                str(self.sel_index_txt),
                 str(self.expression),
                 str(self.expression_ns), )
 
@@ -865,19 +1075,19 @@ class DomainRefinement(Mesh):
             dprint1(
                 "(Warning) Element Geometry Type is mixed. Cannot perform UniformRefinement")
             return mesh
-        domains = [int(x) for x in self.domain_txt.split(',')]
+
+        domains = self.process_sel_index()
         if len(domains) == 0:
             return mesh
 
         if self.expression != '':
-            st = parser.expr(self.expression)
-            code = st.compile('<string>')
+            code = compile(self.expression, '<string>', 'eval')
             names = list(code.co_names)
             ns_obj, ns_g = self.find_ns_by_name(self.expression_ns)
 
         v = mfem.Vector()
         coords = ['x', 'y', 'z']
-        #nicePrint("refining elements domain choice", domains)
+        # nicePrint("refining elements domain choice", domains)
         for i in range(int(self.num_refine)):
             attr = mesh.GetAttributeArray()
             idx = list(np.where(np.in1d(attr, domains))[0])
@@ -894,7 +1104,68 @@ class DomainRefinement(Mesh):
                         idx2.append(ii)
 
                 idx = idx2
-            #nicePrint("number of refined element: ", len(idx))
+            # nicePrint("number of refined element: ", len(idx))
             idx0 = mfem.intArray(idx)
             mesh.GeneralRefinement(idx0)  # this is parallel refinement
+        return mesh
+
+
+class BoundaryRefinement(Mesh):
+    isRefinement = True
+    isSerialRefinement = True
+    has_2nd_panel = False
+
+    def __init__(self, parent=None, **kwargs):
+        self.num_refine = kwargs.pop("num_refine", "0")
+        self.num_layer = kwargs.pop("num_layer", "4")
+        super(BoundaryRefinement, self).__init__(parent=parent, **kwargs)
+
+    def __repr__(self):
+        try:
+            return 'MeshBoundaryRefinement(' + self.num_refine + ')'
+        except BaseException:
+            return 'MeshBoundaryRefinement(!!!Error!!!)'
+
+    def attribute_set(self, v):
+        v = super(BoundaryRefinement, self).attribute_set(v)
+        v['num_refine'] = '0'
+        v['num_layer'] = '4'
+        return v
+
+    def panel1_param(self):
+        from petram.model import validate_sel
+
+        return [["Number", str(self.num_refine), 0, {}],
+                ["Boundaries", self.sel_index_txt, 0, {'changing_event': True,
+                                                       'setfocus_event': True,
+                                                       'validator': validate_sel,
+                                                       'validator_param': self}, ],
+                ["#Layers", self.num_layer, 0, {}], ]
+
+    def import_panel1_value(self, v):
+        self.num_refine = str(v[0])
+        self.sel_index_txt = str(v[1])
+        self.num_layer = str(v[2])
+
+    def get_panel1_value(self):
+        return (str(self.num_refine),
+                str(self.sel_index_txt),
+                str(self.num_layer),)
+
+    def run(self, mesh):
+
+        from petram.helper.boundary_refinement import apply_boundary_refinement
+
+        nlayers = int(self.num_layer)
+        sels = self.process_sel_index()
+
+        ne0 = mesh.GetNE()
+
+        krefine = int(self.num_refine)
+        for i in range(krefine):
+            mesh = apply_boundary_refinement(mesh, sels, nlayers=nlayers)
+
+        ne1 = mesh.GetNE()
+        dprint1("Number of element before/after boundary refinementmesh: " +
+                str(ne0) + " -->> " + str(ne1))
         return mesh

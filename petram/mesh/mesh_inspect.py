@@ -131,7 +131,7 @@ def find_invalid_topology(mesh):
 
     if not (dim > 2 and sdim==dim):
         # this case does not need this check
-        return [], [], []
+        return [], [], [], [0, 1]
 
     NFaces = mesh.GetNumFaces()
 
@@ -150,7 +150,8 @@ def find_invalid_topology(mesh):
             
     sj = get_scaled_jacobian(mesh)
     inverted_elements = np.where(sj < 0)[0]
-    return invalid, invalid_attrs, inverted_elements
+    sj_min_max = np.min(sj), np.max(sj)
+    return invalid, invalid_attrs, inverted_elements, sj_min_max
 
 '''
 def check_invalid_topology(mesh, verbose=True, do_assert=False):

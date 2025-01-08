@@ -145,7 +145,7 @@ class DerivedValue(PostProcessBase, Vtable_mixin):
             vdim = self.vdim
             #coeff_dim = vdim
 
-        is_new, fec, fes = engine.get_or_allocate_fecfes(''.join(names),
+        _is_new, fes = engine.get_or_allocate_fecfes(''.join(names),
                                                          emesh_idx,
                                                          self.element,
                                                          self.order,
