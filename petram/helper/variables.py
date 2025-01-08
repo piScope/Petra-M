@@ -1154,6 +1154,7 @@ class DomainVariable(Variable):
 
         tmp_ret = {}
         w = np.zeros(ifaces.shape, dtype=np.float64)
+        wt = np.zeros(ifaces.shape, dtype=np.float64)        
 
         for domains in self.domains.keys():
             if (current_domain is not None and
@@ -1175,8 +1176,11 @@ class DomainVariable(Variable):
                     w *= 0.0
                     w[np.in1d(attr1, dom)] += 1.0
                     w[np.in1d(attr2, dom)] += 1.0
+                    print(attr1, attr2, dom, w)                    
                     w[w != 0] = 1./w[w != 0]
                     w2 = np.repeat(w, npts)
+                    wt += w
+
 
                     v = m(ifaces=ifaces, irs=irs,
                           gtypes=gtypes, locs=locs, attr1=attr1,
@@ -1198,6 +1202,9 @@ class DomainVariable(Variable):
                 ret = tmp_ret[x].astype(dtype, copy=False)
             else:
                 ret += tmp_ret[x]
+        wt2 = np.repeat(1./wt, npts)
+        print(wt2)
+        ret =  multi(ret, wt2)        
         if ret is None:
             return None
 
