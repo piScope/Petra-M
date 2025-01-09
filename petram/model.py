@@ -774,12 +774,17 @@ class Model(RestorableOrderedDict):
 
     def save_attribute_set(self, skip_def_check):
         ans = []
+        defvalue = self.attribute_set(dict())
+
         for attr in self.attribute():
+            if attr.startswith("_"):
+                print("skipping this attribute", attr)
+                continue
             if hasattr(self, attr+"_txt"):
                 # if _txt exists, _txt is the GUI interface text
                 # and the internal value must be evaluated from text.
                 continue
-            defvalue = self.attribute_set(dict())
+
             value = self.attribute(attr)
             mycheck = True
 

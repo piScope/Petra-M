@@ -206,7 +206,7 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False,
         if (n in g and isinstance(g[n], Variable)):
             all_names.extend(g[n].prep_names(ind_vars, g))
     # get_names(names)
-
+    '''
     for n in all_names:
         if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
             g[n+"_coeff"] = CoefficientVariable(g[n], g)
@@ -228,7 +228,6 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False,
             for x in g[n].dependency:
                 new_names.append(x)
                 name_translation[x] = x
-
             for x in g[n].grad:
                 new_names.append('grad'+x)
                 name_translation['grad'+x] = 'grad'+x
@@ -245,16 +244,17 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False,
                 name_translation['div'+x] = 'div'+x
                 if 'div'+x not in g:
                     g['div'+x] = g[x].generate_div_variable()
-
             new_names.append(n)
             name_translation[n] = n
 
         elif n in g:
             new_names.append(n)
             name_translation[n] = n
-
+    '''
+    print(names, all_names, new_names, name_translation)
     flags = {n: False for n in target_names}
-    for n in new_names:
+    #for n in new_names:
+    for n in names:
         if (n in g and isinstance(g[n], Variable)):
             if not g[n] in obj.knowns:
                 ret = (
@@ -274,7 +274,8 @@ def eval_at_nodals(obj, expr, solvars, phys, edge_evaluator=False,
                 if ret is None:
                     return None
                 obj.knowns[g[n]] = ret
-            ll_name.append(name_translation[n])
+            #ll_name.append(name_translation[n])
+            ll_name.append(n)
             ll_value.append(obj.knowns[g[n]])
         elif (n in g):
             var_g2[n] = g[n]
