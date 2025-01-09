@@ -75,6 +75,7 @@ def eval_on_faces(obj, expr, solvars, phys, current_domain=None):
         if (n in g and isinstance(g[n], Variable)):
             all_names.extend(g[n].prep_names(ind_vars, g))
 
+    '''
     for n in all_names:
         if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
             g[n+"_coeff"] = CoefficientVariable(g[n], g)
@@ -118,9 +119,10 @@ def eval_on_faces(obj, expr, solvars, phys, current_domain=None):
         elif n in g:
             new_names.append(n)
             name_translation[n] = n
-
+    '''
     flags = {n: False for n in target_names}
-    for n in new_names:
+    #for n in new_names:
+    for n in names:        
         if (n in g and isinstance(g[n], Variable)):
             if not g[n] in obj.knowns:
                 ret = (
@@ -136,7 +138,8 @@ def eval_on_faces(obj, expr, solvars, phys, current_domain=None):
                 if ret is None:
                     return None
                 obj.knowns[g[n]] = ret
-            ll_name.append(name_translation[n])
+            #ll_name.append(name_translation[n])
+            ll_name.append(n)
             ll_value.append(obj.knowns[g[n]])
         elif (n in g):
             var_g2[n] = g[n]

@@ -72,7 +72,7 @@ def eval_on_edges(obj, expr, solvars, phys):
     for n in names:
         if (n in g and isinstance(g[n], Variable)):
             all_names.extend(g[n].prep_names(ind_vars, g))
-
+    '''
     for n in all_names:
         if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
             g[n+"_coeff"] = CoefficientVariable(g[n], g)
@@ -116,8 +116,9 @@ def eval_on_edges(obj, expr, solvars, phys):
         elif n in g:
             new_names.append(n)
             name_translation[n] = n
-
-    for n in new_names:
+    '''
+    #for n in new_names:
+    for n in names:        
         if (n in g and isinstance(g[n], Variable)):
             if not g[n] in obj.knowns:
                 obj.knowns[g[n]] = (
@@ -130,7 +131,8 @@ def eval_on_edges(obj, expr, solvars, phys):
                                        g=g, knowns=obj.knowns,
                                        mesh=obj.mesh()[obj.emesh_idx]))
 
-            ll_name.append(name_translation[n])
+            #ll_name.append(name_translation[n])
+            ll_name.append(n)
             ll_value.append(obj.knowns[g[n]])
 
         elif (n in g):
