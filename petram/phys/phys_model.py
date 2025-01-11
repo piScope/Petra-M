@@ -779,6 +779,12 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
     @property
     def derived_variables(self):
+        if not self.enabled:
+            return []
+
+        if len(self._sel_index) == 0:
+            return []
+
         if not isinstance(self, (Bdry, Domain)):
             return []
 
@@ -1169,6 +1175,9 @@ class PhysModule(Phys):
 
     @property
     def derived_variables(self):
+        if not self.enabled:
+            return []
+
         p = self.get_root_phys()
         ind_vars = [x.strip() for x in p.ind_vars.split(',')]
         suffix = p.dep_vars_suffix
