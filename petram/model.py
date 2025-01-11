@@ -774,12 +774,16 @@ class Model(RestorableOrderedDict):
 
     def save_attribute_set(self, skip_def_check):
         ans = []
+        defvalue = self.attribute_set(dict())
+
         for attr in self.attribute():
+            if attr.startswith("_"):
+                continue
             if hasattr(self, attr+"_txt"):
                 # if _txt exists, _txt is the GUI interface text
                 # and the internal value must be evaluated from text.
                 continue
-            defvalue = self.attribute_set(dict())
+
             value = self.attribute(attr)
             mycheck = True
 
@@ -788,7 +792,12 @@ class Model(RestorableOrderedDict):
                 if type(value) != type(defvalue[attr]):
                     mycheck = True
                 else:  # for numpy array
-                    mycheck = value != defvalue[attr]  # for numpy array
+                    if (hasattr(value, "shape") and
+                        hasattr(defvalue[attr], "shape") and
+                        value.shape != defvalue[attr].shape):
+                        mycheck = True
+                    else:
+                        mycheck = value != defvalue[attr]  # for numpy array
                     if isinstance(mycheck, np.ndarray):
                         mycheck = mycheck.any()
                     else:

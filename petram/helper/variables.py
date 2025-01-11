@@ -1329,7 +1329,7 @@ class PyFunctionVariable(Variable):
         self.dep2kw = dep2kw = dict(zip(self.dependency, kwnames))
 
     def __repr__(self):
-        return "PyFunction"
+        return "PyFunction("+self.func.__name__+")"
 
     def prep_names(self, ind_vars, g):
         ret = []
@@ -1338,8 +1338,24 @@ class PyFunctionVariable(Variable):
                 names = g[n].prep_names(ind_vars, g)
                 ret.extend(names)
                 ret.append(n)
+        for n in self.grad:
+            if n not in g:
+                assert False, n+" is not in global (failed to evaualte grad)"
+            g['grad'+n] = g[n].generate_grad_variable()
+            # ret.append('grad'+n)
+        for n in self.curl:
+            if n not in g:
+                assert False, n+" is not in global (failed to evaualte curl)"
+            g['curl'+n] = g[n].generate_curl_variable()
+            # ret.append('curl'+n)
+        for n in self.div:
+            if n not in g:
+                assert False, n+" is not in global (failed to evaualte div)"
+            g['div'+n] = g[n].generate_div_variable()
+            # ret.append('div'+n)
+
         return ret
-    
+
     def set_point(self, T, ip, g, l, t=None):
         self.x = T.Transform(ip)
         self.t = t
@@ -1385,12 +1401,18 @@ class PyFunctionVariable(Variable):
 
         _check = np.zeros(size)
 
+        all_deps = (self.dependency
+                    + ['grad'+x for x in self.grad]
+                    + ['div'+x for x in self.div]
+                    + ['curl'+x for x in self.curl])
+
         for kk, m, loc in zip(iele, el2v, elvertloc):
             if kk < 0:
                 continue
             for pair, xyz in zip(m, loc):
                 idx = pair[1]
-                for n in self.dependency:
+                # for n in self.dependency:
+                for n in all_deps:
                     if not g[n] in knowns:
                         knowns[g[n]] = g[n].nodal_values(iele=iele, el2v=el2v,
                                                          locs=locs, wverts=wverts,
