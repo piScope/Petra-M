@@ -6,6 +6,11 @@ arr1D = Array(float64, 1, 'A', readonly=True)
 arr2D = Array(float64, 2, 'A', readonly=True)
 arr3D = Array(float64, 3, 'A', readonly=True)
 
+# slience log message
+import logging
+numba_logger = logging.getLogger('numba')
+numba_clevel = numba_logger.level
+numba_logger.setLevel(logging.WARNING)
 
 @njit(float64(arr1D, arr1D, float64))
 def interp1d_nearest(x, p, x0):
@@ -435,5 +440,5 @@ def test3d():
 
     return x, y, z, p, new_x, new_y, new_z, out0, out1, out2
 
-
-print()
+# back to the original log level
+numba_logger.setLevel(numba_clevel)
