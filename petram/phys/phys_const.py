@@ -154,7 +154,7 @@ massu = {"e": 1./1822.8884845,
 #   need to differeciate isotops.
 #
 chargez = {"e": -1.0,
-           "H": 1.0
+           "H": 1.0,
            "D": 1.0,
            "T": 1.0,
            "He": 2.0,
