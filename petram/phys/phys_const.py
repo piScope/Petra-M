@@ -23,7 +23,8 @@ mass_proton = 1.67262192369e-27
 #   lists rounded numbers. For some atomes, more digits are given manually
 #
 #
-massu = {"e": 1./1822.8884845,
+massu = {"e": 5.485799090441e-4,
+         "e+": 5.485799090441e-4,
          "H": 1.00797,
          "D": 2.01410177811,
          "T": 3.01604928,
@@ -154,6 +155,7 @@ massu = {"e": 1./1822.8884845,
 #   need to differeciate isotops.
 #
 chargez = {"e": -1.0,
+           "e+": 1.0,
            "H": 1.0,
            "D": 1.0,
            "T": 1.0,
