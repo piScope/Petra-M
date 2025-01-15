@@ -427,10 +427,10 @@ class Variable():
 
     def ncface_values(self, ifaces=None, irs=None,
                       gtypes=None, **kwargs):
-        raise NotImplementedError("Subclass need to implement")
+        raise NotImplementedError("Subclass need to implement"+str(self))
 
     def ncedge_values(self, *args, **kwargs):
-        return self.ncface_values(*args, **kwargs)
+        raise NotImplementedError("Subclass need to implement"+str(self))
 
     def point_values(self, *args, **kwargs):
         raise NotImplementedError("Subclass need to implement:" + str(self))
@@ -544,6 +544,11 @@ class Constant(Variable):
         shape = [size] + list(np.array(self.value).shape)
         return np.tile(self.value, len(locs)).reshape(shape)
 
+    def ncedge_values(self, locs=None, **kwargs):
+        size = len(locs)
+        shape = [size] + list(np.array(self.value).shape)
+        return np.tile(self.value, len(locs)).reshape(shape)
+
     def point_values(self, locs=None, **kwargs):
         size = len(locs)
         shape = [size] + list(np.array(self.value).shape)
@@ -612,6 +617,16 @@ class SumVariable(Variable):
         for v, g2 in zip(self.variables[1:], self.gvariables[1:]):
             g.update(g2)
             v1 = v1 + v.ncface_values(g=g, **kwargs)
+        return v1
+
+    def ncedge_values(self, **kwargs):
+        g = kwargs.pop("g", {}).copy()
+
+        g.update(self.gvariables[0])
+        v1 = self.variables[0].ncedge_values(g=g, **kwargs)
+        for v, g2 in zip(self.variables[1:], self.gvariables[1:]):
+            g.update(g2)
+            v1 = v1 + v.ncedge_values(g=g, **kwargs)
         return v1
 
     def point_values(self, **kwargs):
@@ -1195,7 +1210,6 @@ class DomainVariable(Variable):
                         tmp_ret[dom] = v
                     else:
                         assert False, "Should not come here. Check implementation of SumVariable"
-
         dtype = np.complex128 if np.any(
             [np.iscomplexobj(tmp_ret[x]) for x in tmp_ret]) else np.float64
         ret = None
@@ -1204,8 +1218,12 @@ class DomainVariable(Variable):
                 ret = tmp_ret[x].astype(dtype, copy=False)
             else:
                 ret += tmp_ret[x]
-        wt2 = np.repeat(1./wt, npts)
-        print(wt2)
+
+        wtt = np.zeros(ifaces.shape, dtype=np.float64)
+        wtt[wt != 0] = 1./wt[wt != 0]
+
+        wt2 = np.repeat(wtt, npts)
+
         ret = multi(ret, wt2)
         if ret is None:
             return None
@@ -1401,7 +1419,7 @@ class PyFunctionVariable(Variable):
 
         _check = np.zeros(size)
 
-        all_deps = (self.dependency
+        all_deps = (list(self.dependency)
                     + ['grad'+x for x in self.grad]
                     + ['div'+x for x in self.div]
                     + ['curl'+x for x in self.curl])
