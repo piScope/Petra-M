@@ -1448,6 +1448,8 @@ class DlgPlotSol(SimpleFramePlus):
         else:
             do_merge1 = True
         average = value[6][0]
+        if average:
+            refine = 1
 
         exprs = [expr, expr_x] if expr_x != '' else [expr]
         data, void = self.evaluate_sol_edge(expr, battrs, phys_path,
@@ -1669,6 +1671,10 @@ class DlgPlotSol(SimpleFramePlus):
 
         average = value[9][0]
         decimate = int(value[10])
+
+        if average:
+            refine = 1
+
         data, battrs2 = self.evaluate_sol_bdr(expr, battrs, phys_path,
                                               do_merge1, do_merge2,
                                               export_type=export_type,
