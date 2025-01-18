@@ -1435,7 +1435,7 @@ class PyFunctionVariable(Variable):
                         knowns[g[n]] = g[n].nodal_values(iele=iele, el2v=el2v,
                                                          locs=locs, wverts=wverts,
                                                          elvertloc=elvertloc,
-                                                         g=g, knows=knowns,
+                                                         g=g, knowns=knowns,
                                                          **kwargs)
 
                 kwargs = {dep2kw[n]: knowns[g[n]][idx]
@@ -1495,7 +1495,7 @@ class PyFunctionVariable(Variable):
                     knowns[g[n]] = m(ifaces=ifaces, irs=irs,
                                      gtypes=gtypes, g=g,
                                      attr1=attr1, attr2=attr2,
-                                     locs=locs, knows=knowns,
+                                     locs=locs, knowns=knowns,
                                      **kwargs)
 
             kwargs = {dep2kw[n]: knowns[g[n]][idx] for n in self.dependency}
