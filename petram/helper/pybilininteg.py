@@ -5,6 +5,5 @@ from petram.helper.integrators.pyvector_integrator import (PyVectorMassIntegrato
                                                            PyVectorPartialPartialIntegrator,
                                                            PyVectorWeakPartialPartialIntegrator)
 
-
 from petram.helper.integrators.pyvectorfe_p_integrator import PyVectorFEPartialIntegrator
 from petram.helper.integrators.pyvectorfe_pp_integrator import PyVectorFEPartialPartialIntegrator
