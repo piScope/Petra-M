@@ -1,4 +1,5 @@
-from petram.helper.integrator.pyvector_integrator_base import PyVectorIntegratorBase
+from petram.helper.integrators.pyvector_integrator_base import PyVectorIntegratorBase
+
 from itertools import product as prod
 import numpy as np
 from numpy.linalg import det, norm, inv

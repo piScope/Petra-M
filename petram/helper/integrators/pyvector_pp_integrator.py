@@ -1,4 +1,5 @@
-from petram.helper.integrator.pyvector_integrator_base import PyVectorIntegratorBase
+from petram.helper.integrators.pyvector_integrator_base import PyVectorIntegratorBase
+
 from itertools import product as prod
 import numpy as np
 from numpy.linalg import det, norm, inv
@@ -52,6 +53,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
         #    where lam_ij^kl is rank-2,2 tensor
         #
         #    for contravariant u and v
+        #
         #    one can use lam_ij^kl = g_ij * coeff^kl for
         #    diffusion coefficient in curvelinear coodidnates.
         #
@@ -67,7 +69,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
 
         flag, params = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
         if flag:
-            vdim1, vdim2, esindex, metric = params
+            vdim1, vdim2, esindex, metric, use_covariant_vec = params
 
         if metric is not None:
             self.set_metric(metric, use_covariant_vec=use_covariant_vec)
@@ -108,7 +110,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
         flag, params = cls._proc_vdim1vdim2(vdim1, vdim2)
 
         if flag:
-            vdim1, vdim2, esindex, _metric = params
+            vdim1, vdim2, esindex, _metric, use_covarient_vec = params
         else:
             if vdim2 is None:
                 vdim2 = vdim1
@@ -118,7 +120,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
         else:
             esdim = len(esindex)
 
-        return (esdim, vdim1, esdim, vdim2)
+        return (esdim, vdim1, esdim, vdim2,)
 
     def AssembleElementMatrix(self, el, trans, elmat):
         self.AssembleElementMatrix2(el, el, trans, elmat)
@@ -183,6 +185,8 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             # construct merged test/trial shape
             tr_merged_arr[self.esflag, :] = (tr_dshapedxt_arr*w1).transpose()
             te_merged_arr[self.esflag, :] = (te_dshapedxt_arr*w1).transpose()
+
+            print(self.esflag2, self.es_weight)
             for i, k in enumerate(self.esflag2):
                 tr_merged_arr[k, :] = (
                     tr_shape_arr*w2*self.es_weight[i]).transpose()

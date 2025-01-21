@@ -106,36 +106,34 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     @classmethod
     def _proc_vdim1vdim2(cls, vdim1, vdim2):
 
-        if vdim1 == 'cyclindrical2d':
+        if vdim1.startswith('cyclindrical2d'):
+            use_covariant_vec = (vdim1 == 'cyclindrical2dco')
+
             vdim1 = 3
-            if vdim2 == 0:
-                esindex = (0, -1, 1)
-            else:
-                esindex = (0, vdim2*1j, 1)
+            esindex = (0, vdim2*1j, 1)
             vdim2 = 3
 
             from petram.helper.curvelinear_coords import cylindrical2d
 
-            return True, (vdim1, vdim2, esindex, cylindrical2d)
+            return True, (vdim1, vdim2, esindex, cylindrical2d, use_covariant_vec)
 
-        elif vdim1 == 'cyclindrical1d':
+        elif vdim1.startswith('cyclindrical1d'):
+            use_covariant_vec = (vdim1 == 'cyclindrical1dco')
+
             vdim1 = 3
             esindex = [0]
-            esindex.append(vdim2[0]*1j if vdim2[0] != 0 else -1)
-            esindex.append(vdim2[1]*1j if vdim2[1] != 0 else -1)
+            esindex.append(vdim2[0]*1j)
+            esindex.append(vdim2[1]*1j)
 
             vdim2 = 3
 
             from petram.helper.curvelinear_coords import cylindrical1d
 
-            return True, (vdim1, vdim2, esindex, cylindrical1d)
+            return True, (vdim1, vdim2, esindex, cylindrical1d, use_covariant_vec)
 
         elif vdim1 == 'planer2d':
             vdim1 = 3
-            if vdim2 == 0:
-                esindex = (0, 1, -1)
-            else:
-                esindex = (0, 1, vdim2*1j)
+            esindex = (0, 1, vdim2*1j)
             vdim2 = 3
             metric = None
             return True, (vdim1, vdim2, esindex, metric)
@@ -143,8 +141,8 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         elif vdim1 == 'planer1d':
             vdim1 = 3
             esindex = [0]
-            esindex.append(vdim2[0]*1j if vdim2[0] != 0 else -1)
-            esindex.append(vdim2[1]*1j if vdim2[1] != 0 else -1)
+            esindex.append(vdim2[0]*1j)
+            esindex.append(vdim2[1]*1j)
             vdim2 = 3
             metric = None
             return True, (vdim1, vdim2, esindex, metric)
