@@ -186,7 +186,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             tr_merged_arr[self.esflag, :] = (tr_dshapedxt_arr*w1).transpose()
             te_merged_arr[self.esflag, :] = (te_dshapedxt_arr*w1).transpose()
 
-            print(self.esflag,self.esflag2, self.es_weight)
+            print(self.esflag, self.esflag2, self.es_weight)
             for i, k in enumerate(self.esflag2):
                 tr_merged_arr[k, :] = (
                     tr_shape_arr*w2*self.es_weight[i]).transpose()
@@ -203,16 +203,24 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
 
                 if self._use_covariant_vec:
                     for k in range(self.esdim):
+                        print("here", chris[k, :, :])
                         te_merged_arr_t -= np.tensordot(
                             chris[k, :, :], te_shape_arr*w2, 0)
                         tr_merged_arr_t -= np.tensordot(
                             chris[k, :, :], tr_shape_arr*w2, 0)
+                        # tr_merged_arr_t += np.tensordot(
+                        #    chris[:, k, :], tr_shape_arr*w2, 0)
+
                 else:
                     for k in range(self.esdim):
+                        print("here", chris[:, k, :])
                         te_merged_arr_t += np.tensordot(
                             chris[:, k, :], te_shape_arr*w2, 0)
                         tr_merged_arr_t += np.tensordot(
                             chris[:, k, :], tr_shape_arr*w2, 0)
+                        # tr_merged_arr_t -= np.tensordot(
+                        #    chris[k, :, :], tr_shape_arr*w2, 0)
+
                 dudxdvdx = np.tensordot(
                     te_merged_arr_t, tr_merged_arr_t, 0)*ip.weight
 
@@ -228,7 +236,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             lam = lam.reshape(self.esdim, self.vdim_te,
                               self.esdim, self.vdim_tr)
             print(lam)
-            #if self._metric is not None:
+            # if self._metric is not None:
             #    detm = self.eval_metric(trans, ip)
             #    lam *= detm
             #    # m_co = 1/m   # inverse of diagnal matrix
@@ -244,7 +252,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                     else:
                         for k, l in prod(range(self.esdim), range(self.esdim)):
                             partelmat_arr[:, :] += (lam[l, i,
-                                                        k, j]*dudxdvdx[i, l, :, j, k, :]).real
+                                                        k, j]*dudxdvdx[l, i, :, k, j, :]).real
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
@@ -259,7 +267,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                     else:
                         for k, l in prod(range(self.esdim), range(self.esdim)):
                             partelmat_arr[:, :] += (lam[l, i,
-                                                        k, j]*dudxdvdx[i, l, :, j, k, :]).imag
+                                                        k, j]*dudxdvdx[l, i, :, k, j, :]).imag
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
