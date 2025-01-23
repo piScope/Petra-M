@@ -107,7 +107,12 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     def _proc_vdim1vdim2(cls, vdim1, vdim2):
 
         if vdim1.startswith('cyclindrical2d'):
-            use_covariant_vec = (vdim1 == 'cyclindrical2dco')
+            if vdim1 == 'cyclindrical2dco':
+                 use_covariant_vec = True
+            elif vdim1 == 'cyclindrical2dct':
+                 use_covariant_vec = False
+            else:
+                assert False, "unsupported option"
 
             vdim1 = 3
             esindex = (0, vdim2*1j, 1)
@@ -118,7 +123,12 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
             return True, (vdim1, vdim2, esindex, cylindrical2d, use_covariant_vec)
 
         elif vdim1.startswith('cyclindrical1d'):
-            use_covariant_vec = (vdim1 == 'cyclindrical1dco')
+            if vdim1 == 'cyclindrical1dco':
+                 use_covariant_vec = True
+            elif vdim1 == 'cyclindrical1dct':
+                 use_covariant_vec = False
+            else:
+                assert False, "unsupported option"
 
             vdim1 = 3
             esindex = [0]
