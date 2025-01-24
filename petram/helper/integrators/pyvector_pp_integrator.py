@@ -49,13 +49,11 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
         #      d_k v^i = dv^i/dx^k + {i/ j, k} v_^i
         #      d_k v_i = dv^i/dx^k - {i/ j, k} v_^i
         #
-        #    then we compute lam_ij^kl d_l v^i  d_k u^j  (sqrt(det(g_nn))) dxdydz
-        #    where lam_ij^kl is rank-2,2 tensor
+        #    then we compute  lam[l,i,k,j] g^lm d_m v_i  d_k u^j  (sqrt(g)) dxdydz
+        #    where lam[l,i,k,j] is a coefficient.
         #
-        #    for contravariant u and v
-        #
-        #    one can use lam_ij^kl = g_ij * coeff^kl for
-        #    diffusion coefficient in curvelinear coodidnates.
+        #    if use_covarient_vec is True, u is treated as covarient, correspondingly
+        #    v is treated contravariant.
         #
 
         PyVectorIntegratorBase.__init__(self, ir)
@@ -186,7 +184,6 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             tr_merged_arr[self.esflag, :] = (tr_dshapedxt_arr*w1).transpose()
             te_merged_arr[self.esflag, :] = (te_dshapedxt_arr*w1).transpose()
 
-            print(self.esflag, self.esflag2, self.es_weight)
             for i, k in enumerate(self.esflag2):
                 tr_merged_arr[k, :] = (
                     tr_shape_arr*w2*self.es_weight[i]).transpose()
@@ -203,23 +200,27 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
 
                 if self._use_covariant_vec:
                     for k in range(self.esdim):
-                        print("here", chris[k, :, :])
+                        # test is contravariant,
                         te_merged_arr_t -= np.tensordot(
                             chris[k, :, :], te_shape_arr*w2, 0)
-                        tr_merged_arr_t -= np.tensordot(
-                            chris[k, :, :], tr_shape_arr*w2, 0)
-                        # tr_merged_arr_t += np.tensordot(
-                        #    chris[:, k, :], tr_shape_arr*w2, 0)
+                        # trial is covariant,
+                        tr_merged_arr_t += np.tensordot(
+                            chris[:, k, :], tr_shape_arr*w2, 0)
+
+                        # tr_merged_arr_t -= np.tensordot(
+                        #    chris[k, :, :], tr_shape_arr*w2, 0)
 
                 else:
                     for k in range(self.esdim):
-                        print("here", chris[:, k, :])
+                        # test is covariant,
                         te_merged_arr_t += np.tensordot(
                             chris[:, k, :], te_shape_arr*w2, 0)
-                        tr_merged_arr_t += np.tensordot(
-                            chris[:, k, :], tr_shape_arr*w2, 0)
-                        # tr_merged_arr_t -= np.tensordot(
-                        #    chris[k, :, :], tr_shape_arr*w2, 0)
+                        # trial is contravariant,
+                        tr_merged_arr_t -= np.tensordot(
+                            chris[k, :, :], tr_shape_arr*w2, 0)
+
+                        # tr_merged_arr_t += np.tensordot(
+                        #    chris[:, k, :], tr_shape_arr*w2, 0)
 
                 dudxdvdx = np.tensordot(
                     te_merged_arr_t, tr_merged_arr_t, 0)*ip.weight

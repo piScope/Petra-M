@@ -138,6 +138,8 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         if vdim1.startswith('cyclindrical2d'):
             if vdim1 == 'cyclindrical2dco':
                 use_covariant_vec = True
+            elif vdim1 == 'cyclindrical2d':
+                use_covariant_vec = False
             elif vdim1 == 'cyclindrical2dct':
                 use_covariant_vec = False
             else:
@@ -153,7 +155,9 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
 
         elif vdim1.startswith('cyclindrical1d'):
             if vdim1 == 'cyclindrical1dco':
-                use_covariant_vec = True
+                use_covariant_vec = True 
+            elif vdim1 == 'cyclindrical1d':
+                use_covariant_vec = False
             elif vdim1 == 'cyclindrical1dct':
                 use_covariant_vec = False
             else:
