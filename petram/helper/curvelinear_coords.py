@@ -65,13 +65,24 @@ def cyl_dchris(r):
     return data2.flatten()
 
 
-def cyl_metric(r):
+def cyl_cometric(r):
     #
     # g_ij
     #
     data2 = np.zeros((3, ), dtype=np.float64)
     data2[0] = 1
     data2[1] = r**2
+    data2[2] = 1
+    return data2.flatten()
+
+
+def cyl_ctmetric(r):
+    #
+    # g^ij
+    #
+    data2 = np.zeros((3, ), dtype=np.float64)
+    data2[0] = 1
+    data2[1] = 1/r**2
     data2[2] = 1
     return data2.flatten()
 
@@ -104,8 +115,18 @@ class cylindrical1d(coordinate_system):
         return jitter(dchristoffel)
 
     @classmethod
-    def metric(self):
-        func = njit(float64[:](float64))(cyl_metric)
+    def cometric(self):
+        func = njit(float64[:](float64))(cyl_cometric)
+
+        def metric(ptx):
+            return func(ptx[0])
+        jitter = mfem.jit.vector(complex=False, shape=(3, ))
+
+        return jitter(metric)
+
+    @classmethod
+    def ctmetric(self):
+        func = njit(float64[:](float64))(cyl_ctmetric)
 
         def metric(ptx):
             return func(ptx[0])

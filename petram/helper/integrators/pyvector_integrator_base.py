@@ -70,11 +70,12 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
             raise NotImplementedError(
                 "the integrator does not support metric tensor")
 
-        mm = metric.metric()
+        mm1 = metric.cometric()
+        mm2 = metric.ctmetric()
         cc = metric.christoffel()
         flag = metric.is_diag_metric()
 
-        self._metric = mm
+        self._metric = (mm1, mm2)
         self._christoffel = cc
         self._metric_diag = flag
 
@@ -83,17 +84,45 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         self.metric = mfem.Vector()
         self.chris = mfem.Vector()
 
-    def eval_metric(self, trans, ip):
-        self._metric.Eval(self.metric, trans, ip)
+    def eval_g(self, trans, ip):
+        # determinant of contravariant metrix'
+        self._metric[0].Eval(self.metric, trans, ip)
         m = self.metric.GetDataArray()
         if self._metric_diag:
             # m is vector
             detm = np.prod(m)
-            #m = np.diag(m)
         else:
             # m is matrix
             detm = det(m)
         return detm
+
+    def eval_sqrtg(self, trans, ip):
+        # determinant of contravariant metrix'
+        self._metric[0].Eval(self.metric, trans, ip)
+        m = self.metric.GetDataArray()
+        if self._metric_diag:
+            # m is vector
+            detm = np.prod(m)
+        else:
+            # m is matrix
+            detm = det(m)
+        return np.sqrt(detm)
+
+    def eval_cometric(self, trans, ip):
+        self._metric[0].Eval(self.metric, trans, ip)
+        m = self.metric.GetDataArray()
+        if self._metric_diag:
+            # m is vector
+            m = np.diag(m)
+        return m
+
+    def eval_ctmetric(self, trans, ip):
+        self._metric[1].Eval(self.metric, trans, ip)
+        m = self.metric.GetDataArray()
+        if self._metric_diag:
+            # m is vector
+            m = np.diag(m)
+        return m
 
     def eval_christoffel(self, trans, ip, esdim):
         self._christoffel.Eval(self.chris, trans, ip)
@@ -108,9 +137,9 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
 
         if vdim1.startswith('cyclindrical2d'):
             if vdim1 == 'cyclindrical2dco':
-                 use_covariant_vec = True
+                use_covariant_vec = True
             elif vdim1 == 'cyclindrical2dct':
-                 use_covariant_vec = False
+                use_covariant_vec = False
             else:
                 assert False, "unsupported option"
 
@@ -124,9 +153,9 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
 
         elif vdim1.startswith('cyclindrical1d'):
             if vdim1 == 'cyclindrical1dco':
-                 use_covariant_vec = True
+                use_covariant_vec = True
             elif vdim1 == 'cyclindrical1dct':
-                 use_covariant_vec = False
+                use_covariant_vec = False
             else:
                 assert False, "unsupported option"
 

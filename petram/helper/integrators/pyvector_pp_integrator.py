@@ -206,20 +206,20 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                         print("here", chris[k, :, :])
                         te_merged_arr_t -= np.tensordot(
                             chris[k, :, :], te_shape_arr*w2, 0)
-                        #tr_merged_arr_t -= np.tensordot(
-                        #    chris[k, :, :], tr_shape_arr*w2, 0)
-                        tr_merged_arr_t += np.tensordot(
-                            chris[:, k, :], tr_shape_arr*w2, 0)
+                        tr_merged_arr_t -= np.tensordot(
+                            chris[k, :, :], tr_shape_arr*w2, 0)
+                        # tr_merged_arr_t += np.tensordot(
+                        #    chris[:, k, :], tr_shape_arr*w2, 0)
 
                 else:
                     for k in range(self.esdim):
                         print("here", chris[:, k, :])
                         te_merged_arr_t += np.tensordot(
                             chris[:, k, :], te_shape_arr*w2, 0)
-                        #tr_merged_arr_t += np.tensordot(
-                        #    chris[:, k, :], tr_shape_arr*w2, 0)
-                        tr_merged_arr_t -= np.tensordot(
-                            chris[k, :, :], tr_shape_arr*w2, 0)
+                        tr_merged_arr_t += np.tensordot(
+                            chris[:, k, :], tr_shape_arr*w2, 0)
+                        # tr_merged_arr_t -= np.tensordot(
+                        #    chris[k, :, :], tr_shape_arr*w2, 0)
 
                 dudxdvdx = np.tensordot(
                     te_merged_arr_t, tr_merged_arr_t, 0)*ip.weight
@@ -235,11 +235,22 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                 lam = lam + 1j*self.vali.GetDataArray()
             lam = lam.reshape(self.esdim, self.vdim_te,
                               self.esdim, self.vdim_tr)
-            print(lam)
-            # if self._metric is not None:
-            #    detm = self.eval_metric(trans, ip)
-            #    lam *= detm
-            #    # m_co = 1/m   # inverse of diagnal matrix
+
+            if self._metric is not None:
+                lam *= self.eval_sqrtg(trans, ip)
+                gij = self.eval_ctmetric(trans, ip)
+                lam = np.tensordot(gij, lam, axes=(0, 0))
+                if self._use_covariant_vec:
+                    # moving up test index
+                    #lam = np.tensordot(gij, lam, axes=(0,1))
+                    #lam = np.swapaxes(lam, 0, 1)
+                    pass
+                else:
+                    # moving down test index
+                    #gij = self.eval_cometric(trans, ip)
+                    #lam = np.tensordot(lam, gij,  axes=(3,0))
+                    #lam = np.moveaxis(lam, 0, -1)
+                    pass
 
             if self._realimag:
                 for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):

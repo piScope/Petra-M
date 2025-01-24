@@ -147,7 +147,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 if self._metric is not None:
-                    detm = self.eval_metric(trans, ip)
+                    detm = self.eval_sqrtg(trans, ip)
                     lam *= detm
 
                 for i, k in prod(range(self.vdim_te), range(self.vdim_tr)):
@@ -178,7 +178,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 if self._metric is not None:
-                    detm = self.eval_metric(trans, ip)
+                    detm = self.eval_sqrtg(trans, ip)
                     lam *= detm
 
                 for i in range(self.vdim_te):  # test
@@ -211,7 +211,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                 lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
 
                 if self._metric is not None:
-                    detm = self.eval_metric(trans, ip)
+                    detm = self.eval_sqrtg(trans, ip)
                     lam *= detm
 
                 for k in range(self.vdim_tr):  # trial
