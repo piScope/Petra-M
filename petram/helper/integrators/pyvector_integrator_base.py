@@ -149,7 +149,7 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
             esindex = (0, vdim2*1j, 1)
             vdim2 = 3
 
-            from petram.helper.curvelinear_coords import cylindrical2d
+            from petram.helper.curvilinear_coords import cylindrical2d
 
             return True, (vdim1, vdim2, esindex, cylindrical2d, use_covariant_vec)
 
@@ -170,7 +170,7 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
 
             vdim2 = 3
 
-            from petram.helper.curvelinear_coords import cylindrical1d
+            from petram.helper.curvilinear_coords import cylindrical1d
 
             return True, (vdim1, vdim2, esindex, cylindrical1d, use_covariant_vec)
 
