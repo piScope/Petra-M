@@ -19,7 +19,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
     use_complex_coefficient = True
     support_metric = True
 
-    def __init__(self, lam, vdim1, vdim2=None, esindex=None, metric=None,
+    def __init__(self, lam, vdim1=None, vdim2=None, esindex=None, metric=None,
                  use_covariant_vec=False, *, ir=None):
 
         #
@@ -65,29 +65,18 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             self.lam_real = lam.get_real_coefficient()
             self.lam_imag = lam.get_imag_coefficient()
 
-        flag, params = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
-        if flag:
-            vdim1, vdim2, esindex, metric, use_covariant_vec = params
+        metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
+        self.config_metric_vdim_esindex(metric_obj, vdim1, vdim2)
 
-        if metric is not None:
-            self.set_metric(metric, use_covariant_vec=use_covariant_vec)
-
-        if vdim2 is not None:
-            self.vdim_te = vdim1
-            self.vdim_tr = vdim2
-        else:
-            self.vdim_te = vdim1
-            self.vdim_tr = vdim1
-
-        if esindex is None:
-            esindex = list(range(self.vdim_tr))
-
-        self._proc_esindex(esindex)
+        self._ir = self.GetIntegrationRule()
+        self.alloc_workspace()
 
         # print('esdim flag', self.esdim, self.esflag, self.esflag2)
 
-        self._ir = self.GetIntegrationRule()
-
+    def alloc_workspace(self):
+        #
+        #  allocate array for assembly
+        #
         self.tr_shape = mfem.Vector()
         self.te_shape = mfem.Vector()
         self.tr_dshape = mfem.DenseMatrix()
@@ -105,10 +94,13 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
     @classmethod
     def coeff_shape(cls, vdim1, vdim2=None, esindex=None, ir=None):
 
-        flag, params = cls._proc_vdim1vdim2(vdim1, vdim2)
+        metric_obj = cls._proc_vdim1vdim2(vdim1, vdim2)
 
-        if flag:
-            vdim1, vdim2, esindex, _metric, use_covarient_vec = params
+        print("here", metric_obj)
+        if metric_obj:
+            vdim1 = metric_obj.vdim1
+            vdim2 = metric_obj.vdim2
+            esindex = metric_obj.esindex
         else:
             if vdim2 is None:
                 vdim2 = vdim1
@@ -190,7 +182,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                 te_merged_arr[k, :] = (
                     te_shape_arr*w2*self.es_weight[i].conj()).transpose()
 
-            if self._metric:
+            if self._metric is not None:
                 # shape = sdim, nd, sdim
                 # index : v_p, d/dx^q nd
                 tr_merged_arr_t = np.stack([tr_merged_arr]*self.vdim_tr)
@@ -238,26 +230,15 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                               self.esdim, self.vdim_tr)
 
             if self._metric is not None:
-                lam *= self.eval_sqrtg(trans, ip)
-                gij = self.eval_ctmetric(trans, ip)
+                lam *= self.eval_sqrtg(trans, ip)   # x sqrt(g)
+                gij = self.eval_ctmetric(trans, ip)  # x g^{ij}
                 lam = np.tensordot(gij, lam, axes=(0, 0))
-                if self._use_covariant_vec:
-                    # moving up test index
-                    #lam = np.tensordot(gij, lam, axes=(0,1))
-                    #lam = np.swapaxes(lam, 0, 1)
-                    pass
-                else:
-                    # moving down test index
-                    #gij = self.eval_cometric(trans, ip)
-                    #lam = np.tensordot(lam, gij,  axes=(3,0))
-                    #lam = np.moveaxis(lam, 0, -1)
-                    pass
 
             if self._realimag:
                 for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
                     self.partelmat.Assign(0.0)
 
-                    if not self._metric:
+                    if self._metric is None:
                         for k, l in prod(range(self.esdim), range(self.esdim)):
                             partelmat_arr[:, :] += (lam[l, i,
                                                         k, j]*dudxdvdx[l, :, k, :]).real
@@ -272,7 +253,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                 for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
                     self.partelmat.Assign(0.0)
 
-                    if not self._metric:
+                    if self._metric is None:
                         for k, l in prod(range(self.esdim), range(self.esdim)):
                             partelmat_arr[:, :] += (lam[l, i,
                                                         k, j]*dudxdvdx[l, :, k, :]).imag

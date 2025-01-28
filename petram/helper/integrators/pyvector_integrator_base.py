@@ -46,7 +46,22 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     def coeff_shape(cls, itg_param):
         raise NotImplementedError("subclass must implement coeff_shape")
 
-    def set_metric(self, metric, use_covariant_vec=False):
+    def config_metric_vdim_esindex(self, metric_obj, vdim1, vdim2):
+        if metric_obj is not None:
+            self.set_metric(metric_obj)
+        else:
+            if vdim2 is not None:
+                self.vdim_te = vdim1
+                self.vdim_tr = vdim2
+            else:
+                self.vdim_te = vdim1
+                self.vdim_tr = vdim1
+
+            if esindex is None:
+                esindex = list(range(self.vdim_tr))
+            self._proc_esindex(esindex)
+
+    def set_metric(self, metric_obj):
         #
         #  g_ij (metric tensor) is set
 
@@ -70,19 +85,23 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
             raise NotImplementedError(
                 "the integrator does not support metric tensor")
 
-        mm1 = metric.cometric()
-        mm2 = metric.ctmetric()
-        cc = metric.christoffel()
-        flag = metric.is_diag_metric()
+        cc = metric_obj.christoffel()
+        flag = metric_obj.is_diag_metric()
+        metric = metric_obj.metric()
 
-        self._metric = (mm1, mm2)
+        self._metric = metric  # co anc ct metric
         self._christoffel = cc
         self._metric_diag = flag
 
-        self._use_covariant_vec = use_covariant_vec
+        self._use_covariant_vec = metric_obj.use_covariant_vec
 
         self.metric = mfem.Vector()
         self.chris = mfem.Vector()
+
+        self.vdim_te = metric_obj.vdim1
+        self.vdim_tr = metric_obj.vdim2
+
+        self._proc_esindex(metric_obj.esindex)
 
     def eval_g(self, trans, ip):
         # determinant of contravariant metrix'
@@ -135,64 +154,22 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     @classmethod
     def _proc_vdim1vdim2(cls, vdim1, vdim2):
 
-        if vdim1.startswith('cyclindrical2d'):
-            if vdim1 == 'cyclindrical2dco':
-                use_covariant_vec = True
-            elif vdim1 == 'cyclindrical2d':
-                use_covariant_vec = False
-            elif vdim1 == 'cyclindrical2dct':
-                use_covariant_vec = False
-            else:
-                assert False, "unsupported option"
+        import petram.helper.curvilinear_coords
+        known_metric = ("planer1d", "planer2d",
+                        "cylindrical1d", "cylindrical1dco", "cylindrical1dct",
+                        "cylindrical2d", "cylindrical2dco", "cylindrical2dct",)
 
-            vdim1 = 3
-            esindex = (0, vdim2*1j, 1)
-            vdim2 = 3
+        if vdim1 in known_metric:
+            if not cls.support_metric:
+                assert False, "metric is specified, but the integrator does not support it"
 
-            from petram.helper.curvilinear_coords import cylindrical2d
-
-            return True, (vdim1, vdim2, esindex, cylindrical2d, use_covariant_vec)
-
-        elif vdim1.startswith('cyclindrical1d'):
-            if vdim1 == 'cyclindrical1dco':
-                use_covariant_vec = True 
-            elif vdim1 == 'cyclindrical1d':
-                use_covariant_vec = False
-            elif vdim1 == 'cyclindrical1dct':
-                use_covariant_vec = False
-            else:
-                assert False, "unsupported option"
-
-            vdim1 = 3
-            esindex = [0]
-            esindex.append(vdim2[0]*1j)
-            esindex.append(vdim2[1]*1j)
-
-            vdim2 = 3
-
-            from petram.helper.curvilinear_coords import cylindrical1d
-
-            return True, (vdim1, vdim2, esindex, cylindrical1d, use_covariant_vec)
-
-        elif vdim1 == 'planer2d':
-            vdim1 = 3
-            esindex = (0, 1, vdim2*1j)
-            vdim2 = 3
-            metric = None
-            return True, (vdim1, vdim2, esindex, metric)
-
-        elif vdim1 == 'planer1d':
-            vdim1 = 3
-            esindex = [0]
-            esindex.append(vdim2[0]*1j)
-            esindex.append(vdim2[1]*1j)
-            vdim2 = 3
-            metric = None
-            return True, (vdim1, vdim2, esindex, metric)
+            cls = getattr(petram.helper.curvilinear_coords, vdim1)
+            metric_obj = cls(vdim2)
+            return metric_obj
+        elif isinstance(vdim1, str):
+            assert False, "unknonw metric specifier:" + vdim1
         else:
-            pass
-
-        return False, None
+            return None
 
     def _proc_esindex(self, esindex):
         def iscomplex(x):

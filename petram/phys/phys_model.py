@@ -902,6 +902,10 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         itg = integrator(*args)
         itg._linked_coeff = coeff  # make sure that coeff is not GCed.
 
+        metric = self.get_root_phys().get_metric()
+        if metric is not None:
+            itg.set_metric(metric)
+
         if hasattr(integrator, "use_complex_coefficient"):
             itg.set_realimag_mode(self.integrator_realimag_mode)
 
@@ -1266,6 +1270,9 @@ class PhysModule(Phys):
         v['sel_index'] = ['all']
         v['sel_index_txt'] = 'all'
 
+        # metric :
+        #  a pair of name + periodicity parameters ex"cyclindrical1dct", (0j, 0j)
+        v['metric_txt'] = ''
         # subclass can use this flag to generate FESpace for time derivative
         # see WF_model
         v['generate_dt_fespace'] = False
@@ -1575,3 +1582,21 @@ class PhysModule(Phys):
         return list(set(dom_choice)), list(
             set(bdr_choice)), list(set(pnt_choice)), list(set(internal_bdr)),
         # return dom_choice, bdr_choice
+
+    def get_metric(self, return_txt=False):
+        """
+        metric parameter will be passed to integrator by calling set_metric (if 
+        is supported)
+
+        ths is a default action to evaulate metric_txt
+        """
+        from petram.helper.curvilinear_coords import eval_metric_txt
+
+        if self.metric_txt.strip() == '':
+            return None
+
+        txt = self.get_root_phys().metric_txt
+        l = self._local_ns
+        g = self._global_ns
+
+        return eval_metric_txt(txt, g, l, return_txt=return_txt)
