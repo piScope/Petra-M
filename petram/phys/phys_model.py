@@ -920,6 +920,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                 itg.SetIntRule(ir)
             adder(itg)
 
+        return itg
+
     def onItemSelChanged(self, evt):
         '''
         GUI response when model object is selected in

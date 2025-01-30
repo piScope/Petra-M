@@ -61,6 +61,11 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
                 esindex = list(range(self.vdim_tr))
             self._proc_esindex(esindex)
 
+    def use_conjugate_periodicity(self):
+        print("conjgate periodicity (before)", self.es_weight)
+        self.es_weight = np.conj(self.es_weight)
+        print("conjgate periodicity (after)", self.es_weight)
+
     def set_metric(self, metric_obj):
         #
         #  g_ij (metric tensor) is set
