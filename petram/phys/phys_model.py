@@ -1601,10 +1601,10 @@ class PhysModule(Phys):
         """
         from petram.helper.curvilinear_coords import eval_metric_txt
 
-        if self.metric.strip() == '':
+        txt = self.metric
+        if txt.strip() == '':
             return None
 
-        txt = self.get_root_phys().metric_txt
         l = self._local_ns
         g = self._global_ns
 
