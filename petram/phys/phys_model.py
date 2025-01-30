@@ -1588,7 +1588,7 @@ class PhysModule(Phys):
         '''
         should return a text which is supposed be written in TextControl
         '''
-        return self.metic_txt
+        return self.metric_txt
 
     def get_metric(self, return_txt=False):
         """
