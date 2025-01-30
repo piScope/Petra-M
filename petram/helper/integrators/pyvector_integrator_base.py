@@ -46,7 +46,7 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     def coeff_shape(cls, itg_param):
         raise NotImplementedError("subclass must implement coeff_shape")
 
-    def config_metric_vdim_esindex(self, metric_obj, vdim1, vdim2):
+    def config_metric_vdim_esindex(self, metric_obj, vdim1, vdim2, esindex):
         if metric_obj is not None:
             self.set_metric(metric_obj)
         else:

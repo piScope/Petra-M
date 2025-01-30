@@ -42,7 +42,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
         self.lam = lam
 
         metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
-        self.config_metric_vdim_esindex(metric_obj, vdim1, vdim2)
+        self.config_metric_vdim_esindex(metric_obj, vdim1, vdim2, None)
 
         self._ir = self.GetIntegrationRule()
         self.alloc_workspace()

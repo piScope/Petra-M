@@ -1583,6 +1583,13 @@ class PhysModule(Phys):
             set(bdr_choice)), list(set(pnt_choice)), list(set(internal_bdr)),
         # return dom_choice, bdr_choice
 
+    @property
+    def metric(self):
+        '''
+        should return a text which is supposed be written in TextControl
+        '''
+        return self.metic_txt
+
     def get_metric(self, return_txt=False):
         """
         metric parameter will be passed to integrator by calling set_metric (if 
@@ -1592,7 +1599,7 @@ class PhysModule(Phys):
         """
         from petram.helper.curvilinear_coords import eval_metric_txt
 
-        if self.metric_txt.strip() == '':
+        if self.metric.strip() == '':
             return None
 
         txt = self.get_root_phys().metric_txt
