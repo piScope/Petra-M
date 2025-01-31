@@ -903,7 +903,10 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         itg._linked_coeff = coeff  # make sure that coeff is not GCed.
 
         metric = self.get_root_phys().get_metric()
-        if metric is not None:
+        if metric is not None and len(itg_params)==0:
+            # if metric is used and integrator is not passed an informaiton
+            # for coordinate system at object construction, we call
+            # set_metric here.
             itg.set_metric(metric)
 
         if hasattr(integrator, "use_complex_coefficient"):

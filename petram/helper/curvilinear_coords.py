@@ -87,6 +87,18 @@ class planer1d(coordinate_system):
     def metric(cls):
         return None
 
+    @classmethod
+    def is_diag_metric(cls):
+        return None
+
+    @classmethod
+    def christoffel(cls):
+        return None
+
+    @classmethod
+    def dchristoffel(cls):
+        return None
+
 
 class planer2d(coordinate_system):
     def __init__(self, params, use_covariant_vec=False):
@@ -99,6 +111,19 @@ class planer2d(coordinate_system):
     @classmethod
     def metric(cls):
         return None
+
+    @classmethod
+    def is_diag_metric(cls):
+        return None
+
+    @classmethod
+    def christoffel(cls):
+        return None
+
+    @classmethod
+    def dchristoffel(cls):
+        return None
+
 
 #
 # cylindrical

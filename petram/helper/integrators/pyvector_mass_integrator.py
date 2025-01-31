@@ -17,7 +17,7 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('PyVectorMassIntegrator')
 class PyVectorMassIntegrator(PyVectorIntegratorBase):
     support_metric = True
 
-    def __init__(self, lam, vdim1, vdim2=None, metric=None, use_covariant_vec=False,
+    def __init__(self, lam, vdim1=None, vdim2=None, metric=None, use_covariant_vec=False,
                  *, ir=None):
         '''
            integrator for
@@ -114,7 +114,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
 
         scalar_coeff = isinstance(self.lam, mfem.Coefficient)
         if scalar_coeff:
-            assert  self.vdim_te == self.vdim_tr, "scalar coefficeint allows only for square matrix"
+            assert self.vdim_te == self.vdim_tr, "scalar coefficeint allows only for square matrix"
 
         if (test_fe.GetRangeType() == mfem.FiniteElement.SCALAR and
                 trial_fe.GetRangeType() == mfem.FiniteElement.SCALAR):
@@ -136,11 +136,15 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                     self.te_shape_arr*w2, self.tr_shape_arr*w2, 0)*ip.weight
 
                 if scalar_coeff:
-                     lam = self.lam.Eval(trans, ip)
-                     lam = np.diag([lam]*self.vdim_te)
+                    lam = self.lam.Eval(trans, ip)
+                    lam = np.diag([lam]*self.vdim_te)
                 else:
-                     self.lam.Eval(self.val, trans, ip)
-                     lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
+                    self.lam.Eval(self.val, trans, ip)
+                    lam = self.val.GetDataArray()
+                    if len(lam) == self.vdim_te*self.vdim_tr:
+                        lam = lam.reshape(self.vdim_te, self.vdim_tr)
+                    else:
+                        lam = np.diag(lam)
 
                 if self._metric is not None:
                     detm = self.eval_sqrtg(trans, ip)
@@ -171,11 +175,14 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                     self.te_shape_arr*w2, self.tr_shape_arr*w2, 0)*ip.weight
 
                 if scalar_coeff:
-                     lam = self.lam.Eval(trans, ip)
-                     lam = np.diag([lam]*self.vdim_te)
+                    lam = self.lam.Eval(trans, ip)
+                    lam = np.diag([lam]*self.vdim_te)
                 else:
-                     self.lam.Eval(self.val, trans, ip)
-                     lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
+                    self.lam.Eval(self.val, trans, ip)
+                    if len(lam) == self.vdim_te*self.vdim_tr:
+                        lam = lam.reshape(self.vdim_te, self.vdim_tr)
+                    else:
+                        lam = np.diag(lam)
 
                 if self._metric is not None:
                     detm = self.eval_sqrtg(trans, ip)
@@ -208,11 +215,14 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                     self.te_shape_arr*w2, self.tr_shape_arr*w2, 0)*ip.weight
 
                 if scalar_coeff:
-                     lam = self.lam.Eval(trans, ip)
-                     lam = np.diag([lam]*self.vdim_te)
+                    lam = self.lam.Eval(trans, ip)
+                    lam = np.diag([lam]*self.vdim_te)
                 else:
-                     self.lam.Eval(self.val, trans, ip)
-                     lam = self.val.GetDataArray().reshape(self.vdim_te, self.vdim_tr)
+                    self.lam.Eval(self.val, trans, ip)
+                    if len(lam) == self.vdim_te*self.vdim_tr:
+                        lam = lam.reshape(self.vdim_te, self.vdim_tr)
+                    else:
+                        lam = np.diag(lam)
 
                 if self._metric is not None:
                     detm = self.eval_sqrtg(trans, ip)

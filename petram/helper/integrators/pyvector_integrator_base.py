@@ -50,6 +50,8 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         if metric_obj is not None:
             self.set_metric(metric_obj)
         else:
+            if vdim1 is None:
+                return # skipping this. in this case set_metric should be called separately.
             if vdim2 is not None:
                 self.vdim_te = vdim1
                 self.vdim_tr = vdim2
