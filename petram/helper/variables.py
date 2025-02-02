@@ -680,6 +680,12 @@ class CoordVariable(Variable):
         else:
             return locs[:, self.comp - 1]
 
+    def ncedge_values(self, locs=None, **kwargs):
+        if self.comp == -1:
+            return locs
+        else:
+            return locs[:, self.comp - 1]
+
     def point_values(self, counts=None, locs=None, **kwargs):
         if self.comp == -1:
             return locs

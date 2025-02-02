@@ -96,7 +96,6 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
 
         metric_obj = cls._proc_vdim1vdim2(vdim1, vdim2)
 
-        print("here", metric_obj)
         if metric_obj:
             vdim1 = metric_obj.vdim1
             vdim2 = metric_obj.vdim2
