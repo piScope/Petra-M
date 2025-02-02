@@ -76,7 +76,7 @@ class PyVectorCurlIntegrator(PyVectorIntegratorBase):
         else:
             esdim = len(esindex)
 
-        return (esdim, vdim1, esdim, vdim2,)
+        return (vdim1, esdim, vdim2,)            
 
     def AssembleElementMatrix(self, el, trans, elmat):
         self.AssembleElementMatrix2(el, el, trans, elmat)
@@ -117,6 +117,7 @@ class PyVectorCurlIntegrator(PyVectorIntegratorBase):
         if scalar_coeff:
             assert self.vdim_te == self.vdim_tr, "scalar coefficeint allows only for square matrix"
 
+        #print(self.es_weight, self.esflag2, self.esflag)
         for i in range(self.ir.GetNPoints()):
 
             ip = self.ir.IntPoint(i)
@@ -138,7 +139,7 @@ class PyVectorCurlIntegrator(PyVectorIntegratorBase):
             tr_merged_arr[:, self.esflag] = tr_dshapedxt_arr*w1
 
             for i, k in enumerate(self.esflag2):
-                tr_merged_arr[k, :] = (
+                tr_merged_arr[:, k] = (
                     tr_shape_arr*w2*self.es_weight[i]).transpose()
 
             dudxdvdx = np.tensordot(
