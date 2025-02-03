@@ -15,7 +15,7 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints(
     'PyVectorCurlIntegrator')
 
 
-class PyVectorCurlIntegrator(PyVectorIntegratorBase):
+class PyVectorCurlIntegratorBase(PyVectorIntegratorBase):
     use_complex_coefficient = True
     support_metric = True
 
@@ -76,11 +76,125 @@ class PyVectorCurlIntegrator(PyVectorIntegratorBase):
         else:
             esdim = len(esindex)
 
-        return (vdim1, esdim, vdim2,)            
+        return (vdim1, vdim2,)
 
     def AssembleElementMatrix(self, el, trans, elmat):
         self.AssembleElementMatrix2(el, el, trans, elmat)
 
+    def AssembleElementMatrix2(self, trial_fe, test_fe, trans, elmat):
+        assert False, "subclass has to implement this method"
+
+
+class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
+    def AssembleElementMatrix2(self, trial_fe, test_fe, trans, elmat):
+        # if self.ir is None:
+        #    self.ir = mfem.DiffusionIntegrator.GetRule(trial_fe, test_fe)
+        if self._ir is None:
+            self.set_ir(trial_fe, test_fe, trans)
+
+        tr_nd = trial_fe.GetDof()
+        te_nd = test_fe.GetDof()
+
+        elmat.SetSize(te_nd*self.vdim_te, tr_nd*self.vdim_tr)
+        elmat.Assign(0.0)
+        self.partelmat.SetSize(te_nd, tr_nd)
+
+        partelmat_arr = self.partelmat.GetDataArray()
+
+        dim = trial_fe.GetDim()
+        sdim = trans.GetSpaceDim()
+        square = (dim == sdim)
+
+        self.tr_shape.SetSize(tr_nd)
+        self.te_shape.SetSize(te_nd)
+        self.tr_dshape.SetSize(tr_nd, dim)
+        self.tr_dshapedxt.SetSize(tr_nd, sdim)
+
+        self.tr_merged.SetSize(tr_nd, self.esdim)
+
+        tr_shape_arr = self.tr_shape.GetDataArray()
+        te_shape_arr = self.te_shape.GetDataArray()
+        tr_dshapedxt_arr = self.tr_dshapedxt.GetDataArray()
+        tr_merged_arr = self.tr_merged.GetDataArray()
+        tr_merged_arr = np.zeros((tr_nd, self.esdim), dtype=np.complex128)
+
+        scalar_coeff = isinstance(self.lam_real, mfem.Coefficient)
+        if scalar_coeff:
+            assert self.vdim_te == self.vdim_tr, "scalar coefficeint allows only for square matrix"
+
+        #print(self.es_weight, self.esflag2, self.esflag)
+        for i in range(self.ir.GetNPoints()):
+
+            ip = self.ir.IntPoint(i)
+            trans.SetIntPoint(ip)
+            w = trans.Weight()
+
+            trial_fe.CalcShape(ip, self.tr_shape)
+            test_fe.CalcShape(ip, self.te_shape)
+
+            trial_fe.CalcDShape(ip, self.tr_dshape)
+
+            mfem.Mult(self.tr_dshape, trans.AdjugateJacobian(),
+                      self.tr_dshapedxt)
+
+            w1 = np.sqrt(1./w) if square else np.sqrt(1/w/w/w)
+            w2 = np.sqrt(w)
+
+            # construct merged test/trial shape
+            tr_merged_arr[:, self.esflag] = tr_dshapedxt_arr*w1  # nd d/dx
+
+            for i, k in enumerate(self.esflag2):
+                tr_merged_arr[:, k] = (
+                    tr_shape_arr*w2*self.es_weight[i])
+
+            dudxdvdx = np.tensordot(
+                te_shape_arr*w2, tr_merged_arr, 0)*ip.weight  # nd, nd, vdim(d/dx)
+
+            if scalar_coeff:
+                lam = self.lam_real.Eval(trans, ip)
+                if self.lam_imag is not None:
+                    lam = lam + 1j*self.lam_imag.Eval(trans, ip)
+                lam = np.diag([lam]*self.vdim_te)
+            else:
+                self.lam_real.Eval(self.valr, trans, ip)
+                lam = self.valr.GetDataArray()
+                if self.lam_imag is not None:
+                    self.lam_imag.Eval(self.vali, trans, ip)
+                lam = lam + 1j*self.vali.GetDataArray()
+
+            lam = lam.reshape(self.vdim_te, self.vdim_tr)
+            # il + lkj (or lkq)-> ikj (or ikq)
+            tmp = np.tensordot(lam, levi_civita3, (1, 0))
+
+            if self._metric is not None and self.use_covariant_vec:
+                g_qj = self.eval_cometric(trans, ip)  # g_{qj}
+                tmp = np.tensordot(tmp, g_qj,  axes=(2, 0))  # ikq + qj = ikj
+            else:
+                pass
+            lam = tmp
+
+            if self._realimag:
+                for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
+                    self.partelmat.Assign(0.0)
+
+                    for k in range(self.esdim):
+                        partelmat_arr[:, :] += (lam[i, k, j]
+                                                * dudxdvdx[:, :, k]).real
+
+                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
+
+            else:
+                for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
+                    self.partelmat.Assign(0.0)
+
+                    for k in range(self.esdim):
+                        partelmat_arr[:, :] += (lam[i, k, j]
+                                                * dudxdvdx[:, :, k]).imag
+
+                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
+
+
+class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
     def AssembleElementMatrix2(self, trial_fe, test_fe, trans, elmat):
         # if self.ir is None:
         #    self.ir = mfem.DiffusionIntegrator.GetRule(trial_fe, test_fe)
@@ -139,11 +253,34 @@ class PyVectorCurlIntegrator(PyVectorIntegratorBase):
             tr_merged_arr[:, self.esflag] = tr_dshapedxt_arr*w1
 
             for i, k in enumerate(self.esflag2):
-                tr_merged_arr[:, k] = (
-                    tr_shape_arr*w2*self.es_weight[i]).transpose()
+                tr_merged_arr[:, k] = tr_shape_arr*w2 * \
+                    self.es_weight[i]  # nd vdim(d/dx)
 
-            dudxdvdx = np.tensordot(
-                te_shape_arr*w2, tr_merged_arr, 0)*ip.weight  # nd, nd, vdim
+            if self._metric is not None:
+                # shape = sdim, nd, sdim
+                tr_merged_arr_t = np.stack(
+                    [tr_merged_arr]*self.vdim_tr)  # vdim, nd, d/dx
+
+                chris = self.eval_christoffel(trans, ip, self.esdim)
+
+                if self._use_covariant_vec:
+                    for k in range(self.esdim):
+                        # trial is contravariant,
+                        tr_merged_arr_t -= np.swapaxes(np.tensordot(
+                            chris[k, :, :], tr_shape_arr*w2, 0), 1, 2)  # vdim, nd, vdim
+
+                else:
+                    for k in range(self.esdim):
+                        # trial is covariant,
+                        tr_merged_arr_t += np.swapaxes(np.tensordot(
+                            chris[:, k, :], tr_shape_arr*w2, 0), 1, 2)  # vdim, nd, vdim
+
+                dudxdvdx = np.tensordot(
+                    te_shape_arr*w2, tr_merged_arr_t, 0)*ip.weight
+
+            else:
+                dudxdvdx = np.tensordot(
+                    te_shape_arr*w2, tr_merged_arr, 0)*ip.weight
 
             if scalar_coeff:
                 lam = self.lam_real.Eval(trans, ip)
@@ -158,24 +295,32 @@ class PyVectorCurlIntegrator(PyVectorIntegratorBase):
                 lam = lam + 1j*self.vali.GetDataArray()
 
             lam = lam.reshape(self.vdim_te, self.vdim_tr)
-            # il + lkj (or lkq)-> ikj (or ikq)
-            tmp = np.tensordot(lam, levi_civita3, (0, 0))
 
-            if self._metric is not None and self.use_covariant_vec:
-                g_qj = self.eval_cometric(trans, ip)  # g_{qj}
-                tmp = np.tensordot(tmp, g_qj,  axes=(2, 0))  # ikq + qj = ikj
+            # ilj (or ilm)+ lk -> ijk (or imk)
+            tmp = np.tensordot(levi_civita3, lam, (1, 0))
+
+            # -> ikj ikm
+            tmp = np.swapaxes(tmp, 1, 2)
+
+            if self._metric is not None and not self.use_covariant_vec:
+                g_mj = self.eval_cometric(trans, ip)  # g_{mj}
+                tmp = np.tensordot(tmp, g_mj,  axes=(2, 0))  # ikm + mj = ikj
             else:
                 pass
-
-            lam = tmp  # ijk
+            lam = tmp
 
             if self._realimag:
                 for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
                     self.partelmat.Assign(0.0)
 
-                    for k in range(self.esdim):
-                        partelmat_arr[:, :] += (lam[i, k, j]
-                                                * dudxdvdx[:, :, k]).real
+                    if self._metric is None:
+                        for k in range(self.esdim):
+                            partelmat_arr[:, :] += (lam[i, k, j]
+                                                    * dudxdvdx[:, :, k]).real
+                    else:
+                        for k in range(self.esdim):
+                            partelmat_arr[:, :] += (lam[i, k, j]
+                                                    * dudxdvdx[:, j, :, k]).real
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
@@ -183,8 +328,13 @@ class PyVectorCurlIntegrator(PyVectorIntegratorBase):
                 for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
                     self.partelmat.Assign(0.0)
 
-                    for k in range(self.esdim):
-                        partelmat_arr[:, :] += (lam[i, k, j]
-                                                * dudxdvdx[:, :, k]).imag
+                    if self._metric is None:
+                        for k in range(self.esdim):
+                            partelmat_arr[:, :] += (lam[i, k, j]
+                                                    * dudxdvdx[:, :, k]).imag
+                    else:
+                        for k in range(self.esdim):
+                            partelmat_arr[:, :] += (lam[i, k, j]
+                                                    * dudxdvdx[:, j, :, k]).imag
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)

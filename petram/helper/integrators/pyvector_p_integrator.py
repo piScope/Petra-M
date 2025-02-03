@@ -156,15 +156,16 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
 
                 if self._use_covariant_vec:
                     for k in range(self.esdim):
+                        tr_merged_arr_t -= np.swapaxes(np.tensordot(
+                            chris[k, :, :], tr_shape_arr*w2, 0), 1, 2)
                         # trial is covariant,
-                        tr_merged_arr_t += np.swapaxes(np.tensordot(
-                            chris[:, k, :], tr_shape_arr*w2, 0), 1, 2)
 
                 else:
                     for k in range(self.esdim):
                         # trial is contravariant,
-                        tr_merged_arr_t -= np.swapaxes(np.tensordot(
-                            chris[k, :, :], tr_shape_arr*w2, 0), 1, 2)
+                        tr_merged_arr_t += np.swapaxes(np.tensordot(
+                            chris[:, k, :], tr_shape_arr*w2, 0), 1, 2)
+
                 dudxdvdx = np.tensordot(
                     te_shape_arr*w2, tr_merged_arr_t, 0)*ip.weight
 

@@ -192,26 +192,25 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                 if self._use_covariant_vec:
                     for k in range(self.esdim):
                         # test is contravariant,
-                        te_merged_arr_t -= np.tensordot(
-                            chris[k, :, :], te_shape_arr*w2, 0)
-                        # trial is covariant,
-                        tr_merged_arr_t += np.tensordot(
-                            chris[:, k, :], tr_shape_arr*w2, 0)
-
-                        # tr_merged_arr_t -= np.tensordot(
-                        #    chris[k, :, :], tr_shape_arr*w2, 0)
-
-                else:
-                    for k in range(self.esdim):
-                        # test is covariant,
                         te_merged_arr_t += np.tensordot(
                             chris[:, k, :], te_shape_arr*w2, 0)
-                        # trial is contravariant,
+                        # trial is covariant,
                         tr_merged_arr_t -= np.tensordot(
                             chris[k, :, :], tr_shape_arr*w2, 0)
 
                         # tr_merged_arr_t += np.tensordot(
                         #    chris[:, k, :], tr_shape_arr*w2, 0)
+                else:
+                    for k in range(self.esdim):
+                        # test is covariant,
+                        te_merged_arr_t -= np.tensordot(
+                            chris[k, :, :], te_shape_arr*w2, 0)
+                        # trial is contravariant,
+                        tr_merged_arr_t += np.tensordot(
+                            chris[:, k, :], tr_shape_arr*w2, 0)
+
+                        # tr_merged_arr_t -= np.tensordot(
+                        #    chris[k, :, :], tr_shape_arr*w2, 0)
 
                 dudxdvdx = np.tensordot(
                     te_merged_arr_t, tr_merged_arr_t, 0)*ip.weight
