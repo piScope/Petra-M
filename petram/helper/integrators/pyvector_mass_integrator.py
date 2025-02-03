@@ -33,7 +33,7 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
                   Either test or trial can be VectorFE and coefficient can be rectangular
 
         '''
-        PyVectorIntegratorBase.__init__(self, ir)
+        PyVectorIntegratorBase.__init__(self, use_covariant_vec, ir)
 
         self.lam = None if lam is None else lam
         if self.lam is None:
@@ -41,7 +41,11 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
 
         self.lam = lam
 
-        metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
+        if metric is None:
+            metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
+        else:
+            metric_obj = metric
+
         self.config_metric_vdim_esindex(metric_obj, vdim1, vdim2, None)
 
         self._ir = self.GetIntegrationRule()

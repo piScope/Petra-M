@@ -15,12 +15,13 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('PyVectorIntegratorBase')
 class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     support_metric = False
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, use_covariant_vec, *args, **kwargs):
         mfem.PyBilinearFormIntegrator.__init__(self, *args, **kwargs)
         self._q_order = 0
         self._metric = None
         self._christoffel = None
         self._realimag = False
+        self._use_covariant_vec = use_covariant_vec
 
     @property
     def q_order(self):
@@ -29,6 +30,10 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     @q_order.setter
     def q_order(self, value):
         self._q_order = value
+
+    @property
+    def use_covariant_vec(self):
+        return self._use_covariant_vec
 
     def set_ir(self, trial_fe,  test_fe, trans, delta=0):
         order = (trial_fe.GetOrder() + test_fe.GetOrder() +

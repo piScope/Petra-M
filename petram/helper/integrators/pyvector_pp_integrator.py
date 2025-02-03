@@ -56,7 +56,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
         #    v is treated contravariant.
         #
 
-        PyVectorIntegratorBase.__init__(self, ir)
+        PyVectorIntegratorBase.__init__(self, use_covariant_vec, ir)
 
         if not hasattr(lam, "get_real_coefficient"):
             self.lam_real = lam
@@ -65,7 +65,11 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             self.lam_real = lam.get_real_coefficient()
             self.lam_imag = lam.get_imag_coefficient()
 
-        metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
+        if metric is None:
+            metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
+        else:
+            metric_obj = metric
+
         self.config_metric_vdim_esindex(metric_obj, vdim1, vdim2, esindex)
 
         self._ir = self.GetIntegrationRule()

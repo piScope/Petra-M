@@ -18,7 +18,8 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
     use_complex_coefficient = True
     support_metric = True
 
-    def __init__(self, lam, vdim1=None, vdim2=None, esindex=None, ir=None):
+    def __init__(self, lam, vdim1=None, vdim2=None, esindex=None, metric=None,
+                 use_covariant_vec=False, *, ir=None):
         '''
            integrator for
 
@@ -45,7 +46,7 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
 
 
         '''
-        PyVectorIntegratorBase.__init__(self, ir)
+        PyVectorIntegratorBase.__init__(self, use_covariant_vec, ir)
         if not hasattr(lam, "get_real_coefficient"):
             self.lam_real = lam
             self.lam_imag = None
@@ -53,7 +54,10 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
             self.lam_real = lam.get_real_coefficient()
             self.lam_imag = lam.get_imag_coefficient()
 
-        metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
+        if metric is None:
+            metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2, use_covariant_vec)
+        else:
+            metric_obj = metric
         self.config_metric_vdim_esindex(metric_obj, vdim1, vdim2, esindex)
 
         self._ir = self.GetIntegrationRule()
