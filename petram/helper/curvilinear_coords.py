@@ -77,10 +77,14 @@ class coordinate_system(ABC):
 
 class planer1d(coordinate_system):
     def __init__(self, params, use_covariant_vec=False):
+
+        assert params[0].real == 0, "periodicity should be passed as an imaginary"
+        assert params[1].real == 0, "periodicity should be passed as an imaginary"
+
         self.vdim1 = 3  # test space size
         self.vdim2 = 3  # trial space size
 
-        self.esindex = (0, params[0]*1j, params[1]*1j)
+        self.esindex = (0, params[0], params[1])
         self.use_covariant_vec = use_covariant_vec
 
     @classmethod
@@ -102,10 +106,13 @@ class planer1d(coordinate_system):
 
 class planer2d(coordinate_system):
     def __init__(self, params, use_covariant_vec=False):
+
+        assert params[0].real == 0, "periodicity should be passed as an imaginary"
+
         self.vdim1 = 3  # test space size
         self.vdim2 = 3  # trial space size
 
-        self.esindex = (0, 1, params[0]*1j)
+        self.esindex = (0, 1, params[0])
         self.use_covariant_vec = use_covariant_vec
 
     @classmethod
@@ -170,10 +177,14 @@ def cyl_ctmetric(r):
 
 class cylindrical1d(coordinate_system):
     def __init__(self, params, use_covariant_vec=False):
+
+        assert params[0].real == 0, "periodicity should be passed as an imaginary"
+        assert params[1].real == 0, "periodicity should be passed as an imaginary"
+
         self.vdim1 = 3  # test space size
         self.vdim2 = 3  # trial space size
 
-        self.esindex = (0, params[0]*1j, params[1]*1j)
+        self.esindex = (0, params[0], params[1])
         self.use_covariant_vec = use_covariant_vec
 
     @classmethod
@@ -240,9 +251,11 @@ def cylindrical1dco(params):
 
 class cylindrical2d(cylindrical1d):
     def __init__(self, params, use_covariant_vec=False):
+        assert params[0].real == 0, "periodicity should be passed as an imaginary"
+
         self.vdim1 = 3  # test space size
         self.vdim2 = 3  # trial space size
-        self.esindex = (0, params[0]*1j, 1)
+        self.esindex = (0, params[0], 1)
         self.use_covariant_vec = use_covariant_vec
 
 
