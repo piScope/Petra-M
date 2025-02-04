@@ -56,7 +56,8 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
             self.set_metric(metric_obj)
         else:
             if vdim1 is None:
-                return # skipping this. in this case set_metric should be called separately.
+                # skipping this. in this case set_metric should be called separately.
+                return
             if vdim2 is not None:
                 self.vdim_te = vdim1
                 self.vdim_tr = vdim2
@@ -98,17 +99,20 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
                 "the integrator does not support metric tensor")
 
         cc = metric_obj.christoffel()
+        dcc = metric_obj.dchristoffel()
         flag = metric_obj.is_diag_metric()
         metric = metric_obj.metric()
 
         self._metric = metric  # co anc ct metric
         self._christoffel = cc
+        self._dchristoffel = dcc
         self._metric_diag = flag
 
         self._use_covariant_vec = metric_obj.use_covariant_vec
 
         self.metric = mfem.Vector()
         self.chris = mfem.Vector()
+        self.dchris = mfem.Vector()
 
         self.vdim_te = metric_obj.vdim1
         self.vdim_tr = metric_obj.vdim2
@@ -159,6 +163,11 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         self._christoffel.Eval(self.chris, trans, ip)
         chris = self.chris.GetDataArray().reshape(esdim, esdim, esdim)
         return chris
+
+    def eval_dchristoffel(self, trans, ip, esdim):
+        self._dchristoffel.Eval(self.dchris, trans, ip)
+        dchris = self.dchris.GetDataArray().reshape(esdim, esdim, esdim, esdim)
+        return dchris
 
     def set_realimag_mode(self, mode):
         self._realimag = (mode == 'real')

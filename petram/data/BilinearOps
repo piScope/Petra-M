@@ -61,12 +61,12 @@
 | ElasticityIntegrator                  | H1v, L2v |  | S*2        |  $(c_\{ikjl}\grad u_j,\grad v_i)$       | |1D, 2D, 3D |
 | VectorDivergenceIntegrator            | H1v, L2v | H1, L2   | S  |  $(\lambda\div\vec\{u},v)$              | |1D, 2D, 3D |
 | PyVectorMassIntegrator                | H1v, L2v, H1, L2, ND, RT | H1v, L2v, H1, L2, ND, RT | M  |  $({g}^{1/2} \lambda_\{ij}{u}_j,\{v}_i)$                  | |1D, 2D, 3D |
-| PyVectorPartialIntegrator             | H1v, H1  | H1v, L2v, H1, L2  | M  |  $({g}^{1/2} \lambda_\{ikj}\partial_k u_j, v_i)$               | |1D, 2D, 3D |
-| PyVectorDiffusionIntegrator           | H1v, H1  |  | M  |  $({g}^{1/2} \lambda_\{likj}\partial_k u_j,\partial_l v_i)$    | |1D, 2D, 3D |
+| PyVectorPartialIntegrator             | H1v, H1  | H1v, L2v, H1, L2  | M  |  $({g}^{1/2} \lambda_\{ikj}\nabla_k u_j, v_i)$               | |1D, 2D, 3D |
+| PyVectorDiffusionIntegrator           | H1v, H1  |  | M  |  $({g}^{1/2} \lambda_\{likj}\nabla_k u_j,\nabla_l v_i)$    | |1D, 2D, 3D |
 | PyVectorCurlCurlIntegrator            | H1v, H1  |  | M  |  $({g}^{1/2} \lambda_\{ij} \curl u_j, \curl v_i)$    | |1D, 2D, 3D |
 | PyVectorCurlIntegrator            | H1v, H1  |  | M  |  $({g}^{1/2} \lambda_\{ij} (\curl \vec\{u})_j, v_i)$    | |1D, 2D, 3D |
 | PyVectorDirectionalCurlIntegrator            | H1v, H1  |  | M  |  $({g}^{1/2} \lambda_\{ij} \nabla_j \times \vec\{u}, \vec\{v})$    | |1D, 2D, 3D |
-| PyVectorPartialPartialIntegrator      | H1v, H1 | H1v, L2v, H1, L2 | M  |  $(\lambda_\{iklj}\partial_k \partial_l u_j, v_i)$    | |1D, 2D, 3D |
+| PyVectorHessianIntegrator      | H1v, H1 | H1v, L2v, H1, L2 | M  |  $({g}^{1/2} \lambda_\{iklj}\nabla_k \nabla_l u_j, v_i)$    | |1D, 2D, 3D |
 | PyVectorWeakPartialIntegrator         | H1v, L2v, H1, L2 | H1v, H1 | M  |  $(-\lambda_\{ikj} u_\{j}, \partial_k v_i)$              | |1D, 2D, 3D |
 | PyVectorWeakPartialPartialIntegrator  | H1v, L2v, H1, L2 | H1v, H1 | M  |  $(\lambda_\{iklj} u_\{j}, \partial_l \partial_k v_i)$    | |1D, 2D, 3D |
 | PyVectorFEPartialIntegrator  | ND | ND | M  |  $(\lambda_\{ikj}\partial_k u_j, v_i)$  | |2D, 3D |

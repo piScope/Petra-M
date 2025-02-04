@@ -56,7 +56,6 @@ class PyVectorCurlIntegratorBase(PyVectorIntegratorBase):
         self.te_shape = mfem.Vector()
         self.tr_dshape = mfem.DenseMatrix()
         self.tr_dshapedxt = mfem.DenseMatrix()
-        self.tr_merged = mfem.DenseMatrix()
 
         self.partelmat = mfem.DenseMatrix()
         self.valr = mfem.Vector()
@@ -114,12 +113,10 @@ class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
         self.tr_dshape.SetSize(tr_nd, dim)
         self.tr_dshapedxt.SetSize(tr_nd, sdim)
 
-        self.tr_merged.SetSize(tr_nd, self.esdim)
-
         tr_shape_arr = self.tr_shape.GetDataArray()
         te_shape_arr = self.te_shape.GetDataArray()
         tr_dshapedxt_arr = self.tr_dshapedxt.GetDataArray()
-        tr_merged_arr = self.tr_merged.GetDataArray()
+
         tr_merged_arr = np.zeros((tr_nd, self.esdim), dtype=np.complex128)
 
         scalar_coeff = isinstance(self.lam_real, mfem.Coefficient)
@@ -246,12 +243,11 @@ class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
         self.tr_dshape.SetSize(tr_nd, dim)
         self.tr_dshapedxt.SetSize(tr_nd, sdim)
 
-        self.tr_merged.SetSize(tr_nd, self.esdim)
 
         tr_shape_arr = self.tr_shape.GetDataArray()
         te_shape_arr = self.te_shape.GetDataArray()
         tr_dshapedxt_arr = self.tr_dshapedxt.GetDataArray()
-        tr_merged_arr = self.tr_merged.GetDataArray()
+
         tr_merged_arr = np.zeros((tr_nd, self.esdim), dtype=np.complex128)
 
         scalar_coeff = isinstance(self.lam_real, mfem.Coefficient)
