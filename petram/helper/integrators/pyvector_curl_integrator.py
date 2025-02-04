@@ -198,6 +198,7 @@ class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
     '''
+
     def AssembleElementMatrix2(self, trial_fe, test_fe, trans, elmat):
         # if self.ir is None:
         #    self.ir = mfem.DiffusionIntegrator.GetRule(trial_fe, test_fe)
@@ -234,7 +235,7 @@ class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
         if scalar_coeff:
             assert self.vdim_te == self.vdim_tr, "scalar coefficeint allows only for square matrix"
 
-        print(self.es_weight, self.esflag2, self.esflag)
+        #print(self.es_weight, self.esflag2, self.esflag)
         for i in range(self.ir.GetNPoints()):
 
             ip = self.ir.IntPoint(i)
@@ -259,7 +260,6 @@ class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
                 tr_merged_arr[:, k] = tr_shape_arr*w2 * \
                     self.es_weight[i]  # nd vdim(d/dx)
 
-
             if scalar_coeff:
                 lam = self.lam_real.Eval(trans, ip)
                 if self.lam_imag is not None:
@@ -281,66 +281,54 @@ class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
                 tmp = np.tensordot(tmp, g_qj,  axes=(2, 0))  # ikq + qj = ikj
             else:
                 pass
-            lam = tmp
-            
+            L = tmp
+
+            vdudx = np.tensordot(
+                te_shape_arr*w2, tr_merged_arr, 0)*ip.weight  # nd, nd, vdim(d/dx)
+
             if self._realimag:
-                dudxdvdx = np.tensordot(
-                    te_shape_arr*w2, tr_merged_arr, 0)*ip.weight
-                
                 for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
-                    if self._metric is not None:
-                         chris = self.eval_christoffel(trans, ip, self.esdim)                        
-                # shape = sdim, nd, sdim
-                tr_merged_arr_t = np.stack(
-                    [tr_merged_arr]*self.vdim_tr)  # vdim, nd, d/dx
+                    self.partelmat.Assign(0.0)
 
-
-                delta =  tr_merged_arr_t *0.0
-                if self._use_covariant_vec:
                     for k in range(self.esdim):
-                        # trial is covariant,
-                        #tr_merged_arr_t -= np.swapaxes(np.tensordot(
-                        delta -= np.swapaxes(np.tensordot(
-                            chris[k, :, :], tr_shape_arr*w2, 0), 1, 2)  # vdim, nd, vdim
+                        partelmat_arr[:, :] += (L[i, k, j]
+                                                * vdudx[:, :, k]).real
+
+                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
+
+            else:
+                for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
+                    self.partelmat.Assign(0.0)
+                    for k in range(self.esdim):
+                        partelmat_arr[:, :] += (L[i, k, j]
+                                                * vdudx[:, :, k]).imag
+                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
+
+            if self._metric is not None and not self._use_covariant_vec:
+                vu = np.tensordot(
+                    te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight
+
+                chris = self.eval_christoffel(trans, ip, self.esdim)
+                # if self._use_covariant_vec:
+                #    M = -np.tensordot(L, chris, ([2, 1], [1, 2]))
+                #    # this is zero due to symmetry
+                # else:
+                M = np.tensordot(L, chris, ([2, 1], [0, 1]))
+
+                if self._realimag:
+                    for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
+                        self.partelmat.Assign(0.0)
+                        partelmat_arr[:, :] += (M[i, j]
+                                                * vu[:, :]).real
+                        elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
                 else:
-                    for k in range(self.esdim):
-                        # trial is contra-variant,
-                        tr_merged_arr_t += np.swapaxes(np.tensordot(
-                            chris[:, k, :], tr_shape_arr*w2, 0), 1, 2)  # vdim, nd, vdim
+                    for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
+                        self.partelmat.Assign(0.0)
+                        partelmat_arr[:, :] += (M[i, j]
+                                                * vu[:, :]).imag
+                        elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
-                dudxdvdx = np.tensordot(
-                    te_shape_arr*w2, tr_merged_arr_t, 0)*ip.weight
-                print(delta)
-            else:
-          
-                    self.partelmat.Assign(0.0)
-
-                    if self._metric is None:
-                        for k in range(self.esdim):
-                            partelmat_arr[:, :] += (lam[i, k, j]
-                                                    * dudxdvdx[:, :, k]).real
-                    else:
-                        for k in range(self.esdim):
-                            partelmat_arr[:, :] += (lam[i, k, j]
-                                                    * dudxdvdx[:, j, :, k]).real
-
-                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
-
-            else:
-                for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
-                    self.partelmat.Assign(0.0)
-
-                    if self._metric is None:
-                        for k in range(self.esdim):
-                            partelmat_arr[:, :] += (lam[i, k, j]
-                                                    * dudxdvdx[:, :, k]).imag
-                    else:
-                        for k in range(self.esdim):
-                            partelmat_arr[:, :] += (lam[i, k, j]
-                                                    * dudxdvdx[:, j, :, k]).imag
-
-                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
 class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
     def AssembleElementMatrix2(self, trial_fe, test_fe, trans, elmat):
