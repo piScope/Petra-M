@@ -11,8 +11,7 @@
 from petram.helper.integrators.pyvector_mass_integrator import PyVectorMassIntegrator
 from petram.helper.integrators.pyvector_p_integrator import (PyVectorPartialIntegrator,
                                                              PyVectorWeakPartialIntegrator)
-from petram.helper.integrators.pyvector_pp_integrator import (PyVectorDiffusionIntegrator,
-                                                              PyVectorWeakPartialPartialIntegrator)
+from petram.helper.integrators.pyvector_diffusion_integrator import PyVectorDiffusionIntegrator
 from petram.helper.integrators.pyvector_hessian_integrator import (PyVectorHessianIntegrator,
                                                                    PyVectorPartialPartialIntegrator,)
 from petram.helper.integrators.pyvector_curlcurl_integrator import PyVectorCurlCurlIntegrator

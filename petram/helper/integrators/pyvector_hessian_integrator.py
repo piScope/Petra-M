@@ -125,15 +125,16 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
         sdim = trans.GetSpaceDim()
         square = (dim == sdim)
 
+        assert dim ==  sdim, "dim must be sdim"
+        
         self.tr_shape.SetSize(tr_nd)
         self.te_shape.SetSize(te_nd)
         self.tr_dshape.SetSize(tr_nd, dim)
-        self.tr_dshapedxt.SetSize(tr_nd, sdim)
         self.tr_hshape.SetSize(tr_nd, dim*(dim+1)//2)
 
         tr_shape_arr = self.tr_shape.GetDataArray()
         te_shape_arr = self.te_shape.GetDataArray()
-        tr_dshapedxt_arr = self.tr_dshapedxt.GetDataArray()
+        tr_dshape_arr = self.tr_dshape.GetDataArray()
         tr_hshape_arr = self.tr_hshape.GetDataArray()
 
         trh_merged_arr = np.zeros(
@@ -147,17 +148,10 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
             ip = self.ir.IntPoint(i)
             trans.SetIntPoint(ip)
 
-            w = trans.Weight()
-            w1 = np.sqrt(1./w) if square else np.sqrt(1/w/w/w)
-            w2 = np.sqrt(w)
-
             test_fe.CalcPhysShape(trans, self.te_shape)
             trial_fe.CalcPhysShape(trans, self.tr_shape)
             trial_fe.CalcPhysDShape(trans, self.tr_dshape)
             trial_fe.CalcPhysHessian(trans, self.tr_hshape)
-
-            mfem.Mult(self.tr_dshape, trans.AdjugateJacobian(),
-                      self.tr_dshapedxt)
 
             if dim == 3:
                 #u_xx, u_xy, u_xz, u_yz, u_zz, u_yy
@@ -176,11 +170,11 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
                     trh_merged_arr[:, i, j] = hess[:, kk, ll]
             for ll, i in enumerate(self.esflag):
                 for kk, j in enumerate(self.esflag2):
-                    trh_merged_arr[:, i, j] = tr_dshapedxt_arr[:,
+                    trh_merged_arr[:, i, j] = tr_dshape_arr[:,
                                                                ll]*self.es_weight[kk]
             for kk, i in enumerate(self.esflag2):
                 for ll, j in enumerate(self.esflag):
-                    trh_merged_arr[:, i, j] = tr_dshapedxt_arr[:,
+                    trh_merged_arr[:, i, j] = tr_dshape_arr[:,
                                                                ll]*self.es_weight[kk]
             for kk, i in enumerate(self.esflag2):
                 for ll, j in enumerate(self.esflag2):
@@ -225,18 +219,7 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
 
             if self._metric is not None:
                 # construct merged trial du/dx
-                '''
-                trd_merged_arr[:, self.esflag] = tr_dshapedxt_arr*w1
-                for i, k in enumerate(self.esflag2):
-                    trd_merged_arr[:, k] = tr_shape_arr*w2 * \
-                        self.es_weight[i]  # nd vdim(d/dx)
-
-                vdudx = np.tensordot(
-                    te_shape_arr*w2, trd_merged_arr, 0)*ip.weight  # nd, nd, vdim(d/dx)
-                vu = np.tensordot(
-                    te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight  # nd, nd
-                '''
-                trd_merged_arr[:, self.esflag] = tr_dshapedxt_arr
+                trd_merged_arr[:, self.esflag] = tr_dshape_arr
                 for i, k in enumerate(self.esflag2):
                     trd_merged_arr[:, k] = tr_shape_arr * \
                         self.es_weight[i]  # nd vdim(d/dx)
