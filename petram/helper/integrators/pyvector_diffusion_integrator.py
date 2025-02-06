@@ -185,15 +185,16 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                 te_merged_arr[k, :] = (
                     te_shape_arr*w2*self.es_weight[i].conj()).transpose()
 
+            # vdim(dv/dx), nd, vdim(du/dx), nd
             dudxdvdx = np.tensordot(te_merged_arr, tr_merged_arr, 0)*ip.weight
 
             if self._metric is not None:
                 vdudx = np.tensordot(
-                    te_shape_arr*w2, tr_merged_arr, 0)*ip.weight  # nd, nd, vdim(d/dx)
+                    te_shape_arr*w2, tr_merged_arr, 0)*ip.weight  # nd, vdim(du/dx), nd
                 dvdxu = np.tensordot(
-                    te_merged_arr, tr_shape_arr*w2, 0)*ip.weight  # nd, vdim(d/dx), nd
+                    te_merged_arr, tr_shape_arr*w2, 0)*ip.weight  # vdim(dv/dx), nd, nd
                 vu = np.tensordot(
-                    te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight
+                    te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight  # nd, nd
 
             self.lam_real.Eval(self.valr, trans, ip)
             lam = self.valr.GetDataArray()
@@ -206,25 +207,27 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             # lam = [l, i, k, j]
             if self._metric is not None:
                 lam *= self.eval_sqrtg(trans, ip)   # x sqrt(g)
-                gij = self.eval_ctmetric(trans, ip)  # x g^{ij}
-                # (l, n) (l, i, k, j) ->  (l, i, k, j) (n becomes l)
+                gij = self.eval_cometric(trans, ip)  # x g^{ij}
+                # (l, n) (l, i, k, j) ->  (n, i, k, j) (n becomes l)
                 lam = np.tensordot(gij, lam, axes=(0, 0))
 
                 chris = self.eval_christoffel(trans, ip, self.esdim)
                 if self.use_covariant_vec:
-                    # qil, lqkj -> ikj
-                    M = np.tensordor(chris, lam, ((0, 2), (1, 0)))
-                    # likp, jpk -> lij
-                    N = np.tensordor(lam, chris, ((2, 3), (2, 1)))
-                    # ikq, qjk -> ij
-                    P = np.tensordot(M, chris, ((1, 2), (2, 0)))
+                    # ipn, nikj -> pkj
+                    M = np.tensordot(chris, lam, ((0, 2), (1, 0)))
+                    # nikj, qjk -> niq
+                    N = -np.tensordot(lam, chris, ((2, 3), (2, 1)))
+                    # pkj, qjk -> pq
+                    P = -np.tensordot(M, chris, ((1, 2), (2, 1)))
                 else:
-                    # pin, nikj -> ikj (p->i)
-                    M = np.tensordor(chris, lam, ((1, 2), (2, 1)))
-                    # likj, jqk -> lij (q->j)
-                    N = np.tensordor(lam, chris, ((2, 3), (2, 0)))
-                    P = np.tensordot(M, chris, ((1, 2), (0, 2))
-                                     )      # ikq, qjk ->  ij
+                    # pin, nikj -> pkj (p->i)
+                    M = -np.tensordot(chris, lam, ((1, 2), (1, 0)))
+                    # nikj, jqk -> niq (q->j)
+                    N = np.tensordot(lam, chris, ((2, 3), (2, 0)))
+                    # pkj, jqk  -> pq (ij)
+                    P = -np.tensordot(M, chris, ((1, 2), (2, 0)))
+            else:
+                M = None
 
             if self._realimag:
                 for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
@@ -233,11 +236,14 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                     for k, l in prod(range(self.esdim), range(self.esdim)):
                         partelmat_arr[:, :] += (lam[l, i,
                                                     k, j]*dudxdvdx[l, :, k, :]).real
-                    for k in range(self.esdim):
-                        partelmat_arr[:, :] += (M[i, k, j]*vdudx[:, :, k]).real
-                    for l in range(self.esdim):
-                        partelmat_arr[:, :] += (N[l, i, j]*dvdxu[:, l, :]).real
-                    partelmat_arr[:, :] += (P[i, j]*vu[:, :]).real
+                    if M is not None:
+                        for k in range(self.esdim):
+                            partelmat_arr[:,
+                                          :] += (M[i, k, j]*vdudx[:, k, :]).real
+                        for l in range(self.esdim):
+                            partelmat_arr[:,
+                                          :] += (N[l, i, j]*dvdxu[l, :, :]).real
+                        partelmat_arr[:, :] += (P[i, j]*vu[:, :]).real
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
             else:
@@ -247,10 +253,13 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                     for k, l in prod(range(self.esdim), range(self.esdim)):
                         partelmat_arr[:, :] += (lam[l, i,
                                                     k, j]*dudxdvdx[l, :, k, :]).imag
-                    for k in range(self.esdim):
-                        partelmat_arr[:, :] += (M[i, k, j]*vdudx[:, :, k]).imag
-                    for l in range(self.esdim):
-                        partelmat_arr[:, :] += (N[l, i, j]*dvdxu[:, l, :]).imag
-                    partelmat_arr[:, :] += (P[i, j]*vu[:, :]).imag
+                    if M is not None:
+                        for k in range(self.esdim):
+                            partelmat_arr[:,
+                                          :] += (M[i, k, j]*vdudx[:, k, :]).imag
+                        for l in range(self.esdim):
+                            partelmat_arr[:,
+                                          :] += (N[l, i, j]*dvdxu[l, :, :]).imag
+                        partelmat_arr[:, :] += (P[i, j]*vu[:, :]).imag
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
