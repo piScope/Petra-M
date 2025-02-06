@@ -207,7 +207,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
             # lam = [l, i, k, j]
             if self._metric is not None:
                 lam *= self.eval_sqrtg(trans, ip)   # x sqrt(g)
-                gij = self.eval_cometric(trans, ip)  # x g^{ij}
+                gij = self.eval_ctmetric(trans, ip)  # x g^{ij}
                 # (l, n) (l, i, k, j) ->  (n, i, k, j) (n becomes l)
                 lam = np.tensordot(gij, lam, axes=(0, 0))
 
@@ -216,16 +216,23 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                     # ipn, nikj -> pkj
                     M = np.tensordot(chris, lam, ((0, 2), (1, 0)))
                     # nikj, qjk -> niq
-                    N = -np.tensordot(lam, chris, ((2, 3), (2, 1)))
+                    N = np.tensordot(lam, chris, ((2, 3), (2, 1)))
                     # pkj, qjk -> pq
-                    P = -np.tensordot(M, chris, ((1, 2), (2, 1)))
+                    P = np.tensordot(M, chris, ((1, 2), (2, 1)))
+
+                    N = -N
+                    P = -P
                 else:
                     # pin, nikj -> pkj (p->i)
-                    M = -np.tensordot(chris, lam, ((1, 2), (1, 0)))
+                    M = np.tensordot(chris, lam, ((1, 2), (1, 0)))
                     # nikj, jqk -> niq (q->j)
                     N = np.tensordot(lam, chris, ((2, 3), (2, 0)))
                     # pkj, jqk  -> pq (ij)
-                    P = -np.tensordot(M, chris, ((1, 2), (2, 0)))
+                    P = np.tensordot(M, chris, ((1, 2), (2, 0)))
+
+                    M = -M
+                    P = -P
+
             else:
                 M = None
 
