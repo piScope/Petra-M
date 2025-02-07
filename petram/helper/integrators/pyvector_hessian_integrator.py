@@ -143,6 +143,8 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
         if self._metric is not None:
             trd_merged_arr = np.zeros((tr_nd, self.esdim), dtype=np.complex128)
 
+        #print(self.es_weight, self.esflag2)
+
         for i in range(self.ir.GetNPoints()):
 
             ip = self.ir.IntPoint(i)
@@ -249,26 +251,25 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
                     #  this is either
                     # (m, l, k) (n, m, j) -> l, k, n, j
                     # (m, j, k) (n, l, m) -> j, k, n, l
+
                     # (i, k, l, j) + (l, k, n, j) -> i, n
                     Q1 = np.tensordot(lam, tmp, ((1, 2, 3), (1, 0, 3)))
                     # (i, k, l, j) + (j, k, n, l) -> i, n
                     Q2 = np.tensordot(lam, tmp, ((1, 2, 3), (1, 3, 0)))
-
                     # (i, k, l, j) + (m, l, j, k) -> i, m
-                    Q3 = np.tensordot(lam, dchris, ((1, 2, 3), (3, 1, 2)))
+                    Q3 = -np.tensordot(lam, dchris, ((1, 2, 3), (3, 1, 2)))
 
                     Q = Q1 + Q2 + Q3
 
-                    #print("P/Q", P, Q)
                 else:
                     # B^i P[i,k,j] \partial_k A_j
                     # (i, k, l,j ) (j, l, m) -> i, k, j (m becomes j)
-                    P1 = np.tensordot(lam, chris, ([2, 3], [0, 1]))
+                    P1 = np.tensordot(lam, chris, ([2, 3], [1, 0]))
                     # (i, k, l,j ) (m, l, k) -> i, j, k (m becomes k)
                     P2 = - np.tensordot(lam, chris, ([1, 2], [2, 1]))
                     P2 = np.swapaxes(P2, 1, 2)
                     # (i, k, l,j ) (j, m, k) -> i, k, j (m becomes j, l becomes k)
-                    P3 = np.tensordot(lam, chris, ([1, 3], [0, 1]))
+                    P3 = np.tensordot(lam, chris, ([1, 3], [2, 0]))
                     P = P1 + P2 + P3
 
                     # B^i Q[i,j] A_j
@@ -282,7 +283,7 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
                     # (i, k, l, j) + (l, n, j, k) -> i, n
                     Q2 = np.tensordot(lam, tmp, ((1, 2, 3), (3, 0, 2)))
                     # (i, k, l, j) + (j, l, m, k) -> i, m
-                    Q3 = np.tensordot(lam, dchris, ((1, 2, 3), (3, 2, 0)))
+                    Q3 = np.tensordot(lam, dchris, ((1, 2, 3), (3, 1, 0)))
 
                     Q = Q1 + Q2 + Q3
 
