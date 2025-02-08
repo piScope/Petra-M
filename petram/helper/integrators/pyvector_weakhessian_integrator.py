@@ -12,20 +12,25 @@ else:
 
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints(
-    'PyVectorDiffusionIntegrator')
+    'PyVectorWHIntegrator')
 
 
-class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
+class PyVectorWHIntegrator(PyVectorIntegratorBase): 
     use_complex_coefficient = True
     support_metric = True
 
     def __init__(self, lam, vdim1=None, vdim2=None, esindex=None, metric=None,
                  use_covariant_vec=False, *, ir=None):
-
         #
-        #   integrator for
+        #   weak integrator for hessian matrix
         #
-        #      lmabda(l, i, k. j) gte(i,l) * gtr(j, k)
+        #   base integrator for weakform which has  (\partial test, lambda \partial trial)
+        #
+        #      derivded class includes
+        #         - diffusion
+        #         - curl-curl
+        #
+        #   lmabda(l, i, k. j) gte(i,l) * gtr(j, k)
         #
         #       gte : generalized gradient of test function
         #          j not in exindex: v_i/dx_l
@@ -49,7 +54,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
         #      d_k v^i = dv^i/dx^k + {i/ j, k} v_^i
         #      d_k v_i = dv^i/dx^k - {i/ j, k} v_^i
         #
-        #    then we compute  lam[l,i,k,j] g^lm d_m v_i  d_k u^j  (sqrt(g)) dxdydz
+        #    then we compute  lam[l,i,k,j] d_l v_i  d_k u^j  (sqrt(g)) dxdydz
         #    where lam[l,i,k,j] is a coefficient.
         #
         #    if use_covarient_vec is True, u is treated as covarient, correspondingly
@@ -57,25 +62,7 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
         #
 
         PyVectorIntegratorBase.__init__(self, use_covariant_vec, ir)
-
-        if not hasattr(lam, "get_real_coefficient"):
-            self.lam_real = lam
-            self.lam_imag = None
-        else:
-            self.lam_real = lam.get_real_coefficient()
-            self.lam_imag = lam.get_imag_coefficient()
-
-        if metric is None:
-            metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
-        else:
-            metric_obj = metric
-
-        self.config_metric_vdim_esindex(metric_obj, vdim1, vdim2, esindex)
-
-        self._ir = self.GetIntegrationRule()
-        self.alloc_workspace()
-
-        # print('esdim flag', self.esdim, self.esflag, self.esflag2)
+        self.init_step2(lam, vdim1, vdim2, esindex, metric)
 
     def alloc_workspace(self):
         #
@@ -159,8 +146,12 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
 
             ip = self.ir.IntPoint(i)
             trans.SetIntPoint(ip)
-            w = trans.Weight()
+            
+            shape = (self.esdim, self.vdim_te, self.esdim, self.vdim_tr)
+            lam =self.eval_complex_lam(trans, ip, shape)
 
+            w = trans.Weight()
+            
             trial_fe.CalcShape(ip, self.tr_shape)
             test_fe.CalcShape(ip, self.te_shape)
 
@@ -196,13 +187,10 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                 vu = np.tensordot(
                     te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight  # nd, nd
 
-            shape = (self.esdim, self.vdim_te, self.esdim, self.vdim_tr)
-            lam =self.eval_complex_lam(trans, ip, shape)
-
-            # lam = [l, i, k, j]
-            if self._metric is not None:
+                # lam = [l, i, k, j]
                 lam *= self.eval_sqrtg(trans, ip)   # x sqrt(g)
                 gij = self.eval_ctmetric(trans, ip)  # x g^{ij}
+
                 # (l, n) (l, i, k, j) ->  (n, i, k, j) (n becomes l)
                 lam = np.tensordot(gij, lam, axes=(0, 0))
 
@@ -265,3 +253,24 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                         partelmat_arr[:, :] += (P[i, j]*vu[:, :]).imag
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
+
+
+class PyVectorDiffusionIntegrator(PyVectorWHIntegrator):
+    #
+    #    implementation of l[l, u, k, j] g^nl \nabla_n \nabla_k u^j
+    #
+    #
+    def eval_complex_lam(self, trans, ip, shape):
+        lam = PyVectorPPIntegrator(self, trans, ip, shape)
+        if self._metric is not None:           
+            gij = self.eval_ctmetric(trans, ip)  # x g^{ij}
+
+            # (l, n) (l, i, k, j) ->  (n, i, k, j) (n becomes l)
+            lam = np.tensordot(gij, lam, axes=(0, 0))
+
+        return lam
+
+
+class PyVectorCurlCurlIntegrator(PyVectorWHIntegrator):
+    def eval_complex_lam(self, trans, ip, shape):
+        assert False, "need to implement this"

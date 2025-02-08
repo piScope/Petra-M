@@ -50,23 +50,7 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
 
         '''
         PyVectorIntegratorBase.__init__(self, use_covariant_vec, ir)
-
-        if not hasattr(lam, "get_real_coefficient"):
-            self.lam_real = lam
-            self.lam_imag = None
-        else:
-            self.lam_real = lam.get_real_coefficient()
-            self.lam_imag = lam.get_imag_coefficient()
-
-        if metric is None:
-            metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
-        else:
-            metric_obj = metric
-
-        self.config_metric_vdim_esindex(metric_obj, vdim1, vdim2, esindex)
-
-        self._ir = self.GetIntegrationRule()
-        self.alloc_workspace()
+        self.init_step2(lam, vdim1, vdim2, esindex, metric)
 
     def alloc_workspace(self):
 
@@ -149,6 +133,11 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
 
             ip = self.ir.IntPoint(i)
             trans.SetIntPoint(ip)
+            
+            shape = (self.vdim_te, self.esdim, self.esdim, self.vdim_tr)
+            lam = self.eval_complex_lam(trans, ip, shape)
+
+            # construct test/trial space array
 
             test_fe.CalcPhysShape(trans, self.te_shape)
             trial_fe.CalcPhysShape(trans, self.tr_shape)
@@ -189,30 +178,10 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
             dudxdvdx = np.tensordot(
                 te_shape_arr, trh_merged_arr, 0)*weight*detJ
 
-            shape = (self.vdim_te, self.esdim, self.esdim, self.vdim_tr)
-            lam = self.eval_complex_lam(trans, ip, shape)
-
-            if self._metric:
+            if self._metric is not None:
                 detm = self.eval_sqrtg(trans, ip)
                 lam *= detm
-
-            if self._realimag:
-                for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
-                    self.partelmat.Assign(0.0)
-                    for k, l in prod(range(self.esdim), range(self.esdim)):
-                        partelmat_arr[:, :] += (lam[i, k,
-                                                    l, j]*dudxdvdx[:, :, k, l]).real
-                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
-                    # print(self.partelmat.GetDataArray())
-            else:
-                for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
-                    self.partelmat.Assign(0.0)
-                    for k, l in prod(range(self.esdim), range(self.esdim)):
-                        partelmat_arr[:, :] += (lam[i, k,
-                                                    l, j]*dudxdvdx[:, :, k, l]).imag
-                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
-
-            if self._metric is not None:
+                
                 # construct merged trial du/dx
                 trd_merged_arr[:, self.esflag] = tr_dshape_arr
                 for i, k in enumerate(self.esflag2):
@@ -279,24 +248,38 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
                     Q3 = np.tensordot(lam, dchris, ((1, 2, 3), (3, 1, 0)))
 
                     Q = Q1 + Q2 + Q3
+            else:
+                P = None
 
-                if self._realimag:
-                    for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
-                        self.partelmat.Assign(0.0)
+            if self._realimag:
+                for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
+                    self.partelmat.Assign(0.0)
+                    for k, l in prod(range(self.esdim), range(self.esdim)):
+                        partelmat_arr[:, :] += (lam[i, k,
+                                                    l, j]*dudxdvdx[:, :, k, l]).real
+
+                    if P is not None:
                         for k in range(self.esdim):
                             partelmat_arr[:,
                                           :] += (P[i, k, j] * vdudx[:, :, k]).real
                         partelmat_arr[:, :] += (Q[i, j] * vu[:, :]).real
 
-                        elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
-                else:
-                    for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
-                        self.partelmat.Assign(0.0)
+                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
+
+            else:
+                for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
+                    self.partelmat.Assign(0.0)
+                    for k, l in prod(range(self.esdim), range(self.esdim)):
+                        partelmat_arr[:, :] += (lam[i, k,
+                                                    l, j]*dudxdvdx[:, :, k, l]).imag
+                    if P is not None:
                         for k in range(self.esdim):
                             partelmat_arr[:,
                                           :] += (P[i, k, j] * vdudx[:, :, k]).imag
                         partelmat_arr[:, :] += (Q[i, j] * vu[:, :]).imag
-                        elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
+
+                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
+
 
 
 # alias for backword compatibility
@@ -304,6 +287,26 @@ PyVectorPartialPartialIntegrator = PyVectorHessianIntegrator
 
 
 class PyVectorStrongCurlCurlIntegrator(PyVectorHessianIntegrator):
+    @classmethod
+    def coeff_shape(cls, vdim1, vdim2=None, esindex=None, ir=None):
+
+        metric_obj = cls._proc_vdim1vdim2(vdim1, vdim2)
+
+        if metric_obj:
+            vdim1 = metric_obj.vdim1
+            vdim2 = metric_obj.vdim2
+            esindex = metric_obj.esindex
+        else:
+            if vdim2 is None:
+                vdim2 = vdim1
+
+        if esindex is None:
+            esdim = vdim2
+        else:
+            esdim = len(esindex)
+
+        return (vdim1, vdim2,)
+    
     def eval_complex_lam(self, trans, ip, shape):
         shape = (3, 3)
         lam = PyVectorHessianIntegrator.eval_complex_lam(

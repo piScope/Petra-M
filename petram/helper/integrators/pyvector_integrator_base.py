@@ -23,6 +23,29 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         self._realimag = False
         self._use_covariant_vec = use_covariant_vec
 
+    def init_step2(self, lam, vdim1, vdim2, esindex, metric):
+        if lam is None:
+            asseert False, "lam is None"
+        if not hasattr(lam, "get_real_coefficient"):
+            self.lam_real = lam
+            self.lam_imag = None
+        else:
+            self.lam_real = lam.get_real_coefficient()
+            self.lam_imag = lam.get_imag_coefficient()
+
+        if metric is None:
+            metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
+        else:
+            metric_obj = metric
+
+        self.config_metric_vdim_esindex(metric_obj, vdim1, vdim2, esindex)
+
+        self._ir = self.GetIntegrationRule()
+        self.alloc_workspace()
+
+    def alloc_workspace(self):
+        assert False, "subclass shouuld implement alloc_workspace"
+
     @property
     def q_order(self):
         return self._q_order

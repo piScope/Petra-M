@@ -17,8 +17,8 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('PyVectorMassIntegrator')
 class PyVectorMassIntegrator(PyVectorIntegratorBase):
     support_metric = True
 
-    def __init__(self, lam, vdim1=None, vdim2=None, metric=None, use_covariant_vec=False,
-                 *, ir=None):
+    def __init__(self, lam, vdim1=None, vdim2=None, esindex=None, metric=None,
+                 use_covariant_vec=False, *, ir=None):
         '''
            integrator for
 
@@ -34,22 +34,8 @@ class PyVectorMassIntegrator(PyVectorIntegratorBase):
 
         '''
         PyVectorIntegratorBase.__init__(self, use_covariant_vec, ir)
+        self.init_step2(lam, vdim1, vdim2, esindex, metric)
 
-        self.lam = None if lam is None else lam
-        if self.lam is None:
-            return
-
-        self.lam = lam
-
-        if metric is None:
-            metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
-        else:
-            metric_obj = metric
-
-        self.config_metric_vdim_esindex(metric_obj, vdim1, vdim2, None)
-
-        self._ir = self.GetIntegrationRule()
-        self.alloc_workspace()
 
     def alloc_workspace(self):
         self.tr_shape = None

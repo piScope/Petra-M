@@ -134,6 +134,10 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
 
             ip = self.ir.IntPoint(i)
             trans.SetIntPoint(ip)
+            
+            shape = (self.vdim_te, self.esdim, self.vdim_tr)
+            lam = self.eval_complex_lam(trans, ip, shape)
+            
             w = trans.Weight()
 
             trial_fe.CalcShape(ip, self.tr_shape)
@@ -154,9 +158,6 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
 
             vdudx = np.tensordot(
                 te_shape_arr*w2, tr_merged_arr, 0)*ip.weight
-
-            shape = (self.vdim_te, self.esdim, self.vdim_tr)
-            lam = self.eval_complex_lam(trans, ip, shape)
 
             if self._metric is not None:
                 lam *= self.eval_sqrtg(trans, ip)   # x sqrt(g)

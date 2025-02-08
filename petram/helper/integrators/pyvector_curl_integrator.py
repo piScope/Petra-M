@@ -27,25 +27,7 @@ class PyVectorCurlIntegratorBase(PyVectorIntegratorBase):
         #
 
         PyVectorIntegratorBase.__init__(self, use_covariant_vec, ir)
-
-        if not hasattr(lam, "get_real_coefficient"):
-            self.lam_real = lam
-            self.lam_imag = None
-        else:
-            self.lam_real = lam.get_real_coefficient()
-            self.lam_imag = lam.get_imag_coefficient()
-
-        if metric is None:
-            metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2)
-        else:
-            metric_obj = metric
-
-        self.config_metric_vdim_esindex(metric_obj, vdim1, vdim2, esindex)
-
-        self._ir = self.GetIntegrationRule()
-        self.alloc_workspace()
-
-        # print('esdim flag', self.esdim, self.esflag, self.esflag2)
+        self.init_step2(lam, vdim1, vdim2, esindex, metric)
 
     def alloc_workspace(self):
         #
@@ -151,19 +133,6 @@ class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
             shape = (self.vdim_te, self.vdim_tr)
             lam = self.eval_complex_lam(trans, ip, shape)
 
-            '''
-                lam = self.lam_real.Eval(trans, ip)
-                if self.lam_imag is not None:
-                    lam = lam + 1j*self.lam_imag.Eval(trans, ip)
-                lam = np.diag([lam]*self.vdim_te)
-            else:
-                self.lam_real.Eval(self.valr, trans, ip)
-                lam = self.valr.GetDataArray()
-                if self.lam_imag is not None:
-                    self.lam_imag.Eval(self.vali, trans, ip)
-                lam = lam + 1j*self.vali.GetDataArray()
-            lam = lam.reshape
-            '''
 
             # il + lkj (or lkq)-> ikj (or ikq)
             tmp = np.tensordot(lam, levi_civita3, (1, 0))
