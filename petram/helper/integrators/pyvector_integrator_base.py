@@ -23,9 +23,13 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         self._realimag = False
         self._use_covariant_vec = use_covariant_vec
 
+        # allocate workspace will assigne object to these names.
+        self.valr = None
+        self.vali = None
+
     def init_step2(self, lam, vdim1, vdim2, esindex, metric):
         if lam is None:
-            asseert False, "lam is None"
+            assert False, "lam is None"
         if not hasattr(lam, "get_real_coefficient"):
             self.lam_real = lam
             self.lam_imag = None
@@ -235,13 +239,39 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
 
         #print("weight", self.esflag, self.esflag2, self.es_weight)
 
-    def eval_complex_lam(self, trans, ip, shape):
+    def eval_real_lam(self, trans, ip, shape):
         if len(shape) == 2:
             # in this case, coefficient can be scalar
             scalar_coeff = isinstance(self.lam_real, mfem.Coefficient)
             if scalar_coeff:
                 assert shape[0] == shape[1], "scalar coefficeint allows only for square matrix"
 
+        else:
+            scalar_coeff = False
+
+        if scalar_coeff:
+            lam = self.lam_real.Eval(trans, ip)
+            lam = np.diag([lam]*shape[0])
+        else:
+            self.lam_real.Eval(self.valr, trans, ip)
+            lam = self.valr.GetDataArray()
+
+            if len(lam) == np.prod(shape):
+                lam = lam.reshape(shape)
+            elif len(lam) == shape[0] and len(shape) == 2 and shape[0] == shape[1]:
+                lam = np.diag(lam)
+            else:
+                assert False, "wrong coeffi. shape: " + \
+                    str(shape) + "is needed." + str(lam.shpae) + " was found"
+
+        return lam
+
+    def eval_complex_lam(self, trans, ip, shape):
+        if len(shape) == 2:
+            # in this case, coefficient can be scalar
+            scalar_coeff = isinstance(self.lam_real, mfem.Coefficient)
+            if scalar_coeff:
+                assert shape[0] == shape[1], "scalar coefficeint allows only for square matrix"
         else:
             scalar_coeff = False
 
@@ -259,6 +289,11 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
                 self.lam_imag.Eval(self.vali, trans, ip)
                 lam = lam + 1j*self.vali.GetDataArray()
 
-            lam = lam.reshape(shape)
-
+            if len(lam) == np.prod(shape):
+                lam = lam.reshape(shape)
+            elif len(lam) == shape[0] and len(shape) == 2 and shape[0] == shape[1]:
+                lam = np.diag(lam)
+            else:
+                assert False, "wrong coeffi. shape: " + \
+                    str(shape) + " is needed." + str(lam.shpae) + " was found"
         return lam

@@ -187,12 +187,14 @@ class PyVectorWHIntegrator(PyVectorIntegratorBase):
                 vu = np.tensordot(
                     te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight  # nd, nd
 
-                # lam = [l, i, k, j]
-                lam *= self.eval_sqrtg(trans, ip)   # x sqrt(g)
-                gij = self.eval_ctmetric(trans, ip)  # x g^{ij}
 
-                # (l, n) (l, i, k, j) ->  (n, i, k, j) (n becomes l)
-                lam = np.tensordot(gij, lam, axes=(0, 0))
+                # computing additional coefficients for curvilinear coords.
+                #
+                # lam is [l, i, k, j]
+                # note: in the comment below, index is notes as (n, i, k, j)
+                # in order to match the discription in the implementation note.
+                
+                lam *= self.eval_sqrtg(trans, ip)   # x sqrt(g)
 
                 chris = self.eval_christoffel(trans, ip, self.esdim)
                 if self.use_covariant_vec:
@@ -261,8 +263,8 @@ class PyVectorDiffusionIntegrator(PyVectorWHIntegrator):
     #
     #
     def eval_complex_lam(self, trans, ip, shape):
-        lam = PyVectorPPIntegrator(self, trans, ip, shape)
-        if self._metric is not None:           
+        lam = PyVectorWHIntegrator.eval_complex_lam(self, trans, ip, shape)
+        if self._metric is not None:
             gij = self.eval_ctmetric(trans, ip)  # x g^{ij}
 
             # (l, n) (l, i, k, j) ->  (n, i, k, j) (n becomes l)
