@@ -55,7 +55,8 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
             self.lam_imag = lam.get_imag_coefficient()
 
         if metric is None:
-            metric_obj = self.__class__._proc_vdim1vdim2(vdim1, vdim2, use_covariant_vec)
+            metric_obj = self.__class__._proc_vdim1vdim2(
+                vdim1, vdim2, use_covariant_vec)
         else:
             metric_obj = metric
         self.config_metric_vdim_esindex(metric_obj, vdim1, vdim2, esindex)
@@ -151,56 +152,36 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
             for i, k in enumerate(self.esflag2):
                 tr_merged_arr[:, k] = tr_shape_arr*w2*self.es_weight[i]
 
-            if self._metric is not None:
-                # shape = sdim, nd, sdim
-                # index : v_p, d/dx^q nd
-                tr_merged_arr_t = np.stack([tr_merged_arr]*self.vdim_tr)
+            vdudx = np.tensordot(
+                te_shape_arr*w2, tr_merged_arr, 0)*ip.weight
 
-                chris = self.eval_christoffel(trans, ip, self.esdim)
-
-                if self._use_covariant_vec:
-                    for k in range(self.esdim):
-                        tr_merged_arr_t -= np.swapaxes(np.tensordot(
-                            chris[k, :, :], tr_shape_arr*w2, 0), 1, 2)
-                        # trial is covariant,
-
-                else:
-                    for k in range(self.esdim):
-                        # trial is contravariant,
-                        tr_merged_arr_t += np.swapaxes(np.tensordot(
-                            chris[:, k, :], tr_shape_arr*w2, 0), 1, 2)
-
-                dudxdvdx = np.tensordot(
-                    te_shape_arr*w2, tr_merged_arr_t, 0)*ip.weight
-
-            else:
-                dudxdvdx = np.tensordot(
-                    te_shape_arr*w2, tr_merged_arr, 0)*ip.weight
-
-            self.lam_real.Eval(self.valr, trans, ip)
-            lam = self.valr.GetDataArray()
-            if self.lam_imag is not None:
-                self.lam_imag.Eval(self.vali, trans, ip)
-                lam = lam + 1j*self.vali.GetDataArray()
-            lam = lam.reshape(self.vdim_te, self.esdim, self.vdim_tr)
+            shape = (self.vdim_te, self.esdim, self.vdim_tr)
+            lam = self.eval_complex_lam(trans, ip, shape)
 
             if self._metric is not None:
                 lam *= self.eval_sqrtg(trans, ip)   # x sqrt(g)
-                #lam = np.tensordot(gij, lam, axes=(0, 0))
+
+                vu = np.tensordot(
+                    te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight  # nd, nd
+
+                chris = self.eval_christoffel(trans, ip, self.esdim)
+                if self.use_covariant_vec:
+                    # ikl, jlk -> ij
+                    M = -np.tensordot(lam, chris, ((1, 2), (2, 1)))
+                else:
+                    # ikl, ljk -> ij
+                    M = np.tensordot(lam, chris, ((1, 2), (2, 0)))
+            else:
+                M = None
 
             if self._realimag:
                 for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
                     self.partelmat.Assign(0.0)
-
-                    if self._metric is None:
-                        for k in range(self.esdim):
-                            partelmat_arr[:, :] += (lam[i, k, j]
-                                                    * dudxdvdx[:, :, k]).real
-                    else:
-                        for k in range(self.esdim):
-                            partelmat_arr[:, :] += (lam[i, k, j]
-                                                    * dudxdvdx[:, j, :, k]).real
-
+                    for k in range(self.esdim):
+                        partelmat_arr[:, :] += (lam[i, k, j]
+                                                * vdudx[:, :, k]).real
+                    if M is not None:
+                        partelmat_arr[:, :] += (M[i, j] * vu[:, :]).real
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
             else:
@@ -210,11 +191,9 @@ class PyVectorPartialIntegrator(PyVectorIntegratorBase):
                     if self._metric is None:
                         for k in range(self.esdim):
                             partelmat_arr[:, :] += (lam[i, k, j]
-                                                    * dudxdvdx[:, :, k]).imag
-                    else:
-                        for k in range(self.esdim):
-                            partelmat_arr[:, :] += (lam[i, k, j]
-                                                    * dudxdvdx[:, j, :, k]).imag
+                                                    * vdudx[:, :, k]).imag
+                    if M is not None:
+                        partelmat_arr[:, :] += (M[i, j] * vu[:, :]).imag
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
