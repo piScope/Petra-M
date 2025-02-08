@@ -1,3 +1,4 @@
+from petram.phys.phys_const import levi_civita3
 from petram.helper.integrators.pyvector_integrator_base import PyVectorIntegratorBase
 
 from itertools import product as prod
@@ -15,7 +16,7 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints(
     'PyVectorWHIntegrator')
 
 
-class PyVectorWHIntegrator(PyVectorIntegratorBase): 
+class PyVectorWHIntegrator(PyVectorIntegratorBase):
     use_complex_coefficient = True
     support_metric = True
 
@@ -146,12 +147,12 @@ class PyVectorWHIntegrator(PyVectorIntegratorBase):
 
             ip = self.ir.IntPoint(i)
             trans.SetIntPoint(ip)
-            
+
             shape = (self.esdim, self.vdim_te, self.esdim, self.vdim_tr)
-            lam =self.eval_complex_lam(trans, ip, shape)
+            lam = self.eval_complex_lam(trans, ip, shape)
 
             w = trans.Weight()
-            
+
             trial_fe.CalcShape(ip, self.tr_shape)
             test_fe.CalcShape(ip, self.te_shape)
 
@@ -187,13 +188,12 @@ class PyVectorWHIntegrator(PyVectorIntegratorBase):
                 vu = np.tensordot(
                     te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight  # nd, nd
 
-
                 # computing additional coefficients for curvilinear coords.
                 #
                 # lam is [l, i, k, j]
                 # note: in the comment below, index is notes as (n, i, k, j)
                 # in order to match the discription in the implementation note.
-                
+
                 lam *= self.eval_sqrtg(trans, ip)   # x sqrt(g)
 
                 chris = self.eval_christoffel(trans, ip, self.esdim)
@@ -274,5 +274,41 @@ class PyVectorDiffusionIntegrator(PyVectorWHIntegrator):
 
 
 class PyVectorCurlCurlIntegrator(PyVectorWHIntegrator):
+    @classmethod
+    def coeff_shape(cls, vdim1, vdim2=None, esindex=None, ir=None):
+        ret = PyVectorWHIntegrator.coeff_shape(vdim1, vdim2, esindex, ir)
+        # ret = (esdim, vdim1, esdim, vdim2,)
+        return ret[1], ret[3]
+
     def eval_complex_lam(self, trans, ip, shape):
-        assert False, "need to implement this"
+        # shape is given as (self.esdim, self.vdim_te, self.esdim, self.vdim_tr)
+        shape0 = (shape[1], shape[3])
+        lam = PyVectorWHIntegrator.eval_complex_lam(self, trans, ip, shape0)
+
+        lev = levi_civita3
+
+        if self._metric is not None:
+            # / sqrt(g) needed for E (epsiolon/sqrt(g))
+            lam /= self.eval_sqrtg(trans, ip)
+            # / sqrt(g) needed for E (epsiolon/sqrt(g))
+            lam /= self.eval_sqrtg(trans, ip)
+
+            if self.use_covariant_vec:
+                g = self.eval_cometric(trans, ip)  # x g_{pm}
+                L3 = np.tensordot(g, lev, (0, 0))  # pm piq -> miq
+                L3 = np.tensordot(L3, g, (2, 0))  # miq ql -> mil
+                L4 = lev   # nkj
+            else:
+                g = self.eval_cometric(trans, ip)  # x g_{mp}
+                L4 = np.tensordot(g, lev, (1, 0))  # np nkq -> nkq
+                L4 = np.tensordot(L4, g, (2, 0))  # nkq qj -> nkj
+                L3 = lev   # mil
+        else:
+            L3 = lev
+            L4 = lev
+        print(L4.shape, L3.shape)
+        lam = np.tensordot(L3, lam, (0, 0))  # mil, mn = iln
+        lam = np.tensordot(lam, L4, (2, 0))  # iln, nkj = ilkj
+        lam = np.swapaxes(lam, 0, 1)  # ilkj -> likj
+
+        return lam

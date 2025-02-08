@@ -258,11 +258,13 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
 
             if len(lam) == np.prod(shape):
                 lam = lam.reshape(shape)
+            elif len(lam) == 1 and len(shape) == 2 and shape[0] == shape[1]:
+                lam = np.diag([lam[0]]*shape[0])
             elif len(lam) == shape[0] and len(shape) == 2 and shape[0] == shape[1]:
                 lam = np.diag(lam)
             else:
                 assert False, "wrong coeffi. shape: " + \
-                    str(shape) + "is needed." + str(lam.shpae) + " was found"
+                    str(shape) + "is needed." + str(lam.shape) + " was found"
 
         return lam
 
@@ -291,9 +293,11 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
 
             if len(lam) == np.prod(shape):
                 lam = lam.reshape(shape)
+            elif len(lam) == 1 and len(shape) == 2 and shape[0] == shape[1]:
+                lam = np.diag([lam[0]]*shape[0])
             elif len(lam) == shape[0] and len(shape) == 2 and shape[0] == shape[1]:
                 lam = np.diag(lam)
             else:
                 assert False, "wrong coeffi. shape: " + \
-                    str(shape) + " is needed." + str(lam.shpae) + " was found"
+                    str(shape) + " is needed." + str(lam.shape) + " was found"
         return lam

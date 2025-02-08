@@ -14,7 +14,8 @@ from petram.helper.integrators.pyvector_derivative_integrator import (PyVectorDe
 from petram.helper.integrators.pyvector_curl_integrator import (PyVectorCurlIntegrator,
                                                                 PyVectorDirectionalCurlIntegrator,)
 from petram.helper.integrators.pyvector_hessian_integrator import (PyVectorHessianIntegrator,
-                                                                   PyVectorPartialPartialIntegrator,)
+                                                                   PyVectorPartialPartialIntegrator,
+                                                                   PyVectorStrongCurlCurlIntegrator)
 from petram.helper.integrators.pyvector_weakhessian_integrator import (PyVectorDiffusionIntegrator,
                                                                        PyVectorCurlCurlIntegrator)
 
