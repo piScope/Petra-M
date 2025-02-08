@@ -119,9 +119,9 @@ class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
 
         tr_merged_arr = np.zeros((tr_nd, self.esdim), dtype=np.complex128)
 
-        scalar_coeff = isinstance(self.lam_real, mfem.Coefficient)
-        if scalar_coeff:
-            assert self.vdim_te == self.vdim_tr, "scalar coefficeint allows only for square matrix"
+        #scalar_coeff = isinstance(self.lam_real, mfem.Coefficient)
+        # if scalar_coeff:
+        #    assert self.vdim_te == self.vdim_tr, "scalar coefficeint allows only for square matrix"
 
         #print(self.es_weight, self.esflag2, self.esflag)
         for i in range(self.ir.GetNPoints()):
@@ -148,7 +148,10 @@ class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
                 tr_merged_arr[:, k] = tr_shape_arr*w2 * \
                     self.es_weight[i]  # nd vdim(d/dx)
 
-            if scalar_coeff:
+            shape = (self.vdim_te, self.vdim_tr)
+            lam = self.eval_complex_lam(trans, ip, shape)
+
+            '''
                 lam = self.lam_real.Eval(trans, ip)
                 if self.lam_imag is not None:
                     lam = lam + 1j*self.lam_imag.Eval(trans, ip)
@@ -159,8 +162,9 @@ class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
                 if self.lam_imag is not None:
                     self.lam_imag.Eval(self.vali, trans, ip)
                 lam = lam + 1j*self.vali.GetDataArray()
+            lam = lam.reshape
+            '''
 
-            lam = lam.reshape(self.vdim_te, self.vdim_tr)
             # il + lkj (or lkq)-> ikj (or ikq)
             tmp = np.tensordot(lam, levi_civita3, (1, 0))
 
@@ -243,16 +247,15 @@ class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
         self.tr_dshape.SetSize(tr_nd, dim)
         self.tr_dshapedxt.SetSize(tr_nd, sdim)
 
-
         tr_shape_arr = self.tr_shape.GetDataArray()
         te_shape_arr = self.te_shape.GetDataArray()
         tr_dshapedxt_arr = self.tr_dshapedxt.GetDataArray()
 
         tr_merged_arr = np.zeros((tr_nd, self.esdim), dtype=np.complex128)
 
-        scalar_coeff = isinstance(self.lam_real, mfem.Coefficient)
-        if scalar_coeff:
-            assert self.vdim_te == self.vdim_tr, "scalar coefficeint allows only for square matrix"
+        #scalar_coeff = isinstance(self.lam_real, mfem.Coefficient)
+        # if scalar_coeff:
+        #    assert self.vdim_te == self.vdim_tr, "scalar coefficeint allows only for square matrix"
 
         #print(self.es_weight, self.esflag2, self.esflag)
         for i in range(self.ir.GetNPoints()):
@@ -279,6 +282,10 @@ class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
                 tr_merged_arr[:, k] = tr_shape_arr*w2 * \
                     self.es_weight[i]  # nd vdim(d/dx)
 
+            shape = (self.vdim_te, self.vdim_tr)
+            lam = self.eval_complex_lam(trans, ip, shape)
+
+            '''
             if scalar_coeff:
                 lam = self.lam_real.Eval(trans, ip)
                 if self.lam_imag is not None:
@@ -292,6 +299,7 @@ class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
                 lam = lam + 1j*self.vali.GetDataArray()
 
             lam = lam.reshape(self.vdim_te, self.vdim_tr)
+            '''
 
             # ilj (or ilm)+ lk -> ijk (or imk)
             tmp = np.tensordot(levi_civita3, lam, (1, 0))
@@ -350,5 +358,3 @@ class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
                         partelmat_arr[:, :] += (M[i, j]
                                                 * vu[:, :]).imag
                         elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
-
-

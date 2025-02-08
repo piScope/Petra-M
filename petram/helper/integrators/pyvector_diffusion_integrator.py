@@ -196,13 +196,8 @@ class PyVectorDiffusionIntegrator(PyVectorIntegratorBase):
                 vu = np.tensordot(
                     te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight  # nd, nd
 
-            self.lam_real.Eval(self.valr, trans, ip)
-            lam = self.valr.GetDataArray()
-            if self.lam_imag is not None:
-                self.lam_imag.Eval(self.vali, trans, ip)
-                lam = lam + 1j*self.vali.GetDataArray()
-            lam = lam.reshape(self.esdim, self.vdim_te,
-                              self.esdim, self.vdim_tr)
+            shape = (self.esdim, self.vdim_te, self.esdim, self.vdim_tr)
+            lam =self.eval_complex_lam(trans, ip, shape)
 
             # lam = [l, i, k, j]
             if self._metric is not None:

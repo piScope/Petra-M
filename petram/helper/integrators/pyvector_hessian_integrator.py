@@ -125,8 +125,8 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
         sdim = trans.GetSpaceDim()
         square = (dim == sdim)
 
-        assert dim ==  sdim, "dim must be sdim"
-        
+        assert dim == sdim, "dim must be sdim"
+
         self.tr_shape.SetSize(tr_nd)
         self.te_shape.SetSize(te_nd)
         self.tr_dshape.SetSize(tr_nd, dim)
@@ -173,11 +173,11 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
             for ll, i in enumerate(self.esflag):
                 for kk, j in enumerate(self.esflag2):
                     trh_merged_arr[:, i, j] = tr_dshape_arr[:,
-                                                               ll]*self.es_weight[kk]
+                                                            ll]*self.es_weight[kk]
             for kk, i in enumerate(self.esflag2):
                 for ll, j in enumerate(self.esflag):
                     trh_merged_arr[:, i, j] = tr_dshape_arr[:,
-                                                               ll]*self.es_weight[kk]
+                                                            ll]*self.es_weight[kk]
             for kk, i in enumerate(self.esflag2):
                 for ll, j in enumerate(self.esflag2):
                     trh_merged_arr[:, i, j] = tr_shape_arr * \
@@ -189,15 +189,8 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
             dudxdvdx = np.tensordot(
                 te_shape_arr, trh_merged_arr, 0)*weight*detJ
 
-            self.lam_real.Eval(self.valr, trans, ip)
-            lam = self.valr.GetDataArray()
-
-            if self.lam_imag is not None:
-                self.lam_imag.Eval(self.vali, trans, ip)
-                lam = lam + 1j*self.vali.GetDataArray()
-
-            lam = lam.reshape(self.vdim_te, self.esdim,
-                              self.esdim, self.vdim_tr)
+            shape = (self.vdim_te, self.esdim, self.esdim, self.vdim_tr)
+            lam = self.eval_complex_lam(trans, ip, shape)
 
             if self._metric:
                 detm = self.eval_sqrtg(trans, ip)
@@ -308,3 +301,32 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
 
 # alias for backword compatibility
 PyVectorPartialPartialIntegrator = PyVectorHessianIntegrator
+
+
+class PyVectorStrongCurlCurlIntegrator(PyVectorHessianIntegrator):
+    def eval_complex_lam(self, trans, ip, shape):
+        shape = (3, 3)
+        lam = PyVectorHessianIntegrator.eval_complex_lam(
+            self, trans, ip, shape)
+
+        if self._metric is not None:
+            lam /= self.eval_sqrtg(trans, ip)   # x /sqrt(g)
+            lam /= self.eval_sqrtg(trans, ip)   # x /sqrt(g)
+
+        # ijk, mk -> ijm
+        tmp = np.tensordot(levi_civita3, lam, (2, 1))
+
+        # ri, ijm -> rjm
+        tmp = np.tensordot(lam, tmp, (1, 0))
+
+        # pqr rjm -. pqjm
+        tmp = np.tensordot(levi_civita3, tmp, (2, 0))
+
+        if self._metric is not None:
+            g_lp = self.eval_cometric(trans, ip)  # x g_{lp}
+
+            # lp, pqjm -> lqjm
+            tmp = np.tensordot(g_lp, tmp, (1, 0))
+
+        # tmp has iklj index
+        return tmp

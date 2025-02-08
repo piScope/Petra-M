@@ -211,3 +211,31 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         self.esdim = len(esindex)
 
         #print("weight", self.esflag, self.esflag2, self.es_weight)
+
+    def eval_complex_lam(self, trans, ip, shape):
+        if len(shape) == 2:
+            # in this case, coefficient can be scalar
+            scalar_coeff = isinstance(self.lam_real, mfem.Coefficient)
+            if scalar_coeff:
+                assert shape[0] == shape[1], "scalar coefficeint allows only for square matrix"
+
+        else:
+            scalar_coeff = False
+
+        if scalar_coeff:
+            lam = self.lam_real.Eval(trans, ip)
+            if self.lam_imag is not None:
+                lam = lam + 1j*self.lam_imag.Eval(trans, ip)
+
+            lam = np.diag([lam]*shape[0])
+        else:
+            self.lam_real.Eval(self.valr, trans, ip)
+            lam = self.valr.GetDataArray()
+
+            if self.lam_imag is not None:
+                self.lam_imag.Eval(self.vali, trans, ip)
+                lam = lam + 1j*self.vali.GetDataArray()
+
+            lam = lam.reshape(shape)
+
+        return lam
