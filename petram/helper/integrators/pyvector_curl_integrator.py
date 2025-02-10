@@ -288,7 +288,6 @@ class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
                                                 * vdudx[:, :, k]).imag
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
-            continue
             if self._metric is not None:
                 vu = np.tensordot(
                     te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight
