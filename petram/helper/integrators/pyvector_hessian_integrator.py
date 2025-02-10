@@ -327,7 +327,7 @@ class PyVectorStrongCurlCurlIntegrator(PyVectorHessianIntegrator):
             tmp /= self.eval_sqrtg(trans, ip)   # x /sqrt(g)
 
             if not self.use_covariant_vec:
-                tmp = np.tensordot(g_xx, tmp, (1, 0))  # km mn -> kn
+                tmp = np.tensordot(tmp, g_xx, (1, 0))  # km mn -> kn
             else:
                 pass  # km == kn
         else:
@@ -341,15 +341,18 @@ class PyVectorStrongCurlCurlIntegrator(PyVectorHessianIntegrator):
         if self._metric is not None:
             tmp = np.tensordot(g_xx, tmp, (1, 0))   # ip prn -> irn
 
-        tmp = np.tensordot(levi_civita3, tmp, (2, 0))  # sqi irn -> sqrn
+        tmp = np.tensordot(lam, tmp, 0)  # sq irn
+
+        # tsi sqirn -> tqrn
+        tmp = np.tensordot(levi_civita3, tmp, ((1, 2), (0, 2)))
 
         if self._metric is not None and self.use_covariant_vec:
-            tmp = np.tensordot(g_xx, tmp, (1, 0))  # ls sqrn -> lqrn
+            tmp = np.tensordot(g_xx, tmp, (1, 0))  # lt tqrn -> lqrn
         else:
             pass  # sqrn == lqrn
 
         # tmp follows iklj index rule  (i = test j = trial, k and l derivative)
 
-        self.enforce_p_none = True
+        # self.enforce_p_none = True
 
         return tmp

@@ -1,3 +1,8 @@
+#
+#  curl integrator
+#  directional curl integrator
+#
+
 from petram.helper.integrators.pyvector_integrator_base import PyVectorIntegratorBase
 from petram.phys.phys_const import levi_civita3
 from itertools import product as prod
@@ -21,10 +26,6 @@ class PyVectorCurlIntegratorBase(PyVectorIntegratorBase):
 
     def __init__(self, lam, vdim1=None, vdim2=None, esindex=None, metric=None,
                  use_covariant_vec=False, *, ir=None):
-
-        #
-        # Generalization of curl-curl integrator to support metric
-        #
 
         PyVectorIntegratorBase.__init__(self, use_covariant_vec, ir)
         self.init_step2(lam, vdim1, vdim2, esindex, metric)
@@ -133,16 +134,33 @@ class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
             shape = (self.vdim_te, self.vdim_tr)
             lam = self.eval_complex_lam(trans, ip, shape)
 
+            if self._metric is not None:
+                vu = np.tensordot(
+                    te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight
 
-            # il + lkj (or lkq)-> ikj (or ikq)
-            tmp = np.tensordot(lam, levi_civita3, (1, 0))
+                g_xx = self.eval_cometric(trans, ip)  # g_xx
+                chris = self.eval_christoffel(trans, ip, self.esdim)
 
-            if self._metric is not None and not self.use_covariant_vec:
-                g_qj = self.eval_cometric(trans, ip)  # g_{qj}
-                tmp = np.tensordot(tmp, g_qj,  axes=(2, 0))  # ikq + qj = ikj
+                if self.use_covariant_vec:
+                    tmp = np.tensordot(g_xx, levi_civita3,
+                                       axes=(1, 0))  # lp + pkj = lkj
+                else:
+                    tmp = np.tensordot(levi_civita3, g_xx,
+                                       axes=(2, 0))  # lkq + qj = lkj
+
+                # il lkj  = ikj
+                L = np.tensordot(lam, tmp, (1, 0))
+
+                if self.use_covariant_vec:
+                    # ikj mjk  = im
+                    M = -np.tensordot(L, chris, ((1, 2), (2, 1)))
+                else:
+                    # ikj jmk  = im
+                    M = np.tensordot(L, chris, ((1, 2), (2, 0)))
+
             else:
-                pass
-            L = tmp
+                L = np.tensordot(lam, levi_civita3, (1, 0))
+                M = None
 
             vdudx = np.tensordot(
                 te_shape_arr*w2, tr_merged_arr, 0)*ip.weight  # nd, nd, vdim(d/dx)
@@ -154,6 +172,9 @@ class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
                     for k in range(self.esdim):
                         partelmat_arr[:, :] += (L[i, k, j]
                                                 * vdudx[:, :, k]).real
+                    if M is not None:
+                        partelmat_arr[:, :] += (M[i, j]
+                                                * vu[:, :]).real
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
@@ -163,32 +184,10 @@ class PyVectorCurlIntegrator(PyVectorCurlIntegratorBase):
                     for k in range(self.esdim):
                         partelmat_arr[:, :] += (L[i, k, j]
                                                 * vdudx[:, :, k]).imag
-                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
-
-            if self._metric is not None and not self._use_covariant_vec:
-                vu = np.tensordot(
-                    te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight
-
-                chris = self.eval_christoffel(trans, ip, self.esdim)
-                # if self._use_covariant_vec:
-                #    M = -np.tensordot(L, chris, ([2, 1], [1, 2]))
-                #    # this is zero due to symmetry
-                # else:
-                M = np.tensordot(L, chris, ([2, 1], [0, 1]))
-
-                if self._realimag:
-                    for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
-                        self.partelmat.Assign(0.0)
-                        partelmat_arr[:, :] += (M[i, j]
-                                                * vu[:, :]).real
-                        elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
-
-                else:
-                    for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
-                        self.partelmat.Assign(0.0)
+                    if M is not None:
                         partelmat_arr[:, :] += (M[i, j]
                                                 * vu[:, :]).imag
-                        elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
+                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
 
 class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
@@ -251,24 +250,42 @@ class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
                 tr_merged_arr[:, k] = tr_shape_arr*w2 * \
                     self.es_weight[i]  # nd vdim(d/dx)
 
+            vdudx = np.tensordot(
+                te_shape_arr*w2, tr_merged_arr, 0)*ip.weight  # nd, nd, vdim(d/dx)
+
             shape = (self.vdim_te, self.vdim_tr)
             lam = self.eval_complex_lam(trans, ip, shape)
 
-            # ilj (or ilm)+ lk -> ijk (or imk)
-            tmp = np.tensordot(levi_civita3, lam, (1, 0))
+            if self._metric is not None:
+                vu = np.tensordot(
+                    te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight
 
-            # -> ikj ikm
-            tmp = np.swapaxes(tmp, 1, 2)
+                g_xx = self.eval_cometric(trans, ip)  # g_xx
+                chris = self.eval_christoffel(trans, ip, self.esdim)
 
-            if self._metric is not None and not self.use_covariant_vec:
-                g_mj = self.eval_cometric(trans, ip)  # g_{mj}
-                tmp = np.tensordot(tmp, g_mj,  axes=(2, 0))  # ikm + mj = ikj
+                if self.use_covariant_vec:
+                    tmp = np.tensordot(g_xx, levi_civita3,
+                                       axes=(1, 0))  # pi ilj -> plj
+                else:
+                    tmp = np.tensordot(levi_civita3, g_xx,
+                                       axes=(2, 0))  # ilm mj -> ilj
+
             else:
-                pass
-            L = tmp
+                tmp = levi_civita3
 
-            vdudx = np.tensordot(
-                te_shape_arr*w2, tr_merged_arr, 0)*ip.weight  # nd, nd, vdim(d/dx)
+            # plj (or ilj) + lk   -> pjk or ijk
+            tmp = np.tensordot(tmp, lam, (1, 0))
+            L = np.swapaxes(tmp, 1, 2)  # pkj or ikj
+
+            if self._metric is not None:
+                if self.use_covariant_vec:
+                    # pkj + nkj -> pn
+                    M = -np.tensordot(L, chris, ((1, 2), (1, 2)))
+                else:
+                    # ikj jkn  -> in
+                    M = np.tensordot(L, chris, ((2, 1), (0, 1)))
+            else:
+                M = None
 
             if self._realimag:
                 for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
@@ -277,6 +294,9 @@ class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
                     for k in range(self.esdim):
                         partelmat_arr[:, :] += (L[i, k, j]
                                                 * vdudx[:, :, k]).real
+                    if M is not None:
+                        partelmat_arr[:, :] += (M[i, j]
+                                                * vu[:, :]).real
 
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
@@ -286,28 +306,8 @@ class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
                     for k in range(self.esdim):
                         partelmat_arr[:, :] += (L[i, k, j]
                                                 * vdudx[:, :, k]).imag
-                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
-
-            if self._metric is not None:
-                vu = np.tensordot(
-                    te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight
-
-                chris = self.eval_christoffel(trans, ip, self.esdim)
-                if self._use_covariant_vec:
-                    M = -np.tensordot(L, chris, ([2, 1], [2, 1]))  # ikj nkj  -> in
-                else:
-                    M = np.tensordot(L, chris, ([2, 1], [0, 2])) # ikj jnk  -> in
-
-                if self._realimag:
-                    for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
-                        self.partelmat.Assign(0.0)
-                        partelmat_arr[:, :] += (M[i, j]
-                                                * vu[:, :]).real
-                        elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
-
-                else:
-                    for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
-                        self.partelmat.Assign(0.0)
+                    if M is not None:
                         partelmat_arr[:, :] += (M[i, j]
                                                 * vu[:, :]).imag
-                        elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
+
+                    elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
