@@ -306,7 +306,7 @@ class PyVectorCurlCurlIntegrator(PyVectorWHIntegrator):
         else:
             L3 = lev
             L4 = lev
-        print(L4.shape, L3.shape)
+
         lam = np.tensordot(L3, lam, (0, 0))  # mil, mn = iln
         lam = np.tensordot(lam, L4, (2, 0))  # iln, nkj = ilkj
         lam = np.swapaxes(lam, 0, 1)  # ilkj -> likj

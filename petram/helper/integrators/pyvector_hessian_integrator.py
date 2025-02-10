@@ -52,6 +52,8 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
         PyVectorIntegratorBase.__init__(self, use_covariant_vec, ir)
         self.init_step2(lam, vdim1, vdim2, esindex, metric)
 
+        self.enforce_p_none = False
+
     def alloc_workspace(self):
 
         self.tr_shape = mfem.Vector()
@@ -133,7 +135,7 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
 
             ip = self.ir.IntPoint(i)
             trans.SetIntPoint(ip)
-            
+
             shape = (self.vdim_te, self.esdim, self.esdim, self.vdim_tr)
             lam = self.eval_complex_lam(trans, ip, shape)
 
@@ -181,7 +183,7 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
             if self._metric is not None:
                 detm = self.eval_sqrtg(trans, ip)
                 lam *= detm
-                
+
                 # construct merged trial du/dx
                 trd_merged_arr[:, self.esflag] = tr_dshape_arr
                 for i, k in enumerate(self.esflag2):
@@ -251,6 +253,9 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
             else:
                 P = None
 
+            if self.enforce_p_none:
+                P = None
+
             if self._realimag:
                 for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
                     self.partelmat.Assign(0.0)
@@ -281,7 +286,6 @@ class PyVectorHessianIntegrator(PyVectorIntegratorBase):
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
 
-
 # alias for backword compatibility
 PyVectorPartialPartialIntegrator = PyVectorHessianIntegrator
 
@@ -306,30 +310,46 @@ class PyVectorStrongCurlCurlIntegrator(PyVectorHessianIntegrator):
             esdim = len(esindex)
 
         return (vdim1, vdim2,)
-    
+
     def eval_complex_lam(self, trans, ip, shape):
+        '''
+        generate lambda in (3,3,3,3) shape on the fly
+        as for indexing, see the implementation note.
+        '''
         shape = (3, 3)
         lam = PyVectorHessianIntegrator.eval_complex_lam(
             self, trans, ip, shape)
 
         if self._metric is not None:
-            lam /= self.eval_sqrtg(trans, ip)   # x /sqrt(g)
-            lam /= self.eval_sqrtg(trans, ip)   # x /sqrt(g)
+            g_xx = self.eval_cometric(trans, ip)  # x g_{lp}
 
-        # ijk, mk -> ijm
-        tmp = np.tensordot(levi_civita3, lam, (2, 1))
+            tmp = lam/self.eval_sqrtg(trans, ip)   # x /sqrt(g)
+            tmp /= self.eval_sqrtg(trans, ip)   # x /sqrt(g)
 
-        # ri, ijm -> rjm
-        tmp = np.tensordot(lam, tmp, (1, 0))
+            if not self.use_covariant_vec:
+                tmp = np.tensordot(g_xx, tmp, (1, 0))  # km mn -> kn
+            else:
+                pass  # km == kn
+        else:
+            tmp = lam
 
-        # pqr rjm -. pqjm
-        tmp = np.tensordot(levi_civita3, tmp, (2, 0))
+        tmp = np.tensordot(lam, tmp, 0)  # jrkn
+
+        # pjk, jrkn -> prn
+        tmp = np.tensordot(levi_civita3, tmp, ((1, 2), (0, 2)))
 
         if self._metric is not None:
-            g_lp = self.eval_cometric(trans, ip)  # x g_{lp}
+            tmp = np.tensordot(g_xx, tmp, (1, 0))   # ip prn -> irn
 
-            # lp, pqjm -> lqjm
-            tmp = np.tensordot(g_lp, tmp, (1, 0))
+        tmp = np.tensordot(levi_civita3, tmp, (2, 0))  # sqi irn -> sqrn
 
-        # tmp has iklj index
+        if self._metric is not None and self.use_covariant_vec:
+            tmp = np.tensordot(g_xx, tmp, (1, 0))  # ls sqrn -> lqrn
+        else:
+            pass  # sqrn == lqrn
+
+        # tmp follows iklj index rule  (i = test j = trial, k and l derivative)
+
+        self.enforce_p_none = True
+
         return tmp

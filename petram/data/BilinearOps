@@ -69,3 +69,4 @@
 | PyVectorHessianIntegrator      | H1v, H1 | H1v, L2v, H1, L2 | M  |  $({g}^{1/2} \lambda_\{iklj}\nabla_k \nabla_l u_j, v_i)$    | |1D, 2D, 3D |
 | PyVectorFEPartialIntegrator  | ND | ND | M  |  $(\lambda_\{ikj}\partial_k u_j, v_i)$  | |2D, 3D |
 | PyVectorFEPartialPartialIntegrator  | ND | ND | M  |  $(\lambda_\{iklj}\partial_k \partial_l u_j, v_i)$   | |2D, 3D |
+| PyVectorStrongCurlCurlIntegrator            | H1v, H1  |  | M  |  $({g}^{1/2} \lambda_\{ij} \curl \curl u_j, v_i)$    | |1D, 2D, 3D |

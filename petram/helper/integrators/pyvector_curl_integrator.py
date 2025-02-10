@@ -254,22 +254,6 @@ class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
             shape = (self.vdim_te, self.vdim_tr)
             lam = self.eval_complex_lam(trans, ip, shape)
 
-            '''
-            if scalar_coeff:
-                lam = self.lam_real.Eval(trans, ip)
-                if self.lam_imag is not None:
-                    lam = lam + 1j*self.lam_imag.Eval(trans, ip)
-                lam = np.diag([lam]*self.vdim_te)
-            else:
-                self.lam_real.Eval(self.valr, trans, ip)
-                lam = self.valr.GetDataArray()
-                if self.lam_imag is not None:
-                    self.lam_imag.Eval(self.vali, trans, ip)
-                lam = lam + 1j*self.vali.GetDataArray()
-
-            lam = lam.reshape(self.vdim_te, self.vdim_tr)
-            '''
-
             # ilj (or ilm)+ lk -> ijk (or imk)
             tmp = np.tensordot(levi_civita3, lam, (1, 0))
 
@@ -304,15 +288,16 @@ class PyVectorDirectionalCurlIntegrator(PyVectorCurlIntegratorBase):
                                                 * vdudx[:, :, k]).imag
                     elmat.AddMatrix(self.partelmat, te_nd*i, tr_nd*j)
 
+            continue
             if self._metric is not None:
                 vu = np.tensordot(
                     te_shape_arr*w2, tr_shape_arr*w2, 0)*ip.weight
 
                 chris = self.eval_christoffel(trans, ip, self.esdim)
                 if self._use_covariant_vec:
-                    M = -np.tensordot(L, chris, ([2, 1], [1, 2]))
+                    M = -np.tensordot(L, chris, ([2, 1], [2, 1]))  # ikj nkj  -> in
                 else:
-                    M = np.tensordot(L, chris, ([2, 1], [0, 1]))
+                    M = np.tensordot(L, chris, ([2, 1], [0, 2])) # ikj jnk  -> in
 
                 if self._realimag:
                     for i, j in prod(range(self.vdim_te), range(self.vdim_tr)):
