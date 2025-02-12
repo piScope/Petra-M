@@ -102,7 +102,7 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
     def use_conjugate_periodicity(self):
         self.es_weight = np.conj(self.es_weight)
 
-    def set_metric(self, metric_obj):
+    def set_metric(self, metric_obj, vdim1=None, vdim2=None):
         #
         #  g_ij (metric tensor) is set
 
@@ -142,8 +142,14 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         self.chris = mfem.Vector()
         self.dchris = mfem.Vector()
 
-        self.vdim_te = metric_obj.vdim1
-        self.vdim_tr = metric_obj.vdim2
+        if vdim1 is None:
+            self.vdim_te = metric_obj.vdim1
+        else:
+            self.vdim_te = vdim1
+        if vdim2 is None:
+            self.vdim_tr = metric_obj.vdim2
+        else:
+            self.vdim_tr = vdim2
 
         self._proc_esindex(metric_obj.esindex)
 

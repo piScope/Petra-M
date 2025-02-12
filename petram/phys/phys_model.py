@@ -899,15 +899,19 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         args = list(coeff)
         args.extend(itg_params)
 
-        itg = integrator(*args)
+        kwargs = {}
+        metric = self.get_root_phys().get_metric()
+        if hasattr(integrator, "support_metric") and integrator.support_metric:
+            kwargs = {"metric": metric}
+
+        itg = integrator(*args, **kwargs)
         itg._linked_coeff = coeff  # make sure that coeff is not GCed.
 
-        metric = self.get_root_phys().get_metric()
-        if metric is not None and len(itg_params)==0:
+        if metric is not None and len(itg_params) != 0:
             # if metric is used and integrator is not passed an informaiton
             # for coordinate system at object construction, we call
             # set_metric here.
-            itg.set_metric(metric)
+            itg.set_metric(metric, *itg_params)
 
         if hasattr(integrator, "use_complex_coefficient"):
             itg.set_realimag_mode(self.integrator_realimag_mode)
