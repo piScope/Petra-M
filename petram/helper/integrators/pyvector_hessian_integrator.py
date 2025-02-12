@@ -319,6 +319,7 @@ class PyVectorStrongCurlCurlIntegrator(PyVectorHessianIntegrator):
         shape = (3, 3)
         lam = PyVectorHessianIntegrator.eval_complex_lam(
             self, trans, ip, shape)
+        scale = self.eval_lam_scale(trans, ip)
 
         if self._metric is not None:
             g_xx = self.eval_cometric(trans, ip)  # x g_{lp}
@@ -355,4 +356,4 @@ class PyVectorStrongCurlCurlIntegrator(PyVectorHessianIntegrator):
 
         # self.enforce_p_none = True
 
-        return tmp
+        return tmp*scale

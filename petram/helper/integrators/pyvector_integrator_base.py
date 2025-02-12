@@ -27,6 +27,9 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
         self.valr = None
         self.vali = None
 
+        self.scale_real = None
+        self.scale_imag = None
+
     def init_step2(self, lam, vdim1, vdim2, esindex, metric):
         if lam is None:
             assert False, "lam is None"
@@ -97,9 +100,7 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
             self._proc_esindex(esindex)
 
     def use_conjugate_periodicity(self):
-        print("conjgate periodicity (before)", self.es_weight)
         self.es_weight = np.conj(self.es_weight)
-        print("conjgate periodicity (after)", self.es_weight)
 
     def set_metric(self, metric_obj):
         #
@@ -301,3 +302,19 @@ class PyVectorIntegratorBase(mfem.PyBilinearFormIntegrator):
                 assert False, "wrong coeffi. shape: " + \
                     str(shape) + " is needed." + str(lam.shape) + " was found"
         return lam
+
+    def set_lam_scale(self, scale):
+        if not hasattr(scale, "get_real_coefficient"):
+            self.scale_real = scale
+            self.scale_imag = None
+        else:
+            self.scale_real = scale.get_real_coefficient()
+            self.scale_imag = scale.get_imag_coefficient()
+
+    def eval_lam_scale(self, trans, ip):
+        if self.scale_real is None:
+            return 1.0
+        s = self.scale_real.Eval(trans, ip)
+        if self.scale_imag is not None:
+            s = s + 1j*self.scale_imag.Eval(trans, ip)
+        return s
