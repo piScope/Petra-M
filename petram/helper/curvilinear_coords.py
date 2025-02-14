@@ -174,6 +174,27 @@ def cyl_ctmetric(r):
     data2[2] = 1
     return data2.flatten()
 
+def cyl_to_covec(vec):
+    #
+    # convert cartecian vector to co-variant vector.
+    #
+    data2 = np.zeros((3, ), dtype=np.float64)
+    data2[0] = vec[0]
+    data2[1] = vec[1]*r
+    data2[2] = vec[2]
+    return data2.flatten()
+
+def cyl_to_ctvec(vec):
+    #
+    # convert cartecian vector to contra-variant vector.
+    #
+    data2 = np.zeros((3, ), dtype=np.float64)
+    data2[0] = vec[0]
+    data2[1] = vec[1]/r
+    data2[2] = vec[2]
+    return data2.flatten()
+
+
 
 class cylindrical1d(coordinate_system):
     def __init__(self, params, use_covariant_vec=False):
