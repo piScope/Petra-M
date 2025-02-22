@@ -235,20 +235,22 @@ class poly_fraction():
             @njit("float64(float64)")
             def func(x):
                 value = c0
-                for c, d in zip(c_arr, d_arr):            
+                for c, d in zip(c_arr, d_arr):
                     value = value + c / (x - d)
                 return value.real
         else:
             @njit("complex128(float64)")
             def func(x):
                 value = c0
-                for c, d in zip(c_arr, d_arr):            
+                for c, d in zip(c_arr, d_arr):
                     value = value + c / (x - d)
                 return value
 
         return func
 
-def calc_decomposition(func, x, mmax, xp=None, viewer=None, **kwargs):
+
+def calc_decomposition(func, x, mmax, xp=None, viewer=None, fp=False,
+                       **kwargs):
     if xp is None:
         xp = x
 
@@ -281,7 +283,7 @@ def calc_decomposition(func, x, mmax, xp=None, viewer=None, **kwargs):
     c_arr = np.array(c_arr)
     d_arr = np.array(d_arr)
 
-    #if np.any([d.real > 0 and d.imag == 0 for d in roots]):
+    # if np.any([d.real > 0 and d.imag == 0 for d in roots]):
     #    import warnings
     #    warnings.warn("Decomposition is not stable. ", RuntimeWarning)
 
@@ -294,6 +296,14 @@ def calc_decomposition(func, x, mmax, xp=None, viewer=None, **kwargs):
     f_sum = poly_fraction(c0, c_arr, d_arr)
 
     fit = np.array([f_sum(xx) for xx in xp])
+
+    if fp:  # correction to c0
+        mm = np.min(fit.real)
+        #print("!!! Force positive is on: minimum of original fit ", mm)
+        if mm < 0:
+            c0 = c0 - mm
+            f_sum = poly_fraction(c0, c_arr, d_arr)
+
     if viewer is not None:
         viewer.plot(xp, fit, 'g--')
         if np.iscomplexobj(f):
@@ -338,7 +348,7 @@ def calc_decompositions(funcs, x, mmax, xp, viewer=None, **kwargs):
             c_arr.append(poly_p(root)/poly_q_prime(root))
             d_arr.append(root)
 
-        #if np.any([d.real > 0 and d.imag == 0 for d in roots]):
+        # if np.any([d.real > 0 and d.imag == 0 for d in roots]):
         #    import warnings
         #    warnings.warn("Decomposition is not stable. ", RuntimeWarning)
 
@@ -367,24 +377,28 @@ def calc_decompositions(funcs, x, mmax, xp, viewer=None, **kwargs):
 
 
 def find_decomposition(func, x, xp=None, viewer=None, mmin=2, mmax=8,
-                       tol=None, verbose=False, **kwargs):
+                       tol=None, verbose=False, fp=False,
+                       **kwargs):
     '''
     find rational approximation of func (callable)
        x = parameter range to fit
        tol = max error measured fitting points
+       fp = enforce output range is posivie
     '''
     mm = mmin
     while mm <= mmax:
         succsss = False
-        fit, err = calc_decomposition(func, x, mm, xp=xp, viewer=viewer, **kwargs)
+        fit, err = calc_decomposition(func, x, mm, xp=xp, viewer=viewer,
+                                      fp=fp, **kwargs)
         if fit is not None:
             success = np.all([d.real < 0 for d in fit.d_arr])
             if success:
                 if tol is None or err < tol:
                     if verbose:
-                        print("fit success nterms="+str(mm) + ", err="+str(err))
+                        print("fit success nterms=" +
+                              str(mm) + ", err="+str(err))
                     break
-            
+
         mm = mm + 1
     return fit, success, err
 
