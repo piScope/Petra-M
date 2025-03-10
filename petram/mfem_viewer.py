@@ -1632,7 +1632,7 @@ class MFEMViewer(BookViewer):
                   'sol', None)
         host : points host setting object
         '''
-        from petram.remote.dlg_submit_job import default_remote
+        from petram.pi.dlg_submit_job import default_remote
 
         remote = self.model.param.eval('remote')
         if remote is not None:
