@@ -1318,7 +1318,7 @@ class DlgPlotSol(SimpleFramePlus):
             xx, idx = np.unique(x, return_index=True)
 
             from scipy.integrate import simpson
-            data = {"integ", simpson(xx, cdata[idx])}
+            data = {"integ": simpson(xx, cdata[idx])}
         return data
 
     def onExportEdge(self, evt):
