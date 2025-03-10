@@ -320,7 +320,7 @@ class DlgPlotSol(SimpleFramePlus):
             ebutton = wx.Button(p, wx.ID_ANY, "Export")
             button = wx.Button(p, wx.ID_ANY, "Apply")
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)
-            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
+            #ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
             hbox.AddStretchSpacer()
@@ -367,12 +367,10 @@ class DlgPlotSol(SimpleFramePlus):
 
             hbox = wx.BoxSizer(wx.HORIZONTAL)
             vbox.Add(hbox, 0, wx.EXPAND | wx.ALL, 5)
-            #ibutton=wx.Button(p, wx.ID_ANY, "Integrate")
             ebutton = wx.Button(p, wx.ID_ANY, "Export")
             button = wx.Button(p, wx.ID_ANY, "Apply")
-            #ibutton.Bind(wx.EVT_BUTTON, self.onInteg)
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)
-            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
+            #ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
             #hbox.Add(ibutton, 0, wx.ALL,1)
@@ -428,15 +426,15 @@ class DlgPlotSol(SimpleFramePlus):
 
             hbox = wx.BoxSizer(wx.HORIZONTAL)
             vbox.Add(hbox, 0, wx.EXPAND | wx.ALL, 5)
-            ibutton = wx.Button(p, wx.ID_ANY, "Integral")
+            #ibutton = wx.Button(p, wx.ID_ANY, "Integral")
             ebutton = wx.Button(p, wx.ID_ANY, "Export")
             button = wx.Button(p, wx.ID_ANY, "Apply")
-            ibutton.Bind(wx.EVT_BUTTON, self.onInteg)
+            #ibutton.Bind(wx.EVT_BUTTON, self.onInteg)
             ebutton.Bind(wx.EVT_LEFT_UP, self.onExport)
-            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
+            #ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
-            hbox.Add(ibutton, 0, wx.ALL, 1)
+            #hbox.Add(ibutton, 0, wx.ALL, 1)
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
 
@@ -527,7 +525,7 @@ class DlgPlotSol(SimpleFramePlus):
             ebutton = wx.Button(p, wx.ID_ANY, "Export")
             button = wx.Button(p, wx.ID_ANY, "Apply")
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)
-            ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
+            #ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
             hbox.AddStretchSpacer()
@@ -1156,31 +1154,6 @@ class DlgPlotSol(SimpleFramePlus):
         m = getattr(self, 'onExport' + t)
 
         m(evt)
-    '''
-    def onExport2(self, evt):
-        t = self.get_selected_plotmode()
-        m = getattr(self, 'onExport2' + t)
-        m(evt)
-    '''
-
-    def onExportR(self, evt):
-        elp = self.get_selected_elp()
-        elp.AddCurrentToHistory()
-
-        t = self.get_selected_plotmode()
-        m1 = getattr(self, 'onExportR1' + t)
-        m2 = getattr(self, 'onExportR2' + t)
-        menu = wx.Menu()
-        f1 = menu.Append(
-            wx.ID_ANY,
-            'All Subdirectories',
-            'loop over subdirectoris')
-        self.Bind(wx.EVT_MENU, m1, f1)
-        f2 = menu.Append(wx.ID_ANY, 'Expand exp(-jwt)', '')
-        self.Bind(wx.EVT_MENU, m2, f2)
-        evt.GetEventObject().PopupMenu(menu, evt.GetPosition())
-        menu.Destroy()
-        evt.Skip()
 
     def get_selected_elp(self):
         t = self.nb.GetPageText(self.nb.GetSelection())
@@ -1265,55 +1238,6 @@ class DlgPlotSol(SimpleFramePlus):
                             force_float=(not value[4]))
 
     # @run_in_piScope_thread
-    def onExportR1Edge(self, evt):
-        remote, base, subs = self.get_current_choices()
-        value = self.elps['Edge'] .GetValue()
-        refine = int(value[6])
-
-        all_data = []
-        for s in subs:
-            if s.strip() == '':
-                contineu
-            if remote:
-                self.config['cs_soldir'] = base
-                self.config['cs_solsubdir'] = s
-            else:
-                self.local_soldir = base
-                self.local_solsubdir = s
-                self.load_sol_if_needed()
-
-            data, data_x, battrs = self.eval_edge(mode='integ', refine=refine)
-            if data is None:
-                pass
-            else:
-                ndim = data[0][0].shape[1]
-                verts = np.hstack([v.flatten() for v, c, a in data]).flatten()
-                cdata = np.hstack([c.flatten() for v, c, a in data]).flatten()
-                verts = verts.reshape(-1, ndim)
-                data = {'vertices': verts, 'data': cdata}
-
-                if data_x is not None:
-                    cxdata = np.hstack([c.flatten()
-                                        for v, c, a in data_x]).flatten()
-                    xverts = np.hstack([v.flatten()
-                                        for v, c, a in data_x]).flatten()
-                    data['xvertices'] = xverts
-                    data['xdata'] = cxdata
-
-            all_data.append({"subdirs": s, "data": data})
-
-        self.post_threadend(self.export_to_piScope_shell,
-                            all_data, 'edge_data')
-
-    def onExportR2Edge(self, evt):
-        wx.CallAfter(
-            dialog.showtraceback,
-            parent=self,
-            txt='Not Yet Implemented',
-            title='Error',
-            traceback='Exporing all time slice for frequency \ndomain analysis is not available')
-        wx.CallAfter(self.set_title_no_status)
-
     def make_plot_edge(self, data, battrs,
                        data_x=None, cls=None,
                        expr='', expr_x='', force_float=False):
@@ -1367,9 +1291,7 @@ class DlgPlotSol(SimpleFramePlus):
                         data = y[xidx].astype(complex, copy=False)
                         v.plot(x[xidx], data)
 
-    def onExportEdge(self, evt):
-        from petram.sol.evaluators import area_tri
-
+    def make_export_data_edge(self, do_integ):
         value = self.elps['Edge'] .GetValue()
         refine = int(value[6])
         data, data_x, battrs = self.eval_edge(mode='integ', refine=refine)
@@ -1387,7 +1309,68 @@ class DlgPlotSol(SimpleFramePlus):
             xverts = np.hstack([v.flatten() for v, c, a in data_x]).flatten()
             data['xvertices'] = xverts
             data['xdata'] = cxdata
-        self.export_to_piScope_shell(data, 'edge_data')
+
+        if do_integ:
+            if data_x is not None:
+                x = data['xdata']
+            else:
+                x = verts
+            xx, idx = np.unique(x, return_index=True)
+
+            from scipy.integrate import simpson
+            data = {"integ", simpson(xx, cdata[idx])}
+        return data
+
+    def onExportEdge(self, evt):
+        value = self.elps['Edge'] .GetValue()
+        average = value[7]
+
+        from petram.pi.dlg_export_opts import ask_export_opts
+        opts = ask_export_opts(self, support_integ=average)
+
+        if opts is None:
+            return
+
+        do_integ = opts[0] if average else False
+        do_loop = opts[-1]
+
+        if do_loop:
+            remote, base, subs = self.get_current_choices()
+            all_data = []
+
+            bk = (self.local_soldir,
+                  self.local_solsubdir,
+                  self.config['cs_soldir'],
+                  self.config['cs_solsubdir'],)
+
+            for s in subs:
+                if s.strip() == '':
+                    continue
+                if remote:
+                    self.config['cs_soldir'] = base
+                    self.config['cs_solsubdir'] = s
+                else:
+                    self.local_soldir = base
+                    self.local_solsubdir = s
+                    self.load_sol_if_needed()
+
+                data = self.make_export_data_edge(do_integ)
+                data["subdirs"] = s
+                all_data.append(data)
+
+            self.local_soldir = bk[0]
+            self.local_solsubdir = bk[1]
+            self.config['cs_soldir'] = bk[2]
+            self.config['cs_solsubdir'] = bk[3]
+            # if not remote:
+            #    self.load_sol_if_needed()
+
+        else:
+            all_data = self.make_export_data_edge(do_integ)
+
+        if all_data is None or len(all_data) == 0:
+            return  # nothine to export
+        self.export_to_piScope_shell(all_data, 'edge_data')
 
     def get_attrs_field_Edge(self):
         return 2
@@ -1530,6 +1513,7 @@ class DlgPlotSol(SimpleFramePlus):
         viewer.lighting(light=0.5)
         viewer.update(True)
 
+    '''
     def onIntegBdr(self, evt):
         value = self.elps['Bdr'] .GetValue()
         expr = str(value[0]).strip()
@@ -1550,17 +1534,83 @@ class DlgPlotSol(SimpleFramePlus):
         print("Expression : " + expr)
         print("Boundary Index :" + str(battrs))
         print("Value : " + str(integ))
+    '''
 
-    def onExportBdr(self, evt):
+    def make_export_data_bdr(self, do_integ, verbose=False):
         from petram.sol.evaluators import area_tri
         data, battrs = self.eval_bdr(mode='integ')
         if data is None:
             return
 
         verts, cdata, adata = data[0]
-        data = {'vertices': verts, 'data': cdata, 'index': adata}
-        self.export_to_piScope_shell(data, 'bdr_data')
+        if not do_integ:
+            data = {'vertices': verts, 'data': cdata, 'index': adata}
+        else:
+            integ = 0.0
+            for verts, cdata, adata in data:
+                v = verts[adata]
+                c = cdata[adata, ...]
+                area = area_tri(v)
+                integ += np.sum(area * np.mean(c, 1))
+            data = {"integ": integ}
+            if verbose:
+                print("Area Ingegration")
+                print("Expression : " + expr)
+                print("Boundary Index :" + str(battrs))
+                print("Value : " + str(integ))
 
+        return data
+
+    def onExportBdr(self, evt):
+        value = self.elps['Edge'] .GetValue()
+        average = value[7]
+
+        from petram.pi.dlg_export_opts import ask_export_opts
+        opts = ask_export_opts(self, support_integ=average)
+
+        if opts is None:
+            return
+
+        do_integ = opts[0] if average else False
+        do_loop = opts[-1]
+
+        if do_loop:
+            remote, base, subs = self.get_current_choices()
+            all_data = []
+
+            bk = (self.local_soldir,
+                  self.local_solsubdir,
+                  self.config['cs_soldir'],
+                  self.config['cs_solsubdir'],)
+
+            for s in subs:
+                if s.strip() == '':
+                    continue
+                if remote:
+                    self.config['cs_soldir'] = base
+                    self.config['cs_solsubdir'] = s
+                else:
+                    self.local_soldir = base
+                    self.local_solsubdir = s
+                    self.load_sol_if_needed()
+
+                data = self.make_export_data_bdr(do_integ)
+                data["subdirs"] = s
+                all_data.append(data)
+
+            self.local_soldir = bk[0]
+            self.local_solsubdir = bk[1]
+            self.config['cs_soldir'] = bk[2]
+            self.config['cs_solsubdir'] = bk[3]
+
+        else:
+            all_data = self.make_export_data_bdr(do_integ)
+
+        if all_data is None or len(all_data) == 0:
+            return  # nothine to export
+        self.export_to_piScope_shell(all_data, 'bdr_data')
+
+    """
     @run_in_piScope_thread
     def onExportR1Bdr(self, evt):
         remote, base, subs = self.get_current_choices()
@@ -1590,6 +1640,7 @@ class DlgPlotSol(SimpleFramePlus):
                 'subdirs': subdirs}
         self.post_threadend(self.export_to_piScope_shell,
                             data, 'bdr_data')
+    """
 
     def onExportR2Bdr(self, evt):
         wx.CallAfter(
