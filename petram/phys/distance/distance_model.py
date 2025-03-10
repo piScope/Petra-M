@@ -232,10 +232,8 @@ class Distance(PhysModule):
         from petram.helper.variables import add_coordinates
         from petram.helper.variables import add_scalar
         from petram.helper.variables import add_components
-        from petram.helper.variables import add_expression
         from petram.helper.variables import add_surf_normals
-        from petram.helper.variables import add_constant
-        from petram.helper.variables import GFScalarVariable
+        from petram.helper.variables import GFScalarVariable, PlaceholderVariable
 
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
         suffix = self.dep_vars_suffix
@@ -255,7 +253,10 @@ class Distance(PhysModule):
         elif name == dep_vars[1]:
             for k, suffix in enumerate(ind_vars):
                 nn = name + suffix
-                v[nn] = GFScalarVariable(solr, soli, comp=k+1)
+                if solr is not None:
+                    v[nn] = GFScalarVariable(solr, soli, comp=k+1)
+                else:
+                    v[nn] = PlaceholderVariable(name)
         else:
             pass
         return v

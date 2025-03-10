@@ -94,14 +94,22 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('Preconditioner')
 class PreconditionerBlock(object):
     def __init__(self, func):
         self.func = func
+        self.prc = None
+        self.blockname = ''
 
     def set_param(self, prc, blockname):
         self.prc = prc
         self.blockname = blockname
 
     def __call__(self, *args, **kwargs):
-        kwargs['prc'] = self.prc
-        kwargs['blockname'] = self.blockname
+        if 'prc' not in kwargs:
+            assert self.prc is not None, "prc is not set. use set_param or prc="
+            kwargs['prc'] = self.prc
+
+        if 'blockname' not in kwargs:
+            assert self.blockname is not None, "blockname is not set. use set_param or blockname="
+            kwargs['blockname'] = self.blockname
+
         return self.func(*args, **kwargs)
 
 
@@ -130,6 +138,12 @@ class PrcCommon(object):
 
     def get_col_by_name(self, name):
         return self.name.index(name)
+
+    def get_idx_by_name(self, name):
+        return self.name.index(name)
+
+    def get_name_by_idx(self, idx):
+        return self.name[idx]
 
     def get_operator_block(self, r, c):
         # if linked_op exists (= op is set from python).
@@ -284,6 +298,85 @@ def _create_smoother(name, mat):
     return smoother
 
 
+def complex_smoother(name, m_r, m_i, conv, blockOffsets):
+    import numpy as np
+    import scipy.sparse as sp
+
+    if use_parallel:
+        from mfem.common.parcsr_extra import ToHypreParCSR, ToScipyCoo
+        from mfem.common.chypre import CHypreMat
+        d_r = mfem.Vector()
+        d_i = mfem.Vector()
+
+        rows = m_r.GetRowPartArray()
+
+        mm = ToScipyCoo(m_r) + 1j*ToScipyCoo(m_i)
+        m, n = mm.shape
+
+        mat = sp.lil_matrix((m, n), dtype=np.complex128)
+        for i in range(m):
+            mat[i, rows[0]+i] = mm[i, rows[0]+i]
+
+        scale = CHypreMat(mat.real.tocsr(), mat.imag.tocsr())
+        mat = CHypreMat(m_r, m_i)
+
+        sp_mat = (mat.dot(scale)).real
+        gsca = scale.real
+        gscb = scale.imag
+
+    else:
+        from mfem.common.sparse_utils import sparsemat_to_scipycsr
+
+        mm_r = sparsemat_to_scipycsr(m_r, np.float64)
+        mm_i = sparsemat_to_scipycsr(m_i, np.float64)
+
+        d_r = mm_r.diagonal()
+        d_i = mm_i.diagonal()
+
+        scale = sp.diags(1./(d_r + 1j*d_i))
+        mat = (mm_r + 1j*mm_i).dot(scale).real
+
+        sp_mat = mfem.SparseMatrix(mat)
+        gsca = mfem.SparseMatrix(scale.real.tocsr())
+        gscb = mfem.SparseMatrix(scale.imag.tocsr())
+
+    hermitian = (conv == mfem.ComplexOperator.HERMITIAN)
+    blk = mfem.ComplexOperator(gsca,
+                               gscb,
+                               False,
+                               False,
+                               hermitian)
+
+    blk._real_operator = gsca
+    blk._imag_operator = gscb
+
+    smoother = mfem.BlockDiagonalPreconditioner(blockOffsets)
+    pc_r = _create_smoother(name, sp_mat)
+    pc_i = mfem.ScaledOperator(pc_r,
+                               1 if conv == mfem.ComplexOperator.HERMITIAN else -1)
+
+    smoother.SetDiagonalBlock(0, pc_r)
+    smoother.SetDiagonalBlock(1, pc_i)
+    smoother._smoothers = (pc_r, pc_i, sp_mat)
+
+    class ComplexPreconditioner(mfem.Solver):
+        def __init__(self, smoother, blk):
+            self._smoother = smoother
+            self._blk = blk
+            self._tmp = mfem.Vector()
+            mfem.Solver.__init__(self,
+                                 smoother.Height(),
+                                 smoother.Width(),)
+
+        def Mult(self, x, y):
+            self._tmp.SetSize(x.Size())
+            self._blk.Mult(x, self._tmp)
+            self._smoother.Mult(self._tmp, y)
+
+    smoother = ComplexPreconditioner(smoother, blk)
+    return smoother
+
+
 def mfem_smoother(name, **kwargs):
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
@@ -301,17 +394,24 @@ def mfem_smoother(name, **kwargs):
         blockOffsets[2] = mat.Height()//2
         blockOffsets.PartialSum()
 
-        smoother = mfem.BlockDiagonalPreconditioner(blockOffsets)
-
         m_r = mat._real_operator
-        #m_i = mat._imag_operator
-        pc_r = _create_smoother(name, m_r)
-        pc_i = mfem.ScaledOperator(pc_r,
-                                   1 if conv == mfem.ComplexOperator.HERMITIAN else -1)
+        m_i = mat._imag_operator
 
-        smoother.SetDiagonalBlock(0, pc_r)
-        smoother.SetDiagonalBlock(1, pc_i)
-        smoother._smoothers = (pc_r, pc_i)
+        use_new_way = True
+        if use_new_way:
+            #
+            #  scales matrix so that the diagnal element is real.
+            #
+            smoother = complex_smoother(name, m_r, m_i, conv, blockOffsets)
+        else:
+            smoother = mfem.BlockDiagonalPreconditioner(blockOffsets)
+            pc_r = _create_smoother(name, m_r)
+            pc_i = mfem.ScaledOperator(pc_r,
+                                       1 if conv == mfem.ComplexOperator.HERMITIAN else -1)
+
+            smoother.SetDiagonalBlock(0, pc_r)
+            smoother.SetDiagonalBlock(1, pc_i)
+            smoother._smoothers = (pc_r, pc_i)
 
     else:
         smoother = _create_smoother(name, mat)
@@ -444,6 +544,7 @@ def ams(singular=False, **kwargs):
 
 @prc.block
 def boomerAMG(**kwargs):
+    assert use_parallel, "boomerAMG works only in parallel"
     prc = kwargs.pop('prc')
     blockname = kwargs.pop('blockname')
     print_level = kwargs.pop('print_level', -1)
@@ -451,6 +552,9 @@ def boomerAMG(**kwargs):
     row = prc.get_row_by_name(blockname)
     col = prc.get_col_by_name(blockname)
     mat = prc.get_operator_block(row, col)
+
+    if isinstance(mat, mfem.ComplexHypreParMatrix):
+        mat = mat.GetSystemMatrix()
 
     inv_boomeramg = mfem.HypreBoomerAMG(mat)
     inv_boomeramg.SetPrintLevel(print_level)
@@ -610,7 +714,7 @@ def pcg(atol=0.0, rtol=0.0, max_num_iter=5,
     if use_parallel:
         pcg = mfem.CGSolver(MPI.COMM_WORLD)
     else:
-        pgc = mfem.CGSolver()
+        pcg = mfem.CGSolver()
     pcg.iterative_mode = False
     pcg.SetRelTol(rtol)
     pcg.SetAbsTol(atol)
@@ -676,7 +780,6 @@ class GenericPreconditioner(mfem.Solver, PrcCommon):
         return self.mult_func(self, *args)
 
     def SetOperator(self, opr):
-        opr = mfem.Opr2BlockOpr(opr)
         self._opr = weakref.ref(opr)
         self.offset = opr.RowOffsets()
         return self.setoperator_func(self, opr)
