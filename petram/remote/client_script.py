@@ -9,6 +9,8 @@ import base64
 import traceback
 import subprocess as sp
 
+from petram.pi.dlg_submit_job import get_model_remote
+
 
 def communicate_with_timeout(p,
                              maxtimeout=np.inf,
@@ -166,7 +168,7 @@ def send_file(model, progdlg, skip_mesh=False, subdir=''):
     model_dir = model.owndir()
     param = model.param
 
-    remote = param.eval('remote')
+    remote = get_model_remote(param)
     host = param.eval('host')
     sol = param.eval('sol')
     sol_dir = sol.owndir()
@@ -238,7 +240,7 @@ def retrieve_files(model, rhs=False, matrix=False, sol_dir=None):
     import os
 
     host = param.eval('host')
-    remote = param.eval('remote')
+    remote = get_model_remote(param)
     rwdir = remote['rwdir']
 
     get_files(host, 'solr')
@@ -335,7 +337,7 @@ def interpret_job_queue_file(lines):
 def submit_job(model, progdlg=None, sh_command="$PetraM/bin/launch_petram.sh"):
     param = model.param
     host = param.eval('host')
-    remote = param.eval('remote')
+    remote = get_model_remote(param)
     rwdir = remote['rwdir']
     hostname = host.getvar('server')
     user = host.getvar('user')
@@ -351,10 +353,12 @@ def submit_job(model, progdlg=None, sh_command="$PetraM/bin/launch_petram.sh"):
 
     adv = str(remote["adv_opts"])
     adv = "\n".join([x.strip()
-                    for x in adv.split("\n") if not x.strip().startswith("#")])
+                     for x in adv.split("\n") if not x.strip().startswith("#")])
     env = str(remote["env_opts"])
     env = "\n".join([x.strip()
-                    for x in env.split("\n") if not x.strip().startswith("#")])
+                     for x in env.split("\n") if not x.strip().startswith("#")])
+
+    cmd = str(remote["cmd"])
 
     lk = []
     for k, v in remote["log_keywords"]:
@@ -371,6 +375,7 @@ def submit_job(model, progdlg=None, sh_command="$PetraM/bin/launch_petram.sh"):
     lt = base64.b64encode(lt.encode()).decode()
     env = base64.b64encode(env.encode()).decode()
     adv = base64.b64encode(adv.encode()).decode()
+    cmd = base64.b64encode(cmd.encode()).decode()
 
     q1 = q.strip().split("(")[0]
     q2 = "" if q.find("(") == -1 else "(".join(q.strip().split("(")[1:])[:-1]
@@ -386,6 +391,8 @@ def submit_job(model, progdlg=None, sh_command="$PetraM/bin/launch_petram.sh"):
         exe = exe + ' -A ' + adv
     if env != "":
         exe = exe + ' -E ' + env
+    if cmd != "":
+        exe = exe + ' -C ' + cmd
 
     command = 'cd '+rwdir+';'+exe
     p = launch_ssh_command(model, command)

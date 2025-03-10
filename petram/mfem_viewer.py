@@ -1632,6 +1632,8 @@ class MFEMViewer(BookViewer):
                   'sol', None)
         host : points host setting object
         '''
+        from petram.remote.dlg_submit_job import default_remote
+
         remote = self.model.param.eval('remote')
         if remote is not None:
             hostname = remote['name']
@@ -1649,9 +1651,8 @@ class MFEMViewer(BookViewer):
                 no_existing_c = (len(names) == 0)
 
         if no_existing_c:
-            remote = {'name': '',
-                      'rwdir': '',
-                      'sol': ''}
+            remote = default_remote.copy()
+
             ret, new_name = dialog.textentry(self,
                                              "Enter the name of new connection",
                                              "Add Connection",
@@ -1672,9 +1673,8 @@ class MFEMViewer(BookViewer):
             if not ret:
                 return
             if (ret and new_name == "New...") or c.get_child(name=new_name) is None:
-                remote = {'name': '',
-                          'rwdir': '',
-                          'sol': ''}
+                remote = default_remote.copy()
+
                 if new_name == "New...":
                     ret, new_name = dialog.textentry(self,
                                                      "Enter the name of new connection",
@@ -1723,19 +1723,13 @@ class MFEMViewer(BookViewer):
                                  traceback=traceback.format_exc())
             return
 
-        remote = self.model.param.eval('remote')
+        from petram.pi.dlg_submit_job import (get_model_remote,
+                                              get_job_submisson_setting)
+        from petram.remote.client_script import get_job_queue
+
+        remote = get_model_remote(self.model.param)
         if remote is None:
             return
-
-        from petram.pi.dlg_submit_job import get_defaults
-        values, keys = get_defaults()
-
-        for i, key in enumerate(keys):
-            if remote.get(key, None) is not None:
-                values[i] = remote.get(key, None)
-
-        from petram.pi.dlg_submit_job import get_job_submisson_setting
-        from petram.remote.client_script import get_job_queue
 
         dlg = progressbar(self, 'Checking queue config...',
                           'In progress', 5,
@@ -1761,9 +1755,8 @@ class MFEMViewer(BookViewer):
                           center_on_parent=True,)
             return
 
-        setting = get_job_submisson_setting(self, remote['name'].upper(),
-                                            value=values,
-                                            queues=q)
+        setting = get_job_submisson_setting(self, remote, q)
+
         if len(setting) == 0:
             return
 

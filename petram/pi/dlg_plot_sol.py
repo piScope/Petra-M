@@ -1154,31 +1154,6 @@ class DlgPlotSol(SimpleFramePlus):
         m = getattr(self, 'onExport' + t)
 
         m(evt)
-    '''
-    def onExport2(self, evt):
-        t = self.get_selected_plotmode()
-        m = getattr(self, 'onExport2' + t)
-        m(evt)
-
-    def onExportR(self, evt):
-        elp = self.get_selected_elp()
-        elp.AddCurrentToHistory()
-
-        t = self.get_selected_plotmode()
-        m1 = getattr(self, 'onExportR1' + t)
-        m2 = getattr(self, 'onExportR2' + t)
-        menu = wx.Menu()
-        f1 = menu.Append(
-            wx.ID_ANY,
-            'All Subdirectories',
-            'loop over subdirectoris')
-        self.Bind(wx.EVT_MENU, m1, f1)
-        f2 = menu.Append(wx.ID_ANY, 'Expand exp(-jwt)', '')
-        self.Bind(wx.EVT_MENU, m2, f2)
-        evt.GetEventObject().PopupMenu(menu, evt.GetPosition())
-        menu.Destroy()
-        evt.Skip()
-    '''
 
     def get_selected_elp(self):
         t = self.nb.GetPageText(self.nb.GetSelection())
@@ -1343,7 +1318,7 @@ class DlgPlotSol(SimpleFramePlus):
             xx, idx = np.unique(x, return_index=True)
 
             from scipy.integrate import simpson
-            data = simpson(xx, cdata[idx])
+            data = {"integ", simpson(xx, cdata[idx])}
         return data
 
     def onExportEdge(self, evt):
@@ -1358,8 +1333,6 @@ class DlgPlotSol(SimpleFramePlus):
 
         do_integ = opts[0] if average else False
         do_loop = opts[-1]
-
-        print(do_integ)
 
         if do_loop:
             remote, base, subs = self.get_current_choices()
@@ -1382,7 +1355,8 @@ class DlgPlotSol(SimpleFramePlus):
                     self.load_sol_if_needed()
 
                 data = self.make_export_data_edge(do_integ)
-                all_data.append({"subdirs": s, "data": data})
+                data["subdirs"] = s
+                all_data.append(data)
 
             self.local_soldir = bk[0]
             self.local_solsubdir = bk[1]
@@ -1539,6 +1513,7 @@ class DlgPlotSol(SimpleFramePlus):
         viewer.lighting(light=0.5)
         viewer.update(True)
 
+    '''
     def onIntegBdr(self, evt):
         value = self.elps['Bdr'] .GetValue()
         expr = str(value[0]).strip()
@@ -1559,17 +1534,83 @@ class DlgPlotSol(SimpleFramePlus):
         print("Expression : " + expr)
         print("Boundary Index :" + str(battrs))
         print("Value : " + str(integ))
+    '''
 
-    def onExportBdr(self, evt):
+    def make_export_data_bdr(self, do_integ, verbose=False):
         from petram.sol.evaluators import area_tri
         data, battrs = self.eval_bdr(mode='integ')
         if data is None:
             return
 
         verts, cdata, adata = data[0]
-        data = {'vertices': verts, 'data': cdata, 'index': adata}
-        self.export_to_piScope_shell(data, 'bdr_data')
+        if not do_integ:
+            data = {'vertices': verts, 'data': cdata, 'index': adata}
+        else:
+            integ = 0.0
+            for verts, cdata, adata in data:
+                v = verts[adata]
+                c = cdata[adata, ...]
+                area = area_tri(v)
+                integ += np.sum(area * np.mean(c, 1))
+            data = {"integ": integ}
+            if verbose:
+                print("Area Ingegration")
+                print("Expression : " + expr)
+                print("Boundary Index :" + str(battrs))
+                print("Value : " + str(integ))
 
+        return data
+
+    def onExportBdr(self, evt):
+        value = self.elps['Edge'] .GetValue()
+        average = value[7]
+
+        from petram.pi.dlg_export_opts import ask_export_opts
+        opts = ask_export_opts(self, support_integ=average)
+
+        if opts is None:
+            return
+
+        do_integ = opts[0] if average else False
+        do_loop = opts[-1]
+
+        if do_loop:
+            remote, base, subs = self.get_current_choices()
+            all_data = []
+
+            bk = (self.local_soldir,
+                  self.local_solsubdir,
+                  self.config['cs_soldir'],
+                  self.config['cs_solsubdir'],)
+
+            for s in subs:
+                if s.strip() == '':
+                    continue
+                if remote:
+                    self.config['cs_soldir'] = base
+                    self.config['cs_solsubdir'] = s
+                else:
+                    self.local_soldir = base
+                    self.local_solsubdir = s
+                    self.load_sol_if_needed()
+
+                data = self.make_export_data_bdr(do_integ)
+                data["subdirs"] = s
+                all_data.append(data)
+
+            self.local_soldir = bk[0]
+            self.local_solsubdir = bk[1]
+            self.config['cs_soldir'] = bk[2]
+            self.config['cs_solsubdir'] = bk[3]
+
+        else:
+            all_data = self.make_export_data_bdr(do_integ)
+
+        if all_data is None or len(all_data) == 0:
+            return  # nothine to export
+        self.export_to_piScope_shell(all_data, 'bdr_data')
+
+    """
     @run_in_piScope_thread
     def onExportR1Bdr(self, evt):
         remote, base, subs = self.get_current_choices()
@@ -1599,6 +1640,7 @@ class DlgPlotSol(SimpleFramePlus):
                 'subdirs': subdirs}
         self.post_threadend(self.export_to_piScope_shell,
                             data, 'bdr_data')
+    """
 
     def onExportR2Bdr(self, evt):
         wx.CallAfter(

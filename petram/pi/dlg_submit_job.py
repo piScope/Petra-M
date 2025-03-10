@@ -18,10 +18,11 @@ def elp_setting(log_keywords):
           ["Note", None, 2235, {'nlines': 3}],
           ["Keywords", None, 36, {'col': 3, 'labels': list(log_keywords)}],
           ["Notification", "None", 4, setting1],
-#          ["-> Adv. options", None, None, {"no_tlw_resize": True}],
+          #          ["-> Adv. options", None, None, {"no_tlw_resize": True}],
           ["-> Adv. options", None, None, {"tlb_resize_samewidth": True}],
-#          ["-> Adv. options", None, None, {"no_tlw_resize": False}],
-          ["Run ", None, 2235, {'nlines': 3}],
+          #          ["-> Adv. options", None, None, {"no_tlw_resize": False}],
+          ["Cmd. ", "sbatch", 0, {}],
+          ["Run ",  None, 2235, {'nlines': 3}],
           ["Env. ", None, 2235, {'nlines': 2}],
           ["<-"],
           [None, False, 3, {"text": "Skip sending mesh file"}],
@@ -30,11 +31,12 @@ def elp_setting(log_keywords):
 
 
 values = ['1', '1', '1', '00:10:00', 'regular(PROJ_19700521)', '', '',
-          '', '', "None", '', '', False, False, ]
+          '', '', "None", 'sbatch', '', '', False, False, ]
 
 keys = ['num_nodes', 'num_cores', 'num_openmp', 'walltime',
         'queue', 'petramver', 'rwdir',
-        'log_txt', 'log_keywords', 'notification', 'adv_opts', 'env_opts', 'skip_mesh',
+        'log_txt', 'log_keywords', 'notification',
+        'cmd', 'adv_opts', 'env_opts', 'skip_mesh',
         'retrieve_files']
 
 def_queues = {'type': 'SLURM',
@@ -44,6 +46,20 @@ def_queues = {'type': 'SLURM',
 
 def get_defaults():
     return values[:], keys[:]
+
+
+default_remote = {x: y for x, y in zip(keys, values)}
+
+
+def get_model_remote(param):
+    remote = param.getvar('remote')
+    if remote is None:
+        return None
+
+    for k in default_remote:
+        if k not in remote:
+            remote[k] = default_remote[k]
+    return remote
 
 
 class dlg_jobsubmission(wx.Dialog):
@@ -112,13 +128,14 @@ class dlg_jobsubmission(wx.Dialog):
                 if name in log_keywords:
                     value8[log_keywords.index(name)] = v
             value[8] = value8
-
             tmp = [y for x, y in queues['versions']
                    [value[5]] if x == 'srun_option']
-            value[10] = '\n'.join(tmp)
+            if value[11] == "":
+                value[11] = '\n'.join(tmp)
             tmp = [y for x, y in queues['versions']
                    [value[5]] if x == 'env_option']
-            value[11] = '\n'.join(tmp)
+            if value[12] == "":
+                value[12] = '\n'.join(tmp)
 
             self.elp.SetValue(value)
 
@@ -185,10 +202,10 @@ class dlg_jobsubmission(wx.Dialog):
             #value[10] = '\n'.join(tmp)
             tmp = [y for x, y in self._queues['versions']
                    [value[5]] if x == 'srun_option']
-            value[10] = '\n'.join(tmp)
+            value[11] = '\n'.join(tmp)
             tmp = [y for x, y in self._queues['versions']
                    [value[5]] if x == 'env_option']
-            value[11] = '\n'.join(tmp)
+            value[12] = '\n'.join(tmp)
 
             self.elp.SetValue(value)
             self.value = value
@@ -196,8 +213,14 @@ class dlg_jobsubmission(wx.Dialog):
         evt.Skip()
 
 
-def get_job_submisson_setting(parent, servername='', value=None,
-                              queues=None):
+def get_job_submisson_setting(parent, remote, queues):
+
+    servername = remote['name'].upper()
+
+    value = values[:]
+    for i, key in enumerate(keys):
+        if key in remote:
+            value[i] = remote[key]
 
     if value[6] == '':
         from petram.remote.client_script import wdir_from_datetime
@@ -224,9 +247,10 @@ def get_job_submisson_setting(parent, servername='', value=None,
             value["log_txt"] = dlg.value[7]
             value["log_keywords"] = dlg.value[8]
             value["notification"] = dlg.value[9]
-            value["adv_opts"] = dlg.value[10]
-            value["env_opts"] = dlg.value[11]
-            value["skip_mesh"] = dlg.value[12]
+            value["cmd"] = dlg.value[10]
+            value["adv_opts"] = dlg.value[11]
+            value["env_opts"] = dlg.value[12]
+            value["skip_mesh"] = dlg.value[13]
         else:
             pass
     finally:
