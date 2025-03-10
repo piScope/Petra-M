@@ -1653,7 +1653,7 @@ class MFEMViewer(BookViewer):
                   'sol', None)
         host : points host setting object
         '''
-        from petram.remote.dlg_submit_job import default_remote
+        from petram.pi.dlg_submit_job import default_remote
 
         remote = self.model.param.eval('remote')
         if remote is not None:
@@ -1746,7 +1746,10 @@ class MFEMViewer(BookViewer):
 
         from petram.pi.dlg_submit_job import (get_model_remote,
                                               get_job_submisson_setting)
-        from petram.remote.client_script import get_job_queue
+        from petram.remote.client_script import (prepare_remote_dir,
+                                                 send_file,
+                                                 get_job_queue,
+                                                 submit_job)
 
         remote = get_model_remote(self.model.param)
         if remote is None:
@@ -1786,7 +1789,6 @@ class MFEMViewer(BookViewer):
         dlg.Show()
         wx.GetApp().Yield()
 
-        from petram.remote.client_script import prepare_remote_dir
         # if remote['rwdir'] != setting['rwdir']:
         cancelled = prepare_remote_dir(self.model,
                                        setting['rwdir'],
@@ -1812,8 +1814,6 @@ class MFEMViewer(BookViewer):
         self.model.scripts.helpers.save_model(os.path.join(sol.owndir(),
                                                            'model.pmfm'),
                                               meshfile_relativepath=True)
-
-        from petram.remote.client_script import send_file, submit_job
 
         dlg.Update(2, newmsg="Sending file")
         wx.GetApp().Yield()

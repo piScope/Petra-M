@@ -1279,7 +1279,7 @@ class DlgPlotSol(SimpleFramePlus):
                             cls=cls, expr=expr, expr_x=expr_x,
                             force_float=(not value[4]))
 
-
+    """
     def onExportR1Edge(self, evt):
         remote, base, subs = self.get_current_choices()
         value = self.elps['Edge'] .GetValue()
@@ -1329,7 +1329,7 @@ class DlgPlotSol(SimpleFramePlus):
             title='Error',
             traceback='Exporing all time slice for frequency \ndomain analysis is not available')
         wx.CallAfter(self.set_title_no_status)
-
+    """
 
     def make_plot_edge(self, data, battrs,
                        data_x=None, cls=None,
@@ -1387,6 +1387,7 @@ class DlgPlotSol(SimpleFramePlus):
     def make_export_data_edge(self, do_integ):
         value = self.elps['Edge'] .GetValue()
         refine = int(value[6][1][0])
+
         data, data_x, battrs = self.eval_edge(mode='integ', refine=refine)
         if data is None:
             return
@@ -1416,7 +1417,7 @@ class DlgPlotSol(SimpleFramePlus):
 
     def onExportEdge(self, evt):
         value = self.elps['Edge'] .GetValue()
-        average = value[7]
+        average = value[6][0]
 
         from petram.pi.dlg_export_opts import ask_export_opts
         opts = ask_export_opts(self, support_integ=average)
@@ -1637,7 +1638,11 @@ class DlgPlotSol(SimpleFramePlus):
 
     def make_export_data_bdr(self, do_integ, verbose=False):
         from petram.sol.evaluators import area_tri
-        data, battrs = self.eval_bdr(mode='integ')
+
+        value = self.elps['Edge'] .GetValue()
+        refine = int(value[9][1][0])
+
+        data, battrs = self.eval_bdr(mode='integ', refine=refine)
         if data is None:
             return
 
@@ -1661,11 +1666,11 @@ class DlgPlotSol(SimpleFramePlus):
         return data
 
     def onExportBdr(self, evt):
-        value = self.elps['Edge'] .GetValue()
-        average = value[7]
+        #average = (self.elps['Bdr'].GetValue())[9][0]
 
         from petram.pi.dlg_export_opts import ask_export_opts
-        opts = ask_export_opts(self, support_integ=average)
+        #opts = ask_export_opts(self, support_integ=average)
+        opts = ask_export_opts(self)
 
         if opts is None:
             return
@@ -1739,7 +1744,7 @@ class DlgPlotSol(SimpleFramePlus):
                 'subdirs': subdirs}
         self.post_threadend(self.export_to_piScope_shell,
                             data, 'bdr_data')
-    """
+
 
     def onExportR2Bdr(self, evt):
         wx.CallAfter(
@@ -1749,6 +1754,7 @@ class DlgPlotSol(SimpleFramePlus):
             title='Error',
             traceback='Exporing all time slice for frequency \ndomain analysis is not available')
         wx.CallAfter(self.set_title_no_status)
+    """
 
     def get_attrs_field_Bdr(self):
         return 1
