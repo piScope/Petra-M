@@ -30,7 +30,7 @@ def elp_setting(log_keywords):
     return ll
 
 
-from petram.remote.rempte_params import *
+from petram.remote.remote_params import *
 
 def get_model_remote(param):
     remote = param.getvar('remote')
