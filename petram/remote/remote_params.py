@@ -1,3 +1,12 @@
+#
+#
+#  variables loaded on both client and server sides where wx is not installed
+#
+#  these parameters are set here, in order to avoid an error when importing wx
+#  on a server
+#
+#
+
 values = ['1', '1', '1', '00:10:00', 'regular(PROJ_19700521)', '', '',
           '', '', "None", 'sbatch', '', '', False, False, ]
 
