@@ -26,3 +26,15 @@ def get_defaults():
 
 
 default_remote = {x: y for x, y in zip(keys, values)}
+
+def get_model_remote(param):
+    remote = param.getvar('remote')
+    if remote is None:
+        return None
+
+    for k in default_remote:
+        if k not in remote:
+            remote[k] = default_remote[k]
+    return remote
+
+
