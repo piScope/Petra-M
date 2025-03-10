@@ -9,8 +9,7 @@ import base64
 import traceback
 import subprocess as sp
 
-from petram.pi.dlg_submit_job import get_model_remote
-
+from petram.remote.rempte_params import *
 
 def communicate_with_timeout(p,
                              maxtimeout=np.inf,
