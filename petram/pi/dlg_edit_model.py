@@ -1002,6 +1002,40 @@ class DlgEditModel(SimpleFramePlus):
 
         return False, -1
 
+    def refresh_elp(self):
+        # this is meant to call validator
+        if self.nb.GetPageCount() == 0:
+            return False, -1
+
+        nbsel = self.nb.GetSelection()
+
+        p1children = self.p1sizer.GetChildren()
+        if len(p1children) > 0 and nbsel == 0:
+            elp1 = p1children[0].GetWindow()
+            v1 = elp1.GetValue()
+            elp1.SetValue(v1)
+
+        if nbsel == 1 and mm.has_2nd_panel:
+            p2children = self.p2sizer.GetChildren()
+            if len(p2children) > 0:
+                elp2 = p2children[0].GetWindow()
+                v2 = elp2.GetValue()
+                elp2.SetValue(v2)
+
+        if nbsel == 2 and mm.has_3rd_panel:
+            p3children = self.p3sizer.GetChildren()
+            if len(p3children) > 0:
+                elp3 = p3children[0].GetWindow()
+                v3 = elp3.GetValue()
+                elp3.SetValue(v3)
+
+        if nbsel == 3 and mm.has_4th_panel:
+            p4children = self.p4sizer.GetChildren()
+            if len(p4children) > 0:
+                elp4 = p4children[0].GetWindow()
+                v4 = elp4.GetValue()
+                elp4.SetValue(v4)
+
     def OnEL_Changed(self, evt):
 
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
