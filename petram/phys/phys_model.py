@@ -788,6 +788,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if not isinstance(self, (Bdry, Domain)):
             return []
 
+        self.vt.preprocess_params(self)
+        self.vt3.preprocess_params(self)
+
         p = self.get_root_phys()
         ind_vars = [x.strip() for x in p.ind_vars.split(',')]
         suffix = p.dep_vars_suffix
