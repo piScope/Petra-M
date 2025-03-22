@@ -1576,6 +1576,9 @@ class MFEMViewer(BookViewer):
                        title='Passed',
                        center_on_screen=True)
 
+        if self.editdlg is not None:
+            self.editdlg.refresh_elp()
+
         evt.Skip()
 
     def onClearSol(self, evt):

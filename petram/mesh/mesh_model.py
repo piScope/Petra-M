@@ -83,6 +83,39 @@ class MeshGenerator(Mesh):
         m = self.run(mesh=mesh)
         return m
 
+    def check_xxx_array(self, txt, param, w, xxx=int):
+        g = self._global_ns.copy()
+
+        try:
+            xx = eval(txt, g, self._local_ns)
+            xx = np.atleast_1d(xx)
+            val = [xxx(x) for x in xx]
+            return True
+        except BaseException:
+            return False
+
+    def check_int_array(self, txt, param, w):
+        return self.check_xxx_array(txt, param, w, xxx=int)
+
+    def check_float_array(self, txt, param, w):
+        return self.check_xxx_array(txt, param, w, xxx=float)
+
+    def check_xxx(self, txt, param, w, xxx=int):
+        g = self._global_ns.copy()
+
+        try:
+            xx = eval(txt, g, self._local_ns)
+            val = xxx(xx)
+            return True
+        except BaseException:
+            return False
+
+    def check_float(self, txt, param, w):
+        return self.check_xxx(txt, param, w, xxx=float)
+
+    def check_int(self, txt, param, w):
+        return self.check_xxx(txt, param, w, xxx=int)
+
     @abstractmethod
     def run(self, mesh=None):
         pass
@@ -590,31 +623,10 @@ class Mesh1D(MeshGenerator):
         if not hasattr(self, "_mesh_char"):
             self._mesh_char = ''
 
-        def check_int_array(txt, param, w):
-            try:
-                val = [int(x) for x in txt.split(',')]
-                return True
-            except BaseException:
-                return False
-
-        def check_float_array(txt, param, w):
-            try:
-                val = [float(x) for x in txt.split(',')]
-                return True
-            except BaseException:
-                return False
-
-        def check_float(txt, param, w):
-            try:
-                val = float(txt)
-                return True
-            except BaseException:
-                return False
-
-        p1 = [["Length", self.length_txt, 0, {"validator": check_float_array}],
+        p1 = [["Length", self.length_txt, 0, {"validator": self.check_float_array}],
               ["N segments", self.nsegs_txt, 0, {
-                  "validator": check_int_array}],
-              ["x0", self.mesh_x0_txt, 0, {"validator": check_float}],
+                  "validator": self.check_int_array}],
+              ["x0", self.mesh_x0_txt, 0, {"validator": self.check_float}],
               [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
               [None, self.use_2nd, 3, {"text": "upgrade to 2nd order mesh"}],
               [None, self._mesh_char, 2, None], ]
@@ -698,35 +710,15 @@ class Mesh2D(MeshGenerator):
         if not hasattr(self, "_mesh_char"):
             self._mesh_char = ''
 
-        def check_int_array(txt, param, w):
-            try:
-                val = [int(x) for x in txt.split(',')]
-                return True
-            except BaseException:
-                return False
-
-        def check_float_array(txt, param, w):
-            try:
-                val = [float(x) for x in txt.split(',')]
-                return True
-            except BaseException:
-                return False
-
-        def check_float(txt, param, w):
-            try:
-                val = float(txt)
-                return True
-            except BaseException:
-                return False
-
-        p1 = [["Length(x)", self.xlength_txt, 0, {"validator": check_float_array}],
+        p1 = [["Length(x)", self.xlength_txt, 0, {"validator": self.check_float_array}],
               ["N segments(x)", self.xnsegs_txt, 0, {
-                  "validator": check_int_array}],
+                  "validator": self.check_int_array}],
               ["Length(y)", self.ylength_txt, 0, {
-                  "validator": check_float_array}],
+                  "validator": self.check_float_array}],
               ["N segments(y)", self.ynsegs_txt, 0, {
-                  "validator": check_int_array}],
-              ["x0", self.mesh_x0_txt, 0, {"validator": check_float_array}],
+                  "validator": self.check_int_array}],
+              ["x0", self.mesh_x0_txt, 0, {
+                  "validator": self.check_float_array}],
               [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
               [None, self.use_2nd, 3, {"text": "upgrade to 2nd order mesh"}],
               [None, self._mesh_char, 2, None], ]
@@ -825,39 +817,19 @@ class Mesh3D(MeshGenerator):
         if not hasattr(self, "_mesh_char"):
             self._mesh_char = ''
 
-        def check_int_array(txt, param, w):
-            try:
-                val = [int(x) for x in txt.split(',')]
-                return True
-            except BaseException:
-                return False
-
-        def check_float_array(txt, param, w):
-            try:
-                val = [float(x) for x in txt.split(',')]
-                return True
-            except BaseException:
-                return False
-
-        def check_float(txt, param, w):
-            try:
-                val = float(txt)
-                return True
-            except BaseException:
-                return False
-
-        p1 = [["Length(x)", self.xlength_txt, 0, {"validator": check_float_array}],
+        p1 = [["Length(x)", self.xlength_txt, 0, {"validator": self.check_float_array}],
               ["N segments(x)", self.xnsegs_txt, 0, {
-                  "validator": check_int_array}],
+                  "validator": self.check_int_array}],
               ["Length(y)", self.ylength_txt, 0, {
-                  "validator": check_float_array}],
+                  "validator": self.check_float_array}],
               ["N segments(y)", self.ynsegs_txt, 0, {
-                  "validator": check_int_array}],
+                  "validator": self.check_int_array}],
               ["Length(z)", self.zlength_txt, 0, {
-                  "validator": check_float_array}],
+                  "validator": self.check_float_array}],
               ["N segments(z)", self.znsegs_txt, 0, {
-                  "validator": check_int_array}],
-              ["x0", self.mesh_x0_txt, 0, {"validator": check_float_array}],
+                  "validator": self.check_int_array}],
+              ["x0", self.mesh_x0_txt, 0, {
+                  "validator": self.check_float_array}],
               [None, "Note: use comma separated float/integer for a multisegments mesh", 2, {}],
               [None, self.use_2nd, 3, {"text": "upgrade to 2nd order mesh"}],
               [None, self._mesh_char, 2, None], ]
