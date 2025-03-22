@@ -3725,7 +3725,10 @@ class Engine(object):
 
             variables.update(tmp_variables)
 
-        self.check_ns_name_conflict()
+        # (note) skipping this for backword compatibility.
+        #        in principle, we can do this for safety. but, we
+        #        should not need this if GUI is checking conflict enough :D
+        #self.check_ns_name_conflict()
 
         from petram.mesh.mesh_utils import get_reverse_connectivity
 
