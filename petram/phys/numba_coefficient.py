@@ -837,7 +837,8 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
                 continue
 
         if dep is None:
-            dprint1("can not create JIT-ed coefficient (error in processing dependency) :"+ txt)
+            dprint1(
+                "can not create JIT-ed coefficient (error in processing dependency) :" + txt)
             return None
 
         dependency.append(dep)
@@ -866,17 +867,21 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             if diag_mode:
                 func_txt.append("       _out_ = np.diag(" + txt + ")")
             else:
-                func_txt.append("       _out_ =" + txt)
+                func_txt.append("       _out_ = " + txt)
+            if jitter != mfem.jit.scalar:
+                func_txt.append("       _out_ = np.atleast_1d(_out_)")
         else:
             if diag_mode:
                 func_txt.append("   _out_ = np.diag(" + txt + ")")
             else:
-                func_txt.append("   _out_ =" + txt)
+                func_txt.append("   _out_ = " + txt)
+            if jitter != mfem.jit.scalar:
+                func_txt.append("   _out_ = np.atleast_1d(_out_)")
 
-        func_txt.append("   if isinstance(_out_, list):")
-        func_txt.append("         _out_ = np.array(_out_)")
-        func_txt.append("   elif isinstance(_out_, tuple):")
-        func_txt.append("         _out_ = np.array(_out_)")
+        #func_txt.append("   if isinstance(_out_, list):")
+        #func_txt.append("         _out_ = np.array(_out_)")
+        #func_txt.append("   elif isinstance(_out_, tuple):")
+        #func_txt.append("         _out_ = np.array(_out_)")
         if scale != 1:
             func_txt.append("   _out_ = _out_ * " + str(scale))
         if conj:
