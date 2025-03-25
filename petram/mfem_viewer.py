@@ -1121,30 +1121,37 @@ class MFEMViewer(BookViewer):
         if num_threads2 != 'auto':
             os.environ["OPENBLAS_NUM_THREADS"] = str(num_threads2)
 
+    def _run_verify_and_preprocess(self):
+        try:
+            self.engine.run_verify_setting()
+        except:
+            dialog.showtraceback(parent=self,
+                                 txt='Failed to verify setting',
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            return False
+
+        try:
+            self.run_preprocess()
+        except BaseException as err:
+            errstr = err.__str__()
+            dialog.showtraceback(parent=self,
+                                 txt='Failed to during pre-processing model data: \n'
+                                 + errstr + "\n",
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            return False
+        return True
+
     def onSerDriver(self, evt):
         m = self.model.param.getvar('mfem_model')
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
         odir = os.getcwd()
 
-        try:
-            self.engine.run_verify_setting()
-        except:
+        success = self._run_verify_and_preprocess()
+        if not success:
             os.chdir(odir)
-            dialog.showtraceback(parent=self,
-                                 txt='Failed to verify setting',
-                                 title='Error',
-                                 traceback=traceback.format_exc())
-            return
-
-        try:
-            self.run_preprocess()
-        except:
-            os.chdir(odir)
-            dialog.showtraceback(parent=self,
-                                 txt='Failed to during pre-processing model data',
-                                 title='Error',
-                                 traceback=traceback.format_exc())
             return
 
         self.set_num_threads()
@@ -1158,24 +1165,9 @@ class MFEMViewer(BookViewer):
         debug_level = m['General'].debug_level
         odir = os.getcwd()
 
-        try:
-            self.engine.run_verify_setting()
-        except:
+        success = self._run_verify_and_preprocess()
+        if not success:
             os.chdir(odir)
-            dialog.showtraceback(parent=self,
-                                 txt='Failed to verify setting',
-                                 title='Error',
-                                 traceback=traceback.format_exc())
-            return
-
-        try:
-            self.run_preprocess()
-        except:
-            os.chdir(odir)
-            dialog.showtraceback(parent=self,
-                                 txt='Failed to during pre-processing model data',
-                                 title='Error',
-                                 traceback=traceback.format_exc())
             return
 
         nproc = self.model.param.getvar('nproc')
@@ -1564,9 +1556,10 @@ class MFEMViewer(BookViewer):
     def onRebuildNS(self, evt):
         try:
             self.rebuild_ns()
-        except:
+        except BaseException as err:
+            errstr = err.__str__()
             dialog.showtraceback(parent=self,
-                                 txt='Failed to rebuild namespace',
+                                 txt='Failed to rebuild namespace: \n'+errstr + "\n",
                                  title='Error',
                                  traceback=traceback.format_exc())
             return
@@ -1575,6 +1568,9 @@ class MFEMViewer(BookViewer):
                        message='Namespace is built successfully. ',
                        title='Passed',
                        center_on_screen=True)
+
+        if self.editdlg is not None:
+            self.editdlg.refresh_elp()
 
         evt.Skip()
 
@@ -1736,10 +1732,12 @@ class MFEMViewer(BookViewer):
 
         try:
             self.run_preprocess()
-        except:
+        except BaseException as err:
+            errstr = err.__str__()
             os.chdir(odir)
             dialog.showtraceback(parent=self,
-                                 txt='Failed to during pre-processing model data',
+                                 txt='Failed to during pre-processing model data: \n'
+                                 + errstr + "\n",
                                  title='Error',
                                  traceback=traceback.format_exc())
             return
