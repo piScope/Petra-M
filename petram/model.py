@@ -655,14 +655,20 @@ class Model(RestorableOrderedDict):
         for key, value in new_cnt:
             parent[key] = value
 
+    def get_probes(self):
+        '''
+        return probe name
+        '''
+        return []
+
     @property
     def derived_variables(self):
         return []
 
     @property
     def probe_variables(self):
-        if hasattr(self, "get_probe"):
-            return [self.get_probe()]
+        if hasattr(self, "get_probes"):
+            return self.get_probes()
         return []
 
     def nicetxt_derived_variables(self, l=50):
@@ -794,7 +800,7 @@ class Model(RestorableOrderedDict):
                 else:  # for numpy array
                     if (hasattr(value, "shape") and
                         hasattr(defvalue[attr], "shape") and
-                        value.shape != defvalue[attr].shape):
+                            value.shape != defvalue[attr].shape):
                         mycheck = True
                     else:
                         mycheck = value != defvalue[attr]  # for numpy array

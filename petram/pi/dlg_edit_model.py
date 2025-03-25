@@ -546,84 +546,48 @@ class DlgEditModel(SimpleFramePlus):
         self._cpanels = self.panels[mm.fullname()]
         p1panel, p2panel, p3panel, p4panel = self.panels[mm.fullname()]
 
+        self.p1sizer.Add(p1panel, 1, wx.EXPAND | wx.ALL, 1)
+        p1panel.SetValue(mm.get_panel1_value())
+        p1panel.Show()
+        self.p1.Layout()
+
         if self.nb.GetPageCount() > 3:
             self.nb.RemovePage(3)
         if self.nb.GetPageCount() > 2:
             self.nb.RemovePage(2)
+        if self.nb.GetPageCount() > 1:
+            self.nb.RemovePage(1)
 
-        if mm.has_2nd_panel:
-            if self.nb.GetPageCount() == 1:
-                self.nb.AddPage(self.p2, mm.panel2_tabname())
-            else:
-                self.nb.SetPageText(1, mm.panel2_tabname())
+        has_2nd = mm.has_2nd_panel
+        has_3rd = mm.has_3rd_panel
+        has_4th = mm.has_4th_panel
 
-            self.p1sizer.Add(p1panel, 1, wx.EXPAND | wx.ALL, 1)
+        if has_2nd:
+            self.nb.AddPage(self.p2, mm.panel2_tabname())
             self.p2sizer.Add(p2panel, 1, wx.EXPAND | wx.ALL, 1)
-            p1panel.SetValue(mm.get_panel1_value())
             p2panel.SetValue(mm.get_panel2_value())
-            p1panel.Show()
             p2panel.Show()
-            self.p1.Layout()
             self.p2.Layout()
-            has_3rd = mm.has_3rd_panel
-            has_4th = mm.has_4th_panel
-            if has_3rd:
-                if self.nb.GetPageCount() == 2:
-                    self.nb.AddPage(self.p3, mm.panel3_tabname())
-                else:
-                    self.nb.SetPageText(2, mm.panel3_tabname())
-
-                self.p3sizer.Add(p3panel, 1, wx.EXPAND | wx.ALL, 1)
-                p3panel.SetValue(mm.get_panel3_value())
-                p3panel.Show()
-                self.p3.Layout()
-            else:
-                if self.nb.GetPageCount() > 3:
-                    self.nb.RemovePage(3)
-                if self.nb.GetPageCount() > 2:
-                    self.nb.RemovePage(2)
-                p3panel.Hide()
-
-            if has_4th:
-                pc = self.nb.GetPageCount()
-                if pc == 2:
-                    self.nb.AddPage(self.p4, mm.panel4_tabname())
-                elif pc == 3:
-                    if has_3rd:
-                        self.nb.AddPage(self.p4, mm.panel4_tabname())
-                    else:
-                        self.nb.SetPageText(2, mm.panel4_tabname())
-                elif pc == 4:
-                    self.nb.SetPageText(3, mm.panel4_tabname())
-                else:
-                    pass
-
-                self.p4sizer.Add(p4panel, 1, wx.EXPAND | wx.ALL, 1)
-                p4panel.SetValue(mm.get_panel4_value())
-                p4panel.Show()
-                #for c in p4panel.GetChildren(): c.Show()
-                self.p4.Layout()
-            else:
-                if self.nb.GetPageCount() == 4 and has_3rd:
-                    self.nb.RemovePage(3)
-                elif self.nb.GetPageCount() == 3 and not has_3rd:
-                    self.nb.RemovePage(2)
-                p4panel.Hide()
-
         else:
-            if self.nb.GetPageCount() > 3:
-                self.nb.RemovePage(3)
-            if self.nb.GetPageCount() > 2:
-                self.nb.RemovePage(2)
-            if self.nb.GetPageCount() > 1:
-                self.nb.RemovePage(1)
-            self.p1sizer.Add(p1panel, 1, wx.EXPAND | wx.ALL, 1)
-            p1panel.SetValue(mm.get_panel1_value())
-            p1panel.Show()
             p2panel.Hide()
+
+        if has_3rd:
+            self.nb.AddPage(self.p3, mm.panel3_tabname())
+            self.p3sizer.Add(p3panel, 1, wx.EXPAND | wx.ALL, 1)
+            p3panel.SetValue(mm.get_panel3_value())
+            p3panel.Show()
+            self.p3.Layout()
+        else:
             p3panel.Hide()
+
+        if has_4th:
+            self.nb.AddPage(self.p4, mm.panel4_tabname())
+            self.p4sizer.Add(p4panel, 1, wx.EXPAND | wx.ALL, 1)
+            p4panel.SetValue(mm.get_panel4_value())
+            p4panel.Show()
+            self.p4.Layout()
+        else:
             p4panel.Hide()
-            self.p1.Layout()
 
         if not self._enable:
             self.Enable(False)
@@ -638,100 +602,8 @@ class DlgEditModel(SimpleFramePlus):
 
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
-#        if not mm.__class__ in self.panels.keys():
-        for k in self.panels.keys():
-            p1panel, p2panel, p3panel, p4panel = self.panels[k]
-            self.p1sizer.Detach(p1panel)
-            self.p2sizer.Detach(p2panel)
-            self.p3sizer.Detach(p3panel)
-            self.p4sizer.Detach(p4panel)
-            p1panel.Hide()
-            p2panel.Hide()
-            p3panel.Hide()
-            p4panel.Hide()
-        self.generate_panel(mm)
 
-        self._cpanels = self.panels[mm.fullname()]
-        p1panel, p2panel, p3panel, p4panel = self.panels[mm.fullname()]
-
-        if self.nb.GetPageCount() > 3:
-            self.nb.RemovePage(3)
-        if self.nb.GetPageCount() > 2:
-            self.nb.RemovePage(2)
-
-        if mm.has_2nd_panel:
-            if self.nb.GetPageCount() == 1:
-                self.nb.AddPage(self.p2, mm.panel2_tabname())
-            else:
-                self.nb.SetPageText(1, mm.panel2_tabname())
-
-            self.p1sizer.Add(p1panel, 1, wx.EXPAND | wx.ALL, 1)
-            self.p2sizer.Add(p2panel, 1, wx.EXPAND | wx.ALL, 1)
-            p1panel.SetValue(mm.get_panel1_value())
-            p2panel.SetValue(mm.get_panel2_value())
-            p1panel.Show()
-            p2panel.Show()
-            self.p1.Layout()
-            self.p2.Layout()
-
-            has_3rd = mm.has_3rd_panel
-            has_4th = mm.has_4th_panel
-
-            if has_3rd:
-                if self.nb.GetPageCount() == 2:
-                    self.nb.AddPage(self.p3, mm.panel3_tabname())
-                else:
-                    self.nb.SetPageText(2, mm.panel3_tabname())
-
-                self.p3sizer.Add(p3panel, 1, wx.EXPAND | wx.ALL, 1)
-                p3panel.SetValue(mm.get_panel3_value())
-                p3panel.Show()
-                self.p3.Layout()
-            else:
-                p3panel.Hide()
-
-            if has_4th:
-                pc = self.nb.GetPageCount()
-                if pc == 2:
-                    self.nb.AddPage(self.p4, mm.panel4_tabname())
-                elif pc == 3:
-                    if has_3rd:
-                        self.nb.AddPage(self.p4, mm.panel4_tabname())
-                    else:
-                        self.nb.SetPageText(2, mm.panel4_tabname())
-                elif pc == 4:
-                    self.nb.SetPageText(3, mm.panel4_tabname())
-                else:
-                    pass
-
-                self.p4sizer.Add(p4panel, 1, wx.EXPAND | wx.ALL, 1)
-                p4panel.SetValue(mm.get_panel4_value())
-                p4panel.Show()
-                #for c in p4panel.GetChildren(): c.Show()
-                self.p4.Layout()
-            else:
-                p4panel.Hide()
-
-            npages = int(has_3rd + has_4th)
-            if self.nb.GetPageCount() == 4 and npages < 2:
-                self.nb.RemovePage(3)
-            if self.nb.GetPageCount() == 3 and npages < 1:
-                self.nb.RemovePage(2)
-
-        else:
-            if self.nb.GetPageCount() > 3:
-                self.nb.RemovePage(3)
-            if self.nb.GetPageCount() > 2:
-                self.nb.RemovePage(2)
-            if self.nb.GetPageCount() > 1:
-                self.nb.RemovePage(1)
-            self.p1sizer.Add(p1panel, 1, wx.EXPAND | wx.ALL, 1)
-            p1panel.SetValue(mm.get_panel1_value())
-            p1panel.Show()
-            p2panel.Hide()
-            p3panel.Hide()
-            p4panel.Hide()
-            self.p1.Layout()
+        self.show_panel(mm)
 
         labels = [self.nb.GetPageText(i)
                   for i in range(self.nb.GetPageCount())]
@@ -976,7 +848,19 @@ class DlgEditModel(SimpleFramePlus):
             v1tmp = mm.get_panel1_value()
             return compare_elp(v1, v1tmp), 0
 
-        if nbsel == 1 and mm.has_2nd_panel:
+        has_2nd = mm.has_2nd_panel
+        has_3rd = mm.has_3rd_panel
+        has_4th = mm.has_4th_panel
+
+        panels = [0]
+        if has_2nd:
+            panels.append(1)
+        if has_3rd:
+            panels.append(2)
+        if has_4th:
+            panels.append(3)
+
+        if panels[nbsel] == 1 and mm.has_2nd_panel:
             p2children = self.p2sizer.GetChildren()
             if len(p2children) > 0:
                 elp2 = p2children[0].GetWindow()
@@ -984,7 +868,7 @@ class DlgEditModel(SimpleFramePlus):
                 v2tmp = mm.get_panel2_value()
                 return compare_elp(v2, v2tmp), 1
 
-        if nbsel == 2 and mm.has_3rd_panel:
+        if panels[nbsel] == 2 and mm.has_3rd_panel:
             p3children = self.p3sizer.GetChildren()
             if len(p3children) > 0:
                 elp3 = p3children[0].GetWindow()
@@ -992,7 +876,7 @@ class DlgEditModel(SimpleFramePlus):
                 v3tmp = mm.get_panel3_value()
                 return compare_elp(v3, v3tmp), 2
 
-        if nbsel == 3 and mm.has_4th_panel:
+        if panels[nbsel] == 3 and mm.has_4th_panel:
             p4children = self.p4sizer.GetChildren()
             if len(p4children) > 0:
                 elp4 = p4children[0].GetWindow()

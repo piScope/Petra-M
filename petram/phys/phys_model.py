@@ -349,12 +349,6 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     def get_possible_point(self):
         return []
 
-    def get_probe(self):
-        '''
-        return probe name
-        '''
-        return ''
-
     def get_independent_variables(self):
         p = self.get_root_phys()
         ind_vars = p.ind_vars
@@ -1540,7 +1534,10 @@ class PhysModule(Phys):
                 self.sel_index = alle
 
     def collect_probes(self):
-        probes = [mm.get_probe() for mm in self.walk() if mm.is_enabled()]
+        probes = []
+        for mm in self.walk():
+            if mm.is_enabled():
+               probes.extend(mm.get_probes())
         probes = [x for x in probes if len(x) != 0]
         txt = ','.join(probes)
         return txt
