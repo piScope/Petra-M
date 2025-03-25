@@ -163,6 +163,7 @@ class SolveStep(SolverBase):
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
         from petram.solver.distance_solver import DistanceSolver
+        from petram.solver.superposition import Superposition
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
@@ -173,6 +174,7 @@ class SolveStep(SolverBase):
                     StdMeshAdaptSolver,
                     NLSolver,
                     EgnSolver,
+                    Superposition,
                     # MGSolver,
                     ForLoop,
                     DWCCall, SetVar]
@@ -184,6 +186,7 @@ class SolveStep(SolverBase):
                     StdSolver,
                     NLSolver,
                     EgnSolver,
+                    Superposition,
                     ForLoop,
                     DWCCall, SetVar]
 
@@ -198,6 +201,7 @@ class SolveStep(SolverBase):
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
         from petram.solver.distance_solver import DistanceSolver
+        from petram.solver.superposition import Superposition
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
@@ -207,6 +211,7 @@ class SolveStep(SolverBase):
                     ("", TimeDomain),
                     #("", EgnSolver),
                     ("extra", DistanceSolver),
+                    ("", Superposition),
                     ("", StdMeshAdaptSolver),
                     ("", InnerForLoop),
                     ("", DWCCall),
@@ -218,6 +223,7 @@ class SolveStep(SolverBase):
                     ("", TimeDomain),
                     #("", EgnSolver),
                     ("extra", DistanceSolver),
+                    ("", Superposition),
                     ("", InnerForLoop),
                     ("", DWCCall),
                     ("!", SetVar)]
@@ -818,7 +824,7 @@ class SolverInstance(ABC):
 
     def save_solution(self, ksol=0, skip_mesh=False,
                       mesh_only=False, save_parmesh=False,
-                      save_mesh_linkdir=None,save_sersol=False):
+                      save_mesh_linkdir=None, save_sersol=False):
 
         engine = self.engine
         phys_target = self.get_phys()
