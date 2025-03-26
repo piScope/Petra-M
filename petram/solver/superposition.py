@@ -32,6 +32,7 @@ class Superposition(SolveControl, NS_mixin):
 
     def attribute_set(self, v):
         super(Superposition, self).attribute_set(v)
+        v["sol_directory"] = ""
         v["sol_weight_txt"] = ""
         v["phys_model"] = ""
         v['save_parmesh'] = False
@@ -41,6 +42,7 @@ class Superposition(SolveControl, NS_mixin):
     def panel1_param(self):
         return [
             ["Weight",   self.phys_model,  0, {}, ],
+            ['Sol(default="")',   self.sol_directory,  0, {}, ],
             [None,
              self.save_parmesh,  3, {"text": "save parallel mesh"}],
             [None,  self.save_sersol,  3, {
@@ -48,13 +50,15 @@ class Superposition(SolveControl, NS_mixin):
 
     def get_panel1_value(self):
         return [self.sol_weight_txt,
+                self.sol_directory,
                 self.save_parmesh,
                 self.save_sersol, ]
 
     def import_panel1_value(self, v):
         self.sol_weight_txt = v[0]
-        self.save_parmesh = v[1]
-        self.save_sersol = v[2]
+        self.sol_directory = v[1]
+        self.save_parmesh = bool(v[2])
+        self.save_sersol = bool(v[3])
 
     def get_target_phys(self):
         return []
@@ -106,7 +110,10 @@ class Superposition(SolveControl, NS_mixin):
         dprint1(weight)
 
         cwd = os.getcwd()
-        files = os.listdir(cwd)
+
+        soldir = os.path.abspath(self.sol_directory)
+        os.chdir(soldir)
+        files = os.listdir(soldir)
         cases = [(int(f.split("_")[1]), f) for f in files
                  if f.startswith('case') and os.path.isdir(f)]
         cases = [x[1] for x in sorted(cases)]
@@ -127,10 +134,10 @@ class Superposition(SolveControl, NS_mixin):
                 data = None
                 for ii, case in enumerate(cases):
                     tmp = None
-                    f = os.path.join(cwd, case, fnamer)
+                    f = os.path.join(soldir, case, fnamer)
                     if os.path.exists(f):
                         tmp = mfem.GridFunction(emesh, f).GetDataArray()
-                    f = os.path.join(cwd, case, fnamei)
+                    f = os.path.join(soldir, case, fnamei)
                     if os.path.exists(f):
                         tmp = tmp + 1j * \
                             mfem.GridFunction(emesh, f).GetDataArray()
@@ -165,7 +172,7 @@ class Superposition(SolveControl, NS_mixin):
                     for y in sol_extra[x]:
                         sol_extra[x][y] = (sol_extra[x][y] +
                                            val[x][y]*weight[ii])
-
+        os.chdir(cwd)
         engine.save_sol_to_file(phys_target,
                                 skip_mesh=False,
                                 mesh_only=False,
