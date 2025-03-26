@@ -81,6 +81,7 @@ class SolverBase(Model, NS_mixin):
 class SolveStep(SolverBase):
     hide_ns_menu = False
     has_2nd_panel = False
+    _has_4th_panel = True
 
     #
     # GUI and object parameters
@@ -137,6 +138,19 @@ class SolveStep(SolverBase):
         self.dwc_pp_arg = v[6][1][1]
 
 #        self.init_only    = v[2]
+
+    def panel4_param(self):
+        ll = super(SolveStep, self).panel4_param()
+        ll.append(["Probe variables", "", 2, None])
+        return ll
+
+    def panel4_tip(self):
+        return None
+
+    def get_panel4_value(self):
+        ret = super(SolveStep, self).get_panel4_value()
+        ret = ret + [self.nicetxt_probe_variables()]
+        return ret
 
     def get_possible_child(self):
         #from solver.solinit_model import SolInit
