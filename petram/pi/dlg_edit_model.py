@@ -887,6 +887,9 @@ class DlgEditModel(SimpleFramePlus):
         return False, -1
 
     def refresh_elp(self):
+        indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        mm = self.model.GetItem(indices)
+
         # this is meant to call validator
         if self.nb.GetPageCount() == 0:
             return False, -1
@@ -926,8 +929,20 @@ class DlgEditModel(SimpleFramePlus):
         mm = self.model.GetItem(indices)
 
         is_open, _tname, _idx, _labels = self.isSelectionPanelOpen()
-        viewer_update = self.import_selected_panel_value(evt)
-        if is_open:
+
+        try:
+            viewer_update = self.import_selected_panel_value(evt)
+            err = False
+        except BaseException as err:  # import error
+            errstr = err.__str__()
+            dialog.showtraceback(parent=self,
+                                 txt='Failed to read data on the panel: \n'
+                                 + errstr + "\n",
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            err = True
+
+        if is_open and not err:
             self.update_highlight(mm)
         evt.Skip()
 
