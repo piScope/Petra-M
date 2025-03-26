@@ -298,11 +298,15 @@ class WF(PhysModule):
         return [WF_PeriodicBdr]
 
     def add_variables(self, v, name, solr, soli=None):
-        from petram.helper.variables import add_coordinates
-        from petram.helper.variables import add_scalar
-        from petram.helper.variables import add_components
-        from petram.helper.variables import add_surf_normals
-        from petram.helper.variables import GFScalarVariable, PlaceholderVariable
+
+        from petram.helper.variables import (add_coordinates,
+                                             add_scalar,
+                                             add_components,
+                                             add_expression,
+                                             add_surf_normals,
+                                             add_constant
+,                                            GFScalarVariable,
+                                             GFVectorVariable)
 
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
         suffix = self.dep_vars_suffix
@@ -348,4 +352,9 @@ class WF(PhysModule):
                             v[name] = GFScalarVariable(solr, soli, comp=k+1)
                         else:
                             v[name] = PlaceholderVariable(name)
+                    allnames = ''.join(names)
+                    if solr is not None:
+                        v[allnames] = GFVectorVariable(solr, soli)
+                    else:
+                        v[allnames] = PlaceholderVariable(allnames)
         return v
