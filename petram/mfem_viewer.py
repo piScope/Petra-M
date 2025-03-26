@@ -252,6 +252,7 @@ class MFEMViewer(BookViewer):
 
         do_palette = (self._view_mode != mode)
         do_plot = (self._view_mode != mode) or (self._view_mode_group != group)
+        skip_plot_geometry = (self._view_mode == mode)
 
         self._view_mode = mode
         self._view_mode_group = p.name() if p is not None else 'root'
@@ -267,7 +268,8 @@ class MFEMViewer(BookViewer):
                 p.update_figure_data(self)
                 #print("calling do_plot", self._view_mode, p.figure_data_name())
                 self.update_figure(self._view_mode, p.figure_data_name(),
-                                   updateall=True)
+                                   updateall=True,
+                                   skip_plot_geometry=skip_plot_geometry)
 
     def set_figure_data(self, view_mode, name, data):
         if not view_mode in self._figure_data:
@@ -280,7 +282,7 @@ class MFEMViewer(BookViewer):
         if name in self._figure_data[view_mode]:
             del self._figure_data[view_mode][name]
 
-    def update_figure(self, view_mode, name, updateall=False):
+    def update_figure(self, view_mode, name, updateall=False, skip_plot_geometry=False):
         from petram.mesh.geo_plot import plot_geometry, oplot_meshed
         from petram.mesh.geo_plot import hide_face_meshmode, hide_edge_meshmode
 
@@ -331,7 +333,8 @@ class MFEMViewer(BookViewer):
 
             elif view_mode == 'phys':
                 ret = self._figure_data['phys']
-                plot_geometry(self,  ret, geo_phys='physical')
+                if not skip_plot_geometry:
+                    plot_geometry(self,  ret, geo_phys='physical')
                 self._is_mfem_geom_fig = True
                 self._hidemesh = True
 
@@ -422,7 +425,7 @@ class MFEMViewer(BookViewer):
         ns_names = []
         for node in od.walk():
             if node.has_ns():
-                if node.ns_name is None:
+                if node.get_ns_name() is None:
                     continue
                 if not node.ns_name in ns_names:
                     ns_names.append(node.ns_name)
@@ -889,12 +892,15 @@ class MFEMViewer(BookViewer):
                         faces.extend(sl[key])
                     else:
                         print('Volume: ' + str(key) + " not found")
+
                 obj.setSelectedIndex(faces)
                 if len(obj._artists) > 0:
                     self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
-        wx.CallAfter(self.canvas.refresh_hl)
+        # self.canvas.refresh_hl()
+        # wx.CallAfter(self.canvas.refresh_hl)
+        self.canvas.draw_later(refresh_hl=True, delay=-1000)
 
     def highlight_face(self, i):
         '''
@@ -923,7 +929,9 @@ class MFEMViewer(BookViewer):
                              tuple(i),
                              self._dom_bdr_sel[2],
                              self._dom_bdr_sel[3],)
-        wx.CallAfter(self.canvas.refresh_hl)
+        # self.canvas.refresh_hl()
+        # wx.CallAfter(self.canvas.refresh_hl)
+        self.canvas.draw_later(refresh_hl=True, delay=-1000)
 
     def highlight_edge(self, i, unselect=True):
         '''
@@ -952,8 +960,9 @@ class MFEMViewer(BookViewer):
                              self._dom_bdr_sel[1],
                              tuple(i),
                              self._dom_bdr_sel[3],)
-
-        wx.CallAfter(self.canvas.refresh_hl)
+        # self.canvas.refresh_hl()
+        # wx.CallAfter(self.canvas.refresh_hl)
+        self.canvas.draw_later(refresh_hl=True, delay=-1000)
 
     def highlight_point(self, i, unselect=True):
         '''
@@ -982,8 +991,9 @@ class MFEMViewer(BookViewer):
                              self._dom_bdr_sel[1],
                              self._dom_bdr_sel[2],
                              tuple(i),)
-
-        wx.CallAfter(self.canvas.refresh_hl)
+        # self.canvas.refresh_hl()
+        # wx.CallAfter(self.canvas.refresh_hl)
+        self.canvas.draw_later(refresh_hl=True, delay=-1000)
 
     def highlight_none(self):
         self.canvas.unselect_all()
@@ -992,7 +1002,8 @@ class MFEMViewer(BookViewer):
         for name, obj in ax.get_children():
             if hasattr(obj, 'setSelectedIndex'):
                 obj.setSelectedIndex([])
-        self.canvas.refresh_hl()
+        # self.canvas.refresh_hl()
+        self.canvas.draw_later(refresh_hl=True, delay=-1000)
 
     def change_panel_button(self, kind):
         # kind = ('domain', 'face', 'edge', 'dot')
@@ -1411,7 +1422,11 @@ class MFEMViewer(BookViewer):
 
     def onShowMesh(self, evt=None):
         from petram.mesh.plot_mesh import plot_domainmesh
-        mesh = self.engine.get_mesh()
+
+        if not self._hidemesh:
+            # if it is already shown, can skip
+            return
+
         self._hidemesh = False
         self.update(False)
 
@@ -1433,9 +1448,13 @@ class MFEMViewer(BookViewer):
         self.draw_all()
 
     def onHideMesh(self, evt=None):
+        if self._hidemesh:
+            # if it is already hidden, can skip
+            return
+
         self._hidemesh = True
         self.update(False)
-        mesh = self.engine.get_mesh()
+
         children = [child
                     for name, child in self.get_axes().get_children()
                     if name.startswith('face')]
@@ -1611,13 +1630,15 @@ class MFEMViewer(BookViewer):
     def onWindowClose(self, evt=None):
         if self.editdlg is not None:
             try:
-                self.editdlg.Destroy()
+                self.editdlg.Close()
+                # self.editdlg.Destroy()
             except:
                 pass
             self.editdlg = None
         if self.plotsoldlg is not None:
             try:
-                self.plotsoldlg.Destroy()
+                self.plotsoldlg.Close()
+                # self.plotsoldlg.Destroy()
             except:
                 pass
             self.plotsoldlg = None
@@ -1842,6 +1863,7 @@ class MFEMViewer(BookViewer):
         engine = self.engine
         engine.preprocess_ns(model.namespaces, model.datasets)
         engine.build_ns()
+        engine.check_ns_name_conflict()
         engine.run_preprocess(model.namespaces, model.datasets)
 
     def rebuild_ns(self):
@@ -1849,6 +1871,7 @@ class MFEMViewer(BookViewer):
         model = self.model
         engine.preprocess_ns(model.namespaces, model.datasets)
         engine.build_ns()
+        engine.check_ns_name_conflict()
 
     def get_internal_bc(self):
         d = self._s_v_loop['phys'][1]

@@ -119,7 +119,7 @@ class NS_mixin(object):
         p = self
         while p is not None:
             if isinstance(p, NS_mixin):
-                if p.ns_name is not None:
+                if p.get_ns_name() is not None:
                     chain.append(p)
 #                elif len(p.get_default_ns()) != 0:
 #                    chain.append(p)
@@ -140,7 +140,8 @@ class NS_mixin(object):
         path1 = os.path.join(dir, self.ns_name+'_ns.py')
         path2 = os.path.join(dir, self.ns_name+'_ns.dat')
         fid = open(path1, 'w')
-        fid.write(self.ns_string)
+        if not self.ns_string is None:
+            fid.write(self.ns_string)
         fid.close()
         import petram.helper.pickle_wrapper as pickle
         fid = open(path2, 'wb')
@@ -203,6 +204,27 @@ class NS_mixin(object):
         '''
         return {}
 
+    def check_ns_name_conflict(self):
+        '''
+        check if derived_variable and namespace variable does not conflict
+        each other
+
+        this check needs to run after preprocessing of vtable is performed.
+        thus it is called from mfem_veiwer (via GUI interaction), separately
+        from eval_ns.
+        '''
+        ll = self.derived_variables + self.probe_variables
+        if self._local_ns is not None:
+            for x in list(self._local_ns) and x not in ll:
+                ll.append(x)
+
+        conflicting_names = []
+        for x in self._global_ns:
+            if x in ll:
+                conflicting_names.append(x)
+
+        return len(conflicting_names) == 0, conflicting_names
+
     def eval_attribute_expr(self, targets=None):
 
         names, types = self.attribute_expr()
@@ -246,6 +268,7 @@ class NS_mixin(object):
             # if it is not enabled we use default _global_ns
             if chain[0] is not self:
                 self._global_ns = chain[0]._global_ns
+                self._local_ns = {}
                 self._local_ns = self.root()._variables
                 return
             else:
@@ -275,6 +298,7 @@ class NS_mixin(object):
                 from petram.helper.variables import Variables
                 self.root()._variables = Variables()
         else:
+            self._local_ns = {}
             self._local_ns = self.root()._variables
 
         if len(chain) == 0:
@@ -286,14 +310,7 @@ class NS_mixin(object):
             for k in l:
                 self._global_ns[k] = l[k]
             g = self._global_ns
-            #self._local_ns = chain[-1]._local_ns
-           # else:
-           #     self._global_ns = g
-           #     for k in l:
-           #         g[k] = l[k]
-           #     for k in chain[-1]._global_ns:
-           #         g[k] = chain[-1]._global_ns[k]
-            #self._local_ns = {}
+
         elif len(chain) > 1:
             # step 1-1 evaluate NS chain except for self and store dataset to
             # g including mine

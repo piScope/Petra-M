@@ -1,1 +1,1 @@
-piScope >= 1.0.29
+piScope >= 1.0.35

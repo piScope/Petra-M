@@ -116,24 +116,8 @@ class Iterative(LinearSolverModel, NS_mixin):
 
     def get_panel1_value(self):
         # this will set _mat_weight
-        from petram.solver.solver_model import SolveStep
-        p = self.parent
-        while not isinstance(p, SolveStep):
-            p = p.parent
-            if p is None:
-                assert False, "Solver is not under SolveStep"
-        num_matrix = p.get_num_matrix(self.get_phys())
 
-        all_dep_vars = self.root()['Phys'].all_dependent_vars(num_matrix,
-                                                              self.get_phys(),
-                                                              self.get_phys_range())
-
-        prec = [x for x in self.preconditioners if x[0] in all_dep_vars]
-        names = [x[0] for x in prec]
-        for n in all_dep_vars:
-            if not n in names:
-                prec.append((n, ['None', 'None']))
-        self.preconditioners = prec
+        self.preconditioners = self.get_proc_blocknames(self.preconditioners)
 
         single1 = [int(self.log_level), int(self.maxiter),
                    self.reltol, self.abstol]
@@ -399,6 +383,12 @@ class IterativeSolver(LinearSolver):
         if solver_type in ['GMRES', 'FGMRES']:
             solver.SetKDim(kdim)
 
+        # we call solver.SetOperator first, before setting Preconditioner
+        # prec::SetOperator is not called from insider the solver, but called from here
+        # directlry. This makes sure that A is passed as BlockOperator
+
+        solver.SetOperator(A)
+
         if nested:
             inner_solver_type = self.gui.solver_type_in
             if inner_solver_type != "MUMPS":
@@ -412,19 +402,25 @@ class IterativeSolver(LinearSolver):
                     inner_solver.SetKDim(int(self.gui.kdim_in))
                 inner_solver.iterative_mode = False
                 inner_solver.SetOperator(A)
+
                 inner_solver.SetPreconditioner(M)
-                # return inner_solver
-                prc = inner_solver
+                solver.SetPreconditioner(inner_solver)
+
+                M.SetOperator(A)
+
+                inner_solver._prc = M
+                solver._prc = inner_solver
             else:
                 from petram.solver.mumps_model import MUMPSBlockPreconditioner
                 prc = MUMPSBlockPreconditioner(A, gui=self.gui[self.gui.mumps_in],
                                                engine=self.engine)
-
+                solver._prc = prc
+                solver.SetPreconditioner(prc)
+                prc.SetOperator(A)
         else:
-            prc = M
-        solver._prc = prc
-        solver.SetPreconditioner(prc)
-        solver.SetOperator(A)
+            solver.SetPreconditioner(M)
+            M.SetOperator(A)
+            solver._prc = M
 
         solver.SetAbsTol(atol)
         solver.SetRelTol(rtol)
@@ -435,6 +431,10 @@ class IterativeSolver(LinearSolver):
 
     def make_preconditioner(self, A, name=None, parallel=False):
         name = self.Aname if name is None else name
+
+        solver = self.gui.get_solver()
+        if solver.use_blk_merged_structure:
+            name = solver.get_ls_blocknames()
 
         if self.gui.adv_mode:
             expr = self.gui.adv_prc

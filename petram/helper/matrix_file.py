@@ -40,9 +40,9 @@ def read_matvec(file, all=False, verbose=False, complex=False, skip=0):
         xx = [x.strip().split() for x in fid.readlines()]
         xx = xx[skip:]
         if complex:
-            xxx = [[np.complex(x) for x in y] for y in xx]
+            xxx = [[np.complex128(x) for x in y] for y in xx]
         else:
-            xxx = [[np.float(x) for x in y] for y in xx]
+            xxx = [[np.float64(x) for x in y] for y in xx]
         fid.close()
         ret.append(np.array(xxx))
     return np.vstack(ret)
@@ -80,9 +80,9 @@ def read_coo_matrix(file, all=False, verbose=False, complex=False, skip=0):
         xx = [x.strip().split() for x in fid.readlines()]
         xx = xx[skip:]
         if complex:
-            xxx = [[np.complex(x) for x in y] for y in xx]
+            xxx = [[np.complex128(x) for x in y] for y in xx]
         else:
-            xxx = [[np.float(x) for x in y] for y in xx]
+            xxx = [[np.float64(x) for x in y] for y in xx]
         fid.close()
         ret.append(np.array(xxx))
         retall.append(np.vstack(ret))
@@ -91,10 +91,10 @@ def read_coo_matrix(file, all=False, verbose=False, complex=False, skip=0):
     h = [int(np.max(x[:, 0]))+1 for x in retall]
 
     if len(retall[0][0]) == 4:
-        mats = [coo_matrix((m[0][:, 2]+m[:, 3]*1j, (m[0][:, 0].astype(int), m[0][:, 1].astype(int))), shape=(hh, w))
+        mats = [coo_matrix((m[:, 2]+m[:, 3]*1j, (m[:, 0].astype(int), m[:, 1].astype(int))), shape=(hh, w))
                 for hh, m in zip(h, retall)]
     elif len(retall[0][0]) == 3:
-        mats = [coo_matrix((m[0][:, 2], (m[0][:, 0].astype(int), m[0][:, 1].astype(int))), shape=(hh, w))
+        mats = [coo_matrix((m[:, 2], (m[:, 0].astype(int), m[:, 1].astype(int))), shape=(hh, w))
                 for hh, m in zip(h, retall)]
 
     mat = scipy.sparse.vstack(mats)

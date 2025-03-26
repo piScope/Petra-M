@@ -23,7 +23,7 @@ else:
 Geom = mfem.Geometry()
 
 
-def eval_on_faces(obj, expr, solvars, phys):
+def eval_on_faces(obj, expr, solvars, phys, current_domain=None):
     '''
     evaluate nodal valus based on preproceessed 
     geometry data
@@ -54,68 +54,24 @@ def eval_on_faces(obj, expr, solvars, phys):
     ll_value = []
     var_g2 = var_g.copy()
 
-    new_names = []
-    name_translation = {}
-
     all_names = list(names[:])
 
-    def get_names(names):
-        for n in names:
-            if (n in g and isinstance(g[n], Variable)):
-                new_names = g[n].get_names()
-                for x in new_names:
-                    all_names.append(x)
-                get_names(new_names)
-    get_names(names)
+    # prep_names
+    #    prep_names will setup namespaces used in Variables
+    #    it also regenerate (if necessary) jitted dependencies
+    #    all_names will be the list of names which are used to evaluate
+    #    the expression (except ones used as dependency of NumbaCoefficient)
+    #    note that all_names are collected only for debugging.
 
-    for n in all_names:
-        if (n in g and isinstance(g[n], NativeCoefficientGenBase)):
-            g[n+"_coeff"] = CoefficientVariable(g[n], g)
-            new_names.append(n+"_coeff")
-            name_translation[n+"_coeff"] = n
+    ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
+    for n in names:
+        if (n in g and isinstance(g[n], Variable)):
+            all_names.extend(g[n].prep_names(ind_vars, g))
 
-        elif (n in g and isinstance(g[n], NumbaCoefficientVariable)):
-            ind_vars = [xx.strip() for xx in phys.ind_vars.split(',')]
-            if g[n].has_dependency():
-                g[n].forget_jitted_coefficient()
-            g[n].set_coeff(ind_vars, g)
-            new_names.append(n)
-            name_translation[n] = n
-
-        elif (n in g and isinstance(g[n], Variable)):
-            for x in g[n].dependency:
-                new_names.append(x)
-                name_translation[x] = x
-
-            for x in g[n].grad:
-                new_names.append('grad'+x)
-                name_translation['grad'+x] = 'grad'+x
-                if 'grad'+x not in g:
-                    g['grad'+x] = g[x].generate_grad_variable()
-
-            for x in g[n].curl:
-                new_names.append('curl'+x)
-                name_translation['curl'+x] = 'curl'+x
-                if 'curl'+x not in g:
-                    g['curl'+x] = g[x].generate_curl_variable()
-
-            for x in g[n].div:
-                new_names.append('div'+x)
-                name_translation['div'+x] = 'div'+x
-                if 'div'+x not in g:
-                    g['div'+x] = g[x].generate_div_variable()
-
-            new_names.append(n)
-            name_translation[n] = n
-
-        elif n in g:
-            new_names.append(n)
-            name_translation[n] = n
-
-    for n in new_names:
+    for n in names:        
         if (n in g and isinstance(g[n], Variable)):
             if not g[n] in obj.knowns:
-                obj.knowns[g[n]] = (
+                ret = (
                     g[n].ncface_values(ifaces=obj.ifaces,
                                        irs=obj.irs,
                                        gtypes=obj.gtypes,
@@ -123,9 +79,12 @@ def eval_on_faces(obj, expr, solvars, phys):
                                        attr1=obj.elattr1,
                                        attr2=obj.elattr2,
                                        g=g, knowns=obj.knowns,
+                                       current_domain=current_domain,
                                        mesh=obj.mesh()[obj.emesh_idx]))
-
-            ll_name.append(name_translation[n])
+                if ret is None:
+                    return None
+                obj.knowns[g[n]] = ret
+            ll_name.append(n)
             ll_value.append(obj.knowns[g[n]])
         elif (n in g):
             var_g2[n] = g[n]
@@ -139,6 +98,7 @@ def eval_on_faces(obj, expr, solvars, phys):
         val = np.array([eval(code, var_g2)]*len(obj.ptx))
 
     return val
+
 
 class NCFaceEvaluator(EvaluatorAgent):
     def __init__(self, battrs, **kwargs):
@@ -190,6 +150,8 @@ class NCFaceEvaluator(EvaluatorAgent):
             def getattr2(x): return -1
         else:
             assert False, "NCFace Evaluator is not supported for this dimension"
+
+        self.meshdim = mesh.Dimension()
 
         x = [getarray(battr) for battr in battrs]
         if np.sum([len(xx) for xx in x]) == 0:
@@ -281,7 +243,16 @@ class NCFaceEvaluator(EvaluatorAgent):
         if (refine != self.refine or self.emesh_idx != emesh_idx[0]):
             self.refine = refine
             self.preprocess_geometry(self.battrs, emesh_idx=emesh_idx[0])
-        val = eval_on_faces(self, expr, solvars, phys)
+
+        if self.meshdim == 3:
+            current_domain = None
+        elif self.meshdim == 2:
+            current_domain = self.battrs[0]
+        else:
+            assert False, "BdrNodal Evaluator is not supported for this dimension"
+
+        val = eval_on_faces(self, expr, solvars, phys,
+                            current_domain=current_domain)
         if val is None:
             return None, None, None
 

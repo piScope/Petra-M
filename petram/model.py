@@ -200,7 +200,8 @@ class Model(RestorableOrderedDict):
 
     @property
     def has_4th_panel(self):
-        return self.has_3rd_panel and self._has_4th_panel
+        # return self.has_3rd_panel and self._has_4th_panel
+        return self._has_4th_panel
 
     def get_info_str(self):
         return ""
@@ -610,12 +611,12 @@ class Model(RestorableOrderedDict):
         '''
         skip_self: not return the top level model
         '''
-        if not self.enabled:
+        if not self.is_enabled():
             return
         if not skip_self:
             yield self
         for k in self.keys():
-            if not self[k].enabled:
+            if not self[k].is_enabled():
                 continue
             for x in self[k].walk_enabled():
                 yield x
@@ -653,6 +654,40 @@ class Model(RestorableOrderedDict):
 
         for key, value in new_cnt:
             parent[key] = value
+
+    @property
+    def derived_variables(self):
+        return []
+
+    @property
+    def probe_variables(self):
+        if hasattr(self, "get_probe"):
+            return [self.get_probe()]
+        return []
+
+    def nicetxt_derived_variables(self, l=50):
+        from textwrap import wrap
+
+        splitted = wrap('. '.join(self.derived_variables), l,
+                        fix_sentence_endings=True)
+        tmp = [','.join(x.split('.')) for x in splitted]
+        txt = "\n".join(tmp)
+
+        if len(txt) == 0:
+            return "(none)"
+        return txt
+
+    def nicetxt_probe_variables(self, l=50):
+        from textwrap import wrap
+
+        splitted = wrap('. '.join(self.probe_variables), l,
+                        fix_sentence_endings=True)
+        tmp = [','.join(x.split('.')) for x in splitted]
+        txt = "\n".join(tmp)
+
+        if len(txt) == 0:
+            return "(none)"
+        return txt
 
     def split_digits(self):
         '''
@@ -739,8 +774,16 @@ class Model(RestorableOrderedDict):
 
     def save_attribute_set(self, skip_def_check):
         ans = []
+        defvalue = self.attribute_set(dict())
+
         for attr in self.attribute():
-            defvalue = self.attribute_set(dict())
+            if attr.startswith("_"):
+                continue
+            if hasattr(self, attr+"_txt"):
+                # if _txt exists, _txt is the GUI interface text
+                # and the internal value must be evaluated from text.
+                continue
+
             value = self.attribute(attr)
             mycheck = True
 
@@ -749,7 +792,12 @@ class Model(RestorableOrderedDict):
                 if type(value) != type(defvalue[attr]):
                     mycheck = True
                 else:  # for numpy array
-                    mycheck = value != defvalue[attr]  # for numpy array
+                    if (hasattr(value, "shape") and
+                        hasattr(defvalue[attr], "shape") and
+                        value.shape != defvalue[attr].shape):
+                        mycheck = True
+                    else:
+                        mycheck = value != defvalue[attr]  # for numpy array
                     if isinstance(mycheck, np.ndarray):
                         mycheck = mycheck.any()
                     else:
@@ -778,7 +826,7 @@ class Model(RestorableOrderedDict):
             script.append(self._script_name + '.'+attr + ' = ' +
                           value.__repr__())
 
-        if (self.has_ns() or self.has_nsref()) and self.ns_name is not None:
+        if (self.has_ns() or self.has_nsref()) and self.get_ns_name() is not None:
             script.append(self._script_name + '.ns_name = "' +
                           self.ns_name + '"')
 
@@ -794,7 +842,7 @@ class Model(RestorableOrderedDict):
                                                  skip_def_check=skip_def_check,
                                                  dir=dir)
             if node.has_ns():
-                if node.ns_name is None:
+                if node.get_ns_name() is None:
                     continue
                 if not node.ns_name in ns_names:
                     ns_names.append(node.ns_name)
@@ -829,6 +877,7 @@ class Model(RestorableOrderedDict):
         script.append('    s.run(eng, is_first=is_first)')
         script.append('    is_first=False')
         script.append('')
+        script.append('eng.show_variables()')
         script.append('if myid == 0:')
         script.append('    print("End Time " + ')
         script.append(

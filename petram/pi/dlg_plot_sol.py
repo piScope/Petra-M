@@ -201,19 +201,40 @@ class DlgPlotSol(SimpleFramePlus):
             style=style,
             **kwargs)
 
-        self.nb = wx.Notebook(self)
+        use_auinb = True
+        if use_auinb:
+            from wx.aui import AuiNotebook
+            style = wx.aui.AUI_NB_TOP | wx.aui.AUI_NB_TAB_SPLIT | wx.aui.AUI_NB_TAB_MOVE | wx.aui.AUI_NB_SCROLL_BUTTONS
+            self.nb = AuiNotebook(self, style=style)
+        else:
+            # Using standard Notebook. This one does not support tooltip
+            self.nb = Notebook(self, style=style)
+
         box = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(box)
         box.Add(self.nb, 1, wx.EXPAND | wx.ALL, 1)
 
         tabs = ['GeomBdr', 'Points', 'Edge', 'Bdr', 'Bdr(arrow)', 'Slice',
                 'Probe', 'Integral', 'Config']
+        tips = ["Geometry boundary plot:\n - Plot geometry/mesh boundaries",
+                "Point cloud:\n - Scatter plot (provide coordinates)",
+                "Edge plot:\n - Plot data on the selected geometry edge(s) or 1D domain(s)\n - Define abscissa in Expression(x) for data(x) 2D plot",
+                "Boundary plot:\n - Plot data on the selected geometry boundary surface(s) or 2D domain(s)",
+                "Boundary arrow plot:\n - Arrow plot on the selected geometry boundary surface(s) or 2D domain(s)",
+                "Slice plot:\n - Plot data in a slice of the selected 3D domain(s) or 2D domain(s) on a grid data",
+                "Probe plot:\n - Plot probe signals (recommended for time/iterative problems)",
+                "Integral:\n - Compute integrated data",
+                "Configuration", ]
+
         self.pages = {}
         self.elps = {}
-        for t in tabs:
+        for ipage, t in enumerate(tabs):
             p = wx.Panel(self.nb)
             p.SetBackgroundColour(pane_colour1)
             self.nb.AddPage(p, t)
+            if use_auinb:
+                self.nb.SetPageToolTip(ipage, tips[ipage])
+
             self.pages[t] = p
 
         self.local_soldir = None
@@ -278,16 +299,18 @@ class DlgPlotSol(SimpleFramePlus):
             elp1 = [['x:', '0', 500, {}],
                     ['y:', '0', 500, {}],
                     ['z:', '0', 500, {}], ]
-            tip1 = ('x coordiantes of points',
-                    'y coordiantes of points',
-                    'z coordiantes of points',)
+
+            tip1 = ('x coordinates of points',
+                    'y coordinates of points',
+                    'z coordinates of points',)
 
             elp2 = [['start point:', '0., 0., 0.', 0, {}],
                     ['end point:', '1., 0., 0.', 0, {}],
                     ['resolution:', '30', 0, {}], ]
-            tip2 = ('first edge of line',
-                    'second  of line',
-                    'number of points on line')
+
+            tip2 = ('initial point of line',
+                    'final point of the line',
+                    'number of points on the line')
 
             ss = [None, None, 34, ({'text': '',
                                     'choices': ['XYZ', 'Line  '],
@@ -295,22 +318,24 @@ class DlgPlotSol(SimpleFramePlus):
                                     'call_fit': False},
                                    {'elp': elp1, 'tip': tip1},
                                    {'elp': elp2, 'tip': tip2},)]
+
             ll = [
                 [
                     'Expression', '', 500, {}], ss, [
-                    'Selection', 'all', 4, {
+                    'Domains', 'all', 4, {
                         'style': wx.CB_DROPDOWN, 'choices': [
                             'all', 'visible', 'hidden']}], [
                         'NameSpace', choices[0], 4, {
                             'style': wx.CB_READONLY, 'choices': choices}], [
                                 None, False, 3, {
-                                    "text": 'dynamic extension'}], ]
+                                    "text": 'animate'}], ]
 
-            tip = ("Expression",
+            tip = ("Expression to evaluate on the points",
                    None,
-                   "Selection of domain to evaluate points",
-                   "Namespace used to evaluate variabls",
+                   "Select the domain containing the points",
+                   "Select the namespace to use to evaluate the variables",
                    "Generate animation using phasing")
+
             elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Points'] = elp
@@ -339,28 +364,33 @@ class DlgPlotSol(SimpleFramePlus):
 
             s4 = {"style": wx.TE_PROCESS_ENTER,
                   "choices": [str(x + 1) for x in range(10)]}
+
             ll = [['Expression', '', 500, {}],
                   ["-> more...", None, None,
                       {"tlb_resize_samewidth": True, "colour": pane_colour2}, ],
                   ['Expression(x)', '', 500, {}],
                   ["<-"],
-                  ['Selection', 'all', 4, {'style': wx.CB_DROPDOWN,
-                                           'choices': ['all', 'visible', 'hidden']}],
+                  ['Edges', 'all', 4, {'style': wx.CB_DROPDOWN,
+                                       'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
-                  [None, False, 3, {"text": 'dynamic extension'}],
+                  [None, False, 3, {"text": 'animate'}],
                   [None, True, 3, {"text": 'merge solutions'}],
-                  ['Refine', 1, 104, s4],
-                  [None, True, 3, {"text": 'averaging'}], ]
+                  [None,  (True, ['1'], ), 127,
+                   ({"text": 'Averaging'},
+                    {"elp": [['Refine', 1, 104, s4], ]}, )], ]
 
-            tip = ("Expression", None, "Expression for x (2D plot)",
+            tip = ("Expression to evaluate on the edge",
                    None,
-                   "Selection of Boundary(2D geometry) or Domain (1D geometry) to plot",
-                   "Namespace to evaluate variables",
-                   "Gerante animation using phasing",
+                   "Expression for x (2D plot)",
+                   None,
+                   "Select the edges where to evaluate and plot the expression",
+                   "Select the namespace to use to evaluate the expression",
+                   "Generate animation using phasing",
                    None,
                    "Data point refinement",
                    None)
+
             elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Edge'] = elp
@@ -401,26 +431,29 @@ class DlgPlotSol(SimpleFramePlus):
                   ['Offset Z', '0', 500, {}],
                   ['Scale', '1.0', 500, {}],
                   ["<-"],
-                  ['Selection', 'all', 4, {'style': wx.CB_DROPDOWN,
-                                           'choices': ['all', 'visible', 'hidden']}],
+                  ['Boundaries', 'all', 4, {'style': wx.CB_DROPDOWN,
+                                            'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
-                  [None, False, 3, {"text": 'dynamic extenstion'}],
+                  [None, False, 3, {"text": 'animate'}],
                   [None, True, 3, {"text": 'merge solutions'}],
-                  ['Refine', 1, 104, s4],
-                  [None, True, 3, {"text": 'averaging'}],
+                  [None,  (True, ['1'], ), 127,
+                   ({"text": 'Averaging'},
+                    {"elp": [['Refine', 1, 104, s4], ]}, )],
                   ['Decimate elements', '1', 0, {}, ], ]
 
-            tip = ("Expression", None,
+            tip = ("Expression to evaluate on the boundary",
+                   None,
                    "Offset X (evaluated using solution namespace)",
                    "Offset Y (evaluated using solution namespace)",
                    "Offset Z (evaluated using solution namespace)",
-                   "Scaling coordiantes (evaluated using local namespace)", None,
-                   "Selection of Boundary(3D geometry) or Domain (2D geometry) to plot",
-                   "Namespace used to evaluate variables",
+                   "Scaling coordinates (evaluated using local namespace)",
+                   None,
+                   "Select the boundary where to evaluate and plot the expression",
+                   "Select the namespace to use to evaluate the expression",
                    "Generate animation using phasing",
                    None,
-                   "Data point refienment", None, None,)
+                   "Data point refinement", None, None,)
 
             elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
@@ -453,19 +486,23 @@ class DlgPlotSol(SimpleFramePlus):
             ll = [['Expression(u)', '', 500, {}],
                   ['Expression(v)', '', 500, {}],
                   ['Expression(w)', '', 500, {}],
-                  ['Selection', 'all', 4, {'style': wx.CB_DROPDOWN,
-                                           'choices': ['all', 'visible', 'hidden']}],
+                  ['Boundaries', 'all', 4, {'style': wx.CB_DROPDOWN,
+                                            'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
                   [None, False, 3, {
-                      "text": 'dynamic extension (does not work)'}],
+                      "text": 'animate (does not work)'}],
                   [None, True, 3, {"text": 'merge solutions'}],
                   ['Arrow count', 300, 400, None], ]
 
-            tip = ("Expressoin for arrow (u)", "Expressoin for arrow (v)", "Expressoin for arrow (w)",
-                   "Selection of Boundary(3D geometry) or Domain (2D geometry) to plot",
-                   "Namespace used to evaluate variables",
-                   None, None, "Number of arrows")
+            tip = ("Expression for arrow coordinate 1 (u)",
+                   "Expression for arrow coordinate 2 (v)",
+                   "Expression for arrow coordinate 3 (w)",
+                   "Select the boundary where to evaluate and plot the expression",
+                   "Select the namespace to use to evaluate the expression",
+                   None,
+                   None,
+                   "Number of arrows")
             elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Bdr(arrow)'] = elp
@@ -508,16 +545,18 @@ class DlgPlotSol(SimpleFramePlus):
                 choices = ['no physcs in model']
             ll = [['Expression', '', 500, {}],
                   ss,
-                  ['Selection', 'all', 4, {'style': wx.CB_DROPDOWN,
-                                           'choices': ['all', 'visible', 'hidden']}],
+                  ['Domains', 'all', 4, {'style': wx.CB_DROPDOWN,
+                                         'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
-                  [None, False, 3, {"text": 'dynamic extension'}],
+                  [None, False, 3, {"text": 'animate'}],
                   [None, True, 3, {"text": 'merge solutions'}], ]
-            tip = ("Expression",  None,
-                   "Selection of volumes (3D geometry) or faces (2D)",
+            tip = ("Expression to evaluate on the slice",
+                   None,
+                   "Selection of domains to use for the slice plot",
                    "Namespace used to evaluate variables",
-                   None, None)
+                   "Generate animation using phasing",
+                   None)
             elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Slice'] = elp
@@ -577,8 +616,11 @@ class DlgPlotSol(SimpleFramePlus):
                   ['Expression(x)', '', 0, {}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}], ]
+            tip = ("Expression to evaluate",
+                   "Expression for x (2D plot)",
+                   "Namespace used to evaluate variables")
 
-            elp = EditListPanel(p, ll)
+            elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Probe'] = elp
 
@@ -642,8 +684,8 @@ class DlgPlotSol(SimpleFramePlus):
                     None,)
 
             choices = ['Single', 'MP', 'C/S']
-            tip = '\n'.join(("Single: plot local solution, MP: plot local solution with multiprocessing,",
-                             "C/S: plot solution on a remote server"))
+            tip = '\n'.join(("- Single: plot local solution using single-processor \n- MP: plot local solution with multiprocessing",
+                             "- C/S: plot solution on a remote server"))
             ll = [[None, None, 34, ({'text': "Worker Mode",
                                      'choices': choices,
                                      'cb_tip': tip,
@@ -826,7 +868,6 @@ class DlgPlotSol(SimpleFramePlus):
                                        self.config['cs_soldir'])
 
         except AssertionError as err:
-            print(err.args[0])
             dlg.Destroy()
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
@@ -1253,7 +1294,8 @@ class DlgPlotSol(SimpleFramePlus):
             cls = WaveViewer
         else:
             cls = None
-        refine = int(value[6])
+
+        refine = int(value[6][1][0])
 
         data, data_x, battrs = self.eval_edge(mode='plot', refine=refine)
         if data is None:
@@ -1268,7 +1310,8 @@ class DlgPlotSol(SimpleFramePlus):
     def onExportR1Edge(self, evt):
         remote, base, subs = self.get_current_choices()
         value = self.elps['Edge'] .GetValue()
-        refine = int(value[6])
+
+        refine = int(value[6][1][0])
 
         all_data = []
         for s in subs:
@@ -1371,7 +1414,7 @@ class DlgPlotSol(SimpleFramePlus):
         from petram.sol.evaluators import area_tri
 
         value = self.elps['Edge'] .GetValue()
-        refine = int(value[6])
+        refine = int(value[6][1][0])
         data, data_x, battrs = self.eval_edge(mode='integ', refine=refine)
         if data is None:
             return
@@ -1404,7 +1447,9 @@ class DlgPlotSol(SimpleFramePlus):
             do_merge1 = value[5]
         else:
             do_merge1 = True
-        average = value[7]
+        average = value[6][0]
+        if average:
+            refine = 1
 
         exprs = [expr, expr_x] if expr_x != '' else [expr]
         data, void = self.evaluate_sol_edge(expr, battrs, phys_path,
@@ -1437,7 +1482,7 @@ class DlgPlotSol(SimpleFramePlus):
                   ['Boundary Index', text, 0, {}],
                   ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
                                            'choices': choices}],
-                  [None, False, 3, {"text":'dynamic extenstion'}],
+                  [None, False, 3, {"text":'animate'}],
                   [None, True, 3, {"text":'merge solutions'}],
                   ['Refine', 1, 104, s4],
                   [None, True, 3, {"text":'averaging'}],]
@@ -1446,14 +1491,18 @@ class DlgPlotSol(SimpleFramePlus):
     def onApplyBdr(self, evt):
         value = self.elps['Bdr'] .GetValue()
         expr = str(value[0]).strip()
+        if len(expr) == 0:
+            return
 
         if value[7]:
             from ifigure.widgets.wave_viewer import WaveViewer
             cls = WaveViewer
         else:
             cls = None
-        refine = int(value[9])
-        use_pointfill = int(value[11]) > 1
+
+        refine = int(value[9][1][0])
+
+        use_pointfill = int(value[10]) > 1
         data, battrs = self.eval_bdr(mode='plot', refine=refine)
         if data is None:
             return
@@ -1620,8 +1669,12 @@ class DlgPlotSol(SimpleFramePlus):
             do_merge1 = False
             do_merge2 = False
 
-        average = value[10]
-        decimate = int(value[11])
+        average = value[9][0]
+        decimate = int(value[10])
+
+        if average:
+            refine = 1
+
         data, battrs2 = self.evaluate_sol_bdr(expr, battrs, phys_path,
                                               do_merge1, do_merge2,
                                               export_type=export_type,
@@ -2538,9 +2591,9 @@ class DlgPlotSol(SimpleFramePlus):
             return
         if xdata is None:
             return
-        if len(data.shape) == 0:
-            return
+
         data = {'xdata': xdata, 'data': data}
+
         self.export_to_piScope_shell(data, 'probe_data')
 
     def make_plot_probe(self, data, expr='', xexpr='', cls=None):

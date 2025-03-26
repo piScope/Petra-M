@@ -10,6 +10,7 @@ from petram.mesh.find_edges import find_edges
 from petram.mesh.find_vertex import find_vertex
 from mfem.ser import GlobGeometryRefiner as GR
 
+
 def extract_refined_mesh_data1(mesh, refine=None):
     ndim = mesh.Dimension()
     sdim = mesh.SpaceDimension()
@@ -40,18 +41,25 @@ def extract_refined_mesh_data1(mesh, refine=None):
         cells['line_x'] = ivx2
         cell_data['line_x'] = {}
         cell_data['line_x']['physical'] = attrx2
-        cell_data['X_refined_edge']=ptx2
+
+        if ptx2.shape[1] == 2:
+            ptx2 = np.hstack((ptx2, np.zeros((ptx2.shape[0], 1))))
+        elif ptx2.shape[1] == 1:
+            ptx2 = np.hstack((ptx2, np.zeros((ptx2.shape[0], 2))))
+
+        cell_data['X_refined_edge'] = ptx2
 
     X = np.vstack(ptx)
+
+    if X.shape[1] == 2:
+        X = np.hstack((X, np.zeros((X.shape[0], 1))))
+    elif X.shape[1] == 1:
+        X = np.hstack((X, np.zeros((X.shape[0], 2))))
 
     from petram.mesh.mesh_utils import populate_plotdata
 
     l_s_loop = populate_plotdata(mesh, table, cells, cell_data)
 
-    iedge2bb = None # is it used?
+    iedge2bb = None  # is it used?
 
-    #print "X", X.shape
-    #for k in cells['vertex']:print X[k]
     return X, cells, cell_data, l_s_loop, iedge2bb
-
-

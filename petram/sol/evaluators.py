@@ -189,7 +189,13 @@ class EvaluatorCommon(Evaluator):
 
         pp_root = self.mfem_model()["PostProcess"]
         solvars = pp_root.add_solvars(solsets.set, solvars)
+
         print("=== solvars= ===", solvars[0])
+        from petram.helper.variables import NumbaCoefficientVariable
+        for vv in solvars:
+            for key in vv:
+                if isinstance(vv[key], NumbaCoefficientVariable):
+                    vv[key].forget_jitted_coefficient()
 
         self.solvars[self.solfiles] = solvars
 
@@ -280,6 +286,22 @@ class EvaluatorCommon(Evaluator):
 
     def terminate_all(self):
         pass
+
+    def forget_jitted_ns(self, model):
+        from petram.helper.variables import NumbaCoefficientVariable
+        ns = []
+        checked = []
+        for x in model.walk_enabled():
+            if hasattr(x, "_global_ns") and x._global_ns not in ns:
+                g = x._global_ns
+                ns.append(g)
+                for key in g:
+                    if (isinstance(g[key], NumbaCoefficientVariable) and
+                            key not in checked):
+                        g[key].forget_jitted_coefficient()
+                        checked.append(key)
+
+        #print("will recompile the following variables", checked)
 
 
 def_config = {'use_mp': False,

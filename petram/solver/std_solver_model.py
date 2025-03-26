@@ -45,12 +45,15 @@ class StdSolver(Solver):
              self.assemble_real,  3, {"text": "convert to real matrix (complex prob.)"}],
             [None,
              self.save_parmesh,  3, {"text": "save parallel mesh"}],
+            [None,  self.save_sersol,  3, {
+                "text": "save serialized solution (for MPI run)"}],
             [None,
              self.use_profiler,  3, {"text": "use profiler"}],
             [None, self.skip_solve,  3, {"text": "skip linear solve"}],
             [None, self.load_sol,  3, {
                 "text": "load sol file (linear solver is not called)"}],
-            [None, self.sol_file,  0, None], ]
+            [None, self.sol_file,  0, None],
+            ["LS blk. str.", self.sol_file,  0, None], ]
 
     def get_panel1_value(self):
         return (  # self.init_setting,
@@ -59,10 +62,12 @@ class StdSolver(Solver):
             self.clear_wdir,
             self.assemble_real,
             self.save_parmesh,
+            self.save_sersol,
             self.use_profiler,
             self.skip_solve,
             self.load_sol,
-            self.sol_file)
+            self.sol_file,
+            self.ls_blk_merge,)
 
     def import_panel1_value(self, v):
         # self.init_setting = str(v[0])
@@ -71,10 +76,29 @@ class StdSolver(Solver):
         self.clear_wdir = v[2]
         self.assemble_real = v[3]
         self.save_parmesh = v[4]
-        self.use_profiler = v[5]
-        self.skip_solve = v[6]
-        self.load_sol = v[7]
-        self.sol_file = v[8]
+        self.save_sersol = v[5]
+        self.use_profiler = v[6]
+        self.skip_solve = v[7]
+        self.load_sol = v[8]
+        self.sol_file = v[9]
+        self.ls_blk_merge = v[10]
+
+    def panel1_tip(self):
+        return ["Specify physics model to be solved.",
+                "Check this in order to initialize a solution vector with essential cnd. w/o solving linear system",
+                "Clear working directory when entering this solver phase ",
+                "Construct linear system using real values",
+                "Check this in order to save paralell mesh",
+                "Collect execution time profile during the run ",
+                "Skip solving the linear system (for debugging)",
+                "Check this in order to read the solution vector, instead of generatign a new solution vector",
+                "Directory to read in order to restore the solution vector",
+                "\n".join(("Tweak block linear system by merging blocks:",
+                           "ex) [0, 1, 2], 3: will merge (0,1,2) and (3 to the rest) blocks.",
+                           "    :-3, -3: will merge (0 to -3) and (-3 to the rest) blocks.",
+                           "under development")),
+                "Save solution in a serial format"
+                ]
 
     def get_editor_menus(self):
         return []
@@ -157,7 +181,8 @@ class StdSolver(Solver):
         instance.save_solution(ksol=0,
                                skip_mesh=False,
                                mesh_only=False,
-                               save_parmesh=self.save_parmesh)
+                               save_parmesh=self.save_parmesh,
+                               save_sersol=self.save_sersol)
         engine.sol = instance.sol
 
         instance.save_probe()
@@ -246,10 +271,12 @@ class StandardSolver(SolverInstance):
 
         if update_operator:
             AA = engine.finalize_matrix(A, mask, not self.phys_real,
-                                        format=self.ls_type)
+                                        format=self.ls_type,
+                                        blk_format=self.gui.get_blk_structure())
             self._AA = AA
         BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
-                                 format=self.ls_type)
+                                 format=self.ls_type,
+                                 blk_format=self.gui.get_blk_structure())
 
         if self.linearsolver is None:
             linearsolver = self.allocate_linearsolver(
@@ -268,7 +295,8 @@ class StandardSolver(SolverInstance):
 
         if linearsolver.is_iterative:
             XX = engine.finalize_x(X[0], RHS, mask, not self.phys_real,
-                                   format=self.ls_type)
+                                   format=self.ls_type,
+                                   blk_format=self.gui.get_blk_structure())
         else:
             XX = None
 
