@@ -12,10 +12,10 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Superposition')
 format_memory_usage = debug.format_memory_usage
 
 if use_parallel:
-    import mfem.par as mfem    
+    import mfem.par as mfem
     from mfem.common.mpi_debug import nicePrint
 else:
-    import mfem.ser as mfem    
+    import mfem.ser as mfem
     nicePrint = print
 
 
@@ -40,17 +40,16 @@ class Superposition(SolveControl, NS_mixin):
 
     def panel1_param(self):
         return [
-            ["Weight",   self.phys_model,  0, {}, ], 
+            ["Weight",   self.phys_model,  0, {}, ],
             [None,
              self.save_parmesh,  3, {"text": "save parallel mesh"}],
             [None,  self.save_sersol,  3, {
-                "text": "save serialized solution (for MPI run)"}],]
+                "text": "save serialized solution (for MPI run)"}], ]
 
     def get_panel1_value(self):
         return [self.sol_weight_txt,
                 self.save_parmesh,
-                self.save_sersol,]
-    
+                self.save_sersol, ]
 
     def import_panel1_value(self, v):
         self.sol_weight_txt = v[0]
@@ -84,12 +83,14 @@ class Superposition(SolveControl, NS_mixin):
         g = self._global_ns.copy()
 
         try:
-            txt0 = "scanner.Smat"
-            xx = eval(txt0, g, self._local_ns)
-            print(xx)
-            
-            xx = eval(txt, g, self._local_ns)            
+            # (test)
+            # txt0 = "scanner.Smat"
+            # xx = eval(txt0, g, self._local_ns)
+            # nicePrint("Smat", xx)
+
+            xx = eval(txt, g, self._local_ns)
             val = np.array(xx)
+
             return val
         except BaseException:
             import traceback
@@ -103,7 +104,7 @@ class Superposition(SolveControl, NS_mixin):
         if weight is None:
             assert False, "Failed to evaulate weight"
         dprint1(weight)
-        
+
         cwd = os.getcwd()
         files = os.listdir(cwd)
         cases = [(int(f.split("_")[1]), f) for f in files
@@ -112,14 +113,13 @@ class Superposition(SolveControl, NS_mixin):
 
         phys_target = self.get_phys()
         self.access_idx = 0
-        
+
         for phys in phys_target:
             emesh_idx = phys.emesh_idx
             emesh = engine.get_emesh(emesh_idx)
             for name in phys.dep_vars:
                 fnamer, fnamei = engine.solfile_name(name, emesh_idx)
                 suffix = engine.solfile_suffix()
-
 
                 fnamer = fnamer+suffix
                 fnamei = fnamei+suffix
@@ -132,7 +132,8 @@ class Superposition(SolveControl, NS_mixin):
                         tmp = mfem.GridFunction(emesh, f).GetDataArray()
                     f = os.path.join(cwd, case, fnamei)
                     if os.path.exists(f):
-                        tmp = tmp + 1j*mfem.GridFunction(emesh, f).GetDataArray()
+                        tmp = tmp + 1j * \
+                            mfem.GridFunction(emesh, f).GetDataArray()
 
                     if data is None:
                         data = tmp*weight[ii]
@@ -146,7 +147,7 @@ class Superposition(SolveControl, NS_mixin):
                 r_x.GetDataArray()[:] = np.real(data)
                 if i_x is not None:
                     i_x.GetDataArray()[:] = np.imag(data)
-                    
+
         for ii, case in enumerate(cases):
             check, val = engine.load_extra_from_file(case)
             print(val)
@@ -154,7 +155,7 @@ class Superposition(SolveControl, NS_mixin):
                 sol_extra = None
                 break
             if ii == 0:
-                sol_extra = val                
+                sol_extra = val
                 for x in sol_extra:
                     for y in sol_extra[x]:
                         sol_extra[x][y] = val[x][y]*weight[ii]
@@ -162,7 +163,7 @@ class Superposition(SolveControl, NS_mixin):
             else:
                 for x in sol_extra:
                     for y in sol_extra[x]:
-                        sol_extra[x][y] = (sol_extra[x][y]+
+                        sol_extra[x][y] = (sol_extra[x][y] +
                                            val[x][y]*weight[ii])
 
         engine.save_sol_to_file(phys_target,
