@@ -349,12 +349,6 @@ class Phys(Model, Vtable_mixin, NS_mixin):
     def get_possible_point(self):
         return []
 
-    def get_probe(self):
-        '''
-        return probe name
-        '''
-        return ''
-
     def get_independent_variables(self):
         p = self.get_root_phys()
         ind_vars = p.ind_vars
@@ -788,6 +782,9 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         if not isinstance(self, (Bdry, Domain)):
             return []
 
+        self.vt.preprocess_params(self)
+        self.vt3.preprocess_params(self)
+
         p = self.get_root_phys()
         ind_vars = [x.strip() for x in p.ind_vars.split(',')]
         suffix = p.dep_vars_suffix
@@ -899,8 +896,19 @@ class Phys(Model, Vtable_mixin, NS_mixin):
         args = list(coeff)
         args.extend(itg_params)
 
-        itg = integrator(*args)
+        kwargs = {}
+        metric = self.get_root_phys().get_metric()
+        if hasattr(integrator, "support_metric") and integrator.support_metric:
+            kwargs = {"metric": metric}
+
+        itg = integrator(*args, **kwargs)
         itg._linked_coeff = coeff  # make sure that coeff is not GCed.
+
+        if metric is not None and len(itg_params) != 0:
+            # if metric is used and integrator is not passed an informaiton
+            # for coordinate system at object construction, we call
+            # set_metric here.
+            itg.set_metric(metric, *itg_params)
 
         if hasattr(integrator, "use_complex_coefficient"):
             itg.set_realimag_mode(self.integrator_realimag_mode)
@@ -915,6 +923,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             if ir is not None:
                 itg.SetIntRule(ir)
             adder(itg)
+
+        return itg
 
     def onItemSelChanged(self, evt):
         '''
@@ -1266,6 +1276,9 @@ class PhysModule(Phys):
         v['sel_index'] = ['all']
         v['sel_index_txt'] = 'all'
 
+        # metric :
+        #  a pair of name + periodicity parameters ex"cyclindrical1dct", (0j, 0j)
+        v['metric_txt'] = ''
         # subclass can use this flag to generate FESpace for time derivative
         # see WF_model
         v['generate_dt_fespace'] = False
@@ -1521,7 +1534,10 @@ class PhysModule(Phys):
                 self.sel_index = alle
 
     def collect_probes(self):
-        probes = [mm.get_probe() for mm in self.walk() if mm.is_enabled()]
+        probes = []
+        for mm in self.walk():
+            if mm.is_enabled():
+               probes.extend(mm.get_probes())
         probes = [x for x in probes if len(x) != 0]
         txt = ','.join(probes)
         return txt
@@ -1575,3 +1591,28 @@ class PhysModule(Phys):
         return list(set(dom_choice)), list(
             set(bdr_choice)), list(set(pnt_choice)), list(set(internal_bdr)),
         # return dom_choice, bdr_choice
+
+    @property
+    def metric(self):
+        '''
+        should return a text which is supposed be written in TextControl
+        '''
+        return self.metric_txt
+
+    def get_metric(self, return_txt=False):
+        """
+        metric parameter will be passed to integrator by calling set_metric (if 
+        is supported)
+
+        ths is a default action to evaulate metric_txt
+        """
+        from petram.helper.curvilinear_coords import eval_metric_txt
+
+        txt = self.metric
+        if txt.strip() == '':
+            return None
+
+        l = self._local_ns
+        g = self._global_ns
+
+        return eval_metric_txt(txt, g, l, return_txt=return_txt)

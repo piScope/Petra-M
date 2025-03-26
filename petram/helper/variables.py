@@ -427,13 +427,13 @@ class Variable():
 
     def ncface_values(self, ifaces=None, irs=None,
                       gtypes=None, **kwargs):
-        raise NotImplementedError("Subclass need to implement"+str(self))
+        raise NotImplementedError("Subclass need to implement: " + str(self))
 
     def ncedge_values(self, *args, **kwargs):
-        raise NotImplementedError("Subclass need to implement"+str(self))
+        raise NotImplementedError("Subclass need to implement: " + str(self))
 
     def point_values(self, *args, **kwargs):
-        raise NotImplementedError("Subclass need to implement:" + str(self))
+        raise NotImplementedError("Subclass need to implement: " + str(self))
 
     def add_topological_info(self, mesh):
         if not isinstance(self, DomainVariable):
@@ -497,8 +497,10 @@ class PlaceholderVariable(Variable):
 
 
 class Constant(Variable):
-    def __init__(self, value, comp=-1):
+    def __init__(self, value, comp=-1, dtype=None):
         super(Constant, self).__init__(complex=np.iscomplexobj(value))
+        if dtype is not None:
+            value = value.astype(dtype)
         self.value = value
 
     def __repr__(self):
@@ -675,6 +677,12 @@ class CoordVariable(Variable):
             return locs[:, self.comp - 1]
 
     def ncface_values(self, locs=None, **kwargs):
+        if self.comp == -1:
+            return locs
+        else:
+            return locs[:, self.comp - 1]
+
+    def ncedge_values(self, locs=None, **kwargs):
         if self.comp == -1:
             return locs
         else:
@@ -2659,6 +2667,49 @@ class GFVectorVariable(GridFunctionVariable):
             if ndim == 3:
                 return gf.GetFaceVectorValues
             elif ndim == 2:
+                def func(i, side, ir, d, p, gf=gf):
+                    return gf.GetVectorValues(i, ir, d, p)
+                return func
+            else:
+                assert False, "ndim = 1 has no face"
+        getvalr = get_method(self.gfr, ndim)
+        getvali = get_method(self.gfi, ndim)
+
+        for i, gtype, in zip(ifaces, gtypes):
+            ir = irs[gtype]
+            getvalr(i, 2, ir, d, p)  # side = 2 (automatic?)
+            v = d.GetDataArray().copy()
+
+            if getvali is not None:
+                getvali(i, 2, ir, d, p)
+                vi = d.GetDataArray().copy()
+                v = v + 1j * vi
+            data.append(v)
+        ret = np.hstack(data).transpose()
+
+        return ret
+
+    def ncedge_values(self, ifaces=None, irs=None,
+                      gtypes=None, **kwargs):
+
+        if not self.isDerived:
+            self.set_funcs()
+        ndim = self.gfr.FESpace().GetMesh().Dimension()
+
+        d = mfem.DenseMatrix()
+        p = mfem.DenseMatrix()
+        data = []
+
+        def get_method(gf, ndim):
+            if gf is None:
+                return None
+            if ndim == 3:
+                assert False, "ndim = 3 is not supported for edge plot"
+            elif ndim == 2:
+                def func(i, side, ir, d, p, gf=gf):
+                    return gf.GetVectorValues(i, ir, d, p)
+                return func
+            elif ndim == 1:
                 def func(i, side, ir, d, p, gf=gf):
                     return gf.GetVectorValues(i, ir, d, p)
                 return func
