@@ -12,8 +12,10 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Superposition')
 format_memory_usage = debug.format_memory_usage
 
 if use_parallel:
+    import mfem.par as mfem    
     from mfem.common.mpi_debug import nicePrint
 else:
+    import mfem.ser as mfem    
     nicePrint = print
 
 
@@ -32,20 +34,28 @@ class Superposition(SolveControl, NS_mixin):
         super(Superposition, self).attribute_set(v)
         v["sol_weight_txt"] = ""
         v["phys_model"] = ""
+        v['save_parmesh'] = False
+        v['save_sersol'] = False
         return v
 
     def panel1_param(self):
         return [
-            ["physics model",   self.phys_model,  0, {}, ],
-            ["Weight",   self.phys_model,  0, {}, ], ]
+            ["Weight",   self.phys_model,  0, {}, ], 
+            [None,
+             self.save_parmesh,  3, {"text": "save parallel mesh"}],
+            [None,  self.save_sersol,  3, {
+                "text": "save serialized solution (for MPI run)"}],]
 
     def get_panel1_value(self):
-        return (self.phys_model,
-                self.sol_weight_txt)
+        return [self.sol_weight_txt,
+                self.save_parmesh,
+                self.save_sersol,]
+    
 
     def import_panel1_value(self, v):
-        self.init_setting = v[0]
-        self.sol_weight_txt = v[1]
+        self.sol_weight_txt = v[0]
+        self.save_parmesh = v[1]
+        self.save_sersol = v[2]
 
     def get_target_phys(self):
         return []
@@ -74,7 +84,11 @@ class Superposition(SolveControl, NS_mixin):
         g = self._global_ns.copy()
 
         try:
-            xx = eval(txt, g, self._local_ns)
+            txt0 = "scanner.Smat"
+            xx = eval(txt0, g, self._local_ns)
+            print(xx)
+            
+            xx = eval(txt, g, self._local_ns)            
             val = np.array(xx)
             return val
         except BaseException:
@@ -89,26 +103,73 @@ class Superposition(SolveControl, NS_mixin):
         if weight is None:
             assert False, "Failed to evaulate weight"
         dprint1(weight)
-
-        files = os.listdir(os.getcwd())
+        
+        cwd = os.getcwd()
+        files = os.listdir(cwd)
         cases = [(int(f.split("_")[1]), f) for f in files
                  if f.startswith('case') and os.path.isdir(f)]
         cases = [x[1] for x in sorted(cases)]
-        print(cases)
+
         phys_target = self.get_phys()
         self.access_idx = 0
+        
         for phys in phys_target:
             emesh_idx = phys.emesh_idx
+            emesh = engine.get_emesh(emesh_idx)
             for name in phys.dep_vars:
                 fnamer, fnamei = engine.solfile_name(name, emesh_idx)
                 suffix = engine.solfile_suffix()
 
+
                 fnamer = fnamer+suffix
                 fnamei = fnamei+suffix
-                nicePrint(fnamer, fnamei)
+
+                data = None
+                for ii, case in enumerate(cases):
+                    tmp = None
+                    f = os.path.join(cwd, case, fnamer)
+                    if os.path.exists(f):
+                        tmp = mfem.GridFunction(emesh, f).GetDataArray()
+                    f = os.path.join(cwd, case, fnamei)
+                    if os.path.exists(f):
+                        tmp = tmp + 1j*mfem.GridFunction(emesh, f).GetDataArray()
+
+                    if data is None:
+                        data = tmp*weight[ii]
+                    else:
+                        data = data + tmp*weight[ii]
 
                 ifes = engine.r_ifes(name)
                 r_x = engine.r_x[ifes]
                 i_x = engine.i_x[ifes]
 
-                print(r_x)
+                r_x.GetDataArray()[:] = np.real(data)
+                if i_x is not None:
+                    i_x.GetDataArray()[:] = np.imag(data)
+                    
+        for ii, case in enumerate(cases):
+            check, val = engine.load_extra_from_file(case)
+            print(val)
+            if val is None:
+                sol_extra = None
+                break
+            if ii == 0:
+                sol_extra = val                
+                for x in sol_extra:
+                    for y in sol_extra[x]:
+                        sol_extra[x][y] = val[x][y]*weight[ii]
+
+            else:
+                for x in sol_extra:
+                    for y in sol_extra[x]:
+                        sol_extra[x][y] = (sol_extra[x][y]+
+                                           val[x][y]*weight[ii])
+
+        engine.save_sol_to_file(phys_target,
+                                skip_mesh=False,
+                                mesh_only=False,
+                                save_parmesh=self.save_parmesh,
+                                save_sersol=self.save_sersol)
+
+        if sol_extra is not None:
+            engine.save_extra_to_file(sol_extra)

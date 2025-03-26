@@ -2719,8 +2719,8 @@ class Engine(object):
                 name, name2 = line.split(':')[1].strip().split('.')
                 if not name in sol_extra:
                     sol_extra[name] = {}
-            size = long(fid.readline().split(':')[1].strip())
-            dim = long(fid.readline().split(':')[1].strip())
+            size = int(fid.readline().split(':')[1].strip())
+            dim = int(fid.readline().split(':')[1].strip())
             dtype = fid.readline().split(':')[1].strip()
             if dtype.startswith('complex'):
                 data = [complex(fid.readline().split(' ')[1])
