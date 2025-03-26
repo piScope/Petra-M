@@ -107,7 +107,7 @@ class Superposition(SolveControl, NS_mixin):
         weight = self.eval_weight()
         if weight is None:
             assert False, "Failed to evaulate weight"
-        dprint1(weight)
+        dprint1("superpsition weight: ", weight)
 
         cwd = os.getcwd()
 
@@ -157,7 +157,6 @@ class Superposition(SolveControl, NS_mixin):
 
         for ii, case in enumerate(cases):
             check, val = engine.load_extra_from_file(case)
-            print(val)
             if val is None:
                 sol_extra = None
                 break
