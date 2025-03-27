@@ -134,13 +134,13 @@ class Superposition(SolveControl, NS_mixin):
                 data = None
                 for ii, case in enumerate(cases):
                     tmp = None
-                    f = os.path.join(soldir, case, fnamer)
-                    if os.path.exists(f):
-                        tmp = mfem.GridFunction(emesh, f).GetDataArray()
-                    f = os.path.join(soldir, case, fnamei)
-                    if os.path.exists(f):
+                    f1 = os.path.join(soldir, case, fnamer)
+                    if os.path.exists(f1):
+                        tmp = mfem.GridFunction(emesh, f1).GetDataArray().copy()
+                    f2 = os.path.join(soldir, case, fnamei)
+                    if os.path.exists(f2):
                         tmp = tmp + 1j * \
-                            mfem.GridFunction(emesh, f).GetDataArray()
+                            mfem.GridFunction(emesh, f2).GetDataArray()
 
                     if data is None:
                         data = tmp*weight[ii]
