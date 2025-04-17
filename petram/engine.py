@@ -2720,8 +2720,8 @@ class Engine(object):
                 name, name2 = line.split(':')[1].strip().split('.')
                 if not name in sol_extra:
                     sol_extra[name] = {}
-            size = long(fid.readline().split(':')[1].strip())
-            dim = long(fid.readline().split(':')[1].strip())
+            size = int(fid.readline().split(':')[1].strip())
+            dim = int(fid.readline().split(':')[1].strip())
             dtype = fid.readline().split(':')[1].strip()
             if dtype.startswith('complex'):
                 data = [complex(fid.readline().split(' ')[1])
@@ -3726,6 +3726,11 @@ class Engine(object):
 
             variables.update(tmp_variables)
 
+        # (note) skipping this for backword compatibility.
+        #        in principle, we can do this for safety. but, we
+        #        should not need this if GUI is checking conflict enough :D
+        #self.check_ns_name_conflict()
+
         from petram.mesh.mesh_utils import get_reverse_connectivity
 
         get_reverse_connectivity(self.meshes[0])
@@ -3743,7 +3748,7 @@ class Engine(object):
             self.model._variables[k] = variables[k]
 
         # if verbose:
-        dprint1("variables defined at this point:",
+        dprint1("Defined variables:",
                 self.model._variables.short_repr(False), notrim=True)
 
     def set_update_flag(self, mode):

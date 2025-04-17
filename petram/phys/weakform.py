@@ -177,6 +177,9 @@ class WeakIntegration(Phys):
             shape = None
         else:
             integrator = getattr(petram.helper.pybilininteg, self.integrator)
+            if itg_params is None or len(itg_params) == 0:
+                itg_params = self.get_root_phys().get_metric(return_txt=True)
+
             shape = integrator.coeff_shape(*itg_params)
 
         c_coeff = self.get_coefficient_from_expression(coeff,

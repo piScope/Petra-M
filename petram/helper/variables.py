@@ -427,13 +427,13 @@ class Variable():
 
     def ncface_values(self, ifaces=None, irs=None,
                       gtypes=None, **kwargs):
-        raise NotImplementedError("Subclass need to implement"+str(self))
+        raise NotImplementedError("Subclass need to implement: " + str(self))
 
     def ncedge_values(self, *args, **kwargs):
-        raise NotImplementedError("Subclass need to implement"+str(self))
+        raise NotImplementedError("Subclass need to implement: " + str(self))
 
     def point_values(self, *args, **kwargs):
-        raise NotImplementedError("Subclass need to implement:" + str(self))
+        raise NotImplementedError("Subclass need to implement: " + str(self))
 
     def add_topological_info(self, mesh):
         if not isinstance(self, DomainVariable):
@@ -497,8 +497,10 @@ class PlaceholderVariable(Variable):
 
 
 class Constant(Variable):
-    def __init__(self, value, comp=-1):
+    def __init__(self, value, comp=-1, dtype=None):
         super(Constant, self).__init__(complex=np.iscomplexobj(value))
+        if dtype is not None:
+            value = value.astype(dtype)
         self.value = value
 
     def __repr__(self):
@@ -675,6 +677,12 @@ class CoordVariable(Variable):
             return locs[:, self.comp - 1]
 
     def ncface_values(self, locs=None, **kwargs):
+        if self.comp == -1:
+            return locs
+        else:
+            return locs[:, self.comp - 1]
+
+    def ncedge_values(self, locs=None, **kwargs):
         if self.comp == -1:
             return locs
         else:
@@ -2203,12 +2211,22 @@ class GFScalarVariable(GridFunctionVariable):
             else:
                 self.func_i = None
         else:
-            self.isVectorFE = False
-            self.func_r = mfem.GridFunctionCoefficient(gf_real)
-            if gf_imag is not None:
-                self.func_i = mfem.GridFunctionCoefficient(gf_imag)
+            vdim = gf_real.FESpace().GetVDim()
+            if vdim == 1:
+                self.isVectorFE = False
+                self.func_r = mfem.GridFunctionCoefficient(gf_real)
+                if gf_imag is not None:
+                    self.func_i = mfem.GridFunctionCoefficient(gf_imag)
+                else:
+                    self.func_i = None
             else:
-                self.func_i = None
+                self.isVectorFE = True
+                self.func_r = mfem.VectorGridFunctionCoefficient(gf_real)
+                if gf_imag is not None:
+                    self.func_i = mfem.VectorGridFunctionCoefficient(gf_imag)
+                else:
+                    self.func_i = None
+
         self.isDerived = True
 
     def eval_local_from_T_ip(self):
@@ -2529,7 +2547,8 @@ class GFVectorVariable(GridFunctionVariable):
 
         self.dim = gf_real.VectorDim()
         name = gf_real.FESpace().FEColl().Name()
-        if name.startswith("ND") or name.startswith("RT"):
+        #if name.startswith("ND") or name.startswith("RT"):
+        if True:
             self.isVectorFE = True
             self.func_r = mfem.VectorGridFunctionCoefficient(gf_real)
             if gf_imag is not None:
@@ -2537,6 +2556,9 @@ class GFVectorVariable(GridFunctionVariable):
             else:
                 self.func_i = None
 
+
+
+        '''
         else:
             self.isVectorFE = False
             self.func_r = [mfem.GridFunctionCoefficient(gf_real, k + 1)
@@ -2547,12 +2569,14 @@ class GFVectorVariable(GridFunctionVariable):
                                for k in range(self.dim)]
             else:
                 self.func_i = None
+        '''
         self.isDerived = True
 
     def eval_local_from_T_ip(self):
         if not self.isDerived:
             self.set_funcs()
-        if self.isVectorFE:
+
+        if True:
             if self.func_i is None:
                 v = mfem.Vector()
                 self.func_r.Eval(v, self.T, self.ip)
@@ -2563,6 +2587,10 @@ class GFVectorVariable(GridFunctionVariable):
                 self.func_r.Eval(v1, self.T, self.ip)
                 self.func_i.Eval(v2, self.T, self.ip)
                 return v1.GetDataArray().copy() + 1j * v2.GetDataArray().copy()
+
+
+
+        '''
         else:
             if self.func_i is None:
                 return np.array([func_r.Eval(self.T, self.ip) for
@@ -2572,6 +2600,7 @@ class GFVectorVariable(GridFunctionVariable):
                                   1j * func_i.Eval(self.T, self.ip))
                                  for func_r, func_i
                                  in zip(self.func_r, self.func_i)])
+        '''
 
     def nodal_values(self, iele=None, el2v=None, wverts=None,
                      **kwargs):
@@ -2638,6 +2667,49 @@ class GFVectorVariable(GridFunctionVariable):
             if ndim == 3:
                 return gf.GetFaceVectorValues
             elif ndim == 2:
+                def func(i, side, ir, d, p, gf=gf):
+                    return gf.GetVectorValues(i, ir, d, p)
+                return func
+            else:
+                assert False, "ndim = 1 has no face"
+        getvalr = get_method(self.gfr, ndim)
+        getvali = get_method(self.gfi, ndim)
+
+        for i, gtype, in zip(ifaces, gtypes):
+            ir = irs[gtype]
+            getvalr(i, 2, ir, d, p)  # side = 2 (automatic?)
+            v = d.GetDataArray().copy()
+
+            if getvali is not None:
+                getvali(i, 2, ir, d, p)
+                vi = d.GetDataArray().copy()
+                v = v + 1j * vi
+            data.append(v)
+        ret = np.hstack(data).transpose()
+
+        return ret
+
+    def ncedge_values(self, ifaces=None, irs=None,
+                      gtypes=None, **kwargs):
+
+        if not self.isDerived:
+            self.set_funcs()
+        ndim = self.gfr.FESpace().GetMesh().Dimension()
+
+        d = mfem.DenseMatrix()
+        p = mfem.DenseMatrix()
+        data = []
+
+        def get_method(gf, ndim):
+            if gf is None:
+                return None
+            if ndim == 3:
+                assert False, "ndim = 3 is not supported for edge plot"
+            elif ndim == 2:
+                def func(i, side, ir, d, p, gf=gf):
+                    return gf.GetVectorValues(i, ir, d, p)
+                return func
+            elif ndim == 1:
                 def func(i, side, ir, d, p, gf=gf):
                     return gf.GetVectorValues(i, ir, d, p)
                 return func

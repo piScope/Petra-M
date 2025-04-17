@@ -165,6 +165,13 @@ class Parametric(SolveStep, NS_mixin):
 
         return scanner
 
+    def get_probes(self):
+        probes = super(Parametric, self).get_probes()
+        scanner = self.get_scanner(nosave=True)
+        probes.extend(scanner.get_probes())
+        return probes
+        
+
     def get_default_ns(self):
         from petram.solver.parametric_scanner import Scan
         return {'Scan': Scan}

@@ -1121,30 +1121,37 @@ class MFEMViewer(BookViewer):
         if num_threads2 != 'auto':
             os.environ["OPENBLAS_NUM_THREADS"] = str(num_threads2)
 
+    def _run_verify_and_preprocess(self):
+        try:
+            self.engine.run_verify_setting()
+        except:
+            dialog.showtraceback(parent=self,
+                                 txt='Failed to verify setting',
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            return False
+
+        try:
+            self.run_preprocess()
+        except BaseException as err:
+            errstr = err.__str__()
+            dialog.showtraceback(parent=self,
+                                 txt='Failed to during pre-processing model data: \n'
+                                 + errstr + "\n",
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            return False
+        return True
+
     def onSerDriver(self, evt):
         m = self.model.param.getvar('mfem_model')
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
         odir = os.getcwd()
 
-        try:
-            self.engine.run_verify_setting()
-        except:
+        success = self._run_verify_and_preprocess()
+        if not success:
             os.chdir(odir)
-            dialog.showtraceback(parent=self,
-                                 txt='Failed to verify setting',
-                                 title='Error',
-                                 traceback=traceback.format_exc())
-            return
-
-        try:
-            self.run_preprocess()
-        except:
-            os.chdir(odir)
-            dialog.showtraceback(parent=self,
-                                 txt='Failed to during pre-processing model data',
-                                 title='Error',
-                                 traceback=traceback.format_exc())
             return
 
         self.set_num_threads()
@@ -1158,24 +1165,9 @@ class MFEMViewer(BookViewer):
         debug_level = m['General'].debug_level
         odir = os.getcwd()
 
-        try:
-            self.engine.run_verify_setting()
-        except:
+        success = self._run_verify_and_preprocess()
+        if not success:
             os.chdir(odir)
-            dialog.showtraceback(parent=self,
-                                 txt='Failed to verify setting',
-                                 title='Error',
-                                 traceback=traceback.format_exc())
-            return
-
-        try:
-            self.run_preprocess()
-        except:
-            os.chdir(odir)
-            dialog.showtraceback(parent=self,
-                                 txt='Failed to during pre-processing model data',
-                                 title='Error',
-                                 traceback=traceback.format_exc())
             return
 
         nproc = self.model.param.getvar('nproc')
@@ -1564,9 +1556,10 @@ class MFEMViewer(BookViewer):
     def onRebuildNS(self, evt):
         try:
             self.rebuild_ns()
-        except:
+        except BaseException as err:
+            errstr = err.__str__()
             dialog.showtraceback(parent=self,
-                                 txt='Failed to rebuild namespace',
+                                 txt='Failed to rebuild namespace: \n'+errstr + "\n",
                                  title='Error',
                                  traceback=traceback.format_exc())
             return
@@ -1575,6 +1568,9 @@ class MFEMViewer(BookViewer):
                        message='Namespace is built successfully. ',
                        title='Passed',
                        center_on_screen=True)
+
+        if self.editdlg is not None:
+            self.editdlg.refresh_elp()
 
         evt.Skip()
 
@@ -1653,6 +1649,8 @@ class MFEMViewer(BookViewer):
                   'sol', None)
         host : points host setting object
         '''
+        from petram.pi.dlg_submit_job import default_remote
+
         remote = self.model.param.eval('remote')
         if remote is not None:
             hostname = remote['name']
@@ -1670,9 +1668,8 @@ class MFEMViewer(BookViewer):
                 no_existing_c = (len(names) == 0)
 
         if no_existing_c:
-            remote = {'name': '',
-                      'rwdir': '',
-                      'sol': ''}
+            remote = default_remote.copy()
+
             ret, new_name = dialog.textentry(self,
                                              "Enter the name of new connection",
                                              "Add Connection",
@@ -1693,9 +1690,8 @@ class MFEMViewer(BookViewer):
             if not ret:
                 return
             if (ret and new_name == "New...") or c.get_child(name=new_name) is None:
-                remote = {'name': '',
-                          'rwdir': '',
-                          'sol': ''}
+                remote = default_remote.copy()
+
                 if new_name == "New...":
                     ret, new_name = dialog.textentry(self,
                                                      "Enter the name of new connection",
@@ -1736,27 +1732,26 @@ class MFEMViewer(BookViewer):
 
         try:
             self.run_preprocess()
-        except:
+        except BaseException as err:
+            errstr = err.__str__()
             os.chdir(odir)
             dialog.showtraceback(parent=self,
-                                 txt='Failed to during pre-processing model data',
+                                 txt='Failed to during pre-processing model data: \n'
+                                 + errstr + "\n",
                                  title='Error',
                                  traceback=traceback.format_exc())
             return
 
-        remote = self.model.param.eval('remote')
+        from petram.pi.dlg_submit_job import (get_model_remote,
+                                              get_job_submisson_setting)
+        from petram.remote.client_script import (prepare_remote_dir,
+                                                 send_file,
+                                                 get_job_queue,
+                                                 submit_job)
+
+        remote = get_model_remote(self.model.param)
         if remote is None:
             return
-
-        from petram.pi.dlg_submit_job import get_defaults
-        values, keys = get_defaults()
-
-        for i, key in enumerate(keys):
-            if remote.get(key, None) is not None:
-                values[i] = remote.get(key, None)
-
-        from petram.pi.dlg_submit_job import get_job_submisson_setting
-        from petram.remote.client_script import get_job_queue
 
         dlg = progressbar(self, 'Checking queue config...',
                           'In progress', 5,
@@ -1782,9 +1777,8 @@ class MFEMViewer(BookViewer):
                           center_on_parent=True,)
             return
 
-        setting = get_job_submisson_setting(self, remote['name'].upper(),
-                                            value=values,
-                                            queues=q)
+        setting = get_job_submisson_setting(self, remote, q)
+
         if len(setting) == 0:
             return
 
@@ -1793,7 +1787,6 @@ class MFEMViewer(BookViewer):
         dlg.Show()
         wx.GetApp().Yield()
 
-        from petram.remote.client_script import prepare_remote_dir
         # if remote['rwdir'] != setting['rwdir']:
         cancelled = prepare_remote_dir(self.model,
                                        setting['rwdir'],
@@ -1819,8 +1812,6 @@ class MFEMViewer(BookViewer):
         self.model.scripts.helpers.save_model(os.path.join(sol.owndir(),
                                                            'model.pmfm'),
                                               meshfile_relativepath=True)
-
-        from petram.remote.client_script import send_file, submit_job
 
         dlg.Update(2, newmsg="Sending file")
         wx.GetApp().Yield()
