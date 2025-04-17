@@ -2014,6 +2014,7 @@ class Engine(object):
                 if dep_name in self._dep_vars:
                     r1 = self.dep_var_offset(dep_name)
                 else:
+                    assert False, "do I need this? (2025 4 17)"
                     r1 = -1
 
                 if update and not self.mask_M[k, r, c]:
