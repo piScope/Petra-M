@@ -293,7 +293,7 @@ class NS_mixin(object):
             assert False, "PyMFEM is not loaded"
 
         # set PETRAM_ARRAY_ID
-        g["PETRAM_ARRAY_ID"] = 0
+        g["PETRAM_ARRAY_ID"] = 1
         g["PETRAM_ARRAY_COUNT"] = 1
         if os.getenv("PETRAM_ARRAY_ID") is not None:
             g["PETRAM_ARRAY_ID"] = int(os.getenv("PETRAM_ARRAY_ID"))
