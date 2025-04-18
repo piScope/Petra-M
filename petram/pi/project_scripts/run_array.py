@@ -6,6 +6,8 @@ values = kwargs.pop("values")
 folder = kwargs.pop("folder")
 viewer = kwargs.pop("viewer")
 
+odir = os.getcwd()
+
 for array_id in values:
     path = os.path.join(folder.owndir(), 'case_'+str(array_id))
     os.mkdir(path)
@@ -14,6 +16,7 @@ for array_id in values:
     kwargs["array_len"] = len(values)
 
     run_parallel(model, *args, **kwargs)
+    os.chdir(odir)
 
 if viewer.plotsoldlg is not None:
     import wx

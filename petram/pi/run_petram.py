@@ -72,8 +72,8 @@ def run_xxx(model, path='', debug=0, thread=True, array_id=1, array_len=1,
     #from petram.helper.driver_path import parallel as driver
     opath = os.getcwd()
 
-    os.chdir(path)
-    p = sp.Popen(run_command, stdout=sp.PIPE, stderr=sp.STDOUT)
+    #os.chdir(path)
+    p = sp.Popen(run_command, stdout=sp.PIPE, stderr=sp.STDOUT, cwd=path)
 
     if thread:
         q = Queue()
