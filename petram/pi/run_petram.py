@@ -126,7 +126,8 @@ def run_parallel(model, path='', nproc=1, debug=0, thread=True,
     globals()['default_glvis_args'] = ['-np', nproc]
 
 
-def run_serial(model, path='', debug=0, thread=True, array_id=0):
+def run_serial(model, path='', debug=0, thread=True, array_id=0,
+               array_len=1):
     run_command = [sys.executable, '-u',
                    'model.py', '-s', '-d',  str(debug)]
     run_xxx(model, path=path, debug=debug, thread=thread,
