@@ -292,6 +292,13 @@ class NS_mixin(object):
         else:
             assert False, "PyMFEM is not loaded"
 
+        # set PETRAM_ARRAY_ID
+        g["PETRAM_ARRAY_ID"] = 0
+        if os.getenv("PETRAM_ARRAY_ID") is not None:
+            g["PETRAM_ARRAY_ID"] = int(os.getenv("PETRAM_ARRAY_ID"))
+        if os.getenv("SLURM_ARRAY_TASK_ID") is not None:
+            g["PETRAM_ARRAY_ID"] = int(os.getenv("SLURM_ARRAY_TASK_ID"))
+
         import numpy
         g['np'] = numpy
         from petram.helper.variables import variable, coefficient
