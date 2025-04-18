@@ -1666,10 +1666,7 @@ class DlgPlotSol(SimpleFramePlus):
         return data
 
     def onExportBdr(self, evt):
-        #average = (self.elps['Bdr'].GetValue())[9][0]
-
         from petram.pi.dlg_export_opts import ask_export_opts
-        #opts = ask_export_opts(self, support_integ=average)
         opts = ask_export_opts(self)
 
         if opts is None:
@@ -2690,6 +2687,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.post_threadend(
             self.make_plot_probe, (xdata, data), expr=expr, xexpr=xexpr)
 
+    '''
     def onExportProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
         xdata, data = self.eval_probe(mode='plot')
@@ -2702,6 +2700,69 @@ class DlgPlotSol(SimpleFramePlus):
         data = {'xdata': xdata, 'data': data}
 
         self.export_to_piScope_shell(data, 'probe_data')
+    '''
+
+    def onExportProbe(self, evt):
+        remote, base, subs = self.get_current_choices()
+
+        if len(subs) > 1:
+            from petram.pi.dlg_export_opts import ask_export_opts
+            opts = ask_export_opts(self, support_integ=False)
+
+            if opts is None:
+                return
+            do_loop = opts[-1]
+        else:
+            do_loop = False
+
+        if do_loop:
+            all_data = []
+
+            bk = (self.local_soldir,
+                  self.local_solsubdir,
+                  self.config['cs_soldir'],
+                  self.config['cs_solsubdir'],)
+
+            for s in subs:
+                if s.strip() == '':
+                    continue
+                if remote:
+                    self.config['cs_soldir'] = base
+                    self.config['cs_solsubdir'] = s
+                else:
+                    self.local_soldir = base
+                    self.local_solsubdir = s
+                    self.load_sol_if_needed()
+
+                data = self.make_export_probe_data()
+                if data is None:
+                    continue
+                data["subdirs"] = s
+                all_data.append(data)
+
+            self.local_soldir = bk[0]
+            self.local_solsubdir = bk[1]
+            self.config['cs_soldir'] = bk[2]
+            self.config['cs_solsubdir'] = bk[3]
+
+        else:
+            all_data = self.make_export_probe_data()
+
+        if all_data is None or len(all_data) == 0:
+            return  # nothine to export
+        self.export_to_piScope_shell(all_data, 'probe_data')
+
+    def make_export_probe_data(self):
+        value = self.elps['Probe'] .GetValue()
+        xdata, data = self.eval_probe(mode='plot')
+
+        if data is None:
+            return
+        # if xdata is None:
+        #    return
+
+        data = {'xdata': xdata, 'data': data}
+        return data
 
     def make_plot_probe(self, data, expr='', xexpr='', cls=None):
         from ifigure.interactive import figure
@@ -3173,8 +3234,10 @@ class DlgPlotSol(SimpleFramePlus):
         try:
             if not self.config['use_cs']:
                 probes = self.local_sols[0:2]
+                probes = (self.local_sols[0], self.local_solsubdir)
             else:
                 probes = self.remote_sols[0:2]
+                probes = (self.remote_sols[0], self.config['cs_solsubdir'])
 
             self.evaluators['Probe'].set_phys_path(phys_path)
             data = self.evaluators['Probe'].eval_probe(expr, xexpr, probes)
