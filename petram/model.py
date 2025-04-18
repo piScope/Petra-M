@@ -926,9 +926,11 @@ class Model(RestorableOrderedDict):
         script.append('from collections import OrderedDict')
 
     def generate_script(self, skip_def_check=False, dir=None, nofile=False,
-                        parallel=False, filename='model.py'):
+                        parallel=False, filename='model.py',
+                        petram_array_id=0, petram_array_len=1):
         if dir is None:
             dir = os.getcwd()
+
         script = []
         script.extend(['from __future__ import print_function',
                        'import os',
@@ -958,6 +960,11 @@ class Model(RestorableOrderedDict):
                        '    import  petram.mfem_config as mfem_config',
                        '    mfem_config.use_parallel = use_parallel',
                        '    debug_level=args.debug_param',
+                       '',
+                       '    os.environ["PETRAM_ARRAY_ID"] = "' +
+                       str(petram_array_id)+'"',
+                       '    os.environ["PETRAM_ARRAY_COUNT"] = "' +
+                       str(petram_array_len)+'"',
                        '',
                        '# this is needed if this file is being imported',
                        'if not "use_parallel" in locals():',
