@@ -927,7 +927,7 @@ class Model(RestorableOrderedDict):
 
     def generate_script(self, skip_def_check=False, dir=None, nofile=False,
                         parallel=False, filename='model.py',
-                        petram_array_id=0, petram_array_len=1):
+                        petram_array_id=1, petram_array_len=1):
         if dir is None:
             dir = os.getcwd()
 
