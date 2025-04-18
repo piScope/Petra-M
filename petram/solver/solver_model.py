@@ -1169,7 +1169,6 @@ def real_to_complex_merged(solall, M):
         offset = M.RowOffsets()
         of = offset.ToList()
 
-    nicePrint(of)
     rows = M.NumRowBlocks()
     s = solall.shape
     i = 0

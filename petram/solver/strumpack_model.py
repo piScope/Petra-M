@@ -238,7 +238,8 @@ class Strumpack(LinearSolverModel):
         else:
             of = M.RowOffsets().ToList()
 
-        dprint1(of)
+        #dprint1("merged block size", of)
+
         rows = M.NumRowBlocks()
         s = solall.shape
         i = 0
@@ -247,6 +248,7 @@ class Strumpack(LinearSolverModel):
         for i in range(rows):
             l = of[i + 1] - of[i]
             w = int(l // 2)
+
             result[pt:pt + w, :] = (solall[of[i]:of[i] + w, :]
                                     + 1j * solall[(of[i] + w):of[i + 1], :])
             pt = pt + w
@@ -256,6 +258,27 @@ class Strumpack(LinearSolverModel):
         solver = StrumpackSolver(self, engine)
         solver.AllocSolver(is_complex, self.use_single_precision)
         return solver
+
+
+def check_operator_type(is_complex, A):
+    from petram.solver.solver_utils import get_operator_block
+
+    rows = A.NumRowBlocks()
+    cols = A.NumColBlocks()
+
+    complexreal = False
+    for i in range(rows):
+        for j in range(cols):
+            m = get_operator_block(A, i, j)
+            if isinstance(m, mfem.ComplexOperator) and not is_complex:
+                complexreal = True
+                break
+
+    if complexreal:
+        return "complexreal"
+    if is_complex:
+        return "complex"
+    return "real"
 
 
 def build_csr_local(A, dtype, is_complex):
@@ -298,6 +321,15 @@ def build_csr_local(A, dtype, is_complex):
                    for kk in range(len(new_offset))]
         return np.hstack(stm_idx)
 
+    def blk_stm_idx_map_complexreal(i):
+        stm_idx = ([new_offset[kk, i] +
+                   np.arange(new_size[kk, i]//2, dtype=int)
+                   for kk in range(len(new_offset))] +
+                   [new_offset[kk, i] + new_size[kk, i]//2 +
+                   np.arange(new_size[kk, i]//2, dtype=int)
+                   for kk in range(len(new_offset))])
+        return np.hstack(stm_idx)
+
     def sparsemat2csr(m):
         w, h = m.Width(), m.Height()
         I = m.GetIArray()
@@ -318,16 +350,21 @@ def build_csr_local(A, dtype, is_complex):
         return coo_matrix((data, (irn - ilower, jcn)),
                           shape=(num_rows, n)), ilower
 
-    map = [blk_stm_idx_map(i) for i in range(rows)]
-    # nicePrint("map", map)
+    from scipy.sparse import bmat
+    from petram.solver.solver_utils import get_operator_block
+
+    op_type = check_operator_type(is_complex, A)
+    if op_type == 'complexreal':
+        map = [blk_stm_idx_map_complexreal(i) for i in range(rows)]
+    else:
+        map = [blk_stm_idx_map(i) for i in range(rows)]
+
+    #nicePrint("map", map)
     newi = []
     newj = []
     newd = []
     nrows = np.sum(local_size)
     ncols = np.sum(global_size)
-
-    from scipy.sparse import bmat
-    from petram.solver.solver_utils import get_operator_block
 
     elements = [None] * rows
     elements = [elements.copy() for x in range(cols)]
@@ -367,6 +404,7 @@ def build_csr_local(A, dtype, is_complex):
                     m = sparsemat2csr(m).tocoo()
 
             elements[i][j] = m
+
     csr = bmat(elements, dtype=dtype).tocsr()
 
     # when block is squashed in vertical direction
@@ -374,6 +412,7 @@ def build_csr_local(A, dtype, is_complex):
     # elements
 
     csr2 = csr[:, np.argsort(np.hstack(map))]
+
     return csr2
 
 
@@ -532,6 +571,7 @@ class StrumpackSolver(LinearSolver):
                 else:
                     spss = ST.DStrumpackSolver(*args)
 
+        dprint1("StrumpackSolvar created: " + str(spss.__class__))
         assert spss.isValid(), "Failed to create STRUMPACK solver object"
 
         spss.set_from_options()
@@ -550,7 +590,9 @@ class StrumpackSolver(LinearSolver):
         nproc = MPI.COMM_WORLD.size
 
         self.row_offsets = A.RowOffsets()
+        #nicePrint("row offsets in SetOperator", self.row_offsets.ToList())
 
+        self.op_type = check_operator_type(self.is_complex, A)
         AA = build_csr_local(A, self.dtype, self.is_complex)
 
         if self.gui.write_mat:
@@ -657,15 +699,40 @@ class StrumpackSolver(LinearSolver):
                     r1 = row_offsets[i]
                     r2 = row_offsets[i + 1]
 
-                    if self.is_complex:
+                    if self.op_type == "real":
+                        xxvv = xxv[r1:r2]
+                        if use_parallel:
+                            vv = gather_vector(xxvv)
+                        else:
+                            vv = xxvv.copy()
+
+                    elif self.op_type == "complex":
                         r1 = r1 // 2
                         r2 = r2 // 2
-                    xxvv = xxv[r1:r2]
+                        xxvv = xxv[r1:r2]
+                        if use_parallel:
+                            vv = gather_vector(xxvv)
+                        else:
+                            vv = xxvv.copy()
 
-                    if use_parallel:
-                        vv = gather_vector(xxvv)
+                    elif self.op_type == "complexreal":
+                        r1 = r1
+                        width = (r2-r1)//2
+                        xxvv = xxv[r1:r1+width]
+                        if use_parallel:
+                            vv1 = gather_vector(xxvv)
+                        else:
+                            vv1 = xxvv.copy()
+                        xxvv2 = xxv[r1+width:r1+width+width]
+                        if use_parallel:
+                            vv2 = gather_vector(xxvv2)
+                        else:
+                            vv2 = xxvv2.copy()
+                        vv = np.hstack((vv1, vv2))
                     else:
-                        vv = xxvv.copy()
+                        assert False, "unknonw operator type"
+
+                    #nicePrint("xxvv", xxvv.shape)
 
                     if myid == 0:
                         s.append(vv)
