@@ -927,7 +927,7 @@ class Model(RestorableOrderedDict):
 
     def generate_script(self, skip_def_check=False, dir=None, nofile=False,
                         parallel=False, filename='model.py',
-                        petram_array_id=0):
+                        petram_array_id=0, petram_array_len=1):
         if dir is None:
             dir = os.getcwd()
 
@@ -963,6 +963,8 @@ class Model(RestorableOrderedDict):
                        '',
                        '    os.environ["PETRAM_ARRAY_ID"] = "' +
                        str(petram_array_id)+'"',
+                       '    os.environ["PETRAM_ARRAY_COUNT"] = "' +
+                       str(petram_array_len)+'"',
                        '',
                        '# this is needed if this file is being imported',
                        'if not "use_parallel" in locals():',

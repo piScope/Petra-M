@@ -6,6 +6,8 @@ default_panel_value = "1-5"
 
 
 def process_txt(txt):
+    if txt is None:
+        return ['']
     x = [ss.split('-') for ss in txt.split(',')]
     x = [list(range(int(i[0]), int(i[1])+1)) if len(i)
          == 2 else [int(i[0])] for i in x]
@@ -80,7 +82,7 @@ def ask_array_opts(win, value=None):
 
     dlg = dlg_array_opts(win, value)
 
-    outvalue = None
+    outvalue = [None]
     try:
         if dlg.ShowModal() == wx.ID_OK:
             outvalue = dlg.value

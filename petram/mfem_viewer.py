@@ -1156,7 +1156,7 @@ class MFEMViewer(BookViewer):
             return
 
         self.set_num_threads()
-        self.model.scripts.run_serial.RunT(debug=debug_level)
+        self.model.scripts.run_serial.RunT(debug=debug_level, viewer=self)
 
         os.chdir(odir)
 
@@ -1176,7 +1176,8 @@ class MFEMViewer(BookViewer):
             nproc = 2
         self.set_num_threads(nproc)
 
-        self.model.scripts.run_parallel.RunT(nproc=nproc, debug=debug_level)
+        self.model.scripts.run_parallel.RunT(nproc=nproc, debug=debug_level,
+                                             viewer=self)
 
         os.chdir(odir)
 
@@ -1184,6 +1185,12 @@ class MFEMViewer(BookViewer):
         '''
         job array
         '''
+        if not self.model.scripts.has_child("run_array"):
+            ans = dialog.message(self,
+                                 "Petra-M Scripts in project tree is old. Run petram(True) in python shell",
+                                 style=0)
+            return
+
         from petram.pi.dlg_array_run import (default_panel_value,
                                              ask_array_opts)
         param = self.model.param
@@ -1193,6 +1200,9 @@ class MFEMViewer(BookViewer):
 
         txt = param.getvar('jobarray_id')
         txt, values = ask_array_opts(self, txt)
+
+        if txt is None:
+            return
         param.setvar('jobarray_id', txt)
 
         if self.model.param.eval('sol') is None:
@@ -1219,7 +1229,8 @@ class MFEMViewer(BookViewer):
         self.model.scripts.run_array.RunT(nproc=nproc,
                                           debug=debug_level,
                                           folder=folder,
-                                          values=values)
+                                          values=values,
+                                          viewer=self)
 
         evt.Skip()
 
