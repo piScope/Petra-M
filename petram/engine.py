@@ -1154,7 +1154,8 @@ class Engine(object):
         self.assembled_blocks[1] = X
 
     def run_assemble_blocks(self, compute_A, compute_rhs,
-                            inplace=True, update=False):
+                            inplace=True, update=False,
+                            compute_rhs0=None):
         '''
         assemble M, B, X blockmatrices.
 
@@ -1191,9 +1192,18 @@ class Engine(object):
                                                  inplace=inplace,
                                                  update=update)
 
-        RHS = compute_rhs(M, B, X)          # solver determins RHS
-        RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
+        # solver determins RHS
+        if compute_rhs0 is None:
+            # stationary solver
+            RHS = compute_rhs(M, B, X)
 
+        else:
+            # time-domain solver
+            MM = compute_rhs0(M, B, X)
+            self.eliminateBC_vec(MM)
+            RHS = compute_rhs(MM, B, X)
+
+        RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
         # A and RHS is modifedy by global DoF coupling P
         A, RHS = self.apply_interp(A, RHS)
 
@@ -2244,6 +2254,19 @@ class Engine(object):
 
         return RHS
 
+    def eliminateBC_vec(self, vec):
+        for name in self.gl_ess_tdofs:
+            if not name in self._dep_vars:
+                continue
+
+            idx = self.dep_var_offset(name)
+            ridx = self.r_dep_var_offset(name)
+            gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
+            ess_tdof1, ess_tdof2 = self.ess_tdofs[name]
+
+            vec[idx].set_elements(gl_ess_tdof1, 0)
+        return vec
+
     def eliminate_BC_egn(self, A, diag=1.0, inplace=True):
         '''
         essential BC elimination for eigenmode solver
@@ -3205,7 +3228,8 @@ class Engine(object):
                 errors.append(node.fullname() + " : " + ", ".join(names))
 
         if len(errors) > 0:
-            assert False, "Name conflict between namespace and pre-defined variables.\n" + "\n".join(errors)
+            assert False, "Name conflict between namespace and pre-defined variables.\n" + \
+                "\n".join(errors)
 
     def preprocess_ns(self, ns_folder, data_folder):
         '''
@@ -3729,7 +3753,7 @@ class Engine(object):
         # (note) skipping this for backword compatibility.
         #        in principle, we can do this for safety. but, we
         #        should not need this if GUI is checking conflict enough :D
-        #self.check_ns_name_conflict()
+        # self.check_ns_name_conflict()
 
         from petram.mesh.mesh_utils import get_reverse_connectivity
 
