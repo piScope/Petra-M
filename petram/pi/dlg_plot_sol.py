@@ -1459,16 +1459,6 @@ class DlgPlotSol(SimpleFramePlus):
     #
     #   Boundary value ('Bdr' tab)
     #
-    ll = [['Expression', '', 0, {}],
-                  ['Offset (x, y, z)', '0, 0, 0', 0, {}],
-                  ['Boundary Index', text, 0, {}],
-                  ['Physics', choices[0], 4, {'style':wx.CB_READONLY,
-                                           'choices': choices}],
-                  [None, False, 3, {"text":'animate'}],
-                  [None, True, 3, {"text":'merge solutions'}],
-                  ['Refine', 1, 104, s4],
-                  [None, True, 3, {"text":'averaging'}],]
-    '''
     @run_in_piScope_thread
     def onApplyBdr(self, evt):
         value = self.elps['Bdr'] .GetValue()
