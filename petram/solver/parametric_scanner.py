@@ -18,6 +18,9 @@ class DefaultParametricScanner(object):
         self.target = None
         self.set_data(data)
 
+    def get_probes(self):
+        return []
+    
     def set_data_from_model(self, model):
         '''
         this is called after __init__.

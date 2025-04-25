@@ -160,7 +160,7 @@ class ForLoop(SolveControl, NS_mixin, Vtable_mixin):
 
         for i in range(max_count):
             dprint1("!!!!! SolveLoop : Count = " + str(i))
-            g = self._global_ns[self.counter_name] = i
+            self._global_ns[self.counter_name] = i
             for s in steps:
                 do_break = False
                 do_continue = False

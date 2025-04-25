@@ -12,24 +12,28 @@ from weakref import WeakValueDictionary as WVD
 
 from petram.sol.evaluator_agent import EvaluatorAgent
 
+
 class ProbeEvaluator(EvaluatorAgent):
     def __init__(self, battrs):
         super(ProbeEvaluator, self).__init__()
         self.battrs = battrs
-        
+
     def preprocess_geometry(self,  *args, **kargs):
         pass
 
     def eval_probe(self, expr, xexpr, probe_files, phys):
         from petram.helper.variables import Variable, var_g
         from petram.sol.probe import load_probes
+        from petram.sol.listsoldir import gather_probes
 
         #print("probe_files", probe_files)
         path = probe_files[0]
-        path = os.path.expanduser(path)        
-        probes = probe_files[1]
+        path = os.path.expanduser(path)
+        path = os.path.join(path, probe_files[1])
 
-        code= compile(expr, '<string>', 'eval')
+        probes = gather_probes(path)
+
+        code = compile(expr, '<string>', 'eval')
         names = list(code.co_names)
 
         if len(xexpr.strip()) != 0:
@@ -50,13 +54,14 @@ class ProbeEvaluator(EvaluatorAgent):
                 for nn in xdata:
                     g[nn] = xdata[nn]
                     default_xname = nn
-                    
 
         val = np.array(eval(code, g, {}), copy=False)
         if xcode is None:
-            xval = g[default_xname]
+            if default_xname in g:
+                xval = g[default_xname]
+            else:
+                xval = None
         else:
             xval = np.array(eval(xcode, g, {}), copy=False)
 
         return xval, val
-

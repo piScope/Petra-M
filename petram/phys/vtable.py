@@ -183,6 +183,7 @@ class VtableElement(object):
         chk_complex = (self.type == 'complex')
         chk_array = (self.type == 'array')
         chk_string = (self.type == 'string')
+        chk_any = (self.type == 'any')
 
         if self.type == 'bool':
             value = getattr(obj, self.name + '_txt')
@@ -206,6 +207,7 @@ class VtableElement(object):
                                             chk_int=chk_int,
                                             chk_complex=chk_complex,
                                             chk_array=chk_array,
+                                            chk_any=chk_any,
                                             chk_string=chk_string)
             if self.readonly:
                 ret[2] = ret[2]-10000
@@ -342,7 +344,17 @@ class VtableElement(object):
 
         elif len(self.shape) == 0:
             if self.no_func:
-                return getattr(obj, self.name)
+                value = getattr(obj, self.name)
+
+                if self.type != 'string' and isinstance(value, str):
+                    kwargs = {}
+                    kwargs['chk_'+self.type] = True
+                    v = str(getattr(obj, self.name+'_txt'))
+                    value = obj.eval_phys_expr(v, self.name, **kwargs)[0]
+                    setattr(obj, self.name, value)
+
+                return value
+
             elif self.type == 'string':
                 return str(getattr(obj, self.name))
             else:
@@ -444,6 +456,9 @@ class Vtable_mixin(object):
     def check_phys_expr_array(self, value, param, ctrl):
         return self.check_phys_expr(value, param, ctrl, chk_array=True)
 
+    def check_phys_expr_any(self, value, param, ctrl):
+        return self.check_phys_expr(value, param, ctrl, chk_any=True)
+
     def check_phys_array_expr(self, value, param, ctrl, **kwargs):
         try:
             if not 'array' in self._global_ns:
@@ -472,10 +487,10 @@ class Vtable_mixin(object):
                        chk_any=False, chk_string=False):
 
         from petram.helper.variables import NativeCoefficientGenBase
-        
+
         if not hasattr(value, 'startswith'):
             value = str(value)
-        
+
         if value.startswith('='):
             return dummy,  '='.join(value.split('=')[1:])
         else:
@@ -561,6 +576,7 @@ class Vtable_mixin(object):
                               chk_float=False,
                               chk_array=False,
                               chk_string=False,
+                              chk_any=False,
                               validator=None):
         if validator is None:
             if chk_int:
@@ -573,6 +589,8 @@ class Vtable_mixin(object):
                 validator = None
             elif chk_array:
                 validator = self.check_phys_expr_array
+            elif chk_any:
+                validator = self.check_phys_expr_any
             else:
                 validator = self.check_phys_expr
 

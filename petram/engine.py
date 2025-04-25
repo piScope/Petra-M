@@ -104,6 +104,23 @@ class Engine(object):
 
         self._ppname_postfix = ''
 
+    def show_variables(self, show_hidden=True):
+        try:
+            from mpi4py import MPI
+        except:
+            from petram.helper.dummy_mpi import MPI
+        myid = MPI.COMM_WORLD.rank
+
+        try:
+            if myid == 0:
+                print("===  List of variables ===")
+                txt = self.model._variables.long_repr(show_hidden)
+                print(txt)
+        except:
+            print("error during show_variables")
+            import tranceback
+            traceback.print_exc()
+
     def initialize_datastorage(self):
         self.is_assembled = False
         self.is_initialized = False
@@ -883,8 +900,6 @@ class Engine(object):
             else:
                 raise NotImplementedError("unknown init mode")
 
-        self.add_FESvariable_to_NS(phys_range, verbose=True)
-
     def run_apply_init_autozero(self, phys_range):
 
         # mode
@@ -922,11 +937,14 @@ class Engine(object):
                 for x in tmp:
                     if x not in all_tmp:
                         all_tmp.append(x)
-            xphys_range = [phys.name() for phys in phys_range if not phys in all_tmp]
+            xphys_range = [phys.name()
+                           for phys in phys_range if not phys in all_tmp]
             if len(xphys_range) > 0:
                 dprint1(
                     "!!!!! These phys are not initiazliaed (FES variable is not available)!!!!!",
                     xphys_range)
+
+        self.add_FESvariable_to_NS(phys_range, verbose=False)
 
     def run_apply_essential(self, phys_target, phys_range, update=False):
         L = len(self.r_dep_vars)
@@ -1136,7 +1154,8 @@ class Engine(object):
         self.assembled_blocks[1] = X
 
     def run_assemble_blocks(self, compute_A, compute_rhs,
-                            inplace=True, update=False):
+                            inplace=True, update=False,
+                            compute_rhs0=None):
         '''
         assemble M, B, X blockmatrices.
 
@@ -1173,9 +1192,18 @@ class Engine(object):
                                                  inplace=inplace,
                                                  update=update)
 
-        RHS = compute_rhs(M, B, X)          # solver determins RHS
-        RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
+        # solver determins RHS
+        if compute_rhs0 is None:
+            # stationary solver
+            RHS = compute_rhs(M, B, X)
 
+        else:
+            # time-domain solver
+            MM = compute_rhs0(M, B, X)
+            self.eliminateBC_vec(MM)
+            RHS = compute_rhs(MM, B, X)
+
+        RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
         # A and RHS is modifedy by global DoF coupling P
         A, RHS = self.apply_interp(A, RHS)
 
@@ -1996,6 +2024,7 @@ class Engine(object):
                 if dep_name in self._dep_vars:
                     r1 = self.dep_var_offset(dep_name)
                 else:
+                    assert False, "do I need this? (2025 4 17)"
                     r1 = -1
 
                 if update and not self.mask_M[k, r, c]:
@@ -2225,6 +2254,19 @@ class Engine(object):
 
         return RHS
 
+    def eliminateBC_vec(self, vec):
+        for name in self.gl_ess_tdofs:
+            if not name in self._dep_vars:
+                continue
+
+            idx = self.dep_var_offset(name)
+            ridx = self.r_dep_var_offset(name)
+            gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
+            ess_tdof1, ess_tdof2 = self.ess_tdofs[name]
+            if vec[idx] is not None:
+                 vec[idx].set_elements(gl_ess_tdof1, 0)
+        return vec
+
     def eliminate_BC_egn(self, A, diag=1.0, inplace=True):
         '''
         essential BC elimination for eigenmode solver
@@ -2386,6 +2428,7 @@ class Engine(object):
     #  step4 : matrix finalization (to form a data being passed to a linear solver)
     #
     def finalize_matrix(self, M_block, mask, is_complex, format='coo',
+                        blk_format=None,
                         verbose=True):
         if verbose:
             dprint1("A (in finalizie_matrix) \n", format, mask)
@@ -2400,13 +2443,14 @@ class Engine(object):
                                          convert_real=True, verbose=verbose)
 
         elif format == 'blk_interleave':  # real coo converted from complex
-            M = M_block.get_global_blkmat_interleave()
+            M = M_block.get_global_blkmat_interleave(blk_format=blk_format)
 
         elif format == 'blk_merged':  # real coo converted from complex
-            M = M_block.get_global_blkmat_merged()
+            M = M_block.get_global_blkmat_merged(blk_format=blk_format)
 
         elif format == 'blk_merged_s':  # real coo converted from complex
-            M = M_block.get_global_blkmat_merged(symmetric=True)
+            M = M_block.get_global_blkmat_merged(
+                symmetric=True, blk_format=blk_format)
 
         dprint2('exiting finalize_matrix')
         self.is_assembled = True
@@ -2414,6 +2458,7 @@ class Engine(object):
 
     def finalize_rhs(self,  B_blocks, M_block, X_block,
                      mask, is_complex, format='coo', verbose=True,
+                     blk_format=None,
                      use_residual=False):
         #
         #  RHS = B - A[not solved]*X[not solved]
@@ -2442,13 +2487,16 @@ class Engine(object):
             BB = np.hstack(BB)
 
         elif format == 'blk_interleave':  # real coo converted from complex
-            BB = [b.gather_blkvec_interleave() for b in B_blocks]
+            BB = [b.gather_blkvec_interleave(
+                blk_format=blk_format) for b in B_blocks]
 
         elif format == 'blk_merged':
-            BB = [b.gather_blkvec_merged() for b in B_blocks]
+            BB = [b.gather_blkvec_merged(blk_format=blk_format)
+                  for b in B_blocks]
 
         elif format == 'blk_merged_s':
-            BB = [b.gather_blkvec_merged(symmetric=True) for b in B_blocks]
+            BB = [b.gather_blkvec_merged(
+                symmetric=True, blk_format=blk_format) for b in B_blocks]
 
         else:
             assert False, "unsupported format for B"
@@ -2456,14 +2504,18 @@ class Engine(object):
         return BB
 
     def finalize_x(self,  X_block, RHS, mask, is_complex,
-                   format='coo', verbose=True):
+                   format='coo',
+                   verbose=True,
+                   blk_format=None,):
         X_block = X_block.get_subblock(mask[1], [True])
         RHS = RHS.get_subblock(mask[0], [True])
         if format == 'blk_interleave':  # real coo converted from complex
-            X = X_block.gather_blkvec_interleave(size_hint=RHS)
+            X = X_block.gather_blkvec_interleave(size_hint=RHS,
+                                                 blk_format=blk_format)
 
         elif format == 'blk_merged' or format == 'blk_merged_s':
-            X = X_block.gather_blkvec_merged(size_hint=RHS)
+            X = X_block.gather_blkvec_merged(
+                size_hint=RHS, blk_format=blk_format)
 
         else:
             assert False, "unsupported format for X"
@@ -2602,10 +2654,13 @@ class Engine(object):
     def save_sol_to_file(self, phys_target, skip_mesh=False,
                          mesh_only=False,
                          save_parmesh=False,
-                         save_mesh_linkdir=None):
+                         save_mesh_linkdir=None,
+                         save_sersol=False):
+
         if not skip_mesh:
-            m1 = [self.save_mesh0(save_mesh_linkdir), ]
-            mesh_filenames = self.save_mesh(phys_target, save_mesh_linkdir)
+            m1 = [self.save_mesh0(save_mesh_linkdir, save_sersol), ]
+            mesh_filenames = self.save_mesh(
+                phys_target, save_mesh_linkdir, save_sersol)
             mesh_filenames = m1 + mesh_filenames
 
         if save_parmesh:
@@ -2620,7 +2675,8 @@ class Engine(object):
                 ifes = self.r_ifes(name)
                 r_x = self.r_x[ifes]
                 i_x = self.i_x[ifes]
-                self.save_solfile_fespace(name, emesh_idx, r_x, i_x)
+                self.save_solfile_fespace(
+                    name, emesh_idx, r_x, i_x, save_sersol=save_sersol)
 
     def extrafile_name(self):
         return 'sol_extended.data'
@@ -2687,8 +2743,8 @@ class Engine(object):
                 name, name2 = line.split(':')[1].strip().split('.')
                 if not name in sol_extra:
                     sol_extra[name] = {}
-            size = long(fid.readline().split(':')[1].strip())
-            dim = long(fid.readline().split(':')[1].strip())
+            size = int(fid.readline().split(':')[1].strip())
+            dim = int(fid.readline().split(':')[1].strip())
             dtype = fid.readline().split(':')[1].strip()
             if dtype.startswith('complex'):
                 data = [complex(fid.readline().split(' ')[1])
@@ -2763,6 +2819,7 @@ class Engine(object):
             p.update_dom_selection(all_sel=(allv, alls, alle))
 
     def assign_sel_index(self, phys=None):
+        dprint1('#### assigning sel index ####')
         if len(self.meshes) == 0:
             # dprint1('!!!! mesh is None !!!!')
             return
@@ -2781,6 +2838,17 @@ class Engine(object):
 
             if len(p.sel_index) == 0:
                 continue
+
+            # process domain selection of PhysModule here.
+            from petram.model import convert_sel_txt
+            try:
+                arr = convert_sel_txt(p.sel_index_txt, p._global_ns)
+                p.sel_index = arr
+            except:
+                assert False, "failed to convert "+p.sel_index_txt
+
+            dprint1("## processing " + str(p) +
+                    " defined on  " + str(p.sel_index))
 
             dom_choice, bdr_choice, pnt_choice, internal_bdr = p.get_dom_bdr_pnt_choice(
                 self.meshes[p.mesh_idx])
@@ -2890,6 +2958,7 @@ class Engine(object):
             else:
                 ess_bdr1 = []
                 ess_bdr2 = []
+
             for kk in index1:
                 ess_bdr1[kk-1] = 1
             for kk in index2:
@@ -3149,6 +3218,19 @@ class Engine(object):
             dprint1("\n".join(errors), notrim=True)
             assert False, "\n".join(errors)
 
+    def check_ns_name_conflict(self):
+        errors = []
+        for node in self.model.walk():
+            if not hasattr(node, "check_ns_name_conflict"):
+                continue
+            flag, names = node.check_ns_name_conflict()
+            if not flag:
+                errors.append(node.fullname() + " : " + ", ".join(names))
+
+        if len(errors) > 0:
+            assert False, "Name conflict between namespace and pre-defined variables.\n" + \
+                "\n".join(errors)
+
     def preprocess_ns(self, ns_folder, data_folder):
         '''
         folders are tree object
@@ -3327,12 +3409,23 @@ class Engine(object):
                     os.remove(f)
         MPI.COMM_WORLD.Barrier()
 
-    def save_solfile_fespace(self, name, mesh_idx, r_x, i_x):
+    def save_solfile_fespace(self, name, mesh_idx, r_x, i_x, save_sersol=False):
         fnamer, fnamei = self.solfile_name(name, mesh_idx)
         suffix = self.solfile_suffix()
 
         self.clear_solmesh_files(fnamer)
         self.clear_solmesh_files(fnamei)
+
+        if save_sersol and use_parallel:
+            # (This is not implemented in MFEM)
+            # if self.get_savegz():
+            #    r_x.SaveAsSerialGZ(fnamer,16,0)
+            #    if i_x is not None:
+            #         i_x.SaveAsSerialGZ(fnamei,16,0)
+            # else:
+            r_x.SaveAsSerial(fnamer, 16, 0)
+            if i_x is not None:
+                i_x.SaveAsSerial(fnamei, 16, 0)
 
         fnamer = fnamer+suffix
         fnamei = fnamei+suffix
@@ -3346,12 +3439,13 @@ class Engine(object):
             if i_x is not None:
                 i_x.Save(fnamei, 8)
 
-    def save_mesh0(self, save_mesh_linkdir=None):
+    def save_mesh0(self, save_mesh_linkdir=None, save_sersol=False):
         mesh_names = []
         suffix = self.solfile_suffix()
         mesh = self.emeshes[0]
         header = 'solmesh_0'
-        self.clear_solmesh_files(header)
+        sheader = 'solsermesh_0'
+        self.clear_solmesh_files(sheader)
         name = header+suffix
 
         if save_mesh_linkdir is None:
@@ -3359,13 +3453,18 @@ class Engine(object):
                 mesh.PrintGZ(name, 16)
             else:
                 mesh.Print(name, 16)
+
+            if save_sersol and use_parallel:
+                self.clear_solmesh_files(sheader)
+                self.save_sermesh(mesh, sheader)
+
         else:
             src = os.path.join(save_mesh_linkdir, name)
             dst = os.path.join(os.getcwd(), name)
             os.symlink(src, dst)
         return name
 
-    def save_mesh(self, phys_target, save_mesh_linkdir=None):
+    def save_mesh(self, phys_target, save_mesh_linkdir=None, save_sersol=False):
         mesh_names = []
         suffix = self.solfile_suffix()
 
@@ -3391,6 +3490,11 @@ class Engine(object):
                     mesh.PrintGZ(name, 16)
                 else:
                     mesh.Print(name, 16)
+
+                if save_sersol and use_parallel:
+                    sheader = 'solsermesh_' + str(k)
+                    self.clear_solmesh_files(sheader)
+                    self.save_sermesh(mesh, sheader)
             else:
                 src = os.path.join(save_mesh_linkdir, name)
                 dst = os.path.join(os.getcwd(), name)
@@ -3399,6 +3503,23 @@ class Engine(object):
             mesh_names.append(name)
 
         return mesh_names
+
+    def save_sermesh(self, mesh, sname):
+        """
+        save serialized mesh. sname should not include suffix, like .00000
+
+        """
+        if not use_parallel:
+            return
+
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
+
+        # (this does not work at moment)
+        # if self.get_savegz():
+        #    mesh.PrintAsSerialGZ(sname)
+        # else:
+        mesh.PrintAsSerial(sname)
 
     @property  # ALL dependent variables including Lagrange multipliers
     def dep_vars(self):
@@ -3597,29 +3718,62 @@ class Engine(object):
             previous SolveStep. In order to use values from the previous step,
             a user needs to load in using InitSetting
         '''
-        from petram.helper.variables import Variables
+        from petram.helper.variables import Variables, Variable
         variables = Variables()
 
         self.access_idx = 0
+
         for phys in phys_range:
+            tmp_variables = Variables()
+
+            suffix = phys.dep_vars_suffix
+            ind_vars = [x.strip() for x in phys.ind_vars.split(',')]
+
             for name in phys.dep_vars:
                 if not self.has_rfes(name):
                     continue
                 rifes = self.r_ifes(name)
                 rgf = self.r_x[rifes]
                 igf = self.i_x[rifes]
-                phys.add_variables(variables, name, rgf, igf)
+                phys.add_variables(tmp_variables, name, rgf, igf)
+
+            # collect all definition (domain specific expressions) from children
+            n = phys.dep_vars[0]
+            for mm in phys.walk():
+                if not mm.enabled:
+                    continue
+                if mm is self:
+                    continue
+
+                mm.add_domain_variables(tmp_variables, n, suffix, ind_vars)
+                mm.add_bdr_variables(tmp_variables, n, suffix, ind_vars)
+
+            variables.update(tmp_variables)
+
+        # (note) skipping this for backword compatibility.
+        #        in principle, we can do this for safety. but, we
+        #        should not need this if GUI is checking conflict enough :D
+        # self.check_ns_name_conflict()
+
+        from petram.mesh.mesh_utils import get_reverse_connectivity
+
+        get_reverse_connectivity(self.meshes[0])
+        for var in variables:
+            if isinstance(variables[var], Variable):
+                variables[var].add_topological_info(self.meshes[0])
 
         keys = list(self.model._variables)
         # self.model._variables.clear()
-        if verbose:
-            dprint1("===  List of variables ===")
-            dprint1(variables)
+        # if verbose:
         for k in variables.keys():
             # if k in self.model._variables:
             #   dprint1("Note : FES variable from previous step exists, but overwritten. \n" +
             #           "Use InitSetting to load value from previous SolveStep: ", k)
             self.model._variables[k] = variables[k]
+
+        # if verbose:
+        dprint1("Defined variables:",
+                self.model._variables.short_repr(False), notrim=True)
 
     def set_update_flag(self, mode):
         for k in self.model['Phys'].keys():
@@ -3865,6 +4019,7 @@ class SerialEngine(Engine):
         fe_sizes = [self.fespaces[name].GetTrueVSize()
                     for name in phys.dep_vars]
         dprint1('Number of finite element unknowns: ' + str(fe_sizes))
+        dprint1('Total of finite element unknowns: ' + str(sum(fe_sizes)))
         return fe_sizes
 
     def split_sol_array_fespace(self, sol, P):
@@ -4045,7 +4200,7 @@ class ParallelEngine(Engine):
                 target = None
 
                 srefines = [child[x]
-                            for x in child if child[x].isSerialRefinement]
+                            for x in child if child[x].isSerialRefinement and child[x].enabled]
                 for k in child.keys():
                     o = child[k]
                     if not o.enabled:
@@ -4153,6 +4308,7 @@ class ParallelEngine(Engine):
         myid = MPI.COMM_WORLD.rank
         if (myid == 0):
             dprint1('Number of finite element unknowns: ' + str(fe_sizes))
+            dprint1('Total of finite element unknowns: ' + str(sum(fe_sizes)))
         return fe_sizes
 
     def get_point_essential_tdofs(self, fes, ess_point_array):
@@ -4200,9 +4356,9 @@ class ParallelEngine(Engine):
             mesh_name = header+'.'+smyid
             mesh.ParPrintToFile(mesh_name, 16)
 
-            header = 'solsermesh_' + str(k)
-            mesh_name = header+'.mesh'
-            mesh.PrintAsSerial(mesh_name)
+            #header = 'solsermesh_' + str(k)
+            #mesh_name = header+'.mesh'
+            # mesh.PrintAsSerial(mesh_name)
 
     def solfile_suffix(self):
         from mpi4py import MPI

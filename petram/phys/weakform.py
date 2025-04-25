@@ -3,6 +3,7 @@
    Weakform : interface to use MFEM integrator
 
 '''
+import petram.helper.pybilininteg
 from petram.phys.coefficient import SCoeff, VCoeff, DCoeff, MCoeff
 from petram.phys.vtable import VtableElement, Vtable
 from petram.mfem_config import use_parallel
@@ -60,7 +61,15 @@ bilinintegs = get_integrators('BilinearOps')
 linintegs = get_integrators('LinearOps')
 
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
-                                       guilabel="lambda", default=0.0, tip="coefficient",))]
+                                       guilabel="lambda",
+                                       default=0.0,
+                                       tip="coefficient",)),
+        ("itg_param", VtableElement("itg_param", type='any',
+                                    guilabel="Opt. parameters",
+                                    default="",
+                                    no_func=True,
+                                    tip="extra parameter for constructing integrator",)),
+        ]
 
 
 class WeakIntegration(Phys):
@@ -81,6 +90,7 @@ class WeakIntegration(Phys):
         return [dep_vars[self.test_idx],
                 self.coeff_type,
                 self.vt_coeff.get_panel_value(self)[0],
+                self.vt_coeff.get_panel_value(self)[1],
                 self.integrator, ]
         # self.use_src_proj,
         # self.use_dst_proj,]
@@ -114,6 +124,7 @@ class WeakIntegration(Phys):
                {"style": wx.CB_READONLY, "choices": dep_vars}],
               p,
               panels[0],
+              panels[1],
               p2, ]
         #["use src proj.",  self.use_src_proj,   3, {"text":""}],
         # ["use dst proj.",  self.use_dst_proj,   3, {"text":""}],  ]
@@ -126,8 +137,8 @@ class WeakIntegration(Phys):
         dep_vars = self.get_root_phys().dep_vars
         self.test_idx = dep_vars.index(str(v[0]))
         self.coeff_type = str(v[1])
-        self.vt_coeff.import_panel_value(self, (v[2],))
-        self.integrator = str(v[3])
+        self.vt_coeff.import_panel_value(self, (v[2], v[3]))
+        self.integrator = str(v[4])
         #self.use_src_proj = v[4]
         #self.use_dst_proj = v[5]
 
@@ -136,14 +147,13 @@ class WeakIntegration(Phys):
         super(WeakIntegration, self).preprocess_params(engine)
 
     def add_contribution(self, engine, a, real=True, is_trans=False, is_conj=False):
-        c = self.vt_coeff.make_value_or_expression(self)[0]
-
+        coeff, itg_params = self.vt_coeff.make_value_or_expression(self)
         if real:
             dprint1("Add "+self.integrator + " contribution(real)" +
-                    str(self._sel_index), "c", c)
+                    str(self._sel_index), "c", coeff)
         else:
             dprint1("Add "+self.integrator + " contribution(imag)" +
-                    str(self._sel_index), "c", c)
+                    str(self._sel_index), "c", coeff)
 
         cotype = self.coeff_type[0]
         use_dual = False
@@ -152,42 +162,61 @@ class WeakIntegration(Phys):
                 use_dual = "S*2" in b[3]
                 break
 
-        c_coeff = self.get_coefficient_from_expression(c, cotype,
+        if not self.integrator.startswith("Py"):
+            if self.integrator == 'DerivativeIntegrator1':
+                integrator = getattr(mfem, 'DerivativeIntegrator')
+                itg_params = (0, )
+            elif self.integrator == 'DerivativeIntegrator2':
+                integrator = getattr(mfem, 'DerivativeIntegrator')
+                itg_params = (1, )
+            elif self.integrator == 'DerivativeIntegrator3':
+                integrator = getattr(mfem, 'DerivativeIntegrator')
+                itg_params = (2, )
+            else:
+                integrator = getattr(mfem, self.integrator)
+            shape = None
+        else:
+            integrator = getattr(petram.helper.pybilininteg, self.integrator)
+            if itg_params is None or len(itg_params) == 0:
+                itg_params = self.get_root_phys().get_metric(return_txt=True)
+
+            shape = integrator.coeff_shape(*itg_params)
+
+        c_coeff = self.get_coefficient_from_expression(coeff,
+                                                       cotype,
                                                        use_dual=use_dual,
                                                        real=real,
-                                                       is_conj=is_conj)
-
-        if self.integrator == 'DerivativeIntegrator1':
-            integrator = getattr(mfem, 'DerivativeIntegrator')
-            c_coeff = (c_coeff, 0)
-        elif self.integrator == 'DerivativeIntegrator2':
-            integrator = getattr(mfem, 'DerivativeIntegrator')
-            c_coeff = (c_coeff, 1)
-        elif self.integrator == 'DerivativeIntegrator3':
-            integrator = getattr(mfem, 'DerivativeIntegrator')
-            c_coeff = (c_coeff, 2)
-        else:
-            integrator = getattr(mfem, self.integrator)
+                                                       is_conj=is_conj,
+                                                       shapehint=shape)
+        if not isinstance(c_coeff, tuple):
+            c_coeff = (c_coeff, )
 
         if isinstance(self, Bdry):
-            # print "Bdry Integrator"
             adder = a.AddBoundaryIntegrator
         elif isinstance(self, Domain):
-            # print "Domain Integrator"
             adder = a.AddDomainIntegrator
         else:
             assert False, "this class is not supported in weakform"
         self.add_integrator(engine, 'c', c_coeff,
-                            adder, integrator, transpose=is_trans)
+                            adder, integrator, transpose=is_trans,
+                            itg_params=itg_params)
 
     def add_bf_contribution(self, engine, a, real=True, kfes=0):
+        if self.get_root_phys().element.startswith("L2") and isinstance(self, Domain):
+            assert False, "L2 element can have only domain contributions"
         self.add_contribution(engine, a, real=real)
 
     def add_lf_contribution(self, engine, b, real=True, kfes=0):
+        if self.get_root_phys().element.startswith("L2") and not isinstance(self, Domain):
+            assert False, "L2 element can have only domain contributions"
+
         self.add_contribution(engine, b, real=real)
 
     def add_mix_contribution2(self, engine, mbf, r, c,  is_trans, is_conj,
                               real=True):
+        if self.get_root_phys().element.startswith("L2") and not isinstance(self, Domain):
+            assert False, "L2 element can have only domain contributions"
+
         self.add_contribution(engine, mbf, real=real,
                               is_trans=is_trans, is_conj=is_conj)
 

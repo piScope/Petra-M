@@ -59,6 +59,7 @@ def MFEM_menus(parent):
              ("+Solve", None, None),
              ("Serial",    self.onSerDriver, None),
              ("Parallel",  self.onParDriver, None),
+             ("Array...",  self.onRunArray, None),
              ("+Extra", None, None),
              ("+Store solution to", None, None, None, ID_SOL_FOLDER),
              ("!", None, None),
@@ -252,6 +253,7 @@ class MFEMViewer(BookViewer):
 
         do_palette = (self._view_mode != mode)
         do_plot = (self._view_mode != mode) or (self._view_mode_group != group)
+        skip_plot_geometry = (self._view_mode == mode)
 
         self._view_mode = mode
         self._view_mode_group = p.name() if p is not None else 'root'
@@ -267,7 +269,8 @@ class MFEMViewer(BookViewer):
                 p.update_figure_data(self)
                 #print("calling do_plot", self._view_mode, p.figure_data_name())
                 self.update_figure(self._view_mode, p.figure_data_name(),
-                                   updateall=True)
+                                   updateall=True,
+                                   skip_plot_geometry=skip_plot_geometry)
 
     def set_figure_data(self, view_mode, name, data):
         if not view_mode in self._figure_data:
@@ -280,7 +283,7 @@ class MFEMViewer(BookViewer):
         if name in self._figure_data[view_mode]:
             del self._figure_data[view_mode][name]
 
-    def update_figure(self, view_mode, name, updateall=False):
+    def update_figure(self, view_mode, name, updateall=False, skip_plot_geometry=False):
         from petram.mesh.geo_plot import plot_geometry, oplot_meshed
         from petram.mesh.geo_plot import hide_face_meshmode, hide_edge_meshmode
 
@@ -331,7 +334,8 @@ class MFEMViewer(BookViewer):
 
             elif view_mode == 'phys':
                 ret = self._figure_data['phys']
-                plot_geometry(self,  ret, geo_phys='physical')
+                if not skip_plot_geometry:
+                    plot_geometry(self,  ret, geo_phys='physical')
                 self._is_mfem_geom_fig = True
                 self._hidemesh = True
 
@@ -346,7 +350,7 @@ class MFEMViewer(BookViewer):
                 dir = self.model.solutions.owndir()
                 sol_names = [x for x in os.listdir(
                     dir) if os.path.isdir(os.path.join(dir, x))]
-                sol_names = sorted(sol_names)
+                sol_names = sorted(sol_names)JR West
                 menus = []
                 for n in sol_names:
                     menus.append((n, n))
@@ -413,7 +417,7 @@ class MFEMViewer(BookViewer):
         # clean up namespaces/datasets
         for name, child in self.model.namespaces.get_children():
             child.destroy()
-        for name, child in self.model.datasets.get_children():
+        for name, child in self.model.datasets.get_children():JR West
             child.destroy()
 
         # first expand all namelist under namespaces
@@ -513,7 +517,7 @@ class MFEMViewer(BookViewer):
                 if o() is not None and o().figobj.name.startswith('face')]
 
         unselected = []
-        selected = []
+        selected = []JR West
         for o in objs:
             idx = set(o.getSelectedIndex())
             unselected.extend(list(already_selected_surface.difference(idx)))
@@ -889,12 +893,15 @@ class MFEMViewer(BookViewer):
                         faces.extend(sl[key])
                     else:
                         print('Volume: ' + str(key) + " not found")
+
                 obj.setSelectedIndex(faces)
                 if len(obj._artists) > 0:
                     self.canvas.add_selection(obj._artists[0])
             else:
                 obj.setSelectedIndex([])
-        wx.CallAfter(self.canvas.refresh_hl)
+        # self.canvas.refresh_hl()
+        # wx.CallAfter(self.canvas.refresh_hl)
+        self.canvas.draw_later(refresh_hl=True, delay=-1000)
 
     def highlight_face(self, i):
         '''
@@ -923,7 +930,9 @@ class MFEMViewer(BookViewer):
                              tuple(i),
                              self._dom_bdr_sel[2],
                              self._dom_bdr_sel[3],)
-        wx.CallAfter(self.canvas.refresh_hl)
+        # self.canvas.refresh_hl()
+        # wx.CallAfter(self.canvas.refresh_hl)
+        self.canvas.draw_later(refresh_hl=True, delay=-1000)
 
     def highlight_edge(self, i, unselect=True):
         '''
@@ -952,8 +961,9 @@ class MFEMViewer(BookViewer):
                              self._dom_bdr_sel[1],
                              tuple(i),
                              self._dom_bdr_sel[3],)
-
-        wx.CallAfter(self.canvas.refresh_hl)
+        # self.canvas.refresh_hl()
+        # wx.CallAfter(self.canvas.refresh_hl)
+        self.canvas.draw_later(refresh_hl=True, delay=-1000)
 
     def highlight_point(self, i, unselect=True):
         '''
@@ -982,8 +992,9 @@ class MFEMViewer(BookViewer):
                              self._dom_bdr_sel[1],
                              self._dom_bdr_sel[2],
                              tuple(i),)
-
-        wx.CallAfter(self.canvas.refresh_hl)
+        # self.canvas.refresh_hl()
+        # wx.CallAfter(self.canvas.refresh_hl)
+        self.canvas.draw_later(refresh_hl=True, delay=-1000)
 
     def highlight_none(self):
         self.canvas.unselect_all()
@@ -992,7 +1003,8 @@ class MFEMViewer(BookViewer):
         for name, obj in ax.get_children():
             if hasattr(obj, 'setSelectedIndex'):
                 obj.setSelectedIndex([])
-        self.canvas.refresh_hl()
+        # self.canvas.refresh_hl()
+        self.canvas.draw_later(refresh_hl=True, delay=-1000)
 
     def change_panel_button(self, kind):
         # kind = ('domain', 'face', 'edge', 'dot')
@@ -1110,34 +1122,41 @@ class MFEMViewer(BookViewer):
         if num_threads2 != 'auto':
             os.environ["OPENBLAS_NUM_THREADS"] = str(num_threads2)
 
+    def _run_verify_and_preprocess(self):
+        try:
+            self.engine.run_verify_setting()
+        except:
+            dialog.showtraceback(parent=self,
+                                 txt='Failed to verify setting',
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            return False
+
+        try:
+            self.run_preprocess()
+        except BaseException as err:
+            errstr = err.__str__()
+            dialog.showtraceback(parent=self,
+                                 txt='Failed to during pre-processing model data: \n'
+                                 + errstr + "\n",
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            return False
+        return True
+
     def onSerDriver(self, evt):
         m = self.model.param.getvar('mfem_model')
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
         odir = os.getcwd()
 
-        try:
-            self.engine.run_verify_setting()
-        except:
+        success = self._run_verify_and_preprocess()
+        if not success:
             os.chdir(odir)
-            dialog.showtraceback(parent=self,
-                                 txt='Failed to verify setting',
-                                 title='Error',
-                                 traceback=traceback.format_exc())
-            return
-
-        try:
-            self.run_preprocess()
-        except:
-            os.chdir(odir)
-            dialog.showtraceback(parent=self,
-                                 txt='Failed to during pre-processing model data',
-                                 title='Error',
-                                 traceback=traceback.format_exc())
             return
 
         self.set_num_threads()
-        self.model.scripts.run_serial.RunT(debug=debug_level)
+        self.model.scripts.run_serial.RunT(debug=debug_level, viewer=self)
 
         os.chdir(odir)
 
@@ -1147,24 +1166,9 @@ class MFEMViewer(BookViewer):
         debug_level = m['General'].debug_level
         odir = os.getcwd()
 
-        try:
-            self.engine.run_verify_setting()
-        except:
+        success = self._run_verify_and_preprocess()
+        if not success:
             os.chdir(odir)
-            dialog.showtraceback(parent=self,
-                                 txt='Failed to verify setting',
-                                 title='Error',
-                                 traceback=traceback.format_exc())
-            return
-
-        try:
-            self.run_preprocess()
-        except:
-            os.chdir(odir)
-            dialog.showtraceback(parent=self,
-                                 txt='Failed to during pre-processing model data',
-                                 title='Error',
-                                 traceback=traceback.format_exc())
             return
 
         nproc = self.model.param.getvar('nproc')
@@ -1172,9 +1176,63 @@ class MFEMViewer(BookViewer):
             nproc = 2
         self.set_num_threads(nproc)
 
-        self.model.scripts.run_parallel.RunT(nproc=nproc, debug=debug_level)
+        self.model.scripts.run_parallel.RunT(nproc=nproc, debug=debug_level,
+                                             viewer=self)
 
         os.chdir(odir)
+
+    def onRunArray(self, evt):
+        '''
+        job array
+        '''
+        if not self.model.scripts.has_child("run_array"):
+            ans = dialog.message(self,
+                                 "Petra-M Scripts in project tree is old. Run petram(True) in python shell",
+                                 style=0)
+            return
+
+        from petram.pi.dlg_array_run import (default_panel_value,
+                                             ask_array_opts)
+        param = self.model.param
+        txt = param.getvar('jobarray_id')
+        if txt is None:
+            param.setvar('jobarray_id', default_panel_value)
+
+        txt = param.getvar('jobarray_id')
+        txt, values = ask_array_opts(self, txt)
+
+        if txt is None:
+            return
+        param.setvar('jobarray_id', txt)
+
+        if self.model.param.eval('sol') is None:
+            folder = self.model.scripts.helpers.make_new_sol()
+        else:
+            folder = self.model.param.eval('sol')
+            folder.clean_owndir()
+
+        m = self.model.param.getvar('mfem_model')
+        m.set_root_path(self.model.owndir())
+        debug_level = m['General'].debug_level
+        odir = os.getcwd()
+
+        success = self._run_verify_and_preprocess()
+        if not success:
+            os.chdir(odir)
+            return
+
+        nproc = self.model.param.getvar('nproc')
+        if nproc is None:
+            nproc = 2
+        self.set_num_threads(nproc)
+
+        self.model.scripts.run_array.RunT(nproc=nproc,
+                                          debug=debug_level,
+                                          folder=folder,
+                                          values=values,
+                                          viewer=self)
+
+        evt.Skip()
 
     def viewer_canvasmenu(self):
         menus = [("+Petra-M", None, None), ]
@@ -1411,7 +1469,11 @@ class MFEMViewer(BookViewer):
 
     def onShowMesh(self, evt=None):
         from petram.mesh.plot_mesh import plot_domainmesh
-        mesh = self.engine.get_mesh()
+
+        if not self._hidemesh:
+            # if it is already shown, can skip
+            return
+
         self._hidemesh = False
         self.update(False)
 
@@ -1433,9 +1495,13 @@ class MFEMViewer(BookViewer):
         self.draw_all()
 
     def onHideMesh(self, evt=None):
+        if self._hidemesh:
+            # if it is already hidden, can skip
+            return
+
         self._hidemesh = True
         self.update(False)
-        mesh = self.engine.get_mesh()
+
         children = [child
                     for name, child in self.get_axes().get_children()
                     if name.startswith('face')]
@@ -1545,9 +1611,10 @@ class MFEMViewer(BookViewer):
     def onRebuildNS(self, evt):
         try:
             self.rebuild_ns()
-        except:
+        except BaseException as err:
+            errstr = err.__str__()
             dialog.showtraceback(parent=self,
-                                 txt='Failed to rebuild namespace',
+                                 txt='Failed to rebuild namespace: \n'+errstr + "\n",
                                  title='Error',
                                  traceback=traceback.format_exc())
             return
@@ -1614,13 +1681,15 @@ class MFEMViewer(BookViewer):
     def onWindowClose(self, evt=None):
         if self.editdlg is not None:
             try:
-                self.editdlg.Destroy()
+                self.editdlg.Close()
+                # self.editdlg.Destroy()
             except:
                 pass
             self.editdlg = None
         if self.plotsoldlg is not None:
             try:
-                self.plotsoldlg.Destroy()
+                self.plotsoldlg.Close()
+                # self.plotsoldlg.Destroy()
             except:
                 pass
             self.plotsoldlg = None
@@ -1718,17 +1787,24 @@ class MFEMViewer(BookViewer):
 
         try:
             self.run_preprocess()
-        except:
+        except BaseException as err:
+            errstr = err.__str__()
             os.chdir(odir)
             dialog.showtraceback(parent=self,
-                                 txt='Failed to during pre-processing model data',
+                                 txt='Failed to during pre-processing model data: \n'
+                                 + errstr + "\n",
                                  title='Error',
                                  traceback=traceback.format_exc())
             return
 
         from petram.pi.dlg_submit_job import (get_model_remote,
                                               get_job_submisson_setting)
-        from petram.remote.client_script import get_job_queue
+
+        from petram.remote.client_script import (prepare_remote_dir,
+                                                 send_file,
+                                                 get_job_queue,
+                                                 submit_job)
+
 
         remote = get_model_remote(self.model.param)
         if remote is None:
@@ -1768,7 +1844,6 @@ class MFEMViewer(BookViewer):
         dlg.Show()
         wx.GetApp().Yield()
 
-        from petram.remote.client_script import prepare_remote_dir
         # if remote['rwdir'] != setting['rwdir']:
         cancelled = prepare_remote_dir(self.model,
                                        setting['rwdir'],
@@ -1794,8 +1869,6 @@ class MFEMViewer(BookViewer):
         self.model.scripts.helpers.save_model(os.path.join(sol.owndir(),
                                                            'model.pmfm'),
                                               meshfile_relativepath=True)
-
-        from petram.remote.client_script import send_file, submit_job
 
         dlg.Update(2, newmsg="Sending file")
         wx.GetApp().Yield()
@@ -1838,6 +1911,7 @@ class MFEMViewer(BookViewer):
         engine = self.engine
         engine.preprocess_ns(model.namespaces, model.datasets)
         engine.build_ns()
+        engine.check_ns_name_conflict()
         engine.run_preprocess(model.namespaces, model.datasets)
 
     def rebuild_ns(self):
@@ -1845,6 +1919,7 @@ class MFEMViewer(BookViewer):
         model = self.model
         engine.preprocess_ns(model.namespaces, model.datasets)
         engine.build_ns()
+        engine.check_ns_name_conflict()
 
     def get_internal_bc(self):
         d = self._s_v_loop['phys'][1]

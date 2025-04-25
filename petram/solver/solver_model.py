@@ -4,6 +4,8 @@ import numpy as np
 import warnings
 import os
 from petram.model import Model
+from petram.namespace_mixin import NS_mixin
+
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
 
@@ -34,8 +36,16 @@ n
 '''
 
 
-class SolverBase(Model):
+class SolverBase(Model, NS_mixin):
     can_rename = True
+    hide_ns_menu = True
+
+    def __init__(self, *args, **kwargs):
+        super(SolverBase, self).__init__(*args, **kwargs)
+        NS_mixin.__init__(self, *args, **kwargs)
+
+    def get_info_str(self):
+        return NS_mixin.get_info_str(self)
 
     def onItemSelChanged(self, evt):
         '''
@@ -69,7 +79,9 @@ class SolverBase(Model):
 
 
 class SolveStep(SolverBase):
+    hide_ns_menu = False
     has_2nd_panel = False
+    _has_4th_panel = True
 
     #
     # GUI and object parameters
@@ -127,17 +139,31 @@ class SolveStep(SolverBase):
 
 #        self.init_only    = v[2]
 
+    def panel4_param(self):
+        ll = super(SolveStep, self).panel4_param()
+        ll.append(["Probe variables", "", 2, None])
+        return ll
+
+    def panel4_tip(self):
+        return None
+
+    def get_panel4_value(self):
+        ret = super(SolveStep, self).get_panel4_value()
+        ret = ret + [self.nicetxt_probe_variables()]
+        return ret
+
     def get_possible_child(self):
         #from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.nl_solver_model import NLSolver
         from petram.solver.mg_solver_model import MGSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
-        from petram.solver.egn_solver_model import EgnSolver        
+        from petram.solver.egn_solver_model import EgnSolver
         from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
         from petram.solver.distance_solver import DistanceSolver
+        from petram.solver.superposition import Superposition
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
@@ -148,6 +174,7 @@ class SolveStep(SolverBase):
                     StdMeshAdaptSolver,
                     NLSolver,
                     EgnSolver,
+                    Superposition,
                     # MGSolver,
                     ForLoop,
                     DWCCall, SetVar]
@@ -158,7 +185,8 @@ class SolveStep(SolverBase):
                     # MGSolver,
                     StdSolver,
                     NLSolver,
-                    EgnSolver,                    
+                    EgnSolver,
+                    Superposition,
                     ForLoop,
                     DWCCall, SetVar]
 
@@ -173,6 +201,7 @@ class SolveStep(SolverBase):
         from petram.solver.timedomain_solver_model import TimeDomain
         from petram.solver.set_var import SetVar
         from petram.solver.distance_solver import DistanceSolver
+        from petram.solver.superposition import Superposition
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
@@ -182,6 +211,7 @@ class SolveStep(SolverBase):
                     ("", TimeDomain),
                     #("", EgnSolver),
                     ("extra", DistanceSolver),
+                    ("", Superposition),
                     ("", StdMeshAdaptSolver),
                     ("", InnerForLoop),
                     ("", DWCCall),
@@ -193,6 +223,7 @@ class SolveStep(SolverBase):
                     ("", TimeDomain),
                     #("", EgnSolver),
                     ("extra", DistanceSolver),
+                    ("", Superposition),
                     ("", InnerForLoop),
                     ("", DWCCall),
                     ("!", SetVar)]
@@ -537,6 +568,7 @@ class Solver(SolverBase):
         v['init_only'] = False
         v['assemble_real'] = False
         v['save_parmesh'] = False
+        v['save_sersol'] = False
         v['phys_model'] = ''
         #v['init_setting']   = ''
         v['use_profiler'] = False
@@ -544,6 +576,7 @@ class Solver(SolverBase):
         v['skip_solve'] = False
         v['load_sol'] = False
         v['sol_file'] = ''
+        v['ls_blk_merge'] = ''  # merging linear system blocks
         super(Solver, self).attribute_set(v)
         return v
 
@@ -655,6 +688,50 @@ class Solver(SolverBase):
     def run(self, engine, is_first=True):
         ...
 
+    @property
+    def use_blk_merged_structure(self):
+        return (self.ls_blk_merge.strip() != "")
+
+    def get_blk_structure(self):
+        if self.ls_blk_merge.strip() == "":
+            return None
+
+        solve_step = self.get_solve_root()
+        num_matrix = solve_step.get_num_matrix(self.get_phys())
+
+        ldepvars = len(self.root()['Phys'].all_dependent_vars(num_matrix,
+                                                              self.get_target_phys(),
+                                                              self.get_target_phys(),))
+        index = np.arange(ldepvars)
+
+        import re
+        # split by comma if it is not inside []
+        split = re.split(r',\s*(?![^[\]]*\])', self.ls_blk_merge)
+
+        l = locals()
+        value = [eval("index["+exp+"]", l) for exp in split]
+
+        dprint1("Block matrix merging : " + str(value))
+
+        return value
+
+    def get_ls_blocknames(self):
+        solve_step = self.get_solve_root()
+        num_matrix = solve_step.get_num_matrix(self.get_phys())
+
+        depvars = self.root()['Phys'].all_dependent_vars(num_matrix,
+                                                         self.get_target_phys(),
+                                                         self.get_target_phys(),)
+
+        blk_str = self.get_blk_structure()
+        if blk_str is None:
+            return depvars
+
+        names = []
+        for s in blk_str:
+            names.append("_".join([depvars[i] for i in s]))
+        return names
+
 
 class SolverInstance(ABC):
     '''
@@ -747,7 +824,7 @@ class SolverInstance(ABC):
 
     def save_solution(self, ksol=0, skip_mesh=False,
                       mesh_only=False, save_parmesh=False,
-                      save_mesh_linkdir=None):
+                      save_mesh_linkdir=None, save_sersol=False):
 
         engine = self.engine
         phys_target = self.get_phys()
@@ -765,7 +842,8 @@ class SolverInstance(ABC):
                                     skip_mesh=skip_mesh,
                                     mesh_only=False,
                                     save_parmesh=save_parmesh,
-                                    save_mesh_linkdir=save_mesh_linkdir)
+                                    save_mesh_linkdir=save_mesh_linkdir,
+                                    save_sersol=save_sersol)
             engine.save_extra_to_file(extra_data)
         #engine.is_initialzied = False
 
@@ -995,6 +1073,18 @@ class LinearSolverModel(SolverBase):
         raise NotImplementedError(
             "bug. this method sould not be called")
 
+    def get_proc_blocknames(self, precs):
+        solver = self.get_solver()
+        blk_names = solver.get_ls_blocknames()
+
+        precs = [x for x in precs if x[0] in blk_names]
+        names = [x[0] for x in precs]
+        for n in blk_names:
+            if not n in names:
+                precs.append((n, ['None', 'None']))
+
+        return precs
+
 
 class LinearSolver(ABC):
     '''
@@ -1079,7 +1169,6 @@ def real_to_complex_merged(solall, M):
         offset = M.RowOffsets()
         of = offset.ToList()
 
-    nicePrint(of)
     rows = M.NumRowBlocks()
     s = solall.shape
     i = 0

@@ -1,0 +1,3 @@
+from petram.helper.integrators.pyvector_integrator import *
+from petram.helper.integrators.pyvectorfe_p_integrator import PyVectorFEPartialIntegrator
+from petram.helper.integrators.pyvectorfe_pp_integrator import PyVectorFEPartialPartialIntegrator
