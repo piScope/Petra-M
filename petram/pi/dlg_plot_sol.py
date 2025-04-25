@@ -1459,7 +1459,6 @@ class DlgPlotSol(SimpleFramePlus):
     #
     #   Boundary value ('Bdr' tab)
     #
-    '''
     ll = [['Expression', '', 0, {}],
                   ['Offset (x, y, z)', '0, 0, 0', 0, {}],
                   ['Boundary Index', text, 0, {}],
