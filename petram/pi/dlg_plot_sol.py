@@ -1680,8 +1680,6 @@ class DlgPlotSol(SimpleFramePlus):
                 'subdirs': subdirs}
         self.post_threadend(self.export_to_piScope_shell,
                             data, 'bdr_data')
-    """
-
 
     def onExportR2Bdr(self, evt):
         wx.CallAfter(
