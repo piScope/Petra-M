@@ -486,11 +486,13 @@ class CrankNicolson(FirstOrderBackwardEuler):
         dprint1("A", A)
         return A, np.any(mask_M)
 
-    def compute_rhs(self, M, B, X):
+    def compute_rhs0(self, M, B, X):
         one_dt = 1./float(self.time_step)
         MM = (-M[0]*0.5 + M[1]*one_dt)
-        RHS = MM.dot(self.engine.sol) + B
-        dprint1("RHS", RHS)
+        return MM.dot(self.engine.sol)
+
+    def compute_rhs(self, MM, B, X, helper=None):
+        RHS = MM + B
         return RHS
 
 
@@ -505,11 +507,13 @@ class FirstOrderForwardEuler(FirstOrderBackwardEuler):
         dprint1("A", A)
         return A, np.any(mask_M)
 
-    def compute_rhs(self, M, B, X):
+    def compute_rhs0(self, M, B, X):
         one_dt = 1./float(self.time_step)
         MM = (-M[0] + M[1]*one_dt)
-        RHS = MM.dot(self.engine.sol) + B
-        dprint1("RHS", RHS)
+        return MM.dot(self.engine.sol)
+
+    def compute_rhs(self, MM, B, X, helper=None):
+        RHS = MM + B
         return RHS
 
 

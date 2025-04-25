@@ -2263,8 +2263,8 @@ class Engine(object):
             ridx = self.r_dep_var_offset(name)
             gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
             ess_tdof1, ess_tdof2 = self.ess_tdofs[name]
-
-            vec[idx].set_elements(gl_ess_tdof1, 0)
+            if vec[idx] is not None:
+                 vec[idx].set_elements(gl_ess_tdof1, 0)
         return vec
 
     def eliminate_BC_egn(self, A, diag=1.0, inplace=True):
