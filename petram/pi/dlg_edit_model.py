@@ -292,7 +292,7 @@ class DlgEditModel(SimpleFramePlus):
                 else:
                     add_func = None
                 if len(submenu) != 0:
-                    if submenu == "!":
+                    if submenu == "!":JR West
                         if add_func is not None:
                             menus = menus+[('Add '+txt, add_func, None), ]
                         menus = menus+[('!', None, None), ]

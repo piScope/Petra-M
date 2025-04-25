@@ -1279,58 +1279,6 @@ class DlgPlotSol(SimpleFramePlus):
                             cls=cls, expr=expr, expr_x=expr_x,
                             force_float=(not value[4]))
 
-    """
-    def onExportR1Edge(self, evt):
-        remote, base, subs = self.get_current_choices()
-        value = self.elps['Edge'] .GetValue()
-
-        refine = int(value[6][1][0])
-
-        all_data = []
-        for s in subs:
-            if s.strip() == '':
-                contineu
-            if remote:
-                self.config['cs_soldir'] = base
-                self.config['cs_solsubdir'] = s
-            else:
-                self.local_soldir = base
-                self.local_solsubdir = s
-                self.load_sol_if_needed()
-
-            data, data_x, battrs = self.eval_edge(mode='integ', refine=refine)
-            if data is None:
-                pass
-            else:
-                ndim = data[0][0].shape[1]
-                verts = np.hstack([v.flatten() for v, c, a in data]).flatten()
-                cdata = np.hstack([c.flatten() for v, c, a in data]).flatten()
-                verts = verts.reshape(-1, ndim)
-                data = {'vertices': verts, 'data': cdata}
-
-                if data_x is not None:
-                    cxdata = np.hstack([c.flatten()
-                                        for v, c, a in data_x]).flatten()
-                    xverts = np.hstack([v.flatten()
-                                        for v, c, a in data_x]).flatten()
-                    data['xvertices'] = xverts
-                    data['xdata'] = cxdata
-
-            all_data.append({"subdirs": s, "data": data})
-
-        self.post_threadend(self.export_to_piScope_shell,
-                            all_data, 'edge_data')
-
-    def onExportR2Edge(self, evt):
-        wx.CallAfter(
-            dialog.showtraceback,
-            parent=self,
-            txt='Not Yet Implemented',
-            title='Error',
-            traceback='Exporing all time slice for frequency \ndomain analysis is not available')
-        wx.CallAfter(self.set_title_no_status)
-    """
-
     def make_plot_edge(self, data, battrs,
                        data_x=None, cls=None,
                        expr='', expr_x='', force_float=False):
@@ -1417,6 +1365,7 @@ class DlgPlotSol(SimpleFramePlus):
 
     def onExportEdge(self, evt):
         value = self.elps['Edge'] .GetValue()
+
         average = value[6][0]
 
         from petram.pi.dlg_export_opts import ask_export_opts
@@ -1666,6 +1615,7 @@ class DlgPlotSol(SimpleFramePlus):
         return data
 
     def onExportBdr(self, evt):
+
         from petram.pi.dlg_export_opts import ask_export_opts
         opts = ask_export_opts(self)
 
@@ -1741,6 +1691,7 @@ class DlgPlotSol(SimpleFramePlus):
                 'subdirs': subdirs}
         self.post_threadend(self.export_to_piScope_shell,
                             data, 'bdr_data')
+    """
 
 
     def onExportR2Bdr(self, evt):

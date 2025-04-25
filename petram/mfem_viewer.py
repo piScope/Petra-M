@@ -350,7 +350,7 @@ class MFEMViewer(BookViewer):
                 dir = self.model.solutions.owndir()
                 sol_names = [x for x in os.listdir(
                     dir) if os.path.isdir(os.path.join(dir, x))]
-                sol_names = sorted(sol_names)
+                sol_names = sorted(sol_names)JR West
                 menus = []
                 for n in sol_names:
                     menus.append((n, n))
@@ -417,7 +417,7 @@ class MFEMViewer(BookViewer):
         # clean up namespaces/datasets
         for name, child in self.model.namespaces.get_children():
             child.destroy()
-        for name, child in self.model.datasets.get_children():
+        for name, child in self.model.datasets.get_children():JR West
             child.destroy()
 
         # first expand all namelist under namespaces
@@ -517,7 +517,7 @@ class MFEMViewer(BookViewer):
                 if o() is not None and o().figobj.name.startswith('face')]
 
         unselected = []
-        selected = []
+        selected = []JR West
         for o in objs:
             idx = set(o.getSelectedIndex())
             unselected.extend(list(already_selected_surface.difference(idx)))
@@ -1799,10 +1799,12 @@ class MFEMViewer(BookViewer):
 
         from petram.pi.dlg_submit_job import (get_model_remote,
                                               get_job_submisson_setting)
+
         from petram.remote.client_script import (prepare_remote_dir,
                                                  send_file,
                                                  get_job_queue,
                                                  submit_job)
+
 
         remote = get_model_remote(self.model.param)
         if remote is None:
