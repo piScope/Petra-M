@@ -1799,10 +1799,12 @@ class MFEMViewer(BookViewer):
 
         from petram.pi.dlg_submit_job import (get_model_remote,
                                               get_job_submisson_setting)
+
         from petram.remote.client_script import (prepare_remote_dir,
                                                  send_file,
                                                  get_job_queue,
                                                  submit_job)
+
 
         remote = get_model_remote(self.model.param)
         if remote is None:

@@ -339,18 +339,21 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         dprint1("A", A)
         return A, np.any(mask_M)
 
-    def compute_rhs(self, M, B, X):
+    def compute_rhs0(self, M, B, X):
         one_dt = 1./float(self.time_step)
         MM = M[1]*one_dt
-        RHS = MM.dot(self.engine.sol) + B
-        dprint1("RHS", RHS)
+        return MM.dot(self.engine.sol)
+
+    def compute_rhs(self, MM, B, X, helper=None):
+        RHS = MM + B
         return RHS
 
     def assemble(self, update=False):
         blocks, M_changed = self.engine.run_assemble_blocks(self.compute_A,
                                                             self.compute_rhs,
                                                             inplace=False,
-                                                            update=update)
+                                                            update=update,
+                                                            compute_rhs0=self.compute_rhs0)
 
         #A, X, RHS, Ae, B, M, depvars = blocks
         self.assembled = True
@@ -483,11 +486,13 @@ class CrankNicolson(FirstOrderBackwardEuler):
         dprint1("A", A)
         return A, np.any(mask_M)
 
-    def compute_rhs(self, M, B, X):
+    def compute_rhs0(self, M, B, X):
         one_dt = 1./float(self.time_step)
         MM = (-M[0]*0.5 + M[1]*one_dt)
-        RHS = MM.dot(self.engine.sol) + B
-        dprint1("RHS", RHS)
+        return MM.dot(self.engine.sol)
+
+    def compute_rhs(self, MM, B, X, helper=None):
+        RHS = MM + B
         return RHS
 
 
@@ -502,11 +507,13 @@ class FirstOrderForwardEuler(FirstOrderBackwardEuler):
         dprint1("A", A)
         return A, np.any(mask_M)
 
-    def compute_rhs(self, M, B, X):
+    def compute_rhs0(self, M, B, X):
         one_dt = 1./float(self.time_step)
         MM = (-M[0] + M[1]*one_dt)
-        RHS = MM.dot(self.engine.sol) + B
-        dprint1("RHS", RHS)
+        return MM.dot(self.engine.sol)
+
+    def compute_rhs(self, MM, B, X, helper=None):
+        RHS = MM + B
         return RHS
 
 
@@ -551,7 +558,9 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
             flag = True
         self.blocks1[idt] = self.engine.run_assemble_blocks(self.compute_A,
                                                             self.compute_rhs,
-                                                            inplace=False)[0]
+                                                            inplace=False,
+                                                            compute_rhs0=self.compute_rhs0)[0]
+
         # if flag:
         #    self.blocks = self.blocks1[0]
         # else:

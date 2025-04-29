@@ -375,6 +375,16 @@ def calc_decompositions(funcs, x, mmax, xp, viewer=None, **kwargs):
 
     return f_sums, errors
 
+def check_decomposition(in_fits):
+    if hasattr(in_fits, "d_arr"):
+        fit = in_fits
+    else:
+        fit = in_fits[0]
+    d_arr = fit.d_arr
+    for d in d_arr:
+        if d.imag == 0 and d.real > 0:
+            return False
+    return True
 
 def find_decomposition(func, x, xp=None, viewer=None, mmin=2, mmax=8,
                        tol=None, verbose=False, fp=False,
