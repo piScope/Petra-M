@@ -3223,6 +3223,8 @@ class Engine(object):
         for node in self.model.walk():
             if not hasattr(node, "check_ns_name_conflict"):
                 continue
+            if not node.enabled:
+                continue
             flag, names = node.check_ns_name_conflict()
             if not flag:
                 errors.append(node.fullname() + " : " + ", ".join(names))
