@@ -306,7 +306,8 @@ class WF(PhysModule):
                                              add_surf_normals,
                                              add_constant
 ,                                            GFScalarVariable,
-                                             GFVectorVariable)
+                                             GFVectorVariable,
+                                             PlaceholderVariable)
 
         ind_vars = [x.strip() for x in self.ind_vars.split(',')]
         suffix = self.dep_vars_suffix
