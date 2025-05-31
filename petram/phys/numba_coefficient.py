@@ -896,12 +896,14 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             if return_complex:
                 func_txt.append("   return np.complex128(_out_)")
             else:
-                func_txt.append("   return np.float64(_out_)")
+                func_txt.append("   if np.iscomplexobj(_out_): _out_ = _out_.real")            
+                func_txt.append("   return _out_")
         else:
             if return_complex:
                 func_txt.append("   return _out_.astype(np.complex128)")
             else:
-                func_txt.append("   return _out_.astype(np.float64)")
+                func_txt.append("   if np.iscomplexobj(_out_): _out_ = _out_.real" )
+                func_txt.append("   return _out_")
         return func_txt
 
     func_txt = "\n".join(create_func())
