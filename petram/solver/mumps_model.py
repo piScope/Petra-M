@@ -473,7 +473,14 @@ class MUMPSSolver(LinearSolver):
         def filename(myid):
             smyid = '{:0>6d}'.format(myid)
             return "matrix." + smyid + ".npz"
-        MPI.COMM_WORLD.Barrier()
+
+        if use_parallel:
+            from mpi4py import MPI
+            MPI.COMM_WORLD.Barrier()
+
+            myid = MPI.COMM_WORLD.rank
+        else:
+            myid = 0
 
         if myid != 0:
             return
@@ -1333,9 +1340,8 @@ class MUMPSBlockSolver(LinearSolver):
             else:
                 xx = gather_vector(x.GetDataArray())
             if xx is not None:
-               xx = np.atleast_2d(xx).transpose()
+                xx = np.atleast_2d(xx).transpose()
         else:
             xx = x.GetDataArray().copy().reshape(-1, 1)
 
         return xx
-
