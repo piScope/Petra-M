@@ -1020,6 +1020,7 @@ class DlgPlotSol(SimpleFramePlus):
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
                 sol = model.param.eval('sol')                
                 if not os.path.exists(npath):  # fall back
+                    sol = model.param.eval('sol')
                     npath = sol.owndir()
                     self.local_soldir = npath
                     self.local_solsubdir = ""
