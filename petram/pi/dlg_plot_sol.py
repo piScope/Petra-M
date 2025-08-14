@@ -985,13 +985,17 @@ class DlgPlotSol(SimpleFramePlus):
     def post_threadend(self, func, *args, **kwargs):
         evt = wx.PyCommandEvent(ThreadEnd, wx.ID_ANY)
         evt.pp_method = (func, args, kwargs)
-        wx.PostEvent(self, evt)
+        print("posting event", func)
+        #wx.PostEvent(self, evt)
+        wx.CallAfter(func, *args, **kwargs)
+        wx.CallAfter(self.set_title_no_status)
 
     def set_title_no_status(self):
         title = self.GetTitle()
         self.SetTitle(title.split('(')[0])
 
     def onThreadEnd(self, evt):
+        print("thread here", threading.current_thread())
         self.set_title_no_status()
         m = evt.pp_method[0]
         args = evt.pp_method[1]
@@ -1275,6 +1279,7 @@ class DlgPlotSol(SimpleFramePlus):
         if data is None:
             return
 
+        print("calling post thread")
         self.post_threadend(self.make_plot_edge, data, battrs,
                             data_x=data_x,
                             cls=cls, expr=expr, expr_x=expr_x,
