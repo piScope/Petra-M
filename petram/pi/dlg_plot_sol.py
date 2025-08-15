@@ -983,12 +983,21 @@ class DlgPlotSol(SimpleFramePlus):
         evt.Skip()
 
     def post_threadend(self, func, *args, **kwargs):
-        evt = wx.PyCommandEvent(ThreadEnd, wx.ID_ANY)
-        evt.pp_method = (func, args, kwargs)
-        print("posting event", func)
+        #evt = wx.PyCommandEvent(ThreadEnd, wx.ID_ANY)
+        #evt.pp_method = (func, args, kwargs)
+        #print("posting event", func)
         #wx.PostEvent(self, evt)
-        wx.CallAfter(func, *args, **kwargs)
+        self.plot_data = (func, args, kwargs)
+        print(self.plot_data)
+        wx.CallAfter(self.call_plot)
+        #wx.CallAfter(func, *args, **kwargs)
         wx.CallAfter(self.set_title_no_status)
+
+    def call_plot(self):
+        print("thread here", threading.current_thread())
+        print(self.plot_data)
+        func, args, kwargs = self.plot_data
+        func(*args, **kwargs)
 
     def set_title_no_status(self):
         title = self.GetTitle()
