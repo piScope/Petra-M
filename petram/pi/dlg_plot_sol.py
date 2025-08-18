@@ -245,6 +245,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.remote_sols = None
 
         self._plot_thread = None
+        self._plot_data = None
         self.use_profiler = False  # debug
 
         text = 'all'
@@ -987,17 +988,22 @@ class DlgPlotSol(SimpleFramePlus):
         #evt.pp_method = (func, args, kwargs)
         #print("posting event", func)
         #wx.PostEvent(self, evt)
-        self.plot_data = (func, args, kwargs)
-        print(self.plot_data)
-        wx.CallAfter(self.call_plot)
+        self._plot_data = (func, args, kwargs)
+        print(self._plot_data)
+        # wx.CallAfter(self.call_plot)
         #wx.CallAfter(func, *args, **kwargs)
-        wx.CallAfter(self.set_title_no_status)
+        # wx.CallAfter(self.set_title_no_status)
 
     def call_plot(self):
         print("thread here", threading.current_thread())
-        print(self.plot_data)
-        func, args, kwargs = self.plot_data
+        print(self._plot_data)
+        if self._plot_data is None:
+            return
+
+        func, args, kwargs = self._plot_data
         func(*args, **kwargs)
+        self._plot_data = None
+        self.set_title_no_status()
 
     def set_title_no_status(self):
         title = self.GetTitle()
@@ -1293,6 +1299,7 @@ class DlgPlotSol(SimpleFramePlus):
                             data_x=data_x,
                             cls=cls, expr=expr, expr_x=expr_x,
                             force_float=(not value[4]))
+        evt.Skip()
 
     def make_plot_edge(self, data, battrs,
                        data_x=None, cls=None,
@@ -1507,6 +1514,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.post_threadend(self.make_plot_bdr, data, battrs, scale,
                             cls=cls, expr=expr,
                             use_pointfill=use_pointfill)
+        evt.Skip()
 
     def make_plot_bdr(
             self,
@@ -1793,6 +1801,7 @@ class DlgPlotSol(SimpleFramePlus):
         if flag > 0:
             ptx, data, attrs_out, attrs, pc_param = dataset
         else:
+            evt.Skip()
             return
 
         pc_mode = value[1][0]
@@ -1810,6 +1819,7 @@ class DlgPlotSol(SimpleFramePlus):
                 pc_param,
                 cls=cls,
                 expr=expr)
+        evt.Skip()
 
     def onExportPoints(self, evt):
         value = self.elps['Points'] .GetValue()
@@ -2224,6 +2234,7 @@ class DlgPlotSol(SimpleFramePlus):
                             expr_v=expr_v,
                             expr_w=expr_w,
                             cls=cls)
+        evt.Skip()
 
     def make_plot_bdrarrow(self, u, v, w, battrs, value,
                            expr_u='', expr_v='', expr_w='',
@@ -2361,6 +2372,7 @@ class DlgPlotSol(SimpleFramePlus):
     @run_in_piScope_thread
     def onApplySlice(self, evt):
         self.onSliceCommon(evt)
+        evt.Skip()
 
     def onExportSlice(self, evt):
         self.onSliceCommon(evt, mode='export')
@@ -2389,6 +2401,7 @@ class DlgPlotSol(SimpleFramePlus):
 
         self.post_threadend(self.export_to_piScope_shell,
                             dataset, 'slice_data')
+        evt.Skip()
 
     def onExportR2Slice(self, evt):
         wx.CallAfter(
@@ -2603,6 +2616,7 @@ class DlgPlotSol(SimpleFramePlus):
                                 data, 'integral_data')
             self.post_threadend(print,
                                 "Integrated value", data['value'])
+        evt.Skip()
 
     def get_attrs_field_Integral(self):
         return 2
@@ -2640,6 +2654,7 @@ class DlgPlotSol(SimpleFramePlus):
         self.post_threadend(
             self.make_plot_probe, (xdata, data), expr=expr, xexpr=xexpr)
 
+        evt.Skip()
     '''
     def onExportProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
