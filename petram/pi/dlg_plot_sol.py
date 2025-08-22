@@ -988,15 +988,14 @@ class DlgPlotSol(SimpleFramePlus):
         #evt.pp_method = (func, args, kwargs)
         #print("posting event", func)
         #wx.PostEvent(self, evt)
+        print("Using CallAfter")
         self._plot_data = (func, args, kwargs)
-        print(self._plot_data)
-        # wx.CallAfter(self.call_plot)
+        wx.CallAfter(self.call_plot)
         #wx.CallAfter(func, *args, **kwargs)
         # wx.CallAfter(self.set_title_no_status)
 
     def call_plot(self):
         print("thread here", threading.current_thread())
-        print(self._plot_data)
         if self._plot_data is None:
             return
 
