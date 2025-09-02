@@ -39,7 +39,7 @@ class aaa_fit():
         return n/d
 
 
-def aaa(x, f, tol=1e-10, mmax=-1):
+def aaa(x, f, tol=1e-10, mmax=-1, idx0=None):
     '''
     Y. Tanakzukasa "The AAA algorithm for rational approximation", SIAM Journal on Sci. Comp. (2018)
     '''
@@ -51,9 +51,11 @@ def aaa(x, f, tol=1e-10, mmax=-1):
     scale = np.max(f) - np.min(f)
     f1 = f/scale
 
-    flags = [True]*ll
+    flags = np.array([True]*ll)
 
-    idx = np.argmax(f1)
+    print("idx0 here", idx0)
+    idx = np.argmax(f1) if idx0 is None else idx0
+    
     flags[idx] = False
     farr = [f1[idx]]
     zarr = [x[idx]]
@@ -72,7 +74,7 @@ def aaa(x, f, tol=1e-10, mmax=-1):
         farr.append(f1[idx])
         zarr.append(x[idx])
         flags[idx] = False
-
+        print("idx here 2", idx)
         mat = np.zeros((ll-len(farr), len(farr)))
         ii = 0
         for i in range(ll):
@@ -86,12 +88,13 @@ def aaa(x, f, tol=1e-10, mmax=-1):
         count = count + 1
         weights = vh[-1, :]
 
+    print("data here", np.where(flags==False)[0])
     r = aaa_fit(zarr, weights, farr, scale=scale)
 
     return r
 
 
-def aaaa(x, f, tol=1e-10, mmax=-1):
+def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
     '''
     array-AAA (set-valued AAA))
 
@@ -110,9 +113,10 @@ def aaaa(x, f, tol=1e-10, mmax=-1):
 
     f1 = np.transpose(f.transpose()/scales)
 
-    flags = [True]*ll
+    flags = np.array([True]*ll)
 
-    idx = np.argmax(f1) % ll
+    idx = np.argmax(f1) % ll if idx0 is None else idx0
+
     flags[idx] = False
     farrs = np.array([f1[i, idx] for i in range(N)]).reshape(N, 1)
     zarr = [x[idx]]
@@ -250,7 +254,7 @@ class poly_fraction():
 
 
 def calc_decomposition(func, x, mmax, xp=None, viewer=None, fp=False,
-                       **kwargs):
+                       idx0=None, **kwargs):
     if xp is None:
         xp = x
 
@@ -263,7 +267,7 @@ def calc_decomposition(func, x, mmax, xp=None, viewer=None, fp=False,
             viewer.plot(xp, fp.imag, 'b')
         viewer.xlabel("x")
 
-    r = aaa(x, f, tol=0, mmax=mmax)
+    r = aaa(x, f, tol=0, mmax=mmax, idx0=idx0)
     # if viewer is not None:
     #    viewer.plot(x, r(x), 'ro')
     #    if np.iscomplexobj(f):
@@ -287,11 +291,14 @@ def calc_decomposition(func, x, mmax, xp=None, viewer=None, fp=False,
     #    import warnings
     #    warnings.warn("Decomposition is not stable. ", RuntimeWarning)
 
+    idx = 0 if idx0 is None else idx0
+
+    print("mattching at", x[idx], func(x[idx], **kwargs))
     tmp = 0j
     for c, d in zip(c_arr, d_arr):
-        tmp = tmp + c/(x[0]-d)
+        tmp = tmp + c/(x[idx]-d)
 
-    c0 = func(x[0], **kwargs)-tmp
+    c0 = func(x[idx], **kwargs)-tmp
 
     f_sum = poly_fraction(c0, c_arr, d_arr)
 
@@ -313,7 +320,8 @@ def calc_decomposition(func, x, mmax, xp=None, viewer=None, fp=False,
     return f_sum, max_error
 
 
-def calc_decompositions(funcs, x, mmax, xp, viewer=None, **kwargs):
+def calc_decompositions(funcs, x, mmax, xp, viewer=None, idx0=None,
+                        **kwargs):
     '''
     array version
     '''
@@ -331,7 +339,7 @@ def calc_decompositions(funcs, x, mmax, xp, viewer=None, **kwargs):
         viewer.xlabel("sqrt(x)")
 
     #from baryrat import aaa
-    rall = aaaa(x, f, mmax=mmax, tol=0)
+    rall = aaaa(x, f, mmax=mmax, tol=0, idx0=idx0)
 
     f_sums = []
     fits = []
@@ -387,7 +395,7 @@ def check_decomposition(in_fits):
     return True
 
 def find_decomposition(func, x, xp=None, viewer=None, mmin=2, mmax=8,
-                       tol=None, verbose=False, fp=False,
+                       tol=None, verbose=False, fp=False, idx0=None,
                        **kwargs):
     '''
     find rational approximation of func (callable)
@@ -399,7 +407,7 @@ def find_decomposition(func, x, xp=None, viewer=None, mmin=2, mmax=8,
     while mm <= mmax:
         succsss = False
         fit, err = calc_decomposition(func, x, mm, xp=xp, viewer=viewer,
-                                      fp=fp, **kwargs)
+                                      fp=fp, idx0=idx0, **kwargs)
         if fit is not None:
             success = np.all([d.real < 0 for d in fit.d_arr])
             if success:
@@ -414,7 +422,7 @@ def find_decomposition(func, x, xp=None, viewer=None, mmin=2, mmax=8,
 
 
 def find_decompositions(funcs, x, viewer=None, xp=None,
-                        mmin=3, mmax=15, **kwargs):
+                        mmin=3, mmax=15, idx0=None, **kwargs):
     if xp is None:
         xp = x
 
@@ -422,7 +430,7 @@ def find_decompositions(funcs, x, viewer=None, xp=None,
     success = False
     while mm <= mmax:
         fit, errors = calc_decompositions(
-            funcs, x, mm, xp=xp, viewer=viewer, **kwargs)
+            funcs, x, mm, xp=xp, viewer=viewer, idx0=idx0, **kwargs)
 
         d_arr = fit[0].d_arr
         fail = False
