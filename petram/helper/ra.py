@@ -53,7 +53,8 @@ def aaa(x, f, tol=1e-10, mmax=-1):
 
     flags = [True]*ll
 
-    idx = np.argmax(f1)
+    #idx = np.argmax(f1)
+    idx = len(f1)-1
     flags[idx] = False
     farr = [f1[idx]]
     zarr = [x[idx]]
@@ -88,6 +89,7 @@ def aaa(x, f, tol=1e-10, mmax=-1):
 
     r = aaa_fit(zarr, weights, farr, scale=scale)
 
+    print("zarr", zarr)
     return r
 
 
