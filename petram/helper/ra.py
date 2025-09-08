@@ -39,7 +39,7 @@ class aaa_fit():
         return n/d
 
 
-def aaa(x, f, tol=1e-10, mmax=-1):
+def aaa(x, f, tol=1e-10, mmax=-1, idx0=None):
     '''
     Y. Tanakzukasa "The AAA algorithm for rational approximation", SIAM Journal on Sci. Comp. (2018)
     '''
@@ -53,15 +53,26 @@ def aaa(x, f, tol=1e-10, mmax=-1):
 
     flags = [True]*ll
 
-    #idx = np.argmax(f1)
-    idx = len(f1)-1
-    flags[idx] = False
-    farr = [f1[idx]]
-    zarr = [x[idx]]
-    weights = [1]
+    if idx0 is None:
+        idx = np.argmax(f1)
+        flags[idx] = False
+        farr = [f1[idx]]
+        zarr = [x[idx]]
+        weights = [1]
+        idxarr = [idx]  # array for debugging
+    else:
+        idx0 = np.atleast_1d(idx0)
+        farr = []
+        zarr = []
+        for idx in idx0:
+            flags[idx] = False
+            zarr.append(x[idx])
+            farr.append(f1[idx])
+        weights = [1]*len(idx0)
+        idxarr = list(idx0)
 
     count = 0
-    while count < mmax:
+    while len(idxarr) < mmax:
         #print("count", count, maxcount)
         r = aaa_fit(zarr, weights, farr)
         err = [np.abs(f1[i] - r(x[i]))
@@ -73,6 +84,7 @@ def aaa(x, f, tol=1e-10, mmax=-1):
         farr.append(f1[idx])
         zarr.append(x[idx])
         flags[idx] = False
+        idxarr.append(idx)
 
         mat = np.zeros((ll-len(farr), len(farr)))
         ii = 0
@@ -89,11 +101,10 @@ def aaa(x, f, tol=1e-10, mmax=-1):
 
     r = aaa_fit(zarr, weights, farr, scale=scale)
 
-    print("zarr", zarr)
     return r
 
 
-def aaaa(x, f, tol=1e-10, mmax=-1):
+def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
     '''
     array-AAA (set-valued AAA))
 
@@ -114,14 +125,29 @@ def aaaa(x, f, tol=1e-10, mmax=-1):
 
     flags = [True]*ll
 
-    idx = np.argmax(f1) % ll
-    flags[idx] = False
-    farrs = np.array([f1[i, idx] for i in range(N)]).reshape(N, 1)
-    zarr = [x[idx]]
-    weights = [1]
+    if idx0 is None:
+        idx = np.argmax(f1) % ll
+        flags[idx] = False
+        farrs = np.array([f1[i, idx] for i in range(N)]).reshape(N, 1)
+        zarr = [x[idx]]
+        weights = [1]
+        idxarr = [idx]  # array for debugging
+
+    else:
+        idx0 = np.atleast_1d(idx0)
+        farrs = []
+        zarr = []
+        for idx in idx0:
+            flags[idx] = False
+            zarr.append(x[idx])
+            farrs.append(np.array([f1[i, idx]
+                                   for i in range(N)]).reshape(N, 1))
+        farrs = np.hstack(farrs)
+        weights = [1]*len(idx0)
+        idxarr = list(idx0)
 
     count = 0
-    while count < mmax:
+    while len(idxarr) < mmax:
         #print("count", count, maxcount)
         r = [aaa_fit(zarr, weights, farr)
              for farr in farrs]
@@ -137,6 +163,7 @@ def aaaa(x, f, tol=1e-10, mmax=-1):
         farrs = np.hstack((farrs, tmp))
         zarr.append(x[idx])
         flags[idx] = False
+        idxarr.append(idx)
 
         mat = np.zeros(((ll-len(zarr))*N, len(zarr)))
         ii = 0
@@ -154,6 +181,7 @@ def aaaa(x, f, tol=1e-10, mmax=-1):
         count = count + 1
         weights = vh[-1, :]
 
+    print("weight picked at ", idxarr)
     ret = [aaa_fit(zarr, weights, farr, scale=s)
            for farr, s in zip(farrs, scales)]
 
@@ -252,7 +280,7 @@ class poly_fraction():
 
 
 def calc_decomposition(func, x, mmax, xp=None, viewer=None, fp=False,
-                       **kwargs):
+                       idx0=None, **kwargs):
     if xp is None:
         xp = x
 
@@ -265,7 +293,7 @@ def calc_decomposition(func, x, mmax, xp=None, viewer=None, fp=False,
             viewer.plot(xp, fp.imag, 'b')
         viewer.xlabel("x")
 
-    r = aaa(x, f, tol=0, mmax=mmax)
+    r = aaa(x, f, tol=0, mmax=mmax, idx0=idx0)
     # if viewer is not None:
     #    viewer.plot(x, r(x), 'ro')
     #    if np.iscomplexobj(f):
@@ -315,7 +343,7 @@ def calc_decomposition(func, x, mmax, xp=None, viewer=None, fp=False,
     return f_sum, max_error
 
 
-def calc_decompositions(funcs, x, mmax, xp, viewer=None, **kwargs):
+def calc_decompositions(funcs, x, mmax, xp, viewer=None, idx0=None, **kwargs):
     '''
     array version
     '''
@@ -333,7 +361,7 @@ def calc_decompositions(funcs, x, mmax, xp, viewer=None, **kwargs):
         viewer.xlabel("sqrt(x)")
 
     #from baryrat import aaa
-    rall = aaaa(x, f, mmax=mmax, tol=0)
+    rall = aaaa(x, f, mmax=mmax, tol=0, idx0=idx0)
 
     f_sums = []
     fits = []
@@ -377,6 +405,7 @@ def calc_decompositions(funcs, x, mmax, xp, viewer=None, **kwargs):
 
     return f_sums, errors
 
+
 def check_decomposition(in_fits):
     if hasattr(in_fits, "d_arr"):
         fit = in_fits
@@ -388,6 +417,7 @@ def check_decomposition(in_fits):
             return False
     return True
 
+
 def find_decomposition(func, x, xp=None, viewer=None, mmin=2, mmax=8,
                        tol=None, verbose=False, fp=False,
                        **kwargs):
@@ -398,6 +428,7 @@ def find_decomposition(func, x, xp=None, viewer=None, mmin=2, mmax=8,
        fp = enforce output range is posivie
     '''
     mm = mmin
+
     while mm <= mmax:
         succsss = False
         fit, err = calc_decomposition(func, x, mm, xp=xp, viewer=viewer,
