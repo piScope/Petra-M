@@ -100,7 +100,6 @@ def aaa(x, f, tol=1e-10, mmax=-1, idx0=None):
         count = count + 1
         weights = vh[-1, :]
 
-    print("data here", np.where(flags==False)[0])
     r = aaa_fit(zarr, weights, farr, scale=scale)
 
     return r
@@ -185,7 +184,7 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
         count = count + 1
         weights = vh[-1, :]
 
-    print("weight picked at ", idxarr)
+    #print("weight picked at ", idxarr)
     ret = [aaa_fit(zarr, weights, farr, scale=s)
            for farr, s in zip(farrs, scales)]
 

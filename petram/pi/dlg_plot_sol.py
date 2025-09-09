@@ -1294,7 +1294,6 @@ class DlgPlotSol(SimpleFramePlus):
         if data is None:
             return
 
-        print("calling post thread")
         self.post_threadend(self.make_plot_edge, data, battrs,
                             data_x=data_x,
                             cls=cls, expr=expr, expr_x=expr_x,
