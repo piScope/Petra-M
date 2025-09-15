@@ -38,7 +38,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         v['submeshpartitioning'] = 'auto'
         v['autofilldiag'] = 'off'
         v['savegz'] = 'on'
-        v['saveparaview'] = 'off'
+        v['savedc'] = 'off'
         v['allow_fallback_nonjit'] = 'allow'
         v['debug_numba_jit'] = 'off'
         v['trim_debug_print'] = 'on'
@@ -78,7 +78,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
     def panel2_param(self):
         return [["DiagPolicy", None, 1, {"values": ["one", "keep"]}],
                 ["File compression", None, 1, {"values": ["on", "off"]}],
-                ["Save Paraview File", None, 1, {"values": ["on", "off"]}],
+                ["Save DC", None, 1, {"values": ["ParaView", "VisIt", "off"]}],
                 ["Mesh partitioning", None, 1, {
                     "values": ["auto", "by attribute"]}],
                 ["SubMesh partitioning", None, 1, {
@@ -97,7 +97,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
                 ]
 
     def get_panel2_value(self):
-        return (self.diagpolicy, self.savegz, self.saveparaview,
+        return (self.diagpolicy, self.savegz, self.savedc,
                 self.partitioning, self.submeshpartitioning,
                 self.autofilldiag, self.allow_fallback_nonjit, self.debug_numba_jit,
                 self.trim_debug_print, self.warning_control)
@@ -105,7 +105,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
     def import_panel2_value(self, v):
         self.diagpolicy = v[0]
         self.savegz = v[1]
-        self.saveparaview = v[2]
+        self.savedc = v[2]
         self.partitioning = v[3]
         self.submeshpartitioning = v[4]
         self.autofilldiag = v[5]
