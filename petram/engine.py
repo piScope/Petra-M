@@ -101,6 +101,8 @@ class Engine(object):
 
         self.case_base = 0
         self._init_done = []
+        self._paraview_dc = {}
+        self._visit_dc = {}
 
         self._ppname_postfix = ''
 
@@ -2264,7 +2266,7 @@ class Engine(object):
             gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
             ess_tdof1, ess_tdof2 = self.ess_tdofs[name]
             if vec[idx] is not None:
-                 vec[idx].set_elements(gl_ess_tdof1, 0)
+                vec[idx].set_elements(gl_ess_tdof1, 0)
         return vec
 
     def eliminate_BC_egn(self, A, diag=1.0, inplace=True):
@@ -3441,6 +3443,10 @@ class Engine(object):
             if i_x is not None:
                 i_x.Save(fnamei, 8)
 
+        fmt = self.get_savedc_format()
+        if fmt is not None:
+            self.save_datacollection(fmt, name, mesh_idx, r_x, i_x)
+
     def save_mesh0(self, save_mesh_linkdir=None, save_sersol=False):
         mesh_names = []
         suffix = self.solfile_suffix()
@@ -3917,6 +3923,12 @@ class Engine(object):
             return True
         return False
 
+    def get_savedc_format(self):
+        val = self.model.root()['General'].savedc
+        if val == "off":
+            return None
+        return val
+
     def get_partitiong_method(self):
         return self.model.root()['General'].partitioning
 
@@ -3925,6 +3937,57 @@ class Engine(object):
 
     def get_autofill_diag(self):
         return self.model.root()['General'].autofilldiag == 'on'
+
+    def init_paraview_dc(self, emesh_idx):
+        if emesh_idx not in self._paraview_dc:
+            mesh = self.emeshes[emesh_idx]
+
+            dc = mfem.ParaViewDataCollection("PetraM", mesh)
+
+            dc.SetPrefixPath("ParaView")
+            dc.SetDataFormat(mfem.VTKFormat_BINARY)
+            dc.SetHighOrderOutput(True)
+            dc.SetCycle(0)
+            dc.SetTime(0.0)
+
+            self._paraview_dc[emesh_idx] = dc
+
+        return self._paraview_dc[emesh_idx]
+
+    def init_visit_dc(self, emesh_idx):
+        if emesh_idx not in self._visit_dc:
+            mesh = self.emeshes[emesh_idx]
+
+            dc = mfem.VisItDataCollection("PetraM", mesh)
+
+            dc.SetPrefixPath("VisIt")
+
+            if self.isParallel:
+                visit_format = mfem.DataCollection.PARALLEL_FORMAT
+            else:
+                visit_format = mfem.DataCollection.SERIAL_FORMAT
+            dc.SetFormat(visit_format)
+            dc.SetCycle(0)
+            dc.SetTime(0.0)
+
+            self._visit_dc[emesh_idx] = dc
+
+        return self._visit_dc[emesh_idx]
+
+    def save_datacollection(self, fmt, name, emesh_idx, r_x, i_x):
+        if fmt == "ParaView":
+            dc = self.init_paraview_dc(emesh_idx)
+        elif fmt == "VisIt":
+            dc = self.init_visit_dc(emesh_idx)
+        else:
+            return
+
+        if i_x is None:
+            dc.RegisterField(name, r_x)
+        else:
+            dc.RegisterField("Re_"+name, r_x)
+            dc.RegisterField("Im_"+name, i_x)
+        dc.Save()
 
 
 class SerialEngine(Engine):
