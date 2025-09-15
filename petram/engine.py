@@ -101,6 +101,7 @@ class Engine(object):
 
         self.case_base = 0
         self._init_done = []
+        self._paraview_dc = {}
 
         self._ppname_postfix = ''
 
@@ -2264,7 +2265,7 @@ class Engine(object):
             gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
             ess_tdof1, ess_tdof2 = self.ess_tdofs[name]
             if vec[idx] is not None:
-                 vec[idx].set_elements(gl_ess_tdof1, 0)
+                vec[idx].set_elements(gl_ess_tdof1, 0)
         return vec
 
     def eliminate_BC_egn(self, A, diag=1.0, inplace=True):
@@ -3441,6 +3442,9 @@ class Engine(object):
             if i_x is not None:
                 i_x.Save(fnamei, 8)
 
+        if self.get_saveparaview():
+            self.save_paraview(name, mesh_idx, r_x, i_x)
+
     def save_mesh0(self, save_mesh_linkdir=None, save_sersol=False):
         mesh_names = []
         suffix = self.solfile_suffix()
@@ -3917,6 +3921,12 @@ class Engine(object):
             return True
         return False
 
+    def get_saveparaview(self):
+        val = self.model.root()['General'].saveparaview
+        if val == 'on':
+            return True
+        return False
+
     def get_partitiong_method(self):
         return self.model.root()['General'].partitioning
 
@@ -3925,6 +3935,31 @@ class Engine(object):
 
     def get_autofill_diag(self):
         return self.model.root()['General'].autofilldiag == 'on'
+
+    def init_paraview_dc(self, emesh_idx):
+        if emesh_idx not in self._paraview_dc:
+            mesh = self.emeshes[emesh_idx]
+
+            paraview_dc = mfem.ParaViewDataCollection("PetraM", mesh)
+
+            paraview_dc.SetPrefixPath("ParaView")
+            paraview_dc.SetDataFormat(mfem.VTKFormat_BINARY)
+            paraview_dc.SetHighOrderOutput(True)
+            paraview_dc.SetCycle(0)
+            paraview_dc.SetTime(0.0)
+
+            self._paraview_dc[emesh_idx] = paraview_dc
+
+        return self._paraview_dc[emesh_idx]
+
+    def save_paraview(self, name, emesh_idx, r_x, i_x):
+        dc = self.init_paraview_dc(emesh_idx)
+        if i_x is None:
+            dc.RegisterField(name, r_x)
+        else:
+            dc.RegisterField("Re_"+name, r_x)
+            dc.RegisterField("Im_"+name, i_x)
+        dc.Save()
 
 
 class SerialEngine(Engine):
