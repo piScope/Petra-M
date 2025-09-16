@@ -195,7 +195,7 @@ def find_edge_corner(mesh):
         for key in ld.keys():
             mid, g_in_master = key
             if mid == myid: continue
-            iii = np.in1d(iedges, ld[key][2], invert = True)
+            iii = np.isin(iedges, ld[key][2], invert = True)
             mask = np.logical_and(mask, iii)
         iedges = iedges[mask]
         
@@ -423,7 +423,7 @@ def find_edge_corner(mesh):
             data = np.array(data, dtype=int)                        
         data = list(data - myoffsetv)
 
-        line2vert[j+1] = list(vv_keys[np.in1d(vv_values, data)])
+        line2vert[j+1] = list(vv_keys[np.isin(vv_values, data)])
 
         '''
         (this was origial very slow)
@@ -482,7 +482,7 @@ def find_edge_corner(mesh):
             data = np.array(bb_edges[attr_set], dtype=int)
             for key in ld:
                 if key[0] == myid: continue                                
-                iii = np.in1d(data+myoffset, ld[key][1], invert = True)
+                iii = np.isin(data+myoffset, ld[key][1], invert = True)
                 data = data[iii]
             line2edge_true[k+1] = data
         else:
@@ -572,7 +572,7 @@ def find_corner(mesh):
     if use_parallel:
         for key2 in ld:
             if key2[0] == myid: continue
-            iii = np.in1d(iedges, ld[key2][1], invert = True)
+            iii = np.isin(iedges, ld[key2][1], invert = True)
             if len(iii) == 0: continue
             iedges = iedges[iii]
             battrs = battrs[iii]

@@ -1200,8 +1200,8 @@ class DomainVariable(Variable):
             for dom in domains:
                 if dom == current_domain or current_domain is None:
                     w *= 0.0
-                    w[np.in1d(attr1, dom)] += 1.0
-                    w[np.in1d(attr2, dom)] += 1.0
+                    w[np.isin(attr1, dom)] += 1.0
+                    w[np.isin(attr2, dom)] += 1.0
 
                     w[w != 0] = 1./w[w != 0]
                     w2 = np.repeat(w, npts)
@@ -1274,11 +1274,11 @@ class DomainVariable(Variable):
                     gdomain[key] = self.gdomains[domains][key]
 
             # restricting point evaluation to a specific domain
-            check = np.in1d(valid_attrs, domains)
+            check = np.isin(valid_attrs, domains)
             counts2 = np.sum(check)
             locs2 = locs[check, :]
             attrs2 = attrs.copy()
-            attrs2[np.in1d(attrs, domains, invert=True)] = -1
+            attrs2[np.isin(attrs, domains, invert=True)] = -1
 
             if counts2 == 0:
                 continue

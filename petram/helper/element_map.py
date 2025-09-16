@@ -58,7 +58,7 @@ def find_element(mesh, use_bdr, attrs):
             _void = attrs[0]
         except:
             attrs = [attrs]
-        flag = np.in1d(arr, attrs)
+        flag = np.isin(arr, attrs)
         idx = idx[flag]
     return idx
 

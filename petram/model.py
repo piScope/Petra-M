@@ -269,7 +269,7 @@ class Model(RestorableOrderedDict):
             self._sel_index = [int(i) for i in self.sel_index]
         if choice is not None:
             ret = np.array(self._sel_index)
-            ret = list(ret[np.in1d(ret, choice)])
+            ret = list(ret[np.isin(ret, choice)])
             self._sel_index = ret
 
         return self._sel_index
@@ -1171,10 +1171,10 @@ class Pair(Model):
 
         if choice is not None:
             ret = np.array(self._sel_index)
-            ret = list(ret[np.in1d(ret, choice)])
+            ret = list(ret[np.isin(ret, choice)])
             self._sel_index = ret
             ret = np.array(self._src_index)
-            ret = list(ret[np.in1d(ret, choice)])
+            ret = list(ret[np.isin(ret, choice)])
             self._src_index = ret
 
         return self._sel_index

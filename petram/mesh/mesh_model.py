@@ -1062,7 +1062,7 @@ class DomainRefinement(Mesh):
         # nicePrint("refining elements domain choice", domains)
         for i in range(int(self.num_refine)):
             attr = mesh.GetAttributeArray()
-            idx = list(np.where(np.in1d(attr, domains))[0])
+            idx = list(np.where(np.isin(attr, domains))[0])
 
             if self.expression != '':
                 idx2 = []

@@ -61,7 +61,7 @@ def _collect_data(index, mesh, mode, skip_vtx=False):
         GetXElementVertices = mesh.GetBdrElementVertices
         GetXBaseGeometry = mesh.GetBdrElementBaseGeometry
         attrs = mesh.GetBdrAttributeArray()
-        idx = np.arange(len(attrs))[np.in1d(attrs, index)]
+        idx = np.arange(len(attrs))[np.isin(attrs, index)]
         attrs = attrs[idx]
 
     elif mode == 'dom':
@@ -69,7 +69,7 @@ def _collect_data(index, mesh, mode, skip_vtx=False):
         GetXBaseGeometry = mesh.GetElementBaseGeometry
         attrs = mesh.GetAttributeArray()
 
-        idx = np.arange(len(attrs))[np.in1d(attrs, index)]
+        idx = np.arange(len(attrs))[np.isin(attrs, index)]
         attrs = attrs[idx]
 
     elif mode == 'edge':
@@ -157,11 +157,11 @@ def _gather_shared_vertex(mesh, u, shared_info,  *iverts):
                         iv[iii] = mv
                 if ic > 0:
                     mv_list[mid].append(mv)
-            u = u[np.in1d(u, ld[key][0], invert=True)]
+            u = u[np.isin(u, ld[key][0], invert=True)]
     for i in range(nprc):
         mvv = gather_vector(np.atleast_1d(mv_list[i]).astype(int), root=i)
         if i == myid:
-            missing = np.unique(mvv[np.in1d(mvv, u, invert=True)])
+            missing = np.unique(mvv[np.isin(mvv, u, invert=True)])
             if len(missing) != 0:
                 dprint1("adding (vertex)", missing)
                 u = np.hstack((u, missing))
@@ -202,7 +202,7 @@ def _gather_shared_element(mesh, mode, shared_info, ielem, kelem, attrs,
         mev = gather_vector(np.atleast_1d(me_list[i]).astype(int), root=i)
         mea = gather_vector(np.atleast_1d(mea_list[i]).astype(int), root=i)
         if i == myid:
-            check = np.in1d(mev, ielem, invert=True)
+            check = np.isin(mev, ielem, invert=True)
             missing, mii = np.unique(mev[check], return_index=True)
             missinga = mea[check][mii]
             if len(missing) != 0:
@@ -522,10 +522,10 @@ def surface(mesh, in_attr, filename='', precision=8):
     #eindices = np.array([np.where(u == biv)[0][0] for biv in eivert])
 
     iv, ivi = np.unique(ivert, return_inverse=True)
-    tmp = np.where(np.in1d(u,  ivert,  assume_unique=True))[0]
+    tmp = np.where(np.isin(u,  ivert,  assume_unique=True))[0]
     indices = tmp[ivi]
     iv, ivi = np.unique(eivert, return_inverse=True)
-    tmp = np.where(np.in1d(u,  eivert, assume_unique=True))[0]
+    tmp = np.where(np.isin(u,  eivert, assume_unique=True))[0]
     eindices = tmp[ivi]
 
     Nvert = len(vtx)
@@ -708,10 +708,10 @@ def volume(mesh, in_attr, filename='', precision=8):
     #bindices0 = np.array([np.where(u == biv)[0][0] for biv in bivert])
 
     iv, ivi = np.unique(ivert, return_inverse=True)
-    tmp = np.where(np.in1d(u,  ivert,  assume_unique=True))[0]
+    tmp = np.where(np.isin(u,  ivert,  assume_unique=True))[0]
     indices = tmp[ivi]
     iv, ivi = np.unique(bivert, return_inverse=True)
-    tmp = np.where(np.in1d(u,  bivert, assume_unique=True))[0]
+    tmp = np.where(np.isin(u,  bivert, assume_unique=True))[0]
     bindices = tmp[ivi]
 
     #print('check', np.sum(np.abs(indices - indices0)))

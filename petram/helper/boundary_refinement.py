@@ -24,7 +24,7 @@ def apply_boundary_refinement(mesh, sels, nlayers=6):
     dim = mesh.Dimension()
 
     bdrs = mesh.GetBdrAttributeArray()
-    ibdrs = np.where(np.in1d(bdrs, sels))[0]
+    ibdrs = np.where(np.isin(bdrs, sels))[0]
 
     ifaces = [mesh.GetBdrFace(i) for i in ibdrs]
     iels = [mesh.GetFaceElementTransformations(i).Elem1No for i in ifaces]

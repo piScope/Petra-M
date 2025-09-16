@@ -603,7 +603,7 @@ def write_nas2mfem(filename,  reader, exclude_bdr=None, offset=None,
             continue
         vidx = elems[name]
         ss = vidx.shape
-        bdry_check = (np.in1d(vidx, unique_grids)).reshape(ss)
+        bdry_check = (np.isin(vidx, unique_grids)).reshape(ss)
         bdry_flag = [len(x) == np.sum(x) for x in bdry_check]
         bdry_checks[name] = bdry_check
         bdry_flags[name] = bdry_flag

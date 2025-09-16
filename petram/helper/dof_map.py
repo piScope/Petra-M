@@ -133,7 +133,7 @@ def find_element(fes, attr, mode='Bdr'):
     mesh = fes.GetMesh()
     m = getattr(mesh, methods[mode]['AttributeArray'])
     arr = m()
-    flag = np.in1d(arr, attr)
+    flag = np.isin(arr, attr)
     return np.arange(len(arr))[flag]
 
 
@@ -456,7 +456,7 @@ def map_dof_scalar(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
             external_entry, rstart+map.shape[0])
 
         if len(external_entry.shape) == 2:
-            idx1 = np.in1d(external_entry[:, 0], subvdofs1, invert=True)
+            idx1 = np.isin(external_entry[:, 0], subvdofs1, invert=True)
             val, idx2 = np.unique(external_entry[idx1, 0], return_index=True)
             external_entry = external_entry[idx1][idx2]
 
@@ -780,7 +780,7 @@ def map_dof_vector(map, fes1, fes2, pt1all, pt2all, pto1all, pto2all,
             external_entry, rstart+map.shape[0])
 
         if len(external_entry.shape) == 2:
-            idx1 = np.in1d(external_entry[:, 0], subvdofs1, invert=True)
+            idx1 = np.isin(external_entry[:, 0], subvdofs1, invert=True)
             val, idx2 = np.unique(external_entry[idx1, 0], return_index=True)
             external_entry = external_entry[idx1][idx2]
 

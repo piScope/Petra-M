@@ -19,16 +19,16 @@ def find_loop_ser(mesh, *face):
         face = face[0]
         faces = np.atleast_1d(face)
         battrs = mesh.GetBdrAttributeArray()
-        bidx = np.where(np.in1d(battrs, faces))[0]
+        bidx = np.where(np.isin(battrs, faces))[0]
         edges = [mesh.GetBdrElementEdges(i) for i in bidx]
         iedges = sum([e1[0] for e1 in edges], [])
         dirs =  sum([e1[1] for e1 in edges], [])
     else:
         battrs = mesh.GetBdrAttributeArray()
         
-        bidx1 = np.where(np.in1d(battrs, face[0]))[0]
+        bidx1 = np.where(np.isin(battrs, face[0]))[0]
         edges1 = np.unique(np.hstack([mesh.GetBdrElementEdges(i)[0] for i in bidx1]))
-        bidx2 = np.where(np.in1d(battrs, face[1]))[0]
+        bidx2 = np.where(np.isin(battrs, face[1]))[0]
         edges2 = np.unique(np.hstack([mesh.GetBdrElementEdges(i)[0] for i in bidx2]))
 
         iedges = np.intersect1d(edges1, edges2)
@@ -97,7 +97,7 @@ def find_loop_par(pmesh, *face):
 
     face = face[0]
     faces = np.atleast_1d(face)
-    bidx = np.where(np.in1d(battrs,faces))[0]
+    bidx = np.where(np.isin(battrs,faces))[0]
     
     offset_e = np.hstack([0, np.cumsum(allgather(pmesh.GetNEdges()))])
     

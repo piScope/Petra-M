@@ -463,7 +463,7 @@ def oplot_meshed(viewer, ret):
             if not key in viewer._mhidden_volume:
                 facesa.extend(v[key])
         facesa = np.unique(facesa)
-        mask  = np.logical_not(np.in1d(all_surfaces, facesa))
+        mask  = np.logical_not(np.isin(all_surfaces, facesa))
         facesa = list(all_surfaces[mask])
 
     facesa.extend(viewer._mhidden_face)
@@ -518,7 +518,7 @@ def hide_face_meshmode(viewer, meshed_face):
             if not key in viewer._mhidden_volume:
                 facesa.extend(v[key])
         facesa = np.unique(facesa)
-        mask = np.logical_not(np.in1d(all_surfaces, facesa))
+        mask = np.logical_not(np.isin(all_surfaces, facesa))
         facesa = list(all_surfaces[mask])
 
     facesa.extend(viewer._mhidden_face)

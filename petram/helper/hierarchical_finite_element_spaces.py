@@ -123,7 +123,7 @@ class HierarchicalFiniteElementSpaces(object):
                     m2.UniformRefinement()
                 else:
                     attr = m2.GetAttributeArray()
-                    idx = list(np.where(np.in1d(attr, refine_dom))[0])
+                    idx = list(np.where(np.isin(attr, refine_dom))[0])
                     idx0 = mfem.intArray(idx)
                     m2.GeneralRefinement(idx0)  # this is parallel refinement
             m2.GetEdgeVertexTable()

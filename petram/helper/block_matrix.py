@@ -120,7 +120,7 @@ class ScipyCoo(coo_matrix):
         rows = np.asarray(rows, dtype=int)
         #ret = self.tolil()
         #ret[rows, :] = 0.0
-        #ret.data[np.in1d(ret.row in rows)] = 0.0
+        #ret.data[np.isin(ret.row in rows)] = 0.0
         ret = self.tocsr()
         ret[rows, :] = ret[rows, :] * 0.0
         ret = ret.tocoo()
@@ -135,7 +135,7 @@ class ScipyCoo(coo_matrix):
 
     def resetCol(self, cols, inplace=True):
         cols = np.asarray(cols, dtype=int)
-        #ret.data[np.in1d(ret.col in cols)] = 0.0
+        #ret.data[np.isin(ret.col in cols)] = 0.0
         #ret = self.tolil()
         ret = self.tocsc()
         ret[:, cols] = ret[:, cols] * 0.0
@@ -260,8 +260,8 @@ class ScipyCoo(coo_matrix):
         '''
         print("inplace flag off copying matrix")
         # A + Ae style elimination
-        idx = np.in1d(self.col, tdof)
-        idx2 = np.in1d(self.row, tdof)
+        idx = np.isin(self.col, tdof)
+        idx2 = np.isin(self.row, tdof)
 
         if diagpolicy == 0:
             diagAe = self.diagonal()[tdof] - 1
