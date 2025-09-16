@@ -105,9 +105,9 @@ class VtableElement(object):
                 if default == '':
                     self.default = default
                 else:
-                    self.default = np.array(default, copy=False)
+                    self.default = np.asarray(default)
             else:
-                self.default = np.array(default, copy=False)
+                self.default = np.asarray(default)
         else:
             self.default = default
         if len(self.shape) == 0:
@@ -516,7 +516,7 @@ class Vtable_mixin(object):
             elif chk_float:
                 x = float(x)
             elif chk_array:
-                x = np.atleast_1d(np.array(x, copy=False))
+                x = np.atleast_1d(np.asarray(x))
             elif chk_string:
                 pass
             else:
