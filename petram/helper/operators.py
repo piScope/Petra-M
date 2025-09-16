@@ -429,7 +429,7 @@ class DeltaM(Operator):
 
         self.process_kwargs(engine, kwargs)
 
-        pts = np.array(args[0], copy=False).reshape(-1, sdim)
+        pts = np.asarray(args[0]).reshape(-1, sdim)
 
         from mfem.common.chypre import LF2PyVec, PyVec2PyMat, MfemVec2PyVec, HStackPyVec
         vecs = []

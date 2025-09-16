@@ -71,7 +71,7 @@ class GlobalNamedList(dict):
         values are stored as numpy array
 
         '''
-        values = np.array(values, copy=False, dtype=self.dtype)
+        values = np.asarray(values, dtype=self.dtype)
         k, idx = np.unique(keys, return_inverse=True)
         for i in range(len(k)):
             dict.__setitem__(self, k[i], values[np.where(idx == i)[0]])
@@ -110,7 +110,7 @@ class GlobalNamedList(dict):
         dest = self if overwrite else GlobalNamedList()       
         for key in self._gkey:
             if key in self:
-                data = np.array(self[key], dtype=self.dtype, copy=False)
+                data = np.asarray(self[key], dtype=self.dtype)
             else:
                 data = np.atleast_1d([]).astype(self.dtype)
             data = allgather_vector(data)
@@ -128,7 +128,7 @@ class GlobalNamedList(dict):
         dest = self if overwrite else GlobalNamedList()
         for j, key in enumerate(self._gkey):
             if key in self:
-                data = np.array(self[key], dtype=self.dtype, copy=False)
+                data = np.asarray(self[key], dtype=self.dtype)
             else:
                 data = np.atleast_1d([]).astype(self.dtype)
             r = 0 if root is None else root
@@ -155,7 +155,7 @@ class GlobalNamedList(dict):
             
             if myid == r:
                 if key in self:
-                    data = np.array(self[key], dtype=self.dtype, copy=False)
+                    data = np.asarray(self[key], dtype=self.dtype)
                 else:
                     data = np.atleast_1d([]).astype(self.dtype)
             else:

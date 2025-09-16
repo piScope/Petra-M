@@ -176,7 +176,7 @@ class Coefficient_Evaluator(object):
 
         val = [eval_code(co, self.g, self.l, flag=flag)
                for co, flag in zip(self.co, self.flags)]
-        return np.array(val, copy=False).flatten()
+        return np.asarray(val).flatten()
         # return np.array(val, copy=False).ravel()  ## this may be okay
 
 

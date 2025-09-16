@@ -275,7 +275,7 @@ class LinearformIntegrator(WeakformIntegrator):
         var1 = engine.model._variables[name]
         V1 = engine.variable2vector(var1)
 
-        value = np.array(V.dot(V1), copy=False)
+        value = np.asarray(V.dot(V1))
 
         dprint1("Integrated Value :" + self.integration_name + ":" + str(value))
         engine.store_pp_extra(self.integration_name,
@@ -426,7 +426,7 @@ class BilinearformIntegrator(WeakformIntegrator):
         # print(M.shape)
         # print(V1.shape)
         # print(V2.shape)
-        value = np.array(V1.dot(M.dot(V2)), copy=False)
+        value = np.asarray(V1.dot(M.dot(V2)))
         #value = np.array(V1.dot(V2), copy=False)
         dprint1("Integrated Value :" + self.integration_name + ":" + str(value))
         engine.store_pp_extra(self.integration_name,

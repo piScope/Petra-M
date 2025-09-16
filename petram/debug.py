@@ -27,7 +27,6 @@ import textwrap
 
 
 import traceback
-import six
 
 debug_mode = 1
 debug_modes = {}
@@ -189,7 +188,7 @@ def use_profiler(method):
         if self.use_profiler:
             import cProfile
             import pstats
-            from six import StringIO
+            from io import StringIO
             pr = cProfile.Profile()
             pr.enable()
 

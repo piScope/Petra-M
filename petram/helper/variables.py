@@ -836,10 +836,10 @@ class ExpressionVariable(Variable):
         else:
             for k, name in enumerate(self.ind_vars):
                 l[name] = locs[..., k]
-            value = np.array(eval_code(self.co, var_g2, l), copy=False)
+            value = np.asarray(eval_code(self.co, var_g2, l))
             if value.ndim > 0:
                 value = np.stack([value] * size)
-        #value = np.array(eval_code(self.co, var_g, l), copy=False)
+        #value = np.asarray(eval_code(self.co, var_g, l))
 
         self._valid_nodes = np.logical_and(_check != 0, ret != 0)
 
@@ -885,7 +885,7 @@ class ExpressionVariable(Variable):
         else:
             for k, name in enumerate(self.ind_vars):
                 l[name] = locs[..., k]
-            value = np.array(eval_code(self.co, var_g2, l), copy=False)
+            value = np.asarray(eval_code(self.co, var_g2, l))
             if value.ndim > 0:
                 value = np.stack([value] * size)
         return value
@@ -921,7 +921,7 @@ class ExpressionVariable(Variable):
         else:
             for k, name in enumerate(self.ind_vars):
                 l[name] = locs[..., k]
-            value = np.array(eval_code(self.co, var_g2, l), copy=False)
+            value = np.asarray(eval_code(self.co, var_g2, l))
             if value.ndim > 0:
                 size = counts
                 value = np.stack([value] * size)
@@ -1400,10 +1400,10 @@ class PyFunctionVariable(Variable):
                 _tmp = self.global_context[n]()
                 kw = self.dep2kw[n]
                 kwargs[kw] = _tmp if np.isscalar(
-                    _tmp) else np.array(_tmp, copy=False)
+                    _tmp) else np.asarray(_tmp)
 
         _tmp = self.func(*args, **kwargs)
-        return _tmp if np.isscalar(_tmp) else np.array(_tmp, copy=False)
+        return _tmp if np.isscalar(_tmp) else np.asarray(_tmp)
 
     def nodal_values(self, iele=None, el2v=None, locs=None,
                      wverts=None, elvertloc=None, g=None, knowns=None,

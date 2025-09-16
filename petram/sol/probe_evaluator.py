@@ -55,13 +55,13 @@ class ProbeEvaluator(EvaluatorAgent):
                     g[nn] = xdata[nn]
                     default_xname = nn
 
-        val = np.array(eval(code, g, {}), copy=False)
+        val = np.asarray(eval(code, g, {}))
         if xcode is None:
             if default_xname in g:
                 xval = g[default_xname]
             else:
                 xval = None
         else:
-            xval = np.array(eval(xcode, g, {}), copy=False)
+            xval = np.asarray(eval(xcode, g, {}))
 
         return xval, val

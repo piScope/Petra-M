@@ -96,7 +96,7 @@ class ScipyCoo(coo_matrix):
     def setDiag(self, idx, value=1.0):
 
         ret = self.tolil()
-        idx = np.array(idx, dtype=int, copy=False)
+        idx = np.asarray(idx, dtype=int)
         ret[idx, idx] = value
         # for i in idx:
         #   ret[i,i] = value
@@ -117,7 +117,7 @@ class ScipyCoo(coo_matrix):
     '''
 
     def resetRow(self, rows, inplace=True):
-        rows = np.array(rows, dtype=int, copy=False)
+        rows = np.asarray(rows, dtype=int)
         #ret = self.tolil()
         #ret[rows, :] = 0.0
         #ret.data[np.in1d(ret.row in rows)] = 0.0
@@ -134,7 +134,7 @@ class ScipyCoo(coo_matrix):
             return ret
 
     def resetCol(self, cols, inplace=True):
-        cols = np.array(cols, dtype=int, copy=False)
+        cols = np.asarray(cols, dtype=int)
         #ret.data[np.in1d(ret.col in cols)] = 0.0
         #ret = self.tolil()
         ret = self.tocsc()

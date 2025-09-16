@@ -85,7 +85,7 @@ methods['Bdr'] = {'N': 'GetNBE',
 
 
 def notrans(xyz):
-    return np.array(xyz, copy=False)
+    return np.asarray(xyz)
 
 
 def get_surface_mode(dim, sdim):

@@ -779,8 +779,8 @@ def populate_plotdata(mesh, table, cells, cell_data):
     cells['line'] = table[iverts]
     cell_data['line']['physical'] = np.array(kedge)
 
-    kvert = np.array([key for key in v2v]).astype(int, copy=False)
-    iverts = np.array([v2v[key] for key in v2v]).astype(int, copy=False)
+    kvert = np.asarray([key for key in v2v], dtype=int)
+    iverts = np.asarray([v2v[key] for key in v2v], dtype=int)
 
     cells['vertex'] = table[iverts]    
     cell_data['vertex']['physical'] = kvert

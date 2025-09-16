@@ -153,7 +153,7 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
             else:
                 return call_nativegen(e[0], l, g, real, conj, scale)
 
-        e = np.array(e, copy=False).reshape(dim, dim)
+        e = np.asarray(e).reshape(dim, dim)
         e = e * scale
         if conj:
             e = np.conj(e)
@@ -169,9 +169,9 @@ def MCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
                 else:
                     e = e.imag
             elif not real:
-                e = np.array(e * 0.0, dtype=float, copy=False)
+                e = np.asarray(e * 0.0, dtype=float)
             else:
-                e = np.array(e, dtype=float, copy=False)
+                e = np.asarray(e, dtype=float)
 
             if return_mfem_constant:
                 return mfem.MatrixConstantCoefficient(e)
@@ -286,9 +286,9 @@ def DCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
             else:
                 e = e.imag
         elif not real:
-            e = np.array(e * 0.0, dtype=float, copy=False)
+            e = np.asarray(e * 0.0, dtype=float)
         else:
-            e = np.array(e, dtype=float, copy=False)
+            e = np.asarray(e, dtype=float)
 
         if return_mfem_constant:
             return mfem.MatrixConstantCoefficient(e)
@@ -397,7 +397,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
             else:
                 return call_nativegen(e[0], l, g, real, conj, scale)
 
-        e = np.array(e, copy=False)
+        e = np.asarray(e)
         e = e * scale
 
         if return_complex:
@@ -413,9 +413,9 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
                 else:
                     e = e.imag
             elif not real:
-                e = np.array(e * 0.0, dtype=float, copy=False)
+                e = np.asarray(e * 0.0, dtype=float)
             else:
-                e = np.array(e, dtype=float, copy=False)
+                e = np.asarray(e, dtype=float)
             if return_mfem_constant:
                 return mfem.VectorConstantCoefficient(e)
             else:
