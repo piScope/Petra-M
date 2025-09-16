@@ -557,7 +557,7 @@ class MUMPSSolver(LinearSolver):
                 irhs_tmp = MPI.COMM_WORLD.bcast(irhs_loc, root=i)
             else:
                 irhs_tmp = MPI.COMM_WORLD.bcast(None, root=i)
-            mask = np.in1d(isol_loc, irhs_tmp, assume_unique=True)
+            mask = np.isin(isol_loc, irhs_tmp, assume_unique=True)
 
             solsend.append(np.array(sol[:, mask].flatten()))
             irhshit.append(np.array(isol_loc[mask]))
