@@ -1102,6 +1102,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             elif len(shape) == 1:
                 dim = shape[0]
             elif len(shape) == 2:
+                dim = shape[0]
                 assert shape[0] == shape[1], "rectangular shape is not support"
             else:
                 assert False, "TensorCoefficient not supported"
@@ -1537,7 +1538,7 @@ class PhysModule(Phys):
         probes = []
         for mm in self.walk():
             if mm.is_enabled():
-               probes.extend(mm.get_probes())
+                probes.extend(mm.get_probes())
         probes = [x for x in probes if len(x) != 0]
         txt = ','.join(probes)
         return txt
