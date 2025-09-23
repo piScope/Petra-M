@@ -311,7 +311,7 @@ class NonlinearBaseSolver(SolverInstance):
     def reset_count(self, maxiter):
         self._kiter = 0
         self._maxiter = maxiter
-        self._current_error = (np.infty, np.infty)
+        self._current_error = (np.inf, np.inf)
         self._done = False
         self._converged = False
         self.debug_data = []
