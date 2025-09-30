@@ -129,13 +129,15 @@ def get_mapper(mesh_in):
 
 def run_in_piScope_thread(func):
     @wraps(func)
-    def func2(self, *args, **kwargs):
+    def func2(self, evt, *args, **kwargs):
         title = self.GetTitle()
         app = wx.GetApp().TopWindow
         petram = app.proj.setting.parameters.eval('PetraM')
 
+        print(self._plot_thread)
         if self._plot_thread is not None:
             if self._plot_thread.is_alive():
+                print("alive")
                 wx.CallAfter(dialog.showtraceback,
                              parent=self,
                              txt='Previous Job is Running',
@@ -145,14 +147,15 @@ def run_in_piScope_thread(func):
         self.SetTitle(title + '(*** processing ***)')
         maxt = app.aconfig.setting['max_thread']
         if len(app.logw.threadlist) < maxt:
-            args = (self,) + args
-            t = threading.Thread(target=func, args=args, kwargs=kwargs)
+            args = (self, evt)
+            t = threading.Thread(target=func, args=args)
             self._plot_thread = t
             petram._status = 'evaluating sol...'
             ifigure.events.SendThreadStartEvent(petram,
                                                 w=app,
                                                 thread=t,
                                                 useProcessEvent=True)
+        evt.Skip()
     return func2
 
 
@@ -247,6 +250,8 @@ class DlgPlotSol(SimpleFramePlus):
         self._plot_thread = None
         self._plot_data = None
         self.use_profiler = False  # debug
+
+        self.apply_buttons = {}
 
         text = 'all'
         mfem_model = parent.model.param.getvar('mfem_model')
@@ -352,6 +357,8 @@ class DlgPlotSol(SimpleFramePlus):
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
 
+            self.apply_buttons["Points"] = button
+
         if 'Edge' in tabs:
             p = self.pages['Edge']
             vbox = wx.BoxSizer(wx.VERTICAL)
@@ -408,6 +415,7 @@ class DlgPlotSol(SimpleFramePlus):
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
             # button.Enable(False)
+            self.apply_buttons["Edge"] = button
 
         if 'Bdr' in tabs:
             p = self.pages['Bdr']
@@ -472,6 +480,8 @@ class DlgPlotSol(SimpleFramePlus):
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
 
+            self.apply_buttons["Bdr"] = button
+
         if 'Bdr(arrow)' in tabs:
             p = self.pages['Bdr(arrow)']
             vbox = wx.BoxSizer(wx.VERTICAL)
@@ -515,6 +525,8 @@ class DlgPlotSol(SimpleFramePlus):
             hbox.Add(ebutton, 0, wx.ALL, 1)
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
+
+            self.apply_buttons["Bdr(arrow)"] = button
 
         if 'Slice' in tabs:
             p = self.pages['Slice']
@@ -571,6 +583,8 @@ class DlgPlotSol(SimpleFramePlus):
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
 
+            self.apply_buttons["Slice"] = button
+
         if 'Integral' in tabs:
             p = self.pages['Integral']
             vbox = wx.BoxSizer(wx.VERTICAL)
@@ -600,6 +614,8 @@ class DlgPlotSol(SimpleFramePlus):
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
+
+            self.apply_buttons["Integral"] = button
 
         if 'Probe' in tabs:
             p = self.pages['Probe']
@@ -632,6 +648,8 @@ class DlgPlotSol(SimpleFramePlus):
             hbox.Add(ebutton, 0, wx.ALL, 1)
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
+
+            self.apply_buttons["Probe"] = button
 
         if 'Config' in tabs:
             p = self.pages['Config']
@@ -991,16 +1009,17 @@ class DlgPlotSol(SimpleFramePlus):
 
         #print("Using CallAfter")
         self._plot_data = (func, args, kwargs)
-        wx.CallAfter(self.call_plot)
+        plot_data = (func, args, kwargs)
+        wx.CallAfter(self.call_plot, plot_data)
         # wx.CallAfter(func, *args, **kwargs)
         # wx.CallAfter(self.set_title_no_status)
 
-    def call_plot(self):
-        # print("thread here", threading.current_thread())
-        if self._plot_data is None:
-            return
+    def call_plot(self, plot_data):
+        print("thread here", threading.current_thread())
+        # if self._plot_data is None:
+        #    return
 
-        func, args, kwargs = self._plot_data
+        func, args, kwargs = plot_data
         func(*args, **kwargs)
         self._plot_data = None
         self.set_title_no_status()
@@ -1037,7 +1056,7 @@ class DlgPlotSol(SimpleFramePlus):
                 self.local_solsubdir = ""
             else:
                 npath = os.path.join(self.local_soldir, self.local_solsubdir)
-                sol = model.param.eval('sol')                
+                sol = model.param.eval('sol')
                 if not os.path.exists(npath):  # fall back
                     sol = model.param.eval('sol')
                     npath = sol.owndir()
@@ -1299,12 +1318,13 @@ class DlgPlotSol(SimpleFramePlus):
                             data_x=data_x,
                             cls=cls, expr=expr, expr_x=expr_x,
                             force_float=(not value[4]))
-        evt.Skip()
 
     def make_plot_edge(self, data, battrs,
                        data_x=None, cls=None,
                        expr='', expr_x='', force_float=False):
         from ifigure.interactive import figure
+
+        print("make_plot_edge", data_x)
 
         if data_x is None:
             # if verts is 1D, treat it 2D plot even if data_x is None
@@ -1314,6 +1334,7 @@ class DlgPlotSol(SimpleFramePlus):
 
         if data_x is None:
             v = figure(viewer=cls)
+            print("window opened")
             v.title(expr + ':' + str(battrs))
             setup_figure(v, self.GetParent())
 
@@ -1335,6 +1356,7 @@ class DlgPlotSol(SimpleFramePlus):
             v.update(True)
         else:  # make 2D plot
             v = figure(viewer=cls)
+            print("window opened (2)")
             v.title(expr)
             v.xtitle(expr_x)
             for yy, xx in zip(data, data_x):
@@ -1514,7 +1536,6 @@ class DlgPlotSol(SimpleFramePlus):
         self.post_threadend(self.make_plot_bdr, data, battrs, scale,
                             cls=cls, expr=expr,
                             use_pointfill=use_pointfill)
-        evt.Skip()
 
     def make_plot_bdr(
             self,
@@ -1819,7 +1840,6 @@ class DlgPlotSol(SimpleFramePlus):
                 pc_param,
                 cls=cls,
                 expr=expr)
-        evt.Skip()
 
     def onExportPoints(self, evt):
         value = self.elps['Points'] .GetValue()
@@ -2234,7 +2254,6 @@ class DlgPlotSol(SimpleFramePlus):
                             expr_v=expr_v,
                             expr_w=expr_w,
                             cls=cls)
-        evt.Skip()
 
     def make_plot_bdrarrow(self, u, v, w, battrs, value,
                            expr_u='', expr_v='', expr_w='',
@@ -2372,7 +2391,6 @@ class DlgPlotSol(SimpleFramePlus):
     @run_in_piScope_thread
     def onApplySlice(self, evt):
         self.onSliceCommon(evt)
-        evt.Skip()
 
     def onExportSlice(self, evt):
         self.onSliceCommon(evt, mode='export')
@@ -2401,7 +2419,6 @@ class DlgPlotSol(SimpleFramePlus):
 
         self.post_threadend(self.export_to_piScope_shell,
                             dataset, 'slice_data')
-        evt.Skip()
 
     def onExportR2Slice(self, evt):
         wx.CallAfter(
@@ -2616,7 +2633,6 @@ class DlgPlotSol(SimpleFramePlus):
                                 data, 'integral_data')
             self.post_threadend(print,
                                 "Integrated value", data['value'])
-        evt.Skip()
 
     def get_attrs_field_Integral(self):
         return 2
@@ -2654,7 +2670,6 @@ class DlgPlotSol(SimpleFramePlus):
         self.post_threadend(
             self.make_plot_probe, (xdata, data), expr=expr, xexpr=xexpr)
 
-        evt.Skip()
     '''
     def onExportProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
