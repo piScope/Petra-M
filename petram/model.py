@@ -51,7 +51,7 @@ def convert_sel_txt(txt, g):
     elif txt.strip() == '':
         arr = []
     else:
-        arr = list(np.atleast_1d(eval(txt, g)))
+        arr = [int(x) for x in np.atleast_1d(eval(txt, g))]
     return arr
 
 
@@ -269,7 +269,7 @@ class Model(RestorableOrderedDict):
             self._sel_index = [int(i) for i in self.sel_index]
         if choice is not None:
             ret = np.array(self._sel_index)
-            ret = list(ret[np.isin(ret, choice)])
+            ret = [int(x) for x in ret[np.isin(ret, choice)]]
             self._sel_index = ret
 
         return self._sel_index

@@ -1571,13 +1571,13 @@ class PhysModule(Phys):
             return [], [], [], []
 
         dom_choice = list(d)
-        bdr_choice = list(set(np.hstack([list(d[x]) for x in d])))
+        bdr_choice = [int(x) for x in set(np.hstack([list(d[x]) for x in d]))]
         pnt_choice = list(mesh.extended_connectivity["vert2vert"])
 
         if self.sel_index[0] != 'all':
             dom_choice = [int(x) for x in self.sel_index]
             bdrs = [d[int(x)] if int(x) in d else [] for x in self.sel_index]
-            bdr_choice = list(np.unique(np.hstack(bdrs)).astype(int))
+            bdr_choice = [int(x) for x in np.unique(np.hstack(bdrs))]
         internal_bdr = get_internal_bdr(d, dom_choice)
 
         from petram.mfem_config import use_parallel

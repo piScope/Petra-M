@@ -2901,7 +2901,7 @@ class Engine(object):
                 if not node.is_secondary_condition:
                     checklist[np.isin(choice, ret)] = False
         if rem is not None:
-            rem._sel_index = list(np.array(choice)[checklist])
+            rem._sel_index = [int(x) for x in np.array(choice)[checklist]]
             dprint1(rem.fullname() + ':' + str(rem._sel_index))
 
     def find_domain_by_index(self, phys, idx,  check_enabled=False):
