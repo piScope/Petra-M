@@ -134,10 +134,8 @@ def run_in_piScope_thread(func):
         app = wx.GetApp().TopWindow
         petram = app.proj.setting.parameters.eval('PetraM')
 
-        print(self._plot_thread)
         if self._plot_thread is not None:
             if self._plot_thread.is_alive():
-                print("alive")
                 wx.CallAfter(dialog.showtraceback,
                              parent=self,
                              txt='Previous Job is Running',
