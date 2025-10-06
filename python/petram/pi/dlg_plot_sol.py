@@ -349,7 +349,7 @@ class DlgPlotSol(SimpleFramePlus):
             ebutton = wx.Button(p, wx.ID_ANY, "Export")
             button = wx.Button(p, wx.ID_ANY, "Apply")
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)
-            #ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
+            # ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
             hbox.AddStretchSpacer()
@@ -406,10 +406,10 @@ class DlgPlotSol(SimpleFramePlus):
             ebutton = wx.Button(p, wx.ID_ANY, "Export")
             button = wx.Button(p, wx.ID_ANY, "Apply")
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)
-            #ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
+            # ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
-            #hbox.Add(ibutton, 0, wx.ALL,1)
+            # hbox.Add(ibutton, 0, wx.ALL,1)
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
             # button.Enable(False)
@@ -466,15 +466,15 @@ class DlgPlotSol(SimpleFramePlus):
 
             hbox = wx.BoxSizer(wx.HORIZONTAL)
             vbox.Add(hbox, 0, wx.EXPAND | wx.ALL, 5)
-            #ibutton = wx.Button(p, wx.ID_ANY, "Integral")
+            # ibutton = wx.Button(p, wx.ID_ANY, "Integral")
             ebutton = wx.Button(p, wx.ID_ANY, "Export")
             button = wx.Button(p, wx.ID_ANY, "Apply")
-            #ibutton.Bind(wx.EVT_BUTTON, self.onInteg)
+            # ibutton.Bind(wx.EVT_BUTTON, self.onInteg)
             ebutton.Bind(wx.EVT_LEFT_UP, self.onExport)
-            #ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
+            # ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
-            #hbox.Add(ibutton, 0, wx.ALL, 1)
+            # hbox.Add(ibutton, 0, wx.ALL, 1)
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
 
@@ -575,7 +575,7 @@ class DlgPlotSol(SimpleFramePlus):
             ebutton = wx.Button(p, wx.ID_ANY, "Export")
             button = wx.Button(p, wx.ID_ANY, "Apply")
             ebutton.Bind(wx.EVT_BUTTON, self.onExport)
-            #ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
+            # ebutton.Bind(wx.EVT_RIGHT_UP, self.onExportR)
             button.Bind(wx.EVT_BUTTON, self.onApply)
             hbox.Add(ebutton, 0, wx.ALL, 1)
             hbox.AddStretchSpacer()
@@ -890,10 +890,10 @@ class DlgPlotSol(SimpleFramePlus):
                          traceback=err.args[0])
             return ""
         except:
-            #_, _, tb = sys.exc_info()
+            # _, _, tb = sys.exc_info()
             # traceback.print_tb(tb) # Fixed format
-            #tb_info = traceback.extract_tb(tb)
-            #filename, line, func, text = tb_info[-1]
+            # tb_info = traceback.extract_tb(tb)
+            # filename, line, func, text = tb_info[-1]
             dlg.Destroy()
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
@@ -1000,12 +1000,12 @@ class DlgPlotSol(SimpleFramePlus):
         evt.Skip()
 
     def post_threadend(self, func, *args, **kwargs):
-        #evt = wx.PyCommandEvent(ThreadEnd, wx.ID_ANY)
-        #evt.pp_method = (func, args, kwargs)
-        #print("posting event", func)
-        #wx.PostEvent(self, evt)
+        # evt = wx.PyCommandEvent(ThreadEnd, wx.ID_ANY)
+        # evt.pp_method = (func, args, kwargs)
+        # print("posting event", func)
+        # wx.PostEvent(self, evt)
 
-        #print("Using CallAfter")
+        # print("Using CallAfter")
         self._plot_data = (func, args, kwargs)
         plot_data = (func, args, kwargs)
         wx.CallAfter(self.call_plot, plot_data)
@@ -1118,7 +1118,7 @@ class DlgPlotSol(SimpleFramePlus):
             self.config['use_cs'] = False
             model.variables.setvar('remote_soldir', None)
 
-            #info (path, probes, dirnames)
+            # info (path, probes, dirnames)
             sol = model.solutions.get_child(name=str(v[0][1][0]))
             if sol is None:
                 tmp = os.path.expanduser(str(v[0][1][0]))
@@ -1200,7 +1200,7 @@ class DlgPlotSol(SimpleFramePlus):
             # if ss1 != "":
             if self.remote_sols is not None:
                 self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
-        #print('EL changed', self.config)
+        # print('EL changed', self.config)
 
     def onEL_Changing(self, evt):
         pass
@@ -1279,7 +1279,7 @@ class DlgPlotSol(SimpleFramePlus):
         attrs = self.elps[t].GetValue()[i()]
         if attrs.strip().lower() == 'all':
             return
-        #print(attrs, sel)
+        # print(attrs, sel)
         attrs = sorted([int(x) for x in attrs.split(',') if not int(x) in sel])
         self.set_selection(attrs)
 
@@ -1416,7 +1416,9 @@ class DlgPlotSol(SimpleFramePlus):
         if opts is None:
             return
 
-        do_integ = opts[0] if average else False
+        do_integ = opts[0]
+        if average and do_integ:
+            assert False, "averaging and integration can not be used together"
         do_loop = opts[-1]
 
         if do_loop:
@@ -1619,7 +1621,7 @@ class DlgPlotSol(SimpleFramePlus):
     def make_export_data_bdr(self, do_integ, verbose=False):
         from petram.sol.evaluators import area_tri
 
-        value = self.elps['Edge'] .GetValue()
+        value = self.elps['Bdr'] .GetValue()
         refine = int(value[9][1][0])
 
         data, battrs = self.eval_bdr(mode='integ', refine=refine)
@@ -1646,6 +1648,8 @@ class DlgPlotSol(SimpleFramePlus):
         return data
 
     def onExportBdr(self, evt):
+        value = self.elps['Bdr'] .GetValue()
+        print(value)
 
         from petram.pi.dlg_export_opts import ask_export_opts
         opts = ask_export_opts(self)
@@ -1653,7 +1657,7 @@ class DlgPlotSol(SimpleFramePlus):
         if opts is None:
             return
 
-        do_integ = opts[0] if average else False
+        do_integ = opts[0]
         do_loop = opts[-1]
 
         if do_loop:
@@ -1932,7 +1936,7 @@ class DlgPlotSol(SimpleFramePlus):
             ii = np.linspace(0, 1., num)
             ptx = np.vstack([sp * (1 - i) + ep * i for i in ii])
             if ptx.shape(-1) == 3:
-                #setup_figure(viewer, self.GetParent())
+                # setup_figure(viewer, self.GetParent())
                 viewer.plot(ptx[:, 0], ptx[:, 1], ptx[:, 2],
                             c=data.real, cz=True)
             else:
@@ -2903,7 +2907,7 @@ class DlgPlotSol(SimpleFramePlus):
                 traceback.print_exc()
                 assert False, "invalid selection: " + battrs
 
-            #battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
+            # battrs = [x+1 for x in range(mesh.bdr_attributes.Size())]
 
         average = kwargs.pop('average', True)
         decimate = kwargs.get('decimate', 1)
@@ -3065,7 +3069,7 @@ class DlgPlotSol(SimpleFramePlus):
                 assert False, "Failed to evaluate attrs " + attrs
         else:
             attrs = list(mesh.extended_connectivity['vol2surf'])
-            #attrs = [x+1 for x in range(mesh.attributes.Size())]
+            # attrs = [x+1 for x in range(mesh.attributes.Size())]
 
         if 'Slice' in self.evaluators:
             try:
