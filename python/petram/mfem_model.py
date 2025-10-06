@@ -468,9 +468,14 @@ class MFEM_SolverRoot(Model):
 try:
     from petram.geom.geom_model import GeomBase
     has_geom = True
-except BaseException:
-    import traceback
-    traceback.print_exc()
+except ImportError:
+    import warnings
+    warnings.warn(
+        "Geometry module is not found, and some fucntionaliy is disabled"
+        "consider intalling PetraM_Geom package (https://github.com/piScope/PetraM_Geom)",
+        UserWarning,
+        stacklevel=2 # Points the warning to the caller's location
+    )
     has_geom = False
 
 
