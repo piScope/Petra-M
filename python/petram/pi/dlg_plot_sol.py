@@ -24,6 +24,7 @@ from ifigure.utils.edit_list import EDITLIST_CHANGING
 from ifigure.utils.edit_list import EDITLIST_SETFOCUS
 from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList, MiniFrameWithWindowList, WithWindowList_MixIn
 
+import petram
 from petram.pi.simple_frame_plus import SimpleFramePlus
 
 import petram.debug as debug
@@ -698,16 +699,28 @@ class DlgPlotSol(SimpleFramePlus):
                     "Subdirectory",
                     None,)
 
-            choices = ['Single', 'MP', 'C/S']
-            tip = '\n'.join(("- Single: plot local solution using single-processor \n- MP: plot local solution with multiprocessing",
-                             "- C/S: plot solution on a remote server"))
-            ll = [[None, None, 34, ({'text': "Worker Mode",
-                                     'choices': choices,
-                                     'cb_tip': tip,
-                                     'call_fit': False},
-                                    {'elp': elp1, 'tip': tip1},
-                                    {'elp': elp2, 'tip': tip2},
-                                    {'elp': elp3, 'tip': tip3},), ], ]
+            if petram.mfem_model.has_cluster_access:
+                choices = ['Single', 'MP', 'C/S']
+                tip = '\n'.join(("- Single: plot local solution using single-processor",
+                                 "- MP: plot local solution with multiprocessing",
+                                 "- C/S: plot solution on a remote server"))
+                ll = [[None, None, 34, ({'text': "Worker Mode",
+                                         'choices': choices,
+                                         'cb_tip': tip,
+                                         'call_fit': False},
+                                        {'elp': elp1, 'tip': tip1},
+                                        {'elp': elp2, 'tip': tip2},
+                                        {'elp': elp3, 'tip': tip3},), ], ]
+            else:
+                choices = ['Single', 'MP',]
+                tip = '\n'.join(("- Single: plot local solution using single-processor",
+                                 "- MP: plot local solution with multiprocessing",))
+                ll = [[None, None, 34, ({'text': "Worker Mode",
+                                         'choices': choices,
+                                         'cb_tip': tip,
+                                         'call_fit': False},
+                                        {'elp': elp1, 'tip': tip1},
+                                        {'elp': elp2, 'tip': tip2},), ], ]
 
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
