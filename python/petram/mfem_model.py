@@ -339,7 +339,7 @@ class MFEM_PostProcessRoot(Model):
             for p in self.iter_enabled():
                 for pp in p.iter_enabled():
                     pp.soldict_to_solvars(soldict, solvar)
-            #solvars[k] = solvar
+            # solvars[k] = solvar
         return solvars
 
 
@@ -421,7 +421,7 @@ class MFEM_SolverRoot(Model):
     def get_possible_child(self):
         from petram.solver.solver_model import SolveStep
         from petram.solver.parametric import Parametric
-        #from petram.solver.solve_loop import Loop
+        # from petram.solver.solve_loop import Loop
         from petram.solver.solver_controls import ForLoop, DWCCall
         return [SolveStep, Parametric, ForLoop, DWCCall]
 
@@ -449,11 +449,18 @@ class MFEM_SolverRoot(Model):
         return ret
 
     def get_special_menu(self, evt):
-        return [["+Run...", None, None, ],
-                ["Serial", self.run_serial, None, ],
-                ["Parallel", self.run_parallel, None, ],
-                ["Cluster...", self.run_cluster, None, ],
-                ["!", None, None, ], ]
+        import petram
+        if petram.mfem_model.has_cluster_access:
+            return [["+Run...", None, None, ],
+                    ["Serial", self.run_serial, None, ],
+                    ["Parallel", self.run_parallel, None, ],
+                    ["Cluster...", self.run_cluster, None, ],
+                    ["!", None, None, ], ]
+        else:
+            return [["+Run...", None, None, ],
+                    ["Serial", self.run_serial, None, ],
+                    ["Parallel", self.run_parallel, None, ],
+                    ["!", None, None, ], ]
 
     def run_serial(self, evt):
         evt.GetEventObject().GetParent().onSerDriver(evt)
@@ -474,7 +481,7 @@ except ImportError:
         "Geometry module is not found, and some fucntionaliy is disabled"
         "consider intalling PetraM_Geom package (https://github.com/piScope/PetraM_Geom)",
         UserWarning,
-        stacklevel=2 # Points the warning to the caller's location
+        stacklevel=2  # Points the warning to the caller's location
     )
     has_geom = False
 
