@@ -127,7 +127,7 @@ class VtableElement(object):
         elif self.type == 'int':
             return int(txt)
         elif self.type == 'long':
-            return long(txt)
+            return int(txt)
         elif self.type == 'array':
             return txt
         elif self.type == 'string':
@@ -168,7 +168,8 @@ class VtableElement(object):
                 v[self.name + x] = self.txt2value(v_txt)
                 v[self.name + x + '_txt'] = str(v_txt)
             v[self.name + '_m'] = self.default
-            xxx = self.default.__repr__().split('(')[1].split(')')[0]
+            #xxx = self.default.__repr__().split('(')[1].split(')')[0]
+            xxx = np.array2string(self.default)
             v[self.name + '_m_txt'] = ''.join(xxx.split("\n"))
             v['use_m_'+self.name] = False
             if self.chkbox:

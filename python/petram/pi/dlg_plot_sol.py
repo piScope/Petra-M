@@ -62,6 +62,7 @@ def read_solinfo_remote(user, server, path):
                "PreferredAuthentications=publickey",
                user + '@' + server, txt]
 
+    print("Executing...", ' '.join(command))
     p = sp.Popen(command, stdout=sp.PIPE, stderr=sp.STDOUT)
 
     try:
@@ -71,6 +72,11 @@ def read_solinfo_remote(user, server, path):
         timeout = True
         p.kill()
         outs, errs = p.communicate()
+    except BaseException:
+        import traceback
+        traceback.print_stack()
+        assert False, "Communicaiton Error"
+
     res = [x.strip() for x in outs.decode('utf-8').split('\n')]
     for x in res:
         if x.find("Permission denied") != -1:
@@ -886,17 +892,19 @@ class DlgPlotSol(SimpleFramePlus):
     def update_subdir_remote(self):
         from ifigure.widgets.dialog import progressbar
 
-        dlg = progressbar(self, 'Checking remote work directory...',
-                          'In progress', 5)
-        dlg.Show()
-        wx.GetApp().Yield()
+        #dlg = progressbar(self, 'Checking remote work directory...',
+        #                  'In progress', 5)
+        #dlg.Show()
+        #wx.GetApp().Yield()
+        title = self.GetTitle()
+        self.SetTitle(title + '(*** checkin remote directory ***)')
         try:
             info = read_solinfo_remote(self.config['cs_user'],
                                        self.config['cs_server'],
                                        self.config['cs_soldir'])
 
         except AssertionError as err:
-            dlg.Destroy()
+            #dlg.Destroy()
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
                          title='Error',
@@ -907,13 +915,15 @@ class DlgPlotSol(SimpleFramePlus):
             # traceback.print_tb(tb) # Fixed format
             # tb_info = traceback.extract_tb(tb)
             # filename, line, func, text = tb_info[-1]
-            dlg.Destroy()
+            #dlg.Destroy()
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
                          title='Error',
                          traceback=traceback.format_exc(limit=-1))
             return ""
-        dlg.Destroy()
+        #dlg.Destroy()
+        self.SetTitle(title)
+
         dirnames = [""]
         choices = [""]
         solvers = list(info["checkpoint"])
