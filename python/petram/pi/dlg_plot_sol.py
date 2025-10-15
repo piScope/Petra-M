@@ -136,7 +136,7 @@ def get_mapper(mesh_in):
 
 def run_in_piScope_thread(func):
     @wraps(func)
-    def func2(self, evt, *args, **kwargs):
+    def func2(self, value, *args, **kwargs):
         title = self.GetTitle()
         app = wx.GetApp().TopWindow
         petram = app.proj.setting.parameters.eval('PetraM')
@@ -152,7 +152,7 @@ def run_in_piScope_thread(func):
         self.SetTitle(title + '(*** processing ***)')
         maxt = app.aconfig.setting['max_thread']
         if len(app.logw.threadlist) < maxt:
-            args = (self, evt)
+            args = (self, value)
             t = threading.Thread(target=func, args=args)
             self._plot_thread = t
             petram._status = 'evaluating sol...'
@@ -160,7 +160,6 @@ def run_in_piScope_thread(func):
                                                 w=app,
                                                 thread=t,
                                                 useProcessEvent=True)
-        evt.Skip()
     return func2
 
 
@@ -1023,18 +1022,17 @@ class DlgPlotSol(SimpleFramePlus):
         evt.Skip()
 
     def post_threadend(self, func, *args, **kwargs):
-        # evt = wx.PyCommandEvent(ThreadEnd, wx.ID_ANY)
-        # evt.pp_method = (func, args, kwargs)
-        # print("posting event", func)
-        # wx.PostEvent(self, evt)
+        evt = wx.PyCommandEvent(ThreadEnd, wx.ID_ANY)
+        evt.pp_method = (func, args, kwargs)
+        wx.PostEvent(self, evt)
 
         # print("Using CallAfter")
-        self._plot_data = (func, args, kwargs)
-        plot_data = (func, args, kwargs)
-        wx.CallAfter(self.call_plot, plot_data)
+        #self._plot_data = (func, args, kwargs)
+        #plot_data = (func, args, kwargs)
+        # wx.CallAfter(self.call_plot, plot_data)
         # wx.CallAfter(func, *args, **kwargs)
         # wx.CallAfter(self.set_title_no_status)
-
+    '''
     def call_plot(self, plot_data):
         print("thread here", threading.current_thread())
         # if self._plot_data is None:
@@ -1044,18 +1042,19 @@ class DlgPlotSol(SimpleFramePlus):
         func(*args, **kwargs)
         self._plot_data = None
         self.set_title_no_status()
+    '''
 
     def set_title_no_status(self):
         title = self.GetTitle()
         self.SetTitle(title.split('(')[0])
 
     def onThreadEnd(self, evt):
-        print("thread here", threading.current_thread())
         self.set_title_no_status()
         m = evt.pp_method[0]
         args = evt.pp_method[1]
         kargs = evt.pp_method[2]
         m(*args, **kargs)
+        self.set_title_no_status()
         evt.Skip()
 
     def load_sol_if_needed(self):
@@ -1223,13 +1222,14 @@ class DlgPlotSol(SimpleFramePlus):
             # if ss1 != "":
             if self.remote_sols is not None:
                 self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
-        # print('EL changed', self.config)
+
+        evt.Skip()
 
     def onEL_Changing(self, evt):
-        pass
+        evt.Skip()
 
     def onEL_SetFocus(self, evt):
-        pass
+        evt.Skip()
 
     def onApply(self, evt):
         elp = self.get_selected_elp()
@@ -1317,9 +1317,14 @@ class DlgPlotSol(SimpleFramePlus):
     #
     #   Edge value ('Edge' tab)
     #
-    @run_in_piScope_thread
+
     def onApplyEdge(self, evt):
         value = self.elps['Edge'].GetValue()
+        self._onApplyEdge(value)
+        evt.Skip()
+
+    @run_in_piScope_thread
+    def _onApplyEdge(self, value):
         expr = str(value[0]).strip()
         expr_x = str(value[1]).strip()
 
@@ -1331,7 +1336,7 @@ class DlgPlotSol(SimpleFramePlus):
 
         refine = int(value[6][1][0])
 
-        data, data_x, battrs = self.eval_edge(mode='plot', refine=refine)
+        data, data_x, battrs = self.eval_edge(value, mode='plot', refine=refine)
         if data is None:
             return
 
@@ -1345,8 +1350,6 @@ class DlgPlotSol(SimpleFramePlus):
                        expr='', expr_x='', force_float=False):
         from ifigure.interactive import figure
 
-        print("make_plot_edge", data_x)
-
         if data_x is None:
             # if verts is 1D, treat it 2D plot even if data_x is None
             if data[0][0].shape[1] == 1:
@@ -1355,7 +1358,6 @@ class DlgPlotSol(SimpleFramePlus):
 
         if data_x is None:
             v = figure(viewer=cls)
-            print("window opened")
             v.title(expr + ':' + str(battrs))
             setup_figure(v, self.GetParent())
 
@@ -1377,7 +1379,6 @@ class DlgPlotSol(SimpleFramePlus):
             v.update(True)
         else:  # make 2D plot
             v = figure(viewer=cls)
-            print("window opened (2)")
             v.title(expr)
             v.xtitle(expr_x)
             for yy, xx in zip(data, data_x):
@@ -1401,7 +1402,7 @@ class DlgPlotSol(SimpleFramePlus):
         value = self.elps['Edge'] .GetValue()
         refine = int(value[6][1][0])
 
-        data, data_x, battrs = self.eval_edge(mode='integ', refine=refine)
+        data, data_x, battrs = self.eval_edge(value, mode='integ', refine=refine)
         if data is None:
             return
 
@@ -1485,9 +1486,8 @@ class DlgPlotSol(SimpleFramePlus):
     def get_attrs_field_Edge(self):
         return 2
 
-    def eval_edge(self, mode='plot', refine=1):
+    def eval_edge(self, value, mode='plot', refine=1):
         from petram.sol.evaluators import area_tri
-        value = self.elps['Edge'] .GetValue()
 
         expr = str(value[0]).strip()
         expr_x = str(value[1]).strip()
@@ -1526,9 +1526,13 @@ class DlgPlotSol(SimpleFramePlus):
     #
     #   Boundary value ('Bdr' tab)
     #
-    @run_in_piScope_thread
     def onApplyBdr(self, evt):
         value = self.elps['Bdr'] .GetValue()
+        self._onApplyBdr(value)
+        evt.Skip()
+
+    @run_in_piScope_thread
+    def _onApplyBdr(self, value):
         expr = str(value[0]).strip()
         if len(expr) == 0:
             return
@@ -1542,7 +1546,7 @@ class DlgPlotSol(SimpleFramePlus):
         refine = int(value[9][1][0])
 
         use_pointfill = int(value[10]) > 1
-        data, battrs = self.eval_bdr(mode='plot', refine=refine)
+        data, battrs = self.eval_bdr(value, mode='plot', refine=refine)
         if data is None:
             return
 
@@ -1618,36 +1622,13 @@ class DlgPlotSol(SimpleFramePlus):
         viewer.lighting(light=0.5)
         viewer.update(True)
 
-    '''
-    def onIntegBdr(self, evt):
-        value = self.elps['Bdr'] .GetValue()
-        expr = str(value[0]).strip()
-
-        from petram.sol.evaluators import area_tri
-        data, battrs = self.eval_bdr(mode='integ')
-        if data is None:
-            return
-
-        integ = 0.0
-        for verts, cdata, adata in data:
-            v = verts[adata]
-            c = cdata[adata, ...]
-            area = area_tri(v)
-            integ += np.sum(area * np.mean(c, 1))
-
-        print("Area Ingegration")
-        print("Expression : " + expr)
-        print("Boundary Index :" + str(battrs))
-        print("Value : " + str(integ))
-    '''
-
     def make_export_data_bdr(self, do_integ, verbose=False):
         from petram.sol.evaluators import area_tri
 
         value = self.elps['Bdr'] .GetValue()
         refine = int(value[9][1][0])
 
-        data, battrs = self.eval_bdr(mode='integ', refine=refine)
+        data, battrs = self.eval_bdr(value, mode='integ', refine=refine)
         if data is None:
             return
 
@@ -1719,53 +1700,11 @@ class DlgPlotSol(SimpleFramePlus):
             return  # nothine to export
         self.export_to_piScope_shell(all_data, 'bdr_data')
 
-    """
-    @run_in_piScope_thread
-    def onExportR1Bdr(self, evt):
-        remote, base, subs = self.get_current_choices()
-
-        cdata = []
-        subdirs = []
-        for s in subs:
-            if s.strip() == '':
-                continue
-            if remote:
-                self.config['cs_soldir'] = base
-                self.config['cs_solsubdir'] = s
-            else:
-                self.local_soldir = base
-                self.local_solsubdir = s
-                self.load_sol_if_needed()
-
-            data, battrs = self.eval_bdr(mode='integ')
-            if data is None:
-                assert False, "returned value is None ???"
-
-            verts, cc, adata = data[0]
-            cdata.append(cc)
-            subdirs.append(s)
-
-        data = {'vertices': verts, 'data': cdata, 'index': adata,
-                'subdirs': subdirs}
-        self.post_threadend(self.export_to_piScope_shell,
-                            data, 'bdr_data')
-
-    def onExportR2Bdr(self, evt):
-        wx.CallAfter(
-            dialog.showtraceback,
-            parent=self,
-            txt='Not Yet Implemented',
-            title='Error',
-            traceback='Exporing all time slice for frequency \ndomain analysis is not available')
-        wx.CallAfter(self.set_title_no_status)
-    """
-
     def get_attrs_field_Bdr(self):
         return 1
 
-    def eval_bdr(self, mode='plot', export_type=1, refine=1):
+    def eval_bdr(self, value,  mode='plot', export_type=1, refine=1):
         from petram.sol.evaluators import area_tri
-        value = self.elps['Bdr'] .GetValue()
 
         expr = str(value[0]).strip()
         battrs = str(value[5])
@@ -1831,10 +1770,13 @@ class DlgPlotSol(SimpleFramePlus):
     #
     #   PointCloud ('Points' tab)
     #
-    @run_in_piScope_thread
     def onApplyPoints(self, evt):
         value = self.elps['Points'] .GetValue()
+        self._onApplyPoints(value)
+        evt.Skip()
 
+    @run_in_piScope_thread
+    def _onApplyPoints(self, value):
         expr = str(value[0]).strip()
         if value[4]:
             from ifigure.widgets.wave_viewer import WaveViewer
@@ -1879,10 +1821,13 @@ class DlgPlotSol(SimpleFramePlus):
         data = {'vertices': ptx, 'data': data, 'attrs': attrs_out}
         self.export_to_piScope_shell(data, 'point_data')
 
-    @run_in_piScope_thread
     def onExportR1Points(self, evt):
         value = self.elps['Points'] .GetValue()
+        self._onExportR1Points(value)
+        evt.Skip()
 
+    @run_in_piScope_thread
+    def _onExportR1Points(self, value):
         remote, base, subs = self.get_current_choices()
         ret = []
         for s in subs:
@@ -2259,11 +2204,14 @@ class DlgPlotSol(SimpleFramePlus):
     #
     #   Arrow on Boundary ('Bdr(arrow)' tab)
     #
-    @run_in_piScope_thread
     def onApplyBdrarrow(self, evt):
-        u, v, w, battrs = self.eval_bdrarrow(mode='plot')
+        value = self.elps['Bdr(arrow)'].GetValue()
+        self._onApplyBdrarrow(value)
+        evt.Skip()
 
-        value = self.elps['Bdr(arrow)'] .GetValue()
+    @run_in_piScope_thread
+    def _onApplyBdrarrow(self, value):
+        u, v, w, battrs = self.eval_bdrarrow(value, mode='plot')
 
         expr_u = str(value[0]).strip()
         expr_v = str(value[1]).strip()
@@ -2339,7 +2287,9 @@ class DlgPlotSol(SimpleFramePlus):
         viewer.update(True)
 
     def onExportBdrarrow(self, evt):
-        u, v, w, battrs = self.eval_bdrarrow(mode='export')
+        value = self.elps['Bdr(arrow)'].GetValue()
+
+        u, v, w, battrs = self.eval_bdrarrow(value, mode='export')
         udata = u[0][1]
         vdata = v[0][1]
         wdata = w[0][1]
@@ -2355,13 +2305,12 @@ class DlgPlotSol(SimpleFramePlus):
                 'v': v,
                 'w': w}
         self.export_to_piScope_shell(data, 'arrow_data')
+        evt.Skip()
 
     def get_attrs_field_Bdrarrow(self):
         return 3
 
-    def eval_bdrarrow(self, mode='plot'):
-        value = self.elps['Bdr(arrow)'] .GetValue()
-        cls = None
+    def eval_bdrarrow(self, value, mode='plot'):
         expr_u = str(value[0]).strip()
         expr_v = str(value[1]).strip()
         expr_w = str(value[2]).strip()
@@ -2413,15 +2362,20 @@ class DlgPlotSol(SimpleFramePlus):
     #   Slice plane ('Slice' tab)
     #
 
-    @run_in_piScope_thread
+
     def onApplySlice(self, evt):
-        self.onSliceCommon(evt)
+        value = self.elps['Slice'] .GetValue()
+        self._onSliceCommon(value)
+        evt.Skip()
 
     def onExportSlice(self, evt):
-        self.onSliceCommon(evt, mode='export')
+        value = self.elps['Slice'] .GetValue()
+        self._onSliceCommon(value, mode='export')
+        evt.Skip()
 
-    @run_in_piScope_thread
     def onxportR1Slice(self, evt):
+        value = self.elps['Slice'] .GetValue()
+
         remote, base, subs = self.get_current_choices()
 
         dataset = []
@@ -2436,7 +2390,7 @@ class DlgPlotSol(SimpleFramePlus):
                 self.local_solsubdir = s
                 self.load_sol_if_needed()
 
-            data = self.onSliceCommon(evt, mode='export_return')
+            data = self.onSliceCommon(value, mode='export_return')
             if data is None:
                 assert False, "returned value is None ???"
 
@@ -2454,10 +2408,8 @@ class DlgPlotSol(SimpleFramePlus):
             traceback='Exporing all time slice for frequency \ndomain analysis is not available')
         wx.CallAfter(self.set_title_no_status)
 
-    def onSliceCommon(self, evt, mode='plot'):
-
-        value = self.elps['Slice'] .GetValue()
-
+    @run_in_piScope_thread
+    def _onSliceCommon(self, value, mode='plot'):
         expr = str(value[0]).strip()
 
         if value[4]:
@@ -2645,9 +2597,13 @@ class DlgPlotSol(SimpleFramePlus):
     '''
     integral
     '''
-    @run_in_piScope_thread
     def onApplyIntegral(self, evt):
-        expr, value, kind, idx, order = self.eval_integral()
+        gui_value = self.elps['Integral'] .GetValue()
+        self._onApplyIntegral(gui_value)
+        evt.Skip()
+
+    def _onApplyIntegral(self, gui_value):
+        expr, value, kind, idx, order = self.eval_integral(gui_value)
         if value is not None:
             data = {'value': value,
                     'kind': kind,
@@ -2662,22 +2618,25 @@ class DlgPlotSol(SimpleFramePlus):
     def get_attrs_field_Integral(self):
         return 2
 
-    def eval_integral(self):
-        value = self.elps['Integral'] .GetValue()
-        expr = str(value[0]).strip()
-        kind = str(value[1]).strip()
-        attrs = str(value[2])
-        order = int(value[3])
-        phys_path = str(value[4]).strip()
+    def eval_integral(self, gui_value):
+        expr = str(gui_value[0]).strip()
+        kind = str(gui_value[1]).strip()
+        attrs = str(gui_value[2])
+        order = int(gui_value[3])
+        phys_path = str(gui_value[4]).strip()
 
         value = self.evaluate_sol_integral(expr, kind, attrs, order, phys_path)
         return expr, value, kind, attrs, order
     '''
     probe
     '''
-    @run_in_piScope_thread
     def onApplyProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
+        self._onApplyProbe(value)
+        evt.Skip()
+
+    @run_in_piScope_thread
+    def _onApplyProbe(self, value):
         expr = str(value[0]).strip()
         xexpr = str(value[1]).strip()
 
