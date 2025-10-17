@@ -207,13 +207,13 @@ class Engine(object):
         final matrix looks like as follows + off-diagomal (betwween-physics
         coupling)
            [phys1_space1       A                                          ]
-           [     B        phys1_space2                                    ]    
-           [                            phys2_space2       C              ]    
-           [                                 D        phys2_space2        ]    
+           [     B        phys1_space2                                    ]
+           [                            phys2_space2       C              ]
+           [                                 D        phys2_space2        ]
                                      ......
                                      ......
            [                                                              ],
-        where A, B, C and D are in-physics coupling    
+        where A, B, C and D are in-physics coupling
         '''
         from petram.helper.formholder import FormBlock
 
@@ -628,7 +628,30 @@ class Engine(object):
         solver = model["Solver"].get_active_solvers()
         return solver
 
+    def record_environment(self):
+
+        if os.getenv('PETRAM_ARRAY_ID') is not None:
+            array_id = int(os.getenv('PETRAM_ARRAY_ID'))
+        else:
+            array_id = 0
+
+        if os.getenv('PETRAM_ARRAY_COUNT') is not None:
+            array_ct = int(os.getenv('PETRAM_ARRAY_COUNT'))
+        else:
+            array_ct = 0
+
+        if self.model['General'].dataset is None:
+            self.model['General'].dataset = {}
+
+        self.model['General'].dataset['PETRAM_ARRAY_COUNT'] = array_ct
+        self.model['General'].dataset['PETRAM_ARRAY_ID'] = array_id
+
     def run_build_ns(self, dir=None):
+        '''
+        this is called from model.py script. it incluese
+
+        self.record_environment()
+        '''
         model = self.model
         model['General'].run()
 
@@ -639,6 +662,8 @@ class Engine(object):
         for node in model.walk():
             if node.has_ns() and node.ns_name is not None:
                 node.read_ns_script_data(dir=dir)
+
+        self.record_environment()
         self.build_ns()
         solver = model["Solver"].get_active_solvers()
 
@@ -655,7 +680,7 @@ class Engine(object):
         return 0, None
         '''
         import traceback
-        try:        
+        try:
             self.model['General'].run()
             self.run_mesh_serial(skip_refine=skip_refine)
         except:
@@ -663,8 +688,8 @@ class Engine(object):
             return -1, exception
         try:
             self.build_ns()
-            self.assign_phys_pp_sel_index()                    
-            self.run_mesh_extension_prep()        
+            self.assign_phys_pp_sel_index()
+            self.run_mesh_extension_prep()
             self.assign_sel_index()
         except:
             exception = traceback.format_exc()
@@ -1098,13 +1123,13 @@ class Engine(object):
         assemble only RHS
 
         bilinearform should be assmelbed before-hand
-        note that self.r_b, self.r_x, self.i_b, self.i_x 
+        note that self.r_b, self.r_x, self.i_b, self.i_x
         are reused. And, since r_b and r_x shares the
         data, and i_b and i_x do too, we need to be careful
-        to copy the result (b arrays) to other place to call 
+        to copy the result (b arrays) to other place to call
         this. When MUMPS is used, the data ia gathered to
         root node at the end of each assembly process. When
-        other solve is added, this must be taken care. 
+        other solve is added, this must be taken care.
         '''
         L = len(self.dep_vars)
         self.mask_B = np.array([not update]*L)
@@ -1161,7 +1186,7 @@ class Engine(object):
         '''
         assemble M, B, X blockmatrices.
 
-        in parallel, inplace = False makes sure that blocks in A and RHS  
+        in parallel, inplace = False makes sure that blocks in A and RHS
         are not shared by M, B, X
 
         daigpolicy = 0  # DiagOne
@@ -1274,7 +1299,7 @@ class Engine(object):
         '''
         assemble M, B, X blockmatrices.
 
-        in parallel, inplace = False makes sure that blocks in A and RHS  
+        in parallel, inplace = False makes sure that blocks in A and RHS
         are not shared by M, B, X
         '''
         B = self.prepare_B_blocks()
@@ -2173,7 +2198,7 @@ class Engine(object):
 
             '''
             note: minor differece between serial/parallel
- 
+
             Aee in serial ana parallel are not equal. The definition of Aee in MFEM is
             A_original = Aee + A, where A_diag is set to one for Esseential DoF
             In the serial mode, Aee_diag is not properly set. But this element
@@ -2306,7 +2331,7 @@ class Engine(object):
 
             '''
             note: minor differece between serial/parallel
- 
+
             Aee in serial ana parallel are not equal. The definition of Aee in MFEM is
             A_original = Aee + A, where A_diag is set to one for Esseential DoF
             In the serial mode, Aee_diag is not properly set. But this element
@@ -2377,13 +2402,13 @@ class Engine(object):
         without interpolation, matrix become
               [ A    B ][x]   [b]
               [        ][ ] = [ ]
-              [ C    D ][l]   [c], 
+              [ C    D ][l]   [c],
         where B, C, D is filled as extra
-        if P is not None: 
+        if P is not None:
               [ P A P^t  P B ][y]   [P b]
               [              ][ ] = [   ]
               [ C P^t     D  ][l]   [ c ]
-        and 
+        and
              x  = P^t y
         '''
         # import traceback
@@ -3201,6 +3226,8 @@ class Engine(object):
             return self.new_mixed_bf(fes2, fes1), proj
 
     def build_ns(self):
+
+
         errors = []
         for node in self.model.walk():
             if node.has_ns():
@@ -4108,8 +4135,8 @@ class SerialEngine(Engine):
             os.remove(f)
 
     '''
-    def remove_solfiles(self):       
-        dprint1("clear sol: ", os.getcwd())                  
+    def remove_solfiles(self):
+        dprint1("clear sol: ", os.getcwd())
         d = os.getcwd()
         files = os.listdir(d)
         for file in files:
@@ -4121,7 +4148,7 @@ class SerialEngine(Engine):
             if file.startswith('proble'): os.remove(os.path.join(d, file))
             if file.startswith('matrix'): os.remove(os.path.join(d, file))
             if file.startswith('rhs'): os.remove(os.path.join(d, file))
-            if file.startswith('checkpoint_'): shutil.removetree(os.path.joij(d, file))   
+            if file.startswith('checkpoint_'): shutil.removetree(os.path.joij(d, file))
     '''
 
     def a2A(self, a):  # BilinearSystem to matrix
@@ -4575,7 +4602,7 @@ class ParallelEngine(Engine):
 
     def run_mesh_gen(self, gen):
         '''
-        run mesh generator 
+        run mesh generator
         '''
         gen.generate_mesh_file()
 

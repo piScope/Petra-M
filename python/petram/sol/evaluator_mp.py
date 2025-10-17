@@ -218,12 +218,13 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
             if (os.path.basename(model_path) == 'model_proc.pmfm'):
                 s.build_ns()
             else:
-                s.run_config()
-                model_path = os.path.join(
-                    os.path.dirname(model_path), 'model_proc.pmfm')
-                if self.myid == 0:
-                    s.model.save_to_file(model_path,
-                                         meshfile_relativepath=False)
+                assert False, "model_proc.pmfm not found"
+                # s.run_config()
+                # model_path = os.path.join(
+                #    os.path.dirname(model_path), 'model_proc.pmfm')
+                # if self.myid == 0:
+                #    s.model.save_to_file(model_path,
+                #                         meshfile_relativepath=False)
 
             self.model_real = s.model
         except:
@@ -273,7 +274,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         '''
         for key in six.iterkeys(self.agents): # scan over battr
             data.append([])
-            attrs.append(key)                                  
+            attrs.append(key)
             evaluators = self.agents[key]
             for o, solvar in zip(evaluators, solvars): # scan over sol files
                 try:
@@ -281,7 +282,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                 except:
                      import traceback
                      return self.myid, None, traceback.format_exc()
-                     
+
                 if v is None:
                     v = None; c = None; a = None
                 data[-1].append((v, c, a))

@@ -152,7 +152,7 @@ class NS_mixin(object):
         path1 = os.path.join(dir, self.ns_name+'_ns.py')
         path2 = os.path.join(dir, self.ns_name+'_ns.dat')
         fid = open(path1, 'r')
-        #self.ns_string = '\n'.join(fid.readlines())
+        # self.ns_string = '\n'.join(fid.readlines())
         self.ns_string = ''.join(fid.readlines())
         fid.close()
         import petram.helper.pickle_wrapper as pickle
@@ -183,7 +183,7 @@ class NS_mixin(object):
             self.ns_string = None
             self.dataset = None
             return
-            #raise ValueError("namespace script is not found")
+            # raise ValueError("namespace script is not found")
         err_string = ns_script.reload_script()
         if err_string != '' and err_string is not None:
             assert False, err_string
@@ -293,12 +293,12 @@ class NS_mixin(object):
             assert False, "PyMFEM is not loaded"
 
         # set PETRAM_ARRAY_ID
-        g["PETRAM_ARRAY_ID"] = 1
-        g["PETRAM_ARRAY_COUNT"] = 1
-        if os.getenv("PETRAM_ARRAY_ID") is not None:
-            g["PETRAM_ARRAY_ID"] = int(os.getenv("PETRAM_ARRAY_ID"))
-        if os.getenv("PETRAM_ARRAY_COUNT") is not None:
-            g["PETRAM_ARRAY_COUNT"] = int(os.getenv("PETRAM_ARRAY_COUNT"))
+        # g["PETRAM_ARRAY_ID"] = 1
+        # g["PETRAM_ARRAY_COUNT"] = 1
+        # if os.getenv("PETRAM_ARRAY_ID") is not None:
+        #     g["PETRAM_ARRAY_ID"] = int(os.getenv("PETRAM_ARRAY_ID"))
+        # if os.getenv("PETRAM_ARRAY_COUNT") is not None:
+        #     g["PETRAM_ARRAY_COUNT"] = int(os.getenv("PETRAM_ARRAY_COUNT"))
 
         import numpy
         g['np'] = numpy
@@ -345,8 +345,8 @@ class NS_mixin(object):
                         for k in p.attribute_mirror_ns():
                             g[k] = chain[-2]._global_ns[k]
                         if (p.ns_string != '' and p.ns_string is not None):
-                            #exec(p.ns_string, g)
-                            #print("updating with ns", p)
+                            # exec(p.ns_string, g)
+                            # print("updating with ns", p)
                             g.update(p._global_ns)
 
                     except Exception as e:
@@ -362,6 +362,7 @@ class NS_mixin(object):
             if self.dataset is not None:
                 for k in self.dataset:
                     g[k] = self.dataset[k]
+
         # step2 eval attribute using upstream + non-expression
         result, invalid = self.eval_attribute_expr()
         for k in result:
@@ -374,13 +375,12 @@ class NS_mixin(object):
                 g[a] = getattr(self, a)
 
         # step 4 run namespace scripts otherise exit
-        for k in l:
-            g[k] = l[k]  # copying default ns
-
+        # for k in l:
+        #    g[k] = l[k]  # copying default ns
         try:
             l = {}
             if (self.ns_string != '' and self.ns_string is not None):
-                #print("executing...", self, self.ns_string)
+                # print("executing...", self, self.ns_string, g, locals())
                 exec(self.ns_string, g)
             else:
                 pass  # return
