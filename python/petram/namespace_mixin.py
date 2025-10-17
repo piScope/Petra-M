@@ -375,8 +375,14 @@ class NS_mixin(object):
                 g[a] = getattr(self, a)
 
         # step 4 run namespace scripts otherise exit
-        # for k in l:
-        #    g[k] = l[k]  # copying default ns
+
+        # (4-1) copying default ns. however, if it is already set by dataset. we skip it
+        #       this happens for PETRAM_ARRAY_ID
+        for k in l:
+            if k not in g:
+                g[k] = l[k]
+
+        # (4-2) evaluate ns_string
         try:
             l = {}
             if (self.ns_string != '' and self.ns_string is not None):

@@ -260,7 +260,7 @@ class EvaluatorClient(Evaluator):
         self.failed = False
 
     def __del__(self):
-        self.terminate_all()
+        #self.terminate_all()
         if self.p is not None:
             if self.p.poll() is None:
                 self.p.terminate()
@@ -275,9 +275,15 @@ class EvaluatorClient(Evaluator):
         nowait = kparams.pop("nowait", False)
         command = [name, params, kparams]
         data = binascii.b2a_hex(pickle.dumps(command))
-        print("Sending request", command)
-        self.p.stdin.write(data.decode('utf-8') + '\n')
-        self.p.stdin.flush()
+        print("Sending request", command, self.p)
+
+        try:
+            self.p.stdin.write(data.decode('utf-8') + '\n')
+            self.p.stdin.flush()
+        except:
+            import traceback
+            traceback.print_exc()
+            return
 
         if nowait:
             return
@@ -374,6 +380,12 @@ class EvaluatorClient(Evaluator):
             self.p.terminate()
             self.p = None
             return
+        except BaseException:
+            import traceback
+            traceback.print_exc()
+            self.p.terminate()
+            self.p = None
+            return
 
         if self.p is not None:
             if self.p.poll() is None:
@@ -388,6 +400,12 @@ class EvaluatorClient(Evaluator):
         except BrokenPipeError:
             # when server-side client is dead, terminate connection
             print("Broken Pipe Error, teminating the connection")
+            self.p.terminate()
+            self.p = None
+            return
+        except BaseException:
+            import traceback
+            traceback.print_exc()
             self.p.terminate()
             self.p = None
             return
