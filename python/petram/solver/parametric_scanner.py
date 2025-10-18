@@ -172,7 +172,7 @@ class SimpleScanner(DefaultParametricScanner):
             dprint1("Simple Scanner: Setting " + name + ':' + str(data[k]))
             general.dataset[name] = data[k]
 
-        #for k, name in enumerate(names):
+        # for k, name in enumerate(names):
         #    id_list = []
         #    for phys in self.target_phys:
         #        if id(phys._global_ns) in id_list:

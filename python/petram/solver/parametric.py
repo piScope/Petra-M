@@ -1,3 +1,4 @@
+from petram.mfem_config import use_parallel
 import os
 import traceback
 import gc
@@ -12,7 +13,6 @@ format_memory_usage = debug.format_memory_usage
 assembly_methods = {'Full assemble': 0,
                     'Reuse matrix': 1}
 
-from petram.mfem_config import use_parallel
 if use_parallel:
     import mfem.par as mfem
     from mfem.common.mpi_debug import nicePrint
@@ -20,6 +20,7 @@ if use_parallel:
 else:
     import mfem.ser as mfem
     nicePrint = dprint1
+
 
 class Parametric(SolveStep, NS_mixin):
     '''
@@ -106,7 +107,7 @@ class Parametric(SolveStep, NS_mixin):
         return v
 
     def get_possible_child(self):
-        #from solver.solinit_model import SolInit
+        # from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.nl_solver_model import NLSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
@@ -127,7 +128,7 @@ class Parametric(SolveStep, NS_mixin):
                     DWCCall, ForLoop, SetVar]
 
     def get_possible_child_menu(self):
-        #from solver.solinit_model import SolInit
+        # from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.nl_solver_model import NLSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
@@ -170,7 +171,6 @@ class Parametric(SolveStep, NS_mixin):
         scanner = self.get_scanner(nosave=True)
         probes.extend(scanner.get_probes())
         return probes
-
 
     def get_default_ns(self):
         from petram.solver.parametric_scanner import Scan
@@ -333,7 +333,8 @@ class Parametric(SolveStep, NS_mixin):
                         if is_sol_central:
                             A.reformat_central_mat(solall, ksol, X[0], mask)
                         else:
-                            A.reformat_distributed_mat(solall, ksol, X[0], mask)
+                            A.reformat_distributed_mat(
+                                solall, ksol, X[0], mask)
 
                         instance.sol = X[0]
                         for p in instance.probe:
