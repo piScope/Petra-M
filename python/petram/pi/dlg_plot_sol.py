@@ -181,6 +181,7 @@ def run_in_piScope_thread(func):
                 except BaseException:
                     pass
                 wx.CallAfter(dlg.Destroy)
+                wx.CallAfter(self.set_title_no_status)
 
             t = threading.Thread(target=caller, args=args, kwargs=kwargs)
             self._plot_thread = t
@@ -1120,12 +1121,10 @@ class DlgPlotSol(SimpleFramePlus):
         self.SetTitle(title.split('(')[0])
 
     def onThreadEnd(self, evt):
-        self.set_title_no_status()
         m = evt.pp_method[0]
         args = evt.pp_method[1]
         kargs = evt.pp_method[2]
         m(*args, **kargs)
-        self.set_title_no_status()
         evt.Skip()
 
     def load_sol_if_needed(self):
