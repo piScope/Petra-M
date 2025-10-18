@@ -14,10 +14,12 @@ import petram.helper.pickle_wrapper as pk
 import binascii
 from collections import defaultdict
 from weakref import WeakKeyDictionary as WKD
+from string import digits
 
 import ifigure.widgets.dialog as dialog
 import ifigure.events
 from ifigure.utils.cbook import BuildMenu
+from ifigure.widgets.dialog import progressbar
 from ifigure.utils.edit_list import EditListPanel
 from ifigure.utils.edit_list import EDITLIST_CHANGED
 from ifigure.utils.edit_list import EDITLIST_CHANGING
@@ -54,6 +56,18 @@ def setup_figure(fig, fig2):
     fig.zlim(zlim)
 
     fig.view('noclip')
+
+def sort_subdirs(choices):
+    def extract_trailing_digits(txt):
+        return txt[len(txt.rstrip(digits)):]
+
+    sorted_subs = [x[1] for x in sorted([(int(extract_trailing_digits(x)), x)
+                       for x in choices if len(extract_trailing_digits(x)) != 0])]
+
+    if '' in choices:
+        sorted_subs = [''] + sorted_subs
+
+    return sorted_subs
 
 
 def read_solinfo_remote(user, server, path):
@@ -138,7 +152,9 @@ def get_mapper(mesh_in):
 
 def run_in_piScope_thread(func):
     @wraps(func)
-    def func2(self, value, *args, **kwargs):
+    def func2(*args, **kwargs):
+        self = args[0]
+
         title = self.GetTitle()
         app = wx.GetApp().TopWindow
         petram = app.proj.setting.parameters.eval('PetraM')
@@ -154,8 +170,19 @@ def run_in_piScope_thread(func):
         self.SetTitle(title + '(*** processing ***)')
         maxt = app.aconfig.setting['max_thread']
         if len(app.logw.threadlist) < maxt:
-            args = (self, value)
-            t = threading.Thread(target=func, args=args)
+
+
+            dlg = progressbar(self, '', 'In progress', 5)
+            dlg.Show()
+
+            def caller(*in_args, **in_kwargs):
+                try:
+                    func(*in_args, **in_kwargs)
+                except BaseException:
+                    pass
+                wx.CallAfter(dlg.Destroy)
+
+            t = threading.Thread(target=caller, args=args, kwargs=kwargs)
             self._plot_thread = t
             petram._status = 'evaluating sol...'
             ifigure.events.SendThreadStartEvent(petram,
@@ -662,6 +689,7 @@ class DlgPlotSol(SimpleFramePlus):
             vbox = wx.BoxSizer(wx.VERTICAL)
             p.SetSizer(vbox)
 
+
             elp1 = [["Sol", "sol", 504, {"choices": ["sol", ],
                                          "choices_cb": self.local_sollist}],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
@@ -676,7 +704,6 @@ class DlgPlotSol(SimpleFramePlus):
             elp2 = [["Number of workers", self.config['mp_worker'], 400, ],
                     ["Sol", "sol", 504, {"choices_cb": self.local_sollist,
                                          "choices": ["sol", ], }],
-                    #                                       "UpdateUI": self.OnUpdateUI_local}],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
                     [None, None, 141, {"alignright": True,
@@ -923,8 +950,8 @@ class DlgPlotSol(SimpleFramePlus):
         sol_names = [x for x in sol_names if len(x) > 0]
 
         if allow_single_mode:
-            single_cb1.SetChoices(sorted(sol_names))
-        multi_cb1.SetChoices(sorted(sol_names))
+            single_cb1.SetChoices(sol_names)
+        multi_cb1.SetChoices(sol_names)
 
         if self.local_soldir is not None:
             ss1 = self.local_solsubdir
@@ -949,21 +976,15 @@ class DlgPlotSol(SimpleFramePlus):
         self.update_sollist_local_common(2)
 
     def update_subdir_remote(self):
-        from ifigure.widgets.dialog import progressbar
-
-        dlg = progressbar(self, 'Checking remote work directory...',
-                          'In progress', 5)
-        dlg.Show()
-        self._update_subdir_remote(dlg)
+        self._update_subdir_remote()
 
     @run_in_piScope_thread
-    def _update_subdir_remote(self, dlg):
+    def _update_subdir_remote(self):
         try:
             info = read_solinfo_remote(self.config['cs_user'],
                                        self.config['cs_server'],
                                        self.config['cs_soldir'])
         except AssertionError as err:
-            wx.CallAfter(dlg.Destroy)
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
                          title='Error',
@@ -974,18 +995,15 @@ class DlgPlotSol(SimpleFramePlus):
             # traceback.print_tb(tb) # Fixed format
             # tb_info = traceback.extract_tb(tb)
             # filename, line, func, text = tb_info[-1]
-            wx.CallAfter(dlg.Destroy)
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
                          title='Error',
                          traceback=traceback.format_exc(limit=-1))
             return
 
-        self.post_threadend(self.update_subdir_remote_step2, info, dlg)
+        self.post_threadend(self.update_subdir_remote_step2, info)
 
-    def update_subdir_remote_step2(self, info,  dlg):
-        dlg.Destroy()
-
+    def update_subdir_remote_step2(self, info):
         dirnames = [""]
         choices = [""]
         solvers = list(info["checkpoint"])
@@ -999,7 +1017,7 @@ class DlgPlotSol(SimpleFramePlus):
 
         cb2 = self.get_remote_subdir_cb()
 
-        choices = sorted(choices)
+        choices = sort_subdirs(choices)
         cb2.SetChoices(choices)
         ss1 = str(cb2.GetValue())
         if ss1 in choices:
@@ -1022,15 +1040,8 @@ class DlgPlotSol(SimpleFramePlus):
             v = self.local_sols[2].values()
             remote = False
 
-        from string import digits
+        sorted_subs = sort_subdirs(v)
 
-        def extract_trailing_digits(txt):
-            return txt[len(txt.rstrip(digits)):]
-
-        sorted_subs = [x[1] for x in sorted([(int(extract_trailing_digits(x)), x)
-                                             for x in v if len(extract_trailing_digits(x)) != 0])]
-        if '' in v:
-            sorted_subs = [''] + sorted_subs
 
         return remote, base, sorted_subs
 
@@ -1067,7 +1078,7 @@ class DlgPlotSol(SimpleFramePlus):
                 sol_names.append(s2)
 
         else:
-            multi_cb1 = self.elps['Config'].widgets[0][0].elps[1].widgets[1][0]
+            multi_cb1 = self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]
             choices = [multi_cb1.GetString(n) for n in range(multi_cb1.GetCount())]
             choices = list(set(choices))
             s2 = str(multi_cb1.GetValue())
@@ -1078,6 +1089,7 @@ class DlgPlotSol(SimpleFramePlus):
             if not x in sol_names:
                 sol_names.append(x)
         sol_names = [x for x in sol_names if len(x) > 0]
+
         return sol_names
 
     def remote_sollist(self):
@@ -2745,10 +2757,10 @@ class DlgPlotSol(SimpleFramePlus):
 
         self.export_to_piScope_shell(data, 'probe_data')
     '''
-
     def onExportProbe(self, evt):
-        remote, base, subs = self.get_current_choices()
+        value = self.elps['Probe'] .GetValue()
 
+        remote, base, subs = self.get_current_choices()
         if len(subs) > 1:
             from petram.pi.dlg_export_opts import ask_export_opts
             opts = ask_export_opts(self, support_integ=False)
@@ -2759,6 +2771,12 @@ class DlgPlotSol(SimpleFramePlus):
         else:
             do_loop = False
 
+        self._onExportProbe(value, do_loop)
+        evt.Skip()
+
+    @run_in_piScope_thread
+    def _onExportProbe(self, value, do_loop):
+        remote, base, subs = self.get_current_choices()
         if do_loop:
             all_data = []
 
@@ -2778,7 +2796,7 @@ class DlgPlotSol(SimpleFramePlus):
                     self.local_solsubdir = s
                     self.load_sol_if_needed()
 
-                data = self.make_export_probe_data()
+                data = self.make_export_probe_data(value)
                 if data is None:
                     continue
                 data["subdirs"] = s
@@ -2790,14 +2808,13 @@ class DlgPlotSol(SimpleFramePlus):
             self.config['cs_solsubdir'] = bk[3]
 
         else:
-            all_data = self.make_export_probe_data()
+            all_data = self.make_export_probe_data(value)
 
         if all_data is None or len(all_data) == 0:
             return  # nothine to export
-        self.export_to_piScope_shell(all_data, 'probe_data')
+        wx.CallAfter( self.export_to_piScope_shell, all_data, 'probe_data')
 
-    def make_export_probe_data(self):
-        value = self.elps['Probe'] .GetValue()
+    def make_export_probe_data(self, value):
         xdata, data = self.eval_probe(mode='plot')
 
         if data is None:

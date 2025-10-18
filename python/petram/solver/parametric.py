@@ -170,7 +170,7 @@ class Parametric(SolveStep, NS_mixin):
         scanner = self.get_scanner(nosave=True)
         probes.extend(scanner.get_probes())
         return probes
-        
+
 
     def get_default_ns(self):
         from petram.solver.parametric_scanner import Scan
@@ -209,9 +209,14 @@ class Parametric(SolveStep, NS_mixin):
 
             is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
 
+            engine.record_environment()
+            engine.build_ns()
+
             if is_new_mesh or is_first:
                 engine.preprocess_modeldata()
                 is_first = False
+            else:
+                engine.save_processed_model()
 
             self.prepare_form_sol_variables(engine)
 
@@ -251,9 +256,16 @@ class Parametric(SolveStep, NS_mixin):
                 if kcase == 0:
                     if ksolver == 0:
                         self.init(engine)
+
+                    engine.record_environment()
+                    engine.build_ns()
+
                     instance.set_blk_mask()
                     instance.assemble(inplace=False)
                 else:
+                    if ksolver == 0:
+                        engine.save_processed_model()
+
                     engine.set_update_flag('ParametricRHS')
 
                     done = []
