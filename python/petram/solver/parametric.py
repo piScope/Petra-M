@@ -195,7 +195,8 @@ class Parametric(SolveStep, NS_mixin):
             os.chdir(path)
         files = ['model.pmfm'] + nsfiles
         for n in files:
-            engine.symlink(os.path.join('../', n), n)
+            if not os.path.exists(n):
+                engine.symlink(os.path.join('../', n), n)
         self.case_dirs.append(path)
         return od
 
@@ -256,15 +257,25 @@ class Parametric(SolveStep, NS_mixin):
                 if kcase == 0:
                     if ksolver == 0:
                         self.init(engine)
-
-                    engine.record_environment()
-                    engine.build_ns()
+                        engine.record_environment()
+                        engine.build_ns()
+                        od = self.go_case_dir(engine,
+                                              kcase,
+                                              True)
+                        engine.save_processed_model()
+                        os.chdir(od)
 
                     instance.set_blk_mask()
                     instance.assemble(inplace=False)
                 else:
                     if ksolver == 0:
+                        engine.record_environment()
+                        engine.build_ns()
+                        od = self.go_case_dir(engine,
+                                              kcase,
+                                              True)
                         engine.save_processed_model()
+                        os.chdir(od)
 
                     engine.set_update_flag('ParametricRHS')
 
@@ -328,7 +339,7 @@ class Parametric(SolveStep, NS_mixin):
                         if ksol == 0:
                             instance.save_solution(mesh_only=True,
                                                    save_parmesh=s.save_parmesh)
-                            save_mesh_linkdir = None
+                            save_mesh_linkdir = os.getcwd()
 
                         if is_sol_central:
                             A.reformat_central_mat(solall, ksol, X[0], mask)
@@ -342,7 +353,7 @@ class Parametric(SolveStep, NS_mixin):
 
                         od = self.go_case_dir(engine,
                                               ksol,
-                                              ksolver == 0)
+                                              False)
 
                         instance.save_solution(ksol=ksol,
                                                skip_mesh=False,
@@ -350,8 +361,8 @@ class Parametric(SolveStep, NS_mixin):
                                                save_parmesh=s.save_parmesh,
                                                save_mesh_linkdir=save_mesh_linkdir)
 
-                        if save_mesh_linkdir is None:
-                            save_mesh_linkdir = os.getcwd()
+                        #if save_mesh_linkdir is None:
+                        #    save_mesh_linkdir = os.getcwd()
 
                         engine.sol = instance.sol
                         instance.save_probe()
