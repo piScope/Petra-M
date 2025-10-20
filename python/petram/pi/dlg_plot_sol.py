@@ -661,8 +661,8 @@ class DlgPlotSol(SimpleFramePlus):
             if len(choices) == 0:
                 choices = ['no physics in model']
 
-            ll = [['Expression', '', 0, {}],
-                  ['Expression(x)', '', 0, {}],
+            ll = [['Expression', '', 500, {}],
+                  ['Expression(x)', '', 500, {}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}], ]
             tip = ("Expression to evaluate",
@@ -2714,7 +2714,7 @@ class DlgPlotSol(SimpleFramePlus):
         expr = str(value[0]).strip()
         xexpr = str(value[1]).strip()
 
-        xdata, data = self.eval_probe(mode='plot')
+        xdata, data = self.eval_probe(value, mode='plot')
         if data is None:
             wx.CallAfter(self.set_title_no_status)
             return
@@ -2727,21 +2727,6 @@ class DlgPlotSol(SimpleFramePlus):
 
         self.post_threadend(
             self.make_plot_probe, (xdata, data), expr=expr, xexpr=xexpr)
-
-    '''
-    def onExportProbe(self, evt):
-        value = self.elps['Probe'] .GetValue()
-        xdata, data = self.eval_probe(mode='plot')
-
-        if data is None:
-            return
-        if xdata is None:
-            return
-
-        data = {'xdata': xdata, 'data': data}
-
-        self.export_to_piScope_shell(data, 'probe_data')
-    '''
 
     def onExportProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
@@ -2801,7 +2786,7 @@ class DlgPlotSol(SimpleFramePlus):
         wx.CallAfter(self.export_to_piScope_shell, all_data, 'probe_data')
 
     def make_export_probe_data(self, value):
-        xdata, data = self.eval_probe(mode='plot')
+        xdata, data = self.eval_probe(value, mode='plot')
 
         if data is None:
             return
@@ -2823,8 +2808,7 @@ class DlgPlotSol(SimpleFramePlus):
             v.plot(data[1])
         v.update(True)
 
-    def eval_probe(self, mode='plot'):
-        value = self.elps['Probe'] .GetValue()
+    def eval_probe(self, value, mode='plot'):
         expr = str(value[0]).strip()
         xexpr = str(value[1]).strip()
         phys_path = value[2]
