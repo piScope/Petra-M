@@ -573,8 +573,8 @@ class DlgPlotSol(SimpleFramePlus):
             elp1 = [['plane (a,b,c,d):', '0, 0, 1, 0', 500, {}], ]
 
             elp2 = [['plane (a,b,c,d):', '0, 0, 1, 0', 500, {}],
-                    ['first axis:', '1., 0., 0.', 0, {}],
-                    ['resolution', '0.01', 0, {}], ]
+                    ['first axis:', '1., 0., 0.', 500, {}],
+                    ['resolution', '0.01', 500, {}], ]
 
             txt1 = "\n".join(("ax + by + cz + d = 0, The parameters (a, b, c and/or d) can be 1D array",
                               "with the same length to define multiple plane."))
