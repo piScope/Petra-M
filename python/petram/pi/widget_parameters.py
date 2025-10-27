@@ -91,12 +91,7 @@ class WidgetParameters(wx.Panel):
         name = p.GetName()
         newvalue = p.GetValueAsString()
 
-        for n, v in self._value:
-            if n == name:
-                v[index] = str(newvalue)
-        # evt.Skip()
         self.GetParent().send_event(self, evt)
-        # wx.CallAfter(self.GetTopLevelParent().Show)
 
     def GetValue(self):
         try:

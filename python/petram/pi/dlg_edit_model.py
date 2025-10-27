@@ -100,7 +100,7 @@ class DlgEditModel(SimpleFramePlus):
                  wx.FRAME_FLOAT_ON_PARENT)
         #        wx.FRAME_TOOL_WINDOW  this style may not work on Mac/Windows
 
-        #style = wx.RESIZE_BORDER
+        # style = wx.RESIZE_BORDER
         super(DlgEditModel, self).__init__(parent, id, title, style=style)
 
         self.splitter = wx.SplitterWindow(self, wx.ID_ANY,
@@ -118,7 +118,7 @@ class DlgEditModel(SimpleFramePlus):
         p0.SetBackgroundColour(wxNamedColour('White'))
 
         p0sizer.Add(self.tree, 1, wx.EXPAND | wx.ALL, 1)
-        #self.tree.SetSizeHints(150, -1, maxW=150)
+        # self.tree.SetSizeHints(150, -1, maxW=150)
         self.nb = wx.Notebook(self.splitter)
         self.splitter.SplitVertically(p0, self.nb)
         self.splitter.SetMinimumPaneSize(150)
@@ -151,7 +151,7 @@ class DlgEditModel(SimpleFramePlus):
 
         self.SetSizer(wx.BoxSizer(wx.VERTICAL))
         s = self.GetSizer()
-        #s2 = wx.BoxSizer(wx.HORIZONTAL)
+        # s2 = wx.BoxSizer(wx.HORIZONTAL)
         s.Add(self.splitter,  1, wx.EXPAND | wx.ALL, 1)
         self.Bind(wx.EVT_TREE_ITEM_RIGHT_CLICK,
                   self.OnItemRightClick)
@@ -159,8 +159,8 @@ class DlgEditModel(SimpleFramePlus):
                   self.OnItemSelChanged)
         self.Bind(wx.EVT_TREE_SEL_CHANGING,
                   self.OnItemSelChanging)
-        #s.Add(self.tree, 0, wx.EXPAND|wx.ALL, 1)
-        #s2.Add(self.nb, 1, wx.EXPAND|wx.ALL, 1)
+        # s.Add(self.tree, 0, wx.EXPAND|wx.ALL, 1)
+        # s2.Add(self.nb, 1, wx.EXPAND|wx.ALL, 1)
         wx.GetApp().add_palette(self)
         self.Layout()
         wx.CallAfter(self.tree.RefreshItems)
@@ -172,7 +172,7 @@ class DlgEditModel(SimpleFramePlus):
         self.Bind(wx.EVT_CHILD_FOCUS, self.OnChildFocus)
 
         self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGING, self.OnPageChanging)
-        #self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.OnPageChanged)
+        # self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.OnPageChanged)
 
         self._focus_idx = None
         self._focus_obj = None
@@ -184,12 +184,12 @@ class DlgEditModel(SimpleFramePlus):
         self._nb_current_selt = ''
 
         wx.CallAfter(self.CentreOnParent)
-        #hbox = wx.BoxSizer(wx.HORIZONTAL)
-        #self.GetSizer().Add(hbox, 0, wx.EXPAND|wx.ALL,5)
-        #button=wx.Button(self, wx.ID_ANY, "Close")
-        #button.Bind(wx.EVT_BUTTON, self.CallClose)
+        # hbox = wx.BoxSizer(wx.HORIZONTAL)
+        # self.GetSizer().Add(hbox, 0, wx.EXPAND|wx.ALL,5)
+        # button=wx.Button(self, wx.ID_ANY, "Close")
+        # button.Bind(wx.EVT_BUTTON, self.CallClose)
         # hbox.AddStretchSpacer()
-        #hbox.Add(button, 0, wx.ALL,1)
+        # hbox.Add(button, 0, wx.ALL,1)
 
     def CallClose(self, evt):
         self.Close()
@@ -225,7 +225,7 @@ class DlgEditModel(SimpleFramePlus):
                     menus = menus + [('Disable', self.OnDisableItemMult, None)]
                 else:
                     menus = menus + [('Enable', self.OnEnableItemMult, None)]
-                #menus.append(('Duplicate', self.OnDuplicateItemFromModelMult, None))
+                # menus.append(('Duplicate', self.OnDuplicateItemFromModelMult, None))
                 menus.append(('Copy', self.OnCopyItemFromModelMult, None))
             if all([m.can_delete for m in mm]):
                 menus.append(('Delete', self.OnDeleteItemFromModelMult, None))
@@ -419,15 +419,24 @@ class DlgEditModel(SimpleFramePlus):
         index = list(parent).index(name)
         nums = []
         for key in parent.keys():
-            #base0 = ''.join([k for k in key if not k.isdigit()])
+            # base0 = ''.join([k for k in key if not k.isdigit()])
             base0, num = parent[key].split_digits()
             if base0 != base:
                 continue
 
-            #nums.append(int(''.join([k for k in key if k.isdigit()])))
+            # nums.append(int(''.join([k for k in key if k.isdigit()])))
             nums.append(int(num))
 
         parent.insert_item(index+1, base+str(int(max(nums))+1), newmm)
+
+        if newmm.has_ns():
+            try:
+                newmm.eval_ns()
+            except Exception as e:
+                newmm._global_ns = {}
+        else:
+            newmm._local_ns = self.model.root()._variables
+
         self.tree.RefreshItems()
 
         new_item = self.tree.GetItemByIndex(newmm.GetIndices())
@@ -948,8 +957,8 @@ class DlgEditModel(SimpleFramePlus):
 
     def OnEL_Changing(self, evt):
         pass
-        #indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
-        #mm = self.model.GetItem(indices)
+        # indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
+        # mm = self.model.GetItem(indices)
 
     def set_model(self, model):
         self.model = model

@@ -22,7 +22,11 @@ from petram.namespace_mixin import NS_mixin, NSRef_mixin
 
 
 def validate_sel(value, obj, w):
-    g = obj._global_ns
+    if hasattr(obj, '_global_ns'):
+        g = obj._global_ns
+    else:
+        g = {}
+
     l = {"remaining": [], "all": []}
     try:
         value = eval(value, g, l)
@@ -32,7 +36,11 @@ def validate_sel(value, obj, w):
 
 
 def validate_sel2(value, obj, w):
-    g = obj._global_ns
+    if hasattr(obj, '_global_ns'):
+        g = obj._global_ns
+    else:
+        g = {}
+
     l = {"remaining": [], "all": [], "internal_bdr": []}
     try:
         value = eval(value, g, l)

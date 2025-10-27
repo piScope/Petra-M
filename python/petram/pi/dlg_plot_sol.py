@@ -14,10 +14,12 @@ import petram.helper.pickle_wrapper as pk
 import binascii
 from collections import defaultdict
 from weakref import WeakKeyDictionary as WKD
+from string import digits
 
 import ifigure.widgets.dialog as dialog
 import ifigure.events
 from ifigure.utils.cbook import BuildMenu
+from ifigure.widgets.dialog import progressbar
 from ifigure.utils.edit_list import EditListPanel
 from ifigure.utils.edit_list import EDITLIST_CHANGED
 from ifigure.utils.edit_list import EDITLIST_CHANGING
@@ -32,6 +34,8 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Dlg_plot_sol')
 
 pane_colour1 = wx.Colour(245, 245, 245, 255)
 pane_colour2 = wx.Colour(235, 235, 235, 255)
+
+allow_single_mode = False
 
 
 def setup_figure(fig, fig2):
@@ -52,6 +56,19 @@ def setup_figure(fig, fig2):
     fig.zlim(zlim)
 
     fig.view('noclip')
+
+
+def sort_subdirs(choices):
+    def extract_trailing_digits(txt):
+        return txt[len(txt.rstrip(digits)):]
+
+    sorted_subs = [x[1] for x in sorted([(int(extract_trailing_digits(x)), x)
+                                         for x in choices if len(extract_trailing_digits(x)) != 0])]
+
+    if '' in choices:
+        sorted_subs = [''] + sorted_subs
+
+    return sorted_subs
 
 
 def read_solinfo_remote(user, server, path):
@@ -136,7 +153,9 @@ def get_mapper(mesh_in):
 
 def run_in_piScope_thread(func):
     @wraps(func)
-    def func2(self, value, *args, **kwargs):
+    def func2(*args, **kwargs):
+        self = args[0]
+
         title = self.GetTitle()
         app = wx.GetApp().TopWindow
         petram = app.proj.setting.parameters.eval('PetraM')
@@ -152,8 +171,19 @@ def run_in_piScope_thread(func):
         self.SetTitle(title + '(*** processing ***)')
         maxt = app.aconfig.setting['max_thread']
         if len(app.logw.threadlist) < maxt:
-            args = (self, value)
-            t = threading.Thread(target=func, args=args)
+
+            dlg = progressbar(self, '', 'In progress', 5)
+            dlg.Show()
+
+            def caller(*in_args, **in_kwargs):
+                try:
+                    func(*in_args, **in_kwargs)
+                except BaseException:
+                    pass
+                wx.CallAfter(dlg.Destroy)
+                wx.CallAfter(self.set_title_no_status)
+
+            t = threading.Thread(target=caller, args=args, kwargs=kwargs)
             self._plot_thread = t
             petram._status = 'evaluating sol...'
             ifigure.events.SendThreadStartEvent(petram,
@@ -543,8 +573,8 @@ class DlgPlotSol(SimpleFramePlus):
             elp1 = [['plane (a,b,c,d):', '0, 0, 1, 0', 500, {}], ]
 
             elp2 = [['plane (a,b,c,d):', '0, 0, 1, 0', 500, {}],
-                    ['first axis:', '1., 0., 0.', 0, {}],
-                    ['resolution', '0.01', 0, {}], ]
+                    ['first axis:', '1., 0., 0.', 500, {}],
+                    ['resolution', '0.01', 500, {}], ]
 
             txt1 = "\n".join(("ax + by + cz + d = 0, The parameters (a, b, c and/or d) can be 1D array",
                               "with the same length to define multiple plane."))
@@ -631,8 +661,8 @@ class DlgPlotSol(SimpleFramePlus):
             if len(choices) == 0:
                 choices = ['no physics in model']
 
-            ll = [['Expression', '', 0, {}],
-                  ['Expression(x)', '', 0, {}],
+            ll = [['Expression', '', 500, {}],
+                  ['Expression(x)', '', 500, {}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}], ]
             tip = ("Expression to evaluate",
@@ -674,7 +704,6 @@ class DlgPlotSol(SimpleFramePlus):
             elp2 = [["Number of workers", self.config['mp_worker'], 400, ],
                     ["Sol", "sol", 504, {"choices_cb": self.local_sollist,
                                          "choices": ["sol", ], }],
-                    #                                       "UpdateUI": self.OnUpdateUI_local}],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
                     [None, None, 141, {"alignright": True,
@@ -704,50 +733,80 @@ class DlgPlotSol(SimpleFramePlus):
                     "Subdirectory",
                     None,)
 
-            if petram.mfem_model.has_cluster_access:
-                choices = ['Single', 'MP', 'C/S']
-                tip = '\n'.join(("- Single: plot local solution using single-processor",
-                                 "- MP: plot local solution with multiprocessing",
-                                 "- C/S: plot solution on a remote server"))
-                ll = [[None, None, 34, ({'text': "Worker Mode",
-                                         'choices': choices,
-                                         'cb_tip': tip,
-                                         'call_fit': False},
-                                        {'elp': elp1, 'tip': tip1},
-                                        {'elp': elp2, 'tip': tip2},
-                                        {'elp': elp3, 'tip': tip3},), ], ]
+            if allow_single_mode:
+                if petram.mfem_model.has_cluster_access:
+                    choices = ['Single', 'MP', 'C/S']
+                    tip = '\n'.join(("- Single: plot local solution using single-processor",
+                                     "- MP: plot local solution with multiprocessing",
+                                     "- C/S: plot solution on a remote server"))
+                    ll = [[None, None, 34, ({'text': "Worker Mode",
+                                             'choices': choices,
+                                             'cb_tip': tip,
+                                             'call_fit': False},
+                                            {'elp': elp1, 'tip': tip1},
+                                            {'elp': elp2, 'tip': tip2},
+                                            {'elp': elp3, 'tip': tip3},), ], ]
+                else:
+                    choices = ['Single', 'MP',]
+                    tip = '\n'.join(("- Single: plot local solution using single-processor",
+                                     "- MP: plot local solution with multiprocessing",))
+                    ll = [[None, None, 34, ({'text': "Worker Mode",
+                                             'choices': choices,
+                                             'cb_tip': tip,
+                                             'call_fit': False},
+                                            {'elp': elp1, 'tip': tip1},
+                                            {'elp': elp2, 'tip': tip2},), ], ]
             else:
-                choices = ['Single', 'MP',]
-                tip = '\n'.join(("- Single: plot local solution using single-processor",
-                                 "- MP: plot local solution with multiprocessing",))
-                ll = [[None, None, 34, ({'text': "Worker Mode",
-                                         'choices': choices,
-                                         'cb_tip': tip,
-                                         'call_fit': False},
-                                        {'elp': elp1, 'tip': tip1},
-                                        {'elp': elp2, 'tip': tip2},), ], ]
+                if petram.mfem_model.has_cluster_access:
+                    choices = ['MP', 'C/S']
+                    tip = '\n'.join(("- MP: plot local solution with multiprocessing",
+                                     "- C/S: plot solution on a remote server"))
+                    ll = [[None, None, 34, ({'text': "Worker Mode",
+                                             'choices': choices,
+                                             'cb_tip': tip,
+                                             'call_fit': False},
+                                            {'elp': elp2, 'tip': tip2},
+                                            {'elp': elp3, 'tip': tip3},), ], ]
+                else:
+                    choices = ['MP',]
+                    tip = '\n'.join(
+                        ("- MP: plot local solution with multiprocessing",))
+                    ll = [[None, None, 34, ({'text': "Worker Mode",
+                                             'choices': choices,
+                                             'cb_tip': tip,
+                                             'call_fit': False},
+                                            {'elp': elp2, 'tip': tip2},), ], ]
 
             elp = EditListPanel(p, ll)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Config'] = elp
 
-            if self.config['use_cs']:
-                c = choices[2]
-            elif self.config['use_mp']:
-                c = choices[1]
+            if allow_single_mode:
+                if self.config['use_cs']:
+                    c = choices[2]
+                elif self.config['use_mp']:
+                    c = choices[1]
+                else:
+                    c = choices[0]
+                value = [[c,
+                          ['', 'sol', "", None],
+                          [2, 'sol', "", None, ],
+                          [self.config['cs_server'], self.config['cs_worker'],
+                              self.config['cs_soldir'], '', None,],
+                          ]]
             else:
-                c = choices[0]
+                if self.config['use_cs']:
+                    c = choices[1]
+                else:
+                    self.config['use_mp'] = True
+                    c = choices[0]
+                value = [[c,
+                          [2, 'sol', "", None, ],
+                          [self.config['cs_server'], self.config['cs_worker'],
+                              self.config['cs_soldir'], '', None,],
+                          ]]
 
-            elp.SetValue([[c,
-                           ['', 'sol', "", None],
-                           [2, 'sol', "", None, ],
-                           [self.config['cs_server'],
-                               self.config['cs_worker'],
-                               self.config['cs_soldir'],
-                               '',
-                               None,
-                            ],
-                           ]])
+            elp.SetValue(value)
             parent.model.variables.setvar('remote_soldir',
                                           self.config['cs_soldir'])
 
@@ -759,9 +818,12 @@ class DlgPlotSol(SimpleFramePlus):
         self.Bind(EDITLIST_CHANGING, self.onEL_Changing)
         self.Bind(EDITLIST_SETFOCUS, self.onEL_SetFocus)
         self.Bind(EVT_THREADEND, self.onThreadEnd)
+
+        wx.CallAfter(self.CentreOnParent)
         wx.CallAfter(self.update_sollist_local1)
         wx.CallAfter(self.update_sollist_local2)
-        wx.CallAfter(self.CentreOnParent)
+        if self.config['use_cs']:
+            wx.CallAfter(self.update_subdir_remote)
 
         self.solvars = WKD()
         self.evaluators = {}
@@ -789,17 +851,27 @@ class DlgPlotSol(SimpleFramePlus):
         self.evaluators = {}
 
     def get_remote_subdir_cb(self):
-        return self.elps['Config'].widgets[0][0].elps[2].widgets[3][0]
+        if allow_single_mode:
+            return self.elps['Config'].widgets[0][0].elps[2].widgets[3][0]
+        else:
+            return self.elps['Config'].widgets[0][0].elps[1].widgets[3][0]
 
     def get_local_single_subdir_cb(self):
         return self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]
 
     def get_local_multi_subdir_cb(self):
-        return self.elps['Config'].widgets[0][0].elps[1].widgets[2][0]
+        if allow_single_mode:
+            return self.elps['Config'].widgets[0][0].elps[1].widgets[2][0]
+        else:
+            return self.elps['Config'].widgets[0][0].elps[0].widgets[2][0]
 
     def update_subdir_local(self, path, ss1):
-        single_cb2 = self.get_local_single_subdir_cb()
-        multi_cb2 = self.get_local_multi_subdir_cb()
+        if allow_single_mode:
+            single_cb2 = self.get_local_single_subdir_cb()
+            multi_cb2 = self.get_local_multi_subdir_cb()
+        else:
+            single_cb2 = None
+            multi_cb2 = self.get_local_multi_subdir_cb()
 
         from petram.sol.listsoldir import gather_soldirinfo
         info = gather_soldirinfo(path)
@@ -816,11 +888,13 @@ class DlgPlotSol(SimpleFramePlus):
         choices = choices + info["cases"]
         dirnames = dirnames + info["cases"]
 
-        single_cb2.SetChoices(choices)
+        if single_cb2 is not None:
+            single_cb2.SetChoices(choices)
         multi_cb2.SetChoices(choices)
 
         if ss1 in dirnames:
-            single_cb2.SetSelection(dirnames.index(ss1))
+            if single_cb2 is not None:
+                single_cb2.SetSelection(dirnames.index(ss1))
             multi_cb2.SetSelection(dirnames.index(ss1))
         else:
             ss1 = dirnames[0]
@@ -836,35 +910,49 @@ class DlgPlotSol(SimpleFramePlus):
         sols = [child for name, child in model.solutions.get_children()]
         owndirs = [x.owndir() for x in sols]
 
-        single_cb1 = self.elps['Config'].widgets[0][0].elps[0].widgets[0][0]
-        multi_cb1 = self.elps['Config'].widgets[0][0].elps[1].widgets[1][0]
+        if allow_single_mode:
+            single_cb1 = self.elps['Config'].widgets[0][0].elps[0].widgets[0][0]
+            multi_cb1 = self.elps['Config'].widgets[0][0].elps[1].widgets[1][0]
+            choices = ([single_cb1.GetString(n)
+                        for n in range(single_cb1.GetCount())] +
+                       [multi_cb1.GetString(n)
+                        for n in range(multi_cb1.GetCount())])
+            s1 = str(single_cb1.GetValue())
+            s2 = str(multi_cb1.GetValue())
+            if s1 in sol_names:
+                owndir1 = owndirs[sol_names.index(s1)]
+            else:
+                owndir1 = s1
+            if s2 in sol_names:
+                owndir2 = owndirs[sol_names.index(s2)]
+            else:
+                owndir2 = s2
 
-        choices = ([single_cb1.GetString(n) for n in range(single_cb1.GetCount())] +
-                   [multi_cb1.GetString(n) for n in range(multi_cb1.GetCount())])
-        choices = list(set(choices))
+            if not s1 in sol_names:
+                sol_names.append(s1)
+            if not s2 in sol_names:
+                sol_names.append(s2)
 
-        s1 = str(single_cb1.GetValue())
-        s2 = str(multi_cb1.GetValue())
-
-        if s1 in sol_names:
-            owndir1 = owndirs[sol_names.index(s1)]
         else:
-            owndir1 = s1
-        if s2 in sol_names:
-            owndir2 = owndirs[sol_names.index(s2)]
-        else:
-            owndir2 = s2
+            multi_cb1 = self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]
+            choices = [multi_cb1.GetString(n)
+                       for n in range(multi_cb1.GetCount())]
+            choices = list(set(choices))
+            s2 = str(multi_cb1.GetValue())
+            if s2 in sol_names:
+                owndir2 = owndirs[sol_names.index(s2)]
+            else:
+                owndir2 = s2
+            if not s2 in sol_names:
+                sol_names.append(s2)
 
-        if not s1 in sol_names:
-            sol_names.append(s1)
-        if not s2 in sol_names:
-            sol_names.append(s2)
         for x in choices:
             if not x in sol_names:
                 sol_names.append(x)
-
         sol_names = [x for x in sol_names if len(x) > 0]
-        single_cb1.SetChoices(sol_names)
+
+        if allow_single_mode:
+            single_cb1.SetChoices(sol_names)
         multi_cb1.SetChoices(sol_names)
 
         if self.local_soldir is not None:
@@ -883,46 +971,41 @@ class DlgPlotSol(SimpleFramePlus):
                 self.update_subdir_local(owndir2, ss1)
 
     def update_sollist_local1(self):
-        self.update_sollist_local_common(1)
+        if allow_single_mode:
+            self.update_sollist_local_common(1)
 
     def update_sollist_local2(self):
         self.update_sollist_local_common(2)
 
     def update_subdir_remote(self):
-        from ifigure.widgets.dialog import progressbar
+        self._update_subdir_remote()
 
-        #dlg = progressbar(self, 'Checking remote work directory...',
-        #                  'In progress', 5)
-        #dlg.Show()
-        #wx.GetApp().Yield()
-        title = self.GetTitle()
-        self.SetTitle(title + '(*** checkin remote directory ***)')
+    @run_in_piScope_thread
+    def _update_subdir_remote(self):
         try:
             info = read_solinfo_remote(self.config['cs_user'],
                                        self.config['cs_server'],
                                        self.config['cs_soldir'])
-
         except AssertionError as err:
-            #dlg.Destroy()
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
                          title='Error',
                          traceback=err.args[0])
-            return ""
+            return
         except:
             # _, _, tb = sys.exc_info()
             # traceback.print_tb(tb) # Fixed format
             # tb_info = traceback.extract_tb(tb)
             # filename, line, func, text = tb_info[-1]
-            #dlg.Destroy()
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
                          title='Error',
                          traceback=traceback.format_exc(limit=-1))
-            return ""
-        #dlg.Destroy()
-        self.SetTitle(title)
+            return
 
+        self.post_threadend(self.update_subdir_remote_step2, info)
+
+    def update_subdir_remote_step2(self, info):
         dirnames = [""]
         choices = [""]
         solvers = list(info["checkpoint"])
@@ -935,6 +1018,8 @@ class DlgPlotSol(SimpleFramePlus):
         dirnames = dirnames + info["cases"]
 
         cb2 = self.get_remote_subdir_cb()
+
+        choices = sort_subdirs(choices)
         cb2.SetChoices(choices)
         ss1 = str(cb2.GetValue())
         if ss1 in choices:
@@ -944,7 +1029,8 @@ class DlgPlotSol(SimpleFramePlus):
         probes = info["probes"]  # mapping from probe name to file
         self.remote_sols = (self.config['cs_soldir'],
                             probes, dict(zip(choices, dirnames)))
-        return ss1
+
+        self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
 
     def get_current_choices(self):
         if self.config['use_cs']:
@@ -956,15 +1042,7 @@ class DlgPlotSol(SimpleFramePlus):
             v = self.local_sols[2].values()
             remote = False
 
-        from string import digits
-
-        def extract_trailing_digits(txt):
-            return txt[len(txt.rstrip(digits)):]
-
-        sorted_subs = [x[1] for x in sorted([(int(extract_trailing_digits(x)), x)
-                                             for x in v if len(extract_trailing_digits(x)) != 0])]
-        if '' in v:
-            sorted_subs = [''] + sorted_subs
+        sorted_subs = sort_subdirs(v)
 
         return remote, base, sorted_subs
 
@@ -986,29 +1064,41 @@ class DlgPlotSol(SimpleFramePlus):
         model = self.GetParent().model
         sol_names = [name for name, child in model.solutions.get_children()]
 
-        single_cb1 = self.elps['Config'].widgets[0][0].elps[0].widgets[0][0]
-        multi_cb1 = self.elps['Config'].widgets[0][0].elps[1].widgets[1][0]
+        if allow_single_mode:
+            single_cb1 = self.elps['Config'].widgets[0][0].elps[0].widgets[0][0]
+            multi_cb1 = self.elps['Config'].widgets[0][0].elps[1].widgets[1][0]
+            choices = ([single_cb1.GetString(n)
+                        for n in range(single_cb1.GetCount())] +
+                       [multi_cb1.GetString(n)
+                        for n in range(multi_cb1.GetCount())])
+            s1 = str(single_cb1.GetValue())
+            s2 = str(multi_cb1.GetValue())
+            if not s1 in sol_names:
+                sol_names.append(s1)
+            if not s2 in sol_names:
+                sol_names.append(s2)
 
-        choices = ([single_cb1.GetString(n)
-                    for n in range(single_cb1.GetCount())] +
-                   [multi_cb1.GetString(n)
-                    for n in range(multi_cb1.GetCount())])
-        choices = list(set(choices))
+        else:
+            multi_cb1 = self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]
+            choices = [multi_cb1.GetString(n)
+                       for n in range(multi_cb1.GetCount())]
+            choices = list(set(choices))
+            s2 = str(multi_cb1.GetValue())
+            if not s2 in sol_names:
+                sol_names.append(s2)
 
-        s1 = str(single_cb1.GetValue())
-        s2 = str(multi_cb1.GetValue())
-        if not s1 in sol_names:
-            sol_names.append(s1)
-        if not s2 in sol_names:
-            sol_names.append(s2)
         for x in choices:
             if not x in sol_names:
                 sol_names.append(x)
         sol_names = [x for x in sol_names if len(x) > 0]
+
         return sol_names
 
     def remote_sollist(self):
-        remote_cb1 = self.elps['Config'].widgets[0][0].elps[2].widgets[2][0]
+        if allow_single_mode:
+            remote_cb1 = self.elps['Config'].widgets[0][0].elps[2].widgets[2][0]
+        else:
+            remote_cb1 = self.elps['Config'].widgets[0][0].elps[1].widgets[2][0]
         choices = [remote_cb1.GetString(n)
                    for n in range(remote_cb1.GetCount())]
         s1 = str(remote_cb1.GetValue())
@@ -1026,35 +1116,15 @@ class DlgPlotSol(SimpleFramePlus):
         evt.pp_method = (func, args, kwargs)
         wx.PostEvent(self, evt)
 
-        # print("Using CallAfter")
-        #self._plot_data = (func, args, kwargs)
-        #plot_data = (func, args, kwargs)
-        # wx.CallAfter(self.call_plot, plot_data)
-        # wx.CallAfter(func, *args, **kwargs)
-        # wx.CallAfter(self.set_title_no_status)
-    '''
-    def call_plot(self, plot_data):
-        print("thread here", threading.current_thread())
-        # if self._plot_data is None:
-        #    return
-
-        func, args, kwargs = plot_data
-        func(*args, **kwargs)
-        self._plot_data = None
-        self.set_title_no_status()
-    '''
-
     def set_title_no_status(self):
         title = self.GetTitle()
         self.SetTitle(title.split('(')[0])
 
     def onThreadEnd(self, evt):
-        self.set_title_no_status()
         m = evt.pp_method[0]
         args = evt.pp_method[1]
         kargs = evt.pp_method[2]
         m(*args, **kargs)
-        self.set_title_no_status()
         evt.Skip()
 
     def load_sol_if_needed(self):
@@ -1131,6 +1201,8 @@ class DlgPlotSol(SimpleFramePlus):
         model = self.GetParent().model
         v = self.elps['Config'].GetValue()
 
+        ofs = 0 if allow_single_mode else -1
+
         if str(v[0][0]) == 'Single':
             if (self.config['use_mp'] or
                     self.config['use_cs']):
@@ -1164,29 +1236,29 @@ class DlgPlotSol(SimpleFramePlus):
             if not self.config['use_mp']:
                 self.clean_evaluators()
 
-            if self.config['mp_worker'] != v[0][2][0]:
+            if self.config['mp_worker'] != v[0][2+ofs][0]:
                 self.clean_evaluators()
 
-            self.config['mp_worker'] = v[0][2][0]
+            self.config['mp_worker'] = v[0][2+ofs][0]
             self.config['use_mp'] = True
             self.config['use_cs'] = False
 
             model.variables.setvar('remote_soldir', None)
 
-            sol = model.solutions.get_child(name=str(v[0][2][1]))
+            sol = model.solutions.get_child(name=str(v[0][2+ofs][1]))
             if sol is None:
-                tmp = os.path.expanduser(str(v[0][2][1]))
+                tmp = os.path.expanduser(str(v[0][2+ofs][1]))
                 if os.path.exists(tmp):
                     owndir = tmp
                 else:
-                    assert False, "Does not exits " + str(v[0][2][1])
+                    assert False, "Does not exits " + str(v[0][2+ofs][1])
             else:
                 owndir = sol.owndir()
 
             if self.local_sols is None:
                 self.update_sollist_local2()
 
-            ss1 = self.local_sols[2][str(v[0][2][2])]
+            ss1 = self.local_sols[2][str(v[0][2+ofs][2])]
             ss1 = self.update_subdir_local(owndir, ss1)
             self.local_soldir = owndir
             self.local_solsubdir = ss1
@@ -1196,19 +1268,19 @@ class DlgPlotSol(SimpleFramePlus):
             if not self.config['use_cs']:
                 self.clean_evaluators()
 
-            if self.config['cs_worker'] != v[0][3][1]:
+            if self.config['cs_worker'] != v[0][3+ofs][1]:
                 self.clean_evaluators()
 
-            self.config['cs_worker'] = str(v[0][3][1])
+            self.config['cs_worker'] = str(v[0][3+ofs][1])
 
             reload_remote = False
             if (not self.config['use_cs'] or
-                self.config['cs_server'] != str(v[0][3][0]) or
-                    self.config['cs_soldir'] != str(v[0][3][2])):
+                self.config['cs_server'] != str(v[0][3+ofs][0]) or
+                    self.config['cs_soldir'] != str(v[0][3+ofs][2])):
                 reload_remote = True
 
-            self.config['cs_server'] = str(v[0][3][0])
-            self.config['cs_soldir'] = str(v[0][3][2])
+            self.config['cs_server'] = str(v[0][3+ofs][0])
+            self.config['cs_soldir'] = str(v[0][3+ofs][2])
             self.config['use_mp'] = False
             self.config['use_cs'] = True
 
@@ -1216,12 +1288,11 @@ class DlgPlotSol(SimpleFramePlus):
 
             if reload_remote:
                 self.update_subdir_remote()
-
-            cb2 = self.get_remote_subdir_cb()
-            ss1 = str(cb2.GetValue())
-            # if ss1 != "":
-            if self.remote_sols is not None:
-                self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
+            else:
+                cb2 = self.get_remote_subdir_cb()
+                ss1 = str(cb2.GetValue())
+                if self.remote_sols is not None:
+                    self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
 
         evt.Skip()
 
@@ -1336,7 +1407,8 @@ class DlgPlotSol(SimpleFramePlus):
 
         refine = int(value[6][1][0])
 
-        data, data_x, battrs = self.eval_edge(value, mode='plot', refine=refine)
+        data, data_x, battrs = self.eval_edge(
+            value, mode='plot', refine=refine)
         if data is None:
             return
 
@@ -1402,7 +1474,8 @@ class DlgPlotSol(SimpleFramePlus):
         value = self.elps['Edge'] .GetValue()
         refine = int(value[6][1][0])
 
-        data, data_x, battrs = self.eval_edge(value, mode='integ', refine=refine)
+        data, data_x, battrs = self.eval_edge(
+            value, mode='integ', refine=refine)
         if data is None:
             return
 
@@ -2362,7 +2435,6 @@ class DlgPlotSol(SimpleFramePlus):
     #   Slice plane ('Slice' tab)
     #
 
-
     def onApplySlice(self, evt):
         value = self.elps['Slice'] .GetValue()
         self._onSliceCommon(value)
@@ -2597,6 +2669,7 @@ class DlgPlotSol(SimpleFramePlus):
     '''
     integral
     '''
+
     def onApplyIntegral(self, evt):
         gui_value = self.elps['Integral'] .GetValue()
         self._onApplyIntegral(gui_value)
@@ -2630,6 +2703,7 @@ class DlgPlotSol(SimpleFramePlus):
     '''
     probe
     '''
+
     def onApplyProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
         self._onApplyProbe(value)
@@ -2640,7 +2714,7 @@ class DlgPlotSol(SimpleFramePlus):
         expr = str(value[0]).strip()
         xexpr = str(value[1]).strip()
 
-        xdata, data = self.eval_probe(mode='plot')
+        xdata, data = self.eval_probe(value, mode='plot')
         if data is None:
             wx.CallAfter(self.set_title_no_status)
             return
@@ -2654,24 +2728,10 @@ class DlgPlotSol(SimpleFramePlus):
         self.post_threadend(
             self.make_plot_probe, (xdata, data), expr=expr, xexpr=xexpr)
 
-    '''
     def onExportProbe(self, evt):
         value = self.elps['Probe'] .GetValue()
-        xdata, data = self.eval_probe(mode='plot')
 
-        if data is None:
-            return
-        if xdata is None:
-            return
-
-        data = {'xdata': xdata, 'data': data}
-
-        self.export_to_piScope_shell(data, 'probe_data')
-    '''
-
-    def onExportProbe(self, evt):
         remote, base, subs = self.get_current_choices()
-
         if len(subs) > 1:
             from petram.pi.dlg_export_opts import ask_export_opts
             opts = ask_export_opts(self, support_integ=False)
@@ -2682,6 +2742,12 @@ class DlgPlotSol(SimpleFramePlus):
         else:
             do_loop = False
 
+        self._onExportProbe(value, do_loop)
+        evt.Skip()
+
+    @run_in_piScope_thread
+    def _onExportProbe(self, value, do_loop):
+        remote, base, subs = self.get_current_choices()
         if do_loop:
             all_data = []
 
@@ -2701,7 +2767,7 @@ class DlgPlotSol(SimpleFramePlus):
                     self.local_solsubdir = s
                     self.load_sol_if_needed()
 
-                data = self.make_export_probe_data()
+                data = self.make_export_probe_data(value)
                 if data is None:
                     continue
                 data["subdirs"] = s
@@ -2713,15 +2779,14 @@ class DlgPlotSol(SimpleFramePlus):
             self.config['cs_solsubdir'] = bk[3]
 
         else:
-            all_data = self.make_export_probe_data()
+            all_data = self.make_export_probe_data(value)
 
         if all_data is None or len(all_data) == 0:
             return  # nothine to export
-        self.export_to_piScope_shell(all_data, 'probe_data')
+        wx.CallAfter(self.export_to_piScope_shell, all_data, 'probe_data')
 
-    def make_export_probe_data(self):
-        value = self.elps['Probe'] .GetValue()
-        xdata, data = self.eval_probe(mode='plot')
+    def make_export_probe_data(self, value):
+        xdata, data = self.eval_probe(value, mode='plot')
 
         if data is None:
             return
@@ -2743,8 +2808,7 @@ class DlgPlotSol(SimpleFramePlus):
             v.plot(data[1])
         v.update(True)
 
-    def eval_probe(self, mode='plot'):
-        value = self.elps['Probe'] .GetValue()
+    def eval_probe(self, value, mode='plot'):
         expr = str(value[0]).strip()
         xexpr = str(value[1]).strip()
         phys_path = value[2]

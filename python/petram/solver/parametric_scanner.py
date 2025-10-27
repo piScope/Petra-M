@@ -20,11 +20,11 @@ class DefaultParametricScanner(object):
 
     def get_probes(self):
         return []
-    
+
     def set_data_from_model(self, model):
         '''
         this is called after __init__.
-        model is passed. so that it can be set using   
+        model is passed. so that it can be set using
         model tree
         '''
         pass
@@ -121,7 +121,7 @@ class SimpleScanner(DefaultParametricScanner):
     # 1D scan
     Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = 3)
     # 2D scan
-    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = (3,4)) 
+    Scan("freq", "phase", start = (3e9, 0), stop = (5e9, 180), nstep = (3,4))
     '''
 
     def __init__(self, *args, **kwargs):
@@ -165,16 +165,23 @@ class SimpleScanner(DefaultParametricScanner):
         names = self._names
 
         dprint1("Simple Scanner: Target " + str(self.target_phys))
-        for k, name in enumerate(names):
-            id_list = []
-            for phys in self.target_phys:
-                if id(phys._global_ns) in id_list:
-                    continue
 
-                dprint1("Simple Scanner: Setting " + name + ':' + str(data[k]) +
-                        " setting in " + str(phys))
-                phys._global_ns[name] = data[k]
-                id_list.append(id(phys._global_ns))
+        general = self.target_phys[0].root()["General"]
+
+        for k, name in enumerate(names):
+            dprint1("Simple Scanner: Setting " + name + ':' + str(data[k]))
+            general.dataset[name] = data[k]
+
+        # for k, name in enumerate(names):
+        #    id_list = []
+        #    for phys in self.target_phys:
+        #        if id(phys._global_ns) in id_list:
+        #            continue
+
+        #        dprint1("Simple Scanner: Setting " + name + ':' + str(data[k]) +
+        #                " setting in " + str(phys))
+        #        phys._global_ns[name] = data[k]
+        #        id_list.append(id(phys._global_ns))
 
     @property
     def names(self):

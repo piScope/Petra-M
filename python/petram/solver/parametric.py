@@ -1,3 +1,4 @@
+from petram.mfem_config import use_parallel
 import os
 import traceback
 import gc
@@ -12,7 +13,6 @@ format_memory_usage = debug.format_memory_usage
 assembly_methods = {'Full assemble': 0,
                     'Reuse matrix': 1}
 
-from petram.mfem_config import use_parallel
 if use_parallel:
     import mfem.par as mfem
     from mfem.common.mpi_debug import nicePrint
@@ -20,6 +20,7 @@ if use_parallel:
 else:
     import mfem.ser as mfem
     nicePrint = dprint1
+
 
 class Parametric(SolveStep, NS_mixin):
     '''
@@ -106,7 +107,7 @@ class Parametric(SolveStep, NS_mixin):
         return v
 
     def get_possible_child(self):
-        #from solver.solinit_model import SolInit
+        # from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.nl_solver_model import NLSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
@@ -127,7 +128,7 @@ class Parametric(SolveStep, NS_mixin):
                     DWCCall, ForLoop, SetVar]
 
     def get_possible_child_menu(self):
-        #from solver.solinit_model import SolInit
+        # from solver.solinit_model import SolInit
         from petram.solver.std_solver_model import StdSolver
         from petram.solver.nl_solver_model import NLSolver
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
@@ -170,7 +171,6 @@ class Parametric(SolveStep, NS_mixin):
         scanner = self.get_scanner(nosave=True)
         probes.extend(scanner.get_probes())
         return probes
-        
 
     def get_default_ns(self):
         from petram.solver.parametric_scanner import Scan
@@ -195,7 +195,8 @@ class Parametric(SolveStep, NS_mixin):
             os.chdir(path)
         files = ['model.pmfm'] + nsfiles
         for n in files:
-            engine.symlink(os.path.join('../', n), n)
+            if not os.path.exists(n):
+                engine.symlink(os.path.join('../', n), n)
         self.case_dirs.append(path)
         return od
 
@@ -209,9 +210,14 @@ class Parametric(SolveStep, NS_mixin):
 
             is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
 
+            engine.record_environment()
+            engine.build_ns()
+
             if is_new_mesh or is_first:
                 engine.preprocess_modeldata()
                 is_first = False
+            else:
+                engine.save_processed_model()
 
             self.prepare_form_sol_variables(engine)
 
@@ -251,9 +257,26 @@ class Parametric(SolveStep, NS_mixin):
                 if kcase == 0:
                     if ksolver == 0:
                         self.init(engine)
+                        engine.record_environment()
+                        engine.build_ns()
+                        od = self.go_case_dir(engine,
+                                              kcase,
+                                              True)
+                        engine.save_processed_model()
+                        os.chdir(od)
+
                     instance.set_blk_mask()
                     instance.assemble(inplace=False)
                 else:
+                    if ksolver == 0:
+                        engine.record_environment()
+                        engine.build_ns()
+                        od = self.go_case_dir(engine,
+                                              kcase,
+                                              True)
+                        engine.save_processed_model()
+                        os.chdir(od)
+
                     engine.set_update_flag('ParametricRHS')
 
                     done = []
@@ -316,12 +339,13 @@ class Parametric(SolveStep, NS_mixin):
                         if ksol == 0:
                             instance.save_solution(mesh_only=True,
                                                    save_parmesh=s.save_parmesh)
-                            save_mesh_linkdir = None
+                            save_mesh_linkdir = os.getcwd()
 
                         if is_sol_central:
                             A.reformat_central_mat(solall, ksol, X[0], mask)
                         else:
-                            A.reformat_distributed_mat(solall, ksol, X[0], mask)
+                            A.reformat_distributed_mat(
+                                solall, ksol, X[0], mask)
 
                         instance.sol = X[0]
                         for p in instance.probe:
@@ -329,7 +353,7 @@ class Parametric(SolveStep, NS_mixin):
 
                         od = self.go_case_dir(engine,
                                               ksol,
-                                              ksolver == 0)
+                                              False)
 
                         instance.save_solution(ksol=ksol,
                                                skip_mesh=False,
@@ -337,8 +361,8 @@ class Parametric(SolveStep, NS_mixin):
                                                save_parmesh=s.save_parmesh,
                                                save_mesh_linkdir=save_mesh_linkdir)
 
-                        if save_mesh_linkdir is None:
-                            save_mesh_linkdir = os.getcwd()
+                        #if save_mesh_linkdir is None:
+                        #    save_mesh_linkdir = os.getcwd()
 
                         engine.sol = instance.sol
                         instance.save_probe()

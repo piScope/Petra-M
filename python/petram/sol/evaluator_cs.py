@@ -41,7 +41,7 @@ wait_time = 0.3
 def enqueue_output(p, queue, prompt):
     while True:
         line = p.stdout.readline()
-        #print("line", line)
+        #print("line received", line)
 
         if len(line) == 0:
             time.sleep(wait_time)
@@ -260,7 +260,7 @@ class EvaluatorClient(Evaluator):
         self.failed = False
 
     def __del__(self):
-        self.terminate_all()
+        #self.terminate_all()
         if self.p is not None:
             if self.p.poll() is None:
                 self.p.terminate()
@@ -269,6 +269,9 @@ class EvaluatorClient(Evaluator):
     def __call_server0(self, name, *params, **kparams):
         if self.p is None:
             return
+        if self.p.poll() is not None:
+            assert False, "Child process is already dead"
+
         verbose = kparams.pop("verbose", False)
         force_protocol1 = kparams.pop("force_protocol1", False)
         prompt = kparams.pop("prompt", "?")
@@ -276,6 +279,7 @@ class EvaluatorClient(Evaluator):
         command = [name, params, kparams]
         data = binascii.b2a_hex(pickle.dumps(command))
         print("Sending request", command)
+
         self.p.stdin.write(data.decode('utf-8') + '\n')
         self.p.stdin.flush()
 
@@ -323,6 +327,7 @@ class EvaluatorClient(Evaluator):
             self.failed = True
             raise
         except:
+            self.failed = True
             raise
 
     def set_model(self,  *params, **kparams):
@@ -347,6 +352,8 @@ class EvaluatorClient(Evaluator):
     def validate_evaluator(self,  *params, **kparams):
         if self.p is None:
             return False
+        if self.p.poll() is not None:
+            return False
         #kparams["verbose"] = True
         return self.__call_server('validate_evaluator', *params, **kparams)
 
@@ -363,10 +370,40 @@ class EvaluatorClient(Evaluator):
         return self.__call_server('eval_probe', *params, **kparams)
 
     def terminate_all(self):
+        self.terminate_allnow()
+        return
+
+        #try:
+        #    ret = self.__call_server('terminate_all',
+        #                             prompt='byebye',
+        #                             force_protocol1=True)
+        #
+        # except BrokenPipeError:
+        #   print("Broken Pipe Error, teminating the connection")
+        #    self.p.terminate()
+        #    self.p = None
+        #    return
+        # except BaseException:
+        #    import traceback
+        #    traceback.print_exc()
+        #    self.p.terminate()
+        #    self.p = None
+        #    return
+
+        #if self.p is not None:
+        #    if self.p.poll() is None:
+        #        self.p.terminate()
+
+        #print("exiting terminate_all", self.p)
+        #return ret
+
+    def terminate_allnow(self):
         try:
-            ret = self.__call_server('terminate_all',
-                                     prompt='byebye',
-                                     force_protocol1=True)
+           if self.p is not None and  self.p.poll() is None:
+               ret = self.__call_server('terminate_all',
+                                        nowait=True)
+           else:
+               ret = None
 
         except BrokenPipeError:
             # when server-side client is dead, terminate connection
@@ -374,20 +411,9 @@ class EvaluatorClient(Evaluator):
             self.p.terminate()
             self.p = None
             return
-
-        if self.p is not None:
-            if self.p.poll() is None:
-                self.p.terminate()
-        return ret
-
-    def terminate_allnow(self):
-        try:
-            ret = self.__call_server('terminate_all',
-                                     nowait=True)
-
-        except BrokenPipeError:
-            # when server-side client is dead, terminate connection
-            print("Broken Pipe Error, teminating the connection")
+        except BaseException:
+            import traceback
+            traceback.print_exc()
             self.p.terminate()
             self.p = None
             return

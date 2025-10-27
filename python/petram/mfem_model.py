@@ -131,12 +131,16 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         self.root()._parameters = {}
         self.root()._init_done = True
 
-    def get_defualt_local_ns(self):
+    def get_default_ns(self):
         '''
         GeneralRoot Namelist knows basic functions
         '''
         import petram.helper.functions
-        return petram.helper.functions.f.copy()
+        ns = petram.helper.functions.f.copy()
+        ns['PETRAM_ARRAY_ID'] = 0
+        ns['PETRAM_ARRAY_COUNT'] = 1
+
+        return ns
 
     def save_attribute_set(self, skip_def_check):
         ret = Model.save_attribute_set(self, skip_def_check)
