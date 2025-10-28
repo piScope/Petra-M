@@ -1,5 +1,5 @@
 [project]
-name = "PetraM"
+name = "petram"
 license = "GPL-3.0-only"
 description='PetraM finite element analysis framework base package'
 authors = [ { name = "S. Shiraiwa" } ]
@@ -18,7 +18,6 @@ classifiers = [
 ]
 dependencies = [
     "mfem >= 4.8",
-    "gmsh == 4.10.5"
 ]
 
 [project.urls]
