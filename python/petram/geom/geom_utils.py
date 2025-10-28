@@ -1,6 +1,7 @@
-import numpy as np
-import scipy
 from collections import defaultdict
+
+import numpy as np
+from scipy.linalg import null_space, lstsq
 
 
 def rotation_mat(ax, an):
@@ -36,7 +37,7 @@ def normal2points(p1, eps=1e-13):
     null_mask = (s <= eps)
     if sum(null_mask) == 0:
         print("no null space??", p1, s)
-    null_space = scipy.compress(null_mask, vh, axis=0)
+    null_space = np.compress(null_mask, vh, axis=0)
     norm = null_space[0, :3]
     norm = norm / np.sqrt(np.sum(norm**2))
     return norm
@@ -181,7 +182,7 @@ def find_s_pairs(src, dst, s, l_pairs):
 
 
 def find_normal_from_edgedata(edge_tss, lines):
-    ii = np.in1d(edge_tss[2], lines)
+    ii = np.isin(edge_tss[2], lines)
     ptx = edge_tss[0][np.unique(edge_tss[1][ii])]
     n1 = normal2points(ptx)
     #print("normal based on edge tss", n1)
@@ -361,9 +362,6 @@ def find_rotation_between_surface(src, dst, edge_tss, geom=None,
 
         M = np.vstack((n1, n2))
         b = np.array([np.sum(n1 * p1[0]), np.sum(n2 * p2[0])])
-
-        from scipy.linalg import null_space
-        from numpy.linalg import lstsq
 
         ax = null_space(M).flatten()
         px, res, rank, ss = lstsq(M, b, rcond=None)

@@ -244,13 +244,13 @@ class Geometry():
 
     def bounding_box(self, shape=None, tolerance=1e-5):
         from OCC.Core.Bnd import Bnd_Box
-        from OCC.Core.BRepBndLib import brepbndlib_Add
+        from OCC.Core.BRepBndLib import brepbndlib
 
         shape = self.shape if shape is None else shape
 
         bbox = Bnd_Box()
         bbox.SetGap(tolerance)
-        brepbndlib_Add(shape, bbox)
+        brepbndlib.Add(shape, bbox)
         if bbox.IsOpen():
             return (0, 0, 0, 0, 0, 0)
         if bbox.IsVoid():
@@ -486,7 +486,7 @@ class Geometry():
             ex1.Next()
 
         dprint1("exproted brep file:", filename)
-        breptools_Write(comp, filename)
+        breptools.Write(comp, filename)
 
     def inspect_shape(self, shape, verbose=False, return_all=False):
         maps = prep_maps(shape)
@@ -514,13 +514,13 @@ class Geometry():
 
         ex1 = TopExp_Explorer(shape, TopAbs_SOLID)
         while ex1.More():
-            s = topods_Solid(ex1.Current())
+            s = ex1.Current()
             if usolids.not_seen(s):
                 dprint1(s)
             ex1.Next()
         ex1 = TopExp_Explorer(shape, TopAbs_FACE)
         while ex1.More():
-            s = topods_Face(ex1.Current())
+            s = ex1.Current()
             if ufaces.not_seen(s):
                 surf = self.bt.Surface(s)
                 surf, kind = downcast(surf)
@@ -528,7 +528,7 @@ class Geometry():
             ex1.Next()
         ex1 = TopExp_Explorer(shape, TopAbs_EDGE)
         while ex1.More():
-            s = topods_Edge(ex1.Current())
+            s = ex1.Current()
             if uedges.not_seen(s):
                 curve, first, last = self.bt.Curve(s)
                 curve, kind = downcast_curve(curve)
@@ -536,7 +536,7 @@ class Geometry():
             ex1.Next()
         ex1 = TopExp_Explorer(shape, TopAbs_VERTEX)
         while ex1.More():
-            s = topods_Vertex(ex1.Current())
+            s = ex1.Current()
             if uvertices.not_seen(s):
                 pnt = self.bt.Pnt(s)
                 dprint1("Point", pnt.X(), pnt.Y(), pnt.Z())
@@ -624,7 +624,7 @@ class Geometry():
         shape = self.edges[gid]
         shape2 = shape.Reversed()
         return self.edges.add(shape2)
-        '''   
+        '''
         curve, first, last = self.bt.Curve(shape)
         rcurve = curve.Reversed()
         edgeMaker = BRepBuilderAPI_MakeEdge(rcurve, last, first)
@@ -670,7 +670,7 @@ class Geometry():
             assert False, "Can not make line"
         edge = edgeMaker.Edge()
         # return self.edges.add(edge)
-        new_objs = self.register_shaps_balk(edge)
+        new_objs = self.register_shapes_balk(edge)
         return new_objs
 
     def add_circle_arc(self, pnt1, pnt3, pnt2):
@@ -847,9 +847,9 @@ class Geometry():
         wire = wireMaker.Wire()
 
         # make wire constraints
-        ex1 = BRepTools_WireExplorer(wire)
+        ex1 = Breptools.WireExplorer(wire)
         while ex1.More():
-            edge = topods_Edge(ex1.Current())
+            edge = ex1.Current()
             C = BRepAdaptor_HCurve()
             C.ChangeCurve().Initialize(edge)
             Cont = BRepFill_CurveConstraint(C, 0)
@@ -888,14 +888,13 @@ class Geometry():
         result = fix.Face()
 
         result = self.select_highest_dim(result)
-        new_objs = self.register_shaps_balk(result)
+        new_objs = self.register_shapes_balk(result)
 
         return new_objs
     '''
 
     def add_surface_filling(self, gids_edge, gids_vertex):
         from OCC.Core.GeomAbs import GeomAbs_C0
-        from OCC.Core.BRepTools import BRepTools_WireExplorer
 
         bt = BRep_Tool()
         f = BRepOffsetAPI_MakeFilling()
@@ -912,9 +911,9 @@ class Geometry():
         wire = wireMaker.Wire()
 
         # make wire constraints
-        ex1 = BRepTools_WireExplorer(wire)
+        ex1 = Breptools_WireExplorer(wire)
         while ex1.More():
-            edge = topods_Edge(ex1.Current())
+            edge = ex1.Current()
             f.Add(edge, GeomAbs_C0)
             ex1.Next()
 
@@ -1032,7 +1031,7 @@ class Geometry():
 
         ex1 = TopExp_Explorer(result, TopAbs_SHELL)
         while ex1.More():
-            shell = topods_Shell(ex1.Current())
+            shell = ex1.Current()
             fixer = ShapeFix_Shell(shell)
             fixer.Perform()
             shell = fixer.Shell()
@@ -1070,7 +1069,9 @@ class Geometry():
 
         fixer = ShapeFix_Solid(result)
         fixer.Perform()
-        result = topods_Solid(fixer.Solid())
+
+        assert isinstance(fixer.Solid(), TopoDS_Solid), "wrong TopoDS type is detected"
+        result = fixer.Solid()
 
         solid_id = self.solids.add(result)
         return solid_id
@@ -1089,9 +1090,10 @@ class Geometry():
         if not s.IsDone():
             assert False, "Could not create sphere"
 
-        result = topods_Solid(s.Shape())
+        assert isinstance(s.Shape(), TopoDS_Solid), "wrong TopoDS type is detected"
+        result = s.Shape()
         result = self.select_highest_dim(result)
-        new_objs = self.register_shaps_balk(result)
+        new_objs = self.register_shapes_balk(result)
 
         return new_objs
 
@@ -1111,9 +1113,10 @@ class Geometry():
         if not c.IsDone():
             assert False, "Could not create cone"
 
-        result = topods_Solid(c.Shape())
+        assert isinstance(c.Shape(), TopoDS_Solid), "wrong TopoDS type is detected"
+        result = c.Shape()
         result = self.select_highest_dim(result)
-        new_objs = self.register_shaps_balk(result)
+        new_objs = self.register_shapes_balk(result)
 
         return new_objs
 
@@ -1129,9 +1132,10 @@ class Geometry():
         if not w.IsDone():
             assert False, "Could not create wedge"
 
-        result = topods_Solid(w.Shape())
+        assert isinstance(w.Shape(), TopoDS_Solid), "wrong TopoDS type is detected"
+        result = w.Shape()
         result = self.select_highest_dim(result)
-        new_objs = self.register_shaps_balk(result)
+        new_objs = self.register_shapes_balk(result)
 
         return new_objs
 
@@ -1155,9 +1159,10 @@ class Geometry():
         if not cl.IsDone():
             assert False, "Can not create cylinder"
 
-        result = topods_Solid(cl.Shape())
+        assert isinstance(cl.Shape(), TopoDS_Solid), "wrong TopoDS type is detected"
+        result = cl.Shape()
         result = self.select_highest_dim(result)
-        new_objs = self.register_shaps_balk(result)
+        new_objs = self.register_shapes_balk(result)
 
         return new_objs
 
@@ -1179,9 +1184,10 @@ class Geometry():
         if not t.IsDone():
             assert False, "Could not create torus"
 
-        result = topods_Solid(t.Shape())
+        assert isinstance(t.Shape(), TopoDS_Solid), "wrong TopoDS type is detected"
+        result = t.Shape()
         result = self.select_highest_dim(result)
-        new_objs = self.register_shaps_balk(result)
+        new_objs = self.register_shapes_balk(result)
 
         return new_objs
 
@@ -1219,7 +1225,7 @@ class Geometry():
         result = f.Shape()
 
         result = self.select_highest_dim(result)
-        new_objs = self.register_shaps_balk(result, self.shape)
+        new_objs = self.register_shapes_balk(result, self.shape)
 
         return new_objs
 
@@ -1246,7 +1252,7 @@ class Geometry():
         result = f.Shape()
 
         result = self.select_highest_dim(result)
-        new_objs = self.register_shaps_balk(result, self.shape)
+        new_objs = self.register_shapes_balk(result, self.shape)
 
         return new_objs
 
@@ -1287,7 +1293,7 @@ class Geometry():
         result = f.Shape()
 
         result = self.select_highest_dim(result)
-        new_objs = self.register_shaps_balk(result)
+        new_objs = self.register_shapes_balk(result)
 
         return new_objs
 
@@ -1318,7 +1324,7 @@ class Geometry():
         result = f.Shape()
 
         result = self.select_highest_dim(result)
-        new_objs = self.register_shaps_balk(result, self.shape)
+        new_objs = self.register_shapes_balk(result, self.shape)
 
         return new_objs
 
@@ -1466,7 +1472,7 @@ class Geometry():
                 str(nsmall) +
                 " faces are found too small")
 
-        new_objs = self.register_shaps_balk(result, check_this=self.shape)
+        new_objs = self.register_shapes_balk(result, check_this=self.shape)
 
         return new_objs
 
@@ -1646,7 +1652,7 @@ class Geometry():
 
         if keep_highest:
             result = self.select_highest_dim(result)
-        new_objs = self.register_shaps_balk(result)
+        new_objs = self.register_shapes_balk(result)
 
         return new_objs
 
@@ -1822,7 +1828,7 @@ class Geometry():
         isNew = not new_shape.IsSame(shape)
 
         if use_compound:
-            gids_new = self.register_shaps_balk(new_shape)
+            gids_new = self.register_shapes_balk(new_shape)
             if not copy:
                 for g in gid:
                     self.remove(g)
@@ -1907,7 +1913,7 @@ class Geometry():
         '''
         p = max((a * a + b * b + c * c), 1e-12)
         f = -2.0 / p
-        vec = (a * d * f, b * d * f, c * d * f) 
+        vec = (a * d * f, b * d * f, c * d * f)
         mat = (1 + a * a * f,
                a * b * f,
                a * c * f,
@@ -2024,7 +2030,7 @@ class Geometry():
 #        self.remove(gid)
 #
         result = self.select_highest_dim(result)
-        new_objs = self.register_shaps_balk(result, check_this=self.shape)
+        new_objs = self.register_shapes_balk(result, check_this=self.shape)
 
         return new_objs
 
@@ -2200,7 +2206,7 @@ class Geometry():
         ex1 = TopExp_Explorer(result, TopAbs_SHELL)
         while ex1.More():
             print("fixing shell")
-            shell = topods_Shell(ex1.Current())
+            shell = ex1.Current()
             fixer = ShapeFix_Shell(shell)
             fixer.Perform()
             shell = fixer.Shell()
@@ -2623,7 +2629,7 @@ class Geometry():
         self.remove(target)
         self.synchronize_topo_list(action='both')
 
-        gids_new = self.register_shaps_balk(result, check_this=self.shape)
+        gids_new = self.register_shapes_balk(result, check_this=self.shape)
         newkeys = []
         for gid in gids_new:
             newkeys.append(objs.addobj(gid, 'obj'))
@@ -2675,7 +2681,7 @@ class Geometry():
                     good = True
             if good:
                 self.remove(v)
-                gids_new = self.register_shaps_balk(
+                gids_new = self.register_shapes_balk(
                     shape, check_this=self.shape)
                 for gid in gids_new:
                     newkeys.append(objs.addobj(gid, 'uni'))
@@ -3175,7 +3181,7 @@ class Geometry():
 
         result = SolidMaker.Shape()
 
-        gids_new = self.register_shaps_balk(result)
+        gids_new = self.register_shapes_balk(result)
 
         newkeys = []
         for gid in gids_new:
@@ -3247,14 +3253,16 @@ class Geometry():
 
                     fixer = ShapeFix_Solid(result)
                     fixer.Perform()
-                    result = topods_Solid(fixer.Solid())
+
+                    assert isinstance(fixer.Solid(), TopoDS_Solid), "wrong TopoDS type is detected"
+                    result = fixer.Solid()
                     results.append(result)
             else:
                 results.extend(shells)
 
         newkeys = []
         for r in results:
-            gids_new = self.register_shaps_balk(r)
+            gids_new = self.register_shapes_balk(r)
             for gid in gids_new:
                 newkeys.append(objs.addobj(gid, 'ofst'))
 
@@ -3329,7 +3337,7 @@ class Geometry():
 
         newkeys = []
         for r in results:
-            gids_new = self.register_shaps_balk(r)
+            gids_new = self.register_shapes_balk(r)
             for gid in gids_new:
                 newkeys.append(objs.addobj(gid, 'ofst'))
 
@@ -3350,7 +3358,7 @@ class Geometry():
         result = self.project_shape_on_wp(targets, cptx, normal, fill=fill)
 
         newkeys = []
-        gids_new = self.register_shaps_balk(result)
+        gids_new = self.register_shapes_balk(result)
 
         for gid in gids_new:
             newkeys.append(objs.addobj(gid, 'prj'))
@@ -4627,7 +4635,7 @@ class Geometry():
         if not do_fill:
             newkey1 = objs.addobj(ca1, 'ln')
             shape1 = self.edges[ca1]
-            #new_objs = self.register_shaps_balk(shape1)
+            #new_objs = self.register_shapes_balk(shape1)
             self.builder.Add(self.shape, shape1)
             newkeys = [newkey1, ]
 
@@ -4965,7 +4973,7 @@ class Geometry():
             self.remove(gid)
 
         result = operator.Shape()
-        gids_new = self.register_shaps_balk(result, check_this=self.shape)
+        gids_new = self.register_shapes_balk(result, check_this=self.shape)
 
         newkeys = []
         for gid in gids_new:
@@ -4993,7 +5001,7 @@ class Geometry():
         if np.sum(ax1**2) != 0.0 and an1 != 0.0:
             result = do_rotate(result, ax1, -an1, txt='1st')
 
-        gids_new = self.register_shaps_balk(result)
+        gids_new = self.register_shapes_balk(result)
 
         self.synchronize_topo_list()
 
@@ -5017,7 +5025,7 @@ class Geometry():
 
         shape = self.shape
         self.pop_shape_and_topolist()
-        gids_new = self.register_shaps_balk(shape)
+        gids_new = self.register_shapes_balk(shape)
 
         self.synchronize_topo_list(action='both')
         #self.inspect_shape(self.shape, verbose=True)
@@ -5148,13 +5156,13 @@ class Geometry():
         b.MakeCompound(comp)
 
         mmm = TopTools_IndexedMapOfShape()
-        topexp_MapShapes(shape, TopAbs_SOLID, mmm)
+        topexp.MapShapes(shape, TopAbs_SOLID, mmm)
         if mmm.Size() == 0:
-            topexp_MapShapes(shape, TopAbs_FACE, mmm)
+            topexp.MapShapes(shape, TopAbs_FACE, mmm)
             if mmm.Size() == 0:
-                topexp_MapShapes(shape, TopAbs_EDGE, mmm)
+                topexp.MapShapes(shape, TopAbs_EDGE, mmm)
                 if mmm.Size() == 0:
-                    topexp_MapShapes(shape, TopAbs_VERTEX, mmm)
+                    topexp.MapShapes(shape, TopAbs_VERTEX, mmm)
                     ex1 = TopExp_Explorer(shape, TopAbs_VERTEX)
                 else:
                     ex1 = TopExp_Explorer(shape, TopAbs_EDGE)
@@ -5168,9 +5176,9 @@ class Geometry():
             ex1.Next()
         return comp
 
-    def register_shaps_balk(self, shape, check_this=None):
+    def register_shapes_balk(self, shape, check_this=None):
         '''
-          register a shape to topo_list. 
+          register a shape to topo_list.
           check_this : a shape.
               if this is given, we don't register an entity which is already
               contained in this shape. Usually self.shape
@@ -5203,14 +5211,14 @@ class Geometry():
         # registor solid
         ex1 = TopExp_Explorer(shape, TopAbs_SOLID)
         while ex1.More():
-            solid = topods_Solid(ex1.Current())
+            solid = ex1.Current()
             if (not (do_check and maps2['solid'].Contains(solid)) and
                     usolids.check_shape(solid) == 0):
                 solid_id = self.solids.add(solid)
                 new_objs.append(solid_id)
             ex1.Next()
 
-        def register_topo(shape, ucounter, topabs, topabs_p, topods, topods_p,
+        def register_topo(shape, ucounter, topabs, topabs_p,
                           topo_list, dim=-1, map2_name=None):
 
             if maps2 is not None:
@@ -5219,10 +5227,10 @@ class Geometry():
 
             ex1 = TopExp_Explorer(shape, topabs_p)
             while ex1.More():
-                topo_p = topods_p(ex1.Current())
+                topo_p = ex1.Current()
                 ex2 = TopExp_Explorer(topo_p, topabs)
                 while ex2.More():
-                    topo = topods(ex2.Current())
+                    topo = ex2.Current()
                     if (not (do_check and map2a.Contains(topo)) and
                             ucounter.check_shape(topo) == 0):
                         topo_id = topo_list.add(topo)
@@ -5230,7 +5238,7 @@ class Geometry():
                 ex1.Next()
             ex1.Init(shape, topabs, topabs_p)
             while ex1.More():
-                topo = topods(ex1.Current())
+                topo = ex1.Current()
                 if (not (do_check and map2b.Contains(topo)) and
                         ucounter.check_shape(topo) == 0):
                     topo_id = topo_list.add(topo)
@@ -5243,8 +5251,6 @@ class Geometry():
             ushells,
             TopAbs_SHELL,
             TopAbs_SOLID,
-            topods_Shell,
-            topods_Solid,
             self.shells,
             map2_name=('shell', 'solid'))
         register_topo(
@@ -5252,8 +5258,6 @@ class Geometry():
             ufaces,
             TopAbs_FACE,
             TopAbs_SHELL,
-            topods_Face,
-            topods_Shell,
             self.faces,
             dim=2,
             map2_name=('face', 'shell'))
@@ -5263,8 +5267,6 @@ class Geometry():
             uwires,
             TopAbs_WIRE,
             TopAbs_FACE,
-            topods_Wire,
-            topods_Face,
             self.wires,
             map2_name=('wire', 'face'))
 
@@ -5273,8 +5275,6 @@ class Geometry():
             uedges,
             TopAbs_EDGE,
             TopAbs_WIRE,
-            topods_Edge,
-            topods_Wire,
             self.edges,
             dim=1,
             map2_name=('edge', 'wire'))
@@ -5283,8 +5283,6 @@ class Geometry():
                       uvertices,
                       TopAbs_VERTEX,
                       TopAbs_EDGE,
-                      topods_Vertex,
-                      topods_Edge,
                       self.vertices,
                       dim=0,
                       map2_name=('vertex', 'edge'))
@@ -5335,7 +5333,7 @@ class Geometry():
 
             # if highestDimOnly:
             #    shape = self.select_highest_dim(shape)
-            #new_objs = self.register_shaps_balk(shape)
+            #new_objs = self.register_shapes_balk(shape)
 
             shape = heal_shape(shape, scaling=scaling, fixDegenerated=fixD,
                                fixSmallEdges=fixE, fixSmallFaces=fixF,
@@ -5349,13 +5347,13 @@ class Geometry():
             self.write_brep(tmp_brep, shape=shape)
 
             shape = TopoDS_Shape()
-            success = breptools_Read(shape, tmp_brep, self.builder)
+            success = breptools.Read(shape, tmp_brep, self.builder)
             if not success:
                 assert False, "Failed to read brep"
             '''
         if highestDimOnly:
             shape = self.select_highest_dim(shape)
-        new_objs = self.register_shaps_balk(shape)
+        new_objs = self.register_shapes_balk(shape)
 
         self.synchronize_topo_list(action='both')
 
@@ -5413,21 +5411,18 @@ class Geometry():
 
         import os
         cad_file = os.path.expanduser(cad_file)
-        success = breptools_Read(shape, cad_file, self.builder)
+        success = breptools.Read(shape, cad_file, self.builder)
 
         if not success:
             assert False, "Failed to read brep"
 
-        breptools_Clean(shape)
+        breptools.Clean(shape)
         return self.importShape_common(shape, highestDimOnly, fix_param, objs)
 
     def CADImport_build_geom(self, objs, *args):
         from OCC.Core.STEPControl import STEPControl_Reader
         from OCC.Core.IGESControl import IGESControl_Reader
         from OCC.Core.IFSelect import IFSelect_RetDone, IFSelect_ItemsByEntity
-        from OCC.Core.Interface import (Interface_Static_SetCVal,
-                                        Interface_Static_SetRVal,
-                                        Interface_Static_SetIVal)
 
         unit = args[-1]
         cad_file, use_fix, use_fix_param, use_fix_tol, use_fix_rescale, highestDimOnly = args[
@@ -5450,7 +5445,7 @@ class Geometry():
             assert False, "unsupported format"
 
         if unit != '':
-            check = Interface_Static_SetCVal("xstep.cascade.unit", unit)
+            check = Interface_Static.SetCVal("xstep.cascade.unit", unit)
             if not check:
                 assert False, "can not set unit"
 
@@ -5466,7 +5461,7 @@ class Geometry():
         else:
             assert False, "Error: can't read STEP/IGES file."
 
-        breptools_Clean(shape)
+        breptools.Clean(shape)
         return self.importShape_common(shape, highestDimOnly, fix_param, objs)
 
     def make_safe_file(self, filename, trash, ext):
@@ -5495,7 +5490,7 @@ class Geometry():
             ad = self.occ_angle_deflection
             ld = self.occ_linear_deflection
 
-            breptools_Clean(self.shape)
+            breptools.Clean(self.shape)
             # BRepMesh_IncrementalMesh(self.shape, ld * adeviation,
             #                         False, ad, self.occ_parallel)
             prm = IMeshTools_Parameters()
@@ -5534,13 +5529,13 @@ class Geometry():
         vert2iverte = topo2id(self.vertices, vertMap)
 
         face2solid = TopTools_IndexedDataMapOfShapeListOfShape()
-        topexp_MapShapesAndAncestors(
+        topexp.MapShapesAndAncestors(
             self.shape, TopAbs_FACE, TopAbs_SOLID, face2solid)
         edge2face = TopTools_IndexedDataMapOfShapeListOfShape()
-        topexp_MapShapesAndAncestors(
+        topexp.MapShapesAndAncestors(
             self.shape, TopAbs_EDGE, TopAbs_FACE, edge2face)
         vertex2edge = TopTools_IndexedDataMapOfShapeListOfShape()
-        topexp_MapShapesAndAncestors(
+        topexp.MapShapesAndAncestors(
             self.shape, TopAbs_VERTEX, TopAbs_EDGE, vertex2edge)
 
         def value2coord(value, location):
@@ -5787,7 +5782,6 @@ class Geometry():
         if data_wp is not None:
             geom_msh, l, s, v, vcl, esize, ptx, shape, idx = data_wp
             ptx = self.move_wp_points(ptx, *self._last_wp_param)
-            #print("l here", l)
             data_wp = geom_msh, l, s, v, vcl, esize, ptx, shape, idx
 
         wp_shape = self.shape
@@ -5806,7 +5800,6 @@ class Geometry():
         return None
 
     def generate_brep(self, filename, trash, finalize=False):
-        print("finalize", finalize)
         if finalize and not self.skip_final_frag:
             if self.logfile is not None:
                 self.logfile.write("finalize is on \n")
@@ -5822,10 +5815,8 @@ class Geometry():
         return geom_brep
 
     def load_finalized_brep(self, brep_file):
-        from OCC.Core.BRepTools import breptools_Read
-
         shape = TopoDS_Shape()
-        success = breptools_Read(shape, brep_file, self.builder)
+        success = breptools.Read(shape, brep_file, self.builder)
 
         if not success:
             assert False, "Failed to read brep" + str(brep_file)
@@ -5834,7 +5825,7 @@ class Geometry():
         self.prep_topo_list()
 
         shape = self.select_highest_dim(shape)
-        new_objs = self.register_shaps_balk(shape)
+        new_objs = self.register_shapes_balk(shape)
 
     '''
     sequence/preview/brep generator
@@ -6023,15 +6014,11 @@ class Geometry():
                                           STEPControl_ShellBasedSurfaceModel,
                                           STEPControl_GeometricCurveSet,)
         from OCC.Core.IFSelect import IFSelect_RetDone, IFSelect_ItemsByEntity
-        from OCC.Core.Interface import (Interface_Static_SetCVal,
-                                        Interface_Static_SetIVal,
-                                        Interface_Static_SetRVal)
 
         if not stlmode:
-            writer = STEPControl_Writer()
 
-            check = Interface_Static_SetIVal(
-                "write.step.assembly", 1, verbose=False)
+            writer = STEPControl_Writer()
+            check = Interface_Static.SetIVal("write.step.assembly", 1)
 
             # we assume the model is made in M
             write_interface_value("write.step.unit", "M", C=True)
@@ -6051,10 +6038,10 @@ class Geometry():
                 assert False, "failed to write step file"
         else:
             '''
-            this is based on 
-               from OCC.Extend.DataExchange import write_stl_file            
+            this is based on
+               from OCC.Extend.DataExchange import write_stl_file
 
-               we don't use it as it is, since I suppose we don't need to 
+               we don't use it as it is, since I suppose we don't need to
                mesh it
             '''
             from OCC.Core.StlAPI import StlAPI_Writer

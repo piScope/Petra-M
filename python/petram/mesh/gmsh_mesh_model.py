@@ -306,7 +306,7 @@ class GmshMeshActionBase(GMesh, Vtable_mixin):
                 if child == self:
                     break
                 sel, mode = child.get_element_selection()
-                choices = choices[np.in1d(choices, sel[mode], invert=True)]
+                choices = choices[np.isin(choices, sel[mode], invert=True)]
             choices = ",".join([str(int(x)) for x in choices])
             return choices
 

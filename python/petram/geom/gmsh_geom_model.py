@@ -530,7 +530,6 @@ class GmshGeom(GeomTopBase):
         return self.onUpdateGeoView4(evt, filename=filename)
 
     def walk_over_geom_chidlren(self, geom, stop1=None, stop2=None):
-        print("stops", stop1, stop2)
         geom.clear_sequence()
 
         self._build_stop = (None, None)

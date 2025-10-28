@@ -1345,7 +1345,7 @@ class GMSHMeshWrapper():
         def check_shift(f):
             edges1 = [x[1] for x in gmsh.model.getBoundary(
                 [(2, f)], oriented=False, combined=False)]
-            check = np.in1d(edges1, corner_edges)
+            check = np.isin(edges1, corner_edges)
             if (check[0] and check[1]) or (check[2] and check[3]):
                 return 'Right'
             if (check[1] and check[2]) or (check[0] and check[3]):

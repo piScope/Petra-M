@@ -17,21 +17,16 @@ hasOCC = False
 try:
     import OCC
     import OCC.Core.Geom
+    from OCC.Core.Interface import Interface_Static
     from OCC.Core.GeomAPI import (GeomAPI_Interpolate,
                                   GeomAPI_ProjectPointOnSurf,
                                   GeomAPI_ProjectPointOnCurve)
     from OCC.Core.Geom import Geom_Plane
     from OCC.Core.BRepMesh import BRepMesh_IncrementalMesh
     from OCC.Core.TopLoc import TopLoc_Location
-    from OCC.Core.TopExp import (TopExp_Explorer,
-                                 topexp_MapShapes,
-                                 topexp_MapShapesAndAncestors)
+    from OCC.Core.TopExp import topexp, TopExp_Explorer
     from OCC.Core.BRep import BRep_Builder, BRep_Tool
-    from OCC.Core.BRepTools import (breptools_Write,
-                                    breptools_Read,
-                                    breptools_Clean,
-                                    BRepTools_WireExplorer)
-
+    from OCC.Core.BRepTools import breptools, BRepTools_WireExplorer
     from OCC.Core.TopTools import (TopTools_IndexedMapOfShape,
                                    TopTools_IndexedDataMapOfShapeListOfShape,
                                    TopTools_ListIteratorOfListOfShape,
@@ -51,15 +46,7 @@ try:
                                  TopoDS_Face,
                                  TopoDS_Wire,
                                  TopoDS_Edge,
-                                 TopoDS_Vertex,
-                                 topods_Compound,
-                                 topods_CompSolid,
-                                 topods_Solid,
-                                 topods_Shell,
-                                 topods_Face,
-                                 topods_Wire,
-                                 topods_Edge,
-                                 topods_Vertex)
+                                 TopoDS_Vertex,)
     from OCC.Core.TopAbs import (TopAbs_COMPSOLID,
                                  TopAbs_COMPOUND,
                                  TopAbs_SOLID,
@@ -115,8 +102,7 @@ try:
     from OCC.Core.BOPAlgo import BOPAlgo_Splitter
 
     from OCC.Core.GProp import GProp_GProps
-    from OCC.Core.BRepGProp import (brepgprop_LinearProperties,
-                                    brepgprop_SurfaceProperties)
+    from OCC.Core.BRepGProp import brepgprop
     from OCC.Core.TColgp import TColgp_HArray1OfPnt
 
     from OCC.Core.ShapeBuild import ShapeBuild_ReShape
@@ -153,14 +139,23 @@ try:
     __ex2 = TopExp_Explorer()
     _system = GProp_GProps()
     _bt = BRep_Tool()
-    __expparam = {'compound': (TopAbs_COMPOUND, topods_Compound, ''),
-                  'compsolid': (TopAbs_COMPSOLID, topods_CompSolid, ''),
-                  'solid': (TopAbs_SOLID, topods_Solid, ''),
-                  'shell': (TopAbs_SHELL, topods_Shell, 'solid'),
-                  'face': (TopAbs_FACE, topods_Face, 'shell'),
-                  'wire': (TopAbs_WIRE, topods_Wire, 'face'),
-                  'edge': (TopAbs_EDGE, topods_Edge, 'wire'),
-                  'vertex': (TopAbs_VERTEX, topods_Vertex, 'edge')}
+    #__expparam = {'compound': (TopAbs_COMPOUND, topods_Compound, ''),
+    #              'compsolid': (TopAbs_COMPSOLID, topods_CompSolid, ''),
+    #              'solid': (TopAbs_SOLID, topods_Solid, ''),
+    #              'shell': (TopAbs_SHELL, topods_Shell, 'solid'),
+    #              'face': (TopAbs_FACE, topods_Face, 'shell'),
+    #              'wire': (TopAbs_WIRE, topods_Wire, 'face'),
+    #              'edge': (TopAbs_EDGE, topods_Edge, 'wire'),
+    #              'vertex': (TopAbs_VERTEX, topods_Vertex, 'edge')}
+    __expparam = {'compound': (TopAbs_COMPOUND, ''),
+                  'compsolid': (TopAbs_COMPSOLID, ''),
+                  'solid': (TopAbs_SOLID, ''),
+                  'shell': (TopAbs_SHELL, 'solid'),
+                  'face': (TopAbs_FACE, 'shell'),
+                  'wire': (TopAbs_WIRE, 'face'),
+                  'edge': (TopAbs_EDGE, 'wire'),
+                  'vertex': (TopAbs_VERTEX, 'edge')}
+
     __topo_names = ('solid', 'shell', 'face', 'wire', 'edge', 'vertex')
     hasOCC = True
 
@@ -193,15 +188,15 @@ def iter_shape(shape, shape_type='shell', exclude_parent=False, use_ex2=False):
         ...
     '''
     args = [__expparam[shape_type][0], ]
-    cast = __expparam[shape_type][1]
 
     if exclude_parent:
-        args.append(__expparam[shape_type][2])
+        args.append(__expparam[shape_type][1])
 
     ex = __ex2 if use_ex2 else __ex1
     ex.Init(shape, *args)
     while ex.More():
-        sub_shape = cast(ex.Current())
+        #sub_shape = cast(ex.Current())
+        sub_shape = ex.Current()
         yield sub_shape
         ex.Next()
 
@@ -257,26 +252,24 @@ def shape_name(shape):
 def get_mapper(shape, shape_type):
     mapper = TopTools_IndexedMapOfShape()
     topo_abs = __expparam[shape_type][0]
-    topexp_MapShapes(shape, topo_abs, mapper)
+    topexp.MapShapes(shape, topo_abs, mapper)
     return mapper
 
 
 def iterdouble_shape(shape_in, inner_type='shell'):
-    outer_type = __expparam[inner_type][2]
+    outer_type = __expparam[inner_type][1]
 
     args1 = [__expparam[outer_type][0], ]
     args2 = [__expparam[inner_type][0], ]
-    cast1 = __expparam[outer_type][1]
-    cast2 = __expparam[inner_type][1]
 
     __ex1.Init(shape_in, *args1)
 
     while __ex1.More():
-        p_shape = cast1(__ex1.Current())
+        p_shape = __ex1.Current()
         __ex2.Init(p_shape, *args2)
 
         while __ex2.More():
-            shape = cast2(__ex2.Current())
+            shape = __ex2.Current()
             yield shape, p_shape
             __ex2.Next()
         __ex1.Next()
@@ -447,7 +440,7 @@ def register_shape(shape, topolists):
                 if dim != -1:
                     new_objs.append(topo_id)
             ex1.Next()
-    
+
     register_topo(shape, ushells, TopAbs_SHELL, TopAbs_SOLID,
                   topods_Shell, topods_Solid, self.shells)
     register_topo(shape, ufaces, TopAbs_FACE, TopAbs_SHELL,
@@ -462,16 +455,12 @@ def register_shape(shape, topolists):
 
 
 def read_interface_value(name, R=False, I=False, C=False, verbose=True):
-    from OCC.Core.Interface import (Interface_Static_CVal,
-                                    Interface_Static_RVal,
-                                    Interface_Static_IVal)
-
     if R:
-        rp = Interface_Static_RVal(name)
+        rp = Interface_Static.RVal(name)
     if I:
-        rp = Interface_Static_IVal(name)
+        rp = Interface_Static.IVal(name)
     if C:
-        rp = Interface_Static_CVal(name)
+        rp = Interface_Static.CVal(name)
 
     if verbose:
         print(name, rp)
@@ -480,16 +469,12 @@ def read_interface_value(name, R=False, I=False, C=False, verbose=True):
 
 
 def write_interface_value(name, rp, R=False, I=False, C=False, verbose=True):
-    from OCC.Core.Interface import (Interface_Static_SetCVal,
-                                    Interface_Static_SetRVal,
-                                    Interface_Static_SetIVal)
-
     if R:
-        Interface_Static_SetRVal(name, rp)
+        Interface_Static.SetRVal(name, rp)
     if I:
-        Interface_Static_SetIVal(name, rp)
+        Interface_Static.SetIVal(name, rp)
     if C:
-        Interface_Static_SetCVal(name, rp)
+        Interface_Static.SetCVal(name, rp)
 
     if verbose:
         print("setting", name, rp)
@@ -583,12 +568,12 @@ def box_containing_bbox(normal, cptx, xmin, ymin, zmin,
 
 
 def measure_edge_length(edge):
-    brepgprop_LinearProperties(edge, _system)
+    brepgprop.LinearProperties(edge, _system)
     return _system.Mass()
 
 
 def measure_face_area(face):
-    brepgprop_SurfaceProperties(face, _system)
+    brepgprop.SurfaceProperties(face, _system)
     return _system.Mass()
 
 
@@ -843,7 +828,7 @@ class topo_list():
                     idx = mapper.FindIndex(shape)
                     found_idx.append(idx)
             tmp = np.arange(1, mapper.Size() + 1)
-            new_shape_idx = tmp[np.in1d(tmp, np.array(found_idx), invert=True)]
+            new_shape_idx = tmp[np.isin(tmp, np.array(found_idx), invert=True)]
 
             for idx in new_shape_idx:
                 shape = mapper(int(idx))
@@ -868,7 +853,7 @@ class topo_list_vertex(topo_list):
 
     def is_toplevel(self, val, compound):
         mapper = TopTools_IndexedDataMapOfShapeListOfShape()
-        topexp_MapShapesAndAncestors(
+        topexp.MapShapesAndAncestors(
             compound, TopAbs_VERTEX, TopAbs_EDGE, mapper)
         shape = self[val]
         if mapper.FindFromKey(shape).Size() == 0:
@@ -877,7 +862,7 @@ class topo_list_vertex(topo_list):
 
     def get_mapper(self, shape):
         mapper = TopTools_IndexedMapOfShape()
-        topexp_MapShapes(shape, TopAbs_VERTEX, mapper)
+        topexp.MapShapes(shape, TopAbs_VERTEX, mapper)
         return mapper
 
     def get_child_mapper(self, args):
@@ -910,7 +895,7 @@ class topo_list_edge(topo_list):
 
     def is_toplevel(self, val, compound):
         mapper = TopTools_IndexedDataMapOfShapeListOfShape()
-        topexp_MapShapesAndAncestors(
+        topexp.MapShapesAndAncestors(
             compound, TopAbs_EDGE, TopAbs_FACE, mapper)
         shape = self[val]
         if mapper.FindFromKey(shape).Size() == 0:
@@ -919,12 +904,12 @@ class topo_list_edge(topo_list):
 
     def get_mapper(self, shape):
         mapper = TopTools_IndexedMapOfShape()
-        topexp_MapShapes(shape, TopAbs_EDGE, mapper)
+        topexp.MapShapes(shape, TopAbs_EDGE, mapper)
         return mapper
 
     def get_chilld_mapper(self, shape):
         mapper = TopTools_IndexedMapOfShape()
-        topexp_MapShapes(shape, TopAbs_VERTEX, mapper)
+        topexp.MapShapes(shape, TopAbs_VERTEX, mapper)
         return mapper
 
     def add(self, shape):
@@ -946,12 +931,12 @@ class topo_list_wire(topo_list):
 
     def get_mapper(self, shape):
         mapper = TopTools_IndexedMapOfShape()
-        topexp_MapShapes(shape, TopAbs_WIRE, mapper)
+        topexp.MapShapes(shape, TopAbs_WIRE, mapper)
         return mapper
 
     def get_chilld_mapper(self, shape):
         mapper = TopTools_IndexedMapOfShape()
-        topexp_MapShapes(shape, TopAbs_EDGE, mapper)
+        topexp.MapShapes(shape, TopAbs_EDGE, mapper)
         return mapper
 
     def add(self, shape):
@@ -973,7 +958,7 @@ class topo_list_face(topo_list):
 
     def is_toplevel(self, val, compound):
         mapper = TopTools_IndexedDataMapOfShapeListOfShape()
-        topexp_MapShapesAndAncestors(
+        topexp.MapShapesAndAncestors(
             compound, TopAbs_FACE, TopAbs_SOLID, mapper)
         shape = self[val]
         if mapper.FindFromKey(shape).Size() == 0:
@@ -982,12 +967,12 @@ class topo_list_face(topo_list):
 
     def get_mapper(self, shape):
         mapper = TopTools_IndexedMapOfShape()
-        topexp_MapShapes(shape, TopAbs_FACE, mapper)
+        topexp.MapShapes(shape, TopAbs_FACE, mapper)
         return mapper
 
     def get_chilld_mapper(self, shape):
         mapper = TopTools_IndexedMapOfShape()
-        topexp_MapShapes(shape, TopAbs_WIRE, mapper)
+        topexp.MapShapes(shape, TopAbs_WIRE, mapper)
         return mapper
 
     def add(self, shape):
@@ -1009,12 +994,12 @@ class topo_list_shell(topo_list):
 
     def get_mapper(self, shape):
         mapper = TopTools_IndexedMapOfShape()
-        topexp_MapShapes(shape, TopAbs_SHELL, mapper)
+        topexp.MapShapes(shape, TopAbs_SHELL, mapper)
         return mapper
 
     def get_chilld_mapper(self, shape):
         mapper = TopTools_IndexedMapOfShape()
-        topexp_MapShapes(shape, TopAbs_FACE, mapper)
+        topexp.MapShapes(shape, TopAbs_FACE, mapper)
         return mapper
 
     def add(self, shape):
@@ -1036,7 +1021,7 @@ class topo_list_solid(topo_list):
 
     def is_toplevel(self, val, compound):
         mapper = TopTools_IndexedDataMapOfShapeListOfShape()
-        topexp_MapShapesAndAncestors(
+        topexp.MapShapesAndAncestors(
             compound, TopAbs_SOLID, TopAbs_COMPSOLID, mapper)
         shape = self[val]
         if mapper.FindFromKey(shape).Size() == 0:
@@ -1045,12 +1030,12 @@ class topo_list_solid(topo_list):
 
     def get_mapper(self, shape):
         mapper = TopTools_IndexedMapOfShape()
-        topexp_MapShapes(shape, TopAbs_SOLID, mapper)
+        topexp.MapShapes(shape, TopAbs_SOLID, mapper)
         return mapper
 
     def get_chilld_mapper(self, shape):
         mapper = TopTools_IndexedMapOfShape()
-        topexp_MapShapes(shape, TopAbs_SHELL, mapper)
+        topexp.MapShapes(shape, TopAbs_SHELL, mapper)
         return mapper
 
     def add(self, shape):

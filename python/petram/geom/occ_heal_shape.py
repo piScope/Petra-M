@@ -21,7 +21,7 @@ def _fix_Degenerated(shape, verbose=False):
     shape = rebuild.Apply(shape)
 
     mapper = TopTools_IndexedMapOfShape()
-    topexp_MapShapes(shape, TopAbs_FACE, mapper)
+    topexp.MapShapes(shape, TopAbs_FACE, mapper)
 
     rebuild = ShapeBuild_ReShape()
     for face in iter_shape_once(shape, 'face'):
@@ -68,7 +68,7 @@ def _fix_SmallEdges(shape, verbose=False, tolerance=1e-6):
         print(" - Fixing small edges")
 
     mapper = TopTools_IndexedMapOfShape()
-    topexp_MapShapes(shape, TopAbs_WIRE, mapper)
+    topexp.MapShapes(shape, TopAbs_WIRE, mapper)
 
     sfw = ShapeFix_Wire()
     rebuild = ShapeBuild_ReShape()
@@ -125,7 +125,7 @@ def _fix_SmallEdges(shape, verbose=False, tolerance=1e-6):
     rebuild = ShapeBuild_ReShape()
     for edge in iter_shape_once(shape, 'edge'):
         system = GProp_GProps()
-        brepgprop_LinearProperties(edge, system)
+        brepgprop.LinearProperties(edge, system)
         if system.Mass() < tolerance:
             print("  - Removing degenerated edge (length =" + str(system.Mass()) + ")")
             rebuild.Remove(edge)
@@ -302,7 +302,7 @@ def heal_shape(oshape, scaling=1.0, fixDegenerated=False,
     surfacecount = 0
     for face in iter_shape_once(shape, 'face'):
         system = GProp_GProps()
-        brepgprop_SurfaceProperties(face, system)
+        brepgprop.SurfaceProperties(face, system)
         surfacecount += system.Mass()
 
     do_final = False
@@ -335,7 +335,7 @@ def heal_shape(oshape, scaling=1.0, fixDegenerated=False,
     surfacecount2 = 0
     for face in iter_shape_once(shape, 'face'):
         system = GProp_GProps()
-        brepgprop_SurfaceProperties(face, system)
+        brepgprop.SurfaceProperties(face, system)
         surfacecount2 += system.Mass()
 
     new_maps = prep_maps(shape, return_all=True, return_compound=True)

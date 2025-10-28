@@ -139,7 +139,7 @@ class OCCGeom(GmshGeom):
         org_selection = viewer.dom_bdr_sel
         if len(volumes) > 0:
             hidden = list(set(viewer._hidden_volume))
-            new_sel = list(np.array(volumes)[np.in1d(
+            new_sel = list(np.array(volumes)[np.isin(
                 volumes, hidden, invert=True)]), [], [], []
         else:
             assert False, "Export Visible support only 3D geomgery"

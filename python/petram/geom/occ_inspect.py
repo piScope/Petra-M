@@ -77,7 +77,7 @@ def shape_property_txt(bt, shape):
         is_vperiodic = surf.IsVPeriodic()
 
         system = GProp_GProps()
-        brepgprop_SurfaceProperties(shape, system)
+        brepgprop.SurfaceProperties(shape, system)
         surfacecount = system.Mass()
 
         surf, kind = downcast_surface(surf)
@@ -111,7 +111,7 @@ def find_sameface(bt, shape, faces, tol):
         k = 0
         lens = []
         for edge in iter_shape_once(face, 'edge', use_ex2=True):
-            brepgprop_LinearProperties(edge, system)
+            brepgprop.LinearProperties(edge, system)
             lens.append(system.Mass())
             k = k + 1
         return k, np.sort(lens)
@@ -120,7 +120,7 @@ def find_sameface(bt, shape, faces, tol):
     for f1 in faces:
         surf = bt.Surface(f1)
         surf, kind = downcast_surface(surf)
-        brepgprop_SurfaceProperties(f1, system)
+        brepgprop.SurfaceProperties(f1, system)
         area = system.Mass()
         nedges, lengths = count_edges(f1)
         dataset.append((kind, area, nedges, lengths))
@@ -134,7 +134,7 @@ def find_sameface(bt, shape, faces, tol):
         if len(subset) == 0:
             continue
 
-        brepgprop_SurfaceProperties(f2, system)
+        brepgprop.SurfaceProperties(f2, system)
         area2 = system.Mass()
 
         subset = [x for x in subset
@@ -164,7 +164,7 @@ def find_sameedge(bt, shape, edges, tol):
     system = GProp_GProps()
 
     def measure_len(edge):
-        brepgprop_LinearProperties(edge, system)
+        brepgprop.LinearProperties(edge, system)
         return system.Mass()
 
     dataset = []
@@ -222,7 +222,7 @@ def find_min_distance_in_face(bt, shape):
 
     # diagnal is zero. needs to inflate it to find minimum
     for i in range(len(vertices)):
-        md[i, i] = np.infty
+        md[i, i] = np.inf
 
     return np.min(md.flatten())
 
