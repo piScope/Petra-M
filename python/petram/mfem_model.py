@@ -482,8 +482,8 @@ try:
 except ImportError:
     import warnings
     warnings.warn(
-        "Geometry module is not found, and some fucntionaliy is disabled"
-        "consider intalling PetraM_Geom package (https://github.com/piScope/PetraM_Geom)",
+        "Geometry module is not found, and some fucntionality is disabled"
+        "consider installing PetraM_Geom package (https://github.com/piScope/PetraM_Geom)",
         UserWarning,
         stacklevel=2  # Points the warning to the caller's location
     )

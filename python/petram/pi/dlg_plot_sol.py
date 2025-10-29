@@ -245,7 +245,7 @@ class DlgPlotSol(SimpleFramePlus):
             self.nb = AuiNotebook(self, style=style)
         else:
             # Using standard Notebook. This one does not support tooltip
-            self.nb = Notebook(self, style=style)
+            self.nb = wx.Notebook(self, style=style)
 
         box = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(box)
@@ -299,7 +299,7 @@ class DlgPlotSol(SimpleFramePlus):
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices) == 0:
-                choices = ['no physcs in mode']
+                choices = ['no physics in model']
             ll = [['x', 'x', 500, {}],
                   ['y', 'y', 500, {}],
                   ['z', 'z', 500, {}],
@@ -334,7 +334,7 @@ class DlgPlotSol(SimpleFramePlus):
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices) == 0:
-                choices = ['no physcs in model']
+                choices = ['no physics in model']
 
             elp1 = [['x:', '0', 500, {}],
                     ['y:', '0', 500, {}],
@@ -402,7 +402,7 @@ class DlgPlotSol(SimpleFramePlus):
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices) == 0:
-                choices = ['no physcs in model']
+                choices = ['no physics in model']
 
             s4 = {"style": wx.TE_PROCESS_ENTER,
                   "choices": [str(x + 1) for x in range(10)]}
@@ -460,7 +460,7 @@ class DlgPlotSol(SimpleFramePlus):
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices) == 0:
-                choices = ['no physcs in model']
+                choices = ['no physics in model']
 
             s4 = {"style": wx.TE_PROCESS_ENTER,
                   "choices": [str(x + 1) for x in range(10)]}
@@ -525,7 +525,7 @@ class DlgPlotSol(SimpleFramePlus):
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
             if len(choices) == 0:
-                choices = ['no physcs in model']
+                choices = ['no physics in model']
             ll = [['Expression(u)', '', 500, {}],
                   ['Expression(v)', '', 500, {}],
                   ['Expression(w)', '', 500, {}],
@@ -587,7 +587,7 @@ class DlgPlotSol(SimpleFramePlus):
                                                          "resolution of image"]},)]
 
             if len(choices) == 0:
-                choices = ['no physcs in model']
+                choices = ['no physics in model']
             ll = [['Expression', '', 500, {}],
                   ss,
                   ['Domains', 'all', 4, {'style': wx.CB_DROPDOWN,
