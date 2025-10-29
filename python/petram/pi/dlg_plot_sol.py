@@ -245,7 +245,7 @@ class DlgPlotSol(SimpleFramePlus):
             self.nb = AuiNotebook(self, style=style)
         else:
             # Using standard Notebook. This one does not support tooltip
-            self.nb = Notebook(self, style=style)
+            self.nb = wx.Notebook(self, style=style)
 
         box = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(box)
