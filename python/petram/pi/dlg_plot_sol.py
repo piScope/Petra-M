@@ -92,7 +92,7 @@ def read_solinfo_remote(user, server, path):
     except BaseException:
         import traceback
         traceback.print_stack()
-        assert False, "Communicaiton Error"
+        assert False, "Communication Error"
 
     res = [x.strip() for x in outs.decode('utf-8').split('\n')]
     for x in res:
