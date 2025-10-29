@@ -1,0 +1,3338 @@
+'''
+    Copyright (c) 2018-, S. Shiraiwa
+    All Rights reserved. See file COPYRIGHT for details.
+
+    Variables
+
+
+    This modules interface string exression to MFEM
+
+    for example, when a user write
+
+       epsiolnr = 'x + 0.5y'
+
+     and if epsilonr is one of Variable object, it will become
+
+        call of epsilon(x,y,z) at integration points (matrix assembly)
+
+        or
+
+        many such calles for all nodal points (plot)
+
+    about variable decorator:
+       this class instance is used to convered a user written function
+       to a Vriable object.
+
+    from petram.helper.variables import variable
+
+    @variable.float()
+    def test(x, y, z):
+       return 1-0.1j
+
+    @variable.float(dependency = ("u",))
+    def test(x, y, z):
+       # u is FES variable solved in the previous space.
+       value = u()
+       return value
+
+    @variable.complex()
+    def ctest(x, y, z):
+       return 1-0.1j
+
+    @variable.array(complex=True,shape=(2,))
+    def atest(x, y, z):
+       return np.array([1-0.1j,1-0.1j])
+
+'''
+from petram.solver.parametric_scanner import Scan
+import numpy as np
+import weakref
+import types
+import traceback
+from weakref import WeakKeyDictionary as WKD
+from weakref import WeakValueDictionary as WVD
+
+from petram.mfem_config import use_parallel
+if use_parallel:
+    import mfem.par as mfem
+else:
+    import mfem.ser as mfem
+
+import petram.debug
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('Variables')
+
+
+class _decorator(object):
+    @staticmethod
+    def float(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False,
+              params=None):
+        '''
+        this form allows for using both
+        @float
+        @float()
+        '''
+        def wrapper(func):
+            def dec(*args, **kwargs):
+                obj = PyFunctionVariable(func,
+                                         complex=False,
+                                         dependency=dependency,
+                                         grad=grad,
+                                         curl=curl,
+                                         div=div,
+                                         params=params)
+                return obj
+            return dec(func)
+        if func:
+            return wrapper(func)
+        else:
+            return wrapper
+
+    @staticmethod
+    def complex(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False,
+                params=None):
+        '''
+        this form allows for using both
+        @complex
+        @complex()
+        '''
+        def wrapper(func):
+            def dec(*args, **kwargs):
+                obj = PyFunctionVariable(func,
+                                         complex=True,
+                                         dependency=dependency,
+                                         grad=grad,
+                                         curl=curl,
+                                         div=div,
+                                         params=params)
+                return obj
+            return dec(func)
+        if func:
+            return wrapper(func)
+        else:
+            return wrapper
+
+    @staticmethod
+    def array(complex=False, shape=(1,), dependency=None, grad=None,
+              curl=None, div=None, td=False, params=None):
+        def dec(func):
+            obj = PyFunctionVariable(func,
+                                     complex=complex,
+                                     shape=shape,
+                                     dependency=dependency,
+                                     grad=grad,
+                                     curl=curl,
+                                     div=div,
+                                     params=params)
+            return obj
+        return dec
+
+
+class _decorator_jit(object):
+
+    @staticmethod
+    def float(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False, params=None):
+        '''
+        This form allows to use both with and without ()
+        @float
+        @float()
+        @float(dependency....
+        '''
+        def wrapper(func):
+            def dec(*args, **kwargs):
+                obj = NumbaCoefficientVariable(func,
+                                               complex=False,
+                                               dependency=dependency,
+                                               params=params,
+                                               grad=grad,
+                                               curl=curl,
+                                               div=div,
+                                               td=td,)
+                return obj
+            return dec(func)
+        if func:
+            return wrapper(func)
+        else:
+            return wrapper
+
+    @staticmethod
+    def complex(func=None, *, dependency=None, grad=None, curl=None, div=None, td=False, params=None):
+        '''
+        This form allows to use both with and without ()
+        @complex
+        @complex()
+        @complex(dependency....
+        '''
+        def wrapper(func):
+            def dec(*args, **kwargs):
+                obj = NumbaCoefficientVariable(func,
+                                               complex=True,
+                                               dependency=dependency,
+                                               params=params,
+                                               grad=grad,
+                                               curl=curl,
+                                               div=div,
+                                               td=td,)
+                return obj
+            return dec(func)
+        if func:
+            return wrapper(func)
+        else:
+            return wrapper
+
+    @staticmethod
+    def array(complex=False, shape=(1,), dependency=None, grad=None, curl=None, div=None, td=False, params=None):
+        def dec(func):
+            obj = NumbaCoefficientVariable(func,
+                                           complex=complex,
+                                           shape=shape,
+                                           dependency=dependency,
+                                           params=params,
+                                           grad=grad,
+                                           curl=curl,
+                                           div=div,
+                                           td=td,)
+
+            return obj
+        return dec
+
+
+variable = _decorator()
+variable.jit = _decorator_jit()
+
+
+def eval_code(co, g, l, flag=None):
+    if flag is not None:
+        if not flag:
+            return co
+    else:
+        if not isinstance(co, types.CodeType):
+            return co
+    try:
+        a = eval(co, g, l)
+    except NameError:
+        dprint1("global names", g.keys())
+        dprint1("local names", l.keys())
+        raise
+    if callable(a):
+        return a()
+    return a
+
+
+def cosd(x): return np.cos(x * np.pi / 180.)
+def sind(x): return np.sin(x * np.pi / 180.)
+def tand(x): return np.tan(x * np.pi / 180.)
+
+
+var_g = {'sin': np.sin,
+         'cos': np.cos,
+         'tan': np.tan,
+         'cosd': cosd,
+         'sind': sind,
+         'tand': tand,
+         'arctan': np.arctan,
+         'arctan2': np.arctan2,
+         'exp': np.exp,
+         'log10': np.log10,
+         'log': np.log,
+         'log2': np.log2,
+         'sqrt': np.sqrt,
+         'abs': np.abs,
+         'conj': np.conj,
+         'real': np.real,
+         'imag': np.imag,
+         'sum': np.sum,
+         'dot': np.dot,
+         'vdot': np.vdot,
+         'array': np.array,
+         'cross': np.cross,
+         'pi': np.pi,
+         'min': np.max,
+         'min': np.min,
+         'sign': np.sign,
+         'ones': np.ones,
+         'eye': np.eye,
+         'diag': np.diag,
+         'zeros': np.zeros,
+         'nan': np.nan,
+         'inf': np.inf,
+         'inv': np.linalg.inv,
+         'norm': np.linalg.norm,
+         'linspace': np.linspace,
+         'logspace': np.logspace,
+         'Scan': Scan}
+
+
+def check_vectorfe_in_lowdim(gf):
+    # check if this is VectorFE in lower dimensionality
+
+    fes = gf.FESpace()
+    sdim = fes.GetMesh().SpaceDimension()
+
+    assert fes.GetNE() > 0, "Finite Element space has zero elements"
+
+    isVector = (fes.GetFE(0).GetRangeType() == fes.GetFE(0).VECTOR)
+    dim = fes.GetFE(0).GetDim()
+
+    if isVector and dim < sdim:
+        assert False, "Nodal evaluator does not work for low dimenstional vector field (try without averaging)"
+
+
+class Variables(dict):
+    def __repr__(self):
+        txt = []
+        for k in self.keys():
+            txt.append(k + ':' + str(self[k]))
+        return "\n".join(txt)
+
+    def long_repr(self, show_hidden):
+        if show_hidden:
+            names = list(self)
+        else:
+            names = [x for x in list(self) if not x.startswith("_")]
+        names = sorted(names)
+        lines = [":".join((x, self[x].__repr__())) for x in names]
+        return "\n".join(lines)
+
+    def short_repr(self, show_hidden):
+        if show_hidden:
+            names = list(self)
+        else:
+            names = [x for x in list(self) if not x.startswith("_")]
+        names = sorted(names)
+        return ", ".join(names)
+
+
+class Variable():
+    '''
+    define everything which we define algebra
+    '''
+
+    def __init__(self, complex=False, dependency=None, grad=None, curl=None, div=None):
+        self.complex = complex
+        self._valid_nodes = None
+
+        # dependency stores a list of Finite Element space discrite variable
+        # names whose set_point has to be called
+        self.dependency = [] if dependency is None else dependency
+        self.div = [] if div is None else div
+        self.curl = [] if curl is None else curl
+        self.grad = [] if grad is None else grad
+
+    def __call__(self):
+        raise NotImplementedError("Subclass need to implement")
+
+    def __add__(self, other):
+        if isinstance(other, Variable):
+            return self() + other()
+        return self() + other
+
+    def __sub__(self, other):
+        if isinstance(other, Variable):
+            return self() - other()
+        return self() - other
+
+    def __mul__(self, other):
+        if isinstance(other, Variable):
+            return self() * other()
+        return self() * other
+
+    def __div__(self, other):
+        if isinstance(other, Variable):
+            return self() / other()
+        return self() / other
+
+    def __truediv__(self, other):
+        if isinstance(other, Variable):
+            return self() / other()
+        return self() / other
+
+    def __floordiv__(self, other):
+        if isinstance(other, Variable):
+            return self() // other()
+        return self() // other
+
+    def __radd__(self, other):
+        if isinstance(other, Variable):
+            return self() + other()
+        return self() + other
+
+    def __rsub__(self, other):
+        if isinstance(other, Variable):
+            return other() - self()
+        return other - self()
+
+    def __rmul__(self, other):
+        if isinstance(other, Variable):
+            return self() * other()
+        return self() * other
+
+    def __rdiv__(self, other):
+        if isinstance(other, Variable):
+            return other() / self()
+        return other / self()
+
+    def __rtruediv__(self, other):
+        if isinstance(other, Variable):
+            return other() / self()
+        return other / self()
+
+    def __rfloordiv__(self, other):
+        if isinstance(other, Variable):
+            return other() // self()
+        return other // self()
+
+    def __divmod__(self, other):
+        if isinstance(other, Variable):
+            return self().__divmod__(other())
+        return self().__divmod__(other)
+
+    def __floordiv__(self, other):
+        if isinstance(other, Variable):
+            return self().__floordiv__(other())
+        return self().__floordiv__(other)
+
+    def __mod__(self, other):
+        if isinstance(other, Variable):
+            return self().__mod__(other())
+        return self().__mod__(other)
+
+    def __pow__(self, other):
+        if isinstance(other, Variable):
+            return self().__pow__(other())
+        return self().__pow__(other)
+
+    def __neg__(self):
+        return self().__neg__()
+
+    def __pos__(self):
+        return self().__pos__()
+
+    def __abs__(self):
+        return self().__abs__()
+
+    def __getitem__(self, idx):
+        return self()[idx]
+
+    def get_names(self):
+        return list(set(list(self.dependency) + list(self.div) +
+                        list(self.curl) + list(self.grad)))
+
+    def prep_names(self, ind_vars, g):
+        return self.get_names()
+
+    def get_emesh_idx(self, idx=None, g=None):
+        if idx is None:
+            idx = []
+        return idx
+
+    def ncface_values(self, ifaces=None, irs=None,
+                      gtypes=None, **kwargs):
+        raise NotImplementedError("Subclass need to implement: " + str(self))
+
+    def ncedge_values(self, *args, **kwargs):
+        raise NotImplementedError("Subclass need to implement: " + str(self))
+
+    def point_values(self, *args, **kwargs):
+        raise NotImplementedError("Subclass need to implement: " + str(self))
+
+    def add_topological_info(self, mesh):
+        if not isinstance(self, DomainVariable):
+            return
+        if mesh.Dimension() == 3:
+            self.topo_info = (3, mesh.extended_connectivity['surf2vol'])
+        if mesh.Dimension() == 2:
+            self.topo_info = (2, mesh.extended_connectivity['line2surf'])
+        if mesh.Dimension() == 1:
+            self.topo_info = (1, mesh.extended_connectivity['vert2line'])
+
+    def get_jitted_coefficient(self, *args):
+        return None
+
+    def set_coeff(self, ind_vars, ll):
+        pass
+
+    def set_context(self, ll):
+        self.global_context = ll
+
+    def check_valid_nodes(self, idx):
+        if self._valid_nodes is None:
+            return idx
+        return np.logical_and(self._valid_nodes, idx)
+
+    '''
+    def make_callable(self):
+        raise NotImplementedError("Subclass need to implement")
+
+    def make_nodal(self):
+        raise NotImplementedError("Subclass need to implement")
+    '''
+
+
+class TestVariable(Variable):
+    def __init__(self, comp=-1, complex=False):
+        super(TestVariable, self).__init__(complex=complex)
+
+    def set_point(self, T, ip, g, l, t=None):
+        self.x = T.Transform(ip)
+
+    def __call__(self, **kwargs):
+        return 2.
+
+    def nodal_values(self, locs=None, **kwargs):
+        # iele = None, elattr = None, el2v = None,
+        #  wverts = None, locs = None, g = None
+        return locs[:, 0] * 0 + 2.0
+
+    def ncface_values(self, locs=None, **kwargs):
+        return locs[:, 0] * 0 + 2.0
+
+
+class PlaceholderVariable(Variable):
+    def __init__(self, name, *args, **kwargs):
+        self._ph_name = name
+        super(PlaceholderVariable, self).__init__(*args, **kwargs)
+
+    def __repr__(self):
+        return "Placeholder(" + str(self._ph_name) + ")"
+
+
+class Constant(Variable):
+    def __init__(self, value, comp=-1, dtype=None):
+        super(Constant, self).__init__(complex=np.iscomplexobj(value))
+        if dtype is not None:
+            value = value.astype(dtype)
+        self.value = value
+
+    def __repr__(self):
+        return "Constant(" + str(self.value) + ")"
+
+    def __float__(self):
+        return float(self.value)
+
+    def __int__(self):
+        return int(self.value)
+
+    def set_point(self, T, ip, g, l, t=None):
+        self.x = T.Transform(ip)
+
+    def __call__(self, **kwargs):
+        return self.value
+
+    def nodal_values(self, iele=None, el2v=None, locs=None,
+                     wverts=None, elvertloc=None, **kwargs):
+
+        size = len(wverts)
+        _check = np.zeros(size)
+
+        shape = [size] + list(np.array(self.value).shape)
+
+        dtype = np.complex128 if self.complex else np.float64
+        ret = np.zeros(shape, dtype=dtype)
+
+        for kk, m, loc in zip(iele, el2v, elvertloc):
+            if kk < 0:
+                continue
+            for pair, xyz in zip(m, loc):
+                idx = pair[1]
+                ret[idx] = self.value
+                _check[idx] = 1
+
+        self._valid_nodes = (_check != 0)
+
+        return ret
+
+    def ncface_values(self, locs=None, **kwargs):
+        size = len(locs)
+        shape = [size] + list(np.array(self.value).shape)
+        return np.tile(self.value, len(locs)).reshape(shape)
+
+    def ncedge_values(self, locs=None, **kwargs):
+        size = len(locs)
+        shape = [size] + list(np.array(self.value).shape)
+        return np.tile(self.value, len(locs)).reshape(shape)
+
+    def point_values(self, locs=None, **kwargs):
+        size = len(locs)
+        shape = [size] + list(np.array(self.value).shape)
+        return np.tile(self.value, len(locs)).reshape(shape)
+
+
+class SumVariable(Variable):
+    def __init__(self, variables, gvariables):
+        iscomplex = any([x.complex for x in variables])
+        super(SumVariable, self).__init__(complex=iscomplex)
+        self.variables = list(variables)
+        self.gvariables = list(gvariables)
+
+    def get_names(self):
+        ret = []
+        for x in self.variables:
+            ret.extend(x.get_names())
+
+        return ret
+
+    def prep_names(self, ind_vars, g):
+        ret = []
+        for x in self.variables:
+            ret.extend(x.prep_names(ind_vars, g))
+        return ret
+
+    def add_expression(self, v, g):
+        self.complex = self.complex or v.complex
+        self.variables.append(v)
+        self.gvariables.append(g)
+
+    def set_point(self, T, ip, g, l, t=None):
+        # for v, g in zip(self.variables, self.gvariables):
+        for v in self.variables:
+            v.set_point(T, ip, g, l, t=t)
+
+    def __call__(self, **kwargs):
+        g = kwargs.pop("g", {}).copy()
+
+        g.update(self.gvariables[0])
+        v1 = self.variables[0].__call__(g=g, **kwargs)
+        for v, g2 in zip(self.variables[1:], self.gvariables[1:]):
+            g.update(g2)
+            v1 = v1 + v.__call__(g=g, **kwargs)
+        return v1
+
+    def nodal_values(self, **kwargs):
+        g = kwargs.pop("g", {}).copy()
+
+        g.update(self.gvariables[0])
+        v1 = self.variables[0].nodal_values(g=g, **kwargs)
+        self._valid_nodes = self.variables[0]._valid_nodes
+
+        for v, g2 in zip(self.variables[1:], self.gvariables[1:]):
+            g.update(g2)
+            v1 = v1 + v.nodal_values(g=g, **kwargs)
+            assert np.all(
+                self._valid_nodes == v._valid_nodes), "valid_nodees is not consistent (SumVariable)"
+        return v1
+
+    def ncface_values(self, **kwargs):
+        g = kwargs.pop("g", {}).copy()
+
+        g.update(self.gvariables[0])
+        v1 = self.variables[0].ncface_values(g=g, **kwargs)
+        for v, g2 in zip(self.variables[1:], self.gvariables[1:]):
+            g.update(g2)
+            v1 = v1 + v.ncface_values(g=g, **kwargs)
+        return v1
+
+    def ncedge_values(self, **kwargs):
+        g = kwargs.pop("g", {}).copy()
+
+        g.update(self.gvariables[0])
+        v1 = self.variables[0].ncedge_values(g=g, **kwargs)
+        for v, g2 in zip(self.variables[1:], self.gvariables[1:]):
+            g.update(g2)
+            v1 = v1 + v.ncedge_values(g=g, **kwargs)
+        return v1
+
+    def point_values(self, **kwargs):
+        g = kwargs.pop("g", {}).copy()
+
+        g.update(self.gvariables[0])
+        v1 = self.variables[0].point_values(g=g, **kwargs)
+        for v, g2 in zip(self.variables[1:], self.gvariables[1:]):
+            g.update(g2)
+            v1 = v1 + v.point_values(g=g, **kwargs)
+        return v1
+
+    def set_coeff(self, ind_vars, ll):
+        for v in self.variables:
+            v.set_coeff(ind_vars, ll)
+
+    def set_context(self, ll):
+        self.global_context = ll
+        for v in self.variables:
+            v.set_context(ll)
+
+
+class CoordVariable(Variable):
+    def __init__(self, comp=-1, complex=False):
+        super(CoordVariable, self).__init__(complex=complex)
+        self.comp = comp
+
+    def __repr__(self):
+        return "Coordinates"
+
+    def set_point(self, T, ip, g, l, t=None):
+        self.x = T.Transform(ip)
+
+    def __call__(self, **kwargs):
+        if self.comp == -1:
+            return self.x
+        else:
+            return self.x[self.comp - 1]
+
+    def nodal_values(self, locs=None, **kwargs):
+        # iele = None, elattr = None, el2v = None,
+        #  wverts = None, locs = None, g = None
+        if self.comp == -1:
+            return locs
+        else:
+            return locs[:, self.comp - 1]
+
+    def ncface_values(self, locs=None, **kwargs):
+        if self.comp == -1:
+            return locs
+        else:
+            return locs[:, self.comp - 1]
+
+    def ncedge_values(self, locs=None, **kwargs):
+        if self.comp == -1:
+            return locs
+        else:
+            return locs[:, self.comp - 1]
+
+    def point_values(self, counts=None, locs=None, **kwargs):
+        if self.comp == -1:
+            return locs
+        else:
+            return locs[:, self.comp - 1]
+
+
+class ExpressionVariable(Variable):
+    def __init__(self, expr, ind_vars, complex=False, gns=None):
+        super(ExpressionVariable, self).__init__(complex=complex)
+
+        variables = []
+
+        expr = expr.strip()
+
+        code = compile(expr, '<string>', 'eval')
+        names = code.co_names
+        self.co = code
+        self.names = names
+        self.expr = expr
+        self.ind_vars = ind_vars
+
+        if gns is None:
+            # (note)
+            # gns is None if add_expression is directly used, instead of using
+            # the do_add_*_expr method in Phys class.
+            # In this case, the expression should not depend explicitly on
+            # the namespace variable.
+            gns = {}
+        self.gns = gns
+        self.variables = WVD()
+
+        #self.all_names = []
+        #self.name_translation = {}
+
+        if isinstance(ind_vars, str):
+            traceback.print_stack()
+            assert False, "ind_vars should not be string(debug)"
+
+    def get_names(self):
+        return self.names
+
+    def prep_names(self, ind_vars, g):
+        #
+        #  called from plot solution.
+        #    self.gns contains names from namespace (can be none)
+        #    g contains local namespace + solution variables
+
+        all_names = []
+        #name_translation = {}
+
+        self.set_context(g)
+        gc = self.global_context
+
+        for n in self.names:
+            if not n in gc:
+                print("gc does not contain: ", n)
+                continue
+            else:
+                if isinstance(gc[n], Variable):
+                    names = gc[n].prep_names(ind_vars, gc)
+                    all_names.extend(names)
+                    all_names.append(n)
+        #self.all_names = all_names
+        return self.names
+
+    def __repr__(self):
+        return "Expression(" + self.expr + ")"
+
+    def set_point(self, T, ip, g, l, t=None):
+        self.x = T.Transform(ip)
+        #print("setting x", self, self.x, self.names, list(self.global_context), list(g))
+        for n in self.names:
+            if n in self.gns:
+                var = self.gns[n]
+            elif n in self.global_context:
+                var = self.global_context[n]
+            elif n in g:
+                var = g[n]
+            if isinstance(var, Variable):
+                var.set_point(T, ip, g, l, t=t)
+                self.variables[n] = var
+
+    def __call__(self, **kwargs):
+        l = {}
+        for k, name in enumerate(self.ind_vars):
+            l[name] = self.x[k]
+        keys = self.variables.keys()
+        for k in keys:
+            l[k] = self.variables[k]()
+
+        return (eval_code(self.co, self.global_context, l))
+        # return (eval_code(self.co, var_g, l))
+
+    def get_emesh_idx(self, idx=None, g=None):
+        if idx is None:
+            idx = []
+        for n in self.names:
+            if n in g and isinstance(g[n], Variable):
+                idx = g[n].get_emesh_idx(idx=idx, g=g)
+        return idx
+
+    def nodal_values(self, iele=None, el2v=None, locs=None,
+                     wverts=None, elvertloc=None, g=None, elattr=None,
+                     current_domain=None, **kwargs):
+
+        # Print nodal(expr)", self.expr, elattr)
+        size = len(wverts)
+        dtype = np.complex128 if self.complex else np.float64
+
+        ret = np.zeros(size, dtype=dtype)
+        _check = np.ones(size, dtype=bool)
+
+        for kk, m, loc, attr in zip(iele, el2v, elvertloc, elattr):
+            if kk < 0:
+                continue
+            if current_domain is not None and attr != current_domain:
+                continue
+            for pair, xyz in zip(m, loc):
+                idx = pair[1]
+                ret[idx] = 1
+
+        l = {}
+        ll_name = []
+        ll_value = []
+        var_g2 = var_g.copy()
+
+        for n in self.names:
+            if (n in g and isinstance(g[n], Variable)):
+                l[n] = g[n].nodal_values(iele=iele, el2v=el2v, locs=locs,
+                                         wverts=wverts, elvertloc=elvertloc,
+                                         current_domain=current_domain,
+                                         elattr=elattr, g=g, **kwargs)
+                _check = g[n].check_valid_nodes(_check)
+                # if return is None (failed to evaluate). return None
+                if l[n] is None:
+                    return None
+                ll_name.append(n)
+                ll_value.append(l[n])
+            elif (n in g):
+                var_g2[n] = g[n]
+
+        if len(ll_name) > 0:
+            value = np.array([eval(self.co, var_g2, dict(zip(ll_name, v)))
+                              for v in zip(*ll_value)])
+        else:
+            for k, name in enumerate(self.ind_vars):
+                l[name] = locs[..., k]
+            value = np.asarray(eval_code(self.co, var_g2, l))
+            if value.ndim > 0:
+                value = np.stack([value] * size)
+        #value = np.asarray(eval_code(self.co, var_g, l))
+
+        self._valid_nodes = np.logical_and(_check != 0, ret != 0)
+
+        from petram.helper.right_broadcast import multi
+        ret = multi(ret, value)
+
+        return ret
+
+    def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
+                    g=None, attr1=None, attr2=None, locs=None,
+                    **kwargs):
+
+        size = len(locs)
+        dtype = np.complex127 if self.complex else np.float64
+        ret = np.zeros(size, dtype=dtype)
+
+        l = {}
+        ll_name = []
+        ll_value = []
+        var_g2 = var_g.copy()
+
+        for n in self.names:
+            if (n in g and isinstance(g[n], Variable)):
+                m = getattr(g[n], method)
+                # l[n] = g[n].ncface_values(ifaces = ifaces, irs = irs,
+                l[n] = m(ifaces=ifaces, irs=irs,
+                         gtypes=gtypes, locs=locs,
+                         attr1=attr1, attr2=attr2,
+                         g=g, **kwargs)
+
+                # if reutrn is None (failed to evaluate). return None
+                if l[n] is None:
+                    return None
+
+                ll_name.append(n)
+                ll_value.append(l[n])
+            elif (n in g):
+                var_g2[n] = g[n]
+
+        if len(ll_name) > 0:
+            value = np.array([eval(self.co, var_g2, dict(zip(ll_name, v)))
+                              for v in zip(*ll_value)])
+        else:
+            for k, name in enumerate(self.ind_vars):
+                l[name] = locs[..., k]
+            value = np.asarray(eval_code(self.co, var_g2, l))
+            if value.ndim > 0:
+                value = np.stack([value] * size)
+        return value
+
+    def ncface_values(self, *args, **kwargs):
+        return self._ncx_values('ncface_values', *args, **kwargs)
+
+    def ncedge_values(self, *args, **kwargs):
+        return self._ncx_values('ncedge_values', *args, **kwargs)
+
+    def point_values(self, counts=None, locs=None, points=None,
+                     attrs=None, elem_ids=None,
+                     mesh=None, int_points=None, g=None,
+                     knowns=None, **kwargs):
+
+        l = {}
+        ll_name = []
+        ll_value = []
+        var_g2 = var_g.copy()
+        for n in self.names:
+            if (n in g and isinstance(g[n], Variable)):
+                l[n] = g[n].point_values(counts=counts, locs=locs, points=points,
+                                         attrs=attrs, elem_ids=elem_ids,
+                                         mesh=mesh, int_points=int_points, g=g,
+                                         knowns=knowns)
+                ll_name.append(n)
+                ll_value.append(l[n])
+            elif (n in g):
+                var_g2[n] = g[n]
+        if len(ll_name) > 0:
+            value = np.array([eval(self.co, var_g2, dict(zip(ll_name, v)))
+                              for v in zip(*ll_value)])
+        else:
+            for k, name in enumerate(self.ind_vars):
+                l[name] = locs[..., k]
+            value = np.asarray(eval_code(self.co, var_g2, l))
+            if value.ndim > 0:
+                size = counts
+                value = np.stack([value] * size)
+
+        return value
+
+    def set_coeff(self, ind_vars, ll):
+        #print('set coeff', self, self.names)
+        for n in self.names:
+            if n in self.global_context:
+                var = self.global_context[n]
+            elif n in ll:
+                var = self.ll[n]
+            if isinstance(var, Variable):
+                var.set_coeff(ind_vars, ll)
+
+    def set_context(self, ll):
+        #print('set context', self, self.names)
+        #if self.gns is not None: print("gns", list(self.gns))
+        #print("context", list(ll))
+
+        if self.gns is not None:
+            self.global_context = self.gns.copy()
+        else:
+            self.global_context = {}
+        self.global_context.update(ll)
+
+        for n in self.names:
+            if self.gns is not None and n in self.gns:
+                continue
+            if (n in ll and isinstance(ll[n], Variable)):
+                ll[n].set_context(ll)
+                self.global_context[n] = ll[n]
+
+
+class DomainVariable(Variable):
+    def __init__(self, expr='', ind_vars=None, domains=None,
+                 complex=False, gdomain=None):
+        super(DomainVariable, self).__init__(complex=complex)
+        self.domains = {}
+        self.gdomains = {}
+        if expr == '':
+            return
+        domains = sorted(domains)
+        self.gdomains[tuple(domains)] = gdomain
+        self.domains[tuple(domains)] = ExpressionVariable(expr, ind_vars,
+                                                          complex=complex,
+                                                          gns=gdomain)
+
+    def get_names(self):
+        ret = []
+        for x in self.domains:
+            ret.extend(self.domains[x].get_names())
+        return ret
+
+    def prep_names(self, ind_vars, g):
+        ret = []
+        for x in self.domains:
+            ret.extend(self.domains[x].prep_names(ind_vars, g))
+        return ret
+
+    def __repr__(self):
+        return "DomainVariable"+str(self.domains)
+
+    def _add_something(self, something, gsomething, domains):
+        doms = tuple(sorted(domains))
+
+        existing_domains = list(self.domains)
+        new_domains = tuple(np.setdiff1d(domains, sum(existing_domains, ())))
+
+        new_exprs = {}
+        new_gexprs = {}
+
+        if len(new_domains) > 0:
+            new_exprs[new_domains] = something
+            new_gexprs[new_domains] = gsomething
+
+        for ed in existing_domains:
+            diff = tuple(np.setdiff1d(ed, doms))
+            if len(diff) != 0:
+                new_exprs[diff] = self.domains[ed]
+                new_gexprs[diff] = self.gdomains[ed]
+            insct = tuple(np.intersect1d(ed, doms))
+            if len(insct) != 0:
+                if isinstance(ed, SumVariable):
+                    self.domains[ed].add_expression(something, gsomething)
+                    new_exprs[insct] = self.domains[ed]
+                    new_gexprs[insct] = {}
+                else:
+                    s = SumVariable(
+                        (self.domains[ed], something), (self.gdomains[ed], gsomething))
+                    new_exprs[insct] = s
+                    new_gexprs[insct] = {}
+
+        self.domains = new_exprs
+        self.gdomains = new_gexprs
+
+    def add_expression(self, expr, ind_vars, domains, gdomain, complex=False):
+        new_expr = ExpressionVariable(expr, ind_vars,
+                                      complex=complex,
+                                      gns=gdomain)
+        self._add_something(new_expr, gdomain, domains)
+        if complex:
+            self.complex = True
+
+    def add_const(self, value, domains, gdomain):
+        new_expr = Constant(value)
+        self._add_something(new_expr, gdomain, domains)
+
+        if np.iscomplexobj(value):
+            self.complex = self.complex and True
+
+    def set_point(self, T, ip, g, l, t=None):
+        attr = T.Attribute
+        if T.GetDimension() == self.topo_info[0]:
+            # domain mode
+            attrs = [attr]
+            self._dom_mode = 1
+        elif T.GetDimension() == self.topo_info[0] - 1:
+            # boundary mode
+            attrs = self.topo_info[1][attr]
+            self._dom_mode = 0
+
+        self.domain_target = []
+        for domains in self.domains.keys():
+            for a in attrs:
+                if a in domains:
+                    self.domains[domains].set_point(T, ip, g, l, t=t)
+                    self.domain_target.append(domains)
+
+    def __call__(self, **kwargs):
+        if len(self.domain_target) == 0:
+            return 0.0
+        # we return average for now. when domain variable is
+        # evaluated on the boundary, it computes the aveage on both side.
+        #
+        # for the domain, we return a sum of contributions.
+
+        values = [self.domains[x]() for x in self.domain_target]
+        ans = values[0]
+        for v in values[1:]:
+            ans = ans + v
+
+        if not self._dom_mode:
+            return ans / len(values)
+        return ans
+
+    def get_emesh_idx(self, idx=None, g=None):
+        if idx is None:
+            idx = []
+        for domains in self.domains.keys():
+            expr = self.domains[domains]
+            if isinstance(expr, Variable):
+                gdomain = g if self.gdomains[domains] is None else self.gdomains[domains]
+                idx.extend(expr.get_emesh_idx(idx=idx, g=gdomain))
+        return idx
+
+    def nodal_values(self, iele=None, elattr=None, g=None, wverts=None,
+                     current_domain=None, knowns=None, **kwargs):
+
+        from petram.helper.right_broadcast import add
+
+        ret = None
+        w = None
+        #print("Entering Domain variable:: nodal_values", self, current_domain)
+
+        '''
+        note) 
+           contributions from different domains will be avearaged
+           contributions from same domains will be added (this is handled by SumVariables)
+
+        '''
+        all_domains = np.unique(
+            np.hstack(list(self.domains)))  # domains where variabls is defined.
+        tmp_ret = {}
+        tmp_valid = {}
+
+        for domains in self.domains.keys():
+            if (current_domain is not None and
+                    current_domain not in domains):
+                continue
+
+            iele0 = np.zeros(iele.shape, dtype=int) - 1
+            for domain in domains:
+                idx = np.where(np.array(elattr) == domain)[0]
+                iele0[idx] = iele[idx]
+
+            expr = self.domains[domains]
+
+            if self.gdomains[domains] is None:
+                gdomain = g
+            else:
+                gdomain = g.copy()
+                for key in self.gdomains[domains]:
+                    gdomain[key] = self.gdomains[domains][key]
+
+            for dom in domains:
+                if dom == current_domain or current_domain is None:
+                    v = expr.nodal_values(iele=iele0, elattr=elattr, wverts=wverts,
+                                          current_domain=dom, g=gdomain,
+                                          knowns=None, **kwargs)
+                    idx = expr._valid_nodes
+                    if dom not in tmp_ret:
+                        tmp_ret[dom] = np.zeros(v.shape, dtype=v.dtype)
+                        tmp_valid[dom] = idx
+                    else:
+                        assert False, "Should not come here. Check implementation of SumVariable"
+
+                    tmp_ret[dom][idx] += v[idx]
+
+        dtype = np.complex128 if np.any(
+            [np.iscomplexobj(tmp_ret[x]) for x in tmp_ret]) else np.float64
+        ret = None
+        for x in tmp_ret:
+            if ret is None:
+                ret = tmp_ret[x].astype(dtype, copy=False)
+            else:
+                ret += tmp_ret[x]
+        if ret is None:
+            return None
+
+        w = np.sum([x for x in tmp_valid.values()], 0)
+
+        self._valid_nodes = (w != 0)
+        idx = np.where(self._valid_nodes)[0]
+
+        from petram.helper.right_broadcast import div
+        ret[idx, ...] = div(ret[idx, ...], w[idx])
+
+        idx2 = np.where(w == 0)[0]
+        # setting values for nodes not covered by damoin varialbe to nan
+        ret[idx2, ...] = np.nan
+
+        return ret
+
+    def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
+                    g=None, attr1=None, attr2=None, locs=None,
+                    current_domain=None, knowns=None, **kwargs):
+        '''
+        compute values on face/edge boundary.
+
+        for the internal boundary, contribution from both sides will
+        be averaged. However, if the boundary matches with the parallel
+        mesh baoundary, only one side contribution is counted. At moment,
+        there is no quick fix to this.
+        '''
+        from petram.helper.right_broadcast import add, multi
+
+        ret = None
+
+        w = (ifaces * 0.0).astype(np.float32, copy=False)  # w : 0 , 0.5, 1
+
+        npts = [irs[gtype].GetNPoints() for gtype in gtypes]
+
+        # 1 for exterior face, 0.5 for internal faces
+
+        tmp_ret = {}
+        w = np.zeros(ifaces.shape, dtype=np.float64)
+        wt = np.zeros(ifaces.shape, dtype=np.float64)
+
+        for domains in self.domains.keys():
+            if (current_domain is not None and
+                    int(current_domain) not in domains):
+                continue
+            expr = self.domains[domains]
+
+            if self.gdomains[domains] is None:
+                gdomain = g
+            else:
+                gdomain = g.copy()
+                gdomain.update(self.gdomains[domains])
+
+            m = getattr(expr, method)
+            #kwargs['weight'] = w2
+
+            for dom in domains:
+                if dom == current_domain or current_domain is None:
+                    w *= 0.0
+                    w[np.isin(attr1, dom)] += 1.0
+                    w[np.isin(attr2, dom)] += 1.0
+
+                    w[w != 0] = 1./w[w != 0]
+                    w2 = np.repeat(w, npts)
+                    wt += w
+
+                    v = m(ifaces=ifaces, irs=irs,
+                          gtypes=gtypes, locs=locs, attr1=attr1,
+                          attr2=attr2, g=gdomain,
+                          current_domain=dom, knowns=None,
+                          **kwargs)
+
+                    v = multi(v, w2)
+                    if dom not in tmp_ret:
+                        tmp_ret[dom] = v
+                    else:
+                        assert False, "Should not come here. Check implementation of SumVariable"
+        dtype = np.complex128 if np.any(
+            [np.iscomplexobj(tmp_ret[x]) for x in tmp_ret]) else np.float64
+        ret = None
+        for x in tmp_ret:
+            if ret is None:
+                ret = tmp_ret[x].astype(dtype, copy=False)
+            else:
+                ret += tmp_ret[x]
+
+        wtt = np.zeros(ifaces.shape, dtype=np.float64)
+        wtt[wt != 0] = 1./wt[wt != 0]
+
+        wt2 = np.repeat(wtt, npts)
+
+        ret = multi(ret, wt2)
+        if ret is None:
+            return None
+
+        return ret
+
+    def ncface_values(self, *args, **kwargs):
+        return self._ncx_values('ncface_values', *args, **kwargs)
+
+    def ncedge_values(self, *args, **kwargs):
+        return self._ncx_values('ncedge_values', *args, **kwargs)
+
+    def point_values(self, counts=None, locs=None, points=None,
+                     attrs=None, elem_ids=None,
+                     mesh=None, int_points=None, g=None,
+                     knowns=None, current_domain=None):
+
+        valid_idx = np.where(attrs != -1)[0]
+        valid_attrs = attrs[attrs != -1]
+        ret = None
+
+        for domains in self.domains.keys():
+            if (current_domain is not None and
+                    current_domain not in domains):
+                continue
+
+            '''
+            iele0 = np.zeros(iele.shape) - 1
+            for domain in domains:
+                idx = np.where(np.array(elattr) == domain)[0]
+                iele0[idx] = iele[idx]
+            '''
+            expr = self.domains[domains]
+
+            if self.gdomains[domains] is None:
+                gdomain = g
+            else:
+                gdomain = g.copy()
+                for key in self.gdomains[domains]:
+                    gdomain[key] = self.gdomains[domains][key]
+
+            # restricting point evaluation to a specific domain
+            check = np.isin(valid_attrs, domains)
+            counts2 = np.sum(check)
+            locs2 = locs[check, :]
+            attrs2 = attrs.copy()
+            attrs2[np.isin(attrs, domains, invert=True)] = -1
+
+            if counts2 == 0:
+                continue
+            v = expr.point_values(counts=counts2, locs=locs2,  # points=points,
+                                  attrs=attrs2, elem_ids=elem_ids,
+                                  mesh=mesh, int_points=int_points, g=gdomain,
+                                  current_domain=current_domain,
+                                  knowns=None)
+            if ret is None:
+                s = list(v.shape)
+                s[0] = counts
+                ret = np.zeros(s, dtype=v.dtype)
+
+            ret[check, ...] = v
+
+        return ret
+
+    def set_coeff(self, ind_vars, ll):
+        for n in self.domains:
+            self.domains[n].set_coeff(ind_vars, ll)
+
+    def set_context(self, ll):
+        self.global_context = ll
+        for n in self.domains:
+            #print("domain variable", n, self.domains[n])
+            self.domains[n].set_context(ll)
+
+
+def _copy_func_and_apply_params(f, params):
+    import copy
+    import types
+    import functools
+
+    """Based on https://stackoverflow.com/a/13503277/2988730 (@unutbu)"""
+    globals = f.__globals__.copy()
+    for k in params:
+        globals[k] = params[k]
+    g = types.FunctionType(f.__code__, globals, name=f.__name__,
+                           argdefs=f.__defaults__, closure=f.__closure__)
+    g = functools.update_wrapper(g, f)
+    g.__module__ = f.__module__
+    g.__kwdefaults__ = copy.copy(f.__kwdefaults__)
+    return g
+
+
+def _get_kwargs(func):
+    from inspect import signature
+    sig = signature(func)
+
+    kwnames = [x for x in sig.parameters
+               if sig.parameters[x].default is not sig.parameters[x].empty]
+    return kwnames
+    dep2kw = dict(zip(self.dependency, kwnames))
+
+
+class PyFunctionVariable(Variable):
+    def __init__(self, func, complex=False, shape=tuple(), dependency=None,
+                 grad=None, curl=None, div=None, params=None):
+        super(
+            PyFunctionVariable,
+            self).__init__(complex=complex,
+                           dependency=dependency,
+                           grad=grad,
+                           curl=curl,
+                           div=div)
+        if params is not None:
+            func = _copy_func_and_apply_params(func, params)
+        self.func = func
+        self.t = None
+        self.x = (0, 0, 0)
+        self.shape = shape
+
+        kwnames = _get_kwargs(self.func)
+        self.dep2kw = dep2kw = dict(zip(self.dependency, kwnames))
+
+    def __repr__(self):
+        return "PyFunction("+self.func.__name__+")"
+
+    def prep_names(self, ind_vars, g):
+        ret = []
+        for n in self.dependency:
+            if (n in g and isinstance(g[n], Variable)):
+                names = g[n].prep_names(ind_vars, g)
+                ret.extend(names)
+                ret.append(n)
+        for n in self.grad:
+            if n not in g:
+                assert False, n+" is not in global (failed to evaluate grad)"
+            g['grad'+n] = g[n].generate_grad_variable()
+            # ret.append('grad'+n)
+        for n in self.curl:
+            if n not in g:
+                assert False, n+" is not in global (failed to evaualte curl)"
+            g['curl'+n] = g[n].generate_curl_variable()
+            # ret.append('curl'+n)
+        for n in self.div:
+            if n not in g:
+                assert False, n+" is not in global (failed to evaualte div)"
+            g['div'+n] = g[n].generate_div_variable()
+            # ret.append('div'+n)
+
+        return ret
+
+    def set_point(self, T, ip, g, l, t=None):
+        self.x = T.Transform(ip)
+        self.t = t
+        for n in self.dependency:
+            if (n in g and isinstance(g[n], Variable)):
+                g[n].set_point(T, ip, g, l, t=t)
+
+    def __call__(self, **kwargs):
+        if self.t is not None:
+            args = tuple(np.hstack((self.x, t)))
+        else:
+            args = tuple(self.x)
+
+        for n in self.dependency:
+            if n in self.global_context:
+                _tmp = self.global_context[n]()
+                kw = self.dep2kw[n]
+                kwargs[kw] = _tmp if np.isscalar(
+                    _tmp) else np.asarray(_tmp)
+
+        _tmp = self.func(*args, **kwargs)
+        return _tmp if np.isscalar(_tmp) else np.asarray(_tmp)
+
+    def nodal_values(self, iele=None, el2v=None, locs=None,
+                     wverts=None, elvertloc=None, g=None, knowns=None,
+                     **kwargs):
+
+        if locs is None:
+            return
+        if g is None:
+            g = {}
+
+        if knowns is None:
+            knowns = WKD()
+
+        size = len(wverts)
+        shape = [size] + list(self.shape)
+
+        dtype = np.complex128 if self.complex else np.float64
+        ret = np.zeros(shape, dtype=dtype)
+
+        dep2kw = self.dep2kw
+
+        _check = np.zeros(size)
+
+        all_deps = (list(self.dependency)
+                    + ['grad'+x for x in self.grad]
+                    + ['div'+x for x in self.div]
+                    + ['curl'+x for x in self.curl])
+
+        for kk, m, loc in zip(iele, el2v, elvertloc):
+            if kk < 0:
+                continue
+            for pair, xyz in zip(m, loc):
+                idx = pair[1]
+                # for n in self.dependency:
+                for n in all_deps:
+                    if not g[n] in knowns:
+                        knowns[g[n]] = g[n].nodal_values(iele=iele, el2v=el2v,
+                                                         locs=locs, wverts=wverts,
+                                                         elvertloc=elvertloc,
+                                                         g=g, knowns=knowns,
+                                                         **kwargs)
+
+                kwargs = {dep2kw[n]: knowns[g[n]][idx]
+                          for n in self.dependency}
+                for n in self.grad:
+                    kwargs['grad'+n] = knowns[g['grad'+n]][idx]
+                for n in self.curl:
+                    kwargs['curl'+n] = knowns[g['curl'+n]][idx]
+                for n in self.div:
+                    kwargs['div'+n] = knowns[g['div'+n]][idx]
+
+                ret[idx] = ret[idx] + self.func(*xyz, **kwargs)
+                _check[idx] += 1
+
+        ret = np.stack([x for x in ret if x is not None])
+
+        self._valid_nodes = (_check != 0)
+
+        idx = np.where(_check != 0)[0]
+        #idx = np.where(wverts == 0)[0]
+        #wverts[idx] = 1.0
+
+        from petram.helper.right_broadcast import div
+        ret[idx] = div(ret[idx], _check[idx])
+
+        return ret
+
+    def _ncx_values(self, method, ifaces=None, irs=None, gtypes=None,
+                    g=None, attr1=None, attr2=None, locs=None,
+                    knowns=None, **kwargs):
+
+        if locs is None:
+            return
+        if g is None:
+            g = {}
+        if knowns is None:
+            knowns = WKD()
+
+        dtype = np.complex128 if self.complex else np.float64
+
+        ret = [None] * len(locs)
+
+        dep2kw = self.dep2kw
+
+        for idx, xyz in enumerate(locs):
+            '''
+            for n in self.dependency:
+                g[n].local_value = knowns[g[n]][idx]
+                # putting the dependency variable to functions global.
+                # this may not ideal, since there is potential danger
+                # of name conflict?
+                self.func.func_globals[n] = g[n]
+            '''
+            for n in self.dependency:
+                if not g[n] in knowns:
+                    m = getattr(g[n], method)
+                    knowns[g[n]] = m(ifaces=ifaces, irs=irs,
+                                     gtypes=gtypes, g=g,
+                                     attr1=attr1, attr2=attr2,
+                                     locs=locs, knowns=knowns,
+                                     **kwargs)
+
+            kwargs = {dep2kw[n]: knowns[g[n]][idx] for n in self.dependency}
+            for n in self.grad:
+                kwargs['grad'+n] = knowns[g['grad'+n]][idx]
+            for n in self.curl:
+                kwargs['curl'+n] = knowns[g['curl'+n]][idx]
+            for n in self.div:
+                kwargs['div'+n] = knowns[g['div'+n]][idx]
+
+            ret[idx] = self.func(*xyz, **kwargs)
+
+        ret = np.stack(ret).astype(dtype, copy=False)
+
+        return ret
+
+    def ncface_values(self, *args, **kwargs):
+        return self._ncx_values('ncface_values', *args, **kwargs)
+
+    def ncedge_values(self, *args, **kwargs):
+        return self._ncx_values('ncedge_values', *args, **kwargs)
+
+    def point_values(self, counts=None, locs=None, points=None,
+                     attrs=None, elem_ids=None,
+                     mesh=None, int_points=None, g=None,
+                     knowns=None, current_domains=None):
+
+        if locs is None:
+            return
+        if g is None:
+            g = {}
+        if knowns is None:
+            knowns = WKD()
+
+        shape = [counts] + list(self.shape)
+        dtype = np.complex128 if self.complex else np.float64
+        ret = np.zeros(shape, dtype=dtype)
+
+        valid_attrs = attrs[attrs != -1]
+
+        dep2kw = self.dep2kw
+
+        jj = 0
+        for i in range(counts):
+            if valid_attrs[i] == -1:
+                continue
+            if (current_domains is not None and
+                    not valid_attrs[i] in current_domains):
+                continue
+
+            for n in self.dependency:
+                if not g[n] in knowns:
+                    knowns[g[n]] = g[n].point_values(counts=counts, locs=locs, points=points,
+                                                     attrs=attrs, elem_ids=elem_ids,
+                                                     mesh=mesh, int_points=int_points, g=g,
+                                                     knowns=knowns, current_domains=current_domains)
+
+            xyz = tuple(locs[i])
+            kwargs = {dep2kw[n]: knowns[g[n]][i] for n in self.dependency}
+            for n in self.grad:
+                kwargs['grad'+n] = knowns[g['grad'+n]][i]
+            for n in self.curl:
+                kwargs['curl'+n] = knowns[g['curl'+n]][i]
+            for n in self.div:
+                kwargs['div'+n] = knowns[g['div'+n]][i]
+
+            value = self.func(*xyz, **kwargs)
+
+            ret[i, ...] = value
+
+        return ret
+
+    def set_coeff(self, ind_vars, ll):
+        for n in self.dependency:
+            if (n in ll and isinstance(ll[n], Variable)):
+                ll[n].set_coeff(ind_vars, ll)
+
+    def set_context(self, ll):
+        self.global_context = ll
+        for n in self.dependency:
+            if (n in ll and isinstance(ll[n], Variable)):
+                ll[n].set_context(ll)
+
+
+class CoefficientVariable(Variable):
+    def __init__(self, coeff_gen, l, g=None, coeff=None):
+        self.coeff = coeff_gen(l, g)
+        self.kind = coeff_gen.kind
+
+        complex = not (self.coeff[1] is None)
+        super(CoefficientVariable, self).__init__(complex=complex)
+
+    @property
+    def local_value(self):
+        return self._local_value
+
+    @local_value.setter
+    def local_value(self, value):
+        self._local_value = value
+
+    def __call__(self, **kwargs):
+        return self._local_value
+
+    def set_point(self, T, ip, g, l, t=None):
+        self.T = T
+        self.ip = ip
+        self.t = t
+        self.set_local_from_T_ip()
+
+    def set_local_from_T_ip(self):
+        self.local_value = self.eval_local_from_T_ip()
+
+    def eval_local_from_T_ip(self):
+        call_eval = self.get_call_eval()
+
+        #
+        # (note 2024.12.14) removed wrapping np.array. this was necessary
+        # because numba function distinguish np.array(scalar) and scalar,
+        # causing type mismatch error. keeping this note for future check
+        #
+
+        T, ip = self.T, self.ip
+        if (self.coeff[0] is not None and
+                self.coeff[1] is not None):
+            # value = (np.array(call_eval(self.coeff[0], T, ip)) +
+            #         1j * np.array(self.coeff[1], T, ip))
+            value = (call_eval(self.coeff[0], T, ip) +
+                     1j * call_eval(self.coeff[1], T, ip))
+        elif self.coeff[0] is not None:
+            #value = np.array(call_eval(self.coeff[0], T, ip))
+            value = call_eval(self.coeff[0], T, ip)
+        elif self.coeff[1] is not None:
+            #value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+            value = 1j * call_eval(self.coeff[1], T, ip)
+        else:
+            assert False, "coeff is (None, None)"
+        return value
+
+    def nodal_values(self, iele=None, ibele=None, elattr=None, el2v=None,
+                     locs=None, elvertloc=None, wverts=None, mesh=None,
+                     iverts_f=None, g=None, knowns=None,
+                     edge_evaluator=False, **kwargs):
+
+        g = mfem.Geometry()
+        size = len(iverts_f)
+        _check = np.zeros(size)
+
+        ret = None
+
+        if ibele is None:
+            print(
+                "ibele = None : we can not evaulate CoefficientVariable in this case (edge for dim=3 ")
+            return
+
+        if mesh.Dimension() == 3:
+            if edge_evaluator:
+                assert False, "EdgeNodal Evaluator does not supported dim=3"
+            getelement = mesh.GetBdrElement
+            gettransformation = mesh.GetBdrElementTransformation
+        elif mesh.Dimension() == 2:
+            if edge_evaluator:
+                getelement = mesh.GetBdrElement
+                gettransformation = mesh.GetBdrElementTransformation
+            else:
+                getelement = mesh.GetElement
+                gettransformation = mesh.GetElementTransformation
+        else:
+            if edge_evaluator:
+                getelement = mesh.GetElement
+                gettransformation = mesh.GetElementTransformation
+            else:
+                assert False, "BdrNodal Evaluator does not support dim=1"
+
+        call_eval = self.get_call_eval()
+
+        for ibe in ibele:
+            el = getelement(ibe)
+            rule = g.GetVertices(el.GetGeometryType())
+            nv = rule.GetNPoints()
+
+            T = gettransformation(ibe)
+            bverts = el.GetVerticesArray()
+
+            for i in range(nv):
+                ip = rule.IntPoint(i)
+                T.SetIntPoint(ip)
+
+                if (self.coeff[0] is not None and
+                        self.coeff[1] is not None):
+                    value = (np.array(call_eval(self.coeff[0], T, ip)) +
+                             1j * np.array(call_eval(self.coeff[1], T, ip)))
+                elif self.coeff[0] is not None:
+                    value = np.array(call_eval(self.coeff[0], T, ip))
+                elif self.coeff[1] is not None:
+                    value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+                else:
+                    assert False, "coeff is (None, None)"
+
+                if ret is None:
+                    if len(value.shape) == 0:
+                        shape = np.hstack((size, ))
+                    else:
+                        shape = np.hstack((size, np.atleast_1d(value).shape))
+                    ret = np.zeros(shape, dtype=value.dtype)
+
+                idx = np.searchsorted(iverts_f, bverts[i])
+                ret[idx, ...] = value
+                _check[idx] = 1
+
+        self._valid_nodes = (_check != 0)
+
+        return ret
+
+    def ncface_values(self, ifaces=None, irs=None, gtypes=None, mesh=None,
+                      **kwargs):
+
+        call_eval = self.get_call_eval()
+
+        if mesh.Dimension() == 3:
+            m = mesh.GetFaceTransformation
+        elif mesh.Dimension() == 2:
+            m = mesh.GetElementTransformation
+
+        data = []
+        dtype = np.complex128 if self.complex else np.float64
+
+        for i, gtype, in zip(ifaces, gtypes):
+            T = m(i)
+            ir = irs[gtype]
+            nv = ir.GetNPoints()
+
+            for j in range(nv):
+                ip = ir.IntPoint(j)
+                T.SetIntPoint(ip)
+
+                if (self.coeff[0] is not None and
+                        self.coeff[1] is not None):
+                    value = (np.array(call_eval(self.coeff[0], T, ip)) +
+                             1j * np.array(call_eval(self.coeff[1], T, ip)))
+                elif self.coeff[0] is not None:
+                    value = np.array(call_eval(self.coeff[0], T, ip))
+                elif self.coeff[1] is not None:
+                    value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+                else:
+                    assert False, "coeff is (None, None)"
+                data.append(value)
+
+        ret = np.stack(data).astype(dtype, copy=False)
+
+        return ret
+
+    def ncedge_values(self, ifaces=None, irs=None, gtypes=None, mesh=None,
+                      **kwargs):
+
+        call_eval = self.get_call_eval()
+
+        if mesh.Dimension() == 2:
+            m = mesh.GetFaceTransformation
+        elif mesh.Dimension() == 1:
+            m = mesh.GetElementTransformation
+        else:
+            assert False, "NCEdge Evaluator is not supported for this dimension"
+
+        data = []
+        dtype = np.complex128 if self.complex else np.float64
+
+        for i, gtype, in zip(ifaces, gtypes):
+            T = m(i)
+            ir = irs[gtype]
+            nv = ir.GetNPoints()
+
+            for j in range(nv):
+                ip = ir.IntPoint(j)
+                T.SetIntPoint(ip)
+
+                if (self.coeff[0] is not None and
+                        self.coeff[1] is not None):
+                    value = (np.array(call_eval(self.coeff[0], T, ip)) +
+                             1j * np.array(call_eval(self.coeff[1], T, ip)))
+                elif self.coeff[0] is not None:
+                    value = np.array(call_eval(self.coeff[0], T, ip))
+                elif self.coeff[1] is not None:
+                    value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+                else:
+                    assert False, "coeff is (None, None)"
+                data.append(value)
+
+        ret = np.stack(data).astype(dtype, copy=False)
+
+        return ret
+
+    def point_values(self, counts=None, locs=None, points=None,
+                     attrs=None, elem_ids=None,
+                     mesh=None, int_points=None, g=None,
+                     knowns=None, **kwargs):
+
+        call_eval = self.get_call_eval()
+
+        data = []
+        dtype = np.complex128 if self.complex else np.float64
+
+        for i in range(len(attrs)):
+            if attrs[i] == -1:
+                continue
+
+            iele = elem_ids[i]
+            T = mesh.GetElementTransformation(iele)
+            ip = int_points[i]
+            T.SetIntPoint(ip)
+
+            if (self.coeff[0] is not None and
+                    self.coeff[1] is not None):
+                value = (np.array(call_eval(self.coeff[0], T, ip)) +
+                         1j * np.array(call_eval(self.coeff[1], T, ip)))
+            elif self.coeff[0] is not None:
+                value = np.array(call_eval(self.coeff[0], T, ip))
+            elif self.coeff[1] is not None:
+                value = 1j * np.array(call_eval(self.coeff[1], T, ip))
+            else:
+                assert False, "coeff is (None, None)"
+            data.append(value)
+
+        ret = np.stack(data).astype(dtype, copy=False)
+
+        return ret
+
+    def get_call_eval(self):
+        if self.kind == "scalar":
+            def call_eval(c, T, ip):
+                return c.Eval(T, ip)
+        elif self.kind == "vector":
+            def call_eval(c, T, ip):
+                v = mfem.Vector()
+                c.Eval(v, T, ip)
+                return v.GetDataArray().copy()
+        elif self.kind == "matrix":
+            def call_eval(c, T, ip):
+                m = mfem.DenseMatrix()
+                c.Eval(m, T, ip)
+                return m.GetDataArray().copy()
+        else:
+            assert False, "unknown kind of Coefficient. Must be scalar/vector/matrix"
+        return call_eval
+
+
+class NumbaCoefficientVariable(CoefficientVariable):
+    def __init__(self, func, complex=False, shape=tuple(), dependency=None,
+                 grad=None, curl=None, div=None, td=False, params=None):
+
+        super(
+            CoefficientVariable,
+            self).__init__(complex=complex,
+                           dependency=dependency,
+                           grad=grad,
+                           curl=curl,
+                           div=div)
+
+        self.func = func
+        self.params = params
+        self.t = None
+        self.x = (0, 0, 0)
+        self.shape = shape
+        self.td = td
+
+        if len(self.shape) == 0:
+            self.kind = 'scalar'
+        elif len(self.shape) == 1:
+            self.kind = 'vector'
+        elif len(self.shape) == 2:
+            self.kind = 'matrix'
+        else:
+            assert False, "unsupported shape"
+
+        self._jitted = None
+
+    def has_dependency(self):
+        return ((len(self.dependency) + len(self.grad) +
+                 len(self.div) + len(self.curl)) > 0)
+
+    def prep_names(self, ind_vars, gc):
+        self.set_coeff(ind_vars, gc)
+        return []
+
+    def forget_jitted_coefficient(self):
+        self._jitted = None
+
+    def get_jitted_coefficient(self, ind_vars, locals):
+
+        if self._jitted is not None:
+            dprint1("(Note) this numba coefficient is already compiled", self.func)
+            return self._jitted
+
+        from petram.phys.numba_coefficient import NumbaCoefficient
+        if isinstance(self.func, NumbaCoefficient):
+            return self.func.mfem_numba_coeff
+
+        from petram.helper.numba_utils import (generate_caller_scalar,
+                                               generate_caller_array,
+                                               generate_signature_scalar,
+                                               generate_signature_array,)
+        sdim = len(ind_vars)
+
+        if len(self.shape) == 0:
+            jitter = mfem.jit.scalar
+
+            def gen_caller(setting):
+                return generate_caller_scalar(setting, sdim)
+
+            def gen_sig(setting):
+                return generate_signature_scalar(setting, sdim)
+
+            kwargs = {}
+
+        elif len(self.shape) == 1:
+            jitter = mfem.jit.vector
+
+            def gen_caller(setting):
+                return generate_caller_array(setting, sdim)
+
+            def gen_sig(setting):
+                return generate_signature_array(setting, sdim)
+
+            kwargs = {"shape": self.shape}
+
+        elif len(self.shape) == 2:
+            jitter = mfem.jit.matrix
+
+            def gen_caller(setting):
+                return generate_caller_array(setting, sdim)
+
+            def gen_sig(setting):
+                return generate_signature_array(setting, sdim)
+
+            kwargs = {"shape": self.shape}
+
+        else:
+            assert False, "unsupported shape"
+
+        dep = []
+
+        for d in self.dependency:
+            dd = locals[d].get_jitted_coefficient(ind_vars, locals)
+            if dd is None:
+                return
+            dep.append(dd)
+        for d in self.grad:
+            dd = locals[d].get_jitted_grad_coefficient(ind_vars, locals)
+            if dd is None:
+                return
+            dep.append(dd)
+        for d in self.curl:
+            dd = locals[d].get_jitted_curl_coefficient(ind_vars, locals)
+            if dd is None:
+                return
+            dep.append(dd)
+        for d in self.div:
+            dd = locals[d].get_jitted_div_coefficient(ind_vars, locals)
+            if dd is None:
+                return
+            dep.append(dd)
+
+        from petram.mfem_config import numba_debug, use_parallel
+        if use_parallel:
+            from mpi4py import MPI
+            myid = MPI.COMM_WORLD.rank
+        else:
+            myid = 0
+        numba_debug = False if myid != 0 else numba_debug
+
+        wrapper = jitter(sdim=sdim,
+                         complex=self.complex,
+                         td=self.td,
+                         params=self.params,
+                         dependency=dep,
+                         interface=(gen_caller, gen_sig),
+                         debug=numba_debug,
+                         **kwargs)
+        self._jitted = wrapper(self.func)
+        return self._jitted
+
+    def set_coeff(self, ind_vars, locals):
+        coeff = self.get_jitted_coefficient(ind_vars, locals)
+        if coeff is None:
+            assert False, "Failed to generate JITed coefficient"
+        if self.complex:
+            self.coeff = (coeff.real, coeff.imag)
+        else:
+            self.coeff = (coeff, None)
+
+
+class GridFunctionVariable(Variable):
+    def __init__(self, gf_real, gf_imag=None, comp=1,
+                 deriv=None, complex=False):
+
+        complex = not (gf_imag is None)
+        super(GridFunctionVariable, self).__init__(complex=complex)
+        self.dim = gf_real.VectorDim()
+        self.comp = comp
+        self.isGFSet = False
+        self.isDerived = False
+        self.deriv = deriv if deriv is not None else self._def_deriv
+        self.deriv_args = (gf_real, gf_imag)
+
+        self._grad_gf = None
+        self._curl_gf = None
+        self._div_gf = None
+
+    def _def_deriv(self, *args):
+        return args[0], args[1], None
+
+    def _set_grad_gf(self):
+        self.set_gfr_gfi()
+        if self._grad_gf is None:
+            grad_r = mfem.GradientGridFunctionCoefficient(self.gfr)
+            if self.gfi is not None:
+                grad_i = mfem.GradientGridFunctionCoefficient(self.gfi)
+            else:
+                grad_i = None
+            self._grad_gf = (grad_r, grad_i)
+
+    def _set_div_gf(self):
+        self.set_gfr_gfi()
+        if self._div_gf is None:
+            div_r = mfem.DivergenceGridFunctionCoefficient(self.gfr)
+            if self.gfi is not None:
+                div_i = mfem.DivergenceGridFunctionCoefficient(self.gfi)
+            else:
+                div_i = None
+            self._div_gf = (div_r, div_i)
+
+    def _set_curl_gf(self):
+        self.set_gfr_gfi()
+        if self._curl_gf is None:
+            curl_r = mfem.CurlGridFunctionCoefficient(self.gfr)
+            if self.gfi is not None:
+                curl_i = mfem.CurlGridFunctionCoefficient(self.gfi)
+            else:
+                curl_i = None
+            self._curl_gf = (curl_r, curl_i)
+
+    def generate_grad_variable(self):
+        self._set_grad_gf()
+
+        def func(*args, **kargs):
+            return self._grad_gf
+        func.kind = 'vector'
+        l = {}
+        return CoefficientVariable(func, l)
+
+    def generate_curl_variable(self):
+        self._set_curl_gf()
+
+        def func(*args, **kargs):
+            return self._curl_gf
+        func.kind = 'vector'
+        l = {}
+        return CoefficientVariable(func, l)
+
+    def generate_div_variable(self):
+        self._set_div_gf()
+
+        def func(*args, **kargs):
+            return self._div_gf
+        func.kind = 'scalar'
+        l = {}
+        return CoefficientVariable(func, l)
+
+    def get_jitted_grad_coefficient(self, ind_vars, locals):
+        self._set_grad_gf()
+        if self._grad_gf[1] is None:
+            return self._grad_gf[0]
+        else:
+            return (self._grad_gf[0], self._grad_gf[1])
+
+    def get_jitted_curl_coefficient(self, ind_vars, locals):
+        self._set_curl_gf()
+        if self._curl_gf[1] is None:
+            return self._curl_gf[0]
+        else:
+            return (self._curl_gf[0], self._curl_gf[1])
+
+    def get_jitted_div_coefficient(self, ind_vars, locals):
+        self._set_div_gf()
+        if self._div_gf[1] is None:
+            return self._div_gf[0]
+        else:
+            return (self._div_gf[0], self._div_gf[1])
+
+    def eval_grad(self):
+        self._set_grad_gf()
+        v = mfem.Vector()
+        self._grad_gf[0].Eval(v, self.T, self.ip)
+        ret = v.GetDataArray().copy()
+        if self._grad_gf[1] is not None:
+            self._grad_gf[1].Eval(v, self.T, self.ip)
+            ret = ret + 1j*v.GetDataArray()
+        return ret
+
+    def eval_curl(self):
+        self._set_curl_gf()
+        v = mfem.Vector()
+        self._curl_gf[0].Eval(v, self.T, self.ip)
+        ret = v.GetDataArray().copy()
+        if self._curl_gf[1] is not None:
+            self._curl_gf[1].Eval(v, self.T, self.ip)
+            ret = ret + 1j*v.GetDataArray()
+        return ret
+
+    def eval_div(self):
+        self._set_div_gf()
+        v = mfem.Vector()
+        self._div_gf[0].Eval(v, self.T, self.ip)
+        ret = v.GetDataArray().copy()
+        if self._div_gf[1] is not None:
+            self._div_gf[1].Eval(v, self.T, self.ip)
+            ret = ret + 1j*v.GetDataArray()
+        return ret
+
+    def get_gf_real(self):
+        if not self.isGFSet:
+            self.set_gfr_gfi()
+        return self.gfr
+
+    def get_gf_imag(self):
+        if not self.isGFSet:
+            self.set_gfr_gfi()
+        return self.gfi
+
+    def set_gfr_gfi(self):
+        gf_real, gf_imag, extra = self.deriv(*self.deriv_args)
+        self.gfr = gf_real
+        self.gfi = gf_imag
+        self.extra = extra
+        self.isGFSet = True
+        return gf_real, gf_imag
+
+    def set_point(self, T, ip, g, l, t=None):
+        self.T = T
+        self.ip = ip
+        self.t = t
+        self.set_local_from_T_ip()
+
+    @property
+    def local_value(self):
+        return self._local_value
+
+    @local_value.setter
+    def local_value(self, value):
+        self._local_value = value
+
+    def __call__(self, **kwargs):
+        return self._local_value
+
+    def set_local_from_T_ip(self):
+        self.local_value = self.eval_local_from_T_ip()
+
+    def get_emesh_idx(self, idx=None, g=None):
+        if idx is None:
+            idx = []
+        gf_real, gf_imag = self.deriv_args
+
+        if gf_real is not None:
+            if not gf_real._emesh_idx in idx:
+                idx.append(gf_real._emesh_idx)
+        elif gf_imag is not None:
+            if not gf_imag._emesh_idx in idx:
+                idx.append(gf_imag._emesh_idx)
+        else:
+            pass
+
+        return idx
+
+    def FESpace(self, check_parallel=True):
+        gf_real, gf_imag = self.deriv_args
+        if gf_real is not None:
+            if hasattr(gf_real, "ParFESpace"):
+                return gf_real.ParFESpace()
+            else:
+                return gf_real.FESpace()
+        if gf_imag is not None:
+            if hasattr(gf_imag, "ParFESpace"):
+                return gf_imag.ParFESpace()
+            else:
+                return gf_imag.FESpace()
+
+
+class GFScalarVariable(GridFunctionVariable):
+    def __repr__(self):
+        return "GridFunctionVariable (Scalar)"
+
+    def set_funcs(self):
+        # I should come back here to check if this works
+        # with vector gf and/or boundary element. probably not...
+        if not self.isGFSet:
+            gf_real, gf_imag = self.set_gfr_gfi()
+        else:
+            gf_real, gf_imag = self.gfr, self.gfi
+
+        name = gf_real.FESpace().FEColl().Name()
+        if name.startswith("ND") or name.startswith("RT"):
+            self.isVectorFE = True
+            self.func_r = mfem.VectorGridFunctionCoefficient(gf_real)
+            if gf_imag is not None:
+                self.func_i = mfem.VectorGridFunctionCoefficient(gf_imag)
+            else:
+                self.func_i = None
+        else:
+            vdim = gf_real.FESpace().GetVDim()
+            if vdim == 1:
+                self.isVectorFE = False
+                self.func_r = mfem.GridFunctionCoefficient(gf_real)
+                if gf_imag is not None:
+                    self.func_i = mfem.GridFunctionCoefficient(gf_imag)
+                else:
+                    self.func_i = None
+            else:
+                self.isVectorFE = True
+                self.func_r = mfem.VectorGridFunctionCoefficient(gf_real)
+                if gf_imag is not None:
+                    self.func_i = mfem.VectorGridFunctionCoefficient(gf_imag)
+                else:
+                    self.func_i = None
+
+        self.isDerived = True
+
+    def eval_local_from_T_ip(self):
+        if not self.isDerived:
+            self.set_funcs()
+        if self.isVectorFE:
+            if self.func_i is None:
+                v = mfem.Vector()
+                self.func_r.Eval(v, self.T, self.ip)
+                return v.GetDataArray()[self.comp - 1]
+            else:
+                v1 = mfem.Vector()
+                v2 = mfem.Vector()
+                self.func_r.Eval(v1, self.T, self.ip)
+                self.func_i.Eval(v2, self.T, self.ip)
+                return (v1.GetDataArray() + 1j *
+                        v2.GetDataArray())[self.comp - 1]
+        else:
+            if self.func_i is None:
+                return self.func_r.Eval(self.T, self.ip)
+            else:
+                return (self.func_r.Eval(self.T, self.ip) +
+                        1j * self.func_i.Eval(self.T, self.ip))
+
+    def nodal_values(self, iele=None, el2v=None, wverts=None,
+                     **kwargs):
+        if iele is None:
+            return
+
+        if not self.isDerived:
+            self.set_funcs()
+
+        # check if this is VectorFE in lower dimensionality
+        gf = self.gfr if self.gfr is not None else self.gfi
+        check_vectorfe_in_lowdim(gf)
+
+        size = len(wverts)
+        _check = np.zeros(size)
+
+        if self.gfi is None:
+            ret = np.zeros(size, dtype=np.float64)
+        else:
+            ret = np.zeros(size, dtype=np.complex128)
+        wverts = np.zeros(size)
+
+        for kk, m in zip(iele, el2v):
+            if kk < 0:
+                continue
+            values = mfem.doubleArray()
+
+            self.gfr.GetNodalValues(kk, values, self.comp)
+
+            for k, idx in m:
+                ret[idx] = ret[idx] + values[k]
+                wverts[idx] += 1
+                _check[idx] = 1
+            if self.gfi is not None:
+                arr = mfem.doubleArray()
+                self.gfi.GetNodalValues(kk, arr, self.comp)
+                for k, idx in m:
+                    ret[idx] = ret[idx] + arr[k] * 1j
+
+        flag = wverts > 0
+        ret[flag] = ret[flag] / wverts[flag]
+
+        self._valid_nodes = (_check != 0)
+
+        return ret
+
+    def ncface_values(self, ifaces=None, irs=None,
+                      gtypes=None, **kwargs):
+        if not self.isDerived:
+            self.set_funcs()
+
+        name = self.gfr.FESpace().FEColl().Name()
+        ndim = self.gfr.FESpace().GetMesh().Dimension()
+
+        isVector = False
+        if (name.startswith('RT') or
+                name.startswith('ND')):
+            d = mfem.DenseMatrix()
+            p = mfem.DenseMatrix()
+            isVector = True
+        else:
+            d = mfem.Vector()
+            p = mfem.DenseMatrix()
+        data = []
+
+        def get_method(gf, ndim, isVector):
+            if gf is None:
+                return None
+            if ndim == 3:
+                if isVector:
+                    return gf.GetFaceVectorValues
+                elif gf.VectorDim() > 1:
+                    def func(i, side, ir, vals, tr, in_gf=gf):
+                        in_gf.GetFaceValues(
+                            i, side, ir, vals, tr, vdim=self.comp)
+                    return func
+                else:
+                    return gf.GetFaceValues
+            elif ndim == 2:
+                if isVector:
+                    def func(i, side, ir, vals, tr, in_gf=gf):
+                        in_gf.GetVectorValues(i, ir, vals, tr)
+                    return func
+                elif gf.VectorDim() > 1:
+                    def func(i, side, ir, vals, tr, in_gf=gf):
+                        #in_gf.GetValues(i, ir, vals, tr, vdim=self.comp - 1)
+                        #in_gf.GetValues(i, ir, vals, tr, self.comp-1)
+                        in_gf.GetValues(i, ir, vals, tr, self.comp)
+                    return func
+                else:
+                    def func(i, side, ir, vals, tr, in_gf=gf):
+                        in_gf.GetValues(i, ir, vals, tr)
+                        return
+                    return func
+            else:
+                assert False, "ndim = 1 has no face"
+            return None
+
+        getvalr = get_method(self.gfr, ndim, isVector)
+        getvali = get_method(self.gfi, ndim, isVector)
+
+        for i, gtype, in zip(ifaces, gtypes):
+            ir = irs[gtype]
+            getvalr(i, 2, ir, d, p)  # side = 2 (automatic?)
+            v = d.GetDataArray().copy()
+
+            if isVector:
+                v = v[self.comp - 1, :]
+
+            if getvali is not None:
+                getvali(i, 2, ir, d, p)  # side = 2 (automatic?)
+                vi = d.GetDataArray().copy()
+                if isVector:
+                    vi = vi[self.comp - 1, :]
+                v = v + 1j * vi
+            data.append(v)
+        data = np.hstack(data)
+
+        return data
+
+    def ncedge_values(self, ifaces=None, irs=None,
+                      gtypes=None, **kwargs):
+
+        if not self.isDerived:
+            self.set_funcs()
+
+        name = self.gfr.FESpace().FEColl().Name()
+        ndim = self.gfr.FESpace().GetMesh().Dimension()
+
+        isVector = False
+        if name.startswith('RT'):
+            d = mfem.DenseMatrix()
+            p = mfem.DenseMatrix()
+            isVector = True
+        elif name.startswith('ND'):
+            d = mfem.DenseMatrix()
+            p = mfem.DenseMatrix()
+            isVector = True
+        else:
+            d = mfem.Vector()
+            p = mfem.DenseMatrix()
+        data = []
+
+        def get_method(gf, ndim, isVector):
+            if gf is None:
+                return None
+            if ndim == 1:
+                # if isVector:
+                #    def func(i, ir, vals, tr, in_gf=gf):
+                if gf.VectorDim() > 1:
+                    def func(i, ir, vals, tr, in_gf=gf):
+                        #in_gf.GetValues(i, ir, vals, tr, self.comp-1)
+                        in_gf.GetValues(i, ir, vals, tr, self.comp)
+                    return func
+                else:
+                    def func(i, ir, vals, tr, in_gf=gf):
+                        in_gf.GetValues(i, ir, vals, tr)
+                        return
+                    return func
+            elif ndim == 2:
+                side = 2
+                if isVector:
+                    def func(i, ir, vals, tr, in_gf=gf):
+                        in_gf.GetFaceVectorValues(i, side, ir, vals, tr)
+                    return func
+                elif gf.VectorDim() > 1:
+                    def func(i, ir, vals, tr, in_gf=gf):
+                        in_gf.GetFaceValues(
+                            i, side, ir, vals, tr, self.comp)
+                        # i, side, ir, vals, tr, self.comp - 1)
+                    return func
+                else:
+                    def func(i, ir, vals, tr, in_gf=gf):
+                        in_gf.GetFaceValues(i, side, ir, vals, tr)
+                        return
+                    return func
+
+            else:
+                assert False, "ndim = 3 is not supported"
+            return None
+
+        getvalr = get_method(self.gfr, ndim, isVector)
+        getvali = get_method(self.gfi, ndim, isVector)
+
+        for i, gtype, in zip(ifaces, gtypes):
+            ir = irs[gtype]
+            getvalr(i, ir, d, p)  # side = 2 (automatic?)
+            v = d.GetDataArray().copy()
+            if isVector:
+                v = v[self.comp - 1, :]
+
+            if getvali is not None:
+                getvali(i, ir, d, p)  # side = 2 (automatic?)
+                vi = d.GetDataArray().copy()
+                if isVector:
+                    vi = vi[self.comp - 1, :]
+                v = v + 1j * vi
+            data.append(v)
+
+        data = np.hstack(data)
+        return data
+
+    def point_values(self, counts=None, locs=None, points=None,
+                     attrs=None, elem_ids=None,
+                     mesh=None, int_points=None, g=None,
+                     knowns=None, **kwargs):
+
+        if not self.isDerived:
+            self.set_funcs()
+        gf = self.gfr if self.gfr is not None else self.gfi
+
+        name = gf.FESpace().FEColl().Name()
+        ndim = gf.FESpace().GetMesh().Dimension()
+
+        if (name.startswith('RT') or
+                name.startswith('ND')):
+            isVector = True
+        else:
+            isVector = False
+
+        d = mfem.Vector()
+
+        if self.complex:
+            dtype = complex
+            val = complex(0.0)
+        else:
+            dtype = float
+            val = float(0.0)
+
+        data = np.zeros(counts, dtype=dtype)
+
+        jj = 0
+        for i in range(len(attrs)):
+            if attrs[i] == -1:
+                continue
+
+            ip = int_points[i]
+            iele = elem_ids[i]
+
+            val = val * 0.
+
+            if self.gfr is not None:
+                if isVector:
+                    self.gfr.GetVectorValue(iele, ip, d)
+                    val = d[self.comp - 1]
+                else:
+                    #val = self.gfr.GetValue(iele, ip, self.comp - 1)
+                    val = self.gfr.GetValue(iele, ip, self.comp)
+
+            if self.gfi is not None:
+                if isVector:
+                    self.gfi.GetVectorValue(iele, ip, d)
+                    val += 1j * d[self.comp - 1]
+                else:
+                    #val += 1j * self.gfi.GetValue(iele, ip, self.comp - 1)
+                    val += 1j * self.gfi.GetValue(iele, ip, self.comp)
+
+            data[jj] = val
+            jj = jj + 1
+
+        return data
+
+    def get_jitted_coefficient(self, ind_vars, locals):
+
+        if not self.isDerived:
+            self.set_funcs()
+
+        if isinstance(self.func_r, mfem.VectorCoefficient):
+            v = [0] * self.func_r.GetVDim()
+            v[self.comp-1] = 1
+            c2 = mfem.VectorConstantCoefficient(v)
+            # the value of c2 will be copied.
+            ret1 = mfem.InnerProductCoefficient(self.func_r, c2)
+            if self.func_i is not None:
+                ret2 = mfem.InnerProductCoefficient(self.func_i, c2)
+                return (ret1, ret2)
+            else:
+                return ret1
+
+        if self.func_i is None:
+            return self.func_r
+        else:
+            return (self.func_r, self.func_i)
+
+
+class GFVectorVariable(GridFunctionVariable):
+    def __repr__(self):
+        return "GridFunctionVariable (Vector)"
+
+    def set_funcs(self):
+        if not self.isGFSet:
+            gf_real, gf_imag = self.set_gfr_gfi()
+        else:
+            gf_real, gf_imag = self.gfr, self.gfi
+
+        self.dim = gf_real.VectorDim()
+        name = gf_real.FESpace().FEColl().Name()
+        #if name.startswith("ND") or name.startswith("RT"):
+        if True:
+            self.isVectorFE = True
+            self.func_r = mfem.VectorGridFunctionCoefficient(gf_real)
+            if gf_imag is not None:
+                self.func_i = mfem.VectorGridFunctionCoefficient(gf_imag)
+            else:
+                self.func_i = None
+
+
+
+        '''
+        else:
+            self.isVectorFE = False
+            self.func_r = [mfem.GridFunctionCoefficient(gf_real, k + 1)
+                           for k in range(self.dim)]
+
+            if gf_imag is not None:
+                self.func_i = [mfem.GridFunctionCoefficient(gf_imag, k + 1)
+                               for k in range(self.dim)]
+            else:
+                self.func_i = None
+        '''
+        self.isDerived = True
+
+    def eval_local_from_T_ip(self):
+        if not self.isDerived:
+            self.set_funcs()
+
+        if True:
+            if self.func_i is None:
+                v = mfem.Vector()
+                self.func_r.Eval(v, self.T, self.ip)
+                return v.GetDataArray().copy()
+            else:
+                v1 = mfem.Vector()
+                v2 = mfem.Vector()
+                self.func_r.Eval(v1, self.T, self.ip)
+                self.func_i.Eval(v2, self.T, self.ip)
+                return v1.GetDataArray().copy() + 1j * v2.GetDataArray().copy()
+
+
+
+        '''
+        else:
+            if self.func_i is None:
+                return np.array([func_r.Eval(self.T, self.ip) for
+                                 func_r in self.func_r])
+            else:
+                return np.array([(func_r.Eval(self.T, self.ip) +
+                                  1j * func_i.Eval(self.T, self.ip))
+                                 for func_r, func_i
+                                 in zip(self.func_r, self.func_i)])
+        '''
+
+    def nodal_values(self, iele=None, el2v=None, wverts=None,
+                     **kwargs):
+        # iele = None, elattr = None, el2v = None,
+        # wverts = None, locs = None, g = None
+
+        if iele is None:
+            return
+        if not self.isDerived:
+            self.set_funcs()
+
+        size = len(wverts)
+        _check = np.zeros(size)
+
+        # check if this is VectorFE in lower dimensionality
+        gf = self.gfr if self.gfr is not None else self.gfi
+        check_vectorfe_in_lowdim(gf)
+
+        ans = []
+        for comp in range(self.dim):
+            if self.gfi is None:
+                ret = np.zeros(size, dtype=np.float64)
+            else:
+                ret = np.zeros(size, dtype=np.complex128)
+
+            wverts = np.zeros(size)
+            for kk, m in zip(iele, el2v):
+                if kk < 0:
+                    continue
+                values = mfem.doubleArray()
+                self.gfr.GetNodalValues(kk, values, comp + 1)
+                for k, idx in m:
+                    ret[idx] = ret[idx] + values[k]
+                    wverts[idx] += 1
+                    _check[idx] = 1
+
+                if self.gfi is not None:
+                    arr = mfem.doubleArray()
+                    self.gfi.GetNodalValues(kk, arr, comp + 1)
+                    for k, idx in m:
+                        ret[idx] = ret[idx] + arr[k] * 1j
+            # print(list(wverts))
+            ans.append(ret / wverts)
+
+        self._valid_nodes = (_check != 0)
+
+        ret = np.transpose(np.vstack(ans))
+        return ret
+
+    def ncface_values(self, ifaces=None, irs=None,
+                      gtypes=None, **kwargs):
+
+        if not self.isDerived:
+            self.set_funcs()
+        ndim = self.gfr.FESpace().GetMesh().Dimension()
+
+        d = mfem.DenseMatrix()
+        p = mfem.DenseMatrix()
+        data = []
+
+        def get_method(gf, ndim):
+            if gf is None:
+                return None
+            if ndim == 3:
+                return gf.GetFaceVectorValues
+            elif ndim == 2:
+                def func(i, side, ir, d, p, gf=gf):
+                    return gf.GetVectorValues(i, ir, d, p)
+                return func
+            else:
+                assert False, "ndim = 1 has no face"
+        getvalr = get_method(self.gfr, ndim)
+        getvali = get_method(self.gfi, ndim)
+
+        for i, gtype, in zip(ifaces, gtypes):
+            ir = irs[gtype]
+            getvalr(i, 2, ir, d, p)  # side = 2 (automatic?)
+            v = d.GetDataArray().copy()
+
+            if getvali is not None:
+                getvali(i, 2, ir, d, p)
+                vi = d.GetDataArray().copy()
+                v = v + 1j * vi
+            data.append(v)
+        ret = np.hstack(data).transpose()
+
+        return ret
+
+    def ncedge_values(self, ifaces=None, irs=None,
+                      gtypes=None, **kwargs):
+
+        if not self.isDerived:
+            self.set_funcs()
+        ndim = self.gfr.FESpace().GetMesh().Dimension()
+
+        d = mfem.DenseMatrix()
+        p = mfem.DenseMatrix()
+        data = []
+
+        def get_method(gf, ndim):
+            if gf is None:
+                return None
+            if ndim == 3:
+                assert False, "ndim = 3 is not supported for edge plot"
+            elif ndim == 2:
+                def func(i, side, ir, d, p, gf=gf):
+                    return gf.GetVectorValues(i, ir, d, p)
+                return func
+            elif ndim == 1:
+                def func(i, side, ir, d, p, gf=gf):
+                    return gf.GetVectorValues(i, ir, d, p)
+                return func
+            else:
+                assert False, "ndim = 1 has no face"
+        getvalr = get_method(self.gfr, ndim)
+        getvali = get_method(self.gfi, ndim)
+
+        for i, gtype, in zip(ifaces, gtypes):
+            ir = irs[gtype]
+            getvalr(i, 2, ir, d, p)  # side = 2 (automatic?)
+            v = d.GetDataArray().copy()
+
+            if getvali is not None:
+                getvali(i, 2, ir, d, p)
+                vi = d.GetDataArray().copy()
+                v = v + 1j * vi
+            data.append(v)
+        ret = np.hstack(data).transpose()
+
+        return ret
+
+    def point_values(self, counts=None, locs=None, points=None,
+                     attrs=None, elem_ids=None,
+                     mesh=None, int_points=None, g=None,
+                     knowns=None, **kwargs):
+
+        if not self.isDerived:
+            self.set_funcs()
+        gf = self.gfr if self.gfr is not None else self.gfi
+
+        name = gf.FESpace().FEColl().Name()
+        ndim = gf.FESpace().GetMesh().Dimension()
+
+        if (name.startswith('RT') or
+                name.startswith('ND')):
+            isVector = True
+            vdim = gf.FESpace().GetMesh().SpaceDimension()
+        else:
+            isVector = False
+            vdim = gf.VectorDim()
+
+        d = mfem.Vector()
+
+        if self.complex:
+            dtype = complex
+
+        else:
+            dtype = float
+
+        data = np.zeros((counts, vdim), dtype=dtype)
+
+        jj = 0
+        for i in range(len(attrs)):
+            if attrs[i] == -1:
+                continue
+
+            ip = int_points[i]
+            iele = elem_ids[i]
+
+            val = 0.0
+
+            if self.gfr is not None:
+                self.gfr.GetVectorValue(iele, ip, d)
+                val = d.GetDataArray().copy()
+
+            if self.gfi is not None:
+                self.gfi.GetVectorValue(iele, ip, d)
+                dd = 1j * d.GetDataArray().copy()
+                val = val + dd
+
+            data[jj, :] = val
+            jj = jj + 1
+
+        return data
+
+    def get_jitted_coefficient(self, ind_vars, locals):
+        if not self.isDerived:
+            self.set_funcs()
+
+        if isinstance(self.func_r, mfem.VectorCoefficient):
+            if self.func_i is None:
+                return self.func_r
+            else:
+                return (self.func_r, self.func_i)
+        else:
+            assert False, "Not Implemented (should return VectorCoefficient?)"
+
+
+'''
+
+Surf Variable:
+ Regular Variable + Surface Geometry (n, nx, ny, nz)
+
+'''
+
+
+class SurfVariable(Variable):
+    def __init__(self, sdim, complex=False):
+        self.sdim = sdim
+        super(SurfVariable, self).__init__(complex=complex)
+
+
+class SurfNormal(SurfVariable):
+    def __init__(self, sdim, comp=-1, complex=False):
+        self.comp = comp
+        SurfVariable.__init__(self, sdim, complex=complex)
+
+    def __repr__(self):
+        return "SurfaceNormal (nx, ny, nz)"
+
+    def set_point(self, T, ip, g, l, t=None):
+        nor = mfem.Vector(self.sdim)
+        mfem.CalcOrtho(T.Jacobian(), nor)
+        l = np.sqrt(np.sum(nor.GetDataArray()**2))
+        self.nor = nor.GetDataArray().copy()/l
+
+    def get_jitted_coefficient(self, ind_vars, locals):
+        return None
+        #norm = mfem.VectorBdrNormalCoefficient(len(ind_vars))
+        # return norm
+
+    def __call__(self, **kwargs):
+        if self.comp == -1:
+            return self.nor
+        else:
+            return self.nor[self.comp - 1]
+
+    def nodal_values(self, ibele=None, mesh=None, iverts_f=None,
+                     **kwargs):
+        # iele = None, elattr = None, el2v = None,
+        # wverts = None, locs = None, g = None
+
+        g = mfem.Geometry()
+        size = len(iverts_f)
+        _check = np.zeros(size)
+
+        #wverts = np.zeros(size)
+        ret = np.zeros((size, self.sdim))
+        if ibele is None:
+            return
+
+        for ibe in ibele:
+            el = mesh.GetBdrElement(ibe)
+            rule = g.GetVertices(el.GetGeometryType())
+            nv = rule.GetNPoints()
+
+            T = mesh.GetBdrElementTransformation(ibe)
+            bverts = mesh.GetBdrElement(ibe).GetVerticesArray()
+
+            for i in range(nv):
+                nor = mfem.Vector(self.sdim)
+                T.SetIntPoint(rule.IntPoint(i))
+                mfem.CalcOrtho(T.Jacobian(), nor)
+                idx = np.searchsorted(iverts_f, bverts[i])
+
+                ret[idx, :] += nor.GetDataArray().copy()
+                _check[idx] = 1
+
+        self._valid_nodes = (_check != 0)
+
+        #for i in range(self.sdim): ret[:,i] /= wvert
+        # normalize to length one.
+        ret = ret / np.sqrt(np.sum(ret**2, 1)).reshape(-1, 1)
+
+        if self.comp == -1:
+            return ret
+        return ret[:, self.comp - 1]
+
+    def ncface_values(self, ifaces=None, irs=None, gtypes=None,
+                      locs=None, mesh=None, **kwargs):
+
+        size = len(locs)
+        ret = np.zeros((size, self.sdim))
+        if ifaces is None:
+            return
+
+        nor = mfem.Vector(self.sdim)
+
+        if mesh.Dimension() == 3:
+            m = mesh.GetFaceTransformation
+        elif mesh.Dimension() == 2:
+            m = mesh.GetElementTransformation
+        idx = 0
+        for i, gtype, in zip(ifaces, gtypes):
+            ir = irs[gtype]
+            nv = ir.GetNPoints()
+            T = m(i)
+            for j in range(nv):
+                T.SetIntPoint(ir.IntPoint(i))
+                mfem.CalcOrtho(T.Jacobian(), nor)
+                ret[idx, :] = nor.GetDataArray().copy()
+                idx = idx + 1
+
+        from petram.helper.right_broadcast import div
+
+        ret = div(ret, np.sqrt(np.sum(ret**2, -1)))
+        if self.comp == -1:
+            return ret
+        return ret[:, self.comp - 1]
+
+    def ncedge_values(self, *args, **kwargs):
+        raise NotImplementedError("Normal is not defined on Edge")
+
+
+class SurfExpressionVariable(ExpressionVariable, SurfVariable):
+    '''
+    expression valid on surface
+    '''
+
+    def __init__(self, expr, ind_vars, sdim, complex=False, gns=None):
+        ExpressionVariable.__init__(
+            self, expr, ind_vars, complex=complex, gns=None)
+        SurfVariable.__init__(self, sdim, complex=complex)
+
+    def __repr__(self):
+        return "SurfaceExpression(" + self.expr + ")"
+
+    def set_point(self, T, ip, g, l, t=None):
+        self.x = T.Transform(ip)
+        self.t = t
+        T.SetIntPoint(ip)
+        nor = mfem.Vector(self.sdim)
+        mfem.CalcOrtho(T.Jacobian(), nor)
+        self.nor = nor.GetDataArray().copy()
+
+    def __call__(self, **kwargs):
+        l = {}
+        for k, name in enumerate(self.ind_vars):
+            l[name] = self.x[k]
+        l['n'] = self.nor
+        for k, name in enumerate(self.ind_vars):
+            l['n' + name] = self.nor[k]
+        keys = self.variables.keys()
+        for k in keys:
+            l[k] = self.variables[k]()
+        return (eval_code(self.co, var_g, l))
+
+    def nodal_values(self, **kwargs):
+        # this may not be used al all??
+
+        l = {}
+        for n in self.names:
+            if (n in g and isinstance(g[n], Variable)):
+                l[n] = g[n].nodal_values(**kwargs)
+        for k, name in enumerate(self.ind_vars):
+            l[name] = locs[..., k]
+        for k, name in enumerate(self.ind_vars):
+            l['n' + name] = nor[..., k]
+        return (eval_code(self.co, var_g, l))
+
+    def ncface_values(self, **kwargs):
+        assert False, "ncface in SurfaceExpressionVariable must be added"
+
+
+'''
+ Bdr Variable = Surface Variable defined on particular boundary
+'''
+
+
+class BdrVariable(ExpressionVariable, SurfVariable):
+    pass
+
+
+def append_suffix_to_expression(expr, vars, suffix):
+    if vars is None:
+        return expr + suffix
+    for v in vars:
+        expr = expr.replace(v, v + suffix)
+    return expr
+
+
+def add_scalar(solvar, name, suffix, ind_vars, solr,
+               soli=None, deriv=None, vars=None):
+    name = append_suffix_to_expression(name, vars, suffix)
+    if solr is None:
+        solvar[name] = PlaceholderVariable(name)
+    else:
+        solvar[name] = GFScalarVariable(solr, soli, comp=1, deriv=deriv)
+
+
+def add_components(solvar, name, suffix, ind_vars, solr,
+                   soli=None, deriv=None, vars=None):
+    name = append_suffix_to_expression(name, vars, suffix)
+
+    if solr is None:
+        solvar[name] = PlaceholderVariable(name)
+    else:
+        solvar[name] = GFVectorVariable(solr, soli, deriv=deriv)
+
+    for k, p in enumerate(ind_vars):
+        if solr is None:
+            solvar[name + p] = PlaceholderVariable(name+p)
+        else:
+            solvar[name + p] = GFScalarVariable(solr, soli, comp=k + 1,
+                                                deriv=deriv)
+
+
+def add_elements(solvar, name, suffix, ind_vars, solr,
+                 soli=None, deriv=None, elements=None):
+    elements = elements if elements is not None else []
+    for k, p in enumerate(ind_vars):
+        if solr is None:
+            solvar[name + suffix + p] = PlaceholderVariable(name+suffix+p)
+        else:
+            solvar[name + suffix + p] = GFScalarVariable(solr, soli, comp=k + 1,
+                                                         deriv=deriv)
+
+
+def add_component_expression(solvar, name, suffix, ind_vars, expr, vars,
+                             componentname,
+                             domains=None, bdrs=None, complex=None,
+                             gdomain=None, gbdr=None, gns=None):
+    expr = append_suffix_to_expression(expr, vars, suffix)
+
+    if isinstance(componentname, int):
+        componentname = ind_vars[componentname]
+
+    cname = name + suffix + componentname
+    if domains is not None:
+        if (cname) in solvar:
+            solvar[cname].add_expression(expr, ind_vars, domains,
+                                         gdomain,
+                                         complex=complex)
+        else:
+            solvar[cname] = DomainVariable(expr, ind_vars,
+                                           domains=domains,
+                                           complex=complex,
+                                           gdomain=gdomain)
+    elif bdrs is not None:
+        assert False, "BoundaryVariable not implemented."
+
+    else:
+        solvar[cname] = ExpressionVariable(expr, ind_vars,
+                                           complex=complex,
+                                           gns=gns)
+
+
+def add_expression(solvar, name, suffix, ind_vars, expr, vars,
+                   domains=None, bdrs=None, complex=None,
+                   gdomain=None, gbdr=None, gns=None):
+
+    expr = append_suffix_to_expression(expr, vars, suffix)
+
+    if domains is not None:
+        if (name + suffix) in solvar:
+            solvar[name + suffix].add_expression(expr, ind_vars, domains,
+                                                 gdomain,
+                                                 complex=complex)
+
+        else:
+            solvar[name + suffix] = DomainVariable(expr, ind_vars,
+                                                   domains=domains,
+                                                   complex=complex,
+                                                   gdomain=gdomain)
+    elif bdrs is not None:
+        assert False, "BoundaryVariable not implemented."
+
+    else:
+        solvar[name + suffix] = ExpressionVariable(expr, ind_vars,
+                                                   complex=complex,
+                                                   gns=gns)
+
+
+def add_constant(solvar, name, suffix, value, domains=None,
+                 gdomain=None, bdrs=None, gbdr=None, gns=None):
+
+    if domains is not None:
+        if (name + suffix) in solvar:
+            solvar[name + suffix].add_const(value, domains, gdomain)
+        else:
+            solvar[name + suffix] = DomainVariable('')
+            solvar[name + suffix].add_const(value, domains, gdomain)
+    elif bdrs is not None:
+        pass
+    else:
+        solvar[name + suffix] = Constant(value)
+        #solvar[name + suffix] = value
+
+
+def add_surf_normals(solvar, ind_vars):
+    sdim = len(ind_vars)
+    solvar['n'] = SurfNormal(sdim, comp=-1)
+    for k, p in enumerate(ind_vars):
+        solvar['n' + p] = SurfNormal(sdim, comp=k + 1)
+
+
+def add_coordinates(solvar, ind_vars):
+    for k, p in enumerate(ind_vars):
+        solvar[p] = CoordVariable(comp=k + 1)
+
+
+def project_variable_to_gf(c, ind_vars, gfr, gfi,
+                           global_ns=None, local_ns=None):
+
+    if global_ns is None:
+        global_ns = {}
+    if local_ns is None:
+        local_ns = {}
+
+    from petram.phys.weakform import VCoeff, SCoeff
+
+    fes = gfr.FESpace()
+    ndim = fes.GetMesh().Dimension()
+    sdim = fes.GetMesh().SpaceDimension()
+    vdim = fes.GetVDim()
+    fec = fes.FEColl().Name()
+
+    if (fec.startswith('ND') or fec.startswith('RT')):
+        coeff_dim = sdim
+    else:
+        coeff_dim = vdim
+
+    return_complex = bool(gfi is not None)
+
+    def project_coeff(gf, coeff_dim, c, ind_vars, real):
+        if coeff_dim > 1:
+            #print("vector coeff", c)
+            coeff = VCoeff(coeff_dim, c, ind_vars,
+                           local_ns, global_ns,
+                           return_complex=return_complex,
+                           real=real)
+        else:
+            #print("coeff", c)
+            coeff = SCoeff(c, ind_vars,
+                           local_ns, global_ns,
+                           return_complex=return_complex,
+                           real=real)
+
+        if hasattr(coeff, 'get_real_coefficient'):
+            if real:
+                cc = coeff.get_real_coefficient()
+            else:
+                cc = coeff.get_imag_coefficient()
+        else:
+            cc = coeff
+
+        gf.ProjectCoefficient(cc)
+
+    project_coeff(gfr, coeff_dim, c, ind_vars, True)
+    if gfi is not None:
+        project_coeff(gfi, coeff_dim, c, ind_vars, False)
+
+
+'''
+
+   NativeCoefficient class
+
+   This class opens the possibility ot use mfem native coefficient (C++)
+   class object in BF/LF.
+
+   We can define  math operatios between native coefficent class objects
+   in the way to map the operatio to SumCoefficient/ProductCofficient/...
+   recently added in MFEM.
+
+   Full implementation needs to wait update of PyMFEM. Eventually, this
+   class may move to PyMFEM (under mfem.common)
+
+   from petram.helper.variables import variable, coefficient
+   @coefficient.complex()
+   def ksqrt():
+       coeff1 = mfem.ConstantCoefficient(900)
+       coeff2 = mfem.ConstantCoefficient(200)
+       return coeff1, coeff2
+'''
+
+
+class _coeff_decorator(object):
+    def float(self, dependency=None, td=False, jit=False):
+        def dec(func):
+            obj = NativeCoefficientGen(
+                func, dependency=dependency, td=td, jit=jit)
+            return obj
+        return dec
+
+    def complex(self, dependency=None, td=False, jit=False):
+        def dec(func):
+            obj = ComplexNativeCoefficientGen(
+                func, dependency=dependency, td=td, jit=jit)
+            return obj
+        return dec
+
+    def array(self, complex=False, shape=(1,),
+              dependency=None, td=False, jit=False):
+        def dec(func):
+            if len(shape) == 1:
+                if complex:
+                    obj = VectorComplexNativeCoefficientGen(
+                        func, dependency=dependency, shape=shape, jit=jit, td=td)
+                else:
+                    obj = VectorNativeCoefficientGen(
+                        func, dependency=dependency, shape=shape, jit=jit, td=td)
+            elif len(shape) == 2:
+                if complex:
+                    obj = MatrixComplexNativeCoefficientGen(
+                        func, dependency=dependency, shape=shape, jit=jit, td=td)
+                else:
+                    obj = MatrixNativeCoefficientGen(
+                        func, dependency=dependency, shape=shape, jit=jit, td=td)
+            return obj
+        return dec
+
+
+coefficient = _coeff_decorator()
+
+
+class NativeCoefficientGenBase(object):
+    '''
+    define everything which we define algebra
+    '''
+
+    def __init__(self, fgen, igen=None, complex=False,
+                 dependency=None, shape=None, td=False, jit=False):
+        self.complex = complex
+        # dependency stores a list of Finite Element space discrite variable
+        # names whose set_point has to be called
+        self.dependency = [] if dependency is None else dependency
+        self.fgen = fgen
+        self.shape = shape
+        self.complex = complex
+        self.jit = jit
+        self.td = False
+        self._generated = None
+
+    def __call__(self, l, g=None):
+        '''
+        call fgen to generate coefficient
+
+        '''
+        if self._generated is not None:
+            return self._generated
+        m = getattr(self, 'fgen')
+        if not self.jit:
+            args = []
+            for n in self.dependency:
+                if self.complex:
+                    args.append((l[n].get_gf_real(), l[n].get_gf_imag()))
+                else:
+                    args.append(l[n].get_gf_real())
+
+            rc = m(*args)
+            if self.complex:
+                if len(rc) != 2:
+                    assert False, "generator must return real/imag parts"
+                self._generated = rc
+                return self._generated
+            else:
+                self._generated = rc, None
+                return self._generated
+        else:
+            assert False, "coefficient(jit=True) is not valid anymore. jit is supported by @variable"
+
+    def scale_coeff(self, coeff, scale):
+        if self.shape is None:
+            c2 = mfem.ConstantCoefficient(scale)
+            ret = mfem.ProductCoefficient(coeff, c2)
+            ret._c2 = c2
+            ret._coeff = coeff
+            return ret
+        elif len(self.shape) == 1:  # Vector
+            c2 = mfem.ConstantCoefficient(scale)
+            ret = mfem.ScalarVectorProductCoefficient(c2, coeff)
+            ret._c2 = c2
+            ret._coeff = coeff
+            return ret
+        elif len(self.shape) == 2:  # Matrix
+            c2 = mfem.ConstantCoefficient(scale)
+            ret = mfem.ScalarMatrixProductCoefficient(c2, coeff)
+            ret._c2 = c2
+            ret._coeff = coeff
+            return ret
+        else:
+            assert False, "dim >= 3 is not supported"
+
+    def get_emesh_idx(self, idx=None, g=None):
+        if idx is None:
+            idx = []
+        return idx
+
+
+class NativeCoefficientGen(NativeCoefficientGenBase):
+    kind = "scalar"
+
+    def __init__(self, func, dependency=None, td=False, jit=False):
+        NativeCoefficientGenBase.__init__(
+            self, func, complex=False, dependency=dependency, td=td, jit=jit)
+
+
+class ComplexNativeCoefficientGen(NativeCoefficientGenBase):
+    kind = "scalar"
+
+    def __init__(self, func, dependency=None, td=False, jit=False):
+        NativeCoefficientGenBase.__init__(
+            self, func, complex=True, dependency=dependency, td=td, jit=jit)
+
+
+class VectorNativeCoefficientGen(NativeCoefficientGenBase):
+    kind = "vector"
+
+    def __init__(self, func, dependency=None, shape=None, td=False, jit=False):
+        NativeCoefficientGenBase.__init__(
+            self, func, complex=False, dependency=dependency, shape=shape, td=td, jit=jit)
+
+
+class VectorComplexNativeCoefficientGen(NativeCoefficientGenBase):
+    kind = "vector"
+
+    def __init__(self, func, dependency=None, shape=None, td=False, jit=False):
+        NativeCoefficientGenBase.__init__(
+            self, func, complex=True, dependency=dependency, shape=shape, td=td, jit=jit)
+
+
+class MatrixNativeCoefficientGen(NativeCoefficientGenBase):
+    kind = "matrix"
+
+    def __init__(self, func, dependency=None, shape=None, td=False, jit=False):
+        NativeCoefficientGenBase.__init__(
+            self, func, complex=False, dependency=dependency, shape=shape, td=td, jit=jit)
+
+
+class MatrixComplexNativeCoefficientGen(NativeCoefficientGenBase):
+    kind = "matrix"
+
+    def __init__(self, func, dependency=None, shape=None, td=False, jit=False):
+        NativeCoefficientGenBase.__init__(
+            self, func, complex=True, dependency=dependency, shape=shape, td=td, jit=jit)

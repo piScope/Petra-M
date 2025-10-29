@@ -1,0 +1,37 @@
+[project]
+name = "petram"
+license = "GPL-3.0-only"
+description='PetraM finite element analysis framework base package'
+authors = [ { name = "S. Shiraiwa" } ]
+maintainers = [ { name = "S. Shiraiwa", email = "shiraiwa@princeton.edu" } ]
+keywords = ["scientific computing", "python visualzation", "finite element method", "MFEM"]
+readme = "README.md"
+requires-python = ">=3.10"
+version = "2.6.0"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "mfem >= 4.8",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/PetraM"
+"Download" = "https://github.com/PetraM"
+
+[build-system]
+requires = [
+        "setuptools>=80.0.1",
+        "pip>=25.1.0", 
+]
+
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.setuptools.package-data]
+"petram" =  ['data/icon/*.png', 'data/*Ops']

@@ -1,0 +1,72 @@
+# the list of bilinear integrators, generated from MFEM web page.
+# rule
+#    first # is comment
+#    square op  = third col is empty 
+#    H1, L2   : Scalar Field Operators
+#    ND, RT   : Vector Finite Element Operators
+#    H1v, L2V : Vector Field Operators
+| MassIntegrator                        | H1, L2 |        | S       | $(\lambda u, v)$                               | $\lambda u$                          | 1D, 2D, 3D |
+| DiffusionIntegrator                   | H1     |        | S, M    | $(\lambda\grad u, \grad v)$                    | $-\div(\lambda\grad u)$              | 1D, 2D, 3D |
+| MixedScalarMassIntegrator             | H1, L2 | H1, L2 |    S    | $(\lambda u, v)$                               | $\lambda u$                          | 1D, 2D, 3D |
+| MixedScalarWeakDivergenceIntegrator   | H1, L2 | H1     |  V      | $(-\vec\{\lambda}u,\grad v)$                   | $\div(\vec\{\lambda}u)$              | 2D, 3D     |
+| MixedScalarWeakDerivativeIntegrator   | H1, L2 | H1     |    S    | $(-\lambda u, \ddx\{v})$                       | $\ddx\{}(\lambda u)\;$               | 1D         |
+| MixedScalarWeakCurlIntegrator         | H1, L2 | ND     |    S    | $(\lambda u,\curl\vec\{v})$                    | $\curl(\lambda\,u\,\hat\{z})\;$      | 2D         |
+| MixedVectorProductIntegrator          | H1, L2 | ND, RT |  V      | $(\vec\{\lambda}u,\vec\{v})$                   | $\vec\{\lambda}u$                    | 2D, 3D     |
+| MixedScalarWeakCrossProductIntegrator | H1, L2 | ND, RT |  V      | $(\vec\{\lambda} u\,\hat\{z},\vec\{v})$        | $\vec\{\lambda}\times\,\hat\{z}\,u$  | 2D         |
+| MixedScalarWeakGradientIntegrator     | H1, L2 | RT     |    S    | $(-\lambda u, \div\vec\{v})$                   | $\grad(\lambda u)$                   | 2D, 3D     |
+| MixedDirectionalDerivativeIntegrator  | H1     | H1, L2 |  V      | $(\vec\{\lambda}\cdot\grad u, v)$              | $\vec\{\lambda}\cdot\grad u$         | 2D, 3D     |
+| MixedScalarCrossGradIntegrator        | H1     | H1, L2 |  V      | $(\vec\{\lambda}\cross\grad u, v)$             | $\vec\{\lambda}\cross\grad u$        | 2D         |
+| MixedScalarDerivativeIntegrator       | H1     | H1, L2 |    S    | $(\lambda \ddx\{u}, v)$                        | $\lambda\ddx\{u}\;$                  | 1D         |
+| MixedGradGradIntegrator               | H1     | H1     | S, D, M | $(\lambda\grad u,\grad v)$                     | $-\div(\lambda\grad u)$              | 2D, 3D     |
+| MixedCrossGradGradIntegrator          | H1     | H1     |  V      | $(\vec\{\lambda}\cross\grad u,\grad v)$        | $-\div(\vec\{\lambda}\cross\grad u)$ | 2D, 3D     |
+| MixedVectorGradientIntegrator         | H1     | ND, RT | S, D, M | $(\lambda\grad u,\vec\{v})$                    | $\lambda\grad u$                     | 2D, 3D     |
+| MixedCrossGradIntegrator              | H1     | ND, RT |  V      | $(\vec\{\lambda}\cross\grad u,\vec\{v})$       | $\vec\{\lambda}\cross\grad u$        | 3D         |
+| MixedCrossGradCurlIntegrator          | H1     | ND     |  V      | $(\vec\{\lambda}\times\grad u, \curl\vec\{v})$ | $\curl(\vec\{\lambda}\times\grad u)$ | 3D         |
+| MixedGradDivIntegrator                | H1     | RT     |  V      | $(\vec\{\lambda}\cdot\grad u, \div\vec\{v})$   | $-\grad(\vec\{\lambda}\cdot\grad u)$ | 2D, 3D     |
+| DerivativeIntegrator1                 | H1, L2 | H1, L2 |   S     | $(\lambda\frac\{\partial u}\{\partial x_i}, v)$ | | 1D, 2D, 3D|
+| DerivativeIntegrator2                 | H1, L2 | H1, L2 |   S     | $(\lambda\frac\{\partial u}\{\partial x_i}, v)$ | | 1D, 2D, 3D|
+| DerivativeIntegrator3                 | H1, L2 | H1, L2 |   S     | $(\lambda\frac\{\partial u}\{\partial x_i}, v)$ | | 1D, 2D, 3D|
+| ConvectionIntegrator                  | H1     | H1     | V       | $(\vec\{\lambda}\cdot\grad u, v)$               | | 1D, 2D, 3D|
+| GroupConvectionIntegrator             | H1     | H1     | V       | $(\alpha\vec\{\lambda}\cdot\grad u, v)$         | | 1D, 2D, 3D|
+| BoundaryMassIntegrator                | H1, L2 | H1, L2 |   S     | $(\lambda\,u,v)$                                | | 1D, 2D, 3D|
+| VectorFEMassIntegrator                | ND, RT |        | S, D, M | $(\lambda\vec\{u},\vec\{v})$           | $\lambda\vec\{u}$             | 2D, 3D     |
+| CurlCurlIntegrator                    | ND     |        |    S    | $(\lambda\curl\vec\{u},\curl\vec\{v})$ | $\curl(\lambda\curl\vec\{u})$ | 2D, 3D     |
+| DivDivIntegrator                      | RT     |        |    S    | $(\lambda\div\vec\{u},\div\vec\{v})$   | $-\grad(\lambda\div\vec\{u})$ | 2D, 3D     |
+| MixedDotProductIntegrator             | ND, RT | H1, L2 |  V      | $(\vec\{\lambda}\cdot\vec\{u},v)$                        | $\vec\{\lambda}\cdot\vec\{u}$                 | 2D, 3D     |
+| MixedScalarCrossProductIntegrator     | ND, RT | H1, L2 |  V      | $(\vec\{\lambda}\cross\vec\{u},v)$                       | $\vec\{\lambda}\cross\vec\{u}$                | 2D         |
+| MixedVectorWeakDivergenceIntegrator   | ND, RT | H1     | S, D, M | $(-\lambda\vec\{u},\grad v)$                             | $\div(\lambda\vec\{u})$                       | 2D, 3D     |
+| MixedWeakDivCrossIntegrator           | ND, RT | H1     |  V      | $(-\vec\{\lambda}\cross\vec\{u},\grad v)$                | $\div(\vec\{\lambda}\cross\vec\{u})$          | 3D         |
+| MixedVectorMassIntegrator             | ND, RT | ND, RT | S, D, M | $(\lambda\vec\{u},\vec\{v})$                             | $\lambda\vec\{u}$                             | 2D, 3D     |
+| MixedCrossProductIntegrator           | ND, RT | ND, RT |  V      | $(\vec\{\lambda}\cross\vec\{u},\vec\{v})$                | $\vec\{\lambda}\cross\vec\{u}$                | 3D         |
+| MixedVectorWeakCurlIntegrator         | ND, RT | ND     | S, D, M | $(\lambda\vec\{u},\curl\vec\{v})$                        | $\curl(\lambda\vec\{u})$                      | 3D         |
+| MixedWeakCurlCrossIntegrator          | ND, RT | ND     |  V      | $(\vec\{\lambda}\cross\vec\{u},\curl\vec\{v})$           | $\curl(\vec\{\lambda}\cross\vec\{u})$         | 3D         |
+| MixedScalarWeakCurlCrossIntegrator    | ND, RT | ND     |  V      | $(\vec\{\lambda}\cross\vec\{u},\curl\vec\{v})$           | $\curl(\vec\{\lambda}\cross\vec\{u})$         | 2D         |
+| MixedWeakGradDotIntegrator            | ND, RT | RT     |  V      | $(-\vec\{\lambda}\cdot\vec\{u},\div\vec\{v})$            | $\grad(\vec\{\lambda}\cdot\vec\{u})$          | 2D, 3D     |
+| MixedScalarCurlIntegrator             | ND     | H1, L2 |    S    | $(\lambda\curl\vec\{u},v)$                               | $\lambda\curl\vec\{u}\;$                      | 2D         |
+| MixedCrossCurlGradIntegrator          | ND     | H1     |  V      | $(\vec\{\lambda}\cross\curl\vec\{u},\grad v)$            | $-\div(\vec\{\lambda}\cross\curl\vec\{u})$    | 3D         |
+| MixedVectorCurlIntegrator             | ND     | ND, RT | S, D, M | $(\lambda\curl\vec\{u},\vec\{v})$                        | $\lambda\curl\vec\{u}$                        | 3D         |
+| MixedCrossCurlIntegrator              | ND     | ND, RT |  V      | $(\vec\{\lambda}\cross\curl\vec\{u},\vec\{v})$           | $\vec\{\lambda}\cross\curl\vec\{u}$           | 3D         |
+| MixedScalarCrossCurlIntegrator        | ND     | ND, RT |  V      | $(\vec\{\lambda}\cross\hat\{z}\,\curl\vec\{u},\vec\{v})$ | $\vec\{\lambda}\cross\hat\{z}\,\curl\vec\{u}$ | 2D         |
+| MixedCurlCurlIntegrator               | ND     | ND     | S, D, M | $(\lambda\curl\vec\{u},\curl\vec\{v})$                   | $\curl(\lambda\curl\vec\{u})$                 | 3D         |
+| MixedCrossCurlCurlIntegrator          | ND     | ND     |   V     | $(\vec\{\lambda}\cross\curl\vec\{u},\curl\vec\{v})$      | $\curl(\vec\{\lambda}\cross\curl\vec\{u})$    | 3D         |
+| MixedScalarDivergenceIntegrator       | RT     | H1, L2 |   S     | $(\lambda\div\vec\{u}, v)$                               | $\lambda \div\vec\{u}$                        | 2D, 3D     |
+| MixedDivGradIntegrator                | RT     | H1     |   V     | $(\vec\{\lambda}\div\vec\{u}, \grad v)$                  | $-\div(\vec\{\lambda}\div\vec\{u})$           | 2D, 3D     |
+| MixedVectorDivergenceIntegrator       | RT     | ND, RT |   V     | $(\vec\{\lambda}\div\vec\{u}, \vec\{v})$                 | $\vec\{\lambda}\div\vec\{u}$                  | 2D, 3D     |
+| VectorFEDivergenceIntegrator          | RT     | H1, L2 |   S     | $(\lambda\div\vec\{u}, v)$                                             | |  2D, 3D    |
+| VectorFEWeakDivergenceIntegrator      | ND     | H1     |   S     | $(-\lambda\vec\{u},\grad v)$                                           | |  2D, 3D    |
+| VectorFECurlIntegrator                | ND, RT | ND, RT |   S     | $(\lambda\curl\vec\{u},\vec\{v})$ or $(\lambda\vec\{u},\curl\vec\{v})$ | |  3D        |
+| VectorMassIntegrator                  | H1v, L2v |  | S, D, M    |  $(\lambda\vec\{u},\vec\{v})$           | |1D, 2D, 3D |
+| VectorCurlCurlIntegrator              | H1v, L2v |  | S          |  $(\lambda\curl\vec\{u},\curl\vec\{v})$ | |2D, 3D     |
+| VectorDiffusionIntegrator             | H1v, L2v |  | S          |  $(\lambda\grad u_i,\grad v_i)$         | |1D, 2D, 3D | 
+| ElasticityIntegrator                  | H1v, L2v |  | S*2        |  $(c_\{ikjl}\grad u_j,\grad v_i)$       | |1D, 2D, 3D |
+| VectorDivergenceIntegrator            | H1v, L2v | H1, L2   | S  |  $(\lambda\div\vec\{u},v)$              | |1D, 2D, 3D |
+| PyVectorMassIntegrator                | H1v, L2v, H1, L2, ND, RT | H1v, L2v, H1, L2, ND, RT | M  |  $({g}^{1/2} \lambda_\{ij}{u}_j,\{v}_i)$                  | |1D, 2D, 3D |
+| PyVectorDerivativeIntegrator           | H1v, H1  | H1v, L2v, H1, L2  | M  |  $({g}^{1/2} \lambda_\{ikj}\nabla_k u_j, v_i)$               | |1D, 2D, 3D |
+| PyVectorCurlIntegrator            | H1v, H1  |  | M  |  $({g}^{1/2} \lambda_\{ij} (\curl \vec\{u})_j, v_i)$    | |1D, 2D, 3D |
+| PyVectorDirectionalCurlIntegrator            | H1v, H1  |  | M  |  $({g}^{1/2} \lambda_\{ij} \nabla_j \times \vec\{u}, \vec\{v})$    | |1D, 2D, 3D |
+| PyVectorDiffusionIntegrator           | H1v, H1  |  | M  |  $({g}^{1/2} \lambda_\{likj}\nabla_k u_j,\nabla^l v_i)$    | |1D, 2D, 3D |
+| PyVectorCurlCurlIntegrator            | H1v, H1  |  | M  |  $({g}^{1/2} \lambda_\{ij} \curl u_j, \curl v_i)$    | |1D, 2D, 3D |
+| PyVectorHessianIntegrator      | H1v, H1 | H1v, L2v, H1, L2 | M  |  $({g}^{1/2} \lambda_\{iklj}\nabla_k \nabla_l u_j, v_i)$    | |1D, 2D, 3D |
+| PyVectorFEPartialIntegrator  | ND | ND | M  |  $(\lambda_\{ikj}\partial_k u_j, v_i)$  | |2D, 3D |
+| PyVectorFEPartialPartialIntegrator  | ND | ND | M  |  $(\lambda_\{iklj}\partial_k \partial_l u_j, v_i)$   | |2D, 3D |
+| PyVectorStrongCurlCurlIntegrator            | H1v, H1  |  | M  |  $({g}^{1/2} \lambda_\{ij} \curl \curl u_j, v_i)$    | |1D, 2D, 3D |
