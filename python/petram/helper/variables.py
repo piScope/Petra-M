@@ -1366,7 +1366,7 @@ class PyFunctionVariable(Variable):
                 ret.append(n)
         for n in self.grad:
             if n not in g:
-                assert False, n+" is not in global (failed to evaualte grad)"
+                assert False, n+" is not in global (failed to evaluate grad)"
             g['grad'+n] = g[n].generate_grad_variable()
             # ret.append('grad'+n)
         for n in self.curl:
