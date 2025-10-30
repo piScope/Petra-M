@@ -363,6 +363,10 @@ class GMSHMeshWrapper():
         #adim, idx_dim = self.check_algorith_dim()
         need_opt  = self.check_need_optimize()
 
+        # make sure that element order is 1 before reaching  the last
+        # meshing step
+        gmsh.option.setNumber("Mesh.ElementOrder", 1)
+
         for mdim in range(maxdim+1):
             for idx, sq in enumerate(self.mesh_sequence):
                 '''

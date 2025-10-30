@@ -85,6 +85,9 @@ class WidgetParameters(wx.Panel):
         self._pg_h = self.pg.GetFont().GetPixelSize()[1]
         self._pg_h_c = 100
 
+        self._obj = setting["obj"]
+        self._obj_ns = setting["obj"]._global_ns.copy()
+
     def OnPropGridChange(self, evt):
         p = evt.GetProperty()
         index = self.pg.GetSelectedPage()
@@ -106,14 +109,7 @@ class WidgetParameters(wx.Panel):
             traceback.print_exc()
         lines = "\n".join(ss)
 
-        return self._eval_lines(lines)
-
-    def _eval_lines(self, lines):
-        ll = {}
-        g = {}
-
-        exec(lines, g, ll)
-        return ll
+        return dict(d.items())
 
     def SetValue(self, value):
         ''' 
@@ -149,9 +145,13 @@ class WidgetParameters(wx.Panel):
 
                 if dlg.ShowModal() == wx.ID_OK:
                     lines = dlg.tc.GetValue()
-                    ll = self._eval_lines(lines)
+                    ll = lines.split('\n')
+                    values = {}
+                    for x in ll:
+                        k, v = x.split("=")
+                        values[k] = v
 
-                    self.SetValue(ll)
+                    self.SetValue(values)
 
         except:
             import traceback
