@@ -43,6 +43,7 @@ class DefaultParametricScanner(object):
             raise StopIteration
 
         data = self._data[self.idx]
+        dprint0("")
         dprint0("==== Entering next parameter:", data, "(" +
                 str(self.idx+1) + "/" + str(self.max) + ")")
         dprint1(format_memory_usage())
@@ -194,9 +195,10 @@ class SimpleScanner(DefaultParametricScanner):
         pass
 
     def collect_probe_signals(self, engine, dirs):
-        import warnings
-        warnings.warn(
-            "collect_probe_signals is not used for SimpleScanner", UserWarning)
+        pass
+        #import warnings
+        #warnings.warn(
+        #    "collect_probe_signals is not used for SimpleScanner", UserWarning)
 
 
 Scan = SimpleScanner

@@ -186,7 +186,7 @@ class GeomSequenceOperator():
                 if not use_occ:
                     return True, 0
                 return False, 0          
-            dprint1("check passed", s[0])
+            # dprint1("check passed", s[0])
             start_idx = start_idx + 1
 
         return False, start_idx

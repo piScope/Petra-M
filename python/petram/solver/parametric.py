@@ -208,12 +208,12 @@ class Parametric(SolveStep, NS_mixin):
 
             od = self.go_case_dir(engine, kcase, True)
 
+            engine.record_environment()
+            engine.build_ns()
+
             is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
             if is_new_mesh:
                 self.check_and_end_geom_mesh_gens(engine)
-
-            engine.record_environment()
-            engine.build_ns()
 
             if is_new_mesh or is_first:
                 engine.preprocess_modeldata()
