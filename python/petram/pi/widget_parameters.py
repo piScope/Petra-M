@@ -149,6 +149,8 @@ class WidgetParameters(wx.Panel):
                     values = {}
                     for x in ll:
                         k, v = x.split("=")
+                        k = k.strip()
+                        v = v.strip()
                         values[k] = v
 
                     self.SetValue(values)
