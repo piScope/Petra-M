@@ -15,7 +15,7 @@ Petra-M includes
 
 Additinal Petra-M submodules are available from different repository.
  - PetraM-RF : 3D frequency domain Maxwell equation
- - PetraM-Direct : interface to use direct solvers (in progress)
+ - PetraM-DS : interface to use direct solvers (in progress)
 
 
 ### Licence
