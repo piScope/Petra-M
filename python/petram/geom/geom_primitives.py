@@ -2400,7 +2400,15 @@ class Subsequence(GeomPB):
         pass
 
     def get_default_ns(self):
-        return self.seq_values
+
+        ns = self.get_ns_chain()[-2]._global_ns.copy()
+        ret = {}
+        ll = {}
+        err = ""
+        for k in self.seq_values:
+            ret[k] = eval(self.seq_values[k], ns, ll)
+
+        return ret
 
     def attribute_set(self, v):
         v = super(Subsequence, self).attribute_set(v)
@@ -2470,7 +2478,7 @@ class Subsequence(GeomPB):
     def panel1_param(self):
         ll = super(Subsequence, self).panel1_param()
         from petram.pi.widget_parameters import WidgetParameters
-        ll.append([None, None, 99, {"UI": WidgetParameters, "span": (1, 2)}])
+        ll.append([None, None, 99, {"UI": WidgetParameters, "span": (1, 2), "obj": self}])
         return ll
 
     def get_panel1_value(self):
@@ -2479,8 +2487,24 @@ class Subsequence(GeomPB):
         return values
 
     def import_panel1_value(self, v):
-        self.seq_values = v[-1]
+        tmp = v[-1]
+        ns = self._global_ns.copy()
+        ll = {}
+        err = ""
+        for k in tmp:
+            try:
+                value = eval(tmp[k], ns, ll)
+            except BaseException:
+                import traceback
+                err = traceback.format_exc()
+                break
+        if err == '':
+            self.seq_values = tmp
         v = super(Subsequence, self).import_panel1_value(v[:-1])
+
+        if err != '':
+            assert False, err
+
 
 
 data0 = (('center', VtableElement('pts1', type='string',

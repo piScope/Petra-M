@@ -4235,6 +4235,9 @@ class SerialEngine(Engine):
     def run_geom_gen(self, gen):
         gen.generate_final_geometry()
 
+    def end_geom_gen(self, gen):
+        gen.terminate_generator()
+
     def run_mesh_gen(self, gen):
         gen.generate_mesh_file()
 
@@ -4600,9 +4603,19 @@ class ParallelEngine(Engine):
             pass
         MPI.COMM_WORLD.Barrier()
 
+    def end_geom_gen(self, gen):
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
+        if myid == 0:
+           gen.terminate_generator()
+        else:
+            pass
+        MPI.COMM_WORLD.Barrier()
+
     def run_mesh_gen(self, gen):
         '''
         run mesh generator
+        note: actual mesh generation is done in myid=0
         '''
         gen.generate_mesh_file()
 

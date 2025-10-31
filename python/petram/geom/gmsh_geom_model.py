@@ -717,6 +717,9 @@ class GmshGeom(GeomTopBase):
         self._gso.terminate_child()
         evt.Skip()
 
+    def terminate_generator(self):
+        self._gso.terminate_child()
+
     def generate_final_geometry(self):
         cwd = os.getcwd()
         dprint1("Generating Geometry in " + cwd)

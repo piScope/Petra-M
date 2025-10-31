@@ -274,7 +274,7 @@ class SolveStep(SolverBase):
             return self.get_phys()
         else:
 
-            names = [n.strip() for n in names if n.strip() != '']        
+            names = [n.strip() for n in names if n.strip() != '']
             return [phys_root[n] for n in names]
         '''
 
@@ -361,6 +361,20 @@ class SolveStep(SolverBase):
             self.call_run_mesh_gen(engine)
             flag = True
         return flag
+
+    def call_end_geom_gen(self, engine):
+        name = self.root()['General'].geom_gen
+        gen = self.root()['Geometry'][name]
+        engine.end_geom_gen(gen)
+
+    def check_and_end_geom_mesh_gens(self, engine):
+        flag = False
+        if self.use_mesh_gen:
+            if self.use_geom_gen:
+                self.call_end_geom_gen(engine)
+            flag = True
+        return flag
+
     #
     #  verify
     #
@@ -503,6 +517,8 @@ class SolveStep(SolverBase):
         solvers = self.get_active_solvers()
 
         is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
+        if is_new_mesh:
+            self.check_and_end_geom_mesh_gens(engine)
         if is_first or is_new_mesh:
             engine.preprocess_modeldata()
 
@@ -558,6 +574,7 @@ class SolveStep(SolverBase):
         else:
             wc = "Default"
         dprint1("Resettiing warning mode :", wc)
+
         dprint1("Exiting SolveStep " + self.name())
         return False
 
@@ -638,7 +655,7 @@ class Solver(SolverBase):
             "bug should not need this method")
         '''
         names = self.init_setting.split(',')
-        names = [n.strip() for n in names if n.strip() != '']        
+        names = [n.strip() for n in names if n.strip() != '']
         return [self.root()['InitialValue'][n] for n in names]
         '''
 
@@ -736,7 +753,7 @@ class Solver(SolverBase):
 class SolverInstance(ABC):
     '''
     Solver instance is where the logic of solving a PDF usng
-    linearlized matrices (time stepping, adaptation, non-linear...) 
+    linearlized matrices (time stepping, adaptation, non-linear...)
     is written.
 
     It is not a model object. SolverModel will generate this
@@ -1049,7 +1066,7 @@ class LinearSolverModel(SolverBase):
         '''
         determins how linearsolvermodel informs the type of linear system to assemble.
 
-        if True: 
+        if True:
             linear_system_type should be implemented.
         if False:
             supported_linear_system_type
@@ -1058,7 +1075,7 @@ class LinearSolverModel(SolverBase):
     def linear_system_type(self, assemble_real, phys_real):
         '''
         ls_type: coo  (matrix in coo format : DMUMP or ZMUMPS)
-                 coo_real  (matrix in coo format converted from complex 
+                 coo_real  (matrix in coo format converted from complex
                             matrix : DMUMPS)
                  blk_interleave (R_fes1, I_fes1, R_fes2, I_fes2,..., I is skipped if real)
                  blk_merged_s (Block operator using ComplexOperator, block_symmetric format)

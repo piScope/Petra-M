@@ -990,7 +990,8 @@ class DomainVariable(Variable):
         doms = tuple(sorted(domains))
 
         existing_domains = list(self.domains)
-        new_domains = tuple(np.setdiff1d(domains, sum(existing_domains, ())))
+        new_domains = tuple([int(x) for x in
+                             np.setdiff1d(domains, sum(existing_domains, ()))])
 
         new_exprs = {}
         new_gexprs = {}
@@ -1000,11 +1001,11 @@ class DomainVariable(Variable):
             new_gexprs[new_domains] = gsomething
 
         for ed in existing_domains:
-            diff = tuple(np.setdiff1d(ed, doms))
+            diff = tuple([int(x) for x in np.setdiff1d(ed, doms)])
             if len(diff) != 0:
                 new_exprs[diff] = self.domains[ed]
                 new_gexprs[diff] = self.gdomains[ed]
-            insct = tuple(np.intersect1d(ed, doms))
+            insct = tuple([int(x) for x in np.intersect1d(ed, doms)])
             if len(insct) != 0:
                 if isinstance(ed, SumVariable):
                     self.domains[ed].add_expression(something, gsomething)
