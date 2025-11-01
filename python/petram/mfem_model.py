@@ -388,6 +388,10 @@ class MFEM_GeomRoot(Model):
 
         return ret
 
+    def get_possible_child_menu(self):
+        cls = self.get_possible_child()[0]
+        return [('', cls),]
+
 
 class MFEM_MeshRoot(Model):
     can_delete = False
