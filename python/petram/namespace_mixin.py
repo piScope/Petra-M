@@ -332,7 +332,7 @@ class NS_mixin(object):
                 if not isinstance(p, NS_mixin):
                     continue
                 ll = p.get_default_ns()
-                if (p.ns_string == '' or p.ns_string is None and
+                if ((p.ns_string == '' or p.ns_string is None) and
                         len(ll) == 0):
                     continue
                 for k in ll:
@@ -352,6 +352,7 @@ class NS_mixin(object):
                     except Exception as e:
                         import traceback
                         assert False, traceback.format_exc()
+
             if self.dataset is not None:
                 for k in self.dataset:
                     g[k] = self.dataset[k]
