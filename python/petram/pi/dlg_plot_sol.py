@@ -1212,16 +1212,21 @@ class DlgPlotSol(SimpleFramePlus):
             self.config['use_cs'] = False
             model.variables.setvar('remote_soldir', None)
 
-            # info (path, probes, dirnames)
-            sol = model.solutions.get_child(name=str(v[0][1][0]))
-            if sol is None:
+            sol_base = model.solutions.owndir()
+            tmp = os.path.join(sol_base, str(v[0][1][0]))
+            if os.path.exists(tmp):
+                owndir = tmp
+            else:
                 tmp = os.path.expanduser(str(v[0][1][0]))
                 if os.path.exists(tmp):
                     owndir = tmp
                 else:
-                    assert False, "Does not exits " + str(v[0][1][0])
-            else:
-                owndir = sol.owndir()
+                    wx.CallAfter(dialog.showtraceback,
+                                 parent=self,
+                                 txt='Solution directory does not exist: ' + str(v[0][1][0]),
+                                 title='Error',
+                                 traceback='',)
+
             if self.local_sols is None:
                 self.update_sollist_local1()
 
@@ -1245,15 +1250,20 @@ class DlgPlotSol(SimpleFramePlus):
 
             model.variables.setvar('remote_soldir', None)
 
-            sol = model.solutions.get_child(name=str(v[0][2+ofs][1]))
-            if sol is None:
+            sol_base = model.solutions.owndir()
+            tmp = os.path.join(sol_base, str(v[0][2+ofs][1]))
+            if os.path.exists(tmp):
+                owndir = tmp
+            else:
                 tmp = os.path.expanduser(str(v[0][2+ofs][1]))
                 if os.path.exists(tmp):
                     owndir = tmp
                 else:
-                    assert False, "Does not exits " + str(v[0][2+ofs][1])
-            else:
-                owndir = sol.owndir()
+                    wx.CallAfter(dialog.showtraceback,
+                                 parent=self,
+                                 txt='Solution directory does not exist: ' + str(v[0][2+ofs][1]),
+                                 title='Error',
+                                 traceback='',)
 
             if self.local_sols is None:
                 self.update_sollist_local2()
