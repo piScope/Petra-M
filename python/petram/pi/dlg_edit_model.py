@@ -450,15 +450,18 @@ class DlgEditModel(SimpleFramePlus):
         mmm = [self.model.GetItem(ii) for ii in indices]
         texts = [self.model.GetItemText(ii) for ii in indices]
 
-        parent = mm.parent
+        parent = None
         for mm, text in zip(mmm, texts):
+            parent = mm.parent
             del mm.parent[text]
+
+        self.tree.UnselectAll()
         self.tree.RefreshItems()
+        if parent is None:
+            return
 
         new_item = self.tree.GetItemByIndex(parent.GetIndices())
         self.tree.SelectItem(new_item)
-        self.OnItemSelChanged()
-
         self.OnItemSelChanged()
 
     def OnDeleteItemFromModel(self, evt):
@@ -480,6 +483,7 @@ class DlgEditModel(SimpleFramePlus):
             text2 = names[index+1]
 
         del parent[text]
+        self.tree.UnselectAll()
         self.tree.RefreshItems()
 
         if sel_parent:
