@@ -52,6 +52,7 @@ class Optimizer(SolveStep, NS_mixin):
                 ["inner solver", '', 2, None],
                 [None,  True,  3, {"text": "save separate mesh"}],
                 [None, False, 3, {"text": "clear working dir."}],
+                [None, False, 3, {"text": "keep all cases"}],
                 [None,  self.use_geom_gen,  3, {
                     "text": "run geometry generator"}],
                 [None,  self.use_mesh_gen,  3, {"text": "run mesh generator"}],
@@ -66,6 +67,7 @@ class Optimizer(SolveStep, NS_mixin):
                 self.get_inner_solver_names(),
                 self.save_separate_mesh,
                 self.clear_wdir,
+                self.keep_cases,
                 self.use_geom_gen,
                 self.use_mesh_gen,
                 self.use_profiler,)
@@ -74,9 +76,10 @@ class Optimizer(SolveStep, NS_mixin):
         self.init_setting = str(v[0])
         self.postprocess_sol = v[1]
         self.phys_model = str(v[2])
-        self.minimizer = v[-7]
-        self.save_separate_mesh = v[-5]
-        self.clear_wdir = v[-4]
+        self.minimizer = v[-8]
+        self.save_separate_mesh = v[-6]
+        self.clear_wdir = v[-5]
+        self.keep_cases = v[-4]
         self.use_geom_gen = v[-3]
         self.use_mesh_gen = v[-2]
         if self.use_geom_gen:
@@ -99,6 +102,7 @@ class Optimizer(SolveStep, NS_mixin):
         v['minimizer'] = 'Minimizer(cost, (0.15, 0.45), "a", [1,3], "b",[4, 5], tol=1e-2, maxiter=10, verbse=True)'
         v['save_separate_mesh'] = False
         v['clear_wdir'] = True
+        v['keep_cases'] = False
 
         return v
 
@@ -211,7 +215,8 @@ class Optimizer(SolveStep, NS_mixin):
             is_first = kcase == 0
             postprocess = self.get_pp_setting()
 
-            od = self.go_case_dir(engine, kcase, True)
+            if self.keep_cases:
+                od = self.go_case_dir(engine, kcase, True)
 
             engine.record_environment()
             engine.build_ns()
@@ -220,10 +225,10 @@ class Optimizer(SolveStep, NS_mixin):
             if is_new_mesh or is_first:
                 self.check_and_end_geom_mesh_gens(engine)
 
-            #if is_new_mesh or is_first:
-            engine.preprocess_modeldata()
-            #else:
-            #    engine.save_processed_model()
+            if is_new_mesh or is_first:
+                engine.preprocess_modeldata()
+            else:
+                engine.save_processed_model()
 
             self.prepare_form_sol_variables(engine)
 
@@ -239,7 +244,13 @@ class Optimizer(SolveStep, NS_mixin):
                             self.solve_error[1])
 
             engine.run_postprocess(postprocess, name=self.name())
-            os.chdir(od)
+
+            if self.keep_cases:
+                src = os.path.join(os.getcwd(), 'model_proc.pmfm')
+                os.chdir(od)
+                dst = os.path.join(os.getcwd(), 'model_proc.pmfm')
+                if is_first and myid == 0:
+                   os.symlink(src, dst)
 
         minimizer.generate_cost_function(engine, run_full_assembly)
         minimizer.run()

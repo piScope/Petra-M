@@ -179,6 +179,8 @@ class SimpleMinimizer(ParametricMinimizer):
     def run(self):
         from scipy.optimize import minimize, minimize_scalar
 
+        verbose = self.verbose if myid == 0 else False
+
         if len(self.x0) > 1:
             res = minimize(self.costobj,
                            self.x0,
@@ -188,7 +190,7 @@ class SimpleMinimizer(ParametricMinimizer):
                                     "maxiter": self.maxiter,
                                     'xtol': self.tol,
                                     'ftol':self.tol,
-                                    "disp": self.verbose,})
+                                    "disp": verbose,})
 
         else:
             res = minimize_scalar(self.costobj,
@@ -196,9 +198,8 @@ class SimpleMinimizer(ParametricMinimizer):
                                   bounds=self.ranges[0],
                                   method="Bounded",
                                   tol = self.tol,
-                                  options={"maxfev": self.maxiter,
-                                           "maxiter": self.maxiter,
-                                           "disp": self.verbose,})
+                                  options={"maxiter": self.maxiter,
+                                           "disp": verbose,})
 
         if myid == 0:
             print(res)
