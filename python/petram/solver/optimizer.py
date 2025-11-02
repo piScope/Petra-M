@@ -55,7 +55,7 @@ class Optimizer(SolveStep, NS_mixin):
         return (self.init_setting,
                 self.postprocess_sol,
                 self.phys_model,
-                str(self.scanner),
+                str(self.minimizer),
                 self.get_inner_solver_names(),
                 self.save_separate_mesh,
                 self.clear_wdir,
@@ -89,7 +89,7 @@ class Optimizer(SolveStep, NS_mixin):
 
     def attribute_set(self, v):
         v = super(Optimizer, self).attribute_set(v)
-        v['minimizer'] = 'Minimizer("a", [1,,3], "b",[4, 5], cost=cost)'
+        v['minimizer'] = 'Minimizer(cost, (0.15, 0.45), "a", [1,3], "b",[4, 5], tol=1e-2, maxiter=10, verbse=True)'
         v['save_separate_mesh'] = False
         v['clear_wdir'] = True
 
@@ -145,7 +145,7 @@ class Optimizer(SolveStep, NS_mixin):
         try:
             minimizer = self.eval_param_expr(str(self.minimizer),
                                              'minimizer')[0]
-            minimizer.set_data_from_model(self.root())
+            minimizer.set_model(self.root())
         except:
             traceback.print_exc()
             return
@@ -162,8 +162,8 @@ class Optimizer(SolveStep, NS_mixin):
         return probes
 
     def get_default_ns(self):
-        from petram.solver.minimizer import Minimizer
-        return {'Minimizer': Minimizer}
+        from petram.solver.minimizer import Minimizer, sample_cost
+        return {'Minimizer': Minimizer, 'cost': sample_cost}
 
     def go_case_dir(self, engine, ksol, mkdir):
         '''
@@ -229,30 +229,6 @@ class Optimizer(SolveStep, NS_mixin):
 
         minimizer.generate_cost_function(run_full_assembly)
         minimizer.run()
-        
-    def collect_probe_signals(self, dirs, minimizer):
-        from petram.sol.probe import list_probes, load_probe,  Probe
-        params = minimizer.list_data()
-
-        od = os.getcwd()
-
-        filenames, probenames = list_probes(dirs[0])
-
-        names = minimizer.names
-
-        probes = [Probe(n, xnames=names) for n in probenames]
-
-        for param, dirname in zip(params, dirs):
-            os.chdir(dirname)
-            for f, p in zip(filenames, probes):
-                xdata, ydata = load_probe(f)
-                p.append_value(ydata, param)
-
-        os.chdir(od)
-        for p in probes:
-            p.write_file(nosmyid=True)
-            # else:
-            #    dprint1("skipping summarizing probe data for ", p.name)
 
     def set_minimizer_physmodel(self, minimizer):
         solvers = self.get_active_solvers()
@@ -281,6 +257,32 @@ class Optimizer(SolveStep, NS_mixin):
 
         solvers = self.set_minimizer_physmodel(minimizer)
         self.call_minimizer(minimizer, engine, solvers)
-        
-        self.collect_probe_signals(self.case_dirs, minimizer)
-        minimizer.collect_probe_signals(engine, self.case_dirs)
+
+        #self.collect_probe_signals(self.case_dirs, minimizer)
+        #minimizer.collect_probe_signals(engine, self.case_dirs)
+
+    '''
+    def collect_probe_signals(self, dirs, minimizer):
+        from petram.sol.probe import list_probes, load_probe,  Probe
+        params = minimizer.list_data()
+
+        od = os.getcwd()
+
+        filenames, probenames = list_probes(dirs[0])
+
+        names = minimizer.names
+
+        probes = [Probe(n, xnames=names) for n in probenames]
+
+        for param, dirname in zip(params, dirs):
+            os.chdir(dirname)
+            for f, p in zip(filenames, probes):
+                xdata, ydata = load_probe(f)
+                p.append_value(ydata, param)
+
+        os.chdir(od)
+        for p in probes:
+            p.write_file(nosmyid=True)
+            # else:
+            #    dprint1("skipping summarizing probe data for ", p.name)
+    '''

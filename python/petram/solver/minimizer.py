@@ -11,9 +11,13 @@ format_memory_usage = debug.format_memory_usage
 
 
 class CostFunction():
-    def __init__(self, runner, fcost, params):
+    '''
+    CostFunction : __call__ runs simulation and evaluate cost
+    '''
+    def __init__(self, runner, fcost, params, model):
         self.kcase = 0
 
+        self.model = model
         self.runner = runner
         self.fcost = fcost
 
@@ -23,11 +27,9 @@ class CostFunction():
             self.xvalues[param] = []
 
     def apply_param(self, *args):
-        dprint1("Simple Scanner: Target " + str(self.target_phys))
+        general = self.model["General"]
 
-        general = self.target_phys[0].root()["General"]
-
-        for name, value in zip(params, args):
+        for name, value in zip(self.params, args):
             dprint1("Simple Scanner: Setting " + name + ':' + str(value))
             general.dataset[name] = value
 
@@ -69,25 +71,25 @@ class ParametricMinimizer():
             except StopIteration:
                 break
 
-        assert len(self.params) != len(
+        assert len(self.params) == len(
             self.ranges), "invalid input to minimizer"
 
         self._data_record = {}
 
         self.runnder = None
         self.costobj = None
+        self.model = None
+        self.target_phys = None
 
     def generate_cost_function(self, runner):
         cost = CostFunction(runner, self.fcost, self.params)
         self.costobj = cost
 
-    def set_data_from_model(self, model):
-        '''
-        this is called after __init__.
-        model is passed. so that it can be set using
-        model tree
-        '''
-        pass
+    def get_probes(self):
+        return self.params
+
+    def set_model(self, model):
+        self.model = model
 
     def set_phys_models(self, targets):
         '''
@@ -124,10 +126,6 @@ class ParametricMinimizer():
         raise NotImplementedError(
             "subclass needs to be provide this method")
 
-    def set_model(self, data):
-        raise NotImplementedError(
-            "set model for parametric scanner needs to be given in subclass")
-
     @property
     def names(self):
         '''
@@ -140,7 +138,6 @@ class ParametricMinimizer():
 class SimpleMinimizer(ParametricMinimizer):
     def __init__(self, fcost, x0, *args, **kwargs):
         self.x0 = x0
-        self.bounds = kwargs.pop("bounds", None)
         self.method = kwargs.pop("method", "Nelder-Mead")
         self.tol = kwargs.pop('tol', 1e-2)
         self.maxiter = kwargs.pop('maxiter', 100)
@@ -153,7 +150,7 @@ class SimpleMinimizer(ParametricMinimizer):
 
         res = minimize(self.costobj,
                        self.x0,
-                       bounds=self.bounds,
+                       bounds=self.ranges,
                        method=self.method,
                        tol=self.tol,
                        options={"maxiter": self.maxiter, "disp": self.verobse},)
@@ -166,3 +163,9 @@ class SimpleMinimizer(ParametricMinimizer):
 
 
 Minimizer = SimpleMinimizer
+def sample_cost(*x, **kwargs):
+    '''
+    sample cost function.
+    using this cost will cause x to zero, no matter what...
+    '''
+    return np.sum(np.array(x)**2)
