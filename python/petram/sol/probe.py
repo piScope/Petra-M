@@ -147,7 +147,6 @@ class Probe(object):
             self.valid = False
         else:
             shapes = [x.shape for x in self.sig]
-
             if np.all([len(x.shape) == 1 for x in self.sig]):
                 self.sig_f = np.vstack(self.sig)
             else:

@@ -153,6 +153,9 @@ class Parametric(SolveStep, NS_mixin):
                     ("!", SetVar)]
 
     def get_scanner(self, nosave=False):
+        if not self.enabled:
+            return
+
         try:
             scanner = self.eval_param_expr(str(self.scanner),
                                            'scanner')[0]
@@ -169,7 +172,9 @@ class Parametric(SolveStep, NS_mixin):
     def get_probes(self):
         probes = super(Parametric, self).get_probes()
         scanner = self.get_scanner(nosave=True)
-        probes.extend(scanner.get_probes())
+
+        if scanner is not None:
+            probes.extend(scanner.get_probes())
         return probes
 
     def get_default_ns(self):

@@ -204,6 +204,14 @@ class NS_mixin(object):
         '''
         return {}
 
+    def get_default_weak_ns(self):
+        '''
+        default_weak_ns defines Namespace variable, which does not overwrite
+        user proviede variable. Used to define a default parameter, which
+        is supposed to be overwritten by a user
+        '''
+        return {}
+
     def check_ns_name_conflict(self):
         '''
         check if derived_variable and namespace variable does not conflict
@@ -280,6 +288,7 @@ class NS_mixin(object):
                 assert False, "General should not be disabled"
 
         l = self.get_default_ns()
+        weak_l = self.get_default_weak_ns()
 
         from petram.helper.variables import var_g
         g = var_g.copy()
@@ -322,6 +331,9 @@ class NS_mixin(object):
             self._global_ns = chain[-1]._global_ns
             for k in l:
                 self._global_ns[k] = l[k]
+            for k in weak_l:
+                if k not in self._global_ns:
+                    self._global_ns[k] = weak_l[k]
             g = self._global_ns
 
         elif len(chain) > 1:
@@ -337,6 +349,10 @@ class NS_mixin(object):
                     continue
                 for k in ll:
                     g[k] = ll[k]
+                for k in weak_l:
+                    if k not in g:
+                        g[k] = weak_l[k]
+
                 if p.ns_name is not None:
                     try:
                         if p.dataset is not None:

@@ -2716,7 +2716,9 @@ class Engine(object):
             extrafile_name = self.extrafile_name()
         extrafile_name += self.solfile_suffix()
 
-        self.sol_extra = sol_extra  # keep it for future reuse
+        if self.sol_extra is None:
+            self.sol_extra = {}
+        self.sol_extra.update(sol_extra)  # keep it for future reuse
 
         # count extradata length
         ll = 0

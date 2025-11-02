@@ -1,7 +1,12 @@
-from petram.mfem_config import use_parallel
+'''
+
+   parametric optimizer: optimize user defined cost function by tuing the parameters
+   in global_ns
+
+'''
 import os
 import traceback
-import gc
+import numpy as np
 
 from petram.model import Model
 from petram.solver.solver_model import Solver, SolveStep
@@ -10,15 +15,15 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Optimizer')
 format_memory_usage = debug.format_memory_usage
 
-assembly_methods = {'Full assemble': 0,
-                    'Reuse matrix': 1}
-
+from petram.mfem_config import use_parallel
 if use_parallel:
     import mfem.par as mfem
     from mfem.common.mpi_debug import nicePrint
     from mpi4py import MPI
+    myid = MPI.COMM_WORLD.rank
 else:
     import mfem.ser as mfem
+    myid = 0
     nicePrint = dprint1
 
 
@@ -32,6 +37,8 @@ class Optimizer(SolveStep, NS_mixin):
     def __init__(self, *args, **kwargs):
         SolveStep.__init__(self, *args, **kwargs)
         NS_mixin.__init__(self, *args, **kwargs)
+
+        self.case_dirs = None
 
     def init_solver(self):
         pass
@@ -142,6 +149,8 @@ class Optimizer(SolveStep, NS_mixin):
                     ("!", SetVar)]
 
     def get_minimizer(self, nosave=False):
+        if not self.enabled:
+            return
         try:
             minimizer = self.eval_param_expr(str(self.minimizer),
                                              'minimizer')[0]
@@ -150,20 +159,26 @@ class Optimizer(SolveStep, NS_mixin):
             traceback.print_exc()
             return
 
-        if not nosave:
-            minimizer.save_scanner_data(self)
+        #if not nosave:
+        #    minimizer.save_scanner_data(self)
 
         return minimizer
 
     def get_probes(self):
         probes = super(Optimizer, self).get_probes()
         minimizer = self.get_minimizer(nosave=True)
-        probes.extend(minimizer.get_probes())
+        if minimizer is not None:
+            probes.extend([self.name()+"_"+x for x in minimizer.get_params()])
+            probes.append(self.name()+"_costs")
         return probes
 
     def get_default_ns(self):
-        from petram.solver.minimizer import Minimizer, sample_cost
-        return {'Minimizer': Minimizer, 'cost': sample_cost}
+        from petram.solver.minimizer import Minimizer
+        return {'Minimizer': Minimizer}
+
+    def get_default_weak_ns(self):
+        from petram.solver.minimizer import default_cost
+        return {'cost': default_cost}
 
     def go_case_dir(self, engine, ksol, mkdir):
         '''
@@ -192,10 +207,9 @@ class Optimizer(SolveStep, NS_mixin):
 
     def call_minimizer(self, minimizer, engine, solvers):
 
-        def run_full_assembly(self, kcase, engine=engine, solvers=solvers):
+        def run_full_assembly(kcase, engine, solvers=solvers):
+            is_first = kcase == 0
             postprocess = self.get_pp_setting()
-
-            is_first0 = True
 
             od = self.go_case_dir(engine, kcase, True)
 
@@ -203,19 +217,19 @@ class Optimizer(SolveStep, NS_mixin):
             engine.build_ns()
 
             is_new_mesh = self.check_and_run_geom_mesh_gens(engine)
-            if is_new_mesh:
+            if is_new_mesh or is_first:
                 self.check_and_end_geom_mesh_gens(engine)
 
-            if is_new_mesh or is_first:
-                engine.preprocess_modeldata()
-                is_first = False
-            else:
-                engine.save_processed_model()
+            #if is_new_mesh or is_first:
+            engine.preprocess_modeldata()
+            #else:
+            #    engine.save_processed_model()
 
             self.prepare_form_sol_variables(engine)
 
             self.init(engine)
 
+            is_first0 = True
             for ksolver, s in enumerate(solvers):
                 is_first0 = s.run(engine, is_first=is_first0)
                 engine.add_FESvariable_to_NS(self.get_phys())
@@ -227,7 +241,7 @@ class Optimizer(SolveStep, NS_mixin):
             engine.run_postprocess(postprocess, name=self.name())
             os.chdir(od)
 
-        minimizer.generate_cost_function(run_full_assembly)
+        minimizer.generate_cost_function(engine, run_full_assembly)
         minimizer.run()
 
     def set_minimizer_physmodel(self, minimizer):
@@ -248,41 +262,41 @@ class Optimizer(SolveStep, NS_mixin):
         dprint1("Entering Optimizer")
         if self.clear_wdir:
             engine.remove_solfiles()
-
         engine.remove_case_dirs()
 
         minimizer = self.get_minimizer()
         if minimizer is None:
             return
 
+        self.case_dirs = []
+
         solvers = self.set_minimizer_physmodel(minimizer)
         self.call_minimizer(minimizer, engine, solvers)
 
-        #self.collect_probe_signals(self.case_dirs, minimizer)
-        #minimizer.collect_probe_signals(engine, self.case_dirs)
+        if myid == 0:
+             self.save_probe_signals(minimizer)
 
-    '''
-    def collect_probe_signals(self, dirs, minimizer):
-        from petram.sol.probe import list_probes, load_probe,  Probe
-        params = minimizer.list_data()
+    def save_probe_signals(self, minimizer):
+        from petram.sol.probe import Probe
 
-        od = os.getcwd()
+        xvalues = minimizer.costobj.xvalues
+        costs = minimizer.costobj.costs
 
-        filenames, probenames = list_probes(dirs[0])
+        probes = []
 
-        names = minimizer.names
+        time = np.atleast_2d(np.arange(len(costs), dtype=float)).transpose()
 
-        probes = [Probe(n, xnames=names) for n in probenames]
+        for x in minimizer.get_params():
+            n  = self.name()+"_"+x
+            probe = Probe(n, xnames=["iter_count"])
+            probe.sig = xvalues[x]
+            probe.t = time
+            probes.append(probe)
 
-        for param, dirname in zip(params, dirs):
-            os.chdir(dirname)
-            for f, p in zip(filenames, probes):
-                xdata, ydata = load_probe(f)
-                p.append_value(ydata, param)
+        probe = Probe(self.name()+"_costs", xnames=["iter_count"])
+        probe.sig = costs
+        probe.t = time
+        probes.append(probe)
 
-        os.chdir(od)
         for p in probes:
             p.write_file(nosmyid=True)
-            # else:
-            #    dprint1("skipping summarizing probe data for ", p.name)
-    '''
