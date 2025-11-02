@@ -7,7 +7,7 @@ from petram.model import Model
 from petram.solver.solver_model import Solver, SolveStep
 from petram.namespace_mixin import NS_mixin
 import petram.debug as debug
-dprint1, dprint2, dprint3 = debug.init_dprints('Parametric')
+dprint1, dprint2, dprint3 = debug.init_dprints('Optimizer')
 format_memory_usage = debug.format_memory_usage
 
 assembly_methods = {'Full assemble': 0,
@@ -24,8 +24,7 @@ else:
 
 class Optimizer(SolveStep, NS_mixin):
     '''
-    parametric sweep of some model paramter
-    and run solver
+    parametric optimizer of model
     '''
     can_delete = True
     has_2nd_panel = False
@@ -89,7 +88,7 @@ class Optimizer(SolveStep, NS_mixin):
     '''
 
     def attribute_set(self, v):
-        v = super(Parametric, self).attribute_set(v)
+        v = super(Optimizer, self).attribute_set(v)
         v['minimizer'] = 'Minimizer("a", [1,,3], "b",[4, 5], cost=cost)'
         v['save_separate_mesh'] = False
         v['clear_wdir'] = True
@@ -157,7 +156,7 @@ class Optimizer(SolveStep, NS_mixin):
         return minimizer
 
     def get_probes(self):
-        probes = super(Parametric, self).get_probes()
+        probes = super(Optimizer, self).get_probes()
         minimizer = self.get_minimizer(nosave=True)
         probes.extend(minimizer.get_probes())
         return probes
@@ -190,10 +189,12 @@ class Optimizer(SolveStep, NS_mixin):
         self.case_dirs.append(path)
         return od
 
-    def _run_full_assembly(self, engine, solvers, minimizer, is_first=True):
 
-        postprocess = self.get_pp_setting()
-        for kcase, case in enumerate(minimizer):
+    def call_minimizer(self, minimizer, engine, solvers):
+
+        def run_full_assembly(self, kcase, engine=engine, solvers=solvers):
+            postprocess = self.get_pp_setting()
+
             is_first0 = True
 
             od = self.go_case_dir(engine, kcase, True)
@@ -220,12 +221,15 @@ class Optimizer(SolveStep, NS_mixin):
                 engine.add_FESvariable_to_NS(self.get_phys())
                 engine.store_x()
                 if self.solve_error[0]:
-                    dprint1("Parametric failed " + self.name() + ":" +
+                    dprint1("Optimizer solver failed " + self.name() + ":" +
                             self.solve_error[1])
 
             engine.run_postprocess(postprocess, name=self.name())
             os.chdir(od)
 
+        minimizer.generate_cost_function(run_full_assembly)
+        minimizer.run()
+        
     def collect_probe_signals(self, dirs, minimizer):
         from petram.sol.probe import list_probes, load_probe,  Probe
         params = minimizer.list_data()
@@ -275,11 +279,8 @@ class Optimizer(SolveStep, NS_mixin):
         if minimizer is None:
             return
 
-        solvers = self.set_minimizer_physmodel(scanner)
-
-        self.case_dirs = []
-        self._run_full_assembly(
-            engine, solvers, minimizer, is_first=is_first)
-
+        solvers = self.set_minimizer_physmodel(minimizer)
+        self.call_minimizer(minimizer, engine, solvers)
+        
         self.collect_probe_signals(self.case_dirs, minimizer)
         minimizer.collect_probe_signals(engine, self.case_dirs)
