@@ -1,4 +1,4 @@
-<img align="right" width="200" height="200" src="https://github.com/piScope/PetraM_Base/blob/master/resources/app_logo.png?raw=true">
+<img align="right" width="200" height="200" src="https://github.com/piScope/Petra-M/blob/master/resources/app_logo.png?raw=true">
 
 ## Petra-M (FEM application based on MFEM)
 
