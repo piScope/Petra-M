@@ -172,7 +172,7 @@ def run_in_piScope_thread(func):
         maxt = app.aconfig.setting['max_thread']
         if len(app.logw.threadlist) < maxt:
 
-            dlg = progressbar(self, '', 'In progress', 5)
+            dlg = progressbar(self, '', 'In progress', 5, modeless=True)
             dlg.Show()
 
             def caller(*in_args, **in_kwargs):
