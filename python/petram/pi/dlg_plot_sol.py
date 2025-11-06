@@ -1337,6 +1337,8 @@ class DlgPlotSol(SimpleFramePlus):
         t = self.nb.GetPageText(self.nb.GetSelection())
         t = t.replace('(', '').replace(')', '')
         if kind:
+            if t in ("GeomBdr", "Config"):
+                return t, None
             kinds = {'Bdr': 'bdry',
                      'BdrArrorw': 'bdry',
                      'Edge': 'edge',
@@ -1429,18 +1431,24 @@ class DlgPlotSol(SimpleFramePlus):
                 data = [(None, cdata) for verts, cdata, adata in data]
 
         if data_x is None:
-            v = figure(viewer=cls)
-            v.title(expr + ':' + str(battrs))
-            setup_figure(v, self.GetParent())
-
-            v.update(False)
+            v = None
             for verts, cdata, adata in data:
+                if v is None:
+                    v = figure(viewer=cls)
+                    v.title(expr + ':' + str(battrs))
+                    setup_figure(v, self.GetParent())
+                    v.update(False)
+
                 if cls is None:
                     v.solid(verts, adata, cz=True, cdata=cdata.astype(float),
                             shade='linear')
                 else:
                     v.solid(verts, adata, cz=True, cdata=cdata,
                             shade='linear')
+
+            if v is None:
+                return
+
             v.update(True)
             v.update(False)
             ax = self.GetParent().get_axes()
@@ -1450,13 +1458,17 @@ class DlgPlotSol(SimpleFramePlus):
             v.lighting(light=0.5)
             v.update(True)
         else:  # make 2D plot
-            v = figure(viewer=cls)
-            v.title(expr)
-            v.xtitle(expr_x)
+            v = None
             for yy, xx in zip(data, data_x):
                 y = yy[1].flatten()
                 x = xx[1].flatten()
                 xidx = np.argsort(x)
+
+                if v is None:
+                    v = figure(viewer=cls)
+                    v.title(expr)
+                    v.xtitle(expr_x)
+
                 if force_float:
                     yy = y[xidx]
                     if np.iscomplexobj(yy):
@@ -1646,11 +1658,6 @@ class DlgPlotSol(SimpleFramePlus):
             expr='',
             use_pointfill=False):
         from ifigure.interactive import figure
-        viewer = figure(viewer=cls)
-        setup_figure(viewer, self.GetParent())
-
-        viewer.update(False)
-        viewer.suptitle(expr + ':' + str(battrs))
 
         dd = defaultdict(list)
         # regroup to sepparte triangles and quads.
@@ -1658,6 +1665,8 @@ class DlgPlotSol(SimpleFramePlus):
             v, c, i = datasets  # verts, cdata, idata
             idx = i.shape[-1]
             dd[idx].append((k + 1, v, c, i))
+
+        viewer = None
 
         for key in dd.keys():
             kk, verts, cdata, idata = zip(*(dd[key]))
@@ -1674,6 +1683,13 @@ class DlgPlotSol(SimpleFramePlus):
             idata = np.vstack(idata)
             idata = idata + np.atleast_2d(offsets_idx).transpose()
 
+            if viewer is None:
+                viewer = figure(viewer=cls)
+                setup_figure(viewer, self.GetParent())
+
+                viewer.update(False)
+                viewer.suptitle(expr + ':' + str(battrs))
+
             if cls is None:
                 obj = viewer.solid(verts, idata, array_idx=array_idx,
                                    cz=True, cdata=cdata.astype(float),
@@ -1685,6 +1701,9 @@ class DlgPlotSol(SimpleFramePlus):
                                    cz=True, cdata=cdata, shade='linear',
                                    use_pointfill=use_pointfill)
                 obj.set_gl_hl_use_array_idx(True)
+
+        if viewer is None:
+            return
 
         viewer.update(True)
         viewer.update(False)
@@ -2462,7 +2481,7 @@ class DlgPlotSol(SimpleFramePlus):
                 self.local_solsubdir = s
                 self.load_sol_if_needed()
 
-            data = self.onSliceCommon(value, mode='export_return')
+            data = self._onSliceCommon(value, mode='export_return')
             if data is None:
                 assert False, "returned value is None ???"
 
@@ -2593,13 +2612,10 @@ class DlgPlotSol(SimpleFramePlus):
     def make_plot_pc_slice(self, dataset, cls=None, expr=False):
 
         from ifigure.interactive import figure
-        viewer = figure(viewer=cls)
-        setup_figure(viewer, self.GetParent())
-
-        viewer.update(False)
-        viewer.threed('on')
 
         first = True
+        viewer = None
+
         for d in dataset:
             data = d['data']
             attrs_out = d['attrs_out']
@@ -2610,7 +2626,13 @@ class DlgPlotSol(SimpleFramePlus):
             im_center = d['im_center']
 
             if first:
-                viewer.suptitle(expr + ':' + str(attrs))
+                viewer = figure(viewer=cls)
+                setup_figure(viewer, self.GetParent())
+                viewer.update(False)
+                viewer.threed('on')
+
+                viewer.suptitle(
+                    expr + ':' + ",".join(([str(int(x)) for x in attrs])))
                 first = False
             if cls is None:
                 data = np.ma.masked_array(
@@ -2628,7 +2650,8 @@ class DlgPlotSol(SimpleFramePlus):
             ax2.set_axes3d_viewparam(param, ax2._artists[0])
             viewer.lighting(light=0.5)
 
-        viewer.update(True)
+        if viewer is not None:
+            viewer.update(True)
 
     def get_attrs_field_Slice(self):
         return 2
@@ -2897,7 +2920,6 @@ class DlgPlotSol(SimpleFramePlus):
             return self.evaluators[key].eval(expr, do_merge1, do_merge2,
                                              **kwargs)
         except BaseException:
-            traceback.print_exc()
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Failed to evauate expression',
                          title='Error',
