@@ -2748,14 +2748,15 @@ class DlgPlotSol(SimpleFramePlus):
         xexpr = str(value[1]).strip()
 
         xdata, data = self.eval_probe(value, mode='plot')
-        if data is None:
+        all_data = {'xdata': xdata, 'data': data}
+
+        if data is None and xdata is None:
             wx.CallAfter(self.set_title_no_status)
             return
-        if xdata is None:
-            wx.CallAfter(self.set_title_no_status)
-            return
+
         if len(data.shape) == 0:
             wx.CallAfter(self.set_title_no_status)
+            wx.CallAfter(self.export_to_piScope_shell, all_data, 'probe_data')
             return
 
         self.post_threadend(
