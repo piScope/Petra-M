@@ -166,7 +166,7 @@ class ParametricMinimizer():
 
 class SimpleMinimizer(ParametricMinimizer):
     def __init__(self, fcost, x0, *args, **kwargs):
-        self.x0 = np.array(x0)
+        self.x0 = np.atleast_1d(x0)
         #self.method = kwargs.pop("method", "Nelder-Mead")
         self.method = kwargs.pop("method", "Powell")
         self.tol = kwargs.pop('tol', 1e-2)
@@ -209,7 +209,13 @@ Minimizer = SimpleMinimizer
 
 def default_cost(*x, **kwargs):
     '''
-    sample cost function.
-    using this cost will cause x to zero, no matter what...
+    sample cost function, which causes NotImplemented error.
+
+    cost function should accept
+       *x : control parameter.
+       **kwargs : all probe signals from previous simulaiton.
+
+       return value should be scalar value.
+    
     '''
     assert False, "Cost function is not implemented. Provide your own in global_ns"

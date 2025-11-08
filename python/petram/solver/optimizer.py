@@ -99,7 +99,7 @@ class Optimizer(SolveStep, NS_mixin):
 
     def attribute_set(self, v):
         v = super(Optimizer, self).attribute_set(v)
-        v['minimizer'] = 'Minimizer(cost, (0.15, 0.45), "a", [1,3], "b",[4, 5], tol=1e-2, maxiter=10, verbse=True)'
+        v['minimizer'] = 'Minimizer(cost, (0.15, 0.45), "a", [1,3], "b",[4, 5], tol=1e-2, maxiter=10, verbose=True)'
         v['save_separate_mesh'] = False
         v['clear_wdir'] = True
         v['keep_cases'] = False
