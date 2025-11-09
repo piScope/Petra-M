@@ -284,7 +284,7 @@ class ProbleSignalCollection:
             if isinstance(self.__dict__[key], ProbleSignalCollection):
                 yield self.__dict__[key]
 
-def collect_probesignals(p):
+def _collect_probesignals(p):
     cases = [(int(x[5:]), x) for x in os.listdir(p) if x.startswith("case_")]
     cases = sorted(cases)
     cases = [x[1] for x in cases]
@@ -294,7 +294,12 @@ def collect_probesignals(p):
 
     kwargs = {}
     for x in cases:
-        kwargs[x] = collect_probesignals(os.path.join(p, x))
+        kwargs[x] = _collect_probesignals(os.path.join(p, x))
     for x in probes:
         kwargs[x] = ProbeSignal(p, probes[x])
     return ProbleSignalCollection(**kwargs)
+
+def collect_probesignals(p):
+    if use_parallel:
+        MPI.COMM_WORLD.Barrier()
+    return _collect_probesignals(p)

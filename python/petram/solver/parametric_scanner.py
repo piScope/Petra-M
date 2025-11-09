@@ -17,6 +17,7 @@ class DefaultParametricScanner(object):
         self.idx = 0
         self.target = None
         self.set_data(data)
+        self._current_data = None
 
     def get_probes(self):
         return []
@@ -37,12 +38,17 @@ class DefaultParametricScanner(object):
         self.idx = 0
         return self
 
+    @property
+    def current_data(self):
+        return self._current_data
+
     def __next__(self):
 
         if self.idx == self.max:
             raise StopIteration
 
         data = self._data[self.idx]
+        self._current_data = data
         dprint0("")
         dprint0("==== Entering next parameter:", data, "(" +
                 str(self.idx+1) + "/" + str(self.max) + ")")
@@ -92,6 +98,13 @@ class DefaultParametricScanner(object):
             fid.close()
 
         MPI.COMM_WORLD.Barrier()
+
+    def save_namedparam_probes(self):
+        #
+        #  if scanner is using named parameter, overwrite this to
+        #  save the parameter as probe signal (see SimpleScanner below)
+        #
+        pass
 
     def collect_probe_signals(self, engine, dirs):
         '''
@@ -160,29 +173,34 @@ class SimpleScanner(DefaultParametricScanner):
         else:
             data = zip(*data)
 
+        self.probes = {}
         DefaultParametricScanner.__init__(self, data=list(data))
 
     def apply_param(self, data):
         names = self._names
-
-        dprint1("Simple Scanner: Target " + str(self.target_phys))
-
         general = self.target_phys[0].root()["General"]
 
         for k, name in enumerate(names):
             dprint1("Simple Scanner: Setting " + name + ':' + str(data[k]))
             general.dataset[name] = data[k]
 
-        # for k, name in enumerate(names):
-        #    id_list = []
-        #    for phys in self.target_phys:
-        #        if id(phys._global_ns) in id_list:
-        #            continue
+    def save_namedparam_probes(self):
+        try:
+            from mpi4py import MPI
+        except ImportError:
+            from petram.helper.dummy_mpi import MPI
+        myid = MPI.COMM_WORLD.rank
 
-        #        dprint1("Simple Scanner: Setting " + name + ':' + str(data[k]) +
-        #                " setting in " + str(phys))
-        #        phys._global_ns[name] = data[k]
-        #        id_list.append(id(phys._global_ns))
+        if myid != 0:
+            return
+
+        from petram.sol.probe import Probe
+
+        data = self.current_data
+        probes = {n: Probe(n, ) for n in self._names}
+        for k, name in enumerate(self._names):
+            probes[name].append_value(data[k])
+            probes[name].write_file(nosmyid=True)
 
     @property
     def names(self):
@@ -191,13 +209,16 @@ class SimpleScanner(DefaultParametricScanner):
         '''
         return self._names
 
+    def get_probes(self):
+        return self._names
+
     def collect_probe_data(self, engine, dirs):
         pass
 
     def collect_probe_signals(self, engine, dirs):
         pass
-        #import warnings
-        #warnings.warn(
+        # import warnings
+        # warnings.warn(
         #    "collect_probe_signals is not used for SimpleScanner", UserWarning)
 
 

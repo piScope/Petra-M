@@ -1,9 +1,12 @@
-'''
+#
+#  Optimizer
+#
+#     parameter optimizer find a set of global_ns parameters
+#     which minimizes a user defined (in global_ns.py) cost
+#     funciton.
+#
 
-   parametric optimizer: optimize user defined cost function by tuing the parameters
-   in global_ns
-
-'''
+from petram.mfem_config import use_parallel
 import os
 import traceback
 import numpy as np
@@ -15,7 +18,6 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('Optimizer')
 format_memory_usage = debug.format_memory_usage
 
-from petram.mfem_config import use_parallel
 if use_parallel:
     import mfem.par as mfem
     from mfem.common.mpi_debug import nicePrint
@@ -113,10 +115,14 @@ class Optimizer(SolveStep, NS_mixin):
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
         from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.set_var import SetVar
+        from petram.solver.solver_model import SolveStep
+        from petram.solver.parametric import Parametric
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [MultiLvlStationarySolver,
+            return [SolveStep,
+                    Parametric,
+                    MultiLvlStationarySolver,
                     StdSolver,
                     StdMeshAdaptSolver,
                     NLSolver,
@@ -134,23 +140,43 @@ class Optimizer(SolveStep, NS_mixin):
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
         from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.set_var import SetVar
+        from petram.solver.solver_model import SolveStep
+        from petram.solver.parametric import Parametric
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [("", StdSolver),
+            return [("SolveSteps", SolveStep),
+                    ("!", Parametric),
+                    ("Solvers", StdSolver),
                     ("", MultiLvlStationarySolver),
-                    ("", NLSolver),
+                    ("!", NLSolver),
                     ("extra", ForLoop),
                     ("", StdMeshAdaptSolver),
                     ("", DWCCall),
                     ("!", SetVar)]
         except:
-            return [("", StdSolver),
+            return [("SolveSteps", SolveStep),
+                    ("!", Parametric),
+                    ("Solvers", StdSolver),
                     ("", MultiLvlStationarySolver),
-                    ("", NLSolver),
+                    ("!", NLSolver),
                     ("extra", ForLoop),
                     ("", DWCCall),
                     ("!", SetVar)]
+
+    def verify_setting(self):
+        if (len(self.get_active_solversteps()) > 0 and
+                len(self.get_active_solvers()) > 0):
+            assert False, "Optimizer Child Needs to be either Solver or SolveStep."
+
+        if (len(self.get_active_solversteps()) == 0 and
+                len(self.get_active_solvers()) == 0):
+            assert False, "Optimizer has no active Solver nor SolveStep."
+
+        if len(self.get_active_solversteps()) > 0:
+            return True, "", ""
+
+        return SolveStep.verify_setting(self)
 
     def get_minimizer(self, nosave=False):
         if not self.enabled:
@@ -162,9 +188,6 @@ class Optimizer(SolveStep, NS_mixin):
         except:
             traceback.print_exc()
             return
-
-        #if not nosave:
-        #    minimizer.save_scanner_data(self)
 
         return minimizer
 
@@ -208,10 +231,11 @@ class Optimizer(SolveStep, NS_mixin):
         self.case_dirs.append(path)
         return od
 
+    def call_minimizer(self, minimizer, engine):
+        a_ssteps = self.get_active_solversteps()
+        a_solvers = self.get_active_solvers()
 
-    def call_minimizer(self, minimizer, engine, solvers):
-
-        def run_full_assembly(kcase, engine, solvers=solvers):
+        def run_solvers(kcase, engine, solvers=a_solvers):
             is_first = kcase == 0
             postprocess = self.get_pp_setting()
 
@@ -245,25 +269,43 @@ class Optimizer(SolveStep, NS_mixin):
 
             engine.run_postprocess(postprocess, name=self.name())
 
+            from petram.sol.probe import collect_probesignals
+            prbs = collect_probesignals(os.getcwd())
+
             if self.keep_cases:
                 src = os.path.join(os.getcwd(), 'model_proc.pmfm')
                 os.chdir(od)
                 dst = os.path.join(os.getcwd(), 'model_proc.pmfm')
                 if is_first and myid == 0:
-                   os.symlink(src, dst)
+                    os.symlink(src, dst)
+            return prbs
 
-        minimizer.generate_cost_function(engine, run_full_assembly)
+        def run_solvesteps(kcase, engine, solvesteps=a_ssteps):
+            if self.keep_cases:
+                od = self.go_case_dir(engine, kcase, True)
+
+            is_first = True
+            for s in solvesteps:
+                s.run(engine, is_first=is_first)
+                is_first = False
+
+            from petram.sol.probe import collect_probesignals
+            prbs = collect_probesignals(os.getcwd())
+
+            if self.keep_cases:
+                src = os.path.join(os.getcwd(), 'model_proc.pmfm')
+                os.chdir(od)
+                dst = os.path.join(os.getcwd(), 'model_proc.pmfm')
+                if is_first and myid == 0:
+                    os.symlink(src, dst)
+
+            return prbs
+
+        if len(a_solvers) > 0:
+            minimizer.generate_cost_function(engine, run_solvers)
+        else:
+            minimizer.generate_cost_function(engine, run_solvesteps)
         minimizer.run()
-
-    def set_minimizer_physmodel(self, minimizer):
-        solvers = self.get_active_solvers()
-        phys_models = []
-        for s in solvers:
-            for p in s.get_phys():
-                if not p in phys_models:
-                    phys_models.append(p)
-        minimizer.set_phys_models(phys_models)
-        return solvers
 
     @debug.use_profiler
     def run(self, engine, is_first=True):
@@ -281,11 +323,10 @@ class Optimizer(SolveStep, NS_mixin):
 
         self.case_dirs = []
 
-        solvers = self.set_minimizer_physmodel(minimizer)
-        self.call_minimizer(minimizer, engine, solvers)
+        self.call_minimizer(minimizer, engine)
 
         if myid == 0:
-             self.save_probe_signals(minimizer)
+            self.save_probe_signals(minimizer)
 
     def save_probe_signals(self, minimizer):
         from petram.sol.probe import Probe
@@ -298,7 +339,7 @@ class Optimizer(SolveStep, NS_mixin):
         time = np.atleast_2d(np.arange(len(costs), dtype=float)).transpose()
 
         for x in minimizer.get_params():
-            n  = self.name()+"_"+x
+            n = self.name()+"_"+x
             probe = Probe(n, xnames=["iter_count"])
             probe.sig = xvalues[x]
             probe.t = time

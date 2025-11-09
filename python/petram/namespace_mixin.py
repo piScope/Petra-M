@@ -222,7 +222,7 @@ class NS_mixin(object):
         from eval_ns.
         '''
         try:
-            ll = self.derived_variables + self.probe_variables
+            ll = self.derived_variables
             if self._local_ns is not None:
                 for x in list(self._local_ns):
                     if x not in ll:

@@ -113,10 +113,14 @@ class Parametric(SolveStep, NS_mixin):
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
         from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.set_var import SetVar
+        from petram.solver.solver_model import SolveStep
+        from petram.solver.parametric import Parametric
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [MultiLvlStationarySolver,
+            return [SolveStep,
+                    Parametric,
+                    MultiLvlStationarySolver,
                     StdSolver,
                     StdMeshAdaptSolver,
                     NLSolver,
@@ -134,23 +138,44 @@ class Parametric(SolveStep, NS_mixin):
         from petram.solver.ml_solver_model import MultiLvlStationarySolver
         from petram.solver.solver_controls import DWCCall, ForLoop
         from petram.solver.set_var import SetVar
+        from petram.solver.solver_model import SolveStep
+        from petram.solver.parametric import Parametric
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [("", StdSolver),
+            return [("SolveSteps", SolveStep),
+                    ("!", Parametric),
+                    ("Solvers", StdSolver),
                     ("", MultiLvlStationarySolver),
-                    ("", NLSolver),
+                    ("!", NLSolver),
                     ("extra", ForLoop),
                     ("", StdMeshAdaptSolver),
                     ("", DWCCall),
                     ("!", SetVar)]
         except:
-            return [("", StdSolver),
+            return [("SolveSteps", SolveStep),
+                    ("!", Parametric),
+                    ("Solvers", StdSolver),
                     ("", MultiLvlStationarySolver),
-                    ("", NLSolver),
+                    ("!", NLSolver),
                     ("extra", ForLoop),
                     ("", DWCCall),
                     ("!", SetVar)]
+
+    def verify_setting(self):
+        if (len(self.get_active_solversteps()) > 0 and
+                len(self.get_active_solvers()) > 0):
+            assert False, "Parametric's active children must be either Solver or SolveStep."
+
+        if (len(self.get_active_solversteps()) == 0 and
+                len(self.get_active_solvers()) == 0):
+            assert False, "Parametric has no active Solver nor SolveStep."
+
+        if len(self.get_active_solversteps()) > 0:
+            if self.assembly_method != 0:
+                assert False, "Parmetric outloop has to use the full-assembly mode"
+            return True, "", ""
+        return SolveStep.verify_setting(self)
 
     def get_scanner(self, nosave=False):
         if not self.enabled:
@@ -212,6 +237,7 @@ class Parametric(SolveStep, NS_mixin):
             is_first0 = True
 
             od = self.go_case_dir(engine, kcase, True)
+            scanner.save_namedparam_probes()
 
             engine.record_environment()
             engine.build_ns()
@@ -269,6 +295,7 @@ class Parametric(SolveStep, NS_mixin):
                         od = self.go_case_dir(engine,
                                               kcase,
                                               True)
+                        scanner.save_namedparam_probes()
                         engine.save_processed_model()
                         os.chdir(od)
 
@@ -281,6 +308,7 @@ class Parametric(SolveStep, NS_mixin):
                         od = self.go_case_dir(engine,
                                               kcase,
                                               True)
+                        scanner.save_namedparam_probes()
                         engine.save_processed_model()
                         os.chdir(od)
 
@@ -368,7 +396,7 @@ class Parametric(SolveStep, NS_mixin):
                                                save_parmesh=s.save_parmesh,
                                                save_mesh_linkdir=save_mesh_linkdir)
 
-                        #if save_mesh_linkdir is None:
+                        # if save_mesh_linkdir is None:
                         #    save_mesh_linkdir = os.getcwd()
 
                         engine.sol = instance.sol
@@ -381,7 +409,7 @@ class Parametric(SolveStep, NS_mixin):
                         os.chdir(od)
 
     def collect_probe_signals(self, dirs, scanner):
-        from petram.sol.probe import list_probes, load_probe,  Probe
+        from petram.sol.probe import list_probes, load_probe, Probe
         params = scanner.list_data()
 
         od = os.getcwd()
@@ -406,19 +434,19 @@ class Parametric(SolveStep, NS_mixin):
 
     def set_scanner_physmodel(self, scanner):
         solvers = self.get_active_solvers()
-        phys_models = []
-        for s in solvers:
-            for p in s.get_phys():
-                if not p in phys_models:
-                    phys_models.append(p)
-        scanner.set_phys_models(phys_models)
+        if len(solvers) > 0:
+            phys_models = []
+            for s in solvers:
+                for p in s.get_phys():
+                    if not p in phys_models:
+                        phys_models.append(p)
+            scanner.set_phys_models(phys_models)
+        else:
+            scanner.set_phys_models([self.root()['Phys']])
+
         return solvers
 
-    @debug.use_profiler
-    def run(self, engine, is_first=True):
-        #
-        # is_first is not used
-        #
+    def run_parametric(self, engine, is_first=1):
         dprint1("Parametric Scan (assemly_methd=", self.assembly_method, ")")
         if self.clear_wdir:
             engine.remove_solfiles()
@@ -430,7 +458,6 @@ class Parametric(SolveStep, NS_mixin):
             return
 
         solvers = self.set_scanner_physmodel(scanner)
-
         self.case_dirs = []
         if self.assembly_method == 0:
             self._run_full_assembly(
@@ -446,3 +473,43 @@ class Parametric(SolveStep, NS_mixin):
 
         self.collect_probe_signals(self.case_dirs, scanner)
         scanner.collect_probe_signals(engine, self.case_dirs)
+
+    def run_outer_loop(self, engine, is_first=1):
+        if self.clear_wdir:
+            engine.remove_solfiles()
+
+        engine.remove_case_dirs()
+
+        scanner = self.get_scanner()
+        if scanner is None:
+            return
+
+        self.set_scanner_physmodel(scanner)
+        ssteps = self.get_active_solversteps()
+        self.case_dirs = []
+
+        for kcase, case in enumerate(scanner):
+            od = self.go_case_dir(engine, kcase, True)
+
+            is_first = True
+            for s in ssteps:
+                s.run(engine, is_first=is_first)
+                is_first = False
+
+            scanner.save_namedparam_probes()
+            os.chdir(od)
+
+    @debug.use_profiler
+    def run(self, engine, is_first=True):
+        #
+        # is_first is not used
+        #
+        dprint1("Parametric Scan (assemly_methd=", self.assembly_method, ")")
+
+        ssteps = self.get_active_solversteps()
+        if len(ssteps) > 0:
+            self.run_outer_loop(engine, is_first=is_first)
+
+        else:
+            self.run_parametric(engine, is_first=is_first)
+

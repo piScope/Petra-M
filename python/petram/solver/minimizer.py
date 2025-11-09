@@ -1,12 +1,18 @@
-from __future__ import print_function
+#
+#  Minimizer
+#
+#     minimizer implement a logic to find model parameters which minimize a
+#     cost function. minimizer is used from optimizer
+#
+
 import petram.helper.pickle_wrapper as pickle
 
 from itertools import product
 import os
 import numpy as np
 import petram.debug as debug
-dprint1, dprint2, dprint3 = debug.init_dprints('Optimizer')
-dprint0 = debug.regular_print('ParametricScanner', True)
+dprint1, dprint2, dprint3 = debug.init_dprints('Minimizer')
+dprint0 = debug.regular_print('Minimizer', True)
 format_memory_usage = debug.format_memory_usage
 
 from petram.mfem_config import use_parallel
@@ -45,32 +51,31 @@ class CostFunction():
             general.dataset[name] = value
             self.xvalues[name].append(np.atleast_1d(value))
 
+    def call_cost(self, x, prbs):
+        # create keyword arguments to call cost function
+        probes = {}
+        probes["prbs"] = prbs
+        probes.update(prbs.__dict__)
+
+        cost = self.fcost(x, **probes)
+
+        return cost.item()
+
     def __call__(self, x):
         dprint1("!!!! Costfunction is called ("+str(self.kcase)+ ")")
         x = np.atleast_1d(x)
 
         self.apply_param(x)
-        self.runner(self.kcase, self.engine)
 
-        # create flattened probe signals
-        probes = {}
-        for key in self.engine.sol_extra:
-            probes.update(self.engine.sol_extra[key])
+        prbs = self.runner(self.kcase, self.engine)
 
-        # distribute probe data among processses
-        if use_parallel:
-            tmp = {}
-            for k in probes:
-                 tmp[k] = allgather_vector(probes[k])
-            probes = tmp
+        cost = self.call_cost(x, prbs)
 
-        #nicePrint(probes)
-        cost = self.fcost(x, **probes)
+        self.costs.append(np.atleast_1d(cost))
+
         self.kcase = self.kcase + 1
 
-        self.costs.append(cost)
-
-        return cost[0]
+        return cost
 
 
 class ParametricMinimizer():
@@ -107,7 +112,6 @@ class ParametricMinimizer():
         self.runnder = None
         self.costobj = None
         self.model = None
-        self.target_phys = None
 
     def generate_cost_function(self, engine, runner):
         cost = CostFunction(runner, self.fcost, self.params,
@@ -119,34 +123,6 @@ class ParametricMinimizer():
 
     def set_model(self, model):
         self.model = model
-
-    def set_phys_models(self, targets):
-        '''
-        set target physics model
-        '''
-        if (not isinstance(targets, tuple) and
-                not isinstance(targets, list)):
-            self.target_phys = [targets]
-        else:
-            self.target_phys = targets
-
-    def save_optimizer_data(self, solver):
-        solver_name = solver.fullpath()
-        data = self.list_data()
-        dprint1("saving parameter", os.getcwd(), notrim=True)
-        try:
-            from mpi4py import MPI
-        except ImportError:
-            from petram.helper.dummy_mpi import MPI
-        myid = MPI.COMM_WORLD.rank
-
-        if myid == 0:
-            fid = open("parametric_data_"+solver_name, "wb")
-            dd = {"name": solver_name, "data": data}
-            pickle.dump(dd, fid)
-            fid.close()
-
-        MPI.COMM_WORLD.Barrier()
 
     def collect_probe_signals(self, engine, dirs):
         '''
@@ -216,6 +192,6 @@ def default_cost(*x, **kwargs):
        **kwargs : all probe signals from previous simulaiton.
 
        return value should be scalar value.
-    
+
     '''
     assert False, "Cost function is not implemented. Provide your own in global_ns"

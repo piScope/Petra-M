@@ -4,7 +4,7 @@
 
 Petra-M (Physics Equation Translator for MFEM) is a physics layer built
 on the top of PyMFEM, a python wrapper for Modular FEM library
-(MFEM: http://mfem.org). 
+(MFEM: http://mfem.org).
 
 Petra-M includes
  - Physics modeling GUI interface on piScope.
@@ -17,6 +17,15 @@ Additinal Petra-M submodules are available from different repository.
  - PetraM-RF : 3D frequency domain Maxwell equation
  - PetraM-DS : interface to use direct solvers (in progress)
 
+### Install
+```shell
+  pip install petram
+  pip install petram[gui]   # install piScope and Petra-M together
+
+  or after downloading repository
+
+  pip install ".[gui]"
+```
 
 ### Licence
 Petra-M project is released under the GPL v3 license.
@@ -28,7 +37,3 @@ See files COPYRIGHT and LICENSE file for full details.
 
 ### Reference
   S. Shiraiwa, et al. EPJ Web of Conferences 157, 03048 (2017)
-
-
-
-
