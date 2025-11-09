@@ -34,25 +34,7 @@ def gather_soldirinfo(path):
     cp.default_factory = None
 
     probes = gather_probes(path)
-    '''
-    for nn in os.listdir(path):
-        if nn.startswith('probe_'):
-            if nn.find('.') == -1:
-               signal = '_'.join(nn.split('_')[1:]) 
-            else:
-                #if int(nn.split('.')[1]) != 0: continue
-                signal = '_'.join(nn.split('.')[0].split('_')[1:])
-            probes[signal].append(nn)
 
-    # sort probe files using the process number
-    for key in probes:
-        if len(probes[key]) > 1:
-             xxx = [(int(x.split('.')[1]), x) for x in	probes[key]]
-             xxx = [x[1] for x in sorted(xxx)]
-             probes[key] = xxx            
-
-    probes = dict(probes)
-    '''
     cases = []
     cases = [(int(nn[5:]), nn)
              for nn in os.listdir(path) if nn.startswith('case')]

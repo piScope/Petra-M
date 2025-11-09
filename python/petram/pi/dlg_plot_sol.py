@@ -662,12 +662,12 @@ class DlgPlotSol(SimpleFramePlus):
                 choices = ['no physics in model']
 
             ll = [['Expression', '', 500, {}],
-                  ['Expression(x)', '', 500, {}],
-                  ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
-                                                'choices': choices}], ]
+                  ['Expression(x)', '', 500, {}],]
+            # ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
+            #                              'choices': choices}], ]
             tip = ("Expression to evaluate",
-                   "Expression for x (2D plot)",
-                   "Namespace used to evaluate variables")
+                   "Expression for x (2D plot)",)
+            # "Namespace used to evaluate variables")
 
             elp = EditListPanel(p, ll, tip=tip)
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
@@ -1223,7 +1223,8 @@ class DlgPlotSol(SimpleFramePlus):
                 else:
                     wx.CallAfter(dialog.showtraceback,
                                  parent=self,
-                                 txt='Solution directory does not exist: ' + str(v[0][1][0]),
+                                 txt='Solution directory does not exist: ' +
+                                     str(v[0][1][0]),
                                  title='Error',
                                  traceback='',)
 
@@ -1261,7 +1262,8 @@ class DlgPlotSol(SimpleFramePlus):
                 else:
                     wx.CallAfter(dialog.showtraceback,
                                  parent=self,
-                                 txt='Solution directory does not exist: ' + str(v[0][2+ofs][1]),
+                                 txt='Solution directory does not exist: ' +
+                                     str(v[0][2+ofs][1]),
                                  title='Error',
                                  traceback='',)
 
@@ -2845,8 +2847,8 @@ class DlgPlotSol(SimpleFramePlus):
     def eval_probe(self, value, mode='plot'):
         expr = str(value[0]).strip()
         xexpr = str(value[1]).strip()
-        phys_path = value[2]
-        xdata, data = self.evaluate_sol_probe(expr, xexpr, phys_path)
+        # phys_path = value[2]
+        xdata, data = self.evaluate_sol_probe(expr, xexpr)
         return xdata, data
 
     #
@@ -3268,7 +3270,7 @@ class DlgPlotSol(SimpleFramePlus):
             wx.CallAfter(self.set_title_no_status)
         return None
 
-    def evaluate_sol_probe(self, expr, xexpr, phys_path):
+    def evaluate_sol_probe(self, expr, xexpr):
         model = self.GetParent().model
         solfiles = None   # probe does not load solfile (GridFunction)
         mfem_model = model.param.getvar('mfem_model')
@@ -3303,7 +3305,7 @@ class DlgPlotSol(SimpleFramePlus):
                 probes = self.remote_sols[0:2]
                 probes = (self.remote_sols[0], self.config['cs_solsubdir'])
 
-            self.evaluators['Probe'].set_phys_path(phys_path)
+            # self.evaluators['Probe'].set_phys_path(phys_path)
             data = self.evaluators['Probe'].eval_probe(expr, xexpr, probes)
             return data[1], np.transpose(data[2])
         except BaseException:

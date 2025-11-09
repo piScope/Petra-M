@@ -397,10 +397,11 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         return self.myid, data, 0
 
     def eval_probe(self, expr, xexpr, probes):
-        if self.phys_path == '':
-            return None, None, "phys_path is empty"
+        #if self.phys_path == '':
+        #    return None, None, "phys_path is empty"
 
-        phys = self.mfem_model()[self.phys_path]
+        #phys = self.mfem_model()[self.phys_path]
+        phys = None
         evaluator = self.agents[1][0]
 
         try:
@@ -456,7 +457,7 @@ class EvaluatorMP(Evaluator):
         elif os.path.exists(file2):
             self.tasks.put((3, file2), join=True)
         else:
-            assert False, "No model file in " + os.getcwd()
+            assert False, "No model file in " + tmpdir
 
         self._mfem_model_bk = model
 
