@@ -259,6 +259,10 @@ var_g = {'sin': np.sin,
          'norm': np.linalg.norm,
          'linspace': np.linspace,
          'logspace': np.logspace,
+         'hstack':np.hstack,
+         'vstack':np.vstack,
+         'dstack':np.dstack,
+         'stack': np.stack,
          'Scan': Scan}
 
 
