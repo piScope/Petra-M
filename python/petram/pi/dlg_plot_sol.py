@@ -281,6 +281,8 @@ class DlgPlotSol(SimpleFramePlus):
         self.local_sols = None
         self.remote_sols = None
 
+        self._remote_dir_info = None
+
         self._plot_thread = None
         self._plot_data = None
         self.use_profiler = False  # debug
@@ -1144,6 +1146,8 @@ class DlgPlotSol(SimpleFramePlus):
             info = read_solinfo_remote(self.config['cs_user'],
                                        self.config['cs_server'],
                                        self.config['cs_soldir'])
+            info["cases"].restore()
+
         except AssertionError as err:
             wx.CallAfter(dialog.showtraceback, parent=self,
                          txt='Faled to read remote directory info',
@@ -1173,15 +1177,23 @@ class DlgPlotSol(SimpleFramePlus):
                 dirnames.append(info["checkpoint"][solver][k])
                 choices.append(solver + "(" + str(k[1]) + ")")
 
-        cb2 = self.get_remote_subdir_cb()
-        ss1 = self.update_subdir1(info["cases"], choices, dirnames, ss1,
-                                  cbc=single_cb2)
+        try:
+            ss1, ss2, ss3 = self.config['cs_solsubdir']
+        except:
+            ss1, ss2, ss3 = "", "", ""
+
+        cb = self.get_remote_subdir_cb()
+        ss1 = self.update_subdir1(info["cases"], choices, dirnames, ss1, cbc=cb)
+        ss2 = self.update_subdir2(info["cases"], ss2, cbc=cb)
+        ss3 = self.update_subdir3(info["cases"], ss3, cbc=cb)
 
         probes = info["probes"]  # mapping from probe name to file
         self.remote_sols = (self.config['cs_soldir'],
                             probes, dict(zip(choices, dirnames)))
 
-        self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
+        self.config['cs_solsubdir'] = (ss1, ss2, ss3)
+
+        self._remote_dir_info = info
 
     def get_current_choices(self):
         if self.config['use_cs']:
@@ -1357,7 +1369,6 @@ class DlgPlotSol(SimpleFramePlus):
             evt.Skip()
             return
 
-        print(evt.GetEventObject())
         model = self.GetParent().model
         v = self.elps['Config'].GetValue()
 
@@ -1397,6 +1408,10 @@ class DlgPlotSol(SimpleFramePlus):
             ss1, ss2, ss3 = self.update_subdir_local(owndir, ss1, ss2, ss3)
             self.local_soldir = owndir
             self.local_solsubdir = [ss1, ss2, ss3]
+
+            cb = self.get_remote_subdir_cb()
+            ss2 = self.update_subdir2(info["cases"], ss2, cbc=cb)
+            ss3 = self.update_subdir3(info["cases"], ss3, cbc=cb)
 
             self.load_sol_if_needed()
 
@@ -1465,10 +1480,17 @@ class DlgPlotSol(SimpleFramePlus):
             if reload_remote:
                 self.update_subdir_remote()
             else:
-                cb2 = self.get_remote_subdir_cb()
-                ss1 = str(cb2.GetValue())
+                ss1 = str(v[0][3+ofs][3])
+                ss2 = str(v[0][3+ofs][4])
+                ss3 = str(v[0][3+ofs][5])
                 if self.remote_sols is not None:
-                    self.config['cs_solsubdir'] = str(self.remote_sols[2][ss1])
+                    self.config['cs_solsubdir'] = (ss1, ss2, ss3)
+
+                if self._remote_dir_info is not None:
+                    info = self._remote_dir_info
+                    cb = self.get_remote_subdir_cb()
+                    ss2 = self.update_subdir2(info["cases"], ss2, cbc=cb)
+                    ss3 = self.update_subdir3(info["cases"], ss3, cbc=cb)
 
         evt.Skip()
 
@@ -3503,5 +3525,5 @@ class DlgPlotSol(SimpleFramePlus):
             solfiles = model.variables.getvar('solfiles')
             return solfiles
         else:
-            soldir = os.path.join(soldir, self.config["cs_solsubdir"])
+            soldir = os.path.join(soldir, *self.config["cs_solsubdir"])
             return soldir

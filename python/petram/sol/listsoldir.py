@@ -64,14 +64,11 @@ class CaseInfo:
             
     def restore(self):
         if self._requires_restoration:
-            print("restoring")
             self._requires_restoration = False
-            #print(self._restoration_data)
             self._restore(self._restoration_data)
             self._restoration_data = None
         for x in self:
             x.restore()
-        return self
 
     @property
     def info(self):
