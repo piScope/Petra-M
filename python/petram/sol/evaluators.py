@@ -339,7 +339,7 @@ def build_evaluator(params,
                                 logfile=logfile)
     elif config['use_cs']:
         solpath = os.path.join(config['cs_soldir'],
-                               config['cs_solsubdir'])
+                               *config['cs_solsubdir'])
         evaluator = EvaluatorClient(nproc=config['cs_worker'],
                                     host=config['cs_server'],
                                     soldir=solpath,
