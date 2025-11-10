@@ -694,10 +694,14 @@ class DlgPlotSol(SimpleFramePlus):
                                          "choices_cb": self.local_sollist}],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
-                    [None, None, 141, {"alignright": True,
-                                       "func": self.OnLoadLocalSol,
-                                       "noexpand": True,
-                                       "label": "Reload choices"}], ]
+                    ["Sub dir.(2)", "None", 4, {"style": wx.CB_READONLY,
+                                             "choices": ["", ]}, ],
+                    ["Sub dir.(3)", "None", 4, {"style": wx.CB_READONLY,
+                                             "choices": ["", ]}, ],]
+#                    [None, None, 141, {"alignright": True,
+#                                       "func": self.OnLoadLocalSol,
+#                                       "noexpand": True,
+#                                       "label": "Reload choices"}], ]
             tip1 = ("Solution folder",
                     "Subdirectory (for parametric scan/time-dependent sims.)",
                     None)
@@ -706,10 +710,14 @@ class DlgPlotSol(SimpleFramePlus):
                                          "choices": ["sol", ], }],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
-                    [None, None, 141, {"alignright": True,
-                                       "func": self.OnLoadLocalSol,
-                                       "noexpand": True,
-                                       "label": "Reload choices"}], ]
+                    ["Sub dir.(2)", "None", 4, {"style": wx.CB_READONLY,
+                                             "choices": ["", ]}, ],
+                    ["Sub dir.(3)", "None", 4, {"style": wx.CB_READONLY,
+                                             "choices": ["", ]}, ],]
+#                    [None, None, 141, {"alignright": True,
+#                                       "func": self.OnLoadLocalSol,
+#                                       "noexpand": True,
+#                                       "label": "Reload choices"}], ]
             tip2 = ("Numboer of worker processes",
                     "Solution folder",
                     "Subdirectory (for parametric scan/time-dependent sims.)",
@@ -722,10 +730,14 @@ class DlgPlotSol(SimpleFramePlus):
                       "choices_cb": self.remote_sollist, }],
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
-                    [None, None, 141, {"alignright": True,
-                                       "func": self.OnLoadRemoteSol,
-                                       "noexpand": True,
-                                       "label": "Reload choices"}], ]
+                    ["Sub dir.(2)", "None", 4, {"style": wx.CB_READONLY,
+                                             "choices": ["", ]}, ],
+                    ["Sub dir.(3)", "None", 4, {"style": wx.CB_READONLY,
+                                             "choices": ["", ]}, ],]
+#                    [None, None, 141, {"alignright": True,
+#                                       "func": self.OnLoadRemoteSol,
+#                                       "noexpand": True,
+#                                       "label": "Reload choices"}], ]
 
             tip3 = ("Remote server name",
                     "Numboer of worker processes on remoter server",
@@ -789,10 +801,10 @@ class DlgPlotSol(SimpleFramePlus):
                 else:
                     c = choices[0]
                 value = [[c,
-                          ['', 'sol', "", None],
-                          [2, 'sol', "", None, ],
+                          ['', 'sol', "", "", ""],
+                          [2, 'sol', "", "", ""],
                           [self.config['cs_server'], self.config['cs_worker'],
-                              self.config['cs_soldir'], '', None,],
+                              self.config['cs_soldir'], '', '', ''],
                           ]]
             else:
                 if self.config['use_cs']:
@@ -801,14 +813,22 @@ class DlgPlotSol(SimpleFramePlus):
                     self.config['use_mp'] = True
                     c = choices[0]
                 value = [[c,
-                          [2, 'sol', "", None, ],
+                          [2, 'sol', "", "", "", ],
                           [self.config['cs_server'], self.config['cs_worker'],
-                              self.config['cs_soldir'], '', None,],
+                              self.config['cs_soldir'], '', '', ''],
                           ]]
 
             elp.SetValue(value)
             parent.model.variables.setvar('remote_soldir',
                                           self.config['cs_soldir'])
+
+            hbox = wx.BoxSizer(wx.HORIZONTAL)
+            vbox.Add(hbox, 0, wx.EXPAND | wx.ALL, 5)
+            button = wx.Button(p, wx.ID_ANY, "Reload Choices")
+            button.Bind(wx.EVT_BUTTON, self.OnReloadSol)
+            hbox.AddStretchSpacer()
+            hbox.Add(button, 0, wx.ALL, 1)
+
 
         self.nb.SetSelection(self.nb.GetPageCount() - 1)
         self.Show()
@@ -850,22 +870,161 @@ class DlgPlotSol(SimpleFramePlus):
                     self.evaluators[k].p.terminate()
         self.evaluators = {}
 
+    def _get_subdir_cbs(self, base, idx):
+        return (base.widgets[idx][0], base.widgets[idx+1][0],  base.widgets[idx+2][0])
+
     def get_remote_subdir_cb(self):
         if allow_single_mode:
-            return self.elps['Config'].widgets[0][0].elps[2].widgets[3][0]
+            return self._get_subdir_cbs(self.elps['Config'].widgets[0][0].elps[2], 3)
+            #return self.elps['Config'].widgets[0][0].elps[2].widgets[3][0]
         else:
-            return self.elps['Config'].widgets[0][0].elps[1].widgets[3][0]
+            return self._get_subdir_cbs(self.elps['Config'].widgets[0][0].elps[1], 3)
+            #return self.elps['Config'].widgets[0][0].elps[1].widgets[3][0]
 
     def get_local_single_subdir_cb(self):
-        return self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]
+        return self._get_subdir_cbs(self.elps['Config'].widgets[0][0].elps[0], 1)
+        #return self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]
 
     def get_local_multi_subdir_cb(self):
         if allow_single_mode:
-            return self.elps['Config'].widgets[0][0].elps[1].widgets[2][0]
+            return self._get_subdir_cbs(self.elps['Config'].widgets[0][0].elps[1], 2)
+            #return self.elps['Config'].widgets[0][0].elps[1].widgets[2][0]
         else:
-            return self.elps['Config'].widgets[0][0].elps[0].widgets[2][0]
+            return self._get_subdir_cbs(self.elps['Config'].widgets[0][0].elps[0], 2)
+            #return self.elps['Config'].widgets[0][0].elps[0].widgets[2][0]
 
-    def update_subdir_local(self, path, ss1):
+    def update_subdir1(self, caseinfo, choices, dirnames, ss1,
+                       cbs=None, cbm=None, cbc=None):
+        def set_cb1(cb):
+            c2 = choices[:]
+            d2 = dirnames[:]
+
+            cases = caseinfo.caselist
+            for k, x in enumerate(caseinfo):
+                cname = cases[k]
+                c2.append(cname + " ("+x.info+")")
+                d2.append(cname)
+
+            cb[0].SetChoices(c2)
+            if ss1 in c2:
+                idx = c2.index(ss1)
+                cb[0].SetSelection(idx)
+                ss = d2[idx]
+            elif ss1 in d2:
+                idx = d2.index(ss1)
+                cb[0].SetSelection(idx)
+                ss =ss1
+            else:
+                cb[0].SetSelection(0)
+                ss = d2[0]
+            return ss
+
+        ret = ""
+        if cbs is not None:
+           ret =  set_cb1(cbs)
+        if cbm is not None:
+           ret =  set_cb1(cbm)
+        if cbc is not None:
+           ret =  set_cb1(cbc)
+
+        return ret
+
+    def update_subdir2(self, caseinfo, ss2,
+                       cbs=None, cbm=None, cbc=None):
+        def set_cb2(cb):
+            idx = cb[0].GetSelection()
+
+            choices = [""]
+            dirnames = [""]
+            ss = ""
+
+            if idx != 0:
+                caseinfo2 = [x for x in caseinfo][idx-1]
+                cases = caseinfo2.caselist
+                for k, x in enumerate(caseinfo2):
+                    cname = cases[k]
+                    choices.append(cname + " ("+x.info+")")
+                    dirnames.append(cname)
+
+            cb[1].SetChoices(choices)
+            if ss2 in choices:
+                idx = choices.index(ss2)
+                cb[1].SetSelection(idx)
+                ss = dirnames[idx]
+            elif ss2 in dirnames:
+                idx = dirnames.index(ss2)
+                cb[1].SetSelection(idx)
+                ss = ss2
+            else:
+                cb[1].SetSelection(0)
+                ss = dirnames[0]
+
+            if len(choices) <= 1:
+                cb[1].Disable()
+            else:
+                cb[1].Enable()
+            return ss
+
+        ret = ""
+        if cbs is not None:
+            ret = set_cb2(cbs)
+        if cbm is not None:
+            ret = set_cb2(cbm)
+        if cbc is not None:
+            ret = set_cb2(cbc)
+
+        return ret
+
+    def update_subdir3(self, caseinfo, ss3,
+                       cbs=None, cbm=None, cbc=None):
+        def set_cb3(cb):
+            choices = [""]
+            dirnames = [""]
+
+            idx = cb[0].GetSelection()
+            ss = ""
+            if idx > 0:
+                caseinfo2 = [x for x in caseinfo][idx-1]
+                idx = cb[1].GetSelection()
+                if idx > 0:
+                    caseinfo3 = [x for x in caseinfo2][idx-1]
+
+                    cases = caseinfo3.caselist
+                    for k, x in enumerate(caseinfo3):
+                        cname = cases[k]
+                        choices.append(cname + " ("+x.info+")")
+                        dirnames.append(cname)
+
+            cb[2].SetChoices(choices)
+            if ss3 in choices:
+                idx = choices.index(ss3)
+                cb[2].SetSelection(idx)
+                ss = dirnames[idx]
+            elif ss3 in dirnames:
+                idx = dirnames.index(ss3)
+                cb[2].SetSelection(idx)
+                ss = ss3
+            else:
+                cb[2].SetSelection(0)
+                ss = dirnames[0]
+
+            if len(choices) <= 1:
+                cb[2].Disable()
+            else:
+                cb[2].Enable()
+            return ss
+
+        ret = ""
+        if cbs is not None:
+            ret = set_cb3(cbs)
+        if cbm is not None:
+            ret = set_cb3(cbm)
+        if cbc is not None:
+            ret = set_cb3(cbc)
+
+        return ret
+
+    def update_subdir_local(self, path, ss1, ss2, ss3):
         if allow_single_mode:
             single_cb2 = self.get_local_single_subdir_cb()
             multi_cb2 = self.get_local_multi_subdir_cb()
@@ -884,24 +1043,19 @@ class DlgPlotSol(SimpleFramePlus):
             kk = sorted(list(info["checkpoint"][solver]))
             for k in kk:
                 dirnames.append(info["checkpoint"][solver][k])
-                choices.append(solver + "(" + str(k[1]) + ")")
-        choices = choices + info["cases"]
-        dirnames = dirnames + info["cases"]
+                choices.append(solver + " (" + str(k[1]) + ")")
 
-        if single_cb2 is not None:
-            single_cb2.SetChoices(choices)
-        multi_cb2.SetChoices(choices)
-
-        if ss1 in dirnames:
-            if single_cb2 is not None:
-                single_cb2.SetSelection(dirnames.index(ss1))
-            multi_cb2.SetSelection(dirnames.index(ss1))
-        else:
-            ss1 = dirnames[0]
+        ss1 = self.update_subdir1(info["cases"], choices, dirnames, ss1,
+                                  cbs=single_cb2,
+                                  cbm=multi_cb2, cbc=None,)
+        ss2 = self.update_subdir2(info["cases"], ss2, cbs=single_cb2,
+                                  cbm=multi_cb2, cbc=None,)
+        ss3 = self.update_subdir3(info["cases"], ss3, cbs=single_cb2,
+                                  cbm=multi_cb2, cbc=None,)
 
         probes = info["probes"]  # mapping from probe name to file
         self.local_sols = (path, probes, dict(zip(choices, dirnames)))
-        return ss1
+        return ss1, ss2, ss3
 
     def update_sollist_local_common(self, idx):
         model = self.GetParent().model
@@ -956,19 +1110,23 @@ class DlgPlotSol(SimpleFramePlus):
         multi_cb1.SetChoices(sol_names)
 
         if self.local_soldir is not None:
-            ss1 = self.local_solsubdir
+            ss1, ss2, ss3 = self.local_solsubdir
         else:
             if model.param.eval('sol') is not None:
                 ss1 = ""
+                ss2 = ""
+                ss3 = ""
             else:
                 ss1 = None
+                ss2 = None
+                ss3 = None
 
         if idx == 1:
             if os.path.exists(owndir1):
-                self.update_subdir_local(owndir1, ss1)
+                self.update_subdir_local(owndir1, ss1, ss2, ss3)
         else:
             if os.path.exists(owndir2):
-                self.update_subdir_local(owndir2, ss1)
+                self.update_subdir_local(owndir2, ss1, ss2, ss3)
 
     def update_sollist_local1(self):
         if allow_single_mode:
@@ -1014,18 +1172,11 @@ class DlgPlotSol(SimpleFramePlus):
             for k in kk:
                 dirnames.append(info["checkpoint"][solver][k])
                 choices.append(solver + "(" + str(k[1]) + ")")
-        choices = choices + info["cases"]
-        dirnames = dirnames + info["cases"]
 
         cb2 = self.get_remote_subdir_cb()
+        ss1 = self.update_subdir1(info["cases"], choices, dirnames, ss1,
+                                  cbc=single_cb2)
 
-        choices = sort_subdirs(choices)
-        cb2.SetChoices(choices)
-        ss1 = str(cb2.GetValue())
-        if ss1 in choices:
-            cb2.SetSelection(choices.index(ss1))
-
-        ss1 = str(cb2.GetValue())
         probes = info["probes"]  # mapping from probe name to file
         self.remote_sols = (self.config['cs_soldir'],
                             probes, dict(zip(choices, dirnames)))
@@ -1053,6 +1204,12 @@ class DlgPlotSol(SimpleFramePlus):
 
     def OnLoadRemoteSol(self, evt):
         self.update_subdir_remote()
+
+    def OnReloadSol(self, evt):
+        if self.config['use_cs']:
+            self.OnLoadRemoteSol(evt)
+        else:
+            self.OnLoadLocalSol(evt)
 
     def OnUpdateUI_local(self, evt):
         pass
@@ -1143,15 +1300,16 @@ class DlgPlotSol(SimpleFramePlus):
                     return
                 npath = sol.owndir()
                 self.local_soldir = npath
-                self.local_solsubdir = ""
+                self.local_solsubdir = ["", "", ""]
             else:
-                npath = os.path.join(self.local_soldir, self.local_solsubdir)
+                subs = [x for x in self.local_solsubdir if x != ""]
+                npath = os.path.join(self.local_soldir, *subs)
                 sol = model.param.eval('sol')
                 if not os.path.exists(npath):  # fall back
                     sol = model.param.eval('sol')
                     npath = sol.owndir()
                     self.local_soldir = npath
-                    self.local_solsubdir = ""
+                    self.local_solsubdir = ["", "", ""]
 
             if os.path.normpath(npath) != os.path.normpath(cpath):
                 doit = True
@@ -1161,12 +1319,13 @@ class DlgPlotSol(SimpleFramePlus):
         else:
             doit = True
             if self.local_soldir is not None:
-                npath = os.path.join(self.local_soldir, self.local_solsubdir)
+                subs = [x for x in self.local_solsubdir if x != ""]
+                npath = os.path.join(self.local_soldir, *subs)
                 if not os.path.exists(npath):  # fall back
                     sol = model.param.eval('sol')
                     npath = sol.owndir()
                     self.local_soldir = npath
-                    self.local_solsubdir = ""
+                    self.local_solsubdir = ["", "", ""]
             else:
                 sol = model.param.eval('sol')
                 if sol is None:
@@ -1175,7 +1334,7 @@ class DlgPlotSol(SimpleFramePlus):
                     return
                 npath = sol.owndir()
                 self.local_soldir = npath
-                self.local_solsubdir = ""
+                self.local_solsubdir = ["", "", ""]
         if doit:
             try:
                 print("reading sol from ", npath)
@@ -1198,6 +1357,7 @@ class DlgPlotSol(SimpleFramePlus):
             evt.Skip()
             return
 
+        print(evt.GetEventObject())
         model = self.GetParent().model
         v = self.elps['Config'].GetValue()
 
@@ -1231,10 +1391,12 @@ class DlgPlotSol(SimpleFramePlus):
             if self.local_sols is None:
                 self.update_sollist_local1()
 
-            ss1 = self.local_sols[2][str(v[0][1][1])]
-            ss1 = self.update_subdir_local(owndir, ss1)
+            ss1 = str(v[0][1][1])
+            ss2 = str(v[0][1][2])
+            ss3 = str(v[0][1][3])
+            ss1, ss2, ss3 = self.update_subdir_local(owndir, ss1, ss2, ss3)
             self.local_soldir = owndir
-            self.local_solsubdir = ss1
+            self.local_solsubdir = [ss1, ss2, ss3]
 
             self.load_sol_if_needed()
 
@@ -1270,10 +1432,12 @@ class DlgPlotSol(SimpleFramePlus):
             if self.local_sols is None:
                 self.update_sollist_local2()
 
-            ss1 = self.local_sols[2][str(v[0][2+ofs][2])]
-            ss1 = self.update_subdir_local(owndir, ss1)
+            ss1 = str(v[0][2+ofs][2])
+            ss2 = str(v[0][2+ofs][3])
+            ss3 = str(v[0][2+ofs][4])
+            ss1, ss2, ss3 = self.update_subdir_local(owndir, ss1, ss2, ss3)
             self.local_soldir = owndir
-            self.local_solsubdir = ss1
+            self.local_solsubdir = [ss1, ss2, ss3]
             self.load_sol_if_needed()
 
         elif str(v[0][0]) == 'C/S':

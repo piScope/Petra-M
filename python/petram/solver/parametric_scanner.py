@@ -18,6 +18,7 @@ class DefaultParametricScanner(object):
         self.target = None
         self.set_data(data)
         self._current_data = None
+        self._stored_data = []
 
     def get_probes(self):
         return []
@@ -42,6 +43,9 @@ class DefaultParametricScanner(object):
     def current_data(self):
         return self._current_data
 
+    def store_current_data(self):
+        self._stored_data.append(self.current_data)
+
     def __next__(self):
 
         if self.idx == self.max:
@@ -49,6 +53,8 @@ class DefaultParametricScanner(object):
 
         data = self._data[self.idx]
         self._current_data = data
+        self.store_current_data()
+
         dprint0("")
         dprint0("==== Entering next parameter:", data, "(" +
                 str(self.idx+1) + "/" + str(self.max) + ")")
@@ -81,23 +87,42 @@ class DefaultParametricScanner(object):
     def len(self):
         return self.max
 
-    def save_scanner_data(self, solver):
-        solver_name = solver.fullpath()
-        data = self.list_data()
+    def format_data(self, data):
+        #
+        # default format data
+        #   controls what appears in subdir menu.
+        #
+        return str(data)
+
+    def write_scanner_data(self, solver):
+        #
+        #  called at the end of parametric scan to save parameters
+        #  to "parametric_data_(solvername).txt". This is used in subdir
+        #  menus in dialog
+        #
+        solver_name = solver.name()
         dprint1("saving parameter", os.getcwd(), notrim=True)
-        try:
+        from petram.mfem_config import use_parallel
+
+        if use_parallel:
             from mpi4py import MPI
-        except ImportError:
+        else:
             from petram.helper.dummy_mpi import MPI
-        myid = MPI.COMM_WORLD.rank
 
-        if myid == 0:
-            fid = open("parametric_data_"+solver_name, "wb")
-            dd = {"name": solver_name, "data": data}
-            pickle.dump(dd, fid)
-            fid.close()
-
-        MPI.COMM_WORLD.Barrier()
+        try:
+            myid = MPI.COMM_WORLD.rank
+            if myid == 0:
+                fid = open("cases."+solver_name, "w")
+                for k, x in enumerate(self._stored_data):
+                    txt = str(k) + " : " + self.format_data(x)
+                    fid.write(txt+"\n")
+                fid.close()
+            MPI.COMM_WORLD.Barrier()
+        except:
+            if use_parallel:
+                MPI.COMM_WORLD.Abort()
+            else:
+                raise
 
     def save_namedparam_probes(self):
         #
@@ -175,6 +200,12 @@ class SimpleScanner(DefaultParametricScanner):
 
         self.probes = {}
         DefaultParametricScanner.__init__(self, data=list(data))
+
+    def format_data(self, data):
+        txts = []
+        for k, name in enumerate(self.names):
+            txts.append(name + '=' + str(data[k]))
+        return ", ".join(txts)
 
     def apply_param(self, data):
         names = self._names

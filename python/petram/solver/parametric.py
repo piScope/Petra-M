@@ -177,7 +177,7 @@ class Parametric(SolveStep, NS_mixin):
             return True, "", ""
         return SolveStep.verify_setting(self)
 
-    def get_scanner(self, nosave=False):
+    def get_scanner(self):
         if not self.enabled:
             return
 
@@ -189,14 +189,11 @@ class Parametric(SolveStep, NS_mixin):
             traceback.print_exc()
             return
 
-        if not nosave:
-            scanner.save_scanner_data(self)
-
         return scanner
 
     def get_probes(self):
         probes = super(Parametric, self).get_probes()
-        scanner = self.get_scanner(nosave=True)
+        scanner = self.get_scanner()
 
         if scanner is not None:
             probes.extend(scanner.get_probes())
@@ -474,6 +471,8 @@ class Parametric(SolveStep, NS_mixin):
         self.collect_probe_signals(self.case_dirs, scanner)
         scanner.collect_probe_signals(engine, self.case_dirs)
 
+        return scanner
+
     def run_outer_loop(self, engine, is_first=1):
         if self.clear_wdir:
             engine.remove_solfiles()
@@ -498,6 +497,7 @@ class Parametric(SolveStep, NS_mixin):
 
             scanner.save_namedparam_probes()
             os.chdir(od)
+        return scanner
 
     @debug.use_profiler
     def run(self, engine, is_first=True):
@@ -508,8 +508,9 @@ class Parametric(SolveStep, NS_mixin):
 
         ssteps = self.get_active_solversteps()
         if len(ssteps) > 0:
-            self.run_outer_loop(engine, is_first=is_first)
+            scanner = self.run_outer_loop(engine, is_first=is_first)
 
         else:
-            self.run_parametric(engine, is_first=is_first)
+            scanner = self.run_parametric(engine, is_first=is_first)
 
+        scanner.write_scanner_data(self)
