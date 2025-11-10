@@ -1483,14 +1483,13 @@ class DlgPlotSol(SimpleFramePlus):
                 ss1 = str(v[0][3+ofs][3])
                 ss2 = str(v[0][3+ofs][4])
                 ss3 = str(v[0][3+ofs][5])
+
                 if self.remote_sols is not None:
                     self.config['cs_solsubdir'] = (ss1, ss2, ss3)
 
                 if self._remote_dir_info is not None:
                     info = self._remote_dir_info
-                    cb = self.get_remote_subdir_cb()
-                    ss2 = self.update_subdir2(info["cases"], ss2, cbc=cb)
-                    ss3 = self.update_subdir3(info["cases"], ss3, cbc=cb)
+                    self.update_subdir_remote_step2(info)
 
         evt.Skip()
 
