@@ -13,14 +13,14 @@ from collections import defaultdict
 #
 # CaseInfo (data structure to collect cases in solution directory)
 #
-
-
+#
 class CaseInfo:
     def __init__(self, **kwargs):
         self._dict = {}
         self._dict .update(kwargs)
         self._info = ""
-
+        self._requires_restoration = False
+        
     def __repr__(self):
         keys = sorted(self._dict)
         items = ("{}={!r}".format(k, self._dict[k]) for k in keys)
@@ -31,10 +31,47 @@ class CaseInfo:
         return self._dict == other._dict
 
     def __getattr__(self, name):
+        if name == '_dict':
+            if self._requires_restoration:
+                self._requires_restoration = False
+                self._restore(self._restoration_data)
+                self._restoration_data = None
+        
         if name in self._dict:
             return self._dict[name]
         else:
             raise AttributeError(name + " is not found")
+
+    def __setstate__(self, state):
+        self.__dict__["_dict"] = {}
+        self.__dict__["_restoration_data"] = state[0]
+        self.__dict__["_info"] = ""
+        self._requires_restoration = True        
+        self._restoration_data = state[0]
+        
+        for attr, value in state[1]:
+           setattr(self, attr, value)
+        
+    def __getstate__(self):
+        st = [(x, self.__dict__[x])
+              for x in self.__dict__ if not x.startswith('_')]
+        return (self._info, [(key, value) for key, value in self._dict.items()], ), st
+    
+    def _restore(self, restoration_data):
+        self._info = restoration_data[0]
+        for (key, value) in restoration_data[1]:
+            self._dict[key] = value
+            
+    def restore(self):
+        if self._requires_restoration:
+            print("restoring")
+            self._requires_restoration = False
+            #print(self._restoration_data)
+            self._restore(self._restoration_data)
+            self._restoration_data = None
+        for x in self:
+            x.restore()
+        return self
 
     @property
     def info(self):
