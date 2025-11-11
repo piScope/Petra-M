@@ -695,9 +695,9 @@ class DlgPlotSol(SimpleFramePlus):
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
                     ["Sub dir.(2)", "None", 4, {"style": wx.CB_READONLY,
-                                             "choices": ["", ]}, ],
+                                                "choices": ["", ]}, ],
                     ["Sub dir.(3)", "None", 4, {"style": wx.CB_READONLY,
-                                             "choices": ["", ]}, ],]
+                                                "choices": ["", ]}, ],]
 #                    [None, None, 141, {"alignright": True,
 #                                       "func": self.OnLoadLocalSol,
 #                                       "noexpand": True,
@@ -711,9 +711,9 @@ class DlgPlotSol(SimpleFramePlus):
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
                     ["Sub dir.(2)", "None", 4, {"style": wx.CB_READONLY,
-                                             "choices": ["", ]}, ],
+                                                "choices": ["", ]}, ],
                     ["Sub dir.(3)", "None", 4, {"style": wx.CB_READONLY,
-                                             "choices": ["", ]}, ],]
+                                                "choices": ["", ]}, ],]
 #                    [None, None, 141, {"alignright": True,
 #                                       "func": self.OnLoadLocalSol,
 #                                       "noexpand": True,
@@ -731,9 +731,9 @@ class DlgPlotSol(SimpleFramePlus):
                     ["Sub dir.", "None", 4, {"style": wx.CB_READONLY,
                                              "choices": ["", ]}, ],
                     ["Sub dir.(2)", "None", 4, {"style": wx.CB_READONLY,
-                                             "choices": ["", ]}, ],
+                                                "choices": ["", ]}, ],
                     ["Sub dir.(3)", "None", 4, {"style": wx.CB_READONLY,
-                                             "choices": ["", ]}, ],]
+                                                "choices": ["", ]}, ],]
 #                    [None, None, 141, {"alignright": True,
 #                                       "func": self.OnLoadRemoteSol,
 #                                       "noexpand": True,
@@ -829,7 +829,6 @@ class DlgPlotSol(SimpleFramePlus):
             hbox.AddStretchSpacer()
             hbox.Add(button, 0, wx.ALL, 1)
 
-
         self.nb.SetSelection(self.nb.GetPageCount() - 1)
         self.Show()
         self.Layout()
@@ -876,22 +875,22 @@ class DlgPlotSol(SimpleFramePlus):
     def get_remote_subdir_cb(self):
         if allow_single_mode:
             return self._get_subdir_cbs(self.elps['Config'].widgets[0][0].elps[2], 3)
-            #return self.elps['Config'].widgets[0][0].elps[2].widgets[3][0]
+            # return self.elps['Config'].widgets[0][0].elps[2].widgets[3][0]
         else:
             return self._get_subdir_cbs(self.elps['Config'].widgets[0][0].elps[1], 3)
-            #return self.elps['Config'].widgets[0][0].elps[1].widgets[3][0]
+            # return self.elps['Config'].widgets[0][0].elps[1].widgets[3][0]
 
     def get_local_single_subdir_cb(self):
         return self._get_subdir_cbs(self.elps['Config'].widgets[0][0].elps[0], 1)
-        #return self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]
+        # return self.elps['Config'].widgets[0][0].elps[0].widgets[1][0]
 
     def get_local_multi_subdir_cb(self):
         if allow_single_mode:
             return self._get_subdir_cbs(self.elps['Config'].widgets[0][0].elps[1], 2)
-            #return self.elps['Config'].widgets[0][0].elps[1].widgets[2][0]
+            # return self.elps['Config'].widgets[0][0].elps[1].widgets[2][0]
         else:
             return self._get_subdir_cbs(self.elps['Config'].widgets[0][0].elps[0], 2)
-            #return self.elps['Config'].widgets[0][0].elps[0].widgets[2][0]
+            # return self.elps['Config'].widgets[0][0].elps[0].widgets[2][0]
 
     def update_subdir1(self, caseinfo, choices, dirnames, ss1,
                        cbs=None, cbm=None, cbc=None):
@@ -913,7 +912,7 @@ class DlgPlotSol(SimpleFramePlus):
             elif ss1 in d2:
                 idx = d2.index(ss1)
                 cb[0].SetSelection(idx)
-                ss =ss1
+                ss = ss1
             else:
                 cb[0].SetSelection(0)
                 ss = d2[0]
@@ -921,11 +920,11 @@ class DlgPlotSol(SimpleFramePlus):
 
         ret = ""
         if cbs is not None:
-           ret =  set_cb1(cbs)
+            ret = set_cb1(cbs)
         if cbm is not None:
-           ret =  set_cb1(cbm)
+            ret = set_cb1(cbm)
         if cbc is not None:
-           ret =  set_cb1(cbc)
+            ret = set_cb1(cbc)
 
         return ret
 
@@ -1053,8 +1052,9 @@ class DlgPlotSol(SimpleFramePlus):
         ss3 = self.update_subdir3(info["cases"], ss3, cbs=single_cb2,
                                   cbm=multi_cb2, cbc=None,)
 
-        probes = info["probes"]  # mapping from probe name to file
-        self.local_sols = (path, probes, dict(zip(choices, dirnames)), info)
+        # probes = info["probes"]  # mapping from probe name to file
+        # 2nd element is used anymore
+        self.local_sols = (path, None, dict(zip(choices, dirnames)), info)
         return ss1, ss2, ss3
 
     def update_sollist_local_common(self, idx):
@@ -1182,16 +1182,17 @@ class DlgPlotSol(SimpleFramePlus):
             ss1, ss2, ss3 = "", "", ""
 
         cb = self.get_remote_subdir_cb()
-        ss1 = self.update_subdir1(info["cases"], choices, dirnames, ss1, cbc=cb)
+        ss1 = self.update_subdir1(
+            info["cases"], choices, dirnames, ss1, cbc=cb)
         ss2 = self.update_subdir2(info["cases"], ss2, cbc=cb)
         ss3 = self.update_subdir3(info["cases"], ss3, cbc=cb)
 
-        probes = info["probes"]  # mapping from probe name to file
+        # probes = info["probes"]  # mapping from probe name to file
+        # 2nd element is used anymore
         self.remote_sols = (self.config['cs_soldir'],
-                            probes, dict(zip(choices, dirnames)), info)
+                            None, dict(zip(choices, dirnames)), info)
 
         self.config['cs_solsubdir'] = (ss1, ss2, ss3)
-
 
     def get_current_choices(self):
         if self.config['use_cs']:
@@ -3486,10 +3487,10 @@ class DlgPlotSol(SimpleFramePlus):
 
         try:
             if not self.config['use_cs']:
-                probes = self.local_sols[0:2]
+                # probes = self.local_sols[0:2]
                 probes = (self.local_sols[0], self.local_solsubdir)
             else:
-                probes = self.remote_sols[0:2]
+                # probes = self.remote_sols[0:2]
                 probes = (self.remote_sols[0], self.config['cs_solsubdir'])
 
             # self.evaluators['Probe'].set_phys_path(phys_path)

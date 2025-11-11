@@ -1,6 +1,7 @@
 from numbers import Number
 import numpy as np
 import os
+from collections import defaultdict
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -80,6 +81,26 @@ def load_format_1(fid):
 
     return xdata, ydata, xnames
 
+def gather_probes(path):
+    probes = defaultdict(list)
+    for nn in os.listdir(path):
+        if nn.startswith('probe_'):
+            if nn.find('.') == -1:
+                signal = '_'.join(nn.split('_')[1:])
+            else:
+                # if int(nn.split('.')[1]) != 0: continue
+                signal = '_'.join(nn.split('.')[0].split('_')[1:])
+            probes[signal].append(nn)
+
+    # sort probe files using the process number
+    for key in probes:
+        if len(probes[key]) > 1:
+            xxx = [(int(x.split('.')[1]), x) for x in probes[key]]
+            xxx = [x[1] for x in sorted(xxx)]
+            probes[key] = xxx
+
+    probes = dict(probes)
+    return probes
 
 class Probe(object):
     def __new__(cls, *args, **kargs):
@@ -293,7 +314,6 @@ def _collect_probesignals(p):
     cps = sorted(cps)
     cps = [x[1] for x in cps]
 
-    from petram.sol.listsoldir import gather_probes
     probes = gather_probes(p)
 
     kwargs = {}
