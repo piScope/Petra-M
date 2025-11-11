@@ -193,7 +193,7 @@ class ProbeSignal():
         if self._array is None:
             xdata, ydata = load_probes(self._path, self._load_names)
             self._array = np.asarray(ydata)
-            self._xarray = xdata
+            self._xarrays = xdata
 
     def __getattr__(self, name):
         if name.startswith('__array'):
@@ -201,13 +201,13 @@ class ProbeSignal():
             return object.__getattr__(self, name)
 
         self._load()
-        if name in self._xarray:
-            return self._xarray[name]
+        if name in self._xarrays:
+            return self._xarrays[name]
 
     @property
     def x(self):
         self._load()
-        if "x"in self._xarray:
+        if "x" in self._xarrays:
             return self._xarrays["x"]
         else:
             key = list(self._xarrays)[0]
@@ -216,7 +216,7 @@ class ProbeSignal():
     @property
     def t(self):
         self._load()
-        if "t"in self._xarray:
+        if "t" in self._xarrays:
             return self._xarrays["t"]
         else:
             key = list(self._xarrays)[0]
@@ -285,15 +285,21 @@ class ProbleSignalCollection:
                 yield self.__dict__[key]
 
 def _collect_probesignals(p):
-    cases = [(int(x[5:]), x) for x in os.listdir(p) if x.startswith("case_")]
+    cases = [(int(x.split("_")[-1]), x) for x in os.listdir(p) if x.startswith("case_")]
     cases = sorted(cases)
     cases = [x[1] for x in cases]
+
+    cps = [(int(x.split("_")[-1]), x) for x in os.listdir(p) if x.startswith("cp_")]
+    cps = sorted(cps)
+    cps = [x[1] for x in cps]
 
     from petram.sol.listsoldir import gather_probes
     probes = gather_probes(p)
 
     kwargs = {}
     for x in cases:
+        kwargs[x] = _collect_probesignals(os.path.join(p, x))
+    for x in cps:
         kwargs[x] = _collect_probesignals(os.path.join(p, x))
     for x in probes:
         kwargs[x] = ProbeSignal(p, probes[x])

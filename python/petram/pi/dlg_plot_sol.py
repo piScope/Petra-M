@@ -281,8 +281,6 @@ class DlgPlotSol(SimpleFramePlus):
         self.local_sols = None
         self.remote_sols = None
 
-        self._remote_dir_info = None
-
         self._plot_thread = None
         self._plot_data = None
         self.use_profiler = False  # debug
@@ -1039,14 +1037,14 @@ class DlgPlotSol(SimpleFramePlus):
 
         dirnames = [""]
         choices = [""]
-
+        '''
         solvers = list(info["checkpoint"])
         for solver in solvers:
             kk = sorted(list(info["checkpoint"][solver]))
             for k in kk:
                 dirnames.append(info["checkpoint"][solver][k])
                 choices.append(solver + " (" + str(k[1]) + ")")
-
+        '''
         ss1 = self.update_subdir1(info["cases"], choices, dirnames, ss1,
                                   cbs=single_cb2,
                                   cbm=multi_cb2, cbc=None,)
@@ -1056,7 +1054,7 @@ class DlgPlotSol(SimpleFramePlus):
                                   cbm=multi_cb2, cbc=None,)
 
         probes = info["probes"]  # mapping from probe name to file
-        self.local_sols = (path, probes, dict(zip(choices, dirnames)))
+        self.local_sols = (path, probes, dict(zip(choices, dirnames)), info)
         return ss1, ss2, ss3
 
     def update_sollist_local_common(self, idx):
@@ -1170,13 +1168,14 @@ class DlgPlotSol(SimpleFramePlus):
     def update_subdir_remote_step2(self, info):
         dirnames = [""]
         choices = [""]
+        '''
         solvers = list(info["checkpoint"])
         for solver in solvers:
             kk = sorted(list(info["checkpoint"][solver]))
             for k in kk:
                 dirnames.append(info["checkpoint"][solver][k])
                 choices.append(solver + "(" + str(k[1]) + ")")
-
+        '''
         try:
             ss1, ss2, ss3 = self.config['cs_solsubdir']
         except:
@@ -1189,25 +1188,36 @@ class DlgPlotSol(SimpleFramePlus):
 
         probes = info["probes"]  # mapping from probe name to file
         self.remote_sols = (self.config['cs_soldir'],
-                            probes, dict(zip(choices, dirnames)))
+                            probes, dict(zip(choices, dirnames)), info)
 
         self.config['cs_solsubdir'] = (ss1, ss2, ss3)
 
-        self._remote_dir_info = info
 
     def get_current_choices(self):
         if self.config['use_cs']:
             base = self.remote_sols[0]
-            v = self.remote_sols[2].values()
+            ccurrent = self.config['cs_solsubdir']
+            info = self.local_sols[3]["cases"]
+
             remote = True
         else:
             base = self.local_sols[0]
-            v = self.local_sols[2].values()
+            info = self.local_sols[3]["cases"]
+            ccurrent = self.local_solsubdir
             remote = False
 
-        sorted_subs = sort_subdirs(v)
+        if len(ccurrent[0]) == 0:
+            subdirs = [(x, "", "") for x in info.caselist]
+        elif len(ccurrent[1]) == 0:
+            info = info.__getattr__(ccurrent[0])
+            subdirs = [(ccurrent[0], x, "") for x in info.caselist]
+        elif len(ccurrent[2]) == 0:
+            info = info.__getattr__(ccurrent[0])
+            info = info.__getattr__(ccurrent[1])
+            subdirs = [(ccurrent[0], ccurrent[1], x)
+                       for x in info.caselist]
 
-        return remote, base, sorted_subs
+        return remote, base, subdirs
 
     def OnLoadLocalSol(self, evt):
         self.update_sollist_local1()
@@ -1737,8 +1747,6 @@ class DlgPlotSol(SimpleFramePlus):
                   self.config['cs_solsubdir'],)
 
             for s in subs:
-                if s.strip() == '':
-                    continue
                 if remote:
                     self.config['cs_soldir'] = base
                     self.config['cs_solsubdir'] = s
@@ -1963,8 +1971,6 @@ class DlgPlotSol(SimpleFramePlus):
                   self.config['cs_solsubdir'],)
 
             for s in subs:
-                if s.strip() == '':
-                    continue
                 if remote:
                     self.config['cs_soldir'] = base
                     self.config['cs_solsubdir'] = s
@@ -2120,8 +2126,6 @@ class DlgPlotSol(SimpleFramePlus):
         remote, base, subs = self.get_current_choices()
         ret = []
         for s in subs:
-            if s.strip() == '':
-                continue
             if remote:
                 self.config['cs_soldir'] = base
                 self.config['cs_solsubdir'] = s
@@ -2668,8 +2672,6 @@ class DlgPlotSol(SimpleFramePlus):
 
         dataset = []
         for s in subs:
-            if s.strip() == '':
-                continue
             if remote:
                 self.config['cs_soldir'] = base
                 self.config['cs_solsubdir'] = s
@@ -2978,8 +2980,6 @@ class DlgPlotSol(SimpleFramePlus):
                   self.config['cs_solsubdir'],)
 
             for s in subs:
-                if s.strip() == '':
-                    continue
                 if remote:
                     self.config['cs_soldir'] = base
                     self.config['cs_solsubdir'] = s
@@ -2989,8 +2989,10 @@ class DlgPlotSol(SimpleFramePlus):
                     self.load_sol_if_needed()
 
                 data = self.make_export_probe_data(value)
+                print("!!!!!", data)
                 if data is None:
                     continue
+
                 data["subdirs"] = s
                 all_data.append(data)
 

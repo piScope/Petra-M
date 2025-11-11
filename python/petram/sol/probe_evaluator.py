@@ -25,10 +25,9 @@ class ProbeEvaluator(EvaluatorAgent):
         from petram.helper.variables import Variable, var_g
         from petram.sol.probe import collect_probesignals
 
-        # print("probe_files", probe_files)
         path = probe_files[0]
         path = os.path.expanduser(path)
-        path = os.path.join(path, probe_files[1])
+        path = os.path.join(path, *probe_files[1])
 
         prbs = collect_probesignals(path)
 

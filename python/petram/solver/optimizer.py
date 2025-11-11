@@ -307,27 +307,6 @@ class Optimizer(SolveStep, NS_mixin):
             minimizer.generate_cost_function(engine, run_solvesteps)
         minimizer.run()
 
-    @debug.use_profiler
-    def run(self, engine, is_first=True):
-        #
-        # is_first is not used
-        #
-        dprint1("Entering Optimizer")
-        if self.clear_wdir:
-            engine.remove_solfiles()
-        engine.remove_case_dirs()
-
-        minimizer = self.get_minimizer()
-        if minimizer is None:
-            return
-
-        self.case_dirs = []
-
-        self.call_minimizer(minimizer, engine)
-
-        if myid == 0:
-            self.save_probe_signals(minimizer)
-
     def save_probe_signals(self, minimizer):
         from petram.sol.probe import Probe
 
@@ -352,3 +331,42 @@ class Optimizer(SolveStep, NS_mixin):
 
         for p in probes:
             p.write_file(nosmyid=True)
+
+    def write_optimizer_data(self, minimizer):
+        #
+        #  called at the end of parametric scan to save parameters
+        #  to "cases.(solvername).txt". This is used in subdir
+        #  menus in dialog
+        #
+        xvalues = minimizer.costobj.xvalues
+
+        fid = open("cases."+self.name()+".txt", "w")
+        k = 0
+        for items in zip(*xvalues.values()):
+            txt = str(k) + " : " + str(items)
+            fid.write(txt+"\n")
+            k = k + 1
+        fid.close()
+
+    @debug.use_profiler
+    def run(self, engine, is_first=True):
+        #
+        # is_first is not used
+        #
+        dprint1("Entering Optimizer")
+        if self.clear_wdir:
+            engine.remove_solfiles()
+        engine.remove_case_dirs()
+
+        minimizer = self.get_minimizer()
+        if minimizer is None:
+            return
+
+        self.case_dirs = []
+
+        self.call_minimizer(minimizer, engine)
+
+        if myid == 0:
+            self.save_probe_signals(minimizer)
+            if self.keep_cases:
+                 self.write_optimizer_data(minimizer)

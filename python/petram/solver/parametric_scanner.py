@@ -112,7 +112,7 @@ class DefaultParametricScanner(object):
         try:
             myid = MPI.COMM_WORLD.rank
             if myid == 0:
-                fid = open("cases."+solver_name, "w")
+                fid = open("cases."+solver_name+".txt", "w")
                 for k, x in enumerate(self._stored_data):
                     txt = str(k) + " : " + self.format_data(x)
                     fid.write(txt+"\n")

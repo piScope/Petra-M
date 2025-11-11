@@ -3402,6 +3402,8 @@ class Engine(object):
                 os.remove(os.path.join(d, file))
             if file.startswith('checkpoint.'):
                 os.remove(os.path.join(d, file))
+            if file.startswith('cp.'):
+                os.remove(os.path.join(d, file))
             if file.startswith('cases.'):
                 os.remove(os.path.join(d, file))
             if file.startswith('sol_extended'):
@@ -3417,7 +3419,8 @@ class Engine(object):
             if file.startswith('cProfile_'):
                 os.remove(os.path.join(d, file))
             if file.startswith('checkpoint_') and os.path.isdir(file):
-                dprint1("removing checkpoint_", file)
+                shutil.rmtree(os.path.join(d, file))
+            if file.startswith('cp_') and os.path.isdir(file):
                 shutil.rmtree(os.path.join(d, file))
 
     def remove_case_dirs(self):
