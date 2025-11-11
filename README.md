@@ -1,30 +1,20 @@
 <img align="right" width="200" height="200" src="https://github.com/piScope/Petra-M/blob/master/resources/app_logo.png?raw=true">
 
-## Petra-M (FEM application based on MFEM)
+## Petra-M
 
-Petra-M (Physics Equation Translator for MFEM) is a physics layer built
-on the top of PyMFEM, a python wrapper for Modular FEM library
-(MFEM: http://mfem.org).
+Petra-M (Physics Equation Translator for MFEM) is a FEM analysis GUI built
+on the top of PyMFEM and piScope.
 
 Petra-M includes
- - Physics modeling GUI interface on piScope.
  - Weakform module to define PDE using MFEM integrators.
  - Distance module to define PDE for measuring distance
+ - Interface for various FEM analysis solver 
  - (optional) Geometry editor module using OpenCascade and python-occ
  - (optional) Mesh generation using Gmsh
-
-Additinal Petra-M submodules are available from different repository.
- - PetraM-RF : 3D frequency domain Maxwell equation
- - PetraM-DS : interface to use direct solvers (in progress)
 
 ### Install
 ```shell
   pip install petram
-  pip install petram[gui]   # install piScope and Petra-M together
-
-  or after downloading repository
-
-  pip install ".[gui]"
 ```
 
 ### Licence
