@@ -153,6 +153,10 @@ class MUMPSBase(LinearSolverModel):
         else:
             solver = MUMPSSolver(self, engine)
             solver.AllocSolver(is_complex, self.use_single_precision)
+
+        print("allocate_solver")
+        import traceback
+        traceback.print_stack()
         return solver
 
     def solve(self, engine, A, b):
@@ -277,6 +281,13 @@ class MUMPSSolver(LinearSolver):
         super(MUMPSSolver, self).__init__(*args, **kwargs)
         self.silent = False
         self.keep_sol_distributed = False
+        self.s = None
+
+    def __del__(self):
+        print("end mumps linear solver", self.s)
+        if self.s is None:
+            return
+        self.s = None
 
     @staticmethod
     def split_dir_prefix(txt):

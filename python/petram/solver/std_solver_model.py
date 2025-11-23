@@ -200,6 +200,10 @@ class StandardSolver(SolverInstance):
         self.linearsolver = None
         self._operator_set = False
 
+    def __del__(self):
+        print("deleteing linear solver")
+        self.linearsolver = None
+
     @property
     def blocks(self):
         return self.engine.assembled_blocks

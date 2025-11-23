@@ -262,6 +262,8 @@ class Parametric(SolveStep, NS_mixin):
                             self.solve_error[1])
 
             engine.run_postprocess(postprocess, name=self.name())
+            for ksolver, s in enumerate(solvers):
+                s.free_instance()
             os.chdir(od)
 
     def _run_rhs_assembly(self, engine, solvers, scanner, is_first=True):
