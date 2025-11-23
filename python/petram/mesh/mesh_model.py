@@ -574,6 +574,7 @@ class MeshFile(MeshGenerator):
                 path = path1
             else:
                 assert False, "can not find mesh file from relative path: " + path
+            dprint1("meshfile relative path mode reads from " + path1)                
         return path
 
     def run(self, mesh=None):
