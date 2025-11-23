@@ -1498,9 +1498,9 @@ class DlgPlotSol(SimpleFramePlus):
                 if self.remote_sols is not None:
                     self.config['cs_solsubdir'] = (ss1, ss2, ss3)
 
-                if self._remote_dir_info is not None:
-                    info = self._remote_dir_info
-                    self.update_subdir_remote_step2(info)
+                #if self._remote_dir_info is not None:
+                info = self.remote_sols[3]
+                self.update_subdir_remote_step2(info)
 
         evt.Skip()
 

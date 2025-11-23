@@ -1525,9 +1525,9 @@ class BlockMatrix(object):
                     gcsb = empty_hypremat((self.rsize[i], self.gcsize[j]),
                                           self.cp[j])
             else:
-                arr_r = mfem.hypreparmatArray2D(m, n)
+                arr_r = mfem.HypreParMatrixArray2D(m, n)
                 arr_r.Assign(None)
-                arr_i = mfem.hypreparmatArray2D(m, n)
+                arr_i = mfem.HypreParMatrixArray2D(m, n)
                 has_real = False
                 has_imag = False
                 for i, j in itertools.product(range(m), range(n)):
