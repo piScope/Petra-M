@@ -548,6 +548,7 @@ class MeshFile(MeshGenerator):
         if not os.path.isabs(path):
             dprint2("meshfile relative path mode")
             ## check three level up until real (not link) model.pmfm found
+            cwd = os.getcwd()
             for i in range(3):
                 path1 = os.path.join(cwd, path)
                 path2 = os.path.join(cwd, "model.pmfm")
