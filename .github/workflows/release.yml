@@ -25,7 +25,8 @@ jobs:
           #
           export PATH=/opt/python/cp37-cp37m/bin:$PATH
 
-          pip3 install wheel six auditwheel twine build
+          pip3 install twine==6.0.1
+          pip3 install wheel six auditwheel build
 
           rm -rf dist/*
           python3 -m build --sdist --wheel --outdir dist/ .
