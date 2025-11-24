@@ -1,7 +1,7 @@
 [project]
 name = "petram"
 license = { file = "LICENSE" }
-description='PetraM finite element analysis framework base package'
+description='Petra-M finite element analysis framework base package'
 authors = [ { name = "S. Shiraiwa" } ]
 maintainers = [ { name = "S. Shiraiwa", email = "shiraiwa@princeton.edu" } ]
 keywords = ["scientific computing", "python visualzation", "finite element method", "MFEM"]
