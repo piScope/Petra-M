@@ -9,12 +9,13 @@ jobs:
   make_sdist:
     runs-on: ubuntu-latest
     steps:
+    - env: GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: build_sdist
       run: |
           echo This job does not specify a container.
           echo It runs directly on the virtual machine.
           #
-          git clone git@github.com:piScope/PetraM-M.git
+          git clone https://USERNAME:$GH_TOKEN/github.com/piScope/PetraM-M.git
           cd PetraM-M
           #
           REF=$(echo ${GITHUB_REF#refs/heads/})
