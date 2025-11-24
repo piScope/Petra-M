@@ -17,7 +17,7 @@ jobs:
           echo It runs directly on the virtual machine.
           #
           git clone https://USERNAME:$GH_TOKEN@github.com/piScope/Petra-M.git
-          cd PetraM-M
+          cd Petra-M
           #
           REF=$(echo ${GITHUB_REF#refs/heads/})
           echo "!!!!!: "$REF
