@@ -14,8 +14,8 @@ jobs:
           echo This job does not specify a container.
           echo It runs directly on the virtual machine.
           #
-          git clone https://github.com/piScope/PetraM_Base.git
-          cd PetraM_Base
+          git clone https://github.com/piScope/PetraM-M.git
+          cd PetraM-M
           #
           REF=$(echo ${GITHUB_REF#refs/heads/})
           echo "!!!!!: "$REF
