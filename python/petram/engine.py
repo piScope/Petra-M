@@ -103,6 +103,7 @@ class Engine(object):
         self._init_done = []
         self._paraview_dc = {}
         self._visit_dc = {}
+        self._fmt_order=1
 
         self._ppname_postfix = ''
 
@@ -3125,6 +3126,7 @@ class Engine(object):
 
     def alloc_gf(self, idx, idx2=0):
         fes = self.fespaces[self.r_fes_vars[idx]]
+        self._fmt_order = max(self._fmt_order, fes.GetMaxElementOrder())
         return self.new_gf(fes)
 
     def alloc_lf(self, idx, idx2=0):
@@ -3981,6 +3983,7 @@ class Engine(object):
             dc.SetPrefixPath("ParaView")
             dc.SetDataFormat(mfem.VTKFormat_BINARY)
             dc.SetHighOrderOutput(True)
+            dc.SetLevelsOfDetail(self._fmt_order)
             dc.SetCycle(0)
             dc.SetTime(0.0)
 
@@ -4001,6 +4004,7 @@ class Engine(object):
             else:
                 visit_format = mfem.DataCollection.SERIAL_FORMAT
             dc.SetFormat(visit_format)
+            dc.SetLevelsOfDetail(self._fmt_order)
             dc.SetCycle(0)
             dc.SetTime(0.0)
 
