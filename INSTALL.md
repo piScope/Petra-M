@@ -30,13 +30,9 @@ in future
  - python-occ (7.9.0) https://github.com/tpaviot/pythonocc-core
 
 ## Additional modules
-### RF module (Petra-M--RF)
- Physics module for frequency domain Maxwell problem in 1D/2D/3D
- geometry and plasma wave interfaces is distributed separately.
-
-### Direct solver interface (Petra-M--DS)
- Interface to direct solver is developed in Petra-M--DS. Current
- version supports MUMPS, and a work to add STRUMPACK interface
- is in progress.
+Petra-M features a modular code structure, enabling users to incorporate specialized 
+physics equations and interfaces, or solvers  by installing additional modules in 
+future. An example of this capability is located within the Petra-M-RF repository 
+under piScope. Public repositories can be installed via the package submenu.
 
 
