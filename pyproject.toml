@@ -17,8 +17,12 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
+    "packaging",
     "mfem >= 4.8",
 ]
+
+[project.optional-dependencies]
+"gui" = ["piScope >= 1.2.3",]
 
 [project.urls]
 "Homepage" = "https://github.com/piScope/Petra-M"

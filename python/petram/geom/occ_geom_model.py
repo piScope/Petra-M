@@ -9,11 +9,11 @@ class OCCGeom(GmshGeom):
 
     @classmethod
     def fancy_menu_name(cls):
-        return 'OCC Geometry'
+        return 'CAD sequence'
 
     @classmethod
     def fancy_tree_name(cls):
-        return 'OCCSequence'
+        return 'CADSequence'
 
     def attribute_set(self, v):
         v = super(OCCGeom, self).attribute_set(v)

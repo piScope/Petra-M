@@ -1,7 +1,7 @@
 from __future__ import print_function
 from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
 '''
-   Viewer/Editor of MFEM model
+   Viewer/Editor of Petra-M model
 
    * this modules is designed to avoid importing mfem directly here
 
@@ -42,13 +42,10 @@ def MFEM_menus(parent):
              ("Binary...", self.onOpenPMFEM, None, None),
              ("Script/Data Files...", self.onOpenModelS, None),
              ("!", None, None),
-             ("+Mesh", None, None),
-             ("New Mesh File...",  self.onNewMesh, None),
-
-             ("Reload Mesh",  self.onLoadMesh, None),
-             ("Mesh visualization +",  self.onMeshVisPlus, None),
-             ("Mesh visualization -",  self.onMeshVisMinus, None),
-             ("!", None, None),
+             # ("+Mesh", None, None),
+             # ("New Mesh File...",  self.onNewMesh, None),
+             # ("Reload Mesh",  self.onLoadMesh, None),
+             # ("!", None, None),
              ("+Namespace", None, None),
              ("New...", self.onNewNS, None),
              ("Load...", self.onLoadNS, None),
@@ -70,7 +67,9 @@ def MFEM_menus(parent):
              ("!", None, None),
              ("!", None, None), ]
 
-    if petram.mfem_model.has_cluster_access:
+    import petram.utils
+    print("checking here", petram.utils.check_cluster_access())
+    if petram.utils.check_cluster_access():
         menu2 = [("+Cluster", None, None),
                  ("Setting...", self.onServerSetting, None),
                  ("Solve...", self.onServerSolve, None),
@@ -79,15 +78,14 @@ def MFEM_menus(parent):
     else:
         menu2 = []
 
-    menu3 = [("+Plot", None, None),
-             ("Function...",    self.onPlotExpr, None),
-             ("Solution ...",    self.onDlgPlotSol, None),
-             ("!", None, None),
-             # ("+Solution", None, None, None, ID_SOL_FOLDER),
-             # ("Reload Sol", None, None,),
-             # ("Clear...",    self.onClearSol, None),
-             # ("!", None, None),
-             ("+Export Model...", self.onSaveModel, None),
+    menu3 = [("+Visualize...",  None, None,),
+             ("Solution...", self.onDlgPlotSol, None),
+             ("Mesh...",  self.onVisMesh, None),
+             ("Refine vis.",  self.onMeshVisPlus, None),
+             ("Derefine vis.",  self.onMeshVisMinus, None),
+             ("!", None, None),]
+
+    menu4 = [("+Export Model...", self.onSaveModel, None),
              ("Binary...", self.onSaveModel, None),
              ("Script/Data Files...", self.onSaveModelS, None),
              ("!", None, None),
@@ -95,7 +93,7 @@ def MFEM_menus(parent):
              ("Reset Model", self.onResetModel, None),
              ("Packages...", self.onPkgCheck, None), ]
 
-    return menu1 + menu2 + menu3
+    return menu1 + menu2 + menu3 + menu4
 
 
 class MFEMViewerCanvas(ifigure_canvas):
@@ -131,7 +129,7 @@ class MFEMViewer(BookViewer):
         BookViewer.__init__(self, *args, **kargs)
         extra_menu = wx.Menu()
         self.menuBar.Insert(self.menuBar.GetMenuCount()-1,
-                            extra_menu, "PetraM")
+                            extra_menu, "Petra-M")
         menus = MFEM_menus(self)
         ret = BuildMenu(extra_menu, menus)
 
@@ -1468,6 +1466,13 @@ class MFEMViewer(BookViewer):
     def set_picker_mask(self, key):
         for name, child in self.get_axes().get_children():
             child.set_pickmask(not name.startswith(key))
+
+    def onVisMesh(self, evt):
+        if self._view_mode == 'phys' and self._hidemesh:
+            self.onShowMesh(self)
+        else:
+            self.onHideMesh(self)
+        evt.Skip()
 
     def onShowMesh(self, evt=None):
         from petram.mesh.plot_mesh import plot_domainmesh

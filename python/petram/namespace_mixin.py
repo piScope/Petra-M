@@ -204,6 +204,14 @@ class NS_mixin(object):
         '''
         return {}
 
+    def get_default_weak_ns(self):
+        '''
+        default_weak_ns defines Namespace variable, which does not overwrite
+        user proviede variable. Used to define a default parameter, which
+        is supposed to be overwritten by a user
+        '''
+        return {}
+
     def check_ns_name_conflict(self):
         '''
         check if derived_variable and namespace variable does not conflict
@@ -214,7 +222,7 @@ class NS_mixin(object):
         from eval_ns.
         '''
         try:
-            ll = self.derived_variables + self.probe_variables
+            ll = self.derived_variables
             if self._local_ns is not None:
                 for x in list(self._local_ns):
                     if x not in ll:
@@ -280,6 +288,7 @@ class NS_mixin(object):
                 assert False, "General should not be disabled"
 
         l = self.get_default_ns()
+        weak_l = self.get_default_weak_ns()
 
         from petram.helper.variables import var_g
         g = var_g.copy()
@@ -322,6 +331,9 @@ class NS_mixin(object):
             self._global_ns = chain[-1]._global_ns
             for k in l:
                 self._global_ns[k] = l[k]
+            for k in weak_l:
+                if k not in self._global_ns:
+                    self._global_ns[k] = weak_l[k]
             g = self._global_ns
 
         elif len(chain) > 1:
@@ -332,11 +344,15 @@ class NS_mixin(object):
                 if not isinstance(p, NS_mixin):
                     continue
                 ll = p.get_default_ns()
-                if (p.ns_string == '' or p.ns_string is None and
+                if ((p.ns_string == '' or p.ns_string is None) and
                         len(ll) == 0):
                     continue
                 for k in ll:
                     g[k] = ll[k]
+                for k in weak_l:
+                    if k not in g:
+                        g[k] = weak_l[k]
+
                 if p.ns_name is not None:
                     try:
                         if p.dataset is not None:
@@ -352,6 +368,7 @@ class NS_mixin(object):
                     except Exception as e:
                         import traceback
                         assert False, traceback.format_exc()
+
             if self.dataset is not None:
                 for k in self.dataset:
                     g[k] = self.dataset[k]

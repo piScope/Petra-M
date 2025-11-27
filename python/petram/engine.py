@@ -2717,7 +2717,9 @@ class Engine(object):
             extrafile_name = self.extrafile_name()
         extrafile_name += self.solfile_suffix()
 
-        self.sol_extra = sol_extra  # keep it for future reuse
+        if self.sol_extra is None:
+            self.sol_extra = {}
+        self.sol_extra.update(sol_extra)  # keep it for future reuse
 
         # count extradata length
         ll = 0
@@ -3402,6 +3404,10 @@ class Engine(object):
                 os.remove(os.path.join(d, file))
             if file.startswith('checkpoint.'):
                 os.remove(os.path.join(d, file))
+            if file.startswith('cp.'):
+                os.remove(os.path.join(d, file))
+            if file.startswith('cases.'):
+                os.remove(os.path.join(d, file))
             if file.startswith('sol_extended'):
                 os.remove(os.path.join(d, file))
             if file.startswith('probe'):
@@ -3415,7 +3421,8 @@ class Engine(object):
             if file.startswith('cProfile_'):
                 os.remove(os.path.join(d, file))
             if file.startswith('checkpoint_') and os.path.isdir(file):
-                dprint1("removing checkpoint_", file)
+                shutil.rmtree(os.path.join(d, file))
+            if file.startswith('cp_') and os.path.isdir(file):
                 shutil.rmtree(os.path.join(d, file))
 
     def remove_case_dirs(self):
@@ -3498,7 +3505,7 @@ class Engine(object):
         else:
             src = os.path.join(save_mesh_linkdir, name)
             dst = os.path.join(os.getcwd(), name)
-            os.symlink(src, dst)
+            self.symlink_allrank(src, dst)
         return name
 
     def save_mesh(self, phys_target, save_mesh_linkdir=None, save_sersol=False):
@@ -3535,7 +3542,7 @@ class Engine(object):
             else:
                 src = os.path.join(save_mesh_linkdir, name)
                 dst = os.path.join(os.getcwd(), name)
-                os.symlink(src, dst)
+                self.symlink_allrank(src, dst)
 
             mesh_names.append(name)
 
@@ -4020,6 +4027,18 @@ class Engine(object):
             dc.RegisterField("Im_"+name, i_x)
         dc.Save()
 
+    def symlink_allrank(self, target, link):
+        if os.path.islink(link):
+            os.unlink(link)
+        elif os.path.isfile(link):
+            os.remove(link)
+
+        if os.path.isabs(link):
+            start = os.path.dirname(link)
+        else:
+            start = os.getcwd()
+        target = os.path.relpath(target, start)
+        os.symlink(target, link)
 
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
@@ -4129,6 +4148,16 @@ class SerialEngine(Engine):
             os.mkdir(path)
 
     def symlink(self, target, link):
+        if os.path.islink(link):
+            os.unlink(link)
+        elif os.path.isfile(link):
+            os.remove(link)
+
+        if os.path.isabs(link):
+            start = os.path.dirname(link)
+        else:
+            start = os.getcwd()
+        target = os.path.relpath(target, start)
         os.symlink(target, link)
 
     def open_file(self, *args, **kwargs):
@@ -4508,8 +4537,17 @@ class ParallelEngine(Engine):
         from mpi4py import MPI
         myid = MPI.COMM_WORLD.rank
         if myid == 0:
-            if not os.path.exists(link):
-                os.symlink(target, link)
+            if os.path.islink(link):
+                os.unlink(link)
+            elif os.path.isfile(link):
+                os.remove(link)
+
+            if os.path.isabs(link):
+                start = os.path.dirname(link)
+            else:
+                start = os.getcwd()
+            target = os.path.relpath(target, start)
+            os.symlink(target, link)
         else:
             pass
         # MPI.COMM_WORLD.Barrier()

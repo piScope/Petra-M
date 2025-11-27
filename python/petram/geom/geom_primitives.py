@@ -2398,9 +2398,31 @@ class Subsequence(GeomPB):
     @ns_name.setter
     def ns_name(self, value):
         pass
+    '''
+    def eval_seq_values(self):
+        ns = self.get_ns_chain()[-2]._global_ns.copy()
+        ret = {}
+        ll = {}
+        err = ""
+        for k in self.seq_values:
+            ret[k] = eval(self.seq_values[k], ns, ll)
+
+        return ret
 
     def get_default_ns(self):
-
+        values = {}
+        plist = [self]
+        while plist[0].parent is not None:
+            if isinstance(plist[0].parent, Subsequence):
+                plist.insert(0, plist[0].parent)
+            else:
+                break
+        for obj in plist[:-1]:
+            values.update(obj.get_default_ns())
+        values.update(self.eval_seq_values())
+        return values
+    '''
+    def get_default_ns(self):
         ns = self.get_ns_chain()[-2]._global_ns.copy()
         ret = {}
         ll = {}

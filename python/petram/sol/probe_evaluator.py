@@ -21,17 +21,15 @@ class ProbeEvaluator(EvaluatorAgent):
     def preprocess_geometry(self,  *args, **kargs):
         pass
 
-    def eval_probe(self, expr, xexpr, probe_files, phys):
+    def eval_probe(self, expr, xexpr, probe_files, phys=None):
         from petram.helper.variables import Variable, var_g
-        from petram.sol.probe import load_probes
-        from petram.sol.listsoldir import gather_probes
+        from petram.sol.probe import collect_probesignals
 
-        #print("probe_files", probe_files)
         path = probe_files[0]
         path = os.path.expanduser(path)
-        path = os.path.join(path, probe_files[1])
+        path = os.path.join(path, *probe_files[1])
 
-        probes = gather_probes(path)
+        prbs = collect_probesignals(path)
 
         code = compile(expr, '<string>', 'eval')
         names = list(code.co_names)
@@ -42,25 +40,19 @@ class ProbeEvaluator(EvaluatorAgent):
         else:
             xcode = None
 
-        g = phys._global_ns.copy()
-        for key in var_g.keys():
-            g[key] = var_g[key]
+        if phys is not None:   # this option is not used anymore (?)
+            g = phys._global_ns.copy()
+        else:
+            g = {}
 
-        default_xname = ''
-        for n in names:
-            if n in probes:
-                xdata, ydata = load_probes(path, probes[n])
-                g[n] = ydata
-                for nn in xdata:
-                    g[nn] = xdata[nn]
-                    default_xname = nn
+        g.update(var_g)
+
+        g["prbs"] = prbs
+        g.update(prbs.__dict__)
 
         val = np.asarray(eval(code, g, {}))
         if xcode is None:
-            if default_xname in g:
-                xval = g[default_xname]
-            else:
-                xval = None
+            xval = None
         else:
             xval = np.asarray(eval(xcode, g, {}))
 

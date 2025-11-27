@@ -8,12 +8,14 @@ viewer = kwargs.pop("viewer")
 
 odir = os.getcwd()
 
-for array_id in values:
+for kk, array_id in enumerate(values):
     path = os.path.join(folder.owndir(), 'case_'+str(array_id))
     os.mkdir(path)
     kwargs["path"] = path
     kwargs["array_id"] = array_id
     kwargs["array_len"] = len(values)
+
+    print("Entering ("+str(kk) + "/" + str(len(values)) + ")")
 
     run_parallel(model, *args, **kwargs)
     os.chdir(odir)

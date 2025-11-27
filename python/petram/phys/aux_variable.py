@@ -72,6 +72,9 @@ class AUX_Variable(Phys):
     def extra_DoF_name(self):
         return self.variable_name
 
+    def get_probes(self):
+        return [self.variable_name]
+
     @property
     def vt_array(self):
         if not hasattr(self, 'aux_connection'):
@@ -107,7 +110,7 @@ class AUX_Variable(Phys):
 
         ll.extend(self.vt_diag_rhs.panel_param(self))
         ll.append([None, None, 241, {'buttons': [b1, b2],
-                                     'alignright':True,
+                                     'alignright': True,
                                      'noexpand': True}])
 
         mfem_physroot = self.get_root_phys().parent
@@ -334,7 +337,6 @@ class AUX_Variable(Phys):
                     assert diag_size == t2.shape[1], "t1 and t2 shapes are inconsistent"
                 diag_size = t2.shape[1]
 
-
         if diag_size < 0:
             diag_size = len(np.atleast_1d(rhs_vec))
 
@@ -357,7 +359,7 @@ class AUX_Variable(Phys):
             if np.iscomplexobj(rhs):
                 rhs = rhs.real
 
-        #if not self.get_root_phys().is_complex():
+        # if not self.get_root_phys().is_complex():
         #    if np.iscomplexobj(rhs):
         #        rhs = rhs.real
 

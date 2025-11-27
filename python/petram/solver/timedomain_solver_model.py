@@ -181,7 +181,7 @@ class TimeDomain(Solver):
             engine.remove_solfiles()
 
         fid = engine.open_file(
-            'checkpoint.'+self.parent.name()+'_'+self.name()+'.txt', 'w')
+            'cp.'+ self.name()+'.txt', 'w')
         st, et, nt = self.st_et_nt
 
         if self.ts_method == 'Backward Euler' or self.ts_method == 'Backward Eular':
@@ -465,7 +465,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         dprint1("writing checkpoint t=" + str(self.time) +
                 "("+str(self.icheckpoint)+")")
         od = os.getcwd()
-        path = os.path.join(od, 'checkpoint_' + self.gui.parent.name()+'_' +
+        path = os.path.join(od, 'cp_' +
                             self.gui.name()+'_'+str(self.icheckpoint))
         self.engine.mkdir(path)
         os.chdir(path)

@@ -763,7 +763,8 @@ class Phys(Model, Vtable_mixin, NS_mixin):
             ret = self.timestep_config[0:3] + \
                 [self.isJacobian, self.isTimeDependent]
 
-        ret = ret + [self.nicetxt_derived_variables()]
+        if isinstance(self, Bdry) or isinstance(self, Domain):
+            ret = ret + [self.nicetxt_derived_variables()]
         ret = ret + [self.nicetxt_probe_variables()]
 
         if self.allow_custom_intorder:
@@ -1602,7 +1603,7 @@ class PhysModule(Phys):
 
     def get_metric(self, return_txt=False):
         """
-        metric parameter will be passed to integrator by calling set_metric (if 
+        metric parameter will be passed to integrator by calling set_metric (if
         is supported)
 
         ths is a default action to evaulate metric_txt

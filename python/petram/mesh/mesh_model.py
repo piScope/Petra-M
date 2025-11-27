@@ -547,25 +547,34 @@ class MeshFile(MeshGenerator):
 
         if not os.path.isabs(path):
             dprint2("meshfile relative path mode")
-            path1 = os.path.join(os.getcwd(), path)
-            dprint2("trying :", path1)
-            if not os.path.exists(path1):
-                path1 = os.path.join(os.path.dirname(os.getcwd()), path)
+            ## check three level up until real (not link) model.pmfm found
+            cwd = os.getcwd()
+            for i in range(3):
+                path1 = os.path.join(cwd, path)
+                path2 = os.path.join(cwd, "model.pmfm")
+
                 dprint2("trying :", path1)
-                if (not os.path.exists(path1) and "__main__" in globals()
-                        and hasattr(__main__, '__file__')):
+                if os.path.exists(path1):
+                    break
+                if (os.path.exists(path2) and
+                    not os.path.islink(path2)):
+                    break
+                cwd = os.path.dirname(cwd)
+
+            if not os.path.exists(path1):
+                if ("__main__" in globals() and hasattr(__main__, '__file__')):
                     from __main__ import __file__ as mainfile
                     path1 = os.path.join(os.path.dirname(
                         os.path.realpath(mainfile)), path)
                     dprint1("trying :", path1)
-                if not os.path.exists(path1) and os.getenv(
-                        'PetraM_MeshDir') is not None:
+                if os.getenv('PetraM_MeshDir') is not None:
                     path1 = os.path.join(os.getenv('PetraM_MeshDir'), path)
                     dprint1("trying :", path1)
             if os.path.exists(path1):
                 path = path1
             else:
                 assert False, "can not find mesh file from relative path: " + path
+            dprint1("meshfile relative path mode reads from " + path1)                
         return path
 
     def run(self, mesh=None):

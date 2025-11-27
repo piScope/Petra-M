@@ -3,7 +3,7 @@
    evaluators
 
     This module provides objects to evaluate solutions
-    in various ways. 
+    in various ways.
 
 
       BdrNodalEvaluator : evaulation on boundary surfaces
@@ -280,7 +280,7 @@ class EvaluatorCommon(Evaluator):
         phys_path = self.phys_path
         phys = self.mfem_model()[phys_path]
         solvars = self.load_solfiles()
-        
+
         if solvars is None: return None, None
         '''
 
@@ -339,7 +339,7 @@ def build_evaluator(params,
                                 logfile=logfile)
     elif config['use_cs']:
         solpath = os.path.join(config['cs_soldir'],
-                               config['cs_solsubdir'])
+                               *config['cs_solsubdir'])
         evaluator = EvaluatorClient(nproc=config['cs_worker'],
                                     host=config['cs_server'],
                                     soldir=solpath,
@@ -348,9 +348,10 @@ def build_evaluator(params,
                                     mp_debug=config['mp_debug'])
     else:
         raise ValueError("Unknown evaluator mode")
-    evaluator.set_model(mfem_model)
+
 
     if name != 'Probe':  # probe evaluator does not load solfiles.
+        evaluator.set_model(mfem_model)
         evaluator.set_solfiles(solfiles)
         evaluator.load_solfiles()
 

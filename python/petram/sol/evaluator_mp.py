@@ -158,7 +158,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
 
                 elif task[0] == 8:  # (8, expr)  = eval_probe
                     value = self.eval_probe(task[1], task[2], task[3])
-                    value = (self.myid, value[0], value[1])
+                    value = (self.myid, value[0], value[1], value[2])
 
                 elif task[0] == 9:  # (8, expr)  = make_probe_agents
                     cls = task[1]
@@ -397,13 +397,19 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         return self.myid, data, 0
 
     def eval_probe(self, expr, xexpr, probes):
-        if self.phys_path == '':
-            return None, None
+        #if self.phys_path == '':
+        #    return None, None, "phys_path is empty"
 
-        phys = self.mfem_model()[self.phys_path]
+        #phys = self.mfem_model()[self.phys_path]
+        phys = None
         evaluator = self.agents[1][0]
 
-        return evaluator.eval_probe(expr, xexpr, probes, phys)
+        try:
+            xdata, data = evaluator.eval_probe(expr, xexpr, probes, phys)
+            return xdata, data, ""
+        except:
+            import traceback
+            return None, None, traceback.format_exc()
 
 
 class EvaluatorMP(Evaluator):
@@ -451,7 +457,7 @@ class EvaluatorMP(Evaluator):
         elif os.path.exists(file2):
             self.tasks.put((3, file2), join=True)
         else:
-            assert False, "No model file in " + os.getcwd()
+            assert False, "No model file in " + tmpdir
 
         self._mfem_model_bk = model
 
@@ -685,10 +691,13 @@ class EvaluatorMP(Evaluator):
 
     def eval_probe(self, expr, xexpr, probes):
         self.tasks.put_single((8, expr, xexpr, probes), join=True)
-        res = self.results.get()  # for x in range(len(self.workers))]
+        myid, xdata, data, extra = self.results.get()  # for x in range(len(self.workers))]
 
         self.results.task_done()
-        return res
+        if data is not None:
+            return myid, xdata, data
+        else:
+            assert False, extra
 
     def make_probe_agents(self, name, params, **kwargs):
         print("make_probe_agents")

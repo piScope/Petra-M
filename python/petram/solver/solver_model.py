@@ -282,7 +282,12 @@ class SolveStep(SolverBase):
         return []
 
     def get_active_solvers(self):
-        return [x for x in self.iter_enabled()]
+        return [x for x in self.iter_enabled() if isinstance(x, Solver)]
+
+    def get_active_solversteps(self):
+        # SolveSteps could contain SolveSteps (used in Parametric and Optimizer)
+        # This routine is used to check if it is "Grand Parent" of Solvers
+        return [x for x in self.iter_enabled() if isinstance(x, SolveStep)]
 
     def get_num_matrix(self, phys_target, set_active_matrix=False, engine=None):
         from petram.engine import max_matrix_num

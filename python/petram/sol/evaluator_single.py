@@ -305,10 +305,11 @@ class EvaluatorSingle(EvaluatorCommon):
         return v
 
     def eval_probe(self, expr, xexpr, probes):
-        if self.phys_path == '':
-            return None, None, None
+        #if self.phys_path == '':
+        #    return None, None, None
 
-        phys = self.mfem_model()[self.phys_path]
+        #phys = self.mfem_model()[self.phys_path]
+        phys = None
 
         evaluator = self.agents[1][0]
         xval, val = evaluator.eval_probe(expr, xexpr, probes, phys)

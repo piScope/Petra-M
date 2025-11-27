@@ -449,17 +449,49 @@ class DlgEditModel(SimpleFramePlus):
         indices = [tree.GetIndexOfItem(ii) for ii in items]
         mmm = [self.model.GetItem(ii) for ii in indices]
         texts = [self.model.GetItemText(ii) for ii in indices]
+
+        parent = None
         for mm, text in zip(mmm, texts):
+            parent = mm.parent
             del mm.parent[text]
+
+        self.tree.UnselectAll()
         self.tree.RefreshItems()
+        if parent is None:
+            return
+
+        new_item = self.tree.GetItemByIndex(parent.GetIndices())
+        self.tree.SelectItem(new_item)
         self.OnItemSelChanged()
 
     def OnDeleteItemFromModel(self, evt):
         indices = self.tree.GetIndexOfItem(self.tree.GetSelection())
         mm = self.model.GetItem(indices)
+        parent = mm.parent
         text = self.model.GetItemText(indices)
-        del mm.parent[text]
+
+        names = list(parent)
+        index = names.index(text)
+        sel_parent = False
+        if index == 0 and len(names) == 1:
+            sel_parent = True
+        elif index == 0:
+            text2 = names[1]
+        elif index == len(names)-1:
+            text2 = names[-2]
+        else:
+            text2 = names[index+1]
+
+        del parent[text]
+        self.tree.UnselectAll()
         self.tree.RefreshItems()
+
+        if sel_parent:
+            new_item = self.tree.GetItemByIndex(parent.GetIndices())
+        else:
+            new_item = self.tree.GetItemByIndex(parent[text2].GetIndices())
+
+        self.tree.SelectItem(new_item)
         self.OnItemSelChanged()
 
     def OnRenameItem(self, evt):

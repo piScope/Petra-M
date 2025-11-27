@@ -152,6 +152,7 @@ def config_file_path():
         from ifigure.ifigure_config import rcdir as petram
 
     path = os.path.join(petram, "petram_config")
+
     return path
 
 
@@ -162,7 +163,7 @@ def get_user_config():
 
     default_data = {
         "version": 1,
-        "cluste_access": "No",
+        "cluster_access": "No",
         "addon_access": "none",
         "repos": default_repos,
     }
