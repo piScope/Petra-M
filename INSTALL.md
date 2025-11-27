@@ -30,9 +30,9 @@ in future
  - python-occ (7.9.0) https://github.com/tpaviot/pythonocc-core
 
 ## Additional modules
-Petra-M features a modular code structure, enabling users to incorporate specialized 
-physics equations and interfaces, or solvers  by installing additional modules in 
+Petra-M features a modular code structure, enabling users to develop specialized 
+physics equations and interfaces, or solvers by installing additional modules in 
 future. An example of this capability is located within the Petra-M-RF repository 
-under piScope. Public repositories can be installed via the package submenu
+under piScope. Public repositories can be installed via the package submenu.
 
 
