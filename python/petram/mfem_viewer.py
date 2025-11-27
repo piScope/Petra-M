@@ -83,16 +83,18 @@ def MFEM_menus(parent):
              ("Function...",    self.onPlotExpr, None),
              ("Solution ...",    self.onDlgPlotSol, None),
              ("!", None, None),
-             #("+Solution", None, None, None, ID_SOL_FOLDER),
-             #("Reload Sol", None, None,),
-             #("Clear...",    self.onClearSol, None),
-             #("!", None, None),
+             # ("+Solution", None, None, None, ID_SOL_FOLDER),
+             # ("Reload Sol", None, None,),
+             # ("Clear...",    self.onClearSol, None),
+             # ("!", None, None),
              ("+Export Model...", self.onSaveModel, None),
              ("Binary...", self.onSaveModel, None),
              ("Script/Data Files...", self.onSaveModelS, None),
              ("!", None, None),
              ("---", None, None),
-             ("Reset Model", self.onResetModel, None), ]
+             ("Reset Model", self.onResetModel, None),
+             ("Packages...", self.onPkgCheck, None), ]
+
     return menu1 + menu2 + menu3
 
 
@@ -267,7 +269,7 @@ class MFEMViewer(BookViewer):
             if p is not None:
                 # update figure data
                 p.update_figure_data(self)
-                #print("calling do_plot", self._view_mode, p.figure_data_name())
+                # print("calling do_plot", self._view_mode, p.figure_data_name())
                 self.update_figure(self._view_mode, p.figure_data_name(),
                                    updateall=True,
                                    skip_plot_geometry=skip_plot_geometry)
@@ -303,7 +305,7 @@ class MFEMViewer(BookViewer):
                     ret = d[name]
                     plot_geometry(self,  ret)
                 else:
-                    #print('Geometry figure data not found :' + name)
+                    # print('Geometry figure data not found :' + name)
                     self.cls()
                     return
 
@@ -325,7 +327,7 @@ class MFEMViewer(BookViewer):
                         d = self._figure_data['geom']
                         plot_geometry(self,  d[name[1]])
                     if name[0] in d:
-                        #print("calling oplot")
+                        # print("calling oplot")
                         oplot_meshed(self,  d[name[0]])
                         self._hidemesh = False
                     else:
@@ -365,8 +367,8 @@ class MFEMViewer(BookViewer):
                 def handler(evt, dir0=m0):
                     # self.model.scripts.helpers.rebuild_ns()
                     # self.engine.assign_sel_index()
-                    #path = os.path.join(dir, dir0)
-                    #print('loading sol from ' + path)
+                    # path = os.path.join(dir, dir0)
+                    # print('loading sol from ' + path)
                     model = self.model
                     folder = model.solutions.get_child(name=str(dir0))
                     param = model.param
@@ -396,9 +398,9 @@ class MFEMViewer(BookViewer):
     def start_engine(self):
         self.engine = self.model.scripts.helpers.start_engine()
         # if self.model.variables.hasvar('engine')
-        #from engine import SerialEngine
-        #self.engine = SerialEngine()
-        #self.model.variables.setvar('engine', self.engine)
+        # from engine import SerialEngine
+        # self.engine = SerialEngine()
+        # self.model.variables.setvar('engine', self.engine)
 
     def onOpenPMFEM(self, evt):
         import petram.helper.pickle_wrapper as pickle
@@ -437,7 +439,7 @@ class MFEMViewer(BookViewer):
             if file == os.path.basename(path):
                 continue
             if file.endswith('.py'):
-                #shutil.copy(os.path.join(dir, file), self.model.namespaces.owndir())
+                # shutil.copy(os.path.join(dir, file), self.model.namespaces.owndir())
                 sc = self.model.namespaces.add_childobject(PyScript, file[:-3])
                 sc.load_script(os.path.join(
                     self.model.namespaces.owndir(), file))
@@ -564,7 +566,7 @@ class MFEMViewer(BookViewer):
             self.property_editor.onTD_Selection(evt)
             return
 
-        #print("canvas sel",  self.canvas.selection)
+        # print("canvas sel",  self.canvas.selection)
         _s_v_loop = self._s_v_loop[self._view_mode]
         sf, sv, se, sp = [], [], [], []
         if self._sel_mode == 'volume':
@@ -920,7 +922,7 @@ class MFEMViewer(BookViewer):
                 continue
             if len(i) > 0:
                 obj.setSelectedIndex(i)
-                #print("add_selection", obj, obj._artists[0])
+                # print("add_selection", obj, obj._artists[0])
                 if len(obj._artists) > 0:
                     self.canvas.add_selection(obj._artists[0])
             else:
@@ -1805,7 +1807,6 @@ class MFEMViewer(BookViewer):
                                                  get_job_queue,
                                                  submit_job)
 
-
         remote = get_model_remote(self.model.param)
         if remote is None:
             return
@@ -1913,6 +1914,11 @@ class MFEMViewer(BookViewer):
         engine.build_ns()
         engine.check_ns_name_conflict()
         engine.run_preprocess(model.namespaces, model.datasets)
+
+    def onPkgCheck(self, evt):
+        from petram.pi.dlg_packages import check_packages
+        check_packages(self)
+        evt.Skip()
 
     def rebuild_ns(self):
         engine = self.engine

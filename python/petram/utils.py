@@ -2,6 +2,7 @@
    utility routines
 '''
 import os
+import json
 import numpy as np
 import resource
 from petram.mfem_config import use_parallel
@@ -144,24 +145,71 @@ def get_evn_twopiroot():
     return petram
 
 
-def check_cluster_access():
+def config_file_path():
+   # if piScope is not installd TwoPiRoot should be set
     petram = get_evn_twopiroot()
-
     if petram is None:
         from ifigure.ifigure_config import rcdir as petram
 
-    return os.path.exists(os.path.join(petram, "etc", "cluster_access"))
+    path = os.path.join(petram, "petram_config")
+    return path
+
+
+def get_user_config():
+    # Define your data as a Python dictionary
+    default_repos = [{"name": "piScope",
+                      "url": "https://api.github.com/orgs/piScope/repos"},]
+
+    default_data = {
+        "version": 1,
+        "cluste_access": "No",
+        "addon_access": "none",
+        "repos": default_repos,
+    }
+
+    path = config_file_path()
+    if not os.path.exists(path):
+        update_user_config(default_data)
+
+    with open(path, "r") as json_file:
+        config = json.load(json_file)
+        # if config version is old, overwrite with default config data
+        if config["version"] != default_data["version"]:
+            update_user_config(default_data)
+            config = default_data
+    return config
+
+
+def update_user_config(config):
+    path = config_file_path()
+    with open(path, "w") as json_file:
+        json.dump(config, json_file, indent=4)
+
+
+def check_config_yesno(param, default_value="No"):
+    config = get_user_config()
+    if param not in config:
+        config[param] = default_value
+        update_user_config(config)
+
+    return config[param].upper() == "YES"
+
+
+def check_config(param, default_value):
+    config = get_user_config()
+    if param not in config:
+        config[param] = default_value
+        update_user_config(config)
+
+    return config[param]
+
+
+def check_cluster_access():
+    return check_config_yesno("cluster_access")
 
 
 def check_addon_access():
-    petram = get_evn_twopiroot()
-
-    if petram is None:
-        from ifigure.ifigure_config import rcdir as petram        
-
-    if os.path.exists(os.path.join(petram, "etc", "addon_access")):
-        return "any"
-    return "none"
+    return check_config("addon_access", "none")
 
 
 ''''
@@ -199,7 +247,8 @@ def pv_from_gui_value(mm, value):
     return paired_var from GUI input
     '''
     mfem_physroot = mm.get_root_phys().parent
-    names, pnames, pindex = mfem_physroot.dependent_values(include_disabled=True)
+    names, pnames, pindex = mfem_physroot.dependent_values(
+        include_disabled=True)
 
     if len(value) == 0:
         # v[0] could be '' if object is based to a tree.
@@ -223,7 +272,8 @@ def pv_panel_param(mm, label):
     '''
     from wx import CB_READONLY
     mfem_physroot = mm.get_root_phys().parent
-    names, pnames, _pindex = mfem_physroot.dependent_values(include_disabled=True)
+    names, pnames, _pindex = mfem_physroot.dependent_values(
+        include_disabled=True)
     names = [n+" ("+p + ")" for n, p in zip(names, pnames)]
 
     ll1 = [label, "S", 4,
