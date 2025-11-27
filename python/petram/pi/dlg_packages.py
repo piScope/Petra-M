@@ -76,10 +76,12 @@ class pkglist_popup(wx.Menu):
 
     def onInstall(self, evt):
         install_from_github(self.target_pkg["html_url"])
+        self.parent.update_done = True
         self.parent.do_recheck()
 
     def onUpdate(self, evt):
         install_from_github(self.target_pkg["html_url"])
+        self.parent.update_done = True
         self.parent.do_recheck()
 
     def onRecheck(self, evt):
@@ -140,6 +142,7 @@ class dlg_packages(wx.Dialog):
         self.grid.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.onRightRelease)
         #
         self.selected_row = -1
+        self.update_done = False
 
         self.Show()
         wx.CallAfter(self._myRefresh)
@@ -199,10 +202,13 @@ def check_packages(parent):
     dlg = dlg_packages(parent)
 
     def close_dlg(evt, dlg=dlg):
+        if dlg.update_done:
+            from ifigure.widgets.dialog import message
+            wx.CallAfter(message, parent,
+                         "Packages are updated. Restart piScope, in order to use updated modules.",
+                         style=0,
+                         title="Update recommended")
+
         dlg.Destroy()
     dlg.Bind(wx.EVT_CLOSE, close_dlg)
     return dlg
-
-
-class dlg_repos(wx.Dialog):
-    pass
