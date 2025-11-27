@@ -549,7 +549,7 @@ class Engine(object):
         else:
             petram.mfem_config.numba_debug = False
 
-        dprint1("petram.mfem_config.numba_debug",
+        dprint2("petram.mfem_config.numba_debug",
                 petram.mfem_config.numba_debug)
         petram.mfem_config.allow_python_function_coefficient = model[
             "General"].allow_fallback_nonjit

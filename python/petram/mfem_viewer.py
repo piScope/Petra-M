@@ -68,7 +68,6 @@ def MFEM_menus(parent):
              ("!", None, None), ]
 
     import petram.utils
-    print("checking here", petram.utils.check_cluster_access())
     if petram.utils.check_cluster_access():
         menu2 = [("+Cluster", None, None),
                  ("Setting...", self.onServerSetting, None),
@@ -233,7 +232,7 @@ class MFEMViewer(BookViewer):
         import logging
         numba_logger = logging.getLogger('numba')
         numba_logger.setLevel(logging.WARNING)
-        print("numba debug logging is suppressed")
+        #print("numba debug logging is suppressed")
 
     @property
     def view_mode_group(self):
