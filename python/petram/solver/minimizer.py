@@ -90,13 +90,20 @@ class ParametricMinimizer():
       abstol = 1e-2
     '''
 
-    def __init__(self, *args, **kwargs):
-        self.fcost = args[0]
+    def __init__(self, fcost, *args, **kwargs):
+        self.fcost = fcost
+
+        if len(args) % 2 == 1:
+            self.x0 = np.atleast_1d(args[0])
+            xx = args[1:].__iter__()
+        else:
+            self.x0 = None
+            xx = args.__iter__()
 
         self.params = []
         self.ranges = []
 
-        xx = args[1:].__iter__()
+
         while True:
             try:
                 self.params.append(xx.__next__())
@@ -113,6 +120,7 @@ class ParametricMinimizer():
         self.costobj = None
         self.model = None
 
+
     def generate_cost_function(self, engine, runner):
         cost = CostFunction(runner, self.fcost, self.params,
                             self.model, engine)
@@ -123,6 +131,11 @@ class ParametricMinimizer():
 
     def set_model(self, model):
         self.model = model
+
+        if self.x0 is None:
+            gs = model['General']._global_ns
+            data = [(gs[n] if n in gs else 0.0) for n in self.params]
+            self.x0 = np.asarray(data)
 
     def collect_probe_signals(self, engine, dirs):
         '''
@@ -141,8 +154,7 @@ class ParametricMinimizer():
 
 
 class SimpleMinimizer(ParametricMinimizer):
-    def __init__(self, fcost, x0, *args, **kwargs):
-        self.x0 = np.atleast_1d(x0)
+    def __init__(self, fcost, *args, **kwargs):
         #self.method = kwargs.pop("method", "Nelder-Mead")
         self.method = kwargs.pop("method", "Powell")
         self.tol = kwargs.pop('tol', 1e-2)
@@ -157,6 +169,7 @@ class SimpleMinimizer(ParametricMinimizer):
 
         verbose = self.verbose if myid == 0 else False
 
+        print("!!!!!", self.x0)
         if len(self.x0) > 1:
             res = minimize(self.costobj,
                            self.x0,
