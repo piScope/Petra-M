@@ -2836,11 +2836,11 @@ class DlgPlotSol(SimpleFramePlus):
                 first = False
             if cls is None:
                 data = np.ma.masked_array(
-                    data.real, mask=np.in1d(
+                    data.real, mask=np.isin(
                         attrs_out, attrs, invert=True))
             else:
                 data = np.ma.masked_array(
-                    data, mask=np.in1d(
+                    data, mask=np.isin(
                         attrs_out, attrs, invert=True))
             viewer.image(x, y, data, im_axes=im_axes, im_center=im_center)
 

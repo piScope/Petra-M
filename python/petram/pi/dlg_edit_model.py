@@ -161,7 +161,7 @@ class DlgEditModel(SimpleFramePlus):
                   self.OnItemSelChanging)
         # s.Add(self.tree, 0, wx.EXPAND|wx.ALL, 1)
         # s2.Add(self.nb, 1, wx.EXPAND|wx.ALL, 1)
-        wx.GetApp().add_palette(self)
+
         self.Layout()
         wx.CallAfter(self.tree.RefreshItems)
         self.panels = {}
