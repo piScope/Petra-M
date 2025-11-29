@@ -62,7 +62,7 @@ class CostFunction():
         return cost.item()
 
     def __call__(self, x):
-        dprint1("!!!! Costfunction is called ("+str(self.kcase)+ ")")
+        dprint1("Costfunction is called ("+str(self.kcase)+ ")")
         x = np.atleast_1d(x)
 
         self.apply_param(x)
@@ -70,9 +70,9 @@ class CostFunction():
         prbs = self.runner(self.kcase, self.engine)
 
         cost = self.call_cost(x, prbs)
+        dprint1("Costfunction computed value: " + str(cost))
 
         self.costs.append(np.atleast_1d(cost))
-
         self.kcase = self.kcase + 1
 
         return cost
