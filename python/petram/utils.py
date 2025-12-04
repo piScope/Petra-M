@@ -170,7 +170,8 @@ def get_user_config():
 
     path = config_file_path()
     if not os.path.exists(path):
-        update_user_config(default_data)
+        config = update_user_config(default_data)
+        return config
 
     with open(path, "r") as json_file:
         config = json.load(json_file)
@@ -184,11 +185,12 @@ def get_user_config():
 def update_user_config(config):
     path = config_file_path()
     try:
-        # if it is is possible save it to the filesystem
+        # if it is is possible save it to the file system
         with open(path, "w") as json_file:
             json.dump(config, json_file, indent=4)
     except:
         pass
+    return config
 
 
 def check_config_yesno(param, default_value="No"):
