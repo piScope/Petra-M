@@ -183,8 +183,12 @@ def get_user_config():
 
 def update_user_config(config):
     path = config_file_path()
-    with open(path, "w") as json_file:
-        json.dump(config, json_file, indent=4)
+    try:
+        # if it is is possible save it to the filesystem
+        with open(path, "w") as json_file:
+            json.dump(config, json_file, indent=4)
+    except:
+        pass
 
 
 def check_config_yesno(param, default_value="No"):
