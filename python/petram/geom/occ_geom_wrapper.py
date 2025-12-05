@@ -5954,6 +5954,7 @@ class Geometry():
         export shapes in STEP and STL format
         '''
 
+        print("entring here")
         stlmode = filename.endswith('.stl')
 
         if selection is None:
@@ -6015,13 +6016,22 @@ class Geometry():
                                           STEPControl_GeometricCurveSet,)
         from OCC.Core.IFSelect import IFSelect_RetDone, IFSelect_ItemsByEntity
 
+        # On the screen, we use M as unit. x1000 makes it mm
+        # which is common in STEP format.
+
+        gt = gp_Trsf()
+        pts = gp_Pnt(0., 0., 0.)
+        gt.SetScale(pts, 1000.)
+        transformer = BRepBuilderAPI_Transform(gt)
+        transformer.Perform(comp, True)
+        comp1 = transformer.Shape()
+
         if not stlmode:
 
             writer = STEPControl_Writer()
             check = Interface_Static.SetIVal("write.step.assembly", 1)
 
-            # we assume the model is made in M
-            write_interface_value("write.step.unit", "M", C=True)
+            write_interface_value("write.step.unit", "MM", C=True)
 
             print("### Exporting Step file", filename)
             read_interface_value("write.precision.mode", I=True)
@@ -6032,7 +6042,7 @@ class Geometry():
             read_interface_value("write.step.unit", C=True)
             read_interface_value("write.step.vertex.mode", I=True)
 
-            writer.Transfer(comp, STEPControl_AsIs)
+            writer.Transfer(comp1, STEPControl_AsIs)
             status = writer.Write(filename)
             if status != IFSelect_RetDone:
                 assert False, "failed to write step file"
@@ -6054,7 +6064,7 @@ class Geometry():
             else:  # binary, just set the ASCII flag to False
                 print("### Exporting STL file (binary)", filename)
                 stl_exporter.SetASCIIMode(False)
-            stl_exporter.Write(comp, filename)
+            stl_exporter.Write(comp1, filename)
 
             if not os.path.isfile(filename):
                 raise IOError("File not written to disk.")
