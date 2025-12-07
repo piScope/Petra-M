@@ -322,7 +322,6 @@ def calc_decomposition(func, x, mmax, xp=None, viewer=None, fp=False,
 
     idx = 0 if idx0 is None else idx0
 
-    print("mattching at", x[idx], func(x[idx], **kwargs))
     tmp = 0j
     for c, d in zip(c_arr, d_arr):
         tmp = tmp + c/(x[idx]-d)
