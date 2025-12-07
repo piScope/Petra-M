@@ -2651,11 +2651,8 @@ cad_fix_cb = [None, None, 36, {"col": 4,
                                           "sewFaces",
                                           "makeSolid"]}]
 cad_fix_tol = ["Tolerance", 1e-8, 300, None]
-cad_fix_rescale = ["Rescale", 1.0, 300, None]
-cad_fix_elp0 = [cad_fix_cb, cad_fix_tol, cad_fix_rescale]
-
-cad_fix_elp = [None, None, 27, [
-    {"text": "import fixer"}, {"elp": cad_fix_elp0}]]
+cad_fix_rescale = ["Rescale", 0.001, 300, None]
+cad_fix_elp0 = [cad_fix_cb, cad_fix_tol, ]
 
 
 class ImportBase(GeomPB):
@@ -2663,18 +2660,16 @@ class ImportBase(GeomPB):
         v = super(GeomPB, self).attribute_set(v)
         v["use_fix_param"] = [False] * 5
         v["use_fix_tol"] = 1e-8
-        v["use_fix_rescale"] = 1.0
+        v["use_fix_rescale"] = 0.001
         return v
 
     def get_importfix_value(self):
-        value = [self.use_fix_param, self.use_fix_tol, self.use_fix_rescale]
+        value = [self.use_fix_param, self.use_fix_tol, ]
         return value
 
     def import_importfix_value(self, v):
         self.use_fix_param = [x[1] for x in v[0]]
         self.use_fix_tol = float(v[1])
-        self.use_fix_rescale = float(v[2])
-
 
 class healCAD(ImportBase):
     vt = Vtable(tuple())
@@ -2720,7 +2715,7 @@ class healCAD(ImportBase):
             self.fix_entity,
             self.use_fix_param,
             self.use_fix_tol,
-            self.use_fix_rescale)
+            1.0)
         geom_name = self.__class__.__name__
         geom.add_sequence(gui_name, gui_param, geom_name)
 
@@ -2750,7 +2745,9 @@ class CADImport(ImportBase):
                                  'alignright':True,
                                  'noexpand': True}, ],
               ["File(STEP/IGES)", None, 45, {'wildcard': wc, }],
-              cad_fix_elp,
+              [None, None, 27, [
+               {"text": "import fixer"}, {"elp": cad_fix_elp0}]],
+              cad_fix_rescale,
               [None, True, 3, {'text': "Highest Dim Only"}],
               ["Unit", None, 0, {}],
               [None, "Unit: "", M, MM, INCH, KM, CM, FT, MIL, UM...", 2, None],
@@ -2769,7 +2766,7 @@ class CADImport(ImportBase):
     def get_panel1_value(self):
         value0 = self.get_importfix_value()
         value = [self.use_fix, value0]
-        return [None, self.cad_file, value,
+        return [None, self.cad_file, value, self.use_fix_rescale,
                 self.highestdimonly, self.import_unit, None]
 
     def preprocess_params(self, engine):
@@ -2779,8 +2776,9 @@ class CADImport(ImportBase):
         self.cad_file = str(v[1])
         self.use_fix = v[2][0]
         self.import_importfix_value(v[2][1])
-        self.highestdimonly = bool(v[3])
-        self.import_unit = v[4]
+        self.use_fix_rescale = float(v[3])
+        self.highestdimonly = bool(v[4])
+        self.import_unit = v[5]
 
     def panel1_tip(self):
         return [None, None, None]
@@ -2815,7 +2813,9 @@ class BrepImport(ImportBase):
                                  'alignright':True,
                                  'noexpand': True}, ],
               ["File(.brep)", None, 45, {'wildcard': wc, }],
-              cad_fix_elp,
+              [None, None, 27, [
+               {"text": "import fixer"}, {"elp": cad_fix_elp0}]],
+              cad_fix_rescale,
               [None, True, 3, {'text': "Highest Dim Only"}],
               ]
         return ll
@@ -2830,7 +2830,8 @@ class BrepImport(ImportBase):
     def get_panel1_value(self):
         value0 = self.get_importfix_value()
         value = [self.use_fix, value0]
-        return [None, self.cad_file, value, self.highestdimonly]
+        return [None, self.cad_file, value, self.use_fix_rescale,
+                self.highestdimonly]
 
     def preprocess_params(self, engine):
         return
@@ -2839,7 +2840,8 @@ class BrepImport(ImportBase):
         self.cad_file = str(v[1])
         self.use_fix = v[2][0]
         self.import_importfix_value(v[2][1])
-        self.highestdimonly = bool(v[3])
+        self.use_fix_rescale = float(v[3])
+        self.highestdimonly = bool(v[4])
 
     def panel1_tip(self):
         return [None, None, None]

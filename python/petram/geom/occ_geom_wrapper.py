@@ -5317,9 +5317,9 @@ class Geometry():
         return new_objs
 
     def importShape_common(self, shape, highestDimOnly,
-                           fix_param, objs):
+                           fix_param, fix_scale, objs):
 
-        from petram.geom.occ_heal_shape import heal_shape
+        from petram.geom.occ_heal_shape import heal_shape, scale_shape
 
         if fix_param is not None:
             use_fix_param = fix_param[0]
@@ -5329,7 +5329,7 @@ class Geometry():
             sewF = use_fix_param[3]
             mSol = use_fix_param[4]
             tol = fix_param[1]
-            scaling = fix_param[2]
+            scaling = fix_scale
 
             # if highestDimOnly:
             #    shape = self.select_highest_dim(shape)
@@ -5339,18 +5339,11 @@ class Geometry():
                                fixSmallEdges=fixE, fixSmallFaces=fixF,
                                sewFaces=sewF, makeSolids=mSol, tolerance=tol,
                                verbose=True)
+        elif fix_scale != 1.0:
+            shape = scale_shape(shape, fix_scale)
+        else:
+            pass
 
-            '''
-            Note: scaling does not work. OCC get stack during incremental meshing.
-
-            tmp_brep = os.path.join(self.trash, 'tmp.brep')
-            self.write_brep(tmp_brep, shape=shape)
-
-            shape = TopoDS_Shape()
-            success = breptools.Read(shape, tmp_brep, self.builder)
-            if not success:
-                assert False, "Failed to read brep"
-            '''
         if highestDimOnly:
             shape = self.select_highest_dim(shape)
         new_objs = self.register_shapes_balk(shape)
@@ -5387,7 +5380,7 @@ class Geometry():
             self.synchronize_topo_list()
 
             names, newkeys = self.importShape_common(
-                shape, True, fix_param, objs)
+                shape, True, fix_param, fix_rescale, objs)
 
             #print("names, newkeys", names, newkeys)
 
@@ -5400,10 +5393,10 @@ class Geometry():
         return list(objs), all_newkeys
 
     def BrepImport_build_geom(self, objs, *args):
-        cad_file, use_fix, use_fix_param, use_fix_tol, use_fix_rescale, highestDimOnly = args
+        cad_file, use_fix, use_fix_param, use_fix_tol, fix_rescale, highestDimOnly = args
 
         if use_fix:
-            fix_param = (use_fix_param, use_fix_tol, use_fix_rescale,)
+            fix_param = (use_fix_param, use_fix_tol, )
         else:
             fix_param = None
 
@@ -5417,7 +5410,7 @@ class Geometry():
             assert False, "Failed to read brep"
 
         breptools.Clean(shape)
-        return self.importShape_common(shape, highestDimOnly, fix_param, objs)
+        return self.importShape_common(shape, highestDimOnly, fix_param, fix_rescale, objs)
 
     def CADImport_build_geom(self, objs, *args):
         from OCC.Core.STEPControl import STEPControl_Reader
@@ -5425,10 +5418,10 @@ class Geometry():
         from OCC.Core.IFSelect import IFSelect_RetDone, IFSelect_ItemsByEntity
 
         unit = args[-1]
-        cad_file, use_fix, use_fix_param, use_fix_tol, use_fix_rescale, highestDimOnly = args[
+        cad_file, use_fix, use_fix_param, use_fix_tol, fix_rescale, highestDimOnly = args[
             :-1]
         if use_fix:
-            fix_param = (use_fix_param, use_fix_tol, use_fix_rescale,)
+            fix_param = (use_fix_param, use_fix_tol, )
         else:
             fix_param = None
 
@@ -5462,7 +5455,7 @@ class Geometry():
             assert False, "Error: can't read STEP/IGES file."
 
         breptools.Clean(shape)
-        return self.importShape_common(shape, highestDimOnly, fix_param, objs)
+        return self.importShape_common(shape, highestDimOnly, fix_param, fix_rescale, objs)
 
     def make_safe_file(self, filename, trash, ext):
         #map = self.getEntityNumberingInfo()
@@ -5491,17 +5484,27 @@ class Geometry():
             ld = self.occ_linear_deflection
 
             breptools.Clean(self.shape)
-            # BRepMesh_IncrementalMesh(self.shape, ld * adeviation,
-            #                         False, ad, self.occ_parallel)
+            BRepMesh_IncrementalMesh(self.shape, ld,
+                                     True, ad, self.occ_parallel)
+            '''
+            # this scheme does not work (for 7.9)
+            #mesher = BRepMesh_IncrementalMesh()
+            #prm = mesher.ChangeParameters()
             prm = IMeshTools_Parameters()
             prm.Deflection = ld
+            prm.DeflectionInterior = ld
             prm.Angle = ad
+            prm.AngleInterior = ad
             prm.Relative = True
-            prm.InParallel = (self.maxthreads > 1)
-            prm.MinSize = -1
-            prm.InternalVerticesMode = True
-            prm.ControlSurfaceDeflection = True
+            prm.InParallel = self.occ_parallel
+            #prm.MinSize = -1
+            #prm.InternalVerticesMode = True
+            #prm.ControlSurfaceDeflection = True
+            #prm.AdjustMinSize = True
+
             BRepMesh_IncrementalMesh(self.shape, prm)
+            mesher.Perform()
+            '''
 
         dprint1("Done (IncrementalMesh)")
 
