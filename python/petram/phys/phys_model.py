@@ -1619,12 +1619,8 @@ class PhysModule(Phys):
 
         return eval_metric_txt(txt, g, l, return_txt=return_txt)
 
+    def has_diag_form(self, kfes1, kfes2):
+        return False
 
-    def allocate_diag_forms(self, def_alloc):
-        dv1 = self.dep_vars
-        return [def_alloc]*len(dv1)
-    
-    def allocate_mixed_forms(self, phys2, def_alloc):
-        dv1 = self.dep_vars
-        dv2 = phys2.dep_vars        
-        return [def_alloc]*len(dv1)
+    def get_diag_form(self, kfes1, kfes2):
+        return None
