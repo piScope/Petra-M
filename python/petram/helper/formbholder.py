@@ -6,39 +6,33 @@
       Data strucutre to handle non-conforming block-matrix
 
 '''
-from itertools import product
-import numpy as np
 import itertools
+import weakref
 
+import numpy as np
+from itertools import product
 import petram.debug
-dprint1, dprint2, dprint3 = petram.debug.init_dprints('FromHolder')
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('FromBHolder')
 
 
-class FormBBlock2D(object):
-    def __init__(self, phys_target, phys_range, new=None, mixed_new=None, diag=None):
+class FormBBlock(object):
+    def __init__(self, phys_target, phys_range, new=None, mixed_new=None):
 
-        def __init__(self, engine, phys_target, phys_range, def_bf_alloc, def_mixed_alloc, ):
+        self.target_phys_list = sum([
+            [phys1.name()]*len(phys1.dep_vars) for phys1 in phys_target], [])
+        self.range_phys_list = sum([
+            [phys1.name()]*len(phys1.dep_vars) for phys1 in phys_range], [])
+        self.target_kfes_list = sum([list(range(len(phys1.dep_vars)))
+                                     for phys1 in phys_target], [])
+        self.range_kfes_list = sum([list(range(len(phys1.dep_vars)))
+                                    for phys1 in phys_range], [])
 
-        all_connection = {}
-
-        self.target_phys_list = [
-            [phys1]*len(phys1.dep_vars) for phys1 in phys_target]
-        self.range_phys_list = [
-            [phys1]*len(phys1.dep_vars) for phys1 in phys_range]
-        self.target_kfes_list = [list(range(len(phys1.dep_vars)))
-                                 for phys1 in phys_target]
-        self.range_kfes_list = [list(range(len(phys1.dep_vars)))
-                                for phys1 in phys_range]
-
-        shape = (len(self.target_phys_list), len(self.target_phys_list))
+        shape = (len(self.target_phys_list), len(self.range_phys_list))
 
         r, c = shape
+        self._shape = shape
+
         self.block = [[None]*c for x in range(r)]
-        self.ndim = 2
-
-        self._shape = (r, c)
-
-        self._diag = diag
         self.allocator1 = new
         if mixed_new is None:
             self.allocator2 = new
@@ -53,6 +47,7 @@ class FormBBlock2D(object):
         #   by itself.
 
         self._diag_form = weakref.WeakValueDictionary()
+        self._diag_callable = [[None]*c for x in range(r)]
 
     def __repr__(self):
 
@@ -75,8 +70,8 @@ class FormBBlock2D(object):
         return self._shape
 
     @property
-    def diag(self):
-        return self._diag
+    def diag_callable(self):
+        return self._diag_callable
 
     def set_allocator(self, alloc):
         self.allocator1 = alloc
@@ -137,22 +132,17 @@ class FormBBlock2D(object):
             if self.no_allocation and not reset:
                 pass
             else:
-                phys1 = self.target_phys_list[r]
-                phys2 = self.range_phys_list[c]
-                kfes1 = self.target_kfes_list[r]
-                kfes2 = self.range_kfes_list[c]
-
-                if phys1 == phys2 and phys1.has_diag_form(kfes1, kfes2):
-                    # special handling of physics-specidifc form
-                    #
-                    #
-                    if phsy1.name() not in self._diag_callables:
-                        form = phys1.get_diag_form(kfes1, kfes2)
-                        self._diag_form.[phsy1.name()] = [form, None]
-                    self.block[r][c][1] = self._diag_form.[phsy1.name()]
+                callable = self.diag_callable[r][c]
+                physname = self.target_phys_list[r]
+                if callable is not None:
+                    if physname not in self._diag_form:
+                        form = callable()
+                        self._diag_form[physname] = form
+                    self.block[r][c][1] = [self._diag_form[physname], None]
 
                 else:
-                    if self._diag is None or self._diag[r] == c:
+                    if (self.target_phys_list[r] == self.range_phys_list[c] and
+                            self.target_kfes_list[r] == self.range_kfes_list[c]):
                         form = self.allocator1(r)
                         self.block[r][c][1] = [form, None]
                         projector = 1
@@ -201,7 +191,8 @@ class FormBBlock2D(object):
                     dprint1("generateMatVec", i, j, form)
 
                 if form is not None:
-                    if self._diag is None or self._diag[i] == j:
+                    if (self.target_phys_list[i] == self.range_phys_list[j] and
+                            self.target_kfes_list[i] == self.range_kfes_list[j]):
                         self.set_matvec(i, j, p, converter1(form))
                     else:
                         self.set_matvec(i, j, p, converter2(form))

@@ -103,7 +103,7 @@ class Engine(object):
         self._init_done = []
         self._paraview_dc = {}
         self._visit_dc = {}
-        self._fmt_order=1
+        self._fmt_order = 1
 
         self._ppname_postfix = ''
 
@@ -217,6 +217,7 @@ class Engine(object):
         where A, B, C and D are in-physics coupling
         '''
         from petram.helper.formholder import FormBlock
+        from petram.helper.formbholder import FormBBlock
 
         self.n_matrix = n_matrix
 
@@ -237,6 +238,7 @@ class Engine(object):
             self.n_levels = self.n_levels + 1
             self._assembled_blocks.append([None]*7)
 
+        '''
         self._r_a.append([FormBlock((n_fes, n_rfes), diag=diag,
                                     new=self.alloc_bf, mixed_new=self.alloc_mbf)
                           for k in range(n_mat)])
@@ -249,6 +251,20 @@ class Engine(object):
         self._i_at.append([FormBlock((n_fes, n_rfes), diag=diag,
                                      new=self.alloc_bf, mixed_new=self.alloc_mbf)
                            for k in range(n_mat)])
+        '''
+        self._r_a.append([FormBBlock(phys_target, phys_range,
+                                     new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                          for k in range(n_mat)])
+        self._i_a.append([FormBBlock(phys_target, phys_range,
+                                     new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                          for k in range(n_mat)])
+        self._r_at.append([FormBBlock(phys_target, phys_range,
+                                      new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                           for k in range(n_mat)])
+        self._i_at.append([FormBBlock(phys_target, phys_range,
+                                      new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                           for k in range(n_mat)])
+
         self._r_x.append([FormBlock(n_rfes, new=self.alloc_gf)
                           for k in range(n_mat)])
         self._i_x.append([FormBlock(n_rfes, new=self.alloc_gf)
@@ -1544,10 +1560,39 @@ class Engine(object):
     #
     #  Step 2  fill matrix/rhs elements
     #
+    def set_bf_allocator(self, phys):
+        iiflags = [self.ifes(name) for kfes, name
+                   in enumerate(phys.dep_vars) if phys.has_diag_form(kfes)]
+        riflags = [self.r_ifes(name) for kfes, name
+                   in enumerate(phys.dep_vars) if phys.has_diag_form(kfes)]
+
+        if len(iiflags) == 0:
+            return
+
+        fes_arr = [self.fespaces[name] for name in phys.dep_vars]
+        callable = phys.get_diagform_callable(fes_arr)
+
+        print(iiflags, riflags)
+        for ifes in iiflags:
+            for rifes in riflags:
+                self.r_a.diag_callable[ifes][rifes] = callable
+                if phys.is_complex:
+                    self.i_a.diag_callable[ifes][rifes] = callable
 
     def fill_bf(self, phys, update):
-        renewargs = []
+        # (1) prepare callable for for physics specific forms (DPG, Darcy, etc)
+        # (2) check update flags (some block does not need assembly... nonlinear/time-dep.)
+        # (3) fill matrix
+        #       set integrator realimag mode
+        #       call add_bf_contribution
+        # (4) repeat (3) for imaginary
 
+        # (1)
+        #    To-Do : handling upadate
+        self.set_bf_allocator(phys)
+
+        # (2) -real
+        renewargs = []
         if update:
             # make mask to renew r_a/i_a
             mask = [False]*len(phys.dep_vars)
@@ -1577,6 +1622,7 @@ class Engine(object):
         for args in renewargs:
             self.r_a.renew(args)
 
+        # (3) -real
         for kfes, name in enumerate(phys.dep_vars):
             if not mask[kfes]:
                 continue
@@ -1599,6 +1645,7 @@ class Engine(object):
         if not is_complex:
             return
 
+        # (4) - imag
         for args in renewargs:
             self.i_a.renew(args)
 
@@ -3231,7 +3278,6 @@ class Engine(object):
 
     def build_ns(self):
 
-
         errors = []
         for node in self.model.walk():
             if node.has_ns():
@@ -4040,6 +4086,7 @@ class Engine(object):
         target = os.path.relpath(target, start)
         os.symlink(target, link)
 
+
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(SerialEngine, self).__init__(modelfile=modelfile, model=model)
@@ -4484,8 +4531,8 @@ class ParallelEngine(Engine):
             mesh_name = header+'.'+smyid
             mesh.ParPrintToFile(mesh_name, 16)
 
-            #header = 'solsermesh_' + str(k)
-            #mesh_name = header+'.mesh'
+            # header = 'solsermesh_' + str(k)
+            # mesh_name = header+'.mesh'
             # mesh.PrintAsSerial(mesh_name)
 
     def solfile_suffix(self):
@@ -4649,7 +4696,7 @@ class ParallelEngine(Engine):
         from mpi4py import MPI
         myid = MPI.COMM_WORLD.rank
         if myid == 0:
-           gen.terminate_generator()
+            gen.terminate_generator()
         else:
             pass
         MPI.COMM_WORLD.Barrier()
