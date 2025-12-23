@@ -1561,9 +1561,9 @@ class Engine(object):
     #  Step 2  fill matrix/rhs elements
     #
     def set_bf_allocator(self, phys):
-        iiflags = [self.ifes(name) for kfes, name
+        ifess = [self.ifes(name) for kfes, name
                    in enumerate(phys.dep_vars) if phys.has_diag_form(kfes)]
-        riflags = [self.r_ifes(name) for kfes, name
+        rifess = [self.r_ifes(name) for kfes, name
                    in enumerate(phys.dep_vars) if phys.has_diag_form(kfes)]
 
         if len(iiflags) == 0:
@@ -1571,13 +1571,9 @@ class Engine(object):
 
         fes_arr = [self.fespaces[name] for name in phys.dep_vars]
         callable = phys.get_diagform_callable(fes_arr)
-
-        print(iiflags, riflags)
-        for ifes in iiflags:
-            for rifes in riflags:
-                self.r_a.diag_callable[ifes][rifes] = callable
-                if phys.is_complex:
-                    self.i_a.diag_callable[ifes][rifes] = callable
+        self.r_a.diag_callable[ifess[0]][rifess[0]] = callable
+        if phys.is_complex:        
+            self.i_a.diag_callable[ifess[0]][rifess[0]] = callable        
 
     def fill_bf(self, phys, update):
         # (1) prepare callable for for physics specific forms (DPG, Darcy, etc)
