@@ -232,7 +232,7 @@ class MFEMViewer(BookViewer):
         import logging
         numba_logger = logging.getLogger('numba')
         numba_logger.setLevel(logging.WARNING)
-        #print("numba debug logging is suppressed")
+        # print("numba debug logging is suppressed")
 
     @property
     def view_mode_group(self):
@@ -1336,10 +1336,16 @@ class MFEMViewer(BookViewer):
             palette_menu.append(
                 ("Selection palette...", self.onSelectionPanel, None),)
 
-        if (self._view_mode == 'geom' and
-            self._view_mode_group.startswith('OCC') and
-                self.geom_info_palette is None):
-            palette_menu.append(("Geomtry info ...", self.onGeomInfo,  None),)
+        if (self._view_mode == 'geom' and self.geom_info_palette is None):
+            mfem_model = self.model.param.getvar('mfem_model')
+            gname = self._view_mode_group
+            sequence = mfem_model['Geometry'][gname]
+
+            from petram.geom.occ_geom_model import OCCGeom
+
+            if isinstance(sequence, OCCGeom):
+                palette_menu.append(
+                    ("Geomtry info ...", self.onGeomInfo,  None),)
 
         if len(palette_menu) > 0:
             menus.append(('---', None, None),)
