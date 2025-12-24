@@ -134,12 +134,18 @@ class FormBBlock(object):
             else:
                 callable = self.diag_callable[r][c]
                 physname = self.target_phys_list[r]
+                print(r, c, callable, physname)
                 if callable is not None:
                     if physname not in self._diag_form:
                         form = callable()
-                        self._diag_form[physname] = form
-                    self.block[r][c][1] = [self._diag_form[physname], None]
+                        if form is not None:
+                             self._diag_form[physname] = form
 
+                        print(form)
+                    if physname in self._diag_form:                             
+                        self.block[r][c][1] = [self._diag_form[physname], None]
+                    else:
+                        self.block[r][c][1] = [None, None]
                 else:
                     if (self.target_phys_list[r] == self.range_phys_list[c] and
                             self.target_kfes_list[r] == self.range_kfes_list[c]):

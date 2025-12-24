@@ -1052,7 +1052,9 @@ class Engine(object):
                        [(r, c, form) for r, c, form in self.r_at] +
                        [(r, c, form) for r, c, form in self.i_at])
 
+            print(rcforms)
             for r, c, form in rcforms:
+                print(form)
                 r1 = self.dep_var_offset(self.fes_vars[r])
                 c1 = self.r_dep_var_offset(self.r_fes_vars[c])
                 if self.mask_M[j, r1, c1]:
@@ -1570,11 +1572,11 @@ class Engine(object):
             return
 
         fes_arr = [self.fespaces[name] for name in phys.dep_vars]
-        form_callable = phys.get_diagform_callable(fes_arr)
+        form_callabler, form_callablei = phys.get_diagform_callable(fes_arr)
 
-        self.r_a.diag_callable[ifess[0]][rifess[0]] = form_callable
+        self.r_a.diag_callable[ifess[0]][rifess[0]] = form_callabler
         if phys.is_complex:
-            self.i_a.diag_callable[ifess[0]][rifess[0]] = form_callable
+            self.i_a.diag_callable[ifess[0]][rifess[0]] = form_callablei
 
     def fill_bf(self, phys, update):
         # (1) prepare callable for for physics specific forms (DPG, Darcy, etc)

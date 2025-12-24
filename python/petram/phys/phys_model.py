@@ -1621,6 +1621,13 @@ class PhysModule(Phys):
 
     def has_diag_form(self, kfes1, kfes2):
         return False
+    
+    def has_diag_form(self, kfes1, kfes2):
+        return False
 
     def get_diag_form(self, kfes1, kfes2):
-        return None
+        # return two callables
+        #   callable to create form for
+        #      1) real(or complex) part
+        #      2) imaginary part
+        return None, None
