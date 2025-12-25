@@ -235,7 +235,7 @@ class FormBBlock(object):
                             k = k + 1
                     print(self.block)
 
-                elif diag_callabl_mask:
+                elif diag_callable_mask:
                     pass
                 else:
                     if (self.target_phys_list[i] == self.range_phys_list[j] and
