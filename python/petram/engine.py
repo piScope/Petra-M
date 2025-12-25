@@ -253,16 +253,20 @@ class Engine(object):
                            for k in range(n_mat)])
         '''
         self._r_a.append([FormBBlock(phys_target, phys_range,
-                                     new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                                     new=self.alloc_bf, mixed_new=self.alloc_mbf,
+                                     converter1=self.a2A, converter2=self.a2Am)
                           for k in range(n_mat)])
         self._i_a.append([FormBBlock(phys_target, phys_range,
-                                     new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                                     new=self.alloc_bf, mixed_new=self.alloc_mbf,
+                                     converter1=self.a2A, converter2=self.a2Am)
                           for k in range(n_mat)])
         self._r_at.append([FormBBlock(phys_target, phys_range,
-                                      new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                                      new=self.alloc_bf, mixed_new=self.alloc_mbf,
+                                      converter1=self.a2A, converter2=self.a2A)
                            for k in range(n_mat)])
         self._i_at.append([FormBBlock(phys_target, phys_range,
-                                      new=self.alloc_bf, mixed_new=self.alloc_mbf)
+                                      new=self.alloc_bf, mixed_new=self.alloc_mbf,
+                                      converter1=self.a2A, converter2=self.a2A)
                            for k in range(n_mat)])
 
         self._r_x.append([FormBlock(n_rfes, new=self.alloc_gf)
@@ -1054,13 +1058,13 @@ class Engine(object):
 
             print(rcforms)
             for r, c, form in rcforms:
-                print(form)
                 r1 = self.dep_var_offset(self.fes_vars[r])
                 c1 = self.r_dep_var_offset(self.r_fes_vars[c])
                 if self.mask_M[j, r1, c1]:
                     try:
                         if form is None:
                             continue
+                        print("assembling form", form)
                         form.Assemble(0)
                     except BaseException:
                         print("failed to assemble (r, c) = ", r1, c1)
@@ -1575,10 +1579,15 @@ class Engine(object):
 
         fes_arr = [self.fespaces[name] for name in phys.dep_vars]
         form_callabler, form_callablei = phys.get_diagform_callable(fes_arr)
-
+        diagform2mat = phys.get_diagform2mat()
         self.r_a.diag_callable[ifess[0]][rifess[0]] = form_callabler
+        self.r_a.diagform2mat[ifess[0]][rifess[0]] = diagform2mat
+
+        self.r_a.set_diag_callable_mask(ifess, rifess)
         if phys.is_complex:
             self.i_a.diag_callable[ifess[0]][rifess[0]] = form_callablei
+            self.i_a.diagform2mat[ifess[0]][rifess[0]] = diagform2mat
+            self.i_a.set_diag_callable_mask(ifess, rifess)
 
     def fill_bf(self, phys, update):
         # (1) prepare callable for for physics specific forms (DPG, Darcy, etc)
@@ -2067,10 +2076,10 @@ class Engine(object):
             if not self.is_matrix_active(k):
                 continue
 
-            self.r_a.generateMatVec(self.a2A, self.a2Am)
-            self.i_a.generateMatVec(self.a2A, self.a2Am)
-            self.r_at.generateMatVec(self.a2A, self.a2Am)
-            self.i_at.generateMatVec(self.a2A, self.a2Am)
+            self.r_a.generateMatVec()
+            self.i_a.generateMatVec()
+            self.r_at.generateMatVec()
+            self.i_at.generateMatVec()
 
             for i, j in product(range(nfes), range(nrfes)):
                 r = self.dep_var_offset(self.fes_vars[i])
@@ -2224,6 +2233,8 @@ class Engine(object):
             idx1 = self.dep_var_offset(name)
             idx2 = self.r_dep_var_offset(name)
 
+            print(name, idx1, idx2)
+
             if A[idx1, idx2] is None:
                 A.add_empty_square_block(idx1, idx2)
 
@@ -2233,7 +2244,8 @@ class Engine(object):
                 # locally number or rows is zero.
                 if self.get_autofill_diag():
                     self.fill_empty_diag(A[idx1, idx2])
-
+                print(A[idx1, idx2], B[idx1])
+                print(ess_tdof1)
                 Aee, A[idx1, idx2], Bnew = A[idx1, idx2].eliminate_RowsCols(B[idx1], ess_tdof1,
                                                                             inplace=inplace,
                                                                             diagpolicy=diagpolicy)

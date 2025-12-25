@@ -1619,10 +1619,7 @@ class PhysModule(Phys):
 
         return eval_metric_txt(txt, g, l, return_txt=return_txt)
 
-    def has_diag_form(self, kfes1, kfes2):
-        return False
-    
-    def has_diag_form(self, kfes1, kfes2):
+    def has_diag_form(self, kfes1):
         return False
 
     def get_diag_form(self, kfes1, kfes2):

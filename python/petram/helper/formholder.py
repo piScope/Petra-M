@@ -216,15 +216,24 @@ def convertElement(Mreal, Mimag, i, j, converter, projections=None):
 
     term = None
     for k in keys:
+        args = []
         if Mreal.block[i][j] is not None:
             rmatvec = Mreal.block[i][j][k][1] if k in Mreal.block[i][j] else None
         else:
             rmatvec = None
-        if Mimag.block[i][j] is not None:
-            imatvec = Mimag.block[i][j][k][1] if k in Mimag.block[i][j] else None
+            
+        if isinstance(rmatvec, tuple): # if real part contains both real and imaginary
+            args = rmatvec
         else:
-            imatvec = None
-        m = converter(rmatvec, imatvec)
+            if Mimag.block[i][j] is not None:
+               imatvec = Mimag.block[i][j][k][1] if k in Mimag.block[i][j] else None
+            else:
+                imatvec = None
+            args = (rmatvec, imatvec)
+
+        print(i, j, args)
+        m = converter(*args)
+        print(m)
         if k != 1:
             pos, projector = k
             projections, projections_hash = projections
