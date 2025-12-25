@@ -1059,6 +1059,8 @@ class Engine(object):
                 c1 = self.r_dep_var_offset(self.r_fes_vars[c])
                 if self.mask_M[j, r1, c1]:
                     try:
+                        if form is None:
+                            continue
                         form.Assemble(0)
                     except BaseException:
                         print("failed to assemble (r, c) = ", r1, c1)
