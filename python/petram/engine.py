@@ -1056,7 +1056,6 @@ class Engine(object):
                        [(r, c, form) for r, c, form in self.r_at] +
                        [(r, c, form) for r, c, form in self.i_at])
 
-            print(rcforms)
             for r, c, form in rcforms:
                 r1 = self.dep_var_offset(self.fes_vars[r])
                 c1 = self.r_dep_var_offset(self.r_fes_vars[c])
@@ -1064,7 +1063,6 @@ class Engine(object):
                     try:
                         if form is None:
                             continue
-                        print("assembling form", form)
                         form.Assemble(0)
                     except BaseException:
                         print("failed to assemble (r, c) = ", r1, c1)
@@ -2233,8 +2231,6 @@ class Engine(object):
             idx1 = self.dep_var_offset(name)
             idx2 = self.r_dep_var_offset(name)
 
-            print(name, idx1, idx2)
-
             if A[idx1, idx2] is None:
                 A.add_empty_square_block(idx1, idx2)
 
@@ -2244,8 +2240,6 @@ class Engine(object):
                 # locally number or rows is zero.
                 if self.get_autofill_diag():
                     self.fill_empty_diag(A[idx1, idx2])
-                print(A[idx1, idx2], B[idx1])
-                print(ess_tdof1)
                 Aee, A[idx1, idx2], Bnew = A[idx1, idx2].eliminate_RowsCols(B[idx1], ess_tdof1,
                                                                             inplace=inplace,
                                                                             diagpolicy=diagpolicy)
@@ -3097,7 +3091,7 @@ class Engine(object):
             else:
                 pass
             emesh_idx = phys.emesh_idx
-            order = phys.fes_order(count)
+            order = phys.fec_order(count)
 
             if elem.startswith('RT'):
                 vdim = 1

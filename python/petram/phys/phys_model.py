@@ -1263,7 +1263,7 @@ class PhysModule(Phys):
         RT
         '''
 
-    def fes_order(self, idx):
+    def fec_order(self, idx):
         self.vt_order.preprocess_params(self)
         return self.order
 

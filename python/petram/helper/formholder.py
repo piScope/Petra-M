@@ -231,9 +231,8 @@ def convertElement(Mreal, Mimag, i, j, converter, projections=None):
                 imatvec = None
             args = (rmatvec, imatvec)
 
-        print(i, j, args)
         m = converter(*args)
-        print(m)
+
         if k != 1:
             pos, projector = k
             projections, projections_hash = projections

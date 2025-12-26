@@ -99,12 +99,12 @@ def find_fes_mapping(phys1, fes_idx1, phys2, fes_idx2):
     fec_type1 = phys1.get_fec_type(fes_idx1)
     dim1 = phys1.dim
     sdim1 = phys1.geom_dim
-    order1 = phys1.fes_order(fes_idx1)
+    order1 = phys1.fec_order(fes_idx1)
 
     fec_type2 = phys2.get_fec_type(fes_idx2)
     dim2 = phys2.dim
     sdim2 = phys2.geom_dim
-    order2 = phys2.fes_order(fes_idx2)
+    order2 = phys2.fec_order(fes_idx2)
 
     if emesh1 == emesh2:
         return fec_type1, order1
