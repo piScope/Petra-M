@@ -1,4 +1,4 @@
-from __future__ import print_function
+from petram.helper.gf_allocator import GF_allocator
 from petram.helper.matrix_file import write_coo_matrix, write_vector
 
 import sys
@@ -26,6 +26,7 @@ from petram.model import Domain, Bdry, Point, Pair
 
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('Engine')
+
 
 # if you need to turn a specific warning to exception
 # import scipy.sparse
@@ -89,6 +90,7 @@ class Engine(object):
         self.max_attr = -1
         self.sol_extra = None
         self.sol = None
+        self.gf_allocator = {}  # memory block for x
 
         self._r_x_old = {}
         self._i_x_old = {}
@@ -104,6 +106,7 @@ class Engine(object):
         self._paraview_dc = {}
         self._visit_dc = {}
         self._fmt_order = 1
+
 
         self._ppname_postfix = ''
 
@@ -1353,17 +1356,23 @@ class Engine(object):
         self.get_essential_bdr_pnt_tdofs(phys, flags)
 
         # this loop alloates GridFunctions
+        is_complex = phys.is_complex()
+
         for j in range(self.n_matrix):
             self.access_idx = j
             if not self.is_matrix_active(j):
                 continue
 
-            is_complex = phys.is_complex()
+            self.gf_allocator[(phys.name(), j)] = GF_allocator()
+            self._gfa = self.gf_allocator[(phys.name(), j)]
             for n in phys.dep_vars:
                 r_ifes = self.r_ifes(n)
                 void = self.r_x[r_ifes]
-                if is_complex:
+            if is_complex:
+                for n in phys.dep_vars:
+                    r_ifes = self.r_ifes(n)
                     void = self.i_x[r_ifes]
+            self._gfa.allocate()
 
     #
     #  Step 1  set essential and initial values to the solution vector.
@@ -3181,7 +3190,11 @@ class Engine(object):
     def alloc_gf(self, idx, idx2=0):
         fes = self.fespaces[self.r_fes_vars[idx]]
         self._fmt_order = max(self._fmt_order, fes.GetMaxElementOrder())
-        return self.new_gf(fes)
+
+        gf = self.new_gf(fes, noalloc=True)
+        self._gfa.register(fes, gf)
+
+        return gf
 
     def alloc_lf(self, idx, idx2=0):
         name = self.fes_vars[idx]
@@ -4122,15 +4135,13 @@ class SerialEngine(Engine):
         bf._finalized = False
         return bf
 
-    def new_gf(self, fes, init=True, gf=None):
-        if gf is None:
-            gf = mfem.GridFunction(fes)
+    def new_gf(self, fes, init=True, noalloc=False):
+        if noalloc:
+            gf = mfem.GridFunction()
         else:
-            assert False, "I don't think this is used..."
-            gf = mfem.GridFunction(gf.FESpace())
-
-        if init:
-            gf.Assign(0.0)
+            gf = mfem.GridFunction(fes)
+            if init:
+                gf.Assign(0.0)
 
         idx = self.fespaces.get_fes_emesh_idx(fes)
         if idx is not None:
@@ -4453,14 +4464,13 @@ class ParallelEngine(Engine):
         bf._finalized = False
         return bf
 
-    def new_gf(self, fes, init=True, gf=None):
-        if gf is None:
-            gf = mfem.ParGridFunction(fes)
+    def new_gf(self, fes, init=True, noalloc=False):
+        if noalloc:
+            gf = mfem.ParGridFunction()
         else:
-            assert False, "I don't think this is used..."
-            gf = mfem.ParGridFunction(gf.ParFESpace())
-        if init:
-            gf.Assign(0.0)
+            gf = mfem.ParGridFunction(fes)
+            if init:
+                gf.Assign(0.0)
 
         idx = self.fespaces.get_fes_emesh_idx(fes)
         if idx is not None:
