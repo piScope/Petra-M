@@ -877,7 +877,7 @@ class Engine(object):
     #
     #  collect form info
     #
-    def collect_form_info(self, phys_target):
+    def collect_diagform_info(self, phys_target):
 
         self.form_info = {}
         
@@ -890,24 +890,24 @@ class Engine(object):
                       in enumerate(phys.dep_vars) if phys.has_diagform(kfes)]
 
             if len(ifess) == 0:
-                return
+                continue
 
             fes_arr = [self.fespaces[name] for name in phys.dep_vars]
             form_callabler, form_callablei = phys.get_diagform_callable(fes_arr)
 
-            #x = self.gf_allocator[(self.access_idx, phys.name())]
-            diagform2mat = phys.get_diagform2mat()
-
             self.r_a.diag_callable[ifess[0]][rifess[0]] = form_callabler
-            #self.r_a.diagform2mat[ifess[0]][rifess[0]] = diagform2mat
 
             self.r_a.set_diag_callable_mask(ifess, rifess)
+            self.r_x.set_diag_callable_mask(rifess)
+            self.r_b.set_diag_callable_mask(ifess)            
+            
             if phys.is_complex:
                 self.i_a.diag_callable[ifess[0]][rifess[0]] = form_callablei
-                #self.i_a.diagform2mat[ifess[0]][rifess[0]] = diagform2mat
                 self.i_a.set_diag_callable_mask(ifess, rifess)
+                self.i_x.set_diag_callable_mask(rifess)
+                self.i_b.set_diag_callable_mask(ifess)            
 
-            self.form_info[phys.name()] = (ifess, rifess, depvars, diagform2mat)
+            self.form_info[phys.name()] = (phys, ifess, rifess, depvars)
 
     @property
     def isInitialized(self):
@@ -1265,24 +1265,37 @@ class Engine(object):
                 continue
         
             for physname in self.form_info:
-               ifess, rifess, depvars, diagform2mat = self.form_info[physname]
-               vsize_offset = np.cumsum([0] +
-                                        [self.fespaces[name].GetTrueVSize)
-                                         for name in depvars])
-               ess_tdofs = []
-               for k, depvar in enumerate(depvars):
-                   tdof1 = self.ess_tdofs[depvar][0]
-                   print(type(self.ess_tdofs[depvar][0]))
-                   print(vsize_offset[k])
-                   ess_tdofs.append(tdof1 + vsize_offset[k])
-               ess_tdofs = mfem.intArray(list(np.hstack(ess_tdofs)))
+                phys, ifess, rifess, depvars = self.form_info[physname]
 
-               a = self.r_a
-               x = self.gf_allocator[(self.access_idx, physname)]               
-               M_subblock, X_subblock, B_subblock = converter(ess_tdof_list, self.r_a,  x)
-               a.set_MatVec_from_subblock(ifess[0], rifess[0], mats)
-               print(ess_tdofs)
-               print(phys, ifess, rifess, diagform2mat)
+                # build ess_tdofs
+                vsize_offset = np.cumsum([0] +
+                                         [self.fespaces[name].GetTrueVSize()
+                                          for name in depvars])
+                ess_tdofs = []
+                for k, depvar in enumerate(depvars):
+                    tdof1 = self.ess_tdofs[depvar][0]
+                    if len(tdof1) == 0:
+                        continue
+                    ess_tdofs.append(tdof1 + vsize_offset[k])
+                ess_tdofs = list(np.hstack(ess_tdofs))
+                ess_tdofs = mfem.intArray(ess_tdofs)
+
+                a = self.r_a[ifess[0], rifess[0]]
+                x = self.gf_allocator[(self.access_idx, physname)].blockvector
+                Ah, XX, BB = phys.diag_formlinearsystem(ess_tdofs, a,  x)
+                if phys.is_complex:
+                    mblk, xblk, bblk = phys.split_AhXB_complex(Ah, XX, BB)
+                    self.r_a.set_mat_from_blk(ifess[0], rifess[0], Ah, mblk[0])
+                    self.r_x.set_vec_from_blk(rifess[0], XX, xblk[0])
+                    self.r_b.set_vec_from_blk(ifess[0], BB, bblk[0]) 
+                    self.i_a.set_mat_from_blk(ifess[0], rifess[0], Ah, mblk[1])
+                    self.i_x.set_vec_from_blk(rifess[0], XX, xblk[1])
+                    self.i_b.set_vec_from_blk(ifess[0], BB, bblk[1]) 
+                else:
+                    mblk, xblk, bblk = phys.split_AhXB_real(Ah, XX, BB)
+                    self.r_a.set_mat_from_blk(ifess[0], rifess[0], Ah, mblk)
+                    self.r_x.set_vec_from_blk(rifess[0], XX, xblk)
+                    self.r_b.set_vec_from_blk(ifess[0], BB, bblk)
 
         #
         #  fill general forms (Bilinearform, Linearfomr)
@@ -1364,7 +1377,7 @@ class Engine(object):
             self.eliminateBC_vec(MM)
             RHS = compute_rhs(MM, B, X)
 
-        RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
+        # RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
         # A and RHS is modifedy by global DoF coupling P
         A, RHS = self.apply_interp(A, RHS)
 

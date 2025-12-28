@@ -36,7 +36,7 @@ class GF_allocator():
         self._memory = x
 
     @property
-    def x(self):
+    def blockvector(self):
         return self._memory
     
     

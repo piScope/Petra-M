@@ -1619,12 +1619,32 @@ class PhysModule(Phys):
 
         return eval_metric_txt(txt, g, l, return_txt=return_txt)
 
-    def has_diag_form(self, kfes1):
+    #
+    #  support physics-specific forms
+    #
+    def has_diagform(self, kfes1):
         return False
 
-    def get_diag_form(self, kfes1, kfes2):
-        # return two callables
-        #   callable to create form for
-        #      1) real(or complex) part
-        #      2) imaginary part
-        return None, None
+    def diag_formlinearsystem(self,ess_tdof_list, a,  x):
+        Ah = mfem.OperatorPtr()
+        X = mfem.BlockVector()
+        B = mfem.BlockVector()
+        print("calling FormLinearSystem for ", a)
+        a.FormLinearSystem(ess_tdof_list, x, Ah, X, B)
+
+        return Ah, X, B
+
+    def split_AhXB_complex(self, Ah, X, B):
+        #  split Ah, X, B in a blkformat
+        #  returns (mblk_r, mblk_i), (xblk_r, xblk_i), (bblk_r, bblk_i)
+        raise NotImplementedError(
+            "you must specify this method in subclass")
+    
+    def split_AhXB_real(self, Ah, X, B):
+        #  split Ah, X, B in a blkformat
+        #  returns mblk_r, xblk_r, bblk_r
+        raise NotImplementedError(
+            "you must specify this method in subclass")
+
+    
+                              
