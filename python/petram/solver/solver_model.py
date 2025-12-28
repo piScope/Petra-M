@@ -484,8 +484,8 @@ class SolveStep(SolverBase):
             engine.run_mesh_extension(p)
 
         engine.run_alloc_sol(phys_range)
-
-#        engine.run_fill_X_block()
+        
+        engine.collect_form_info(phys_target)
 
     def init(self, engine):
         phys_target = self.get_phys()

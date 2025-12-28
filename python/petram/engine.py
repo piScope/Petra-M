@@ -772,6 +772,7 @@ class Engine(object):
             error, txt, long_txt = mm.verify_setting()
             assert error, mm.fullname() + ":" + long_txt
 
+    #
     #  mesh manipulation
     #
 
@@ -836,7 +837,7 @@ class Engine(object):
         dprint1(phys.name() + ":  emesh index =", idx)
 
     #
-    #  assembly
+    #  allocate sol memory/object
     #
     def run_alloc_sol(self, phys_target=None):
         '''
@@ -872,6 +873,41 @@ class Engine(object):
 
         for phys in phys_target:
             self.alloc_flag[phys.name()] = True
+            
+    #
+    #  collect form info
+    #
+    def collect_form_info(self, phys_target):
+
+        self.form_info = {}
+        
+        for phys in phys_target:
+            ifess = [self.ifes(name) for kfes, name
+                     in enumerate(phys.dep_vars) if phys.has_diagform(kfes)]
+            rifess = [self.r_ifes(name) for kfes, name
+                      in enumerate(phys.dep_vars) if phys.has_diagform(kfes)]
+            depvars =[name for kfes, name
+                      in enumerate(phys.dep_vars) if phys.has_diagform(kfes)]
+
+            if len(ifess) == 0:
+                return
+
+            fes_arr = [self.fespaces[name] for name in phys.dep_vars]
+            form_callabler, form_callablei = phys.get_diagform_callable(fes_arr)
+
+            #x = self.gf_allocator[(self.access_idx, phys.name())]
+            diagform2mat = phys.get_diagform2mat()
+
+            self.r_a.diag_callable[ifess[0]][rifess[0]] = form_callabler
+            #self.r_a.diagform2mat[ifess[0]][rifess[0]] = diagform2mat
+
+            self.r_a.set_diag_callable_mask(ifess, rifess)
+            if phys.is_complex:
+                self.i_a.diag_callable[ifess[0]][rifess[0]] = form_callablei
+                #self.i_a.diagform2mat[ifess[0]][rifess[0]] = diagform2mat
+                self.i_a.set_diag_callable_mask(ifess, rifess)
+
+            self.form_info[phys.name()] = (ifess, rifess, depvars, diagform2mat)
 
     @property
     def isInitialized(self):
@@ -1197,13 +1233,75 @@ class Engine(object):
 
         return np.any(self.mask_B)
 
+    #
+    #   routines to assemble blocks
+    #
+    #  (1) run_assemble_MBX_blocks  :
+    #  (2) run_fill_X_block : fill X
+    #  (3) run_assemble_blocks : fill M anc B then eliminate essential
+    #  (4) run_assemble_blocks_egn : (3) but for eigen solver
+    #  (5) run_update_B_blocks : update B block alone (not used)
+    
+    def run_assemble_MBX_blocks(self, compute_A, compute_rhs,
+                                inplace=True, update=False,
+                                compute_rhs0=None):
+        if update:
+            M = self.assembled_blocks[5]
+            B = self.assembled_blocks[4]
+            X = self.assembled_blocks[1]
+            Ae = self.assembled_blocks[3]
+            A = self.assembled_blocks[0]
+        else:
+            M, B = self.prepare_M_B_blocks()
+            X = self.prepare_X_block()            
+            Ae = None
+            A = None
+        #
+        #  fill physics-specialized form
+        #
+        for k in range(self.n_matrix):
+            self.access_idx = k
+            if not self.is_matrix_active(k):
+                continue
+        
+            for physname in self.form_info:
+               ifess, rifess, depvars, diagform2mat = self.form_info[physname]
+               vsize_offset = np.cumsum([0] +
+                                        [self.fespaces[name].GetTrueVSize)
+                                         for name in depvars])
+               ess_tdofs = []
+               for k, depvar in enumerate(depvars):
+                   tdof1 = self.ess_tdofs[depvar][0]
+                   print(type(self.ess_tdofs[depvar][0]))
+                   print(vsize_offset[k])
+                   ess_tdofs.append(tdof1 + vsize_offset[k])
+               ess_tdofs = mfem.intArray(list(np.hstack(ess_tdofs)))
+
+               a = self.r_a
+               x = self.gf_allocator[(self.access_idx, physname)]               
+               M_subblock, X_subblock, B_subblock = converter(ess_tdof_list, self.r_a,  x)
+               a.set_MatVec_from_subblock(ifess[0], rifess[0], mats)
+               print(ess_tdofs)
+               print(phys, ifess, rifess, diagform2mat)
+
+        #
+        #  fill general forms (Bilinearform, Linearfomr)
+        #
+        self.fill_X_block(X)
+        self.assembled_blocks[1] = X
+        _blocks, M_changed = self.do_assemble_blocks(M, B, X, Ae, A,
+                                                     compute_A,compute_rhs,
+                                                     inplace, update, compute_rhs0)
+    
+        return _blocks, M_changed
+    
     def run_fill_X_block(self, update=False):
         if update:
             X = self.assembled_blocks[1]
         else:
             X = self.prepare_X_block()
 
-        X = self.fill_X_block(X)
+        self.fill_X_block(X)
         self.assembled_blocks[1] = X
 
     def run_assemble_blocks(self, compute_A, compute_rhs,
@@ -1228,6 +1326,16 @@ class Engine(object):
             M, B = self.prepare_M_B_blocks()
             X = self.assembled_blocks[1]
             Ae = None
+            A = None
+
+        _blocks, M_changed = self.do_assemble_blocks(M, B, X, Ae, A,
+                                                     compute_A,compute_rhs,
+                                                     inplace, update, compute_rhs0)
+
+        return _blocks, M_changed
+    
+    def do_assemble_blocks(self, M, B, X, Ae, A,
+                           compute_A, compute_rhs, inplace, update, compute_rhs0):
 
         M, B, M_changed = self.fill_M_B_blocks(M, B, update=update)
 
@@ -1363,8 +1471,8 @@ class Engine(object):
             if not self.is_matrix_active(j):
                 continue
 
-            self.gf_allocator[(phys.name(), j)] = GF_allocator()
-            self._gfa = self.gf_allocator[(phys.name(), j)]
+            self.gf_allocator[(j, phys.name())] = GF_allocator()
+            self._gfa = self.gf_allocator[(j, phys.name())]
             for n in phys.dep_vars:
                 r_ifes = self.r_ifes(n)
                 void = self.r_x[r_ifes]
@@ -1575,40 +1683,15 @@ class Engine(object):
     #
     #  Step 2  fill matrix/rhs elements
     #
-    def set_bf_allocator(self, phys):
-        ifess = [self.ifes(name) for kfes, name
-                 in enumerate(phys.dep_vars) if phys.has_diag_form(kfes)]
-        rifess = [self.r_ifes(name) for kfes, name
-                  in enumerate(phys.dep_vars) if phys.has_diag_form(kfes)]
-
-        if len(ifess) == 0:
-            return
-
-        fes_arr = [self.fespaces[name] for name in phys.dep_vars]
-        form_callabler, form_callablei = phys.get_diagform_callable(fes_arr)
-        diagform2mat = phys.get_diagform2mat()
-        self.r_a.diag_callable[ifess[0]][rifess[0]] = form_callabler
-        self.r_a.diagform2mat[ifess[0]][rifess[0]] = diagform2mat
-
-        self.r_a.set_diag_callable_mask(ifess, rifess)
-        if phys.is_complex:
-            self.i_a.diag_callable[ifess[0]][rifess[0]] = form_callablei
-            self.i_a.diagform2mat[ifess[0]][rifess[0]] = diagform2mat
-            self.i_a.set_diag_callable_mask(ifess, rifess)
 
     def fill_bf(self, phys, update):
-        # (1) prepare callable for for physics specific forms (DPG, Darcy, etc)
-        # (2) check update flags (some block does not need assembly... nonlinear/time-dep.)
-        # (3) fill matrix
+        # (1) check update flags (some block does not need assembly... nonlinear/time-dep.)
+        # (2) fill matrix
         #       set integrator realimag mode
         #       call add_bf_contribution
-        # (4) repeat (3) for imaginary
+        # (3) repeat (3) for imaginary
 
-        # (1)
-        #    To-Do : handling upadate
-        self.set_bf_allocator(phys)
-
-        # (2) -real
+        # (1) - check update flag
         renewargs = []
         if update:
             # make mask to renew r_a/i_a
@@ -1639,7 +1722,7 @@ class Engine(object):
         for args in renewargs:
             self.r_a.renew(args)
 
-        # (3) -real
+        # (2) -real
         for kfes, name in enumerate(phys.dep_vars):
             if not mask[kfes]:
                 continue
@@ -1662,7 +1745,7 @@ class Engine(object):
         if not is_complex:
             return
 
-        # (4) - imag
+        # (3) - imag
         for args in renewargs:
             self.i_a.renew(args)
 
@@ -2108,6 +2191,11 @@ class Engine(object):
                 if m2 is not None:
                     m2t = m2.transpose()
                     M[k][c, r] = m2t if M[k][c, r] is None else M[k][c, r] + m2t
+                                                                    
+        for k in range(self.n_matrix):
+            self.access_idx = k
+            if not self.is_matrix_active(k):
+                continue
 
             for extra_name, dep_name, kfes in self.extras.keys():
                 r = self.dep_var_offset(extra_name)
@@ -2178,7 +2266,6 @@ class Engine(object):
                                i, 0, MfemVec2PyVec)
             B[r] = v
 
-        self.access_idx = 0
         for extra_name, dep_name, kfes in self.extras.keys():
             r = self.dep_var_offset(extra_name)
             if update and not self.mask_B[r]:
@@ -2204,22 +2291,34 @@ class Engine(object):
                 r = self.r_dep_var_offset(dep_var)
                 if not self.mask_X[k, r]:
                     continue
+                if not self.r_isFESvar(dep_var):
+                    continue
 
                 if self.r_isFESvar(dep_var):
                     i = self.r_ifes(dep_var)
                     v = convertElement(self.r_x, self.i_x,
                                        i, 0, MfemVec2PyVec)
                     X[k][r] = v
+                                                                    
+        for k in range(self.n_matrix):
+            self.access_idx = k
+            if not self.is_matrix_active(k):
+                continue
+            for dep_var in self.r_dep_vars:
+                r = self.r_dep_var_offset(dep_var)
+                if not self.mask_X[k, r]:
+                    continue
+                if self.r_isFESvar(dep_var):
+                    continue
+                if self.sol_extra is not None:
+                    for key in self.sol_extra:
+                        if dep_var in self.sol_extra[key]:
+                            value = self.sol_extra[key][dep_var]
+                            X[k][r] = Array2PyVec(value)
                 else:
-                    if self.sol_extra is not None:
-                        for key in self.sol_extra:
-                            if dep_var in self.sol_extra[key]:
-                                value = self.sol_extra[key][dep_var]
-                                X[k][r] = Array2PyVec(value)
-                    else:
-                        pass
-                        # For now, it leaves as None for Lagrange Multipler?
-                        # May need to allocate zeros...
+                    pass
+                    # For now, it leaves as None for Lagrange Multipler?
+                    # May need to allocate zeros...
         return X
 
     def fill_BCeliminate_matrix(self, A, B, inplace=True, update=False):

@@ -238,12 +238,12 @@ class StandardSolver(SolverInstance):
         B_updated = engine.run_assemble_b(phys_target, update=update)
 
         engine.run_apply_essential(phys_target, phys_range, update=update)
-        engine.run_fill_X_block(update=update)
 
-        _blocks, M_changed = self.engine.run_assemble_blocks(self.compute_A,
-                                                             self.compute_rhs,
-                                                             inplace=inplace,
-                                                             update=update,)
+        
+        _blocks, M_changed = self.engine.run_assemble_MBX_blocks(self.compute_A,
+                                                                 self.compute_rhs,
+                                                                 inplace=inplace,
+                                                                 update=update,)
         # A, X, RHS, Ae, B, M, names = blocks
         self.assembled = True
         return M_changed
