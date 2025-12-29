@@ -38,7 +38,7 @@ def split_AhXB_complex_mode1(Ah, X, B):
             if i == 0:
                 size.append(blkr.Width())
 
-    tdof_offsets = mfem.intArray(size+size)
+    tdof_offsets = mfem.intArray([0]+size+size)
     tdof_offsets.PartialSum()
     B.Update(tdof_offsets)
     X.Update(tdof_offsets)
@@ -55,4 +55,4 @@ def split_AhXB_complex_mode1(Ah, X, B):
         xr.append(X.GetBlock(i))
         xi.append(X.GetBlock(i+num_blocks))
 
-    return (matr, mati), (br, bi), (xr, xi)
+    return (matr, mati), (xr, xi), (br, bi)

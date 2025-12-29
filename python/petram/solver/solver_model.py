@@ -508,7 +508,9 @@ class SolveStep(SolverBase):
         '''
         # use get_phys to apply essential to all phys in solvestep
         engine.run_apply_essential(phys_target, phys_range)
-        engine.run_fill_X_block()
+
+        # Do I need this? 
+        # engine.run_fill_X_block()
 
     @debug.use_profiler
     def run(self, engine, is_first=True):

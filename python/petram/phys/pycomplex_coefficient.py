@@ -10,6 +10,7 @@ import abc
 from abc import ABC, abstractmethod
 
 from numpy.linalg import inv, det
+from numpy import conj
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -418,10 +419,20 @@ class PyComplexConstant(PyComplexConstantBase):
     def get_imag_coefficient(self):
         return PhysConstant(self.value.imag)
 
+    def conj(self):
+        return PyComplexConstant(conj(self.value))
+
     def __pow__(self, exponent):
         return PyComplexConstant((self.value)**exponent)
 
     def __mul__(self, scale):
+        if isinstance(scale, PyComplexConstant):
+            scale = scale.value
+        elif isinstance(scale, PyComplexVectorConstant):
+            return PyComplexVectorConstant(scale*self.value)
+        elif isinstance(scale, PyComplexMatrixConstant):
+            return PyComplexMatrixConstant(scale*self.value)
+
         return PyComplexConstant((self.value)*scale)
 
     def __add__(self, other):
@@ -451,7 +462,12 @@ class PyComplexVectorConstant(PyComplexConstantBase):
     def get_imag_coefficient(self):
         return PhysVectorConstant(self.value.imag)
 
+    def conj(self):
+        return PyComplexVectorConstant(conj(self.value))
+
     def __mul__(self, scale):
+        if isinstance(scale, PyComplexConstant):
+            scale = scale.value
         return PyComplexVectorConstant((self.value)*scale)
 
     def __add__(self, other):
@@ -499,7 +515,12 @@ class PyComplexMatrixConstant(RealImagCoefficientGen):
         else:
             return self.get_imag_coefficient()
 
+    def conj(self):
+        return PyComplexMatrixConstant(conj(self.value))
+
     def __mul__(self, scale):
+        if isinstance(scale, PyComplexMatrixConstant):
+            scale = scale.value
         return PyComplexMatrixConstant((self.value)*scale)
 
     def __add__(self, other):

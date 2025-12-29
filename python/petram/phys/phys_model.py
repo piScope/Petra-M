@@ -19,7 +19,7 @@ from petram.model import Model, Bdry, Domain
 from petram.namespace_mixin import NS_mixin
 
 import petram.debug as debug
-dprint1, dprint2, dprint3 = debug.init_dprints('Phys')
+dprint1, dprint2, dprint3 = debug.init_dprints('PhysModel')
 
 if use_parallel:
     import mfem.par as mfem
@@ -1629,7 +1629,7 @@ class PhysModule(Phys):
         Ah = mfem.OperatorPtr()
         X = mfem.BlockVector()
         B = mfem.BlockVector()
-        print("calling FormLinearSystem for ", a)
+        dprint1("calling FormLinearSystem for ", a)
         a.FormLinearSystem(ess_tdof_list, x, Ah, X, B)
 
         return Ah, X, B

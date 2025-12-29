@@ -1377,7 +1377,7 @@ class Engine(object):
             self.eliminateBC_vec(MM)
             RHS = compute_rhs(MM, B, X)
 
-        # RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
+        RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
         # A and RHS is modifedy by global DoF coupling P
         A, RHS = self.apply_interp(A, RHS)
 
@@ -1751,7 +1751,6 @@ class Engine(object):
                     continue
                 proj = mm.get_projection()
                 ra = self.r_a[ifes, rifes, proj]
-
                 mm.set_integrator_realimag_mode(True)
                 mm.add_bf_contribution(self, ra, real=True, kfes=kfes)
 
