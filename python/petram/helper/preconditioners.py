@@ -1,6 +1,6 @@
 
 '''
-   Copyright (c) 2018, S. Shiraiwa  
+   Copyright (c) 2018, S. Shiraiwa
    All Rights reserved. See file COPYRIGHT for details.
 
    Precondirioners
@@ -23,7 +23,7 @@
    # gui says.... D(*args, **kwargs)
 
    # code in iterative_model
-   expr = self.gui.adv_prc  # expr: expression to create a generator. 
+   expr = self.gui.adv_prc  # expr: expression to create a generator.
                             # (example) expr = "D('A1')"
    gen = eval(expr, self.gui._global_ns)
    gen.set_param(opr, engine, gui)
@@ -33,7 +33,7 @@
    def D(prc, g, *args, **kwargs):
        # first two argments are mandatory
        # prc: preconditioner such as mfem.BlockDiagonalPreconditioner
-       # g  : preconditioner generator, which can be used to 
+       # g  : preconditioner generator, which can be used to
        #      access operator, gui, engine,,,,
 
        ams.set_param(g, "A1")
@@ -62,7 +62,7 @@
 
    @S.Mult
    def S.Mult(prc, x, y):
-       tmpy = mfem.Vector(); 
+       tmpy = mfem.Vector();
        prc._prc1.Mult(x, tmpy)
        prc._prc2.Mult(tmpy, y)
 
@@ -534,12 +534,28 @@ def ams(singular=False, **kwargs):
     col = prc.get_col_by_name(blockname)
     mat = prc.get_operator_block(row, col)
     fes = prc.get_test_fespace(blockname)
-    inv_ams = mfem.HypreAMS(mat, fes)
+
+    if isinstance(mat, mfem.ComplexOperator):
+        hermitian = (mat.GetConvention() == mfem.ComplexOperator.HERMITIAN)
+        inv_ams = mfem.HypreAMS(mat.real(), fes)
+        blk = mfem.ComplexOperator(inv_ams,
+                                   None,
+                                   False,
+                                   False,
+                                   bool(hermitian))
+        blk._linked_obj = inv_ams
+
+    else:
+        inv_ams = mfem.HypreAMS(mat, fes)
+        blk = inv_ams
+
     if singular:
-        inv_ams.SetSingularProblem()
+       inv_ams.SetSingularProblem()
     inv_ams.SetPrintLevel(print_level)
     inv_ams.iterative_mode = False
-    return inv_ams
+
+
+    return blk
 
 
 @prc.block

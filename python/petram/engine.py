@@ -108,7 +108,6 @@ class Engine(object):
         self._visit_dc = {}
         self._fmt_order = 1
 
-
         self._ppname_postfix = ''
 
     def show_variables(self, show_hidden=True):
@@ -873,14 +872,15 @@ class Engine(object):
                      in enumerate(phys.dep_vars) if phys.has_diagform(kfes)]
             rifess = [self.r_ifes(name) for kfes, name
                       in enumerate(phys.dep_vars) if phys.has_diagform(kfes)]
-            depvars =[name for kfes, name
-                      in enumerate(phys.dep_vars) if phys.has_diagform(kfes)]
+            depvars = [name for kfes, name
+                       in enumerate(phys.dep_vars) if phys.has_diagform(kfes)]
 
             if len(ifess) == 0:
                 continue
 
             fes_arr = [self.fespaces[name] for name in phys.dep_vars]
-            form_callabler, form_callablei = phys.get_diagform_callable(fes_arr)
+            form_callabler, form_callablei = phys.get_diagform_callable(
+                fes_arr)
 
             self.r_a.diag_callable[ifess[0]][rifess[0]] = form_callabler
 
@@ -1041,8 +1041,7 @@ class Engine(object):
                 self.apply_essential(phys, update=update)
 
     def run_assemble_mat(self, phys_target, phys_range, update=False):
-        # for phys in phys_target:
-        #    self.gather_essential_tdof(phys)
+        dprint1("Assembling BilinearForms")
 
         R = len(self.dep_vars)
         C = len(self.r_dep_vars)
@@ -1180,6 +1179,7 @@ class Engine(object):
         root node at the end of each assembly process. When
         other solve is added, this must be taken care.
         '''
+        dprint1("Assembling LinearForms")
         L = len(self.dep_vars)
         self.mask_B = np.array([not update]*L)
 
@@ -1246,7 +1246,7 @@ class Engine(object):
         #
         #  fill physics-specialized form
         #
-        self.X_alloc  = {}
+        self.X_alloc = {}
         for k in range(self.n_matrix):
             self.access_idx = k
             if not self.is_matrix_active(k):
@@ -1292,7 +1292,7 @@ class Engine(object):
         self.fill_X_block(X)
         self.assembled_blocks[1] = X
         _blocks, M_changed = self.do_assemble_blocks(M, B, X, Ae, A,
-                                                     compute_A,compute_rhs,
+                                                     compute_A, compute_rhs,
                                                      inplace, update, compute_rhs0)
 
         return _blocks, M_changed
@@ -1331,7 +1331,7 @@ class Engine(object):
             A = None
 
         _blocks, M_changed = self.do_assemble_blocks(M, B, X, Ae, A,
-                                                     compute_A,compute_rhs,
+                                                     compute_A, compute_rhs,
                                                      inplace, update, compute_rhs0)
 
         return _blocks, M_changed
@@ -2629,8 +2629,8 @@ class Engine(object):
         X2, xrows, xcols = X.eliminate_empty_rowcolblocks()
         B2, brows, bcols = B.eliminate_empty_rowcolblocks()
 
-        mask2  = ([mask[0][i] for i in rows],
-                  [mask[1][i] for i in cols],)
+        mask2 = ([mask[0][i] for i in rows],
+                 [mask[1][i] for i in cols],)
         depvars2 = [depvars[i] for i in cols]
         depvars2 = [x for i, x in enumerate(depvars2) if mask2[0][i]]
 
@@ -2641,7 +2641,7 @@ class Engine(object):
 
     def expand_blks(self, X2, X):
         for i, ii in enumerate(self._xrows):
-             X[ii, 0] = X2[i]
+            X[ii, 0] = X2[i]
 
     def finalize_matrix(self, M_block, mask, is_complex, format='coo',
                         blk_format=None,
