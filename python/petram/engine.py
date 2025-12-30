@@ -90,7 +90,8 @@ class Engine(object):
         self.max_attr = -1
         self.sol_extra = None
         self.sol = None
-        self.gf_allocator = {}  # memory block for x
+        self.gf_alloc = {}  # memory block for x
+        self.X_alloc = {}  # memory block for x
 
         self._r_x_old = {}
         self._i_x_old = {}
@@ -241,20 +242,6 @@ class Engine(object):
             self.n_levels = self.n_levels + 1
             self._assembled_blocks.append([None]*7)
 
-        '''
-        self._r_a.append([FormBlock((n_fes, n_rfes), diag=diag,
-                                    new=self.alloc_bf, mixed_new=self.alloc_mbf)
-                          for k in range(n_mat)])
-        self._i_a.append([FormBlock((n_fes, n_rfes), diag=diag,
-                                    new=self.alloc_bf, mixed_new=self.alloc_mbf)
-                          for k in range(n_mat)])
-        self._r_at.append([FormBlock((n_fes, n_rfes), diag=diag,
-                                     new=self.alloc_bf, mixed_new=self.alloc_mbf)
-                           for k in range(n_mat)])
-        self._i_at.append([FormBlock((n_fes, n_rfes), diag=diag,
-                                     new=self.alloc_bf, mixed_new=self.alloc_mbf)
-                           for k in range(n_mat)])
-        '''
         self._r_a.append([FormBBlock(phys_target, phys_range,
                                      new=self.alloc_bf, mixed_new=self.alloc_mbf,
                                      converter1=self.a2A, converter2=self.a2Am)
@@ -873,14 +860,14 @@ class Engine(object):
 
         for phys in phys_target:
             self.alloc_flag[phys.name()] = True
-            
+
     #
     #  collect form info
     #
     def collect_diagform_info(self, phys_target):
 
         self.form_info = {}
-        
+
         for phys in phys_target:
             ifess = [self.ifes(name) for kfes, name
                      in enumerate(phys.dep_vars) if phys.has_diagform(kfes)]
@@ -899,13 +886,13 @@ class Engine(object):
 
             self.r_a.set_diag_callable_mask(ifess, rifess)
             self.r_x.set_diag_callable_mask(rifess)
-            self.r_b.set_diag_callable_mask(ifess)            
-            
+            self.r_b.set_diag_callable_mask(ifess)
+
             if phys.is_complex:
                 self.i_a.diag_callable[ifess[0]][rifess[0]] = form_callablei
                 self.i_a.set_diag_callable_mask(ifess, rifess)
                 self.i_x.set_diag_callable_mask(rifess)
-                self.i_b.set_diag_callable_mask(ifess)            
+                self.i_b.set_diag_callable_mask(ifess)
 
             self.form_info[phys.name()] = (phys, ifess, rifess, depvars)
 
@@ -1236,13 +1223,13 @@ class Engine(object):
     #
     #   routines to assemble blocks
     #
-    #  (1) run_assemble_MBX_blocks  :
+    #  (1) run_assemble_MXB_blocks  :
     #  (2) run_fill_X_block : fill X
     #  (3) run_assemble_blocks : fill M anc B then eliminate essential
     #  (4) run_assemble_blocks_egn : (3) but for eigen solver
     #  (5) run_update_B_blocks : update B block alone (not used)
-    
-    def run_assemble_MBX_blocks(self, compute_A, compute_rhs,
+
+    def run_assemble_MXB_blocks(self, compute_A, compute_rhs,
                                 inplace=True, update=False,
                                 compute_rhs0=None):
         if update:
@@ -1253,17 +1240,18 @@ class Engine(object):
             A = self.assembled_blocks[0]
         else:
             M, B = self.prepare_M_B_blocks()
-            X = self.prepare_X_block()            
+            X = self.prepare_X_block()
             Ae = None
             A = None
         #
         #  fill physics-specialized form
         #
+        self.X_alloc  = {}
         for k in range(self.n_matrix):
             self.access_idx = k
             if not self.is_matrix_active(k):
                 continue
-        
+
             for physname in self.form_info:
                 phys, ifess, rifess, depvars = self.form_info[physname]
 
@@ -1281,16 +1269,17 @@ class Engine(object):
                 ess_tdofs = mfem.intArray(ess_tdofs)
 
                 a = self.r_a[ifess[0], rifess[0]]
-                x = self.gf_allocator[(self.access_idx, physname)].blockvector
+                x = self.gf_alloc[(self.access_idx, physname)].blockvector
                 Ah, XX, BB = phys.diag_formlinearsystem(ess_tdofs, a,  x)
+                self.X_alloc[(self.access_idx, physname)] = XX
                 if phys.is_complex:
                     mblk, xblk, bblk = phys.split_AhXB_complex(Ah, XX, BB)
                     self.r_a.set_mat_from_blk(ifess[0], rifess[0], Ah, mblk[0])
                     self.r_x.set_vec_from_blk(rifess[0], XX, xblk[0])
-                    self.r_b.set_vec_from_blk(ifess[0], BB, bblk[0]) 
+                    self.r_b.set_vec_from_blk(ifess[0], BB, bblk[0])
                     self.i_a.set_mat_from_blk(ifess[0], rifess[0], Ah, mblk[1])
                     self.i_x.set_vec_from_blk(rifess[0], XX, xblk[1])
-                    self.i_b.set_vec_from_blk(ifess[0], BB, bblk[1]) 
+                    self.i_b.set_vec_from_blk(ifess[0], BB, bblk[1])
                 else:
                     mblk, xblk, bblk = phys.split_AhXB_real(Ah, XX, BB)
                     self.r_a.set_mat_from_blk(ifess[0], rifess[0], Ah, mblk)
@@ -1305,9 +1294,9 @@ class Engine(object):
         _blocks, M_changed = self.do_assemble_blocks(M, B, X, Ae, A,
                                                      compute_A,compute_rhs,
                                                      inplace, update, compute_rhs0)
-    
+
         return _blocks, M_changed
-    
+
     def run_fill_X_block(self, update=False):
         if update:
             X = self.assembled_blocks[1]
@@ -1346,7 +1335,7 @@ class Engine(object):
                                                      inplace, update, compute_rhs0)
 
         return _blocks, M_changed
-    
+
     def do_assemble_blocks(self, M, B, X, Ae, A,
                            compute_A, compute_rhs, inplace, update, compute_rhs0):
 
@@ -1484,8 +1473,8 @@ class Engine(object):
             if not self.is_matrix_active(j):
                 continue
 
-            self.gf_allocator[(j, phys.name())] = GF_allocator()
-            self._gfa = self.gf_allocator[(j, phys.name())]
+            self.gf_alloc[(j, phys.name())] = GF_allocator()
+            self._gfa = self.gf_alloc[(j, phys.name())]
             for n in phys.dep_vars:
                 r_ifes = self.r_ifes(n)
                 void = self.r_x[r_ifes]
@@ -2203,7 +2192,7 @@ class Engine(object):
                 if m2 is not None:
                     m2t = m2.transpose()
                     M[k][c, r] = m2t if M[k][c, r] is None else M[k][c, r] + m2t
-                                                                    
+
         for k in range(self.n_matrix):
             self.access_idx = k
             if not self.is_matrix_active(k):
@@ -2311,7 +2300,7 @@ class Engine(object):
                     v = convertElement(self.r_x, self.i_x,
                                        i, 0, MfemVec2PyVec)
                     X[k][r] = v
-                                                                    
+
         for k in range(self.n_matrix):
             self.access_idx = k
             if not self.is_matrix_active(k):
@@ -2447,6 +2436,12 @@ class Engine(object):
 
             idx = self.dep_var_offset(name)
             ridx = self.r_dep_var_offset(name)
+
+            # If X is elimnated from staticcond in physics-specific form
+            # skip modifining correspoinding RHS
+            if X[ridx] is None:
+                continue
+
             gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
             ess_tdof1, ess_tdof2 = self.ess_tdofs[name]
 
@@ -2629,6 +2624,25 @@ class Engine(object):
     #
     #  step4 : matrix finalization (to form a data being passed to a linear solver)
     #
+    def minimize_blks(self,  A, X, B, depvars, mask):
+        A2, rows, cols = A.eliminate_empty_rowcolblocks()
+        X2, xrows, xcols = X.eliminate_empty_rowcolblocks()
+        B2, brows, bcols = B.eliminate_empty_rowcolblocks()
+
+        mask2  = ([mask[0][i] for i in rows],
+                  [mask[1][i] for i in cols],)
+        depvars2 = [depvars[i] for i in cols]
+        depvars2 = [x for i, x in enumerate(depvars2) if mask2[0][i]]
+
+        print(xrows)
+        #
+        self._xrows = xrows
+        return A2, X2, B2, depvars2, mask2,
+
+    def expand_blks(self, X2, X):
+        for i, ii in enumerate(self._xrows):
+             X[ii, 0] = X2[i]
+
     def finalize_matrix(self, M_block, mask, is_complex, format='coo',
                         blk_format=None,
                         verbose=True):
@@ -2789,22 +2803,43 @@ class Engine(object):
     def recover_sol(self, sol, access_idx=0):
         self.access_idx = access_idx
 
+        # step 1: transfer data from sol to X
         for k, s in enumerate(sol):
             if s is None:
                 continue  # None=linear solver didnot solve this value, so no update
+
             name = self.r_fes_vars[k]
             r_ifes = self.r_ifes(name)
             ridx = self.r_dep_var_offset(name)
             s = s.toarray()
-            X = self.r_x.get_matvec(r_ifes)
-
-            X.Assign(s.flatten().real)
-
-            self.X2x(X, self.r_x[r_ifes])
+            XR = self.r_x.get_matvec(r_ifes)
+            XR.Assign(s.flatten().real)
             if self.i_x[r_ifes] is not None:
-                X = self.i_x.get_matvec(r_ifes)
-                X.Assign(s.flatten().imag)
-                self.X2x(X, self.i_x[r_ifes])
+                XI = self.i_x.get_matvec(r_ifes)
+                XI.Assign(s.flatten().imag)
+
+        # step 2: call recover FEM solution when physics-specific diag is used
+        diagform_rifes = []
+        for physname in self.form_info:
+            phys, ifess, rifess, depvars = self.form_info[physname]
+
+            a = self.r_a[ifess[0], rifess[0]]
+            x = self.gf_alloc[(self.access_idx, physname)].blockvector
+            X = self.X_alloc[(self.access_idx, physname)]
+            a.RecoverFEMSolution(X, x)
+
+            diagform_rifes.extend(rifess)
+
+        # step 3: handle usual recover FEM implemented in this engine.
+        for k, s in enumerate(sol):
+            if k in diagform_rifes:
+                continue
+            name = self.r_fes_vars[k]
+            XR = self.r_x.get_matvec(r_ifes)
+            self.X2x(XR, self.r_x[r_ifes])
+            if self.i_x[r_ifes] is not None:
+                XI = self.i_x.get_matvec(r_ifes)
+                self.X2x(XI, self.i_x[r_ifes])
             else:
                 dprint2("real value problem skipping i_x")
 

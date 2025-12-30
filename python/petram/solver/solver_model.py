@@ -509,7 +509,7 @@ class SolveStep(SolverBase):
         # use get_phys to apply essential to all phys in solvestep
         engine.run_apply_essential(phys_target, phys_range)
 
-        # Do I need this? 
+        # Do I need this?
         # engine.run_fill_X_block()
 
     @debug.use_profiler
@@ -775,6 +775,8 @@ class SolverInstance(ABC):
         self.probe = []
         self.linearsolver_model = None
 
+        self._xrows = None
+
         self._ls_type = self.gui.get_solve_root().get_linearsystem_type_from_modeltree()
         self._phys_real = self.gui.get_solve_root().is_allphys_real()
 
@@ -949,6 +951,28 @@ class SolverInstance(ABC):
                 #assert False, "this operation is not permitted"
             A.reformat_distributed_mat(
                 solall, ksol, ret, mask, alpha=alpha, beta=beta)
+
+    def minimize_blks(self,  A, X, B, depvars, mask):
+        #  remove completely enmpty row/cols
+        #  this happens when dpg static-condensation is used.
+        A2, rows, cols = A.eliminate_empty_rowcolblocks()
+        X2, xrows, xcols = X.eliminate_empty_rowcolblocks()
+        B2, brows, bcols = B.eliminate_empty_rowcolblocks()
+
+        mask2  = ([mask[0][i] for i in rows],
+                  [mask[1][i] for i in cols],)
+        depvars2 = [depvars[i] for i in cols]
+        depvars2 = [x for i, x in enumerate(depvars2) if mask2[0][i]]
+
+        #
+        self._xrows = xrows
+        return A2, X2, B2, depvars2, mask2,
+
+    def expand_blks(self, X2, X):
+        #  recover data from minimized blks to starndard sized block
+        for i, ii in enumerate(self._xrows):
+             X[ii, 0] = X2[i]
+
 
 
 class TimeDependentSolverInstance(SolverInstance):

@@ -214,6 +214,8 @@ def convertElement(Mreal, Mimag, i, j, converter, projections=None):
             imatvec = None
 
         args = (rmatvec, imatvec)
+        if rmatvec is None and imatvec is None:
+            return None
         m = converter(*args)
 
         if k != 1:
