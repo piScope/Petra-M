@@ -712,6 +712,7 @@ class BlockMatrix(object):
     def eliminate_empty_rowcolblocks(self):
         # generate smaller blockmatrix
         # if row and/or col are entirely empty
+
         empty_row = []
         empty_col = []
         for i in range(self.shape[0]):
@@ -723,6 +724,9 @@ class BlockMatrix(object):
                 empty_col.append(j)
         shape = (self.shape[0]-len(empty_row),self.shape[1]-len(empty_col))
 
+        if shape[0] != 0 and shape[0] != 1:
+            dprint1("eliminating empty...", self)
+
         ret = BlockMatrix(shape, kind=self.kind)
         ii = 0
         rows = []
@@ -730,7 +734,7 @@ class BlockMatrix(object):
         for i in range(self.shape[0]):
             jj = 0
             for j in range(self.shape[1]):
-               if self[i, j] is not None:
+               if i not in empty_row and j not in empty_col:
                    ret[ii, jj] = self[i, j]
                    cols.append(j)
                    jj = jj + 1
@@ -740,6 +744,7 @@ class BlockMatrix(object):
 
         rows = np.unique(rows)
         cols = np.unique(cols)
+
         return ret, rows, cols
 
 

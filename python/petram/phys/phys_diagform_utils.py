@@ -28,23 +28,16 @@ def split_AhXB_complex_mode1(Ah, X, B):
     # this is to debug matrix
     matr = []
     mati = []
-    size = []
     for i in range(num_blocks):
         for j in range(num_blocks):
             blkr = to_matrix(BlockA_r.GetBlock(i, j))
             blki = to_matrix(BlockA_i.GetBlock(i, j))
             matr.append(blkr)
             mati.append(blki)
-            if i == 0:
-                size.append(blkr.Width())
-
-    tdof_offsets = mfem.intArray([0]+size+size)
-    tdof_offsets.PartialSum()
-    B.Update(tdof_offsets)
-    X.Update(tdof_offsets)
 
     br = []
     bi = []
+
     for i in range(num_blocks):
         br.append(B.GetBlock(i))
         bi.append(B.GetBlock(i+num_blocks))

@@ -956,8 +956,12 @@ class SolverInstance(ABC):
         #  remove completely enmpty row/cols
         #  this happens when dpg static-condensation is used.
         A2, rows, cols = A.eliminate_empty_rowcolblocks()
-        X2, xrows, xcols = X.eliminate_empty_rowcolblocks()
-        B2, brows, bcols = B.eliminate_empty_rowcolblocks()
+
+        m1 = [(i in rows) for i in range(X.shape[0])]
+        m2 = [(i in rows) for i in range(B.shape[0])]
+        X2 = X.get_subblock(m1, [True]*X.shape[1])
+        B2 = B.get_subblock(m2, [True]*B.shape[1])
+
 
         mask2  = ([mask[0][i] for i in rows],
                   [mask[1][i] for i in cols],)
@@ -965,7 +969,8 @@ class SolverInstance(ABC):
         depvars2 = [x for i, x in enumerate(depvars2) if mask2[0][i]]
 
         #
-        self._xrows = xrows
+        self._xrows = cols
+
         return A2, X2, B2, depvars2, mask2,
 
     def expand_blks(self, X2, X):

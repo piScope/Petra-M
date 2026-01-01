@@ -91,7 +91,7 @@ class Engine(object):
         self.sol_extra = None
         self.sol = None
         self.gf_alloc = {}  # memory block for x
-        self.X_alloc = {}  # memory block for x
+        self.X_alloc = {}  # memory block for X vector
 
         self._r_x_old = {}
         self._i_x_old = {}
@@ -1246,7 +1246,6 @@ class Engine(object):
         #
         #  fill physics-specialized form
         #
-        self.X_alloc = {}
         for k in range(self.n_matrix):
             self.access_idx = k
             if not self.is_matrix_active(k):
@@ -1271,6 +1270,7 @@ class Engine(object):
                 a = self.r_a[ifess[0], rifess[0]]
                 x = self.gf_alloc[(self.access_idx, physname)].blockvector
                 Ah, XX, BB = phys.diag_formlinearsystem(ess_tdofs, a,  x)
+                XX, BB = phys.XB_as_blockvector(Ah, XX, BB)
                 self.X_alloc[(self.access_idx, physname)] = XX
                 if phys.is_complex:
                     mblk, xblk, bblk = phys.split_AhXB_complex(Ah, XX, BB)
@@ -2624,25 +2624,6 @@ class Engine(object):
     #
     #  step4 : matrix finalization (to form a data being passed to a linear solver)
     #
-    def minimize_blks(self,  A, X, B, depvars, mask):
-        A2, rows, cols = A.eliminate_empty_rowcolblocks()
-        X2, xrows, xcols = X.eliminate_empty_rowcolblocks()
-        B2, brows, bcols = B.eliminate_empty_rowcolblocks()
-
-        mask2 = ([mask[0][i] for i in rows],
-                 [mask[1][i] for i in cols],)
-        depvars2 = [depvars[i] for i in cols]
-        depvars2 = [x for i, x in enumerate(depvars2) if mask2[0][i]]
-
-        print(xrows)
-        #
-        self._xrows = xrows
-        return A2, X2, B2, depvars2, mask2,
-
-    def expand_blks(self, X2, X):
-        for i, ii in enumerate(self._xrows):
-            X[ii, 0] = X2[i]
-
     def finalize_matrix(self, M_block, mask, is_complex, format='coo',
                         blk_format=None,
                         verbose=True):
