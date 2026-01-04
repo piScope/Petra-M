@@ -151,9 +151,12 @@ class FormBlock(object):
         if len(args) == 3:
             c = args[0]
             p = args[1]
+
         self.block[r][c][p][1] = v
 
     def generateMatVec(self, converter1, converter2=None, verbose=False):
+        from petram.debug import debug_dpg_essential
+
         if converter2 is None:
             converter2 = converter1
 
@@ -167,7 +170,13 @@ class FormBlock(object):
                     dprint1("generateMatVec", i, j, form)
 
                 if diag_callable_mask:
-                    pass
+                    if debug_dpg_essential:
+                        dest = self.block[i][j][p][1]
+                        if dest is None:
+                            continue
+                        vec = converter1(form)
+                        dest.GetDataArray()[:] = vec.GetDataArray()
+
                 elif form is not None:
                     self.set_matvec(i, j, p, converter1(form))
                 else:
@@ -186,8 +195,7 @@ class FormBlock(object):
             self.set_matvec(i+ii, 0, 1, vblk[k])
             k = k + 1
 
-
-def convertElement(Mreal, Mimag, i, j, converter, projections=None):
+def convertElement(Mreal, Mimag, i, j, converter, projections=None, verbose=False):
     '''
     Generate PyVec/PyMat format data.
     It takes two FormBlocks. One for real and the other for imag.
@@ -214,8 +222,10 @@ def convertElement(Mreal, Mimag, i, j, converter, projections=None):
             imatvec = None
 
         args = (rmatvec, imatvec)
+
         if rmatvec is None and imatvec is None:
             return None
+
         m = converter(*args)
 
         if k != 1:

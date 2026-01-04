@@ -1627,8 +1627,6 @@ class PhysModule(Phys):
 
     def diag_formlinearsystem(self,ess_tdof_list, a,  x):
         Ah = mfem.OperatorPtr()
-        #X = mfem.BlockVector()
-        #B = mfem.BlockVector()
         X = mfem.Vector()
         B = mfem.Vector()
         dprint1("calling FormLinearSystem for ", a)

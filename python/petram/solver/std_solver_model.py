@@ -159,6 +159,7 @@ class StdSolver(Solver):
         instance.configure_probes(self.probe)
 
         if self.init_only:
+            engine.run_fill_X_block()
             engine.sol = engine.assembled_blocks[1][0]
             instance.sol = engine.sol
 

@@ -322,7 +322,7 @@ class Model(RestorableOrderedDict):
         self.update_attribute_set()
 
     def is_enabled(self):
-        ''' 
+        '''
         check if all parents are all enabled
         '''
         p = self
@@ -769,7 +769,7 @@ class Model(RestorableOrderedDict):
         return isinstance(self, NSRef_mixin)
 
     def add_node(self, name='', cls=''):
-        ''' 
+        '''
         this is similar to add_item, but does not
         do anything to modify name
         '''
@@ -1049,6 +1049,14 @@ class Model(RestorableOrderedDict):
 
     def use_essential_elimination(self):
         return True
+
+    def no_t2_elimination(self):
+        # suppress col elimination t2 defined by the extra variable
+        return False
+
+    def no_t1_elimination(self):
+        # suppress col elimination t2 defined by the extra variable
+        return False
 
 
 class Bdry(Model):

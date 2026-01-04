@@ -105,21 +105,21 @@ class LinearSystemReducer(object):
 
         #nicePrint(size)
         filled = np.zeros((nb, nb), dtype=int)
-        nnz    = np.zeros((nb, nb), dtype=int)
+        #nnz    = np.zeros((nb, nb), dtype=int)
         for i in range(nb):
            for j in range(nb):
               m = get_block(opr, i, j)
               if m is not None:
                   filled[i, j] = 1
-                  nnz[i, j] = m.NNZ()
+                  #nnz[i, j] = m.NNZ()
 
         flag = [False]*nb
         for i in range(nb): 
-            if filled[i, i] == 1 and nnz[i,i] == size[i]:
+            if filled[i, i] == 1:# and nnz[i,i] == size[i]:
                 flag[i] = True
-        #nicePrint("filling pattern", filled)
+        nicePrint("filling pattern", filled)
         #nicePrint("nnz(global)", nnz)
-        #nicePrint("easy to invert ", flag)
+        nicePrint("easy to invert ", flag)
 
         easy_inv = [None]*nb
         for i in range(nb):

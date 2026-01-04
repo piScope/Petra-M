@@ -1980,6 +1980,9 @@ class Engine(object):
         raise NotImplementedError("Coupling is not supported")
 
     def assemble_extra(self, phys, phys_range, keys_to_update):
+        self._no_t1_elimination = []
+        self._no_t2_elimination = []
+
         for mm in phys.walk():
             if not mm.enabled:
                 continue
@@ -2010,6 +2013,17 @@ class Engine(object):
                             str(key) + " already exists."
                     self.extras[key] = tmp
                     self.extras_mm[key] = mm.fullpath()
+
+                    if mm.no_t1_elimination and len(mm.get_essential_idx(kfes)) > 0:
+                        idx1 = self.dep_var_offset(dep_var)
+                        idx2 = self.r_dep_var_offset(extra_name)
+                        tdofs, gtdofs = self.get_essential_tdof_for_node(mm, dep_var)
+                        self._no_t1_elimination.append((idx1, idx2, tdofs, gtdofs))
+
+                    if mm.no_t2_elimination:
+                        idx1 = self.dep_var_offset(extra_name)
+                        idx2 = self.r_dep_var_offset(dep_var)
+                        self._no_t2_elimination.append((idx1, idx2))
 
             if mm.has_extra_coupling():
                 extra_name, coupled_names = mm.extra_coupling_names()
@@ -2328,6 +2342,31 @@ class Engine(object):
         nblock1 = A.shape[0]
         nblock2 = A.shape[1]
 
+        # handling no_t1_elimination
+
+        for idx1, idx2, tdofs, gtdofs in self._no_t1_elimination:
+            if A[idx1, idx2] is None:
+                self._no_t1_elimination.remove((idx1, idx2, tdofs, gtdofs))
+
+        for idx1, idx2, tdof, gtdofs in self._no_t1_elimination:
+            elim_t1 = []
+            for i in range(nblock1):
+                if A[i, idx1] is None:
+                    continue
+
+                elim_t1.append((i, idx2, A[i, idx1].dot(A[idx1, idx2])))
+
+            for i, idx2, diff in elim_t1:
+                org_t1 = A[i, idx2]
+                if A[i, idx2] is None:
+                    A[i, idx2] = diff
+                else:
+                    A[i, idx2] = A[i, idx2] + diff
+                if i == idx1:
+
+                    A[i, idx2].resetRow(gtdofs)
+                    A[i, idx2] = A[i, idx2] - org_t1
+
         Ae = self.new_blockmatrix(A.shape)
 
         for name in self.gl_ess_tdofs:
@@ -2374,7 +2413,14 @@ class Engine(object):
                 if A[idx1, j] is None:
                     continue
 
-                A[idx1, j] = A[idx1, j].resetRow(gl_ess_tdof1, inplace=inplace)
+                flag = False
+                ess = gl_ess_tdof1
+
+                for k1, k2, tdofs, gtdofs in self._no_t1_elimination:
+                   if k1 == idx1 and k2 == j:
+                        ess = np.setdiff1d(gl_ess_tdof1, gtdofs)
+
+                A[idx1, j] = A[idx1, j].resetRow(ess, inplace=inplace)
                 if not (idx1, j) in self._aux_essential and len(gl_ess_tdof2) > 0:
                     A[idx1, j] = A[idx1, j].resetRow(
                         gl_ess_tdof2, inplace=inplace)
@@ -2384,12 +2430,15 @@ class Engine(object):
                     continue
                 if A[j, idx2] is None:
                     continue
+                if (j, idx2) in self._no_t2_elimination:
+                    continue
 
                 SM = A.get_squaremat_from_right(j, idx2)
                 SM.setDiag(gl_ess_tdof1)
 
                 Ae[j, idx2] = A[j, idx2].dot(SM)
                 A[j, idx2] = A[j, idx2].resetCol(gl_ess_tdof1, inplace=inplace)
+
 
         return A, Ae
 
@@ -3142,6 +3191,7 @@ class Engine(object):
                         or not ignore_secondary):
                     return node
 
+
     def gather_essential_tdof(self, phys):
         flags = self.get_essential_bdr_pnt_flag(phys)
         self.get_essential_bdr_pnt_tdofs(phys, flags)
@@ -3164,6 +3214,7 @@ class Engine(object):
                         index1 = index1 + node.get_essential_idx(k)
                     else:
                         index2 = index2 + node.get_essential_idx(k)
+
                 if node.has_essential and isinstance(node, Point):
                     if node.use_essential_elimination():
                         ptx1 = ptx1 + node.get_ess_point_array(k)
@@ -3215,6 +3266,26 @@ class Engine(object):
 
             # print(name, len(self.ess_tdofs[name]))
         return
+
+    def get_essential_tdof_for_node(self, node, dep_var):
+        # get essential tdof for specific node and dep_var
+        # used for no_t1_elimination
+        phys = node.get_root_phys()
+        for k,  name in enumerate(phys.dep_vars):
+            if name != dep_var:
+                continue
+            index = node.get_essential_idx(k)
+            ess_bdr = [0] * self.emeshes[phys.emesh_idx].bdr_attributes.Max()
+            for kk in index:
+                ess_bdr[kk-1] = 1
+            fespace = self.fespaces[name]
+            ess_tdof_list = mfem.intArray()
+            ess_bdr = mfem.intArray(ess_bdr)
+            fespace.GetEssentialTrueDofs(ess_bdr, ess_tdof_list)
+            tdofs = ess_tdof_list.ToList()
+            gtdofs = self.collect_all_ess_tdof_node(name, tdofs)
+            return tdofs, gtdofs
+        return [], []
 
     def allocate_fespace(self, phys):
         num_fec = len(phys.get_fec())
@@ -4300,6 +4371,9 @@ class SerialEngine(Engine):
     def collect_all_ess_tdof(self):
         self.gl_ess_tdofs = self.ess_tdofs
 
+    def collect_all_ess_tdof_node(self, name, tdofs):
+        return tdofs
+
     def get_point_essential_tdofs(self, fes, ess_point_array):
         fec_name = fes.FEColl().Name()
         if not fec_name.startswith("H1"):
@@ -4713,6 +4787,14 @@ class ParallelEngine(Engine):
             gtdofs1 = [int(x) for x in gl_ess_tdof1]
             gtdofs2 = [int(x) for x in gl_ess_tdof2]
             self.gl_ess_tdofs[name] = (gtdofs1, gtdofs2)
+
+    def collect_all_ess_tdof_node(self, name, tdof):
+        myoffset = self.fespaces[name].GetMyTDofOffset()
+        data = (np.array(tdof) + myoffset).astype(np.int32)
+        gl_ess_tdof = allgather_vector(data, MPI.INT)
+        MPI.COMM_WORLD.Barrier()
+        gtdofs = [int(x) for x in gl_ess_tdof]
+        return gtdofs
 
     def mkdir(self, path):
         from mpi4py import MPI
