@@ -2014,13 +2014,13 @@ class Engine(object):
                     self.extras[key] = tmp
                     self.extras_mm[key] = mm.fullpath()
 
-                    if mm.no_t1_elimination and len(mm.get_essential_idx(kfes)) > 0:
+                    if mm.no_t1_elimination() and len(mm.get_essential_idx(kfes)) > 0:
                         idx1 = self.dep_var_offset(dep_var)
                         idx2 = self.r_dep_var_offset(extra_name)
                         tdofs, gtdofs = self.get_essential_tdof_for_node(mm, dep_var)
                         self._no_t1_elimination.append((idx1, idx2, tdofs, gtdofs))
 
-                    if mm.no_t2_elimination:
+                    if mm.no_t2_elimination():
                         idx1 = self.dep_var_offset(extra_name)
                         idx2 = self.r_dep_var_offset(dep_var)
                         self._no_t2_elimination.append((idx1, idx2))
