@@ -167,28 +167,27 @@ class SolveStep(SolverBase):
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [MultiLvlStationarySolver,
+            mesh_adapt_solver = [StdMeshAdaptSolver]
+        except BaseException:
+            mesh_adapt_solver = []
+
+        try:
+            from petram.solver.dpg_amrsolver_model import DpgAmrSolver
+            dpg_amr_solver = [DpgAmrSolver]
+        except BaseException:
+            dpg_amr_solver = []
+
+        return ([MultiLvlStationarySolver,
                     TimeDomain,
                     DistanceSolver,
                     StdSolver,
-                    StdMeshAdaptSolver,
                     NLSolver,
                     EgnSolver,
                     Superposition,
                     # MGSolver,
                     ForLoop,
-                    DWCCall, SetVar]
-        except:
-            return [MultiLvlStationarySolver,
-                    TimeDomain,
-                    DistanceSolver,
-                    # MGSolver,
-                    StdSolver,
-                    NLSolver,
-                    EgnSolver,
-                    Superposition,
-                    ForLoop,
-                    DWCCall, SetVar]
+                    DWCCall, SetVar] +
+                mesh_adapt_solver + dpg_amr_solver)
 
     def get_possible_child_menu(self):
         #from solver.solinit_model import SolInit
@@ -203,30 +202,30 @@ class SolveStep(SolverBase):
         from petram.solver.distance_solver import DistanceSolver
         from petram.solver.superposition import Superposition
 
+        extra_solver = []
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [("", StdSolver),
+            extra_solver.append(("", StdMeshAdaptSolver))
+        except BaseException:
+            pass
+
+        try:
+            from petram.solver.dpg_amrsolver_model import DpgAmrSolver
+            extra_solver.append(("", DpgAmrSolver))
+        except BaseException:
+            pass
+
+        return ([("", StdSolver),
                     ("", MultiLvlStationarySolver),
                     ("", NLSolver),
                     ("", TimeDomain),
                     #("", EgnSolver),
-                    ("extra", DistanceSolver),
-                    ("", Superposition),
-                    ("", StdMeshAdaptSolver),
+                    ("extra", DistanceSolver),] +
+                    extra_solver +
+                    [("", Superposition),
                     ("", InnerForLoop),
                     ("", DWCCall),
-                    ("!", SetVar)]
-        except:
-            return [("", StdSolver),
-                    ("", MultiLvlStationarySolver),
-                    ("", NLSolver),
-                    ("", TimeDomain),
-                    #("", EgnSolver),
-                    ("extra", DistanceSolver),
-                    ("", Superposition),
-                    ("", InnerForLoop),
-                    ("", DWCCall),
-                    ("!", SetVar)]
+                    ("!", SetVar)])
 
     @property
     def solve_error(self):
