@@ -1264,7 +1264,8 @@ class Engine(object):
                     if len(tdof1) == 0:
                         continue
                     ess_tdofs.append(tdof1 + vsize_offset[k])
-                ess_tdofs = list(np.hstack(ess_tdofs))
+                if len(ess_tdofs) > 0:
+                    ess_tdofs = list(np.hstack(ess_tdofs))
                 ess_tdofs = mfem.intArray(ess_tdofs)
 
                 a = self.r_a[ifess[0], rifess[0]]
