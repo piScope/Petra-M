@@ -2854,10 +2854,16 @@ class Engine(object):
         for physname in self.form_info:
             phys, ifess, rifess, depvars = self.form_info[physname]
 
+
             a = self.r_a[ifess[0], rifess[0]]
             x = self.gf_alloc[(self.access_idx, physname)].blockvector
-            X = self.X_alloc[(self.access_idx, physname)]
-            a.RecoverFEMSolution(X, x)
+
+            ### X is not allocated when init-only is used.
+            if (self.access_idx, physname) not in self.X_alloc:
+                pass
+            else:
+                X = self.X_alloc[(self.access_idx, physname)]
+                a.RecoverFEMSolution(X, x)
 
             diagform_rifes.extend(rifess)
 
@@ -2866,6 +2872,7 @@ class Engine(object):
             if k in diagform_rifes:
                 continue
             name = self.r_fes_vars[k]
+            r_ifes = self.r_ifes(name)
             XR = self.r_x.get_matvec(r_ifes)
             self.X2x(XR, self.r_x[r_ifes])
             if self.i_x[r_ifes] is not None:
