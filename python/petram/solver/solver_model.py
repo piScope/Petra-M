@@ -172,7 +172,7 @@ class SolveStep(SolverBase):
             mesh_adapt_solver = []
 
         try:
-            from petram.solver.dpg_amrsolver_model import DpgAmrSolver
+            from petram.solver.dpg_amr_solver_model import DpgAmrSolver
             dpg_amr_solver = [DpgAmrSolver]
         except BaseException:
             dpg_amr_solver = []
@@ -210,7 +210,7 @@ class SolveStep(SolverBase):
             pass
 
         try:
-            from petram.solver.dpg_amrsolver_model import DpgAmrSolver
+            from petram.solver.dpg_amr_solver_model import DpgAmrSolver
             extra_solver.append(("", DpgAmrSolver))
         except BaseException:
             pass
