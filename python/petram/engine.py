@@ -275,6 +275,10 @@ class Engine(object):
         self._gl_ess_tdofs.append({n: [] for n in self.fes_vars})
         self._ess_tdofs.append({n: [] for n in self.fes_vars})
 
+        self._form_info.append({})
+        self._no_t1_elimination.append([])
+        self._no_t2_elimination.append([])
+
     def _initialize_variable_lists(self):
         self._r_a = []
         self._i_a = []
@@ -292,6 +296,9 @@ class Engine(object):
         self._projections_hash = []
         self._gl_ess_tdofs = []
         self._ess_tdofs = []
+        self._form_info = []
+        self._no_t1_elimination = []
+        self._no_t2_elimination = []
 
     @property
     def n_matrix(self):
@@ -460,6 +467,28 @@ class Engine(object):
     @ess_tdofs.setter
     def ess_tdofs(self, v):
         self._ess_tdofs[self._level_idx] = v
+
+    @property
+    def form_info(self):
+        return self._form_info[self._level_idx]
+
+    @form_info.setter
+    def form_info(self, v):
+        self._form_info[self._level_idx] = v
+
+    @property
+    def no_t1_elimination(self):
+        return self._no_t1_elimination[self._level_idx]
+    @no_t1_elimination.setter
+    def no_t1_elimination(self, v):
+        self._no_t1_elimination[self._level_idx] = v
+
+    @property
+    def no_t2_elimination(self):
+        return self._no_t2_elimination[self._level_idx]
+    @no_t1_elimination.setter
+    def no_t2_elimination(self, v):
+        self._no_t2_elimination[self._level_idx] = v
 
     @property
     def fespaces(self):
@@ -864,8 +893,6 @@ class Engine(object):
     #  collect form info
     #
     def collect_diagform_info(self, phys_target):
-
-        self.form_info = {}
 
         for phys in phys_target:
             ifess = [self.ifes(name) for kfes, name
@@ -1467,7 +1494,6 @@ class Engine(object):
         self.get_essential_bdr_pnt_tdofs(phys, flags)
 
         # this loop alloates GridFunctions
-        is_complex = phys.is_complex()
 
         for j in range(self.n_matrix):
             self.access_idx = j
@@ -1981,8 +2007,6 @@ class Engine(object):
         raise NotImplementedError("Coupling is not supported")
 
     def assemble_extra(self, phys, phys_range, keys_to_update):
-        self._no_t1_elimination = []
-        self._no_t2_elimination = []
 
         for mm in phys.walk():
             if not mm.enabled:
@@ -2019,12 +2043,12 @@ class Engine(object):
                         idx1 = self.dep_var_offset(dep_var)
                         idx2 = self.r_dep_var_offset(extra_name)
                         tdofs, gtdofs = self.get_essential_tdof_for_node(mm, dep_var)
-                        self._no_t1_elimination.append((idx1, idx2, tdofs, gtdofs))
+                        self.no_t1_elimination.append((idx1, idx2, tdofs, gtdofs))
 
                     if mm.no_t2_elimination():
                         idx1 = self.dep_var_offset(extra_name)
                         idx2 = self.r_dep_var_offset(dep_var)
-                        self._no_t2_elimination.append((idx1, idx2))
+                        self.no_t2_elimination.append((idx1, idx2))
 
             if mm.has_extra_coupling():
                 extra_name, coupled_names = mm.extra_coupling_names()
@@ -2345,11 +2369,11 @@ class Engine(object):
 
         # handling no_t1_elimination
 
-        for idx1, idx2, tdofs, gtdofs in self._no_t1_elimination:
+        for idx1, idx2, tdofs, gtdofs in self.no_t1_elimination:
             if A[idx1, idx2] is None:
-                self._no_t1_elimination.remove((idx1, idx2, tdofs, gtdofs))
+                self.no_t1_elimination.remove((idx1, idx2, tdofs, gtdofs))
 
-        for idx1, idx2, tdof, gtdofs in self._no_t1_elimination:
+        for idx1, idx2, tdof, gtdofs in self.no_t1_elimination:
             elim_t1 = []
             for i in range(nblock1):
                 if A[i, idx1] is None:
@@ -2417,7 +2441,7 @@ class Engine(object):
                 flag = False
                 ess = gl_ess_tdof1
 
-                for k1, k2, tdofs, gtdofs in self._no_t1_elimination:
+                for k1, k2, tdofs, gtdofs in self.no_t1_elimination:
                    if k1 == idx1 and k2 == j:
                         ess = np.setdiff1d(gl_ess_tdof1, gtdofs)
 
@@ -2431,7 +2455,7 @@ class Engine(object):
                     continue
                 if A[j, idx2] is None:
                     continue
-                if (j, idx2) in self._no_t2_elimination:
+                if (j, idx2) in self.no_t2_elimination:
                     continue
 
                 SM = A.get_squaremat_from_right(j, idx2)
@@ -2578,7 +2602,7 @@ class Engine(object):
 
         return A
 
-    def collect_local_ess_TDofs(self, opr, format, is_complex):
+    def collect_local_ess_TDofs(self, opr, format, is_complex, depvars):
         '''
         Find essential TDoFs index in solution block vector
 
@@ -2594,12 +2618,12 @@ class Engine(object):
 
         for name in self.gl_ess_tdofs:
             # we do elimination only for the varialbes to be solved
-            if not name in self._dep_vars:
+            if not name in depvars:
                 continue
 
             # collecto only essentials which are eliminated
             ess_tdof = np.array(self.ess_tdofs[name][0], dtype=int)
-            idx = self.dep_var_offset(name)
+            idx = depvars.index(name)
 
             if is_complex and format == 'blk_interleave':
                 o1 = offsets1[2*idx]

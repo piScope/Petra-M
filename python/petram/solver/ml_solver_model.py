@@ -633,14 +633,23 @@ class MLInstance(SolverInstance):
         dprint1("Asembling system matrix",
                 [x.name() for x in phys_target],
                 [x.name() for x in phys_range])
+
         engine.run_verify_setting(phys_target, self.gui)
         engine.run_assemble_mat(phys_target, phys_range)
         engine.run_assemble_b(phys_target)
-        engine.run_fill_X_block()
 
-        self.engine.run_assemble_blocks(self.compute_A,
-                                        self.compute_rhs,
-                                        inplace=inplace)
+        engine.run_apply_essential(phys_target, phys_range)
+
+
+        _blocks, M_changed = self.engine.run_assemble_MXB_blocks(self.compute_A,
+                                                                 self.compute_rhs,
+                                                                 inplace=inplace)
+
+        #engine.run_fill_X_block()
+        #
+        #self.engine.run_assemble_blocks(self.compute_A,
+        #                                self.compute_rhs,
+        #                                inplace=inplace)
         #A, X, RHS, Ae, B, M, names = blocks
 
     def assemble(self, inplace=True):
@@ -682,14 +691,16 @@ class MLInstance(SolverInstance):
 
         depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
 
-        AA = engine.finalize_matrix(A, mask, not self.phys_real,
+        A2, X2, RHS2, depvars2, mask2 = self.minimize_blks(A, X[0], RHS, depvars, mask)
+
+        AA = engine.finalize_matrix(A2, mask2, not self.phys_real,
                                     format=self.ls_type)
-        BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
+        BB = engine.finalize_rhs([RHS2], A2, X2, mask2, not self.phys_real,
                                  format=ls_type)
 
-        XX = engine.finalize_x(X[0], RHS, mask, not self.phys_real,
+        XX = engine.finalize_x(X2, RHS2, mask2, not self.phys_real,
                                format=ls_type)
-        return BB, XX, AA
+        return BB, XX, AA, A2, X2, mask2, depvars2
 
     def finalize_linear_systems(self):
         '''
@@ -699,8 +710,8 @@ class MLInstance(SolverInstance):
 
         finalized_ls = []
         for k, _lvl in enumerate(levels):
-            BB, XX, AA = self.finalize_linear_system(k)
-            finalized_ls.append((BB, XX, AA))
+            blocks = self.finalize_linear_system(k)
+            finalized_ls.append(blocks)
 
         self.finalized_ls = finalized_ls
 
@@ -715,12 +726,12 @@ class MLInstance(SolverInstance):
         solvers = []
         for lvl, solver_model in enumerate(levels):
             engine.level_idx = lvl
-            opr = self.finalized_ls[lvl][-1]
+            opr = self.finalized_ls[lvl][2]
             s = solver_model.prepare_solver(opr, engine)
             solvers.append(s)
 
         if finest is not None:
-            opr = self.finalized_ls[lvl][-1]
+            opr = self.finalized_ls[lvl][2]
             finestsolver = finest.prepare_solver(opr, engine)
         else:
             finestsolver = None
@@ -730,13 +741,22 @@ class MLInstance(SolverInstance):
         engine = self.engine
         levels = self.gui.get_level_solvers()
 
+        depvars2 = self.finalized_ls[-1][6]
+
         prolongations = []
         for k, _lvl in enumerate(levels):
             if k == len(levels)-1:
                 break
-            _BB, XX, AA = self.finalized_ls[k]
+
+            XX = self.finalized_ls[k][1]
+            AA = self.finalized_ls[k][2]
+
             P = fill_prolongation_operator(
-                engine, k, XX, AA, self.ls_type, self.phys_real)
+                engine, k, XX, AA, self.ls_type, self.phys_real, depvars2)
+
+            print("P", P)
+            print("P Shape", P.Width(), P.Height())
+
             prolongations.append(P)
 
         return prolongations
@@ -752,7 +772,7 @@ class MLInstance(SolverInstance):
         smoothers, finestsolver = self.create_solvers()
         prolongations = self.create_prolongations()
 
-        operators = [x[-1] for x in self.finalized_ls]
+        operators = [x[2] for x in self.finalized_ls]
 
         #solall = linearsolver.Mult(BB, case_base=0)
         if len(smoothers) > 1:
@@ -763,7 +783,7 @@ class MLInstance(SolverInstance):
         else:
             mg = None
 
-        BB, XX, AA = self.finalized_ls[-1]
+        BB, XX, AA, A2, X2, mask2, depvars2 = self.finalized_ls[-1]
 
         if finestsolver is not None:
             finestsolver.SetPreconditioner(mg)
@@ -806,7 +826,8 @@ class MLInstance(SolverInstance):
         smoothers, finestsolver = self.create_solvers()
         prolongations = self.create_prolongations()
 
-        operators = [x[-1] for x in self.finalized_ls]
+        operators = [x[2] for x in self.finalized_ls]
+        depvars2 = self.finalized_ls[-1][6]
 
         #offsets0 = operators[0].RowOffsets().ToList()
         #offsets1 = operators[1].RowOffsets().ToList()
@@ -819,7 +840,7 @@ class MLInstance(SolverInstance):
             for lvl in range(len(operators)):
                 engine.level_idx = lvl
                 esstdofs0 = engine.collect_local_ess_TDofs(
-                    operators[lvl], self.ls_type, is_complex)
+                    operators[lvl], self.ls_type, is_complex, depvars2)
                 ess_tdofs_arr.append(esstdofs0)
 
             #solall = linearsolver.Mult(BB, case_base=0)
@@ -844,7 +865,7 @@ class MLInstance(SolverInstance):
         else:
             mg = None
 
-        BB, XX, AA = self.finalized_ls[-1]
+        BB, XX, AA, A2, X2, mask2, depvars2 = self.finalized_ls[-1]
 
         if finestsolver is not None:
             finestsolver.SetPreconditioner(mg)
@@ -866,9 +887,13 @@ class MLInstance(SolverInstance):
             solall = convert_realblocks_to_complex(solall, AA, merge_real_imag)
 
         engine.level_idx = len(self.finalized_ls)-1
-        A = engine.assembled_blocks[0]
+        #A = engine.assembled_blocks[0]
         X = engine.assembled_blocks[1]
-        A.reformat_distributed_mat(solall, 0, X[0], self.blk_mask)
+
+        self.reformat_mat(A2, AA, solall, 0, X2, mask2)
+        self.expand_blks(X2, X[0])
+
+        #A.reformat_distributed_mat(solall, 0, X[0], self.blk_mask)
 
         self.sol = X[0]
 
@@ -909,8 +934,8 @@ class PyMG(mfem.PyIterativeSolver):
         self.postsmoother_count = postsmoother_count
         self.ess_tdofs = ess_tdofs
 
-        self.debug1 = debug1
-        self.debug2 = debug2
+        self.debug1 = True#debug1
+        self.debug2 = True#debug2
 
         self.cycle_rel_tol = 0.01
         self.cycle_max = cycle_max
@@ -1023,7 +1048,12 @@ class PyMG(mfem.PyIterativeSolver):
         lvl2 = lvl - 1
         lvl2_width = self.operators[lvl2].Width()
         err2 = mfem.Vector(lvl2_width)
+
+        print(err.Size(), err2.Size())
+        print("P", self.prolongations[lvl2].Height(), self.prolongations[lvl2].Width())
         self.prolongations[lvl2].MultTranspose(err, err2)
+
+        print("(here)")
         y2 = mfem.Vector(lvl2_width)
 
         # (zeroing the error sent to the lower level)   <--- this works
@@ -1126,7 +1156,7 @@ class PyMG(mfem.PyIterativeSolver):
             dprint1("========\n")
 
 
-def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
+def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real, depvars2):
     engine.access_idx = 0
     P = None
     diags = []
@@ -1144,7 +1174,8 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real):
     cols = [0]
     rows = [0]
 
-    for dep_var in engine.r_dep_vars:
+    #for dep_var in engine.r_dep_vars:
+    for dep_var in depvars2:
         offset = engine.r_dep_var_offset(dep_var)
 
         tmp_cols = []
