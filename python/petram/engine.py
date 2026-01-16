@@ -85,13 +85,13 @@ class Engine(object):
         self._risFESvar_grouped = []
         self._rfes_vars = []
         self._aux_essential = []
+        self._gf_alloc = []  # memory block for x
+        self._X_alloc = []   # memory block for X vector
 
         self.max_bdrattr = -1
         self.max_attr = -1
         self.sol_extra = None
         self.sol = None
-        self.gf_alloc = {}  # memory block for x
-        self.X_alloc = {}  # memory block for X vector
 
         self._r_x_old = {}
         self._i_x_old = {}
@@ -278,6 +278,8 @@ class Engine(object):
         self._form_info.append({})
         self._no_t1_elimination.append([])
         self._no_t2_elimination.append([])
+        self._gf_alloc.append({})
+        self._X_alloc.append({})
 
     def _initialize_variable_lists(self):
         self._r_a = []
@@ -299,6 +301,8 @@ class Engine(object):
         self._form_info = []
         self._no_t1_elimination = []
         self._no_t2_elimination = []
+        self._gf_alloc = []
+        self._X_alloc = []
 
     @property
     def n_matrix(self):
@@ -475,6 +479,22 @@ class Engine(object):
     @form_info.setter
     def form_info(self, v):
         self._form_info[self._level_idx] = v
+
+    @property
+    def gf_alloc(self):
+        return self._gf_alloc[self._level_idx]
+
+    @gf_alloc.setter
+    def gf_alloc(self, v):
+        self._gf_alloc[self._level_idx] = v
+
+    @property
+    def X_alloc(self):
+        return self._X_alloc[self._level_idx]
+
+    @gf_alloc.setter
+    def X_alloc(self, v):
+        self._X_alloc[self._level_idx] = v
 
     @property
     def no_t1_elimination(self):

@@ -1191,7 +1191,13 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real, depvar
 
         if engine.r_isFESvar(dep_var):
             h = engine.fespaces.get_hierarchy(dep_var)
-            P = h.GetProlongationAtLevel(level)
+            fes1 = h.GetFESpaceAtLevel(level)
+            fes2 = h.GetFESpaceAtLevel(level-1)
+
+            from petram.helper.ndtr_prefinement_transferoperator import NDTrPRefinementTransferOperator
+            P = NDTrPRefinementTransferOperator(fes2, fes1)
+            print("made here")
+            #P = h.GetProlongationAtLevel(level)
             tmp_cols.append(P.Width())
             tmp_rows.append(P.Height())
             tmp_diags.append(P)
