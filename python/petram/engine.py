@@ -492,7 +492,7 @@ class Engine(object):
     def X_alloc(self):
         return self._X_alloc[self._level_idx]
 
-    @gf_alloc.setter
+    @X_alloc.setter
     def X_alloc(self, v):
         self._X_alloc[self._level_idx] = v
 
