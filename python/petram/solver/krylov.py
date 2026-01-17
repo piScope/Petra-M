@@ -202,12 +202,12 @@ class KrylovModel(LinearSolverModel, NS_mixin):
             pt = pt + w
         return result
 
-    def prepare_preconditioner(self, opr, engine):
+    def prepare_preconditioner(self, opr, engine, name=None):
         for x in self.iter_enabled():
             if isinstance(x, LinearSolverModel):
-                return x.prepare_solver(opr, engine)
+                return x.prepare_solver(opr, engine, name=name)
 
-    def do_prepare_solver(self, opr, engine):
+    def do_prepare_solver(self, opr, engine, name=None):
         cls = getattr(mfem, self.solver_type + 'Solver')
         args = (MPI.COMM_WORLD,) if use_parallel else ()
 
@@ -224,7 +224,7 @@ class KrylovModel(LinearSolverModel, NS_mixin):
         if self.write_mat:
             self.write_matrix(opr)
 
-        M = self.prepare_preconditioner(opr, engine)
+        M = self.prepare_preconditioner(opr, engine, name=name)
 
         if M is not None:
             solver.SetPreconditioner(M)
@@ -235,8 +235,8 @@ class KrylovModel(LinearSolverModel, NS_mixin):
         from petram.solver.solver_utils import write_blockoperator
         write_blockoperator(A=A, b=b, x=x, suffix=suffix)
 
-    def prepare_solver(self, opr, engine):
-        solver = self.do_prepare_solver(opr, engine)
+    def prepare_solver(self, opr, engine, name=None):
+        solver = self.do_prepare_solver(opr, engine, name=name)
         solver.iterative_mode = True
 
         return solver
@@ -280,12 +280,12 @@ class KrylovSmoother(KrylovModel):
         v['assert_no_convergence'] = False
         return v
 
-    def prepare_solver(self, opr, engine):
-        solver = self.do_prepare_solver(opr, engine)
+    def prepare_solver(self, opr, engine, name=None):
+        solver = self.do_prepare_solver(opr, engine, name=name)
         solver.iterative_mode = False
         return solver
 
-    def prepare_solver_with_multtranspose(self, opr, engine):
+    def prepare_solver_with_multtranspose(self, opr, engine, name=None):
         '''
         This is called from multi-level refinement
         '''
@@ -353,7 +353,7 @@ class KrylovSmoother(KrylovModel):
         if self.solver_type in ['GMRES', 'FGMRES']:
             solver.SetKDim(int(self.kdim))
 
-        M = self.prepare_preconditioner(opr, engine)
+        M = self.prepare_preconditioner(opr, engine, name=name)
         if M is not None:
             solver.SetPreconditioner(M)
 
@@ -405,7 +405,7 @@ class StationaryRefinementModel(KrylovModel):
         v['assert_no_convergence'] = False
         return v
 
-    def do_prepare_solver(self, opr, engine):
+    def do_prepare_solver(self, opr, engine, name=None):
         cls = mfem.SLISolver
         args = (MPI.COMM_WORLD,) if use_parallel else ()
 
@@ -418,15 +418,15 @@ class StationaryRefinementModel(KrylovModel):
         solver.iterative_mode = True
         solver.SetOperator(opr)
 
-        M = self.prepare_preconditioner(opr, engine)
+        M = self.prepare_preconditioner(opr, engine, name=name)
 
         if M is not None:
             solver.SetPreconditioner(M)
             solver._prc = M
         return solver
 
-    def prepare_solver(self, opr, engine):
-        solver = self.do_prepare_solver(opr, engine)
+    def prepare_solver(self, opr, engine, name=None):
+        solver = self.do_prepare_solver(opr, engine, name=name)
         solver.iterative_mode = True
 
         return solver

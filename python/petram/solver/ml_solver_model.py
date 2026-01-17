@@ -173,13 +173,13 @@ class RefinedLevel(FineLevel, SolverBase):
         my_solve_step = self.get_solve_root()
         return my_solve_step.get_phys_range()
 
-    def prepare_solver(self, opr, engine):
+    def prepare_solver(self, opr, engine, name=None):
         if self.smoother_count[1] == 0:
             for x in self.iter_enabled():
-                return x.prepare_solver(opr, engine)
+                return x.prepare_solver(opr, engine, name=name)
         else:
             for x in self.iter_enabled():
-                return x.prepare_solver_with_multtranspose(opr, engine)
+                return x.prepare_solver_with_multtranspose(opr, engine, name=name)
             # return x.prepare_solver(opr, engine)
 
     def adjust_physics(self, phys):
@@ -227,8 +227,8 @@ class CoarseIterative(KrylovModel, CoarsestLvlSolver):
     def get_info_str(self):
         return 'Coarsest:Lv0'
 
-    def prepare_solver(self, opr, engine):
-        solver = self.do_prepare_solver(opr, engine)
+    def prepare_solver(self, opr, engine, name=None):
+        solver = self.do_prepare_solver(opr, engine, name=name)
 
         if self.is_preconditioner:
             solver.iterative_mode = False
@@ -303,8 +303,8 @@ class FineIterative(KrylovModel, FinestLvlSolver):
     def get_possible_child_menu(self):
         return []
 
-    def prepare_solver(self, opr, engine):
-        solver = self.do_prepare_solver(opr, engine)
+    def prepare_solver(self, opr, engine, name=None):
+        solver = self.do_prepare_solver(opr, engine, name=name)
         solver.iterative_mode = True
 
         return solver
@@ -328,8 +328,8 @@ class FineRefinement(StationaryRefinementModel, FinestLvlSolver):
     def get_possible_child_menu(self):
         return []
 
-    def prepare_solver(self, opr, engine):
-        solver = self.do_prepare_solver(opr, engine)
+    def prepare_solver(self, opr, engine, name=None):
+        solver = self.do_prepare_solver(opr, engine, name=name)
         solver.iterative_mode = True
 
         return solver
@@ -640,17 +640,16 @@ class MLInstance(SolverInstance):
 
         engine.run_apply_essential(phys_target, phys_range)
 
-
         _blocks, M_changed = self.engine.run_assemble_MXB_blocks(self.compute_A,
                                                                  self.compute_rhs,
                                                                  inplace=inplace)
 
-        #engine.run_fill_X_block()
+        # engine.run_fill_X_block()
         #
-        #self.engine.run_assemble_blocks(self.compute_A,
+        # self.engine.run_assemble_blocks(self.compute_A,
         #                                self.compute_rhs,
         #                                inplace=inplace)
-        #A, X, RHS, Ae, B, M, names = blocks
+        # A, X, RHS, Ae, B, M, names = blocks
 
     def assemble(self, inplace=True):
         engine = self.engine
@@ -691,7 +690,8 @@ class MLInstance(SolverInstance):
 
         depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
 
-        A2, X2, RHS2, depvars2, mask2 = self.minimize_blks(A, X[0], RHS, depvars, mask)
+        A2, X2, RHS2, depvars2, mask2 = self.minimize_blks(
+            A, X[0], RHS, depvars, mask)
 
         AA = engine.finalize_matrix(A2, mask2, not self.phys_real,
                                     format=self.ls_type)
@@ -720,6 +720,8 @@ class MLInstance(SolverInstance):
         levels = self.gui.get_level_solvers()
         finest = self.gui.get_active_solver(cls=FinestLvlSolver)
 
+        depvars2 = self.finalized_ls[-1][6]
+
         if finest is None and len(levels) == 1:
             levels[0].is_preconditioner = False
 
@@ -727,12 +729,12 @@ class MLInstance(SolverInstance):
         for lvl, solver_model in enumerate(levels):
             engine.level_idx = lvl
             opr = self.finalized_ls[lvl][2]
-            s = solver_model.prepare_solver(opr, engine)
+            s = solver_model.prepare_solver(opr, engine, name=depvars2)
             solvers.append(s)
 
         if finest is not None:
             opr = self.finalized_ls[lvl][2]
-            finestsolver = finest.prepare_solver(opr, engine)
+            finestsolver = finest.prepare_solver(opr, engine, name=depvars2)
         else:
             finestsolver = None
         return solvers, finestsolver
@@ -774,7 +776,7 @@ class MLInstance(SolverInstance):
 
         operators = [x[2] for x in self.finalized_ls]
 
-        #solall = linearsolver.Mult(BB, case_base=0)
+        # solall = linearsolver.Mult(BB, case_base=0)
         if len(smoothers) > 1:
             mg = generate_MG(operators, smoothers, prolongations,
                              presmoother_count=int(self.gui.presmoother_count),
@@ -797,10 +799,10 @@ class MLInstance(SolverInstance):
             smoothers[0].Mult(BB[0], XX)
             solall = np.transpose(np.vstack([XX.GetDataArray()]))
 
-        if not self.phys_real:
-            from petram.solver.solver_model import convert_realblocks_to_complex
-            merge_real_imag = self.ls_type in ["blk_merged", "blk_merged_s"]
-            solall = convert_realblocks_to_complex(solall, AA, merge_real_imag)
+        # if not self.phys_real:
+        #    from petram.solver.solver_model import convert_realblocks_to_complex
+        #    merge_real_imag = self.ls_type in ["blk_merged", "blk_merged_s"]
+        #    solall = convert_realblocks_to_complex(solall, AA, merge_real_imag)
 
         engine.level_idx = len(self.finalized_ls)-1
         A = engine.assembled_blocks[0]
@@ -829,8 +831,8 @@ class MLInstance(SolverInstance):
         operators = [x[2] for x in self.finalized_ls]
         depvars2 = self.finalized_ls[-1][6]
 
-        #offsets0 = operators[0].RowOffsets().ToList()
-        #offsets1 = operators[1].RowOffsets().ToList()
+        # offsets0 = operators[0].RowOffsets().ToList()
+        # offsets1 = operators[1].RowOffsets().ToList()
 
         if len(smoothers) > 1:
             lvl = engine.level_idx
@@ -843,7 +845,7 @@ class MLInstance(SolverInstance):
                     operators[lvl], self.ls_type, is_complex, depvars2)
                 ess_tdofs_arr.append(esstdofs0)
 
-            #solall = linearsolver.Mult(BB, case_base=0)
+            # solall = linearsolver.Mult(BB, case_base=0)
             level_setting = self.gui.get_level_setting()
 
             presmoother_count = {
@@ -887,14 +889,11 @@ class MLInstance(SolverInstance):
             solall = convert_realblocks_to_complex(solall, AA, merge_real_imag)
 
         engine.level_idx = len(self.finalized_ls)-1
-        #A = engine.assembled_blocks[0]
+        # A = engine.assembled_blocks[0]
         X = engine.assembled_blocks[1]
 
         self.reformat_mat(A2, AA, solall, 0, X2, mask2)
         self.expand_blks(X2, X[0])
-
-        #A.reformat_distributed_mat(solall, 0, X[0], self.blk_mask)
-
         self.sol = X[0]
 
         # store probe signal (use t=0.0 in std_solver)
@@ -934,8 +933,8 @@ class PyMG(mfem.PyIterativeSolver):
         self.postsmoother_count = postsmoother_count
         self.ess_tdofs = ess_tdofs
 
-        self.debug1 = True#debug1
-        self.debug2 = True#debug2
+        self.debug1 = debug1
+        self.debug2 = debug2
 
         self.cycle_rel_tol = 0.01
         self.cycle_max = cycle_max
@@ -1049,11 +1048,8 @@ class PyMG(mfem.PyIterativeSolver):
         lvl2_width = self.operators[lvl2].Width()
         err2 = mfem.Vector(lvl2_width)
 
-        print(err.Size(), err2.Size())
-        print("P", self.prolongations[lvl2].Height(), self.prolongations[lvl2].Width())
         self.prolongations[lvl2].MultTranspose(err, err2)
 
-        print("(here)")
         y2 = mfem.Vector(lvl2_width)
 
         # (zeroing the error sent to the lower level)   <--- this works
@@ -1174,7 +1170,7 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real, depvar
     cols = [0]
     rows = [0]
 
-    #for dep_var in engine.r_dep_vars:
+    # for dep_var in engine.r_dep_vars:
     for dep_var in depvars2:
         offset = engine.r_dep_var_offset(dep_var)
 
@@ -1191,13 +1187,13 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real, depvar
 
         if engine.r_isFESvar(dep_var):
             h = engine.fespaces.get_hierarchy(dep_var)
-            fes1 = h.GetFESpaceAtLevel(level)
-            fes2 = h.GetFESpaceAtLevel(level-1)
+            fes1 = h.GetFESpaceAtLevel(level+1)
+            fes2 = h.GetFESpaceAtLevel(level)
 
             from petram.helper.ndtr_prefinement_transferoperator import NDTrPRefinementTransferOperator
             P = NDTrPRefinementTransferOperator(fes2, fes1)
-            print("made here")
-            #P = h.GetProlongationAtLevel(level)
+
+            # P = h.GetProlongationAtLevel(level)
             tmp_cols.append(P.Width())
             tmp_rows.append(P.Height())
             tmp_diags.append(P)

@@ -1,5 +1,5 @@
 '''
-BlcokPreconditioner Model. 
+BlcokPreconditioner Model.
 '''
 from petram.solver.mumps_model import MUMPSPreconditioner
 from petram.mfem_config import use_parallel
@@ -113,7 +113,7 @@ class DiagonalPreconditioner(BlockSmoother):
                   ("!", MUMPSPreconditionerModel), ]
         return choice
 
-    def prepare_solver(self, opr, engine):
+    def prepare_solver(self, opr, engine, name=None):
         def get_operator_block(r, c):
             # if linked_op exists (= op is set from python).
             # try to get it
@@ -130,32 +130,29 @@ class DiagonalPreconditioner(BlockSmoother):
                 else:
                     return mfem.Opr2SparseMat(blk)
 
-        names = engine.masked_dep_var_names()
-
         if self.adv_mode:
             expr = self.adv_prc
             gen = eval(expr, self._global_ns)
-            gen.set_param(A, names, engine, self)
+            gen.set_param(A, name, engine, self)
             M = gen()
 
         else:
             prcs_gui = dict(self.preconditioners)
 
-            ls_type = self.get_solve_root().get_linearsystem_type_from_modeltree()
-            phys_real = self.get_solve_root().is_allphys_real()
-
-            if ls_type == 'blk_interleave' and not phys_real:
-                names = sum([[n, n] for n in names], [])
+            rsolver = self.get_solve_root2()
+            if rsolver.is_converted_from_complex() and not rsolver.merge_real_imag:
+                name = sum([[n, n] for n in name], [])
 
             import petram.helper.preconditioners as prcs
 
             g = prcs.DiagonalPrcGen(
-                opr=opr, engine=engine, gui=self, name=names)
+                opr=opr, engine=engine, gui=self, name=name)
+
             M = g()
 
             pc_block = {}
 
-            for k, n in enumerate(names):
+            for k, n in enumerate(name):
                 prctxt = prcs_gui[n][1] if use_parallel else prcs_gui[n][0]
                 if prctxt == "None":
                     continue

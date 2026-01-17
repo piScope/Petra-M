@@ -70,6 +70,19 @@ class SolverBase(Model, NS_mixin):
             obj = obj.parent
         return obj
 
+    def get_solve_root2(self):
+        '''
+        return a model directly under SolveStep
+        '''
+        obj = self
+        solver_root = self.root()['Solver']
+        obj2 = self
+        while (not isinstance(obj2, SolveStep) and
+               obj2 is not solver_root):
+            obj = obj2
+            obj2 = obj2.parent
+        return obj
+
     def eval_text_in_global(self, value, ll=None):
         if not isinstance(value, str):
             return value
@@ -939,13 +952,17 @@ class SolverInstance(ABC):
         else:
             is_sol_central = True
 
+        # convert to solution to complex if needed
+        #   note: ML solver already returns complex
         if is_sol_central:
-            if not self.phys_real and self.gui.assemble_real:
+            if (not self.phys_real and self.gui.assemble_real and
+                not np.iscomplexobj(solall)):
                 solall = self.linearsolver_model.real_to_complex(solall, AA)
             A.reformat_central_mat(
                 solall, ksol, ret, mask, alpha=alpha, beta=beta)
         else:
-            if not self.phys_real and self.gui.assemble_real:
+            if (not self.phys_real and self.gui.assemble_real and
+                not np.iscomplexobj(solall)):
                 solall = self.linearsolver_model.real_to_complex(solall, AA)
                 #assert False, "this operation is not permitted"
             A.reformat_distributed_mat(
