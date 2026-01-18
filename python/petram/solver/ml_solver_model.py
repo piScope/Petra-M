@@ -931,8 +931,8 @@ class PyMG(mfem.PyIterativeSolver):
         self.postsmoother_count = postsmoother_count
         self.ess_tdofs = ess_tdofs
 
-        self.debug1 = True#debug1
-        self.debug2 = True#debug2
+        self.debug1 = debug1
+        self.debug2 = debug2
 
         self.cycle_rel_tol = 0.01
         self.cycle_max = cycle_max

@@ -1094,14 +1094,14 @@ class LinearSolverModel(SolverBase):
         raise NotImplementedError(
             "bug. this method sould not be called")
 
-    def prepare_solver(self, opr, engine):
+    def prepare_solver(self, opr, engine, *args, **kwargs):
         '''
         this method create LinearSolver. This should return MFEM LinearOperator
         '''
         raise NotImplementedError(
             "bug. this method sould not implemented in subclass.")
 
-    def prepare_solver_with_multtranspose(self):
+    def prepare_solver_with_multtranspose(self, *args, **kwargs):
         '''
         this method create LinearSolver. This should return MFEM LinearOperator
         '''

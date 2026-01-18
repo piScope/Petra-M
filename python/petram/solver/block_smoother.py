@@ -186,6 +186,9 @@ class DiagonalPreconditioner(BlockSmoother):
                     M.SetDiagonalBlock(k, pc_block[n])
         return M
 
+    def prepare_solver_with_multtranspose(self, opr, engine, name=None):
+        return self.prepare_solver(opr, engine, name=name)
+
 
 class DiagonalSmoother(DiagonalPreconditioner):
     @classmethod
