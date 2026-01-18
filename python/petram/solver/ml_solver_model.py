@@ -22,6 +22,7 @@ if use_parallel:
     import mfem.par as mfem
 else:
     import mfem.ser as mfem
+    nicePrint = print
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MGSolver')
@@ -756,9 +757,6 @@ class MLInstance(SolverInstance):
             P = fill_prolongation_operator(
                 engine, k, XX, AA, self.ls_type, self.phys_real, depvars2)
 
-            print("P", P)
-            print("P Shape", P.Width(), P.Height())
-
             prolongations.append(P)
 
         return prolongations
@@ -933,8 +931,8 @@ class PyMG(mfem.PyIterativeSolver):
         self.postsmoother_count = postsmoother_count
         self.ess_tdofs = ess_tdofs
 
-        self.debug1 = debug1
-        self.debug2 = debug2
+        self.debug1 = True#debug1
+        self.debug2 = True#debug2
 
         self.cycle_rel_tol = 0.01
         self.cycle_max = cycle_max
@@ -984,9 +982,9 @@ class PyMG(mfem.PyIterativeSolver):
                 dprint1("    - error on essential at level = 0",
                         np.sum(np.abs(x.GetDataArray()[self.ess_tdofs[0]])))
                 dprint1("    - NormInf before level0 solve", x.Normlinf())
-
             y.Assign(0.0)
             self.smoothers[0].Mult(x, y)
+
 
             if self.debug2:
                 dprint1("    - NormInf after level0 solve", y.Normlinf())
@@ -1011,7 +1009,6 @@ class PyMG(mfem.PyIterativeSolver):
 
         err = mfem.Vector(x.Size())
         err.Assign(x)
-
         y0 = mfem.Vector(x.Size())
         y.Assign(0.0)
 
@@ -1047,11 +1044,7 @@ class PyMG(mfem.PyIterativeSolver):
         lvl2 = lvl - 1
         lvl2_width = self.operators[lvl2].Width()
         err2 = mfem.Vector(lvl2_width)
-
         self.prolongations[lvl2].MultTranspose(err, err2)
-
-        y2 = mfem.Vector(lvl2_width)
-
         # (zeroing the error sent to the lower level)   <--- this works
         err2.GetDataArray()[self.ess_tdofs[lvl2]] = 0.0
 
@@ -1065,6 +1058,7 @@ class PyMG(mfem.PyIterativeSolver):
 
         x2 = mfem.Vector(lvl2_width)
         x2.Assign(0.0)
+        y2 = mfem.Vector(lvl2_width)
         err2_L2 = err2.Norml2()
         if use_parallel:
             err2_L2 = np.sqrt(
@@ -1086,8 +1080,9 @@ class PyMG(mfem.PyIterativeSolver):
             if self.debug2:
                 dprint1(str(i)+" th cycle checking cycle error lvl = :" + str(lvl))
                 dprint1("correction L2/ rel_improve", y2.Norml2(), rel_improve)
-                dprint1("change of improvement", np.abs(
-                    np.abs(rel_improve0/rel_improve)-1))
+                if rel_improve != 0:
+                    dprint1("change of improvement", np.abs(
+                        np.abs(rel_improve0/rel_improve)-1))
 
             if rel_improve < self.cycle_rel_tol:
                 break
@@ -1194,6 +1189,7 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real, depvar
             P = NDTrPRefinementTransferOperator(fes2, fes1)
 
             # P = h.GetProlongationAtLevel(level)
+
             tmp_cols.append(P.Width())
             tmp_rows.append(P.Height())
             tmp_diags.append(P)
