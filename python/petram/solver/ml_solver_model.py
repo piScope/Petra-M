@@ -164,7 +164,8 @@ class RefinedLevel(FineLevel, SolverBase):
     def get_possible_child(self):
         from petram.solver.krylov import KrylovSmoother
         from petram.solver.block_smoother import DiagonalSmoother
-        return [KrylovSmoother, DiagonalSmoother]
+        from petram.solver.mumps_model import MUMPSMFEMSolverModel
+        return [KrylovSmoother, DiagonalSmoother, MUMPSMFEMSolverModel]
 
     def get_phys(self):
         my_solve_step = self.get_solve_root()
@@ -1114,6 +1115,7 @@ class PyMG(mfem.PyIterativeSolver):
 
             # compute error
             self.operators[lvl].Mult(y, err)
+
             err *= -1
             err += x
 
@@ -1167,8 +1169,6 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real, depvar
 
     # for dep_var in engine.r_dep_vars:
     for dep_var in depvars2:
-        offset = engine.r_dep_var_offset(dep_var)
-
         tmp_cols = []
         tmp_rows = []
         tmp_diags = []
@@ -1185,10 +1185,7 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real, depvar
             fes1 = h.GetFESpaceAtLevel(level+1)
             fes2 = h.GetFESpaceAtLevel(level)
 
-            from petram.helper.ndtr_prefinement_transferoperator import NDTrPRefinementTransferOperator
-            P = NDTrPRefinementTransferOperator(fes2, fes1)
-
-            # P = h.GetProlongationAtLevel(level)
+            P = h.GetProlongationAtLevel(level)
 
             tmp_cols.append(P.Width())
             tmp_rows.append(P.Height())
@@ -1203,6 +1200,7 @@ def fill_prolongation_operator(engine, level, XX, AA, ls_type, phys_real, depvar
                 # else:
                 tmp_diags.append(P)
         else:
+            offset = depvars2.index(dep_var)
             tmp_cols.append(widths[offset])
             tmp_rows.append(widths[offset])
             tmp_diags.append(mfem.IdentityOperator(widths[offset]))
