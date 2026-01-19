@@ -67,6 +67,10 @@ class CoarsestLvlSolver:
     def __init__(self):
         self.is_preconditioner = True
 
+    def prepare_transpose_solver(self, opr, engine, name=None):
+        # CoarsestLvl does not need transpose
+        return None
+
 
 class FinestLvlSolver:
     ...
@@ -176,13 +180,19 @@ class RefinedLevel(FineLevel, SolverBase):
         return my_solve_step.get_phys_range()
 
     def prepare_solver(self, opr, engine, name=None):
-        if self.smoother_count[1] == 0:
-            for x in self.iter_enabled():
-                return x.prepare_solver(opr, engine, name=name)
-        else:
-            for x in self.iter_enabled():
-                return x.prepare_solver_with_multtranspose(opr, engine, name=name)
+        for x in self.iter_enabled():
+            return x.prepare_solver(opr, engine, name=name)
+        # else:
+        #    for x in self.iter_enabled():
+        #        return x.prepare_solver_with_multtranspose(opr, engine, name=name)
             # return x.prepare_solver(opr, engine)
+
+    def prepare_transpose_solver(self, opr, engine, name=None):
+        for x in self.iter_enabled():
+            if hasattr(x, "prepare_transpose_solver"):
+                return x.prepare_transpose_solver(opr, engine, name=name)
+            else:
+                return None
 
     def adjust_physics(self, phys):
         names = [x.strip() for x in self.extra_constraints1.split(',')]
@@ -529,6 +539,22 @@ class MultiLvlStationarySolver(StdSolver):
     def get_level_setting(self):
         return self._get_level_solvers()[-1]
 
+    # def gather_order_adjustment(self):
+    #    total_p_ref = 0
+    #    for x in self:
+    #        child = self[x]
+    #        if not child.is_enabled():
+    #            continue
+    #        if isinstance(child, RefinedLevel):
+    #            if child.refinement_type.startswith("P"):
+    #               total_p_ref += int(child.level_inc)
+    #
+    #    target_phys = self.get_target_phys()
+    #    org_phys_order = []
+    #    for phys in target_phys:
+    #        org_phys_order.append((phys, phys.order))
+    #    return org_phys_order, total_p_ref
+
     def create_refined_levels(self, engine, lvl):
         '''
         lvl : refined level number (1, 2, 3, ....)
@@ -607,6 +633,7 @@ class MLInstance(SolverInstance):
         SolverInstance.__init__(self, gui, engine)
         self.assembled = False
         self.linearsolver = None
+        self.use_multtranspose_postsmooth = False
 
     @property
     def blocks(self):
@@ -731,8 +758,14 @@ class MLInstance(SolverInstance):
         for lvl, solver_model in enumerate(levels):
             engine.level_idx = lvl
             opr = self.finalized_ls[lvl][2]
-            s = solver_model.prepare_solver(opr, engine, name=depvars2)
-            solvers.append(s)
+            s1 = solver_model.prepare_solver(opr, engine, name=depvars2)
+
+            if self.use_multtranspose_postsmooth:
+                s2 = solver_model.prepare_transpose_solver(
+                    opr, engine, name=depvars2)
+            else:
+                s2 = None
+            solvers.append((s1, s2))
 
         if finest is not None:
             opr = self.finalized_ls[lvl][2]
@@ -860,6 +893,7 @@ class MLInstance(SolverInstance):
                       presmoother_count=presmoother_count,
                       postsmoother_count=postsmoother_count,
                       cycle_max=cycle_max,
+                      multtranpse_postsmooth=self.use_multtranspose_postsmooth,
                       debug1=self.gui.debug_cycle_level,
                       debug2=self.gui.debug_residuals)
 
@@ -877,7 +911,7 @@ class MLInstance(SolverInstance):
             solall = np.transpose(np.vstack([XX.GetDataArray()]))
         else:
             # this makes sense if coarsest smoother is direct solver
-            smoothers[0].Mult(BB[0], XX)
+            smoothers[0][0].Mult(BB[0], XX)
             solall = np.transpose(np.vstack([XX.GetDataArray()]))
 
         solall = np.transpose(np.vstack([XX.GetDataArray()]))
@@ -924,7 +958,8 @@ def generate_MG(operators, smoothers, prolongations,
 class PyMG(mfem.PyIterativeSolver):
     def __init__(self, operators, smoothers, prolongations,
                  ess_tdofs=None, presmoother_count=1, postsmoother_count=1,
-                 debug1=True, debug2=True, cycle_max=1):
+                 debug1=True, debug2=True, cycle_max=1,
+                 multtranpse_postsmooth=False):
         self.operators = operators
         self.smoothers = smoothers
         self.prolongations = prolongations
@@ -934,6 +969,7 @@ class PyMG(mfem.PyIterativeSolver):
 
         self.debug1 = debug1
         self.debug2 = debug2
+        self.use_multtranspose_postsmooth = multtranpse_postsmooth
 
         self.cycle_rel_tol = 0.01
         self.cycle_max = cycle_max
@@ -944,6 +980,12 @@ class PyMG(mfem.PyIterativeSolver):
         else:
             args = tuple()
         mfem.PyIterativeSolver.__init__(self, *args)
+
+        for s1, s2 in self.smoothers:
+            if s1 is not None:
+                s1.iterative_mode = False
+            if s2 is not None:
+                s1.iterative_mode = False
 
     def Mult(self, x, y):
         '''
@@ -984,8 +1026,7 @@ class PyMG(mfem.PyIterativeSolver):
                         np.sum(np.abs(x.GetDataArray()[self.ess_tdofs[0]])))
                 dprint1("    - NormInf before level0 solve", x.Normlinf())
             y.Assign(0.0)
-            self.smoothers[0].Mult(x, y)
-
+            self.smoothers[0][0].Mult(x, y)
 
             if self.debug2:
                 dprint1("    - NormInf after level0 solve", y.Normlinf())
@@ -1005,7 +1046,7 @@ class PyMG(mfem.PyIterativeSolver):
         if self.debug2:
             dprint1("")
             dprint1("  - residual on essential at the start of level",
-                    np.sum(np.abs(x.GetDataArray()[self.ess_tdofs[1]])))
+                    np.sum(np.abs(x.GetDataArray()[self.ess_tdofs[lvl]])))
             dprint1("  - initial residual L2", x.Norml2())
 
         err = mfem.Vector(x.Size())
@@ -1019,14 +1060,13 @@ class PyMG(mfem.PyIterativeSolver):
                 dprint1("   -  Performing pre-smooth " +
                         txt + " : level = " + str(lvl))
 
-            self.smoothers[lvl].iterative_mode = False
             y0.Assign(0.0)
 
             if self.debug2:
                 dprint1("    - resdidual on essential before presmooth",
                         np.sum(np.abs(err.GetDataArray()[self.ess_tdofs[lvl]])))
 
-            self.smoothers[lvl].Mult(err, y0)
+            self.smoothers[lvl][0].Mult(err, y0)
 
             y += y0
             self.operators[lvl].Mult(y, err)
@@ -1047,7 +1087,7 @@ class PyMG(mfem.PyIterativeSolver):
         err2 = mfem.Vector(lvl2_width)
         self.prolongations[lvl2].MultTranspose(err, err2)
         # (zeroing the error sent to the lower level)   <--- this works
-        err2.GetDataArray()[self.ess_tdofs[lvl2]] = 0.0
+        # err2.GetDataArray()[self.ess_tdofs[lvl2]] = 0.0
 
         if self.debug2:
             dprint1("    - error on essential given to a coarse level",
@@ -1125,7 +1165,15 @@ class PyMG(mfem.PyIterativeSolver):
                 dprint1("    - residual L2 before before postsmooth", err.Norml2())
 
             y0.Assign(0.0)
-            self.smoothers[lvl].Mult(err, y0)
+
+            if self.smoothers[lvl][1] is not None:
+                self.smoothers[lvl][1].Mult(err, y0)
+            else:
+                if self.use_multtranspose_postsmooth:
+                    dprint1(
+                        "MultTranspose is not defined in solver/pre-conditioner chain. Transpose is used")
+                self.smoothers[lvl][0].Mult(err, y0)
+
             # (zeroing the essentials of final correction)
             # y0.GetDataArray()[self.ess_tdofs[1]] = 0.0   <--- does not works
             y += y0

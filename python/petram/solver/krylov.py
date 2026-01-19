@@ -1,6 +1,6 @@
 '''
 
-Krylov Model. 
+Krylov Model.
   Krylov solver
   This model is supposeed to work inside Iteratife solver chain.
   This model itsel does not define an iterative solver itself.
@@ -207,7 +207,7 @@ class KrylovModel(LinearSolverModel, NS_mixin):
             if isinstance(x, LinearSolverModel):
                 return x.prepare_solver(opr, engine, name=name)
 
-    def do_prepare_solver(self, opr, engine, name=None):
+    def _instantiate_solver(self):
         cls = getattr(mfem, self.solver_type + 'Solver')
         args = (MPI.COMM_WORLD,) if use_parallel else ()
 
@@ -220,11 +220,38 @@ class KrylovModel(LinearSolverModel, NS_mixin):
             solver.SetKDim(int(self.kdim))
 
         solver.iterative_mode = True
+        return solver
+
+    def do_prepare_solver(self, opr, engine, name=None):
+        solver = self._instantiate_solver()
         solver.SetOperator(opr)
+        solver._opr = opr
         if self.write_mat:
             self.write_matrix(opr)
 
         M = self.prepare_preconditioner(opr, engine, name=name)
+
+        if M is not None:
+            solver.SetPreconditioner(M)
+            solver._prc = M
+        return solver
+
+    def prepare_transpose_preconditioner(self, opr, engine, name=None):
+        for x in self.iter_enabled():
+            if isinstance(x, LinearSolverModel):
+                return x.prepare_transpose_solver(opr, engine, name=name)
+
+    def do_prepare_transpose_solver(self, opr, engine, name=None):
+        solver = self._instantiate_solver()
+
+        opr2 = mfem.TransposeOperator(opr)
+        solver.SetOperator(opr2)
+        solver._oprs = (opr, opr2)
+
+        if self.write_mat:
+            self.write_matrix(opr2)
+
+        M = self.prepare_transpose_preconditioner(opr, engine, name=name)
 
         if M is not None:
             solver.SetPreconditioner(M)
@@ -237,6 +264,12 @@ class KrylovModel(LinearSolverModel, NS_mixin):
 
     def prepare_solver(self, opr, engine, name=None):
         solver = self.do_prepare_solver(opr, engine, name=name)
+        solver.iterative_mode = True
+
+        return solver
+
+    def prepare_transpose_solver(self, opr, engine, name=None):
+        solver = self.do_prepare_transpose_solver(opr, engine, name=name)
         solver.iterative_mode = True
 
         return solver
@@ -285,82 +318,13 @@ class KrylovSmoother(KrylovModel):
         solver.iterative_mode = False
         return solver
 
-    def prepare_solver_with_multtranspose(self, opr, engine, name=None):
+    def prepare_transpose_solver(self, opr, engine, name=None):
         '''
         This is called from multi-level refinement
         '''
-        class MyPySolver(mfem.PyIterativeSolver):
-            def __init__(self, solver_type):
-                args = (MPI.COMM_WORLD,) if use_parallel else ()
-                cls = getattr(mfem, solver_type + 'Solver')
-                self.s1 = cls(*args)
-                self.s2 = cls(*args)
-                mfem.PyIterativeSolver.__init__(self, *args)
-
-            def SetAbsTol(self, tol):
-                self.s1.SetAbsTol(tol)
-                self.s2.SetAbsTol(tol)
-
-            def SetRelTol(self, tol):
-                self.s1.SetRelTol(tol)
-                self.s2.SetRelTol(tol)
-
-            def SetMaxIter(self, iter):
-                self.s1.SetMaxIter(iter)
-                self.s2.SetMaxIter(iter)
-
-            def SetPrintLevel(self, lvl):
-                self.s1.SetPrintLevel(lvl)
-                self.s2.SetPrintLevel(lvl)
-
-            def SetKDim(self, d):
-                self.s1.SetKDim(d)
-                self.s2.SetKDim(d)
-
-            def SetOperator(self, opr):
-                self.s1.SetOperator(opr)
-                opr2 = mfem.TransposeOperator(opr)
-                self.s2.SetOperator(opr2)
-                self._oprs = (opr, opr2)
-
-            def SetPreconditioner(self, opr):
-                self.s1.SetPreconditioner(opr)
-                #opr2 = mfem.TransposeOperator(opr)
-                # self.s2.SetPreconditioner(opr2)
-                self._prcs = (opr, )
-
-            def Mult(self, x, y):
-                self.s1.Mult(x, y)
-
-            def MultTranspose(self, x, y):
-                self.s1.Mult(x, y)
-
-            @property
-            def iterative_mode(self):
-                return self.s1.iterative_mode
-
-            @iterative_mode.setter
-            def iterative_mode(self, v):
-                self.s1.iterative_mode = v
-                self.s2.iterative_mode = v
-
-        args = (MPI.COMM_WORLD,) if use_parallel else ()
-        solver = MyPySolver(self.solver_type)
-        solver.SetAbsTol(self.abstol)
-        solver.SetRelTol(self.reltol)
-        solver.SetMaxIter(self.maxiter)
-        solver.SetPrintLevel(self.log_level)
-        if self.solver_type in ['GMRES', 'FGMRES']:
-            solver.SetKDim(int(self.kdim))
-
-        M = self.prepare_preconditioner(opr, engine, name=name)
-        if M is not None:
-            solver.SetPreconditioner(M)
-
+        solver = self.do_prepare_transpose_solver(opr, engine, name=name)
         solver.iterative_mode = False
-        solver.SetOperator(opr)
         return solver
-
 
 class StationaryRefinementModel(KrylovModel):
     hide_ns_menu = True

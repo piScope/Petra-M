@@ -113,7 +113,7 @@ class DiagonalPreconditioner(BlockSmoother):
                   ("!", MUMPSPreconditionerModel), ]
         return choice
 
-    def prepare_solver(self, opr, engine, name=None):
+    def prepare_solver(self, opr, engine, name=None, transpose=False):
         def get_operator_block(r, c):
             # if linked_op exists (= op is set from python).
             # try to get it
@@ -126,14 +126,24 @@ class DiagonalPreconditioner(BlockSmoother):
             else:
                 blk = opr.GetBlock(r, c)
                 if use_parallel:
-                    return mfem.Opr2HypreParMat(blk)
+                    mat = mfem.Opr2HypreParMat(blk)
+                    if transpose:
+                        return mat.Transpose()
+                    else:
+                        return mat
                 else:
-                    return mfem.Opr2SparseMat(blk)
+                    mat = mfem.Opr2SparseMat(blk)
+                    if transpose:
+                        return mfem.Transpose(mat)
+                    else:
+                        return mat
 
         if self.adv_mode:
             expr = self.adv_prc
             gen = eval(expr, self._global_ns)
             gen.set_param(A, name, engine, self)
+            if transpose:
+                gen.set_transpose()
             M = gen()
 
         else:
@@ -147,7 +157,8 @@ class DiagonalPreconditioner(BlockSmoother):
 
             g = prcs.DiagonalPrcGen(
                 opr=opr, engine=engine, gui=self, name=name)
-
+            if transpose:
+                g.set_transpose()
             M = g()
 
             pc_block = {}
@@ -186,8 +197,8 @@ class DiagonalPreconditioner(BlockSmoother):
                     M.SetDiagonalBlock(k, pc_block[n])
         return M
 
-    def prepare_solver_with_multtranspose(self, opr, engine, name=None):
-        return self.prepare_solver(opr, engine, name=name)
+    def prepare_transpose_solver(self, opr, engine, name=None):
+        return self.prepare_solver(opr, engine, name=name, transpose=True)
 
 
 class DiagonalSmoother(DiagonalPreconditioner):
