@@ -231,9 +231,6 @@ class RealImagCoefficientGen(ABC):
             return NotImplemented
 
     def __mul__(self, scale):
-        assert not isinstance(
-            scale, RealImagCoefficientGen), "multiplication is not defined"
-
         class PyComplexProductXCoefficient(CC_Scalar):
             def __init__(self, coeff, scale=1.0):
                 self.scale = scale
@@ -242,9 +239,49 @@ class RealImagCoefficientGen(ABC):
 
             def eval(self, T, ip):
                 v = self.coeff.eval(T, ip)
-                v *= self.scale
+                if isinstance(self.scale, RealImagCoefficientGen):
+                    s = self.scale.eval(T, ip)
+                else:
+                    s = self.scale
+                v *= s
                 return v
         obj = PyComplexProductXCoefficient(self, scale)
+        return obj
+
+    def conj(self):
+        class PyComplexConjSCoefficient(CC_Scalar):
+            def __init__(self, coeff1):
+                CC_Scalar.__init__(self)
+                self.coeff = coeff1
+
+            def eval(self, T, ip):
+                v1 = self.coeff.eval(T, ip)
+                return v1.conj()
+
+        class PyComplexConjVCoefficient(CC_Vector):
+            def __init__(self, coeff1):
+                CC_Vector.__init__(self, coeff1.vdim)
+                self.coeff = coeff1
+
+            def eval(self, T, ip):
+                v1 = self.coeff.eval(T, ip)
+                return v1.conj()
+
+        class PyComplexConjMCoefficient(CC_Matrix):
+            def __init__(self, coeff1):
+                self.coeff = coeff1
+                CC_Matrix.__init__(self, coeff1.height, coeff1.width)
+
+            def eval(self, T, ip):
+                v1 = self.coeff.eval(T, ip)
+                return v1.conj()
+
+        if self.kind == "scalar":
+            return PyComplexConjSCoefficient(self)
+        if self.kind == "vector":
+            return PyComplexConjVCoefficient(self)
+        if self.kind == "matrix":
+            return PyComplexConjMCoefficient(self)
 
     def __getitem__(self, arg):
         '''
