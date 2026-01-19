@@ -1554,6 +1554,8 @@ class DlgPlotSol(SimpleFramePlus):
                      'Points': 'domain',
                      'Integral': 'domain/boundary',
                      'Domain': 'domain'}
+            if not hasattr(self, 'get_attrs_field_' + t):
+                return "", ""
             i = getattr(self, 'get_attrs_field_' + t)
             value = self.elps[t].GetValue()
             attrs = str(value[i()])
