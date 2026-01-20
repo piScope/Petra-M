@@ -269,6 +269,8 @@ def shape_inspector(shape, inspect_type, shapes):
             if len(params) == 2:
                 # null handle case
                 kinds.append("Unknown")
+            elif params[0] is None:
+                kinds.append("Unknown")            
             else:
                 curve = params[0]
                 curve, kind = downcast_curve(curve)
