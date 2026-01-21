@@ -354,7 +354,7 @@ class NumbaCoefficient():
         dep = (self.mfem_numba_coeff, )
 
         if not isinstance(other, NumbaCoefficient):
-            if isinstance(ohter, (PhysConstant,
+            if isinstance(other, (PhysConstant,
                                   PhysVectorConstant,
                                   PhysMatrixConstant,
                                   PyComplexConstant,
