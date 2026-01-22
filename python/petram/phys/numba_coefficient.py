@@ -10,6 +10,7 @@ import traceback
 from numpy.linalg import inv, det
 from numpy import conj as npconj
 from numpy import dot as npdot
+from numpy import transpose as nptranspose
 from numpy import array, zeros, iscomplexobj
 from petram.mfem_config import use_parallel
 
@@ -534,7 +535,43 @@ class NumbaCoefficient():
                                     shape=self.shape)(l["f"])
 
         else:
-            assert False, "unsupported dim: dim=" + str(self.ndim)
+            assert False, "(conj)unsupported dim: dim=" + str(self.ndim)
+
+        return NumbaCoefficient(coeff)
+
+    def transpose(self):
+        '''
+        generate transpose
+        '''
+        from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
+
+        func = '\n'.join(['def f(ptx, val):',
+                          '    return nptranspose(val)'])
+
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+
+        if self.ndim == 1:
+            coeff = mfem.jit.vector(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    shape=self.shape)(l["f"])
+
+        elif self.ndim == 2:
+            coeff = mfem.jit.matrix(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    shape=self.shape)(l["f"])
+
+        else:
+            assert False, "(transpose) unsupported dim: dim=" + str(self.ndim)
 
         return NumbaCoefficient(coeff)
 
@@ -896,7 +933,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             if return_complex:
                 func_txt.append("   return np.complex128(_out_)")
             else:
-                func_txt.append("   if np.iscomplexobj(_out_): _out_ = _out_.real")            
+                func_txt.append("   if np.iscomplexobj(_out_): _out_ = _out_.real")
                 func_txt.append("   return _out_")
         else:
             if return_complex:
