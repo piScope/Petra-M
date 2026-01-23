@@ -11,6 +11,12 @@ from numpy.linalg import inv, det
 from numpy import conj as npconj
 from numpy import dot as npdot
 from numpy import transpose as nptranspose
+from numpy.linalg import norm as npnorm
+from numpy import abs as npabs
+from numpy import complex128 as npcomplex128
+from numpy import float64 as npfloat64
+
+
 from numpy import array, zeros, iscomplexobj
 from petram.mfem_config import use_parallel
 
@@ -539,6 +545,41 @@ class NumbaCoefficient():
 
         return NumbaCoefficient(coeff)
 
+    def norm(self):
+        '''
+        generate norm of array or abs of scalar
+        '''
+        from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
+
+        if self.ndim == 0:
+            func = '\n'.join(['def f(ptx, val):',
+                              '    return npabs(val)'])
+        else:
+            if self.complex:
+                func = '\n'.join(['def f(ptx, val):',
+                                  '    val = val.astype(npcomplex128)',
+                                  #'    print("norm", npnorm(val))',
+                                  '    return npnorm(val)'])
+            else:
+                func = '\n'.join(['def f(ptx, val):',
+                                  '    val = val.astype(npfloat64)',
+                                  '    return npnorm(val)'])
+
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+
+        coeff = mfem.jit.scalar(complex=False,
+                                dependency=dep,
+                                interface="simple",
+                                debug=numba_debug)(l["f"])
+
+        return NumbaCoefficient(coeff)
+
     def transpose(self):
         '''
         generate transpose
@@ -663,7 +704,33 @@ class NumbaCoefficient():
         raise NotImplementedError
 
     def __pow__(self, exponent):
-        raise NotImplementedError
+        '''
+        generate x**(exponent)
+        '''
+        from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
+
+        if self.ndim == 0:
+            func = '\n'.join(['def f(ptx, val):',
+#                              '    print("data", val, val**exponent)',
+                              '    return val**exponent'])
+        else:
+            assert False, "not supported (__pow__)"
+
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+        params = {"exponent": exponent}
+        coeff = mfem.jit.scalar(complex=True,
+                                dependency=dep,
+                                params=params,
+                                interface="simple",
+                                debug=numba_debug)(l["f"])
+
+        return NumbaCoefficient(coeff)
 
     def __getitem__(self, arg):
         check = self.kind == 'matrix' or self.kind == 'vector'
