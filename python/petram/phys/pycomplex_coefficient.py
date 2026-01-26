@@ -10,7 +10,7 @@ import abc
 from abc import ABC, abstractmethod
 
 from numpy.linalg import inv, det
-from numpy import conj
+from numpy import conj, transpose
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -502,6 +502,9 @@ class PyComplexVectorConstant(PyComplexConstantBase):
     def conj(self):
         return PyComplexVectorConstant(conj(self.value))
 
+    def transpose(self):
+        return PyComplexVectorConstant(transpose(self.value))
+
     def __mul__(self, scale):
         if isinstance(scale, PyComplexConstant):
             scale = scale.value
@@ -554,6 +557,14 @@ class PyComplexMatrixConstant(RealImagCoefficientGen):
 
     def conj(self):
         return PyComplexMatrixConstant(conj(self.value))
+
+    def transpose(self):
+        return PyComplexMatrixConstant(transpose(self.value))
+
+    def dot(self, other):
+        if isinstance(other, PyComplexMatrixConstant):
+            return PyComplexMatrixConstant(self.value.dot(other.value))
+        assert False, "dot with non-constant not supported"
 
     def __mul__(self, scale):
         if isinstance(scale, PyComplexMatrixConstant):
