@@ -603,6 +603,12 @@ class DlgPlotSol(SimpleFramePlus):
                    "Generate animation using phasing",
                    None)
             elp = EditListPanel(p, ll, tip=tip)
+
+            # set default option to Grid
+            tmp = elp.GetValue()
+            tmp[1] = ['Grid', ['0, 0, 1, 0'], ['0, 0, 1, 0', '1., 0., 0.', '0.01']]
+            elp.SetValue(tmp)
+
             vbox.Add(elp, 1, wx.EXPAND | wx.ALL, 1)
             self.elps['Slice'] = elp
 
