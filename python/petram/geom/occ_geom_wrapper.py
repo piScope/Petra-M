@@ -5236,6 +5236,7 @@ class Geometry():
                         topo_id = topo_list.add(topo)
                     ex2.Next()
                 ex1.Next()
+            
             ex1.Init(shape, topabs, topabs_p)
             while ex1.More():
                 topo = ex1.Current()
@@ -5287,11 +5288,47 @@ class Geometry():
                       dim=0,
                       map2_name=('vertex', 'edge'))
 
+
+        mapper1 = TopTools_IndexedDataMapOfShapeListOfShape()
+        mapper2 = TopTools_IndexedDataMapOfShapeListOfShape()
+        mapper3 = TopTools_IndexedDataMapOfShapeListOfShape()                
+        topexp.MapShapesAndAncestors(
+            shape, TopAbs_VERTEX, TopAbs_FACE, mapper1)  # 1: map p -> f
+        topexp.MapShapesAndAncestors(
+            shape, TopAbs_VERTEX, TopAbs_EDGE, mapper2)  # 2: map p -> e
+        topexp.MapShapesAndAncestors(
+            shape, TopAbs_EDGE, TopAbs_FACE, mapper3)  # 2: map e -> f
+
+        def make_list(mapper, shape, groups):      
+            items = mapper1.FindFromKey(shape)
+            TopTools_ListIteratorOfListOfShape(items)
+            ret = []
+            while it.More():
+                shape = it.Value()
+                id = groups.find_gid(shape)
+                ret.append(id)
+                it.Next()
+            return ret
+            
+                
+        uvertices = topo_seen(mapping=vertMap)        
+        ex_v = TopExp_Explorer(shape, TopAbs_VERTEX)
+        while ex_v.More():        
+            vertex = ex_v.Current()
+            if uvertices.check_shape(vertex) == 0:
+                faces = make_list(mapper1, vertex, self.faces)
+                print(faces)
+                if (mapper2.FindFromKey(vertex).Size() == 0 and 
+                    mapper1.FindFromKey(vertex).Size() != 0):
+                    print("floating vertex", self.vertices.find_gid(vertex))
+            ex_v.Next()
+
         b = self.builder
         comp = self.shape
         ex1 = TopExp_Explorer(shape, TopAbs_SOLID)
         while ex1.More():
             b.Add(comp, ex1.Current())
+            
             ex1.Next()
         ex1 = TopExp_Explorer(shape, TopAbs_SHELL, TopAbs_SOLID)
         while ex1.More():
@@ -5957,7 +5994,6 @@ class Geometry():
         export shapes in STEP and STL format
         '''
 
-        print("entring here")
         stlmode = filename.endswith('.stl')
 
         if selection is None:
