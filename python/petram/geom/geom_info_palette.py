@@ -14,8 +14,8 @@ from ifigure.widgets.miniframe_with_windowlist import DialogWithWindowList
 
 from petram.pi.simple_frame_plus import SimpleFramePlus
 
-choices = ['Property', 'Distance', 'Find small face', 'Find short edge', 'Find same...']
-choices2 = ['property', 'distance', 'smallface', 'shortedge', 'findsame']
+choices = ['Property', 'Distance', 'Find small face', 'Find short edge', 'Find floating point', 'Find same...']
+choices2 = ['property', 'distance', 'smallface', 'shortedge', 'floatingvertex', 'findsame']
 
 def find_surf(x, s, l):
     lines = s[x]
@@ -40,6 +40,7 @@ class GeomInfoPalette(SimpleFramePlus):
         elp4 = [['threshold', 1e-4, 300, {},],]
         elp5 = [['entity (l/f)', '', 0, {},],
                 ['tolelance', 1e-5, 300, {}],]
+        elp6 = []
 
         setting = [{'choices':choices,
                     'text': ''},
@@ -47,6 +48,7 @@ class GeomInfoPalette(SimpleFramePlus):
                    {'elp': elp2},
                    {'elp': elp3},
                    {'elp': elp4},
+                   {'elp': elp6},
                    {'elp': elp5},]
         ll = [(None, None, 34, setting), ]
 
@@ -74,7 +76,7 @@ class GeomInfoPalette(SimpleFramePlus):
         button2 = wx.Button(p, wx.ID_ANY, "Show")
         button.Bind(wx.EVT_BUTTON, self.OnApply)
         button2.Bind(wx.EVT_BUTTON, self.OnShow)
-        hbox.Add(button2, 0, wx.ALL, 1)        
+        hbox.Add(button2, 0, wx.ALL, 1)
         hbox.AddStretchSpacer()
         hbox.Add(button, 0, wx.ALL, 1)
 
@@ -134,11 +136,11 @@ class GeomInfoPalette(SimpleFramePlus):
         v = geom.geom_data[5]
 
         def show_solids(solids):
-            solids = [int(x) for x in solids]            
+            solids = [int(x) for x in solids]
             x = [v[xx] for xx in solids]
             faces = np.unique(x)
             show_faces(faces)
-            
+
         def show_faces(faces):
             faces = [int(x) for x in faces]
             xx = [find_surf(x, s, l) for x in faces]
@@ -170,6 +172,10 @@ class GeomInfoPalette(SimpleFramePlus):
             if len(eid) > 0:
                 viewer.highlight_edge(eid)
 
+        if inspect_type == 'floatingvertex':
+            points = np.unique([int(x) for x in self.data])
+            viewer.highlight_point(points)
+
         if inspect_type == 'property':
             p = params[0]
             idx = [int(p[1:])]
@@ -180,13 +186,13 @@ class GeomInfoPalette(SimpleFramePlus):
             if p.startswith('v'):
                 show_solids(idx)
             if p.startswith('p'):
-                viewer.highlight_point(idx, unselect=False)                
+                viewer.highlight_point(idx, unselect=False)
 
         evt.Skip()
 
     def OnELPChanged(self, evt):
         self.button2.Disable()
-        self.txt.SetValue('')        
+        self.txt.SetValue('')
         evt.Skip()
 
     def OnClose(self, evt):

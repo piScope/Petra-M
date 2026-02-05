@@ -395,6 +395,74 @@ def shape_inspector(shape, inspect_type, shapes):
         txt = ',\n'.join([str(int(x)) for x in gids])
 
         return txt, gids
+
+    elif inspect_type == 'floatingvertex':
+        vertMap = get_mapper(shape, 'vertex')
+        faceMap = get_mapper(shape, 'face')
+        faces, edges, vertices = shapes
+
+
+        mapper1 = TopTools_IndexedDataMapOfShapeListOfShape()
+        mapper2 = TopTools_IndexedDataMapOfShapeListOfShape()
+        mapper3 = TopTools_IndexedDataMapOfShapeListOfShape()
+        topexp.MapShapesAndAncestors(
+            shape, TopAbs_VERTEX, TopAbs_FACE, mapper1)  # 1: map p -> f
+        topexp.MapShapesAndAncestors(
+            shape, TopAbs_VERTEX, TopAbs_EDGE, mapper2)  # 2: map p -> e
+        topexp.MapShapesAndAncestors(
+            shape, TopAbs_EDGE, TopAbs_FACE, mapper3)  # 2: map e -> f
+
+        def make_list1(mapper, shape, groups):
+            items = mapper.FindFromKey(shape)
+            it = TopTools_ListIteratorOfListOfShape(items)
+            ret = []
+            while it.More():
+                shape = it.Value()
+                ret.append(faceMap.FindIndex(shape))
+                it.Next()
+            return list(set(ret))
+
+        def make_list2(mapper1, mapper2, shape, groups):
+            items1 = mapper1.FindFromKey(shape)
+            it1 = TopTools_ListIteratorOfListOfShape(items1)
+            ret = []
+            while it1.More():
+                shape2 = it1.Value()
+                items2 = mapper2.FindFromKey(shape2)
+                it2 = TopTools_ListIteratorOfListOfShape(items2)
+                while it2.More():
+                   ret.append(faceMap.FindIndex(it2.Value()))
+                   it2.Next()
+                it1.Next()
+            return list(set(ret))
+            #return ret
+
+        v_arr = []
+        txt = []
+        uvertices = topo_seen(mapping=vertMap)
+        ex_v = TopExp_Explorer(shape, TopAbs_VERTEX)
+        while ex_v.More():
+            vertex = ex_v.Current()
+            if uvertices.check_shape(vertex) == 0:
+                faces1 = make_list1(mapper1, vertex, faces)
+                faces2 = make_list2(mapper2, mapper3, vertex, faces)
+
+                if len(faces2) == 0 and len(faces1) == 0:
+                    continue
+                elif len(faces2) == 0:
+                    txt.append("vertex not connected to face: " + str(int(vertices.find_gid(vertex))))
+                    v_arr.append(vertex)
+                elif not np.all(np.isin(faces1, faces2)):
+                    txt.append("vertex can not reach via edges: " + str(int(vertices.find_gid(vertex))))
+                    v_arr.append(vertex)
+                else:
+                    pass
+            ex_v.Next()
+
+        gid = [vertices.find_gid(v) for v in v_arr]
+        txt = '\n'.join(txt)
+        return txt, gid
+
     else:
         assert False, "unknown mode" + inspect_type
     return ret, data
