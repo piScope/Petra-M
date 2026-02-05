@@ -3112,11 +3112,14 @@ class DlgPlotSol(SimpleFramePlus):
                                                        name=name,
                                                        config=self.config)
             except:
+                mss = ''.join(traceback.format_exception_only(
+                              sys.exc_info()[0], sys.exc_info()[1]))
+                mss = mss + "\n\nDetail:" + traceback.format_exception()
+
                 wx.CallAfter(dialog.showtraceback, parent=self,
                              txt='Failed to build evaluator',
                              title='Error',
-                             traceback=''.join(traceback.format_exception_only(
-                                 sys.exc_info()[0], sys.exc_info()[1])))
+                             traceback=mss)
                 wx.CallAfter(self.set_title_no_status)
                 return None, None
 
@@ -3215,11 +3218,14 @@ class DlgPlotSol(SimpleFramePlus):
                                                        config=self.config,
                                                        decimate=decimate)
             except:
+                mss = ''.join(traceback.format_exception_only(
+                              sys.exc_info()[0], sys.exc_info()[1]))
+                mss = mss + "\n\nDetail:" + traceback.format_exception()
+
                 wx.CallAfter(dialog.showtraceback, parent=self,
                              txt='Failed to build evaluator',
                              title='Error',
-                             traceback=''.join(traceback.format_exception_only(
-                                 sys.exc_info()[0], sys.exc_info()[1])))
+                             traceback=mss)
                 wx.CallAfter(self.set_title_no_status)
                 return None, None
 
@@ -3285,11 +3291,14 @@ class DlgPlotSol(SimpleFramePlus):
                                                        config=self.config,
                                                        **kwargs)
             except:
+                mss = ''.join(traceback.format_exception_only(
+                              sys.exc_info()[0], sys.exc_info()[1]))
+                mss = mss + "\n\nDetail:" + traceback.format_exception()
+
                 wx.CallAfter(dialog.showtraceback, parent=self,
                              txt='Failed to build evaluator',
                              title='Error',
-                             traceback=''.join(traceback.format_exception_only(
-                                 sys.exc_info()[0], sys.exc_info()[1])))
+                             traceback=mss)
                 wx.CallAfter(self.set_title_no_status)
                 return None, None
 
@@ -3371,11 +3380,14 @@ class DlgPlotSol(SimpleFramePlus):
                                                            config=self.config,
                                                            plane=plane)
             except:
+                mss = ''.join(traceback.format_exception_only(
+                              sys.exc_info()[0], sys.exc_info()[1]))
+                mss = mss + "\n\nDetail:" + traceback.format_exception()
+
                 wx.CallAfter(dialog.showtraceback, parent=self,
                              txt='Failed to build evaluator',
                              title='Error',
-                             traceback=''.join(traceback.format_exception_only(
-                                 sys.exc_info()[0], sys.exc_info()[1])))
+                             traceback=mss)
                 wx.CallAfter(self.set_title_no_status)
                 return None, None
 
@@ -3442,11 +3454,14 @@ class DlgPlotSol(SimpleFramePlus):
                                                           name='Integral',
                                                           config=self.config)
         except:
+            mss = ''.join(traceback.format_exception_only(
+                              sys.exc_info()[0], sys.exc_info()[1]))
+            mss = mss + "\n\nDetail:" + traceback.format_exception()
+
             wx.CallAfter(dialog.showtraceback, parent=self,
-                         txt='Failed to build evaluator',
-                         title='Error',
-                         traceback=''.join(traceback.format_exception_only(
-                             sys.exc_info()[0], sys.exc_info()[1])))
+                             txt='Failed to build evaluator',
+                             title='Error',
+                             traceback=mss)
             wx.CallAfter(self.set_title_no_status)
             return None
 
@@ -3485,11 +3500,14 @@ class DlgPlotSol(SimpleFramePlus):
                                                        name='Probe',
                                                        config=self.config)
         except:
+            mss = ''.join(traceback.format_exception_only(
+                              sys.exc_info()[0], sys.exc_info()[1]))
+            mss = mss + "\n\nDetail:" + traceback.format_exception()
+
             wx.CallAfter(dialog.showtraceback, parent=self,
-                         txt='Failed to build evaluator',
-                         title='Error',
-                         traceback=''.join(traceback.format_exception_only(
-                             sys.exc_info()[0], sys.exc_info()[1])))
+                             txt='Failed to build evaluator',
+                             title='Error',
+                             traceback=mss)
             wx.CallAfter(self.set_title_no_status)
             return None, None
 

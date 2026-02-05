@@ -18,6 +18,7 @@ else:
     import mfem.ser as mfem
 
 import multiprocessing as mp
+import queue
 from petram.sol.evaluators import Evaluator, EvaluatorCommon
 
 
@@ -65,6 +66,16 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
     def __init__(self, task_queue, result_queue, myid, rank,
                  logfile=False, text_queue=None):
 
+        #
+        #  setting this to prevent underlying library to use all
+        #  cpu cores
+        #
+        import os
+        os.environ["OPENBLAS_NUM_THREADS"] = "1"
+        os.environ["MKL_NUM_THREADS"] = "1"
+        os.environ["OMP_NUM_THREADS"] = "1"
+        os.environ["MKL_NUM_THREADS"] = "1"
+
         mp.Process.__init__(self)
         EvaluatorCommon.__init__(self)
         self.task_queue = task_queue
@@ -75,11 +86,13 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         self.agents = {}
         self.logfile = logfile
         #self.logfile = 'log'
+        #self.logfile = None
         self.use_stringio = False
         self.solfiles = None
 
         # enable it when checking performance
         self.use_profiler = False
+
 
     def run(self, *args, **kargs):
         # this can not be in init, sicne it is not pickable
@@ -103,9 +116,10 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                 self.task_queue.task_done()
                 continue
 
+            self.task_queue.task_done()
             if task[0] == -1:
-                self.task_queue.task_done()
                 break
+
             try:
                 if self.use_stringio:
                     stringio = StringIO()
@@ -177,7 +191,7 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                 err = traceback.format_exc()
                 value = (self.myid, None, None)
             finally:
-                self.task_queue.task_done()
+
 
                 if self.use_profiler:
                     import pstats
@@ -258,7 +272,6 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
 
             for ikk, key in enumerate(self.agents):  # scan over battr
                 o = self.agents[key][iss]
-
                 try:
                     v, c, a = o.eval(expr, solvar, phys, **kwargs)
                 except:
@@ -271,22 +284,6 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
                     a = None
                 data[ikk].append((v, c, a))
 
-        '''
-        for key in six.iterkeys(self.agents): # scan over battr
-            data.append([])
-            attrs.append(key)
-            evaluators = self.agents[key]
-            for o, solvar in zip(evaluators, solvars): # scan over sol files
-                try:
-                     v, c, a = o.eval(expr, solvar, phys, **kwargs)
-                except:
-                     import traceback
-                     return self.myid, None, traceback.format_exc()
-
-                if v is None:
-                    v = None; c = None; a = None
-                data[-1].append((v, c, a))
-        '''
         return self.myid, data, attrs
 
     def eval_pointcloud(self, expr, **kwargs):
@@ -530,12 +527,29 @@ class EvaluatorMP(Evaluator):
         #self.tasks.put((6, attr, kwargs))
         self.init_done = True
 
+    def _collect_response(self):
+        '''
+        collect response from all workers
+        '''
+        import time
+        res = []
+        for w in self.workers:
+            while True:
+                try:
+                    if not w.is_alive():
+                        break
+                    res.append(self.results.get(False))
+                    self.results.task_done()
+                    break
+                except queue.Empty:
+                    time.sleep(0.5)
+                except ValueError:
+                    assert False, "queue is closed"
+        return res
+
     def eval(self, expr, merge_flag1, merge_flag2, **kwargs):
         self.tasks.put((7, expr, kwargs), join=True)
-
-        res = [self.results.get() for x in range(len(self.workers))]
-        for x in range(len(self.workers)):
-            self.results.task_done()
+        res = self._collect_response()
 
         for v, c, a in res:  # handle (myid, error, message)
             if c is None and v is not None and a is not None:
@@ -640,10 +654,7 @@ class EvaluatorMP(Evaluator):
 
     def eval_pointcloud(self, expr, **kwargs):
         self.tasks.put((10, expr, kwargs), join=True)
-
-        res = [self.results.get() for x in range(len(self.workers))]
-        for x in range(len(self.workers)):
-            self.results.task_done()
+        res = self._collect_response()
 
         res = [x for x in res if x[-1] is not None]
 
@@ -670,10 +681,7 @@ class EvaluatorMP(Evaluator):
 
     def eval_integral(self, expr, **kwargs):
         self.tasks.put((11, expr, kwargs), join=True)
-
-        res = [self.results.get() for x in range(len(self.workers))]
-        for x in range(len(self.workers)):
-            self.results.task_done()
+        res = self._collect_response()
 
         res = [x for x in res if x[-1] is not None]
 
