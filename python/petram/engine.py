@@ -508,8 +508,7 @@ class Engine(object):
     def set_model(self, model):
         if hasattr(self, 'model') and self.model == model:
             return
-        if model is not None:
-            self.check_pkg_versions(model)
+
         self.model = model
         self.initialize_datastorage()
         if model is None:

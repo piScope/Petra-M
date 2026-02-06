@@ -130,14 +130,13 @@ def get_petram_repos(local_packages, url, token="", verbose=False):
 
 
 def get_local_packages():
-    result = subprocess.run([sys.executable, "-m", "pip", "list"],
-                            capture_output=True, text=True, check=True)
-    data = result.stdout.strip().split('\n')
-
+    import importlib.metadata
+    
     res = {}
-    for x in data:
-        if x.startswith('petram'):
-            name, version = re.split(r'\s+', x)
+    for x in importlib.metadata.distributions()]
+        name = x.name
+        version = x.version
+        if name.startswith('petram'):
             res[name] = version
 
     return res
