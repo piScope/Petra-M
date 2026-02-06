@@ -130,8 +130,11 @@ def get_petram_repos(local_packages, url, token="", verbose=False):
 
 
 def get_local_packages():
-    result = subprocess.run([sys.executable, "-m", "pip", "list"],
-                            capture_output=True, text=True, check=True)
+    # (this does not work if sys.executable is custom app, python-embeded mode)
+    #result = subprocess.run([sys.executable, "-m", "pip", "list"],
+    #
+    result = subprocess.run(["pip", "list"],
+                             capture_output=True, text=True, check=True)
     data = result.stdout.strip().split('\n')
 
     res = {}
