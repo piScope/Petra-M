@@ -122,7 +122,11 @@ class Engine(object):
                            " current" + lver +".")
 
         for k in model.pkg_versions:
-            lver = importlib.metadata.version(k)
+            try:
+                lver = importlib.metadata.version(k)
+            except importlib.metadata.PackageNotFoundError:
+                continue
+
             if version.parse(lver) > version.parse(model.pkg_versions[k]):
                 message.append("   moduel: " + k + "      used: " + model.pkg_versions[k] +
                                ". current " + lver +".")
