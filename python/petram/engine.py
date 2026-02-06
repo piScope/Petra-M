@@ -119,9 +119,8 @@ class Engine(object):
                            " current" + lver +".")
 
         for k in model.pkg_versions:
-            dprint1("pkg: " + k + "/" + model.pkg_versionsp[k])
             lver = importlib.metadata.version(k)
-            if version(lver) > version(model.pkg_versions[k]):
+            if version.parse(lver) > version.parse(model.pkg_versions[k]):
                 message.append("   moduel: " + k + "      used: " + model.pkg_versions[k] +
                                ". current " + lver +".")
 
@@ -516,7 +515,10 @@ class Engine(object):
             self._i_x_old[name] = self._i_x[0][0][k]
 
     def set_model(self, model):
-        self.check_pkg_versions(model)
+        if hasattr(self, 'model') and self.model == model:
+            return
+        if model is not None:
+            self.check_pkg_versions(model)
         self.model = model
         self.initialize_datastorage()
         if model is None:
