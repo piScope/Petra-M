@@ -122,17 +122,10 @@ class Engine(object):
                            " current" + lver +".")
 
         for k in model.pkg_versions:
-            dprint1("pkg: " + k + "/" + model.pkg_versionsp[k])
             lver = importlib.metadata.version(k)
-            if version(lver) > version(model.pkg_versions[k]):
+            if version.parse(lver) > version.parse(model.pkg_versions[k]):
                 message.append("   moduel: " + k + "      used: " + model.pkg_versions[k] +
                                ". current " + lver +".")
-
-        try:
-            from mpi4py import MPI
-        except:
-            from petram.helper.dummy_mpi import MPI
-        myid = MPI.COMM_WORLD.rank
 
         if len(message) > 0:
             message = ["",
@@ -140,11 +133,8 @@ class Engine(object):
                        "  Input is generated using older petram packages. "] + message + [" ",]
 
             message = "\n".join(message)
-
-
-            if myid == 0:
-                print(message)
-            sys.exit()
+            return message
+        return ""
 
     def show_variables(self, show_hidden=True):
         try:
@@ -574,7 +564,10 @@ class Engine(object):
             self._i_x_old[name] = self._i_x[0][0][k]
 
     def set_model(self, model):
-        self.check_pkg_versions(model)
+        if hasattr(self, 'model') and self.model == model:
+            return
+        if model is not None:
+            self.check_pkg_versions(model)
         self.model = model
         self.initialize_datastorage()
         if model is None:
@@ -4399,6 +4392,12 @@ class SerialEngine(Engine):
         super(SerialEngine, self).__init__(modelfile=modelfile, model=model)
         self.isParallel = False
 
+    def check_pkg_versions(self, model):
+        message = super(SerialEngine, self).check_pkg_versions(model)
+        if len(message) > 0:
+            print(message)
+            sys.exit()
+
     def run_mesh(self, meshmodel=None, skip_refine=False):
         '''
         skip_refine is for mfem_viewer
@@ -4655,6 +4654,16 @@ class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(ParallelEngine, self).__init__(modelfile=modelfile, model=model)
         self.isParallel = True
+
+    def check_pkg_versions(self, model):
+        message = super(ParallelEngine, self).check_pkg_versions(model)
+
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
+        if len(message) > 0:
+            if myid == 0:
+                print(message)
+            sys.exit()
 
     def run_mesh(self, meshmodel=None):
         from mpi4py import MPI
