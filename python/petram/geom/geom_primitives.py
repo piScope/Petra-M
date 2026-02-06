@@ -2651,7 +2651,7 @@ cad_fix_cb = [None, None, 36, {"col": 4,
                                           "sewFaces",
                                           "makeSolid"]}]
 cad_fix_tol = ["Tolerance", 1e-8, 300, None]
-cad_fix_rescale = ["Rescale", 0.001, 300, None]
+cad_fix_rescale = ["Rescale", 1.0, 300, None]
 cad_fix_elp0 = [cad_fix_cb, cad_fix_tol, ]
 
 
@@ -2660,7 +2660,7 @@ class ImportBase(GeomPB):
         v = super(GeomPB, self).attribute_set(v)
         v["use_fix_param"] = [False] * 5
         v["use_fix_tol"] = 1e-8
-        v["use_fix_rescale"] = 0.001
+        v["use_fix_rescale"] = 1.0
         return v
 
     def get_importfix_value(self):
@@ -2760,7 +2760,7 @@ class CADImport(ImportBase):
         v["cad_file"] = ""
         v["use_fix"] = False
         v["highestdimonly"] = True
-        v["import_unit"] = ""
+        v["import_unit"] = "M"
         return v
 
     def get_panel1_value(self):
