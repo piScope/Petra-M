@@ -49,7 +49,7 @@ class PetraMHelper(object):
         print("MFEM:", mfem.__version__)
 
 
-def petram(reload_scripts=False, addon="none", cluster=False):
+def petram(reload_scripts=True, addon="none", cluster=False):
     '''
     setup PetraM simulation enveroment
 
