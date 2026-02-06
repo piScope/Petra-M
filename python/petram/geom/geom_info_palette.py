@@ -19,7 +19,7 @@ choices2 = ['property', 'distance', 'smallface', 'shortedge', 'findsame']
 
 def find_surf(x, s, l):
     lines = s[x]
-    points = np.unique([l[ll] for ll in lines])
+    points = np.unique(np.hstack([l[ll] for ll in lines]))
     return lines, points
 
 class GeomInfoPalette(SimpleFramePlus):

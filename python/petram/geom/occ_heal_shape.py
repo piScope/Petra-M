@@ -265,6 +265,17 @@ def make_new_compound(shape, builder=None):
         ex1.Next()
     return comp
 
+def scale_shape(oshape, scaling):
+    t = gp_Trsf()
+    t.SetScaleFactor(scaling)
+    trsf = BRepBuilderAPI_Transform(t)
+    trsf.Perform(oshape, False)
+
+    assert trsf.IsDone(), "Can not perform scaling"
+
+    shape = trsf.Shape()
+    shape = make_new_compound(shape)
+    return shape
 
 def heal_shape(oshape, scaling=1.0, fixDegenerated=False,
                fixSmallEdges=False, fixSmallFaces=False,
@@ -284,6 +295,9 @@ def heal_shape(oshape, scaling=1.0, fixDegenerated=False,
     if scaling != 1.0:
         if verbose:
             print("Scaling geometry (factor = " + str(scaling) + ")")
+
+        shape = scale_shape(shape, scaling)
+        '''
         t = gp_Trsf()
 
         t.SetScaleFactor(scaling)
@@ -294,6 +308,7 @@ def heal_shape(oshape, scaling=1.0, fixDegenerated=False,
 
         shape = trsf.Shape()
         shape = make_new_compound(shape)
+        '''
 
     if verbose:
         t1 = time.perf_counter()
