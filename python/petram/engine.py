@@ -124,23 +124,14 @@ class Engine(object):
                 message.append("   moduel: " + k + "      used: " + model.pkg_versions[k] +
                                ". current " + lver +".")
 
-        try:
-            from mpi4py import MPI
-        except:
-            from petram.helper.dummy_mpi import MPI
-        myid = MPI.COMM_WORLD.rank
-
         if len(message) > 0:
             message = ["",
                        "Package update required (use Pakcage... under Petra-M menu).",
                        "  Input is generated using older petram packages. "] + message + [" ",]
 
             message = "\n".join(message)
-
-
-            if myid == 0:
-                print(message)
-            sys.exit()
+            return message
+        return ""
 
     def show_variables(self, show_hidden=True):
         try:
@@ -4084,6 +4075,12 @@ class SerialEngine(Engine):
         super(SerialEngine, self).__init__(modelfile=modelfile, model=model)
         self.isParallel = False
 
+    def check_pkg_versions(self, model):
+        message = super(SerialEngine, self).check_pkg_versions(model)
+        if len(message) > 0:
+            print(message)
+            sys.exit()
+
     def run_mesh(self, meshmodel=None, skip_refine=False):
         '''
         skip_refine is for mfem_viewer
@@ -4339,6 +4336,16 @@ class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(ParallelEngine, self).__init__(modelfile=modelfile, model=model)
         self.isParallel = True
+
+    def check_pkg_versions(self, model):
+        message = super(ParallelEngine, self).check_pkg_versions(model)
+
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
+        if len(message) > 0:
+            if myid == 0:
+                print(message)
+            sys.exit()
 
     def run_mesh(self, meshmodel=None):
         from mpi4py import MPI
