@@ -133,7 +133,7 @@ def get_local_packages():
     import importlib.metadata
     
     res = {}
-    for x in importlib.metadata.distributions()]
+    for x in importlib.metadata.distributions():
         name = x.name
         version = x.version
         if name.startswith('petram'):
