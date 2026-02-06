@@ -16,8 +16,11 @@ def make_new_sol(model):
     return folder
 
 
-def save_model(model, path, meshfile_relativepath=False):
+def save_model(model, path, meshfile_relativepath=False, do_preprocess = False):
     od = model.param.eval('mfem_model')
+    if do_preprocess:
+        model.scripts.helpers.rebuild_ns()        
+        engine.run_preprocess(model.namespaces, model.datasets)
     od.save_to_file(path, meshfile_relativepath=meshfile_relativepath)
     model.variables.setvar('modelfile_path', path)
 
@@ -59,6 +62,7 @@ def run_xxx(model, path='', debug=0, thread=True, array_id=1, array_len=1,
     save_model(model, fpath)
 
     m = model.param.getvar('mfem_model')
+    m.recored_pkg_versions()            
     try:
         m.generate_script(dir=path,
                           petram_array_id=array_id,

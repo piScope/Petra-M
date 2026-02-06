@@ -193,6 +193,7 @@ class MFEMViewer(BookViewer):
 
         od = self.model.param.getvar('mfem_model')
         od.set_root_path(self.model.owndir())
+        od.recored_pkg_versions()
 
         if od is None:
             self.model.scripts.helpers.reset_model()
@@ -1075,7 +1076,9 @@ class MFEMViewer(BookViewer):
                      wildcard='*.pmfm')
         if path == '':
             return
-        self.model.scripts.helpers.save_model(path)
+
+        from petram.pi.run_petram import save_model
+        save_model(self.model, path)
 
     def onSaveModelS(self, evt):
         from ifigure.widgets.dialog import writedir
@@ -1083,6 +1086,7 @@ class MFEMViewer(BookViewer):
                         message='Directory to write')
 
         m = self.model.param.getvar('mfem_model')
+        m.recored_pkg_versions()
         try:
             m.generate_script(dir=path)
         except:
@@ -1877,9 +1881,11 @@ class MFEMViewer(BookViewer):
         wx.GetApp().Yield()
         # remote.scripts.clean_remote_dir()
         sol.clean_owndir()
-        self.model.scripts.helpers.save_model(os.path.join(sol.owndir(),
-                                                           'model.pmfm'),
-                                              meshfile_relativepath=True)
+
+        from petram.pi.run_petram import save_model
+        save_model(self.model,
+                   os.path.join(sol.owndir(),'model.pmfm'),
+                   meshfile_relativepath=True)
 
         dlg.Update(2, newmsg="Sending file")
         wx.GetApp().Yield()
@@ -1964,7 +1970,7 @@ class MFEMViewer(BookViewer):
         self.set_toolbar_mode(mode)
         '''
         self._sel_mode = mode
-        
+
         toolbarname = self.canvas.toolbar.p1_choice[1]
         buttonname = bmode + '_' + toolbarname
 
