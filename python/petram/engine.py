@@ -65,7 +65,6 @@ class Engine(object):
             model = pickle.load(open(modelfile, 'rb'))
 
         from collections import deque
-
         self.data_stack = deque()
         self.set_model(model)
 
@@ -109,6 +108,43 @@ class Engine(object):
         self._fmt_order = 1
 
         self._ppname_postfix = ''
+
+
+    def check_pkg_versions(self, model):
+        import importlib.metadata
+        from packaging import version
+
+        message = []
+        lver = importlib.metadata.version("petram")
+        if (not hasattr(model, "pkg_versions") or
+            len(model.pkg_versions) == 0):
+            message.append("   moduel: petram      " +  "used: (not recored). " +
+                           " current" + lver +".")
+
+        for k in model.pkg_versions:
+            dprint1("pkg: " + k + "/" + model.pkg_versionsp[k])
+            lver = importlib.metadata.version(k)
+            if version(lver) > version(model.pkg_versions[k]):
+                message.append("   moduel: " + k + "      used: " + model.pkg_versions[k] +
+                               ". current " + lver +".")
+
+        try:
+            from mpi4py import MPI
+        except:
+            from petram.helper.dummy_mpi import MPI
+        myid = MPI.COMM_WORLD.rank
+
+        if len(message) > 0:
+            message = ["",
+                       "Package update required (use Pakcage... under Petra-M menu).",
+                       "  Input is generated using older petram packages. "] + message + [" ",]
+
+            message = "\n".join(message)
+
+
+            if myid == 0:
+                print(message)
+            sys.exit()
 
     def show_variables(self, show_hidden=True):
         try:
@@ -538,6 +574,7 @@ class Engine(object):
             self._i_x_old[name] = self._i_x[0][0][k]
 
     def set_model(self, model):
+        self.check_pkg_versions(model)
         self.model = model
         self.initialize_datastorage()
         if model is None:

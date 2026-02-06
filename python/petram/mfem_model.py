@@ -516,6 +516,7 @@ class MFEM_ModelRoot(Model):
         v['enabled'] = True
         v['root_path'] = ''
         v['model_path'] = ''
+        v['pkg_versions'] = ''
         return v
 
     def set_root_path(self, path):
@@ -530,6 +531,10 @@ class MFEM_ModelRoot(Model):
             od.write_setting(fid)
         fid.close()
 
+    def recored_pkg_versions(self):
+        from petram.remote.get_repo_info import get_local_packages
+        self.pkg_versions = get_local_packages()
+
     def save_to_file(self, path, meshfile_relativepath=False):
         import petram.helper.pickle_wrapper as pickle
 
@@ -537,6 +542,9 @@ class MFEM_ModelRoot(Model):
             for od in self.walk():
                 if hasattr(od, 'use_relative_path'):
                     od.use_relative_path()
+
+        self.recored_pkg_versions()
+
         fid = open(path, 'wb')
         pickle.dump(self, fid)
         if meshfile_relativepath:

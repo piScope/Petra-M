@@ -50,6 +50,8 @@ def generate(path_src, path_dst, f, create_new = True, reload_scripts=False):
     dst = os.path.join(path_dst, f.split(".")[0])
     if not os.path.exists(dst):
         os.mkdir(dst)
+
+    m.recored_pkg_versions()                
     m.generate_script(dir=dst)
 
     for od in m.walk():
