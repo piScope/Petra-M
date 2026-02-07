@@ -213,17 +213,27 @@ class HierarchicalFiniteElementSpaces(object):
         fes1 : coarse grid
         fes2 : fine grid
         '''
+        from petram.helper.ndtr_prefinement_transferoperator import NDTrPRefinementTransferOperator
         fes1 = self._fes_storage[key1]
         fes2 = self._fes_storage[key2]
-
         parallel = hasattr(fes1, 'GroupComm')
+
+        if fes1.FEColl().Name().startswith("ND_Trace"):
+            if fes2.FEColl().Name().startswith("ND_Trace"):
+                matrix_free_transfer =  NDTrPRefinementTransferOperator
+            else:
+                assert False, "should not come here FES1 and FES2 are different kind"
+        elif parallel:
+            matrix_free_transfer = mfem.TrueTransferOperator
+        else:
+            matrix_free_transfer = mfem.TransferOperator
+
         if use_matrix_free:
             if key1 == key2:
                 return mfem.IdentityOperator(fes1.GetTrueVSize())
             elif parallel:
-                return mfem.TrueTransferOperator(fes1, fes2)
+                return matrix_free_transfer(fes1, fes2)
             else:
-
                 P1 = None if fes1.Conforming() else fes1.GetConformingProlongation()
                 if P1 is None:
                     P1 = mfem.IdentityOperator(fes1.GetTrueVSize())
@@ -232,7 +242,8 @@ class HierarchicalFiniteElementSpaces(object):
                 if R2 is None:
                     R2 = mfem.IdentityOperator(fes2.GetTrueVSize())
 
-                Opr1 = mfem.TransferOperator(fes1, fes2)
+                Opr1 =  matrix_free_transfer(fes1, fes2)
+                #Opr1 = mfem.TransferOperator(fes1, fes2)
                 opr = mfem.TripleProductOperator(
                     R2, Opr1, P1, False, False, False)
                 opr._linked_opr = (R2, Opr1, P1)

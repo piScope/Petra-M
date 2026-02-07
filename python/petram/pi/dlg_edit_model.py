@@ -88,7 +88,7 @@ class DlgEditModel(SimpleFramePlus):
         (use this style if miniframe is used)
         style=(wx.CAPTION|
                        wx.CLOSE_BOX|
-                       wx.MINIMIZE_BOX| 
+                       wx.MINIMIZE_BOX|
                        wx.RESIZE_BORDER|
                        wx.FRAME_FLOAT_ON_PARENT)
         '''
@@ -654,12 +654,18 @@ class DlgEditModel(SimpleFramePlus):
 
         if evt is not None:
             mm.onItemSelChanged(evt)
-            evt.Skip()
 
         self.update_highlight(mm)
 
         if not self._enable:
             self.Enable(False)
+
+        # make sure that tree will maintain focus so that we can navigate
+        # tree using arrow buttons
+        self.tree.SetFocus()
+
+        if evt is not None:
+            evt.Skip()
 
     def OnClose(self, evt):
         wx.GetApp().rm_palette(self)

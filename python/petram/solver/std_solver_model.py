@@ -159,6 +159,7 @@ class StdSolver(Solver):
         instance.configure_probes(self.probe)
 
         if self.init_only:
+            engine.run_fill_X_block()
             engine.sol = engine.assembled_blocks[1][0]
             instance.sol = engine.sol
 
@@ -238,12 +239,12 @@ class StandardSolver(SolverInstance):
         B_updated = engine.run_assemble_b(phys_target, update=update)
 
         engine.run_apply_essential(phys_target, phys_range, update=update)
-        engine.run_fill_X_block(update=update)
 
-        _blocks, M_changed = self.engine.run_assemble_blocks(self.compute_A,
-                                                             self.compute_rhs,
-                                                             inplace=inplace,
-                                                             update=update,)
+
+        _blocks, M_changed = self.engine.run_assemble_MXB_blocks(self.compute_A,
+                                                                 self.compute_rhs,
+                                                                 inplace=inplace,
+                                                                 update=update,)
         # A, X, RHS, Ae, B, M, names = blocks
         self.assembled = True
         return M_changed
@@ -267,14 +268,14 @@ class StandardSolver(SolverInstance):
         mask = self.blk_mask
         engine.copy_block_mask(mask)
 
-        depvars = [x for i, x in enumerate(depvars) if mask[0][i]]
+        A2, X2, RHS2, depvars2, mask2 = self.minimize_blks(A, X[0], RHS, depvars, mask)
 
         if update_operator:
-            AA = engine.finalize_matrix(A, mask, not self.phys_real,
+            AA = engine.finalize_matrix(A2, mask2, not self.phys_real,
                                         format=self.ls_type,
                                         blk_format=self.gui.get_blk_structure())
             self._AA = AA
-        BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
+        BB = engine.finalize_rhs([RHS2], A2, X2, mask2, not self.phys_real,
                                  format=self.ls_type,
                                  blk_format=self.gui.get_blk_structure())
 
@@ -290,11 +291,11 @@ class StandardSolver(SolverInstance):
         if update_operator:
             linearsolver.SetOperator(AA,
                                      dist=engine.is_matrix_distributed,
-                                     name=depvars)
+                                     name=depvars2)
             self._operator_set = True
 
         if linearsolver.is_iterative:
-            XX = engine.finalize_x(X[0], RHS, mask, not self.phys_real,
+            XX = engine.finalize_x(X2, RHS2, mask2, not self.phys_real,
                                    format=self.ls_type,
                                    blk_format=self.gui.get_blk_structure())
         else:
@@ -318,20 +319,8 @@ class StandardSolver(SolverInstance):
         # linearsolver.SetOperator(AA, dist = engine.is_matrix_distributed)
         # solall = linearsolver.Mult(BB, case_base=0)
 
-        self.reformat_mat(A, self._AA, solall, 0, X[0], mask)
-        '''
-        is_sol_central = (True if not use_parallel else
-                          any(MPI.COMM_WORLD.allgather(solall is None)))
-
-        if is_sol_central:
-            if not self.phys_real and self.gui.assemble_real:
-                solall = self.linearsolver_model.real_to_complex(solall, AA)
-            A.reformat_central_mat(solall, 0, X[0], mask)
-        else:
-            if not self.phys_real and self.gui.assemble_real:
-                assert False, "this operation is not permitted"
-            A.reformat_distributed_mat(solall, 0, X[0], mask)
-        '''
+        self.reformat_mat(A2, self._AA, solall, 0, X2, mask2)
+        self.expand_blks(X2, X[0])
         self.sol = X[0]
 
         # store probe signal (use t=0.0 in std_solver)

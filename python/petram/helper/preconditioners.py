@@ -1,6 +1,6 @@
 
 '''
-   Copyright (c) 2018, S. Shiraiwa  
+   Copyright (c) 2018, S. Shiraiwa
    All Rights reserved. See file COPYRIGHT for details.
 
    Precondirioners
@@ -23,7 +23,7 @@
    # gui says.... D(*args, **kwargs)
 
    # code in iterative_model
-   expr = self.gui.adv_prc  # expr: expression to create a generator. 
+   expr = self.gui.adv_prc  # expr: expression to create a generator.
                             # (example) expr = "D('A1')"
    gen = eval(expr, self.gui._global_ns)
    gen.set_param(opr, engine, gui)
@@ -33,7 +33,7 @@
    def D(prc, g, *args, **kwargs):
        # first two argments are mandatory
        # prc: preconditioner such as mfem.BlockDiagonalPreconditioner
-       # g  : preconditioner generator, which can be used to 
+       # g  : preconditioner generator, which can be used to
        #      access operator, gui, engine,,,,
 
        ams.set_param(g, "A1")
@@ -62,7 +62,7 @@
 
    @S.Mult
    def S.Mult(prc, x, y):
-       tmpy = mfem.Vector(); 
+       tmpy = mfem.Vector();
        prc._prc1.Mult(x, tmpy)
        prc._prc2.Mult(tmpy, y)
 
@@ -114,6 +114,13 @@ class PreconditionerBlock(object):
 
 
 class PrcCommon(object):
+    def __init__(self, opr=None, engine=None, gui=None, name=None):
+        self._opr = opr
+        self.gui = gui
+        self.name = name
+        self._engine = engine
+        self._transpose = None
+
     def set_param(self, opr, name, engine, gui):
         self._opr = weakref.ref(opr)
         self.gui = gui
@@ -171,9 +178,13 @@ class PrcCommon(object):
 
         return fes
 
+    def set_transpose(self):
+        self._transpose = True
+
 
 class PrcGenBase(PrcCommon):
     def __init__(self, func=None, opr=None, engine=None, gui=None, name=None):
+        PrcCommon.__init__(self, opr=opr, engine=engine, gui=gui, name=name)
         self.func = func
         self._params = (tuple(), dict())
         self.setoperator_func = None
@@ -188,6 +199,8 @@ class DiagonalPrcGen(PrcGenBase):
     def __call__(self, *args, **kwargs):
         offset = self.opr.RowOffsets()
         D = mfem.BlockDiagonalPreconditioner(offset)
+        if self._transpose:
+            kwargs["transpose"] = True
         if self.func is not None:
             self.func(D, self, *args, **kwargs)
         return D
@@ -196,6 +209,9 @@ class DiagonalPrcGen(PrcGenBase):
 class LowerTriangluarPrcGen(PrcGenBase):
     def __call__(self, *args, **kwargs):
         offset = self.opr.RowOffsets()
+        if self._transpose:
+            assert False, "(transpose) upper triangular is not supported"
+
         LT = mfem.BlockLowerTriangularPreconditioner(offset)
         if self.func is not None:
             self.func(LT, self, *args, **kwargs)
@@ -214,6 +230,9 @@ class GenericPreconditionerGen(PrcGenBase):
     def __call__(self,  *args, **kwargs):
         assert self.mult_func is not None, "Mult is not defined"
         assert self.setoperator_func is not None, "SetOperator is not defined"
+
+        if self._transpose:
+            assert False, "(transpose) upper triangular is not supported"
 
         dargs, dkwargs = self._params
         assert len(dargs) == 0,  "Decorator allows only keyword argments"
@@ -534,12 +553,34 @@ def ams(singular=False, **kwargs):
     col = prc.get_col_by_name(blockname)
     mat = prc.get_operator_block(row, col)
     fes = prc.get_test_fespace(blockname)
-    inv_ams = mfem.HypreAMS(mat, fes)
+    if isinstance(mat, mfem.ComplexOperator):
+        hermitian = (mat.GetConvention() == mfem.ComplexOperator.HERMITIAN)
+        if prc._transpose:
+            mat = mat.real().Transpose()
+        else:
+            mat = mat.real()
+        inv_ams = mfem.HypreAMS(mat, fes)
+        blk = mfem.ComplexOperator(inv_ams,
+                                   None,
+                                   False,
+                                   False,
+                                   bool(hermitian))
+        blk._linked_obj = (inv_ams, mat)
+
+    else:
+        if prc._transpose:
+            mat = mat.Transpose()
+        inv_ams = mfem.HypreAMS(mat, fes)
+        blk = inv_ams
+        blk._linked_obj = mat
+
     if singular:
-        inv_ams.SetSingularProblem()
+       inv_ams.SetSingularProblem()
     inv_ams.SetPrintLevel(print_level)
-    inv_ams.iterative_mode = False
-    return inv_ams
+    #inv_ams.iterative_mode = False
+
+
+    return blk
 
 
 @prc.block
