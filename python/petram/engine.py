@@ -1361,11 +1361,14 @@ class Engine(object):
                     self.i_a.set_mat_from_blk(ifess[0], rifess[0], Ah, mblk[1])
                     self.i_x.set_vec_from_blk(rifess[0], XX, xblk[1])
                     self.i_b.set_vec_from_blk(ifess[0], BB, bblk[1])
+                    self.r_b.diag_b_mode = True
+                    self.i_b.diag_b_mode = True
                 else:
                     mblk, xblk, bblk = phys.split_AhXB_real(Ah, XX, BB)
                     self.r_a.set_mat_from_blk(ifess[0], rifess[0], Ah, mblk)
                     self.r_x.set_vec_from_blk(rifess[0], XX, xblk)
                     self.r_b.set_vec_from_blk(ifess[0], BB, bblk)
+                    self.r_b.diag_b_mode = True
 
         #
         #  fill general forms (Bilinearform, Linearfomr)

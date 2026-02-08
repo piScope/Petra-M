@@ -26,10 +26,13 @@ class FormBlock(object):
         self.block = [[None]*c for x in range(r)]
         self._diag_vec = [False]*r
         self._diag_callable_mask = [False]*r
+        self.diag_b_mode = False
 
         self._shape = (r, c)
         self.allocator1 = new
         self.no_allocation = False
+
+
 
     def __repr__(self):
 
@@ -170,12 +173,18 @@ class FormBlock(object):
                     dprint1("generateMatVec", i, j, form)
 
                 if diag_callable_mask:
+                    if self.diag_b_mode:
+                        continue
+
+                    dest = self.block[i][j][p][1]
+                    if dest is None:
+                        continue
                     if debug_dpg_essential:
-                        dest = self.block[i][j][p][1]
-                        if dest is None:
-                            continue
                         vec = converter1(form)
                         dest.GetDataArray()[:] = vec.GetDataArray()
+                    else:
+                        # this information is already in X
+                        pass
 
                 elif form is not None:
                     self.set_matvec(i, j, p, converter1(form))

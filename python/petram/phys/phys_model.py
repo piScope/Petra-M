@@ -1630,6 +1630,12 @@ class PhysModule(Phys):
         X = mfem.Vector()
         B = mfem.Vector()
         dprint1("calling FormLinearSystem for ", a)
+
+        from petram.debug import debug_dpg_essential
+        if debug_dpg_essential:
+            dprint1("Note: essential BC is not handle by MFEM Weakform class")
+            ess_tdof_list = mfem.intArray()
+
         a.FormLinearSystem(ess_tdof_list, x, Ah, X, B)
 
         return Ah, X, B
