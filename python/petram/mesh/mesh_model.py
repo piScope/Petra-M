@@ -574,7 +574,7 @@ class MeshFile(MeshGenerator):
                 path = path1
             else:
                 assert False, "can not find mesh file from relative path: " + path
-            dprint1("meshfile relative path mode reads from " + path1)                
+            dprint1("meshfile relative path mode reads from " + path1)
         return path
 
     def run(self, mesh=None):
@@ -959,10 +959,15 @@ class UniformRefinement(Mesh):
             return mesh
         for i in range(int(self.num_refine)):
             mesh.UniformRefinement()  # this is parallel refinement
+
+        mesh.Finalize(refine=True)
         return mesh
 
 
 class Scale(Mesh):
+    isRefinement = True
+    has_2nd_panel = False
+
     def attribute_set(self, v):
         v = super(Scale, self).attribute_set(v)
         v['scale'] = '1.0, 1.0, 1.0'
@@ -981,6 +986,11 @@ class Scale(Mesh):
         return (str(self.scale),
                 str(self.scale_ns), )
 
+    def import_panel2_value(self, v):
+        return
+    def get_panel2_value(self):
+        return []
+
     def run(self, mesh):
         if self.scale != '':
             code = compile(self.scale, '<string>', 'eval')
@@ -990,6 +1000,7 @@ class Scale(Mesh):
         ll = {}
         value = eval(code, ns_g, ll)
 
+        dprint1("Scaling mesh ", str(value))
         sdim = mesh.SpaceDimension()
         # nicePrint("refining elements domain choice", domains)
         for v in mesh.GetVertexArray():
