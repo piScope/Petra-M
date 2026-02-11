@@ -626,7 +626,7 @@ class NumbaCoefficient():
         assert len(self.shape) > 0, ".dot is defined only for vector/matrix"
 
         if not isinstance(other, NumbaCoefficient):
-            if isinstance(ohter, (PhysVectorConstant,
+            if isinstance(other, (PhysVectorConstant,
                                   PhysMatrixConstant,
                                   PyComplexVectorConstant,
                                   PyComplexMatrixConstant,)):

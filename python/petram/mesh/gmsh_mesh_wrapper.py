@@ -36,6 +36,7 @@ HighOrderOptimize = OrderedDict((("none", 0),
                                  ("fast curving", 4)))
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('GMSHMeshWrapper')
 
+CLfromCurvature = 30
 
 def get_vertex_geom_size(default_value):
     from collections import defaultdict
@@ -291,7 +292,7 @@ class GMSHMeshWrapper():
     def generate(self, brep_input, msh_file, dim=3, finalize=False):
         '''
         generate mesh based on  meshing job sequence.
-        brep must be loaed 
+        brep must be loaed
         '''
         print("brep input", brep_input)
         if brep_input != '':
@@ -609,14 +610,14 @@ class GMSHMeshWrapper():
             dimtags = self.expand_dimtags(dimtags)
 
         old_model = self.current
-        
+
         data = []
         self.switch_model(ws1)
         for dim, tag in dimtags:
             ndata = gmsh.model.mesh.getNodes(dim, tag)
             edata = gmsh.model.mesh.getElements(dim, tag)
             data.append((dim, tag, ndata, edata))
-        self.switch_model(ws2)            
+        self.switch_model(ws2)
         for dim, tag, ndata, edata in data:
             gmsh.model.mesh.setNodes(dim, tag, ndata[0], ndata[1], ndata[2])
             gmsh.model.mesh.setElements(dim, tag, edata[0], edata[1], edata[2])
@@ -659,7 +660,7 @@ class GMSHMeshWrapper():
         surfaces = []
         lines = []
         points = []
-        
+
         for dim, tag in dimtags:
             if dim == 3:
                 volumes.append(tag)
@@ -962,7 +963,9 @@ class GMSHMeshWrapper():
         #tags = [(dim, tag) for dim, tag in dimtags if not tag in done[1]]
 
         self.show_only(dimtags)
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", CLfromCurvature)
         gmsh.model.mesh.generate(1)
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
         done[1].extend([x for dim, x in dimtags])
         return done, params
 
@@ -986,6 +989,8 @@ class GMSHMeshWrapper():
             tags, maxsize, scale=1/(growth-1.0+0.01))
         self.show_only(tags)
 
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", CLfromCurvature)
+
         alg2d = kwargs.get("alg2d", "default")
         if alg2d != 'default':
             gmsh.option.setNumber("Mesh.Algorithm",
@@ -995,6 +1000,8 @@ class GMSHMeshWrapper():
                                   Algorithm2D[self.algorithm])
         else:
             gmsh.model.mesh.generate(2)
+
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
 
         if field is not None:
             field_tag = gmsh.model.mesh.field.remove(field)
@@ -1088,7 +1095,7 @@ class GMSHMeshWrapper():
         dimtags = [(dim, tag) for dim, tag in dimtags if tag not in done[1]]
         self.show_only(dimtags)
 
-        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 1)
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", CLfromCurvature)
         gmsh.model.mesh.generate(1)
         gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
         done[1].extend([x for dim, x in dimtags])
@@ -1107,6 +1114,8 @@ class GMSHMeshWrapper():
             tags, maxsize, scale=1/(growth-1.0+0.01))
         self.show_only(tags)
 
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", CLfromCurvature)
+
         alg2d = kwargs.get("alg2d", "default")
         if alg2d != 'default':
             gmsh.option.setNumber("Mesh.Algorithm",
@@ -1116,6 +1125,8 @@ class GMSHMeshWrapper():
                                   Algorithm2D[self.algorithm])
         else:
             gmsh.model.mesh.generate(2)
+
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
 
         if field is not None:
             field_tag = gmsh.model.mesh.field.remove(field)
@@ -1745,8 +1756,8 @@ class GMSHMeshWrapper():
 
                 #print("parametric fixed", pos, ppos)
                 #ntag2 = list(reversed(ntag2))
-                #ppos = np.array([abs(1-x) for x in ppos])                
-                #ppos = (tmp[0]-tmp[1])*ppos + tmp[1]                
+                #ppos = np.array([abs(1-x) for x in ppos])
+                #ppos = (tmp[0]-tmp[1])*ppos + tmp[1]
             #else:
             '''
             ppos = (tmp[1]-tmp[0])*ppos + tmp[0]
