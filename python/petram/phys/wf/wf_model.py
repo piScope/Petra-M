@@ -2,8 +2,8 @@
 
    WF module
 
-   physics module which defines physics directly using MFEM weakform 
-   integrators 
+   physics module which defines physics directly using MFEM weakform
+   integrators
 
 '''
 import numpy as np
@@ -152,7 +152,7 @@ class WF(PhysModule):
 
     def get_fec_type(self, idx):
         '''
-        H1 
+        H1
         H1v2 (vector dim)
         ND
         RT
@@ -339,12 +339,12 @@ class WF(PhysModule):
             if name != dep_var:
                 continue
             if isVector:
-                add_components(v, dep_var, "", ind_vars, solr, soli)
+                add_components(v, dep_var, suffix, ind_vars, solr, soli)
             elif isNormal:
-                add_scalar(v, dep_var+"n", "", ind_vars, solr, soli)
+                add_scalar(v, dep_var+"n", suffix, ind_vars, solr, soli)
             else:
                 if self.vdim == 1:
-                    add_scalar(v, dep_var, "", ind_vars, solr, soli)
+                    add_scalar(v, dep_var, suffix, ind_vars, solr, soli)
                 else:
                     names = self.dep_vars_base_txt.split(',')
                     for k, n in enumerate(names):
@@ -353,7 +353,8 @@ class WF(PhysModule):
                             v[name] = GFScalarVariable(solr, soli, comp=k+1)
                         else:
                             v[name] = PlaceholderVariable(name)
-                    allnames = ''.join(names)
+
+                    allnames = ''.join(names) + suffix
                     if solr is not None:
                         v[allnames] = GFVectorVariable(solr, soli)
                     else:
