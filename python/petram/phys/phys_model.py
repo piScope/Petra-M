@@ -774,7 +774,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
 
     @property
     def derived_variables(self):
-        if not self.enabled:
+        if not self.is_enabled():
             return []
 
         if len(self._sel_index) == 0:
@@ -1192,7 +1192,7 @@ class PhysModule(Phys):
 
     @property
     def derived_variables(self):
-        if not self.is_enabled:
+        if not self.is_enabled():
             return []
 
         p = self.get_root_phys()
