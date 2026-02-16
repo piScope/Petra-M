@@ -1153,6 +1153,11 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                              real=real, conj=is_conj)
         return c_coeff
 
+    @property
+    def has_compile_coeffs2(self):
+        # if True compile_coeffs will be called with different argments
+        return False
+
     def compile_coeffs(self, *kargs):
         '''
         jit compile coefficient
@@ -1187,7 +1192,7 @@ class PhysModule(Phys):
 
     @property
     def derived_variables(self):
-        if not self.enabled:
+        if not self.is_enabled:
             return []
 
         p = self.get_root_phys()

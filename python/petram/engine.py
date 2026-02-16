@@ -1150,7 +1150,10 @@ class Engine(object):
             self.access_idx = j
             for phys in phys_target:
                 for mm in phys.walk_enabled():
-                    mm.compile_coeffs()
+                    if mm.has_compile_coeffs2:
+                        mm.compile_coeffs(self)
+                    else:
+                        mm.compile_coeffs()
 
         for j in range(self.n_matrix):
             self.access_idx = j
