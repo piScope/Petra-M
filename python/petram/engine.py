@@ -94,6 +94,8 @@ class Engine(object):
 
         self._r_x_old = {}
         self._i_x_old = {}
+        self._gf_alloc_old = [None]*10
+
         self._assembled_blocks = [[None]*7, ]
 
         # place holder : key is base physics modules, such as EM3D1...
@@ -563,9 +565,17 @@ class Engine(object):
     '''
 
     def store_x(self):
+        # store definition of r_x and i_x
         for k, name in enumerate(self.r_fes_vars):
             self._r_x_old[name] = self._r_x[0][0][k]
             self._i_x_old[name] = self._i_x[0][0][k]
+
+        # store memory space of x
+        for i, alloc in enumerate(self._gf_alloc):
+            if self._gf_alloc_old[i] is None:
+                self._gf_alloc_old[i] = alloc
+            else:
+                self._gf_alloc_old[i].update(alloc)
 
     def set_model(self, model):
         if hasattr(self, 'model') and self.model == model:
@@ -1549,7 +1559,7 @@ class Engine(object):
         flags = self.get_essential_bdr_pnt_flag(phys)
         self.get_essential_bdr_pnt_tdofs(phys, flags)
 
-        # this loop alloates GridFunctions
+        dprint1("In initialize_phys: allocating GF for " + phys.name())
 
         for j in range(self.n_matrix):
             self.access_idx = j
@@ -4166,7 +4176,6 @@ class Engine(object):
             #   dprint1("Note : FES variable from previous step exists, but overwritten. \n" +
             #           "Use InitSetting to load value from previous SolveStep: ", k)
             self.model._variables[k] = variables[k]
-
         # if verbose:
         dprint1("Defined variables:",
                 self.model._variables.short_repr(False), notrim=True)

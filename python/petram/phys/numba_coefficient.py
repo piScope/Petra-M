@@ -985,14 +985,21 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
                 func_txt.append("   _out_ = np.diag(" + txt + ")")
             else:
                 func_txt.append("   _out_ = " + txt)
+
+            debug_extra = False
             if jitter == mfem.jit.vector:
                 func_txt.append("   if isinstance(_out_, list) or isinstance(_out_, tuple):")
                 func_txt.append("       _out_ = np.array(_out_)")
                 func_txt.append("   _out_ = np.atleast_1d(_out_)")
-            if jitter == mfem.jit.matrix:
+                if debug_extra:
+                    func_txt.append("   print('"+ txt + "', _out_[0], _out_[1], _out_[2])")
+            elif jitter == mfem.jit.matrix:
                 func_txt.append("   if isinstance(_out_, list) or isinstance(_out_, tuple):")
                 func_txt.append("       _out_ = np.array(_out_)")
                 func_txt.append("   _out_ = np.atleast_2d(_out_)")
+            else:
+                if debug_extra:
+                    func_txt.append("   print('"+ txt + "', _out_)")
 
         #func_txt.append("   if isinstance(_out_, list):")
         #func_txt.append("         _out_ = np.array(_out_)")
