@@ -1087,7 +1087,7 @@ class PyMG(mfem.PyIterativeSolver):
         err2 = mfem.Vector(lvl2_width)
         self.prolongations[lvl2].MultTranspose(err, err2)
         # (zeroing the error sent to the lower level)   <--- this works
-        # err2.GetDataArray()[self.ess_tdofs[lvl2]] = 0.0
+        err2.GetDataArray()[self.ess_tdofs[lvl2]] = 0.0
 
         if self.debug2:
             dprint1("    - error on essential given to a coarse level",
