@@ -9,6 +9,12 @@ import weakref
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MUMPSModel')
 
+try:
+    import petram.ext.mumps.mumps_solve
+    has_mumps = True
+except ImportError:
+    has_mumps = False
+
 
 def convert2float(txt):
     try:
@@ -356,7 +362,7 @@ class MUMPSSolver(LinearSolver):
                     "!!! PT-Scotch ordering is selected. But solver is not in parallel mode. Ignored")
         else:
             pass
-        #s.set_icntl(28,  2)
+        # s.set_icntl(28,  2)
 
     def set_error_analysis(self, s):
         from petram.mfem_config import use_parallel
@@ -811,7 +817,7 @@ class MUMPSSolver(LinearSolver):
         if info1 != 0:
             assert False, "MUMPS call (job3) failed. Check error log"
 
-        #sol = s.get_sol_loc()
+        # sol = s.get_sol_loc()
         # if use_distributed_save:
         sol = np.transpose(sol_loc.reshape(-1, lsol_loc))
         np.savez("matrix_inv_idx." + smyid, A_inv_idx=isol_loc)
@@ -877,7 +883,7 @@ class MUMPSSolver(LinearSolver):
             else:
                 irhs_loc_read = irhs_loc_read.astype(dtype=self._int_type())
             '''
-            #print("irhc_loc from mfem", irhs_loc)
+            # print("irhc_loc from mfem", irhs_loc)
             rhs_locc = self.data_array(rhs_loc)
             irhs_locc = i_array(irhs_loc_read)
 
@@ -962,7 +968,7 @@ class MUMPSSolver(LinearSolver):
             else:
                 sol = None
 
-        #nicePrint('doen with dist_RHS, dist_sol', distributed_rhs, distributed_sol)
+        # nicePrint('doen with dist_RHS, dist_sol', distributed_rhs, distributed_sol)
 
         return sol
 
@@ -1104,7 +1110,7 @@ class MUMPSPreconditioner(mfem.PyOperator):
         if self.is_complex_operator:
             s = np.hstack((s.real.flatten(), s.imag.flatten()))
 
-        #nicePrint(s.shape, y.Size())
+        # nicePrint(s.shape, y.Size())
         y.Assign(s.flatten().astype(float, copy=False))
 
 
@@ -1186,7 +1192,7 @@ class MUMPSBlockPreconditioner(mfem.Solver):
 
         if self.row_offset != -1:
             # if myid == 0:
-            #w = [0.8*np.exp(1j*77/180*np.pi), np.exp(-1j*60/180*np.pi)*1.2]
+            # w = [0.8*np.exp(1j*77/180*np.pi), np.exp(-1j*60/180*np.pi)*1.2]
             w = [1]*len(s)
             s = [xx.flatten()*w[i] for i, xx in enumerate(s)]
             s = np.mean(s, 0)
@@ -1217,8 +1223,8 @@ class MUMPSBlockPreconditioner(mfem.Solver):
             myid = MPI.COMM_WORLD.rank
             smyid = '{:0>6d}'.format(myid)
 
-        #opr = mfem.Opr2BlockOpr(opr)
-        #self._opr = weakref.ref(opr)
+        # opr = mfem.Opr2BlockOpr(opr)
+        # self._opr = weakref.ref(opr)
 
         opr = self._opr()
         from petram.solver.strumpack_model import build_csr_local

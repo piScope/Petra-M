@@ -36,80 +36,8 @@ else:
     def nicePrint(*x):
         print(x)
 
-try:
-    import STRUMPACK as ST
-    has_strumpack = True
-except ImportError:
-    has_strumpack = False
 
-attr_names = ['log_level',
-              'ordering',
-              'mc64job',
-              'compression',
-              'compression_rel_tol',
-              'compression_abs_tol',
-              'lossy_precision',
-              'krylov',
-              'rctol',
-              'actol',
-              'gmres_restart',
-              'gstype',
-              'maxiter',
-              'use_gpu',
-              'cuda_cutoff',
-              'cuda_streams',
-              'MUMPS_SYMQAMD',
-              'agg_amalg',
-              'indirect_sampling',
-              'replace_tiny_pivots',
-              'compression_min_sep_size',
-              'compression_min_front_size',
-              'compression_leaf_size',
-              'separator_ordering_level',
-              'hodlr_butterfly_levels',
-              'use_single_precision',
-              'use_64_int',
-              'write_mat',
-              'extra_options',
-              'use_dist_sol', ]
-
-ordering_modes = {"Natural": "STRUMPACK_NATURAL",
-                  "Metis": "STRUMPACK_METIS",
-                  "ParMetis": "STRUMPACK_PARMETIS",
-                  "Scotch": "STRUMPACK_SCOTCH",
-                  "PT-Scotch": "STRUMPACK_PTSCOTCH",
-                  "RCM": "STRUMPACK_RCM"}
-
-krylov_modes = {"Auto": "STRUMPACK_AUTO",
-                "Direct": "STRUMPACK_DIRECT",
-                "Refinement": "STRUMPACK_REFINE",
-                "PGMRES": "STRUMPACK_PREC_GMRES",
-                "GMRES": "STRUMPACK_GMRES",
-                "PBICGSTAB": "STRUMPACK_PREC_BICGSTAB",
-                "BICGSTAB": "BICGSTAB", }
-
-compression_modes = {"None": "STRUMPACK_NONE",
-                     "HSS": "STRUMPACK_HSS",
-                     "BLR": "STRUMPACK_BLR",
-                     "HOLDR": "STRUMPACK_HODLR",
-                     "HOLBF": "STRUMPACK_HODLR",  # this is special
-                     "LOESSLESS": "STRUMPACK_LOSSLESS",
-                     "LOSSY": "STRUMPACK_LOSSY", }
-
-GramSchmidt_types = {"Classical": "STRUMPACK_CLASSICAL",
-                     "Modified": "STRUMPACK_MODIFIED"}
-
-
-help_txt = ("0: no reordering for stability, this disables MC64/matching",
-            "1: MC64(1): currently not supported",
-            "2: MC64(2): maximize the smallest diagonal value",
-            "3: MC64(3): maximize the smallest diagonal value, different strategy",
-            "4: MC64(4): maximize sum of diagonal values",
-            "5: MC64(5): maximize product of diagonal values and apply row and column scaling",
-            "6: Combinatorial BLAS: approximate weight perfect matching",)
-
-
-class Strumpack(LinearSolverModel):
+class SuperLU(LinearSolverModel):
     hide_ns_menu = True
     has_2nd_panel = False
     accept_complex = True
@@ -122,94 +50,32 @@ class Strumpack(LinearSolverModel):
         pass
 
     def panel1_param(self):
-        return [
-            ["log_level", self.log_level, 400, {}],
-            ["ordering", self.ordering, 4, {"readonly": True,
-                                            "choices": list(ordering_modes), }],
-            ["mc64 matching", self.mc64job, 4, {"readonly": True,
-                                                "choices": ["0 (default)", "2", "3", "4", "5", "6"], }],
-            ["compression", self.compression, 4, {"readonly": True,
-                                                  "choices": list(compression_modes)}, ],
-            ["compression rel. tol.", self.compression_rel_tol, 0, {}],
-            ["compression abs. tol.", self.compression_abs_tol, 0, {}],
-            ["lossy precision", self.lossy_precision, 0, {}],
-            ["Krylov", self.krylov, 4, {"readonly": True,
-                                        "choices": list(krylov_modes)}],
-            ["rctol", self.rctol, 0, {}],
-            ["actol", self.actol, 0, {}],
-            ["gmres restrart", self.gmres_restart, 0, {}],
-            ["GramSchmidt type", self.gstype, 4, {"readonly": True,
-                                                  "choices": list(GramSchmidt_types), }],
-            ["max iter.", self.maxiter, 0, {}],
-            ["GPU", self.use_gpu, 3, {"text": ""}],
-            ["CUDA cutoff", self.cuda_cutoff, 0, {}],
-            ["CUDA streams", self.cuda_streams, 0, {}],
-            ["MUMPS_SYMQAMD", self.MUMPS_SYMQAMD, 3, {"text": ""}],
-            ["agg_amalg", self.agg_amalg, 3, {"text": ""}],
-            ["indirect_sampling", self.indirect_sampling, 3, {"text": ""}],
-            ["replace_tiny_pivots", self.replace_tiny_pivots, 3, {"text": ""}],
-            ["compression min sep", self.compression_min_sep_size, 0, {}],
-            ["compression min front", self.compression_min_front_size, 0, {}],
-            ["compression leaf size", self.compression_leaf_size, 0, {}],
-            ["separator ordering level", self.separator_ordering_level, 0, {}],
-            ["hodlr butterfly levels", self.hodlr_butterfly_levels, 0, {}],
-            ["single preceision", self.use_single_precision, 3, {"text": ""}],
-            ["use 64bit integer", self.use_64_int, 3, {"text": ""}],
-            ["write matrix", self.write_mat, 3, {"text": ""}],
-            ["extra options", self.extra_options, 2235, {'nlines': 3}, ],
-            ["use dist, SOL (dev.)", self.use_dist_sol, 3, {"text": ""}], ]
+        import wx
+        return [["Col. Permute", "COLAMD", 4,
+                 {"choices": ["COLAMD", "NATURAL", "MMD_ATA", "MMD_AT_PLUS_A"],
+                  "style": wx.CB_READONLY}],
+                ["Pivot thr.", "None", 0, {}],
+                ["Relax.", "None", 0, {}],
+                ["Panel size", "None", 0, {}],
+                ["Options", "None", 0, {}],]
 
     def get_panel1_value(self):
-        ans = []
-        for n, p in zip(attr_names, self.panel1_param()):
-            value = getattr(self, n)
-            if p[3] == 3:
-                value = bool(value)
-            elif p[3] == 400:
-                value = int(value)
-            ans.append(value)
-        return ans
+        return [self.col_permute_txt,
+                self.pivot_thr_txt,
+                self.relax_txt,
+                self.panel_size_txt,
+                self.options_txt]
 
     def import_panel1_value(self, v):
-        for value, n, p in zip(v, attr_names, self.panel1_param()):
-            if p[3] == 3:
-                value = bool(value)
-            if p[3] == 400:
-                value = int(value)
-            setattr(self, n, value)
+        pass
 
     def attribute_set(self, v):
-        v = super(Strumpack, self).attribute_set(v)
-        v['log_level'] = 0
-        v['write_mat'] = False
-        v['gstype'] = 'Classical'
-        v['rctol'] = "1e-6 (default)"
-        v['actol'] = "1e-10 (default)"
-        v['maxiter'] = "5000 (default)"
-        v['gmres_restart'] = "30 (default)"
-        v['mc64job'] = "0 (default)"
-        v['krylov'] = 'Auto'
-        v['use_gpu'] = False
-        v['ordering'] = "Metis"
-        v['compression'] = "None"
-        v['use_single_precision'] = False
-        v["cuda_cutoff"] = "500 (default)"
-        v["cuda_streams"] = "10 (default)"
-        v["MUMPS_SYMQAMD"] = False
-        v["agg_amalg"] = False
-        v["indirect_sampling"] = False
-        v["replace_tiny_pivots"] = False
-        v["compression_min_sep_size"] = "2147483647 (default)"
-        v["compression_min_front_size"] = "2147483647 (default)"
-        v["compression_leaf_size"] = "2147483647 (default)"
-        v["separator_ordering_level"] = "1 (default)"
-        v["hodlr_butterfly_levels"] = "100 (default)"
-        v["compression_rel_tol"] = "1e-4 (default)"
-        v["compression_abs_tol"] = "1e-8 (default)"
-        v["lossy_precision"] = "16 (default)"
-        v["extra_options"] = ""
-        v["use_64_int"] = False
-
+        v = super(SuperLU, self).attribute_set(v)
+        v["col_permute_txt"] = "COLAMD"
+        v["pivot_thr_txt"] = ""
+        v["relax_txt"] = ""
+        v["panel_size_txt"] = ""
+        v["options_txt"] = ""
         return v
 
     def does_linearsolver_choose_linearsystem_type(self):
@@ -243,7 +109,7 @@ class Strumpack(LinearSolverModel):
         else:
             of = M.RowOffsets().ToList()
 
-        #dprint1("merged block size", of)
+        # dprint1("merged block size", of)
 
         rows = M.NumRowBlocks()
         s = solall.shape
@@ -364,7 +230,7 @@ def build_csr_local(A, dtype, is_complex):
     else:
         map = [blk_stm_idx_map(i) for i in range(rows)]
 
-    #nicePrint("map", map)
+    # nicePrint("map", map)
     newi = []
     newj = []
     newd = []
@@ -421,170 +287,19 @@ def build_csr_local(A, dtype, is_complex):
     return csr2
 
 
-class StrumpackSolver(LinearSolver):
+class SuperLUSolver(LinearSolver):
     def __init__(self, gui, engine):
         LinearSolver.__init__(self, gui, engine)
 
-    def spss_set_options(self):
-        try:
-            import STRUMPACK as ST
-        except BaseException:
-            assert False, "Can not load STRUMPACK"
-
-        o = getattr(ST, ordering_modes[self.gui.ordering])
-        self.spss.set_reordering_method(o)
-
-        if self.gui.mc64job.find('default') == -1:
-            job = int(self.gui.mc64job.split('(')[0])
-            self.spss.set_matching(job)
-        else:
-            self.spss.set_matching(ST.STRUMPACK_MATCHING_NONE)
-
-        # compression
-        o = getattr(ST, compression_modes[self.gui.compression])
-        self.spss.set_compression(o)
-        if self.gui.compression_rel_tol.find('default') == -1:
-            tol = float(self.gui.compression_rel_tol.split('(')[0])
-            self.spss.set_compression_rel_tol(tol)
-        if self.gui.compression_abs_tol.find('default') == -1:
-            tol = float(self.gui.compression_abs_tol.split('(')[0])
-            self.spss.set_compression_abs_tol(tol)
-        if self.gui.compression == "HOLBF":
-            l = int(self.gui.hodlr_butterfly_levels.split('(')[0])
-            self.spss.set_compression_butterfly_levels(l)
-        if self.gui.compression_min_sep_size.find('default') == -1:
-            l = int(self.gui.compression_min_sep_size.split('(')[0])
-            self.spss.set_compression_min_sep_size(l)
-        if self.gui.compression_min_front_size.find('default') == -1:
-            l = int(self.gui.compression_min_front_size.split('(')[0])
-            self.spss.set_compression_min_front_size(l)
-        if self.gui.compression_leaf_size.find('default') == -1:
-            l = int(self.gui.compression_leaf_size.split('(')[0])
-            self.spss.set_compression_leaf_size(l)
-
-        # iterative
-        o = getattr(ST, krylov_modes[self.gui.krylov])
-        self.spss.set_Krylov_solver(o)
-        if self.gui.rctol.find('default') == -1:
-            tol = float(self.gui.rctol.split('(')[0])
-            self.spss.set_rel_tol(tol)
-        if self.gui.actol.find('default') == -1:
-            tol = float(self.gui.actol.split('(')[0])
-            self.spss.set_abs_tol(tol)
-        if self.gui.gmres_restart.find('default') == -1:
-            m = int(self.gui.gmres_restart.split('(')[0])
-            self.spss.set_gmres_restart(m)
-        gs = getattr(ST, GramSchmidt_types[self.gui.gstype])
-        self.spss.set_GramSchmidt_type(gs)
-        if self.gui.maxiter.find('default') == -1:
-            it = int(self.gui.maxiter.split('(')[0])
-            self.spss.set_maxit(it)
-
-        # gpu
-        if self.gui.use_gpu:
-            self.spss.enable_gpu()
-        else:
-            self.spss.disable_gpu()
-
-    def spss_options_args(self):
-        opts = ["--sp_enable_METIS_NodeND", ]
-#        opts = ["--sp_enable_METIS_NodeNDP", ]
-#               "--sp_enable_METIS_NodeND"]
-        if self.gui.lossy_precision.find('default') == -1:
-            tol = int(self.gui.lossy_precision.split('(')[0])
-            if tol != 16:
-                opts.extend(["--sp_lossy_precision", str(tol)])
-
-        if self.gui.use_gpu:
-            if self.gui.cuda_cutoff.find('default') == -1:
-                cutoff = int(self.gui.cuda_cutoff.split('(')[0])
-                opts.extend(["--sp_cuda_cutoff", str(cutoff)])
-            if self.gui.cuda_streams.find('default') == -1:
-                streams = int(self.gui.cuda_streams.split('(')[0])
-                opts.extend(["--sp_cuda_streams", str(streams)])
-
-        if self.gui.MUMPS_SYMQAMD:
-            opts.extend(["--sp_enable_MUMPS_SYMQAMD", ])
-        else:
-            opts.extend(["--sp_disable_MUMPS_SYMQAMD", ])
-
-        if self.gui.agg_amalg:
-            opts.extend(["--sp_enable_agg_amalg", ])
-        else:
-            opts.extend(["--sp_disable_agg_amalg", ])
-
-        if self.gui.indirect_sampling:
-            opts.extend(["--sp_enable_indirect_sampling", ])
-        else:
-            opts.extend(["--sp_disable_indirect_sampling", ])
-
-        if self.gui.replace_tiny_pivots:
-            opts.extend(["--sp_enable_replace_tiny_pivots", ])
-        else:
-            opts.extend(["--sp_disable_replace_tiny_pivots", ])
-
-        if self.gui.separator_ordering_level.find('default') == -1:
-            l = int(self.gui.separator_ordering_level.split('(')[0])
-            opts.extend(["--sp_separator_ordering_level", str(l)])
-
-        for x in self.gui.extra_options.split("\n"):
-            opts.extend([x.strip()
-                         for x in x.split(" ") if len(x.strip()) > 0])
-
-        # opts.append("")
-        return opts
+        self._superlu = None
 
     def AllocSolver(self, is_complex, use_single_precision):
-        try:
-            import STRUMPACK as ST
-        except BaseException:
-            assert False, "Can not load STRUMPACK"
         dprint1("AllocSolver", is_complex, use_single_precision)
 
-        opts = self.spss_options_args()
-        dprint1("options", opts, notrim=True)
-        verbose = self.gui.log_level > 0
-        if use_parallel:
-            args = (MPI.COMM_WORLD, opts, verbose)
-        else:
-            args = (opts, verbose)
+        # for SuperLU, allocation is done in SetOperator
 
-        if is_complex:
-            if use_single_precision:
-                dtype = np.complex64
-                if self.gui.use_64_int:
-                    spss = ST.C64StrumpackSolver(*args)
-                else:
-                    spss = ST.CStrumpackSolver(*args)
-            else:
-                dtype = np.complex128
-                if self.gui.use_64_int:
-                    spss = ST.Z64StrumpackSolver(*args)
-                else:
-                    spss = ST.ZStrumpackSolver(*args)
-        else:
-            if use_single_precision:
-                dtype = np.float32
-                if self.gui.use_64_int:
-                    spss = ST.S64StrumpackSolver(*args)
-                else:
-                    spss = ST.SStrumpackSolver(*args)
-            else:
-                dtype = np.float64
-                if self.gui.use_64_int:
-                    spss = ST.D64StrumpackSolver(*args)
-                else:
-                    spss = ST.DStrumpackSolver(*args)
-
-        dprint1("StrumpackSolvar created: " + str(spss.__class__))
-        assert spss.isValid(), "Failed to create STRUMPACK solver object"
-
-        spss.set_from_options()
-
-        self.dtype = dtype
-        self.spss = spss
         self.is_complex = is_complex
-        self.spss_set_options()
+        self.use_single_precesion = use_single_precision
 
     def SetOperator(self, A, dist, name=None):
         try:
@@ -595,7 +310,7 @@ class StrumpackSolver(LinearSolver):
         nproc = MPI.COMM_WORLD.size
 
         self.row_offsets = A.RowOffsets()
-        #nicePrint("row offsets in SetOperator", self.row_offsets.ToList())
+        # nicePrint("row offsets in SetOperator", self.row_offsets.ToList())
 
         self.op_type = check_operator_type(self.is_complex, A)
         AA = build_csr_local(A, self.dtype, self.is_complex)
@@ -607,7 +322,10 @@ class StrumpackSolver(LinearSolver):
             self.spss.set_distributed_csr_matrix(AA)
         else:
             self.spss.set_csr_matrix(AA)
-        self._matrix = AA
+
+        from scipy.sparse.linalg import splu
+
+        self._superlu = splu(AA)
 
     def Mult(self, b, x=None, case_base=0):
         try:
@@ -737,7 +455,7 @@ class StrumpackSolver(LinearSolver):
                     else:
                         assert False, "unknonw operator type"
 
-                    #nicePrint("xxvv", xxvv.shape)
+                    # nicePrint("xxvv", xxvv.shape)
 
                     if myid == 0:
                         s.append(vv)
@@ -757,22 +475,22 @@ class StrumpackSolver(LinearSolver):
                 return None
 
 
-class StrumpackMFEMSolverModel(Strumpack):
+class SuperLUMFEMSolverModel(SuperLU):
     '''
     This one is to use STRUMPACK in iterative solver
     It creates MUMPSPreconditioner
     '''
 
     def prepare_solver(self, opr, engine):
-        solver = StrumpackBlockPreconditioner(opr,
-                                              gui=self,
-                                              engine=engine,
-                                              silent=True)
+        solver = SuperLUBlockPreconditioner(opr,
+                                            gui=self,
+                                            engine=engine,
+                                            silent=True)
         solver.SetOperator(opr)
         return solver
 
 
-class StrumpackBlockPreconditioner(mfem.Solver):
+class SuperLUBlockPreconditioner(mfem.Solver):
     def __init__(self, opr, gui=None, engine=None, silent=False, **kwargs):
         self.gui = gui
         self.engine = engine
@@ -787,17 +505,16 @@ class StrumpackBlockPreconditioner(mfem.Solver):
     def Mult(self, x, y):
         s = self.solver.Mult([x])
         if self.is_complex_operator:
-            assert False, "StrumpackMFEM for Complex is not yet implemented"
-            #s = self.complex_to_real(s)
+            assert False, "SuperLUMFEM for Complex is not yet implemented"
+            # s = self.complex_to_real(s)
 
         y.Assign(s.flatten().astype(float, copy=False))
 
     def SetOperator(self, opr):
-        print('opr', opr)
         from petram.solver.solver_utils import check_block_operator
         is_complex, is_parallel = check_block_operator(opr)
 
-        solver = StrumpackSolver(self.gui, self.engine)
+        solver = SuperLUSolver(self.gui, self.engine)
         solver.AllocSolver(is_complex, self.gui.use_single_precision)
         solver.SetOperator(opr, is_parallel)
 

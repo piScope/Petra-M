@@ -106,20 +106,14 @@ class StdSolver(Solver):
     def get_possible_child(self):
         choice = []
         try:
-            from petram.solver.mumps_model import MUMPS
-            choice.append(MUMPS)
+            from petram.solver.superlu_model import SuperLU
+            choice.append(SuperLU)
         except ImportError:
             pass
 
-        # try:
-        #    from petram.solver.gmres_model import GMRES
-        #    choice.append(GMRES)
-        # except ImportError:
-        #    pass
-
         try:
-            from petram.solver.iterative_model import Iterative
-            choice.append(Iterative)
+            from petram.solver.mumps_model import MUMPS
+            choice.append(MUMPS)
         except ImportError:
             pass
 
@@ -128,6 +122,37 @@ class StdSolver(Solver):
             choice.append(Strumpack)
         except ImportError:
             pass
+
+        try:
+            from petram.solver.iterative_model import Iterative
+            choice.append(Iterative)
+        except ImportError:
+            pass
+
+        return choice
+
+    def get_possible_child_menu(self):
+        from petram.solver.superlu_model import SuperLU
+
+        choice = [("Direct", SuperLU),]
+        try:
+            import petram.solver.mumps_model as MMPS
+            if MMPS.has_mumps:
+                choice.append(("", MMPS.MUMPS))
+        except ImportError:
+            pass
+        try:
+            import petram.solver.strumpack_model as ST
+            if ST.has_strumpack:
+                choice.append(("", ST.Strumpack),)
+        except ImportError:
+            pass
+
+        choice.append(("!", None),)
+
+        from petram.solver.iterative_model import Iterative
+        choice.append(("", Iterative),)
+
         return choice
 
     def allocate_solver_instance(self, engine):
