@@ -1,8 +1,8 @@
-from __future__ import print_function
+from petram.phys.vtable import VtableElement, Vtable
 from petram.helper.matrix_file import write_matrix, write_vector, write_coo_matrix
 from petram.mfem_config import use_parallel
-from .solver_model import LinearSolverModel, LinearSolver
-from .solver_model import Solver
+from petram.solver.solver_model import LinearSolverModel, LinearSolver
+from petram.solver.solver_model import Solver
 from petram.namespace_mixin import NS_mixin
 
 
@@ -12,7 +12,7 @@ import scipy
 from scipy.sparse import coo_matrix, csr_matrix
 
 import petram.debug as debug
-dprint1, dprint2, dprint3 = debug.init_dprints('StrumpackModel')
+dprint1, dprint2, dprint3 = debug.init_dprints('SuperLU')
 
 
 if use_parallel:
@@ -25,6 +25,7 @@ if use_parallel:
     num_proc = MPI.COMM_WORLD.size
     myid = MPI.COMM_WORLD.rank
     smyid = '{:0>6d}'.format(myid)
+    barrier = MPI.COMM_WORLD.Barrier
     from mfem.common.mpi_debug import nicePrint
 
 else:
@@ -32,6 +33,9 @@ else:
     default_kind = 'scipy'
     num_proc = 1
     myid = 0
+
+    def barrier():
+        pass
 
     def nicePrint(*x):
         print(x)
@@ -49,34 +53,65 @@ class SuperLU(LinearSolverModel):
     def init_solver(self):
         pass
 
-    def panel1_param(self):
-        import wx
-        return [["Col. Permute", "COLAMD", 4,
-                 {"choices": ["COLAMD", "NATURAL", "MMD_ATA", "MMD_AT_PLUS_A"],
-                  "style": wx.CB_READONLY}],
-                ["Pivot thr.", "None", 0, {}],
-                ["Relax.", "None", 0, {}],
-                ["Panel size", "None", 0, {}],
-                ["Options", "None", 0, {}],]
-
-    def get_panel1_value(self):
-        return [self.col_permute_txt,
-                self.pivot_thr_txt,
-                self.relax_txt,
-                self.panel_size_txt,
-                self.options_txt]
-
-    def import_panel1_value(self, v):
-        pass
-
     def attribute_set(self, v):
         v = super(SuperLU, self).attribute_set(v)
         v["col_permute_txt"] = "COLAMD"
         v["pivot_thr_txt"] = ""
         v["relax_txt"] = ""
         v["panel_size_txt"] = ""
-        v["options_txt"] = ""
+        v["superlu_options_txt"] = ""
+        v["use_single_precision"] = False
+        v["write_mat"] = False
         return v
+
+    def eval_options(self, input):
+        if len(input.strip()) == 0:
+            return None
+        g = self._global_ns.copy()
+        l = {}
+        value = eval(input, g, l)
+        return value
+
+    def panel1_param(self):
+        def validator(input, param, widget):
+            try:
+                self.eval_options(input)
+            except:
+                return False
+            return True
+
+        import wx
+        ll = [["col. permute", "COLAMD", 4,
+               {"choices": ["COLAMD", "NATURAL", "MMD_ATA", "MMD_AT_PLUS_A"],
+                "style": wx.CB_READONLY}],
+              ["pivot thr.", "None", 0, {}],
+              ["relax.", "None", 0, {}],
+              ["panel size", "None", 0, {}],
+              ["options(=)", "None", 0, {"validator": validator,
+                                         "validator_param": None}],
+              ["use float32", False, 3, {"text": ""}],
+              ["write matrix", False, 3, {"text": ""}],]
+        return ll
+
+    def get_panel1_value(self):
+        val = [self.col_permute_txt,
+               self.pivot_thr_txt,
+               self.relax_txt,
+               self.panel_size_txt,
+               self.superlu_options_txt,
+               self.use_single_precision,
+               self.write_mat]
+        return val
+
+    def import_panel1_value(self, v):
+
+        self.col_permute_txt = v[0]
+        self.pivot_thr_txt = v[1]
+        self.relax_txt = v[2]
+        self.panel_size_txt = v[3]
+        self.superlu_options_txt = v[4]
+        self.use_single_precision = v[5]
+        self.write_mat = v[6]
 
     def does_linearsolver_choose_linearsystem_type(self):
         return True
@@ -126,8 +161,24 @@ class SuperLU(LinearSolverModel):
         return result
 
     def allocate_solver(self, is_complex=False, engine=None):
-        solver = StrumpackSolver(self, engine)
-        solver.AllocSolver(is_complex, self.use_single_precision)
+        solver = SuperLUSolver(self, engine)
+
+        pivot_thr = float(self.pivot_thr_txt) if len(
+            self.pivot_thr_txt.strip()) > 0 else None
+        relax = int(self.relax_txt) if len(
+            self.relax_txt.strip()) > 0 else None
+        panel_size = int(self.panel_size_txt) if len(
+            self.panel_size_txt.strip()) > 0 else None
+        options = self.eval_options(self.superlu_options_txt)
+
+        solver.AllocSolver(is_complex,
+                           self.use_single_precision,
+                           self.col_permute_txt,
+                           pivot_thr,
+                           relax,
+                           panel_size,
+                           options)
+
         return solver
 
 
@@ -292,14 +343,37 @@ class SuperLUSolver(LinearSolver):
         LinearSolver.__init__(self, gui, engine)
 
         self._superlu = None
+        self.is_complex = False
+        self.use_single_precesion = False
+        self.superlu_params = {}
+        self.dtype = None
+        self._superlu = None
 
-    def AllocSolver(self, is_complex, use_single_precision):
+    def AllocSolver(self, is_complex, use_single_precision, col_permute,
+                    pivot_thr, relax, panel_size, options):
+
         dprint1("AllocSolver", is_complex, use_single_precision)
 
         # for SuperLU, allocation is done in SetOperator
 
         self.is_complex = is_complex
         self.use_single_precesion = use_single_precision
+        self.superlu_params = {"permc_spec": col_permute,
+                               "diag_pivot_thresh": pivot_thr,
+                               "relax": relax,
+                               "panel_size": panel_size,
+                               "options": options}
+        if is_complex:
+            if use_single_precision:
+                dtype = np.complex64
+            else:
+                dtype = np.complex128
+        else:
+            if use_single_precision:
+                dtype = np.float32
+            else:
+                dtype = np.float64
+        self.dtype = dtype
 
     def SetOperator(self, A, dist, name=None):
         try:
@@ -318,63 +392,22 @@ class SuperLUSolver(LinearSolver):
         if self.gui.write_mat:
             write_coo_matrix('matrix', AA.tocoo())
 
-        if dist:
-            self.spss.set_distributed_csr_matrix(AA)
-        else:
-            self.spss.set_csr_matrix(AA)
-
         from scipy.sparse.linalg import splu
 
+        print("matrix here", AA)
         self._superlu = splu(AA)
 
     def Mult(self, b, x=None, case_base=0):
-        try:
-            from mpi4py import MPI
-        except BaseException:
-            from petram.helper.dummy_mpi import MPI
-        myid = MPI.COMM_WORLD.rank
-        nproc = MPI.COMM_WORLD.size
-        try:
-            import STRUMPACK as ST
-        except BaseException:
-            assert False, "Can not load STRUMPACK"
 
         sol = []
         row_offsets = self.row_offsets.ToList()
 
-        MPI.COMM_WORLD.Barrier()
+        barrier()
 
-        dprint1("calling reorder", debug.format_memory_usage())
-        ret = self.spss.reorder()
-
-        ret = np.sum(MPI.COMM_WORLD.allgather(
-            int(ret != ST.STRUMPACK_SUCCESS)))
-        if ret > 0:
-            assert False, "error during recordering (Strumpack)"
-
-        MPI.COMM_WORLD.Barrier()
-
-        dprint1("calling factor", debug.format_memory_usage())
-        ret = self.spss.factor()
-
-        zero_pivot = np.sum(MPI.COMM_WORLD.allgather(
-            int(ret == ST.STRUMPACK_ZERO_PIVOT)))
-        if zero_pivot != 0:
-            dprint1("!!!! Zero pivots are detected on " +
-                    str(zero_pivot) + " processes")
-            dprint1("!!!! continuing ....")
-
-        ret = np.sum(MPI.COMM_WORLD.allgather(int(ret != ST.STRUMPACK_SUCCESS and
-                                                  ret != ST.STRUMPACK_ZERO_PIVOT)))
-        if ret > 0:
-            assert False, "error during factor (Strumpack)"
-
-        return_distributed = self.gui.use_dist_sol
+        # return_distributed = self.gui.use_dist_sol
+        return_distributed = True
 
         for kk, bb in enumerate(b):
-            rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
-            rowstarts = np.hstack((0, np.cumsum(rows)))
-            # nicePrint("rowstarts/offser",rowstarts, row_offsets)
             if x is None:
                 xx = mfem.BlockVector(self.row_offsets)
                 xx.Assign(0.0)
@@ -405,15 +438,19 @@ class SuperLUSolver(LinearSolver):
             sys.stdout.flush()
             sys.stderr.flush()
 
-            MPI.COMM_WORLD.Barrier()
-            dprint1("calling solve", debug.format_memory_usage())
-            ret = self.spss.solve(bbv, xxv, False)
+            if use_parallel:
+                rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
+                rowstarts = np.hstack((0, np.cumsum(rows)))
+                # TODO
+                #   collect bb to myid=0 here
 
-            ret = np.sum(MPI.COMM_WORLD.allgather(
-                int(ret != ST.STRUMPACK_SUCCESS)))
-            if ret > 0:
-                assert False, "error during solve phase (Strumpack)"
-
+            if myid == 0:
+                dprint1("calling solve", debug.format_memory_usage())
+                xxv = self._superlu.solve(bbv)
+            else:
+                pass
+            barrier()
+            print(xxv)
             if return_distributed:
                 sol.append(xxv)
             else:

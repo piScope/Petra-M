@@ -36,10 +36,10 @@ else:
     def nicePrint(*x):
         print(x)
 
-try:
-    import STRUMPACK as ST
+from petram.helper.check_module_installed import module_file_exists
+if  module_file_exists("STRUMPACK"):
     has_strumpack = True
-except ImportError:
+else:
     has_strumpack = False
 
 attr_names = ['log_level',

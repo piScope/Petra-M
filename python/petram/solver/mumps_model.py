@@ -9,10 +9,10 @@ import weakref
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MUMPSModel')
 
-try:
-    import petram.ext.mumps.mumps_solve
+from petram.helper.check_module_installed import module_file_exists
+if  module_file_exists("petram.ext.mumps.mumps_solve"):
     has_mumps = True
-except ImportError:
+else:
     has_mumps = False
 
 
