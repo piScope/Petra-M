@@ -150,6 +150,11 @@ class Engine(object):
             import tranceback
             traceback.print_exc()
 
+    def show_environment(self):
+        import os
+        print("OMP_NUM_THREAD", os.environ["OMP_NUM_THREADS"])
+        print("OPENBLAS_NUM_THREAD", os.environ["OPENBLAS_NUM_THREADS"])
+
     def initialize_datastorage(self):
         self.is_assembled = False
         self.is_initialized = False
@@ -4335,6 +4340,12 @@ class ParallelEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(ParallelEngine, self).__init__(modelfile=modelfile, model=model)
         self.isParallel = True
+
+    def show_environment(self):
+        from mpi4py import MPI
+        myid = MPI.COMM_WORLD.rank
+        if myid == 0:
+            Engine.show_environment(self)
 
     def check_pkg_versions(self, model):
         message = super(ParallelEngine, self).check_pkg_versions(model)
