@@ -131,9 +131,6 @@ class SuperLU(LinearSolverModel):
 
     def real_to_complex_merged(self, solall, M):
         if use_parallel:
-            from mpi4py import MPI
-            myid = MPI.COMM_WORLD.rank
-
             of = M.RowOffsets().ToList()
 
             if not self.use_dist_sol:
@@ -352,10 +349,7 @@ class SuperLUSolver(LinearSolver):
     def AllocSolver(self, is_complex, use_single_precision, col_permute,
                     pivot_thr, relax, panel_size, options):
 
-        dprint1("AllocSolver", is_complex, use_single_precision)
-
         # for SuperLU, allocation is done in SetOperator
-
         self.is_complex = is_complex
         self.use_single_precesion = use_single_precision
         self.superlu_params = {"permc_spec": col_permute,
@@ -376,13 +370,6 @@ class SuperLUSolver(LinearSolver):
         self.dtype = dtype
 
     def SetOperator(self, A, dist, name=None):
-        try:
-            from mpi4py import MPI
-        except BaseException:
-            from petram.helper.dummy_mpi import MPI
-        myid = MPI.COMM_WORLD.rank
-        nproc = MPI.COMM_WORLD.size
-
         self.row_offsets = A.RowOffsets()
         # nicePrint("row offsets in SetOperator", self.row_offsets.ToList())
 
@@ -394,18 +381,25 @@ class SuperLUSolver(LinearSolver):
 
         from scipy.sparse.linalg import splu
 
-        print("matrix here", AA)
-        self._superlu = splu(AA)
+        
+        if use_parallel:
+            # in this case, we gather matrix to root node
+            # and squash it.
+            AAs = MPI.COMM_WORLD.gather(AA, root=0)
+            if myid != 0:
+                return
+            AA = scipy.sparse.vstack(AAs)
+
+        dprint1("creating SuperLU object. matrix shape=", AA.shape)
+        self._superlu = splu(AA.tocsc())
 
     def Mult(self, b, x=None, case_base=0):
 
+        if not self.gui.use_dist_sol:       
+            assert False, "SuperLU model returns distrubuted solution vector. Other mode is not implemented"
+
         sol = []
         row_offsets = self.row_offsets.ToList()
-
-        barrier()
-
-        # return_distributed = self.gui.use_dist_sol
-        return_distributed = True
 
         for kk, bb in enumerate(b):
             if x is None:
@@ -439,77 +433,24 @@ class SuperLUSolver(LinearSolver):
             sys.stderr.flush()
 
             if use_parallel:
-                rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
-                rowstarts = np.hstack((0, np.cumsum(rows)))
-                # TODO
-                #   collect bb to myid=0 here
-
+                nrow = len(bbv)
+                if myid == 0:
+                    bbv = gather_vector(bbv, parent=True)                          
+                else:
+                    gather_vector(bbv)
+                
             if myid == 0:
                 dprint1("calling solve", debug.format_memory_usage())
                 xxv = self._superlu.solve(bbv)
-            else:
-                pass
+
+            if use_parallel:
+                xxv = scatter_vector(xxv, rcounts=nrow)
+                
             barrier()
-            print(xxv)
-            if return_distributed:
-                sol.append(xxv)
-            else:
-                s = []
-                for i in range(len(row_offsets) - 1):
-                    r1 = row_offsets[i]
-                    r2 = row_offsets[i + 1]
-
-                    if self.op_type == "real":
-                        xxvv = xxv[r1:r2]
-                        if use_parallel:
-                            vv = gather_vector(xxvv)
-                        else:
-                            vv = xxvv.copy()
-
-                    elif self.op_type == "complex":
-                        r1 = r1 // 2
-                        r2 = r2 // 2
-                        xxvv = xxv[r1:r2]
-                        if use_parallel:
-                            vv = gather_vector(xxvv)
-                        else:
-                            vv = xxvv.copy()
-
-                    elif self.op_type == "complexreal":
-                        r1 = r1
-                        width = (r2-r1)//2
-                        xxvv = xxv[r1:r1+width]
-                        if use_parallel:
-                            vv1 = gather_vector(xxvv)
-                        else:
-                            vv1 = xxvv.copy()
-                        xxvv2 = xxv[r1+width:r1+width+width]
-                        if use_parallel:
-                            vv2 = gather_vector(xxvv2)
-                        else:
-                            vv2 = xxvv2.copy()
-                        vv = np.hstack((vv1, vv2))
-                    else:
-                        assert False, "unknonw operator type"
-
-                    # nicePrint("xxvv", xxvv.shape)
-
-                    if myid == 0:
-                        s.append(vv)
-                    else:
-                        pass
-                if myid == 0:
-                    sol.append(np.hstack(s))
-
-        if return_distributed:
-            sol = np.transpose(np.vstack(sol))
-            return sol
-        else:
-            if myid == 0:
-                sol = np.transpose(np.vstack(sol))
-                return sol
-            else:
-                return None
+            sol.append(xxv)
+                
+        sol = np.transpose(np.vstack(sol))
+        return sol
 
 
 class SuperLUMFEMSolverModel(SuperLU):
