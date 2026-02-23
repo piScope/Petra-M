@@ -545,6 +545,34 @@ class NumbaCoefficient():
 
         return NumbaCoefficient(coeff)
 
+    def flatten(self):
+        '''
+        generate flatten
+        '''
+        from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
+
+        func = '\n'.join(['def f(ptx, val):',
+                          '    return val.flatten()'])
+
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+
+        if self.ndim == 2:
+            coeff = mfem.jit.vector(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    shape=(self.shape[0]*self.shape[1],))(l["f"])
+
+        else:
+            assert False, "flatten is used only for matrix"
+        return NumbaCoefficient(coeff)
+
     def norm(self):
         '''
         generate norm of array or abs of scalar

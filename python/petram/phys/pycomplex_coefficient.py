@@ -603,6 +603,9 @@ class PyComplexMatrixConstant(RealImagCoefficientGen):
         mat = inv(self.value)
         return PyComplexMatrixConstant(mat)
 
+    def flatten(self):
+        return PyComplexVectorConstant(self.value.flatten())
+
     def adj(self):
         mat = self.value
         determinant = det(mat)
