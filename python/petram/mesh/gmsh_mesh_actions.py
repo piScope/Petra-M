@@ -675,11 +675,8 @@ class CompoundSurface(GmshMeshActionBase):
     def add_meshcommand(self, mesher):
         gid = self.vt.make_value_or_expression(self)[0]
         gid = self.eval_entity_id(gid)
-
-        # generate something like... Compound Surface{1, 5, 10};
-        text = "Compound Surface{ " + gid + "};"
-        mesher.add('mergetxt', text=text, dim=[True, False, False, False])
-
+        
+        mesher.add('compoundf', gid)
 
 data = (('geom_id', VtableElement('geom_id', type='string',
                                   guilabel='Curves',
@@ -695,9 +692,7 @@ class CompoundCurve(GmshMeshActionBase):
         gid = self.vt.make_value_or_expression(self)[0]
         gid = self.eval_entity_id(gid)
 
-        # generate something like... Compound Curve{1, 5, 10};
-        text = "Compound Curve{ " + gid + "};"
-        mesher.add('mergetxt', text=text, dim=[True, False, False, False])
+        mesher.add('compoundl', gid)
 
 
 rsdata = (('geom_id', VtableElement('geom_id', type='string',

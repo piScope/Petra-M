@@ -570,6 +570,7 @@ class GMSHMeshWrapper():
             ent = self.target_entities
         else:
             ent = gmsh.model.getEntities()
+
         gmsh.model.setVisibility(ent, True)
 
     @timeit
@@ -790,6 +791,8 @@ class GMSHMeshWrapper():
                 'extrude_face': 2,
                 'revolve_face': 2,
                 'mergetxt': 0,
+                'compoundf': 0,
+                'compoundl': 0,                
                 }
         d = []
         for sq in self.mesh_sequence:
@@ -811,6 +814,8 @@ class GMSHMeshWrapper():
                 'extrude_face': 0,
                 'revolve_face': 0,
                 'mergetxt': 0,
+                'compoundf': 0,
+                'compoundl': 0,                
                 }
         d = []
         for sq in self.mesh_sequence:
@@ -880,6 +885,47 @@ class GMSHMeshWrapper():
     @process_text_tags(dim=2, check=False)
     def recombine_surface_3D(self, done, params, dimtags):
         return done, params
+
+    @process_text_tags(dim=2, check=False)
+    def compoundf_0D(self, done, params, dimtags):
+        tags = [dimtag[1] for dimtag in dimtags]
+        print("setCompound face 0d", tags)
+        
+        gmsh.model.mesh.setCompound(2, tags)        
+        return done, params
+    
+    @process_text_tags(dim=2, check=False)
+    def compoundf_1D(self, done, params, dimtags):
+        return done, params
+
+    @process_text_tags(dim=2, check=False)
+    def compoundf_2D(self, done, params, dimtags):
+        return done, params
+        
+    @process_text_tags(dim=2, check=False)
+    def compoundf_3D(self, done, params, dimtags):
+        return done, params
+
+    @process_text_tags(dim=1, check=False)
+    def compoundl_0D(self, done, params, dimtags):
+        print("setCompound 0d", dimtags)
+        tags = [dimtag[1] for dimtag in dimtags]
+        print(tags)
+        gmsh.model.mesh.setCompound(1, tags)        
+        return done, params
+    
+    @process_text_tags(dim=1, check=False)
+    def compoundl_1D(self, done, params, dimtags):
+        return done, params
+    
+    @process_text_tags(dim=1, check=False)
+    def compoundl_2D(self, done, params, dimtags):
+        return done, params
+    
+    @process_text_tags(dim=1, check=False)
+    def compoundl_3D(self, done, params, dimtags):
+        return done, params
+    
 
     # freevolume
     @set_restore_maxmin_cl
@@ -1069,7 +1115,7 @@ class GMSHMeshWrapper():
             self.setCL(((0, tag), ), size)
             #print("Face Set Point Size", (0, tag), size)
             done[0].append(tag)
-        gmsh.model.mesh.generate(0)
+        #gmsh.model.mesh.generate(0)
 
         return done, params
 
@@ -1088,8 +1134,9 @@ class GMSHMeshWrapper():
         dimtags = [(dim, tag) for dim, tag in dimtags if tag not in done[1]]
         self.show_only(dimtags)
 
-        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 1)
-        gmsh.model.mesh.generate(1)
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", CLfromCurvature)
+        #gmsh.model.mesh.generate(1)
+
         gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
         done[1].extend([x for dim, x in dimtags])
 
@@ -1105,8 +1152,18 @@ class GMSHMeshWrapper():
         tags = [(dim, tag) for dim, tag in dimtags if tag not in done[2]]
         field = self.add_default_field(
             tags, maxsize, scale=1/(growth-1.0+0.01))
-        self.show_only(tags)
 
+        print("here")
+        self.show_only(tags)
+        #self.show_all()
+
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", CLfromCurvature)
+
+        #gmsh.model.mesh.setCompound(2, [1, 2])
+        #print("before ")
+        gmsh.option.setNumber("Mesh.MeshOnlyVisible", 0)        
+        gmsh.option.setNumber("Mesh.MeshOnlyEmpty", 0)
+        
         alg2d = kwargs.get("alg2d", "default")
         if alg2d != 'default':
             gmsh.option.setNumber("Mesh.Algorithm",
@@ -1116,6 +1173,24 @@ class GMSHMeshWrapper():
                                   Algorithm2D[self.algorithm])
         else:
             gmsh.model.mesh.generate(2)
+
+        '''
+        print(gmsh.model.getEntities(dim=2))
+        self.show_only([(2, 100001)])
+        gmsh.option.setNumber("Mesh.MeshOnlyEmpty", 0)        
+        gmsh.model.mesh.generate(2)
+        '''
+        '''        
+        print("here")
+        gmsh.option.setNumber("Mesh.MeshOnlyVisible", 0)        
+        #gmsh.option.setNumber("Mesh.MeshOnlyEmpty", 0)
+        print(gmsh.model.getEntities(dim=2))
+        self.show_all()
+        self.show_only(gmsh.model.getEntities(dim=2))        
+        gmsh.model.mesh.generate(2)        
+        print("here")
+        '''
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
 
         if field is not None:
             field_tag = gmsh.model.mesh.field.remove(field)
