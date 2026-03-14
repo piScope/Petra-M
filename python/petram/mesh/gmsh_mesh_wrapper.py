@@ -291,7 +291,7 @@ class GMSHMeshWrapper():
     def generate(self, brep_input, msh_file, dim=3, finalize=False):
         '''
         generate mesh based on  meshing job sequence.
-        brep must be loaed 
+        brep must be loaed
         '''
         print("brep input", brep_input)
         if brep_input != '':
@@ -609,14 +609,14 @@ class GMSHMeshWrapper():
             dimtags = self.expand_dimtags(dimtags)
 
         old_model = self.current
-        
+
         data = []
         self.switch_model(ws1)
         for dim, tag in dimtags:
             ndata = gmsh.model.mesh.getNodes(dim, tag)
             edata = gmsh.model.mesh.getElements(dim, tag)
             data.append((dim, tag, ndata, edata))
-        self.switch_model(ws2)            
+        self.switch_model(ws2)
         for dim, tag, ndata, edata in data:
             gmsh.model.mesh.setNodes(dim, tag, ndata[0], ndata[1], ndata[2])
             gmsh.model.mesh.setElements(dim, tag, edata[0], edata[1], edata[2])
@@ -659,7 +659,7 @@ class GMSHMeshWrapper():
         surfaces = []
         lines = []
         points = []
-        
+
         for dim, tag in dimtags:
             if dim == 3:
                 volumes.append(tag)
@@ -1745,8 +1745,8 @@ class GMSHMeshWrapper():
 
                 #print("parametric fixed", pos, ppos)
                 #ntag2 = list(reversed(ntag2))
-                #ppos = np.array([abs(1-x) for x in ppos])                
-                #ppos = (tmp[0]-tmp[1])*ppos + tmp[1]                
+                #ppos = np.array([abs(1-x) for x in ppos])
+                #ppos = (tmp[0]-tmp[1])*ppos + tmp[1]
             #else:
             '''
             ppos = (tmp[1]-tmp[0])*ppos + tmp[0]
