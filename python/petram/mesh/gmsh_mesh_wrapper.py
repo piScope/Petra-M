@@ -283,6 +283,7 @@ class GMSHMeshWrapper():
         self.maxthreads = MaxThreads    # general, 1D, 2D, 3D: defualt = 1,1,1,1
         self._new_brep = True
         self._name = "GMSH_Mesher"
+        self._compound_dimtags = []
 
     def name(self):
         return self._name
@@ -417,7 +418,9 @@ class GMSHMeshWrapper():
             gmsh.option.setNumber("Mesh.MeshOnlyVisible", 0)
             gmsh.option.setNumber("Mesh.MeshOnlyEmpty", 1)
             gmsh.option.setNumber("Mesh.Optimize", 0)
-            gmsh.model.mesh.generate(maxdim)
+            gmsh.model.mesh.setOrder(self.ho_order)
+            #print("this one?")
+            #gmsh.model.mesh.generate(maxdim)
 
             # it is not well-written but I have to include all
             # boundaries elastic seems to apply for everything
@@ -892,6 +895,7 @@ class GMSHMeshWrapper():
     #
     @process_text_tags(dim=2, check=False)
     def compoundf_0D(self, done, params, dimtags):
+        self._compound_dimtags.extend(dimtags)
         tags = [dimtag[1] for dimtag in dimtags]
         print("setCompound face 0d", tags)
 
@@ -915,9 +919,8 @@ class GMSHMeshWrapper():
     #
     @process_text_tags(dim=1, check=False)
     def compoundl_0D(self, done, params, dimtags):
-        print("setCompound 0d", dimtags)
+        self._compound_dimtags.extend(dimtags)
         tags = [dimtag[1] for dimtag in dimtags]
-        print(tags)
         gmsh.model.mesh.setCompound(1, tags)
         return done, params
 
@@ -932,6 +935,30 @@ class GMSHMeshWrapper():
     @process_text_tags(dim=1, check=False)
     def compoundl_3D(self, done, params, dimtags):
         return done, params
+
+    def _generate_xd(self, x, dimtags):
+        target = [tag for dim, tag in dimtags if dim == x]
+        cp = [tag for dim, tag in self._compound_dimtags if dim == x]
+
+        if np.any(np.in1d(target, cp)):
+            gmsh.option.setNumber("Mesh.MaxNumThreads1D", 1)
+            gmsh.option.setNumber("Mesh.MaxNumThreads2D", 1)
+            gmsh.option.setNumber("Mesh.MaxNumThreads3D", 1)
+            fix_numthread = True
+        else:
+            fix_numthread = False
+
+        self.show_only(dimtags)
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 1)
+        gmsh.option.setNumber("Mesh.MeshOnlyEmpty", 0)
+        gmsh.model.mesh.generate(x)
+        gmsh.option.setNumber("Mesh.MeshOnlyEmpty", 1)
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
+
+        if fix_numthread:
+           gmsh.option.setNumber("Mesh.MaxNumThreads1D", self.maxthreads[1])
+           gmsh.option.setNumber("Mesh.MaxNumThreads2D", self.maxthreads[2])
+           gmsh.option.setNumber("Mesh.MaxNumThreads3D", self.maxthreads[3])
 
     # freevolume
     @set_restore_maxmin_cl
@@ -1013,8 +1040,7 @@ class GMSHMeshWrapper():
         dimtags = [(dim, tag) for dim, tag in dimtags if tag not in done[1]]
         # tags = [(dim, tag) for dim, tag in dimtags if not tag in done[1]]
 
-        self.show_only(dimtags)
-        gmsh.model.mesh.generate(1)
+        self._generate_xd(1, dimtags)
         done[1].extend([x for dim, x in dimtags])
         return done, params
 
@@ -1033,24 +1059,23 @@ class GMSHMeshWrapper():
 
         dimtags = self.expand_dimtags(dimtags, return_dim=2)
 
-        tags = [(dim, tag) for dim, tag in dimtags if tag not in done[2]]
+        dimtags2 = [(dim, tag) for dim, tag in dimtags if tag not in done[2]]
         field = self.add_default_field(
-            tags, maxsize, scale=1/(growth-1.0+0.01))
-        self.show_only(tags)
+            dimtags2, maxsize, scale=1/(growth-1.0+0.01))
 
         alg2d = kwargs.get("alg2d", "default")
         if alg2d != 'default':
             gmsh.option.setNumber("Mesh.Algorithm",
                                   Algorithm2D[alg2d])
-            gmsh.model.mesh.generate(2)
+            self._generate_xd(2, dimtags2)
             gmsh.option.setNumber("Mesh.Algorithm",
                                   Algorithm2D[self.algorithm])
         else:
-            gmsh.model.mesh.generate(2)
+            self._generate_xd(2, dimtags2)
 
         if field is not None:
             field_tag = gmsh.model.mesh.field.remove(field)
-        done[2].extend([x for dim, x in tags])
+        done[2].extend([x for dim, x in dimtags2])
         return done, params
 
     @set_restore_maxmin_cl
@@ -1060,25 +1085,24 @@ class GMSHMeshWrapper():
         growth = kwargs.pop("sizegrowth", 1.0)
         gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 0)
 
-        tags = [(dim, tag) for dim, tag in dimtags if tag not in done[3]]
+        dimtags2 = [(dim, tag) for dim, tag in dimtags if tag not in done[3]]
         field = self.add_default_field(
-            tags, maxsize, scale=1/(growth-1.0+0.01))
-        self.show_only(tags)
+            dimtags2, maxsize, scale=1/(growth-1.0+0.01))
 
         alg3d = kwargs.get("alg3d", "default")
         if alg3d != 'default':
             gmsh.option.setNumber("Mesh.Algorithm3D",
                                   Algorithm3D[alg3d])
-            gmsh.model.mesh.generate(3)
+            self._generate_xd(3, dimtags2)
             gmsh.option.setNumber("Mesh.Algorithm3D",
                                   Algorithm3D[self.algorithm3d])
         else:
-            gmsh.model.mesh.generate(3)
+            self._generate_xd(3, dimtags2)
 
         if field is not None:
             field_tag = gmsh.model.mesh.field.remove(field)
 
-        done[3].extend([x for dim, x in tags])
+        done[3].extend([x for dim, x in dimtags2])
         return done, params
 
     # freeface
@@ -1108,6 +1132,8 @@ class GMSHMeshWrapper():
 
         dimtags.extend([(1, x) for x in embedl])
         dimtags.extend([(0, x) for x in embedp])
+
+        print("debug this", dimtags)
         dimtags = self.expand_dimtags(dimtags, return_dim=0)
 
         dimtags = [(dim, tag) for dim, tag in dimtags if tag not in done[0]]
@@ -1138,11 +1164,9 @@ class GMSHMeshWrapper():
         dimtags.extend(embedl)
 
         dimtags = [(dim, tag) for dim, tag in dimtags if tag not in done[1]]
-        self.show_only(dimtags)
 
-        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 1)
-        gmsh.model.mesh.generate(1)
-        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
+        self._generate_xd(1, dimtags)
+
         done[1].extend([x for dim, x in dimtags])
 
         return done, params
@@ -1154,24 +1178,23 @@ class GMSHMeshWrapper():
         growth = kwargs.pop("sizegrowth", 1.0)
         gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 0)
 
-        tags = [(dim, tag) for dim, tag in dimtags if tag not in done[2]]
+        dimtags2 = [(dim, tag) for dim, tag in dimtags if tag not in done[2]]
         field = self.add_default_field(
-            tags, maxsize, scale=1/(growth-1.0+0.01))
-        self.show_only(tags)
+            dimtags2, maxsize, scale=1/(growth-1.0+0.01))
 
         alg2d = kwargs.get("alg2d", "default")
         if alg2d != 'default':
             gmsh.option.setNumber("Mesh.Algorithm",
                                   Algorithm2D[alg2d])
-            gmsh.model.mesh.generate(2)
+            self._generate_xd(2, dimtags2)
             gmsh.option.setNumber("Mesh.Algorithm",
                                   Algorithm2D[self.algorithm])
         else:
-            gmsh.model.mesh.generate(2)
+            self._generate_xd(2, dimtags2)
 
         if field is not None:
             field_tag = gmsh.model.mesh.field.remove(field)
-        done[2].extend([x for dim, x in tags])
+        done[2].extend([x for dim, x in dimtags2])
         return done, params
 
     @set_restore_maxmin_cl
@@ -1214,10 +1237,9 @@ class GMSHMeshWrapper():
     @process_text_tags(dim=1)
     def freeedge_1D(self, done, params, dimtags, *args, **kwargs):
         gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 1)
-        tags = [(dim, tag) for dim, tag in dimtags]
-        self.show_only(dimtags)
-        gmsh.model.mesh.generate(1)
-        done[1].extend([x for dim, x in tags])
+        dimtags2 = [(dim, tag) for dim, tag in dimtags]
+        self._generate_xd(1, dimtags2)
+        done[1].extend([x for dim, x in tags2])
         return done, params
 
     @set_restore_maxmin_cl
