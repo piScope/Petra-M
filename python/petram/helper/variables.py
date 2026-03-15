@@ -274,11 +274,18 @@ def check_vectorfe_in_lowdim(gf):
 
     assert fes.GetNE() > 0, "Finite Element space has zero elements"
 
-    isVector = (fes.GetFE(0).GetRangeType() == fes.GetFE(0).VECTOR)
-    dim = fes.GetFE(0).GetDim()
+    if fes.GetFE(0) is not None:
+        isVector = (fes.GetFE(0).GetRangeType() == fes.GetFE(0).VECTOR)
+        dim = fes.GetFE(0).GetDim()
+    elif fes.GetBE(0) is not None:  # trace space (ND_TraceSpace)
+        isVector = (fes.GetBE(0).GetRangeType() == fes.GetBE(0).VECTOR)
+        if isVector:
+            assert False, "Nodal evaluator does not work with Trace for Vector (try w/o averaging)"
+    else:
+        assert False, "Finite elment space does not have FE nor BE"
 
     if isVector and dim < sdim:
-        assert False, "Nodal evaluator does not work for low dimenstional vector field (try without averaging)"
+        assert False, "Nodal evaluator does not work for low dimenstional vector field (try w/o averaging)"
 
 
 class Variables(dict):
@@ -1094,7 +1101,7 @@ class DomainVariable(Variable):
         #print("Entering Domain variable:: nodal_values", self, current_domain)
 
         '''
-        note) 
+        note)
            contributions from different domains will be avearaged
            contributions from same domains will be added (this is handled by SumVariables)
 
@@ -2302,19 +2309,31 @@ class GFScalarVariable(GridFunctionVariable):
         return ret
 
     def ncface_values(self, ifaces=None, irs=None,
-                      gtypes=None, **kwargs):
+                      gtypes=None, locs=None, **kwargs):
+
         if not self.isDerived:
             self.set_funcs()
 
-        name = self.gfr.FESpace().FEColl().Name()
-        ndim = self.gfr.FESpace().GetMesh().Dimension()
+        fes = self.gfr.FESpace()
+        name = fes.FEColl().Name()
+        mesh = fes.GetMesh()
+        ndim = mesh.Dimension()
+        sdim = mesh.SpaceDimension()
 
         isVector = False
+        isTrace=False
         if (name.startswith('RT') or
                 name.startswith('ND')):
             d = mfem.DenseMatrix()
             p = mfem.DenseMatrix()
             isVector = True
+            if (name.startswith('RT_Trace') or
+                name.startswith('ND_Trace')):
+                isTrace = True
+                ldata = mfem.Vector()
+                lval = mfem.Vector()
+                vshape = mfem.DenseMatrix()
+
         else:
             d = mfem.Vector()
             p = mfem.DenseMatrix()
@@ -2325,7 +2344,32 @@ class GFScalarVariable(GridFunctionVariable):
                 return None
             if ndim == 3:
                 if isVector:
-                    return gf.GetFaceVectorValues
+                    if isTrace:
+                        def func(i, side, ir, vals, tr, in_gf=gf):
+                            #  Custom GridFucntion Reader for
+                            #  Trace Element (as of 2025.12 glvis crash with thsi
+                            #  type of GridFunction)
+                            fe = fes.GetFaceElement(i)
+                            vdofs = mfem.intArray(fes.GetFaceVDofs(i))
+
+                            in_gf.GetSubVector(vdofs, ldata)
+                            vdim = max(sdim, fe.GetRangeDim())
+                            lval.SetSize(vdim)
+                            dof = fe.GetDof()
+
+                            vshape.SetSize(dof, vdim)
+                            vals.SetSize(vdim, ir.GetNPoints())
+                            vals_a = vals.GetDataArray()
+                            eltrans = mesh.GetFaceTransformation(i)
+                            for iip in range(ir.GetNPoints()):
+                                ip = ir.IntPoint(iip)
+                                eltrans.SetIntPoint(ip)
+                                fe.CalcVShape(eltrans, vshape)
+                                vshape.MultTranspose(ldata, lval)
+                                vals_a[:, iip] = lval.GetDataArray()
+                        return func
+                    else:
+                        return gf.GetFaceVectorValues
                 elif gf.VectorDim() > 1:
                     def func(i, side, ir, vals, tr, in_gf=gf):
                         in_gf.GetFaceValues(
@@ -2352,6 +2396,7 @@ class GFScalarVariable(GridFunctionVariable):
             else:
                 assert False, "ndim = 1 has no face"
             return None
+
 
         getvalr = get_method(self.gfr, ndim, isVector)
         getvali = get_method(self.gfi, ndim, isVector)

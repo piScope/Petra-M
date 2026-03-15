@@ -19,7 +19,7 @@ from petram.model import Model, Bdry, Domain
 from petram.namespace_mixin import NS_mixin
 
 import petram.debug as debug
-dprint1, dprint2, dprint3 = debug.init_dprints('Phys')
+dprint1, dprint2, dprint3 = debug.init_dprints('PhysModel')
 
 if use_parallel:
     import mfem.par as mfem
@@ -1263,7 +1263,7 @@ class PhysModule(Phys):
         RT
         '''
 
-    def fes_order(self, idx):
+    def fec_order(self, idx):
         self.vt_order.preprocess_params(self)
         return self.order
 
@@ -1618,3 +1618,62 @@ class PhysModule(Phys):
         g = self._global_ns
 
         return eval_metric_txt(txt, g, l, return_txt=return_txt)
+
+    #
+    #  support physics-specific forms
+    #
+    def has_diagform(self, kfes1):
+        return False
+
+    def diag_formlinearsystem(self,ess_tdof_list, a,  x):
+        Ah = mfem.OperatorPtr()
+        X = mfem.Vector()
+        B = mfem.Vector()
+        dprint1("calling FormLinearSystem for ", a)
+        a.FormLinearSystem(ess_tdof_list, x, Ah, X, B)
+
+        return Ah, X, B
+
+    def XB_as_blockvector(self, Ah, inX, inB):
+        # To-Do
+        #    logic for real (not complex) is not tested.
+        if use_parallel:
+            to_blkopr = mfem.Opr2BlockOpr
+            to_matrix = mfem.Opr2HypreParMatrix
+        else:
+            to_blkopr = mfem.Opr2BlockMatrix
+            to_matrix = mfem.Opr2SparseMatrix
+
+        if self.is_complex:
+            Ahc = Ah.AsComplexOperator()
+            BlockA = to_blkopr(Ahc.real())
+        else:
+            Ahc = Ah.Ptr()
+            BlockA = to_blkopr(Ahc)
+
+        num_blocks = BlockA.NumRowBlocks()
+        size = []
+        for i in range(num_blocks):
+            blkr = to_matrix(BlockA.GetBlock(0, i))
+            size.append(blkr.Width())
+
+        tdof_offsets = mfem.intArray([0]+size+size)
+        tdof_offsets.PartialSum()
+
+        B = mfem.BlockVector(inB, tdof_offsets)
+        X = mfem.BlockVector(inX, tdof_offsets)
+        B._linkedobj = inB
+        X._linkedobj = inX
+        return X, B
+
+    def split_AhXB_complex(self, Ah, X, B):
+        #  split Ah, X, B in a blkformat
+        #  returns (mblk_r, mblk_i), (xblk_r, xblk_i), (bblk_r, bblk_i)
+        raise NotImplementedError(
+            "you must specify this method in subclass")
+
+    def split_AhXB_real(self, Ah, X, B):
+        #  split Ah, X, B in a blkformat
+        #  returns mblk_r, xblk_r, bblk_r
+        raise NotImplementedError(
+            "you must specify this method in subclass")

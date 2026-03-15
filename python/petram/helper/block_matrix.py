@@ -709,6 +709,45 @@ class BlockMatrix(object):
                 if id(self[i, j]) in ids:
                     print(i, j, "shared")
 
+    def eliminate_empty_rowcolblocks(self):
+        # generate smaller blockmatrix
+        # if row and/or col are entirely empty
+
+        empty_row = []
+        empty_col = []
+        for i in range(self.shape[0]):
+            if np.all([self[i, j] is None for j in range(self.shape[1])]):
+                empty_row.append(i)
+
+        for j in range(self.shape[1]):
+            if np.all([self[i, j] is None for i in range(self.shape[0])]):
+                empty_col.append(j)
+        shape = (self.shape[0]-len(empty_row),self.shape[1]-len(empty_col))
+
+        if shape[0] != 0 and shape[0] != 1:
+            dprint1("eliminating empty...", self)
+
+        ret = BlockMatrix(shape, kind=self.kind)
+        ii = 0
+        rows = []
+        cols = []
+        for i in range(self.shape[0]):
+            jj = 0
+            for j in range(self.shape[1]):
+               if i not in empty_row and j not in empty_col:
+                   ret[ii, jj] = self[i, j]
+                   cols.append(j)
+                   jj = jj + 1
+            if jj != 0:
+                rows.append(i)
+                ii = ii + 1
+
+        rows = np.unique(rows)
+        cols = np.unique(cols)
+
+        return ret, rows, cols
+
+
     def eliminate_empty_rowcol(self):
         '''
         collect empty row first. (no global communicaiton this step)

@@ -10,10 +10,7 @@ import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MUMPSModel')
 
 from petram.helper.check_module_installed import module_file_exists
-if  module_file_exists("petram.ext.mumps.mumps_solve"):
-    has_mumps = True
-else:
-    has_mumps = False
+has_mumps = bool(module_file_exists("petram.ext.mumps.mumps_solve"))
 
 
 def convert2float(txt):
@@ -238,7 +235,7 @@ class MUMPSMFEMSolverModel(MUMPSBase):
                 "blk_merged_s",
                 "blk_merged", ]
 
-    def prepare_solver(self, opr, engine):
+    def prepare_solver(self, opr, engine, name=None):
         solver = MUMPSBlockPreconditioner(opr,
                                           gui=self,
                                           engine=engine,
@@ -268,7 +265,7 @@ class MUMPSPreconditionerModel(MUMPSBase):
                 "blk_merged_s",
                 "blk_merged", ]
 
-    def prepare_solver(self, opr, engine):
+    def prepare_solver(self, opr, engine, name=None):
         prc = MUMPSPreconditioner(opr,
                                   gui=self,
                                   engine=engine,

@@ -1052,6 +1052,14 @@ class Model(RestorableOrderedDict):
     def use_essential_elimination(self):
         return True
 
+    def no_t2_elimination(self):
+        # suppress col elimination t2 defined by the extra variable
+        return False
+
+    def no_t1_elimination(self):
+        # suppress col elimination t2 defined by the extra variable
+        return False
+
 
 class Bdry(Model):
     can_delete = True

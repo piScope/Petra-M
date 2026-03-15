@@ -2825,7 +2825,6 @@ class BrepImport(ImportBase):
         v["cad_file"] = ""
         v["use_fix"] = False
         v["highestdimonly"] = True
-        v["use_fix_rescale"] = 1.0
         return v
 
     def get_panel1_value(self):

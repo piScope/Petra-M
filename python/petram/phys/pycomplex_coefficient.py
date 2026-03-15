@@ -10,6 +10,7 @@ import abc
 from abc import ABC, abstractmethod
 
 from numpy.linalg import inv, det
+from numpy import conj, transpose
 
 from petram.mfem_config import use_parallel
 if use_parallel:
@@ -230,9 +231,6 @@ class RealImagCoefficientGen(ABC):
             return NotImplemented
 
     def __mul__(self, scale):
-        assert not isinstance(
-            scale, RealImagCoefficientGen), "multiplication is not defined"
-
         class PyComplexProductXCoefficient(CC_Scalar):
             def __init__(self, coeff, scale=1.0):
                 self.scale = scale
@@ -241,9 +239,49 @@ class RealImagCoefficientGen(ABC):
 
             def eval(self, T, ip):
                 v = self.coeff.eval(T, ip)
-                v *= self.scale
+                if isinstance(self.scale, RealImagCoefficientGen):
+                    s = self.scale.eval(T, ip)
+                else:
+                    s = self.scale
+                v *= s
                 return v
         obj = PyComplexProductXCoefficient(self, scale)
+        return obj
+
+    def conj(self):
+        class PyComplexConjSCoefficient(CC_Scalar):
+            def __init__(self, coeff1):
+                CC_Scalar.__init__(self)
+                self.coeff = coeff1
+
+            def eval(self, T, ip):
+                v1 = self.coeff.eval(T, ip)
+                return v1.conj()
+
+        class PyComplexConjVCoefficient(CC_Vector):
+            def __init__(self, coeff1):
+                CC_Vector.__init__(self, coeff1.vdim)
+                self.coeff = coeff1
+
+            def eval(self, T, ip):
+                v1 = self.coeff.eval(T, ip)
+                return v1.conj()
+
+        class PyComplexConjMCoefficient(CC_Matrix):
+            def __init__(self, coeff1):
+                self.coeff = coeff1
+                CC_Matrix.__init__(self, coeff1.height, coeff1.width)
+
+            def eval(self, T, ip):
+                v1 = self.coeff.eval(T, ip)
+                return v1.conj()
+
+        if self.kind == "scalar":
+            return PyComplexConjSCoefficient(self)
+        if self.kind == "vector":
+            return PyComplexConjVCoefficient(self)
+        if self.kind == "matrix":
+            return PyComplexConjMCoefficient(self)
 
     def __getitem__(self, arg):
         '''
@@ -418,10 +456,20 @@ class PyComplexConstant(PyComplexConstantBase):
     def get_imag_coefficient(self):
         return PhysConstant(self.value.imag)
 
+    def conj(self):
+        return PyComplexConstant(conj(self.value))
+
     def __pow__(self, exponent):
         return PyComplexConstant((self.value)**exponent)
 
     def __mul__(self, scale):
+        if isinstance(scale, PyComplexConstant):
+            scale = scale.value
+        elif isinstance(scale, PyComplexVectorConstant):
+            return PyComplexVectorConstant(scale*self.value)
+        elif isinstance(scale, PyComplexMatrixConstant):
+            return PyComplexMatrixConstant(scale*self.value)
+
         return PyComplexConstant((self.value)*scale)
 
     def __add__(self, other):
@@ -451,7 +499,15 @@ class PyComplexVectorConstant(PyComplexConstantBase):
     def get_imag_coefficient(self):
         return PhysVectorConstant(self.value.imag)
 
+    def conj(self):
+        return PyComplexVectorConstant(conj(self.value))
+
+    def transpose(self):
+        return PyComplexVectorConstant(transpose(self.value))
+
     def __mul__(self, scale):
+        if isinstance(scale, PyComplexConstant):
+            scale = scale.value
         return PyComplexVectorConstant((self.value)*scale)
 
     def __add__(self, other):
@@ -499,7 +555,20 @@ class PyComplexMatrixConstant(RealImagCoefficientGen):
         else:
             return self.get_imag_coefficient()
 
+    def conj(self):
+        return PyComplexMatrixConstant(conj(self.value))
+
+    def transpose(self):
+        return PyComplexMatrixConstant(transpose(self.value))
+
+    def dot(self, other):
+        if isinstance(other, PyComplexMatrixConstant):
+            return PyComplexMatrixConstant(self.value.dot(other.value))
+        assert False, "dot with non-constant not supported"
+
     def __mul__(self, scale):
+        if isinstance(scale, PyComplexMatrixConstant):
+            scale = scale.value
         return PyComplexMatrixConstant((self.value)*scale)
 
     def __add__(self, other):

@@ -1,13 +1,13 @@
 [project]
 name = "petram"
-license = { file = "LICENSE" }
+license = "GPL-3.0-or-later"
 description='Petra-M finite element analysis framework base package'
 authors = [ { name = "S. Shiraiwa" } ]
 maintainers = [ { name = "S. Shiraiwa", email = "shiraiwa@princeton.edu" } ]
 keywords = ["scientific computing", "python visualzation", "finite element method", "MFEM"]
 readme = "README.md"
 requires-python = ">=3.10"
-version = "26.02.01"
+version = "26.2.12"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",

@@ -3,8 +3,6 @@
     Model Tree to stroe MFEM model parameters
 
 '''
-from petram.utils import (check_cluster_access,
-                          check_addon_access)
 from petram.namespace_mixin import NS_mixin
 import numpy as np
 from petram.model import Model
@@ -12,10 +10,9 @@ from petram.model import Model
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MFEMModel')
 
-
-has_addon_access = check_addon_access()
-has_cluster_access = check_cluster_access()
-
+# (TODO) these global variables is better to be moved somewhere else
+has_addon_access = "none"
+has_cluster_access = "no"
 
 class MFEM_GeneralRoot(Model, NS_mixin):
     can_delete = False
