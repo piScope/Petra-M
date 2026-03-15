@@ -284,6 +284,8 @@ class GMSHMeshWrapper():
         self._new_brep = True
         self._name = "GMSH_Mesher"
         self._compound_dimtags = []
+        self._compound_shared_dimtags = []
+        self._compound_map = {}
 
     def name(self):
         return self._name
@@ -322,6 +324,7 @@ class GMSHMeshWrapper():
         gmsh.option.setNumber("Mesh.MaxNumThreads2D", self.maxthreads[2])
         gmsh.option.setNumber("Mesh.MaxNumThreads3D", self.maxthreads[3])
         gmsh.option.setNumber("Mesh.Optimize", 0)
+
         # gmsh.option.setNumber('Geometry.ReparamOnFaceRobust', 1)
 
         # if self.use_ho:
@@ -708,8 +711,22 @@ class GMSHMeshWrapper():
 
         from petram.mesh.gmsh_helper import edit_msh_to_add_sequential_physicals
 
+        # after compound operation, shared boundary dimtags are
+        # not be a part of final mesh. they need to removed.
+
+        skip_dimtags = self._compound_shared_dimtags[:]
+
+        # add compound edge
+        edge_compound = [x for x in self._compound_dimtags if x[0] == 1]
+        skip_dimtags.extend(edge_compound)
+
+        #  compound map is used to rename entitiy label
+        dimtag_map = self._compound_map
+
         edit_msh_to_add_sequential_physicals(tmp_file,
                                              filename,
+                                             skip_dimtags,
+                                             dimtag_map,
                                              gen_all_phys_entity=self.gen_all_phys_entity,
                                              verbose=verbose)
 
@@ -795,6 +812,7 @@ class GMSHMeshWrapper():
                 'extrude_face': 2,
                 'revolve_face': 2,
                 'mergetxt': 0,
+                'compoundv': 0,
                 'compoundf': 0,
                 'compoundl': 0,
                 }
@@ -818,6 +836,7 @@ class GMSHMeshWrapper():
                 'extrude_face': 0,
                 'revolve_face': 0,
                 'mergetxt': 0,
+                'compoundv': 0,
                 'compoundf': 0,
                 'compoundl': 0,
                 }
@@ -890,15 +909,61 @@ class GMSHMeshWrapper():
     def recombine_surface_3D(self, done, params, dimtags):
         return done, params
 
+    def _register_compound(self, dimtags):
+        #  record compound operations
+        #    1) collect compounted dimtags to _compound_dimtags
+        #    2) create mapping of compounds id so that final mesh will have common
+        #       id among compouned elements
+        #    3) find shared enitity between compouned elements, which is be eliminated
+        #       from the final mesh.
+        self._compound_dimtags.extend(dimtags)
+
+        for x in dimtags[1:]:
+            self._compound_map[x] = dimtags[0]
+
+        dim = dimtags[0][0]
+        items = []
+        for dimtag in dimtags:
+           items.extend([x[1] for x in
+                         gmsh.model.getBoundary([dimtag,], oriented=False, combined=False)])
+
+        from collections import Counter
+        counts = Counter(items)
+        duplicates = [(dim-1, item) for item, count in counts.items() if count == 2]
+
+        self._compound_shared_dimtags.extend(duplicates)
+
+    #
+    #  Compound Volume
+    #
+    @process_text_tags(dim=3, check=False)
+    def compoundv_0D(self, done, params, dimtags):
+        self._register_compound(dimtags)
+
+        tags = [dimtag[1] for dimtag in dimtags]
+        gmsh.model.mesh.setCompound(3, tags)
+        return done, params
+
+    @process_text_tags(dim=3, check=False)
+    def compoundv_1D(self, done, params, dimtags):
+        return done, params
+
+    @process_text_tags(dim=3, check=False)
+    def compoundv_2D(self, done, params, dimtags):
+        return done, params
+
+    @process_text_tags(dim=3, check=False)
+    def compoundv_3D(self, done, params, dimtags):
+        return done, params
+
     #
     #  Compound Surfaces
     #
     @process_text_tags(dim=2, check=False)
     def compoundf_0D(self, done, params, dimtags):
-        self._compound_dimtags.extend(dimtags)
-        tags = [dimtag[1] for dimtag in dimtags]
-        print("setCompound face 0d", tags)
+        self._register_compound(dimtags)
 
+        tags = [dimtag[1] for dimtag in dimtags]
         gmsh.model.mesh.setCompound(2, tags)
         return done, params
 
@@ -919,7 +984,8 @@ class GMSHMeshWrapper():
     #
     @process_text_tags(dim=1, check=False)
     def compoundl_0D(self, done, params, dimtags):
-        self._compound_dimtags.extend(dimtags)
+        self._register_compound(dimtags)
+
         tags = [dimtag[1] for dimtag in dimtags]
         gmsh.model.mesh.setCompound(1, tags)
         return done, params
@@ -1133,7 +1199,6 @@ class GMSHMeshWrapper():
         dimtags.extend([(1, x) for x in embedl])
         dimtags.extend([(0, x) for x in embedp])
 
-        print("debug this", dimtags)
         dimtags = self.expand_dimtags(dimtags, return_dim=0)
 
         dimtags = [(dim, tag) for dim, tag in dimtags if tag not in done[0]]
