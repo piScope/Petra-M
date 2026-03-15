@@ -444,6 +444,8 @@ class SuperLUSolver(LinearSolver):
             if myid == 0:
                 dprint1("calling solve", debug.format_memory_usage())
                 xxv = self._superlu.solve(bbv)
+            else:
+                xxv = None
 
             if use_parallel:
                 xxv = scatter_vector(xxv, rcounts=nrow)
@@ -457,8 +459,7 @@ class SuperLUSolver(LinearSolver):
 
 class SuperLUMFEMSolverModel(SuperLU):
     '''
-    This one is to use STRUMPACK in iterative solver
-    It creates MUMPSPreconditioner
+    This model creates SuperLU solver as a preconditioner in iterative solver
     '''
 
     def prepare_solver(self, opr, engine):
