@@ -396,7 +396,7 @@ class SuperLUSolver(LinearSolver):
     def Mult(self, b, x=None, case_base=0):
 
         if not self.gui.use_dist_sol:       
-            assert False, "SuperLU model returns distrubuted solution vector. Other mode is not implemented"
+            assert False, "SuperLU model returns distributed solution vector. Other mode is not implemented"
 
         sol = []
         row_offsets = self.row_offsets.ToList()
