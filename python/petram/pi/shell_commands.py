@@ -57,10 +57,15 @@ def petram(reload_scripts=True, addon="none", cluster=False):
        reload_scripts : reload project sciripts
        addon : turn-on addon access, temporariliy.
     '''
+    from petram.utils import (check_cluster_access,
+                              check_addon_access)
     import petram.mfem_model as mm
-    if not mm.has_cluster_access and cluster is True:
+
+    mm.has_cluster_access = check_cluster_access()
+    mm.has_addon_access = check_addon_access()
+    if cluster is True:
         mm.has_cluster_access = True
-    if mm.has_addon_access == "none":
+    if addon is not "none":
         mm.has_addon_access = addon
 
     import wx

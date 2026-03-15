@@ -70,6 +70,19 @@ class SolverBase(Model, NS_mixin):
             obj = obj.parent
         return obj
 
+    def get_solve_root2(self):
+        '''
+        return a model directly under SolveStep
+        '''
+        obj = self
+        solver_root = self.root()['Solver']
+        obj2 = self
+        while (not isinstance(obj2, SolveStep) and
+               obj2 is not solver_root):
+            obj = obj2
+            obj2 = obj2.parent
+        return obj
+
     def eval_text_in_global(self, value, ll=None):
         if not isinstance(value, str):
             return value
@@ -167,28 +180,27 @@ class SolveStep(SolverBase):
 
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [MultiLvlStationarySolver,
+            mesh_adapt_solver = [StdMeshAdaptSolver]
+        except BaseException:
+            mesh_adapt_solver = []
+
+        try:
+            from petram.solver.dpg_amr_solver_model import DpgAmrSolver
+            dpg_amr_solver = [DpgAmrSolver]
+        except BaseException:
+            dpg_amr_solver = []
+
+        return ([MultiLvlStationarySolver,
                     TimeDomain,
                     DistanceSolver,
                     StdSolver,
-                    StdMeshAdaptSolver,
                     NLSolver,
                     EgnSolver,
                     Superposition,
                     # MGSolver,
                     ForLoop,
-                    DWCCall, SetVar]
-        except:
-            return [MultiLvlStationarySolver,
-                    TimeDomain,
-                    DistanceSolver,
-                    # MGSolver,
-                    StdSolver,
-                    NLSolver,
-                    EgnSolver,
-                    Superposition,
-                    ForLoop,
-                    DWCCall, SetVar]
+                    DWCCall, SetVar] +
+                mesh_adapt_solver + dpg_amr_solver)
 
     def get_possible_child_menu(self):
         #from solver.solinit_model import SolInit
@@ -203,30 +215,30 @@ class SolveStep(SolverBase):
         from petram.solver.distance_solver import DistanceSolver
         from petram.solver.superposition import Superposition
 
+        extra_solver = []
         try:
             from petram.solver.std_meshadapt_solver_model import StdMeshAdaptSolver
-            return [("", StdSolver),
+            extra_solver.append(("", StdMeshAdaptSolver))
+        except BaseException:
+            pass
+
+        try:
+            from petram.solver.dpg_amr_solver_model import DpgAmrSolver
+            extra_solver.append(("", DpgAmrSolver))
+        except BaseException:
+            pass
+
+        return ([("", StdSolver),
                     ("", MultiLvlStationarySolver),
                     ("", NLSolver),
                     ("", TimeDomain),
                     #("", EgnSolver),
-                    ("extra", DistanceSolver),
-                    ("", Superposition),
-                    ("", StdMeshAdaptSolver),
+                    ("extra", DistanceSolver),] +
+                    extra_solver +
+                    [("", Superposition),
                     ("", InnerForLoop),
                     ("", DWCCall),
-                    ("!", SetVar)]
-        except:
-            return [("", StdSolver),
-                    ("", MultiLvlStationarySolver),
-                    ("", NLSolver),
-                    ("", TimeDomain),
-                    #("", EgnSolver),
-                    ("extra", DistanceSolver),
-                    ("", Superposition),
-                    ("", InnerForLoop),
-                    ("", DWCCall),
-                    ("!", SetVar)]
+                    ("!", SetVar)])
 
     @property
     def solve_error(self):
@@ -484,8 +496,7 @@ class SolveStep(SolverBase):
             engine.run_mesh_extension(p)
 
         engine.run_alloc_sol(phys_range)
-
-#        engine.run_fill_X_block()
+        engine.collect_diagform_info(phys_target)
 
     def init(self, engine):
         phys_target = self.get_phys()
@@ -509,7 +520,9 @@ class SolveStep(SolverBase):
         '''
         # use get_phys to apply essential to all phys in solvestep
         engine.run_apply_essential(phys_target, phys_range)
-        engine.run_fill_X_block()
+
+        # Do I need this?
+        # engine.run_fill_X_block()
 
     @debug.use_profiler
     def run(self, engine, is_first=True):
@@ -774,6 +787,8 @@ class SolverInstance(ABC):
         self.probe = []
         self.linearsolver_model = None
 
+        self._xrows = None
+
         self._ls_type = self.gui.get_solve_root().get_linearsystem_type_from_modeltree()
         self._phys_real = self.gui.get_solve_root().is_allphys_real()
 
@@ -937,17 +952,48 @@ class SolverInstance(ABC):
         else:
             is_sol_central = True
 
+        # convert to solution to complex if needed
+        #   note: ML solver already returns complex
         if is_sol_central:
-            if not self.phys_real and self.gui.assemble_real:
+            if (not self.phys_real and self.gui.assemble_real and
+                not np.iscomplexobj(solall)):
                 solall = self.linearsolver_model.real_to_complex(solall, AA)
             A.reformat_central_mat(
                 solall, ksol, ret, mask, alpha=alpha, beta=beta)
         else:
-            if not self.phys_real and self.gui.assemble_real:
+            if (not self.phys_real and self.gui.assemble_real and
+                not np.iscomplexobj(solall)):
                 solall = self.linearsolver_model.real_to_complex(solall, AA)
                 #assert False, "this operation is not permitted"
             A.reformat_distributed_mat(
                 solall, ksol, ret, mask, alpha=alpha, beta=beta)
+
+    def minimize_blks(self,  A, X, B, depvars, mask):
+        #  remove completely enmpty row/cols
+        #  this happens when dpg static-condensation is used.
+        A2, rows, cols = A.eliminate_empty_rowcolblocks()
+
+        m1 = [(i in rows) for i in range(X.shape[0])]
+        m2 = [(i in rows) for i in range(B.shape[0])]
+        X2 = X.get_subblock(m1, [True]*X.shape[1])
+        B2 = B.get_subblock(m2, [True]*B.shape[1])
+
+
+        mask2  = ([mask[0][i] for i in rows],
+                  [mask[1][i] for i in cols],)
+        depvars2 = [depvars[i] for i in cols]
+        depvars2 = [x for i, x in enumerate(depvars2) if mask2[0][i]]
+
+        #
+        self._xrows = cols
+
+        return A2, X2, B2, depvars2, mask2,
+
+    def expand_blks(self, X2, X):
+        #  recover data from minimized blks to starndard sized block
+        for i, ii in enumerate(self._xrows):
+             X[ii, 0] = X2[i]
+
 
 
 class TimeDependentSolverInstance(SolverInstance):
@@ -1048,14 +1094,14 @@ class LinearSolverModel(SolverBase):
         raise NotImplementedError(
             "bug. this method sould not be called")
 
-    def prepare_solver(self, opr, engine):
+    def prepare_solver(self, opr, engine, *args, **kwargs):
         '''
         this method create LinearSolver. This should return MFEM LinearOperator
         '''
         raise NotImplementedError(
             "bug. this method sould not implemented in subclass.")
 
-    def prepare_solver_with_multtranspose(self):
+    def prepare_solver_with_multtranspose(self, *args, **kwargs):
         '''
         this method create LinearSolver. This should return MFEM LinearOperator
         '''

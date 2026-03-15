@@ -5236,6 +5236,7 @@ class Geometry():
                         topo_id = topo_list.add(topo)
                     ex2.Next()
                 ex1.Next()
+
             ex1.Init(shape, topabs, topabs_p)
             while ex1.More():
                 topo = ex1.Current()
@@ -5286,6 +5287,7 @@ class Geometry():
                       self.vertices,
                       dim=0,
                       map2_name=('vertex', 'edge'))
+
 
         b = self.builder
         comp = self.shape
@@ -5927,6 +5929,8 @@ class Geometry():
             gids = self.get_target2(self.objs, gids)
             shapes = [self.get_shape_for_gid(gid) for gid in gids]
             shapes = (args[1], shapes, (self.faces, self.edges))
+        elif inspect_type == 'floatingvertex':
+            shapes = (self.faces, self.edges, self.vertices,)
         else:
             assert False, "unknown mode:" + inspect_type
         return shape_inspector(self.shape, inspect_type, shapes)
@@ -5957,7 +5961,6 @@ class Geometry():
         export shapes in STEP and STL format
         '''
 
-        print("entring here")
         stlmode = filename.endswith('.stl')
 
         if selection is None:

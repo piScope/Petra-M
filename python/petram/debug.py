@@ -35,6 +35,7 @@ debug_essential_bc = False
 debug_memory = False
 debug_evaluator_mp = False
 trim_debug_print = True
+debug_dpg_essential = True
 
 max_txt = 70*2
 

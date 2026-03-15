@@ -238,7 +238,7 @@ class MUMPSMFEMSolverModel(MUMPSBase):
                 "blk_merged_s",
                 "blk_merged", ]
 
-    def prepare_solver(self, opr, engine):
+    def prepare_solver(self, opr, engine, name=None):
         solver = MUMPSBlockPreconditioner(opr,
                                           gui=self,
                                           engine=engine,
@@ -268,7 +268,7 @@ class MUMPSPreconditionerModel(MUMPSBase):
                 "blk_merged_s",
                 "blk_merged", ]
 
-    def prepare_solver(self, opr, engine):
+    def prepare_solver(self, opr, engine, name=None):
         prc = MUMPSPreconditioner(opr,
                                   gui=self,
                                   engine=engine,

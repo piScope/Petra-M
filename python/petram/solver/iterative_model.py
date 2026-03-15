@@ -431,11 +431,9 @@ class IterativeSolver(LinearSolver):
 
     def make_preconditioner(self, A, name=None, parallel=False):
         name = self.Aname if name is None else name
-
         solver = self.gui.get_solver()
         if solver.use_blk_merged_structure:
             name = solver.get_ls_blocknames()
-
         if self.gui.adv_mode:
             expr = self.gui.adv_prc
             gen = eval(expr, self.gui._global_ns)
@@ -468,7 +466,6 @@ class IterativeSolver(LinearSolver):
 
                 if not n in pc_block:
                     # make a new one
-                    dprint1(nn)
                     try:
                         blkgen = getattr(prcs, nn)
                     except BaseException:

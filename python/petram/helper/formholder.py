@@ -1,10 +1,10 @@
 '''
    FormHolder is a block structure to maintain a biuch of lf, bf, and gf.
 
-   Each block can have a multiple bf/lf. So, each element is a dictionary, 
-   whose key is a projection operator. 
+   Each block can have a multiple bf/lf. So, each element is a dictionary,
+   whose key is a projection operator.
    Value of dictionary is a two element list. The first one is lf/bf/gf,
-   and the second place is for Vector/Matrix 
+   and the second place is for Vector/Matrix
 '''
 from itertools import product
 import numpy as np
@@ -14,34 +14,21 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('FromHolder')
 
 
 class FormBlock(object):
-    def __init__(self, shape, new=None, mixed_new=None, diag=None):
+    def __init__(self, shape, new=None):
         '''
         kind : scipy
                   stores scipy sparse or numpy array
                hypre
         '''
-        try:
-            x = len(shape)
-        except:
-            shape = [shape]
+        r = shape
+        c = 1
+        self.ndim = 1
+        self.block = [[None]*c for x in range(r)]
+        self._diag_vec = [False]*r
+        self._diag_callable_mask = [False]*r
 
-        if len(shape) == 2:
-            r, c = shape
-            self.block = [[None]*c for x in range(r)]
-            self.ndim = 2
-        elif len(shape) == 1:
-            r = shape[0]
-            c = 1
-            self.ndim = 1
-            self.block = [[None]*c for x in range(r)]
         self._shape = (r, c)
-        self._diag = diag
         self.allocator1 = new
-        if mixed_new is None:
-            self.allocator2 = new
-        else:
-            self.allocator2 = mixed_new
-
         self.no_allocation = False
 
     def __repr__(self):
@@ -65,14 +52,15 @@ class FormBlock(object):
         return self._shape
 
     @property
-    def diag(self):
-        return self._diag
+    def diag_callable_mask(self):
+        return self._diag_callable_mask
+
+    def set_diag_callable_mask(self, ifess):
+        for i in ifess:
+            self._diag_callable_mask[i] = True
 
     def set_allocator(self, alloc):
         self.allocator1 = alloc
-
-    def set_mixed_allocator(self, alloc):
-        self.allocator2 = alloc
 
     def set_no_allocator(self):
         self.no_allocation = True
@@ -99,19 +87,12 @@ class FormBlock(object):
         return self.block[r][c][projector][0]
 
     def __setitem__(self, idx, v):
-        if self.ndim == 2:
-            try:
-                r, c, projector = idx
-            except:
-                r, c = idx
-                projector = 1
-        else:
-            c = 0
-            try:
-                r, projector = idx
-            except:
-                r = idx
-                projector = 1
+        c = 0
+        try:
+            r, projector = idx
+        except:
+            r = idx
+            projector = 1
 
         if self.block[r][c] is None:
             self.block[r][c] = {}
@@ -119,19 +100,13 @@ class FormBlock(object):
         self.block[r][c][projector] = [v, None]
 
     def allocate_block(self, idx, reset=False):
-        if self.ndim == 2:
-            try:
-                r, c, projector = idx
-            except:
-                r, c = idx
-                projector = 1
-        else:
-            c = 0
-            try:
-                r, projector = idx
-            except:
-                r = idx
-                projector = 1
+        c = 0
+        try:
+            r, projector = idx
+        except:
+            r = idx
+            projector = 1
+
         if self.block[r][c] is None:
             self.block[r][c] = {}
 
@@ -144,13 +119,10 @@ class FormBlock(object):
             if self.no_allocation and not reset:
                 pass
             else:
-                if self._diag is None or self._diag[r] == c:
-                    form = self.allocator1(r)
-                    self.block[r][c][1] = [form, None]
-                    projector = 1
-                else:
-                    form, projector = self.allocator2(r, c)
-                    self.block[r][c][projector] = [form, None]
+                form = self.allocator1(r)
+                self.block[r][c][1] = [form, None]
+                projector = 1
+
         elif len(self.block[r][c]) == 1:
             projector = list(self.block[r][c])[0]
         else:
@@ -179,29 +151,51 @@ class FormBlock(object):
         if len(args) == 3:
             c = args[0]
             p = args[1]
+
         self.block[r][c][p][1] = v
 
     def generateMatVec(self, converter1, converter2=None, verbose=False):
+        from petram.debug import debug_dpg_essential
+
         if converter2 is None:
             converter2 = converter1
 
         for i, j in product(range(self.shape[0]), range(self.shape[1])):
             projs = self.get_projections(i, j)
+            diag_callable_mask = self.diag_callable_mask[i]
+
             for p in projs:
                 form = self.block[i][j][p][0]
                 if verbose:
                     dprint1("generateMatVec", i, j, form)
 
-                if form is not None:
-                    if self._diag is None or self._diag[i] == j:
-                        self.set_matvec(i, j, p, converter1(form))
-                    else:
-                        self.set_matvec(i, j, p, converter2(form))
+                if diag_callable_mask:
+                    if debug_dpg_essential:
+                        dest = self.block[i][j][p][1]
+                        if dest is None:
+                            continue
+                        vec = converter1(form)
+                        dest.GetDataArray()[:] = vec.GetDataArray()
+
+                elif form is not None:
+                    self.set_matvec(i, j, p, converter1(form))
                 else:
                     self.set_matvec(i, j, p, None)
 
+    def set_vec_from_blk(self, i, vec, vblk):
+        # this returns block matrix generated by
+        self._diag_vec[i] = vec
+        size = len(vblk)
+        k = 0
+        for ii in range(size):
+            # sibling blocks are None. need to fill
+            # default setting
+            if self.block[i+ii] is None:
+                 self.block[i+ii] = {1:[None, None]}
+            self.set_matvec(i+ii, 0, 1, vblk[k])
+            k = k + 1
 
-def convertElement(Mreal, Mimag, i, j, converter, projections=None):
+def convertElement(Mreal, Mimag, i, j, converter, projections=None, verbose=False):
     '''
     Generate PyVec/PyMat format data.
     It takes two FormBlocks. One for real and the other for imag.
@@ -216,15 +210,24 @@ def convertElement(Mreal, Mimag, i, j, converter, projections=None):
 
     term = None
     for k in keys:
+        args = []
         if Mreal.block[i][j] is not None:
             rmatvec = Mreal.block[i][j][k][1] if k in Mreal.block[i][j] else None
         else:
             rmatvec = None
+
         if Mimag.block[i][j] is not None:
             imatvec = Mimag.block[i][j][k][1] if k in Mimag.block[i][j] else None
         else:
             imatvec = None
-        m = converter(rmatvec, imatvec)
+
+        args = (rmatvec, imatvec)
+
+        if rmatvec is None and imatvec is None:
+            return None
+
+        m = converter(*args)
+
         if k != 1:
             pos, projector = k
             projections, projections_hash = projections

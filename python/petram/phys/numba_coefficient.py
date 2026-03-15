@@ -10,6 +10,13 @@ import traceback
 from numpy.linalg import inv, det
 from numpy import conj as npconj
 from numpy import dot as npdot
+from numpy import transpose as nptranspose
+from numpy.linalg import norm as npnorm
+from numpy import abs as npabs
+from numpy import complex128 as npcomplex128
+from numpy import float64 as npfloat64
+
+
 from numpy import array, zeros, iscomplexobj
 from petram.mfem_config import use_parallel
 
@@ -354,7 +361,7 @@ class NumbaCoefficient():
         dep = (self.mfem_numba_coeff, )
 
         if not isinstance(other, NumbaCoefficient):
-            if isinstance(ohter, (PhysConstant,
+            if isinstance(other, (PhysConstant,
                                   PhysVectorConstant,
                                   PhysMatrixConstant,
                                   PyComplexConstant,
@@ -534,7 +541,78 @@ class NumbaCoefficient():
                                     shape=self.shape)(l["f"])
 
         else:
-            assert False, "unsupported dim: dim=" + str(self.ndim)
+            assert False, "(conj)unsupported dim: dim=" + str(self.ndim)
+
+        return NumbaCoefficient(coeff)
+
+    def norm(self):
+        '''
+        generate norm of array or abs of scalar
+        '''
+        from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
+
+        if self.ndim == 0:
+            func = '\n'.join(['def f(ptx, val):',
+                              '    return npabs(val)'])
+        else:
+            if self.complex:
+                func = '\n'.join(['def f(ptx, val):',
+                                  '    val = val.astype(npcomplex128)',
+                                  #'    print("norm", npnorm(val))',
+                                  '    return npnorm(val)'])
+            else:
+                func = '\n'.join(['def f(ptx, val):',
+                                  '    val = val.astype(npfloat64)',
+                                  '    return npnorm(val)'])
+
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+
+        coeff = mfem.jit.scalar(complex=False,
+                                dependency=dep,
+                                interface="simple",
+                                debug=numba_debug)(l["f"])
+
+        return NumbaCoefficient(coeff)
+
+    def transpose(self):
+        '''
+        generate transpose
+        '''
+        from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
+
+        func = '\n'.join(['def f(ptx, val):',
+                          '    return nptranspose(val)'])
+
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+
+        if self.ndim == 1:
+            coeff = mfem.jit.vector(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    shape=self.shape)(l["f"])
+
+        elif self.ndim == 2:
+            coeff = mfem.jit.matrix(complex=self.complex,
+                                    dependency=dep,
+                                    debug=numba_debug,
+                                    interface="simple",
+                                    shape=self.shape)(l["f"])
+
+        else:
+            assert False, "(transpose) unsupported dim: dim=" + str(self.ndim)
 
         return NumbaCoefficient(coeff)
 
@@ -626,7 +704,33 @@ class NumbaCoefficient():
         raise NotImplementedError
 
     def __pow__(self, exponent):
-        raise NotImplementedError
+        '''
+        generate x**(exponent)
+        '''
+        from petram.mfem_config import numba_debug
+        numba_debug = False if myid != 0 else numba_debug
+
+        if self.ndim == 0:
+            func = '\n'.join(['def f(ptx, val):',
+#                              '    print("data", val, val**exponent)',
+                              '    return val**exponent'])
+        else:
+            assert False, "not supported (__pow__)"
+
+        l = {}
+        if numba_debug:
+            print("(DEBUG) numba function\n", func)
+        exec(func, globals(), l)
+
+        dep = (self.mfem_numba_coeff, )
+        params = {"exponent": exponent}
+        coeff = mfem.jit.scalar(complex=True,
+                                dependency=dep,
+                                params=params,
+                                interface="simple",
+                                debug=numba_debug)(l["f"])
+
+        return NumbaCoefficient(coeff)
 
     def __getitem__(self, arg):
         check = self.kind == 'matrix' or self.kind == 'vector'
@@ -869,8 +973,12 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             else:
                 func_txt.append("       _out_ = " + txt)
             if jitter == mfem.jit.vector:
+                func_txt.append("       if isinstance(_out_, list) or isinstance(_out_, tuple):")
+                func_txt.append("           _out_ = np.array(_out_)")
                 func_txt.append("       _out_ = np.atleast_1d(_out_)")
             if jitter == mfem.jit.matrix:
+                func_txt.append("       if isinstance(_out_, list) or isinstance(_out_, tuple):")
+                func_txt.append("           _out_ = np.array(_out_)")
                 func_txt.append("       _out_ = np.atleast_2d(_out_)")
         else:
             if diag_mode:
@@ -878,8 +986,12 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             else:
                 func_txt.append("   _out_ = " + txt)
             if jitter == mfem.jit.vector:
+                func_txt.append("   if isinstance(_out_, list) or isinstance(_out_, tuple):")
+                func_txt.append("       _out_ = np.array(_out_)")
                 func_txt.append("   _out_ = np.atleast_1d(_out_)")
             if jitter == mfem.jit.matrix:
+                func_txt.append("   if isinstance(_out_, list) or isinstance(_out_, tuple):")
+                func_txt.append("       _out_ = np.array(_out_)")
                 func_txt.append("   _out_ = np.atleast_2d(_out_)")
 
         #func_txt.append("   if isinstance(_out_, list):")
@@ -896,7 +1008,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             if return_complex:
                 func_txt.append("   return np.complex128(_out_)")
             else:
-                func_txt.append("   if np.iscomplexobj(_out_): _out_ = _out_.real")            
+                func_txt.append("   if np.iscomplexobj(_out_): _out_ = _out_.real")
                 func_txt.append("   return _out_")
         else:
             if return_complex:
