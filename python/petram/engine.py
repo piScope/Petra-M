@@ -160,9 +160,16 @@ class Engine(object):
             traceback.print_exc()
 
     def show_environment(self):
-        import os
-        print("OMP_NUM_THREAD", os.environ["OMP_NUM_THREADS"])
-        print("OPENBLAS_NUM_THREAD", os.environ["OPENBLAS_NUM_THREADS"])
+        omp_threads = os.environ.get("OMP_NUM_THREADS")
+        if omp_threads is not None:
+            print("OMP_NUM_THREADS", omp_threads)
+        else:
+            print("OMP_NUM_THREADS not set")
+        openblas_threads = os.environ.get("OPENBLAS_NUM_THREADS")
+        if openblas_threads is not None:
+            print("OPENBLAS_NUM_THREADS", openblas_threads)
+        else:
+            print("OPENBLAS_NUM_THREADS not set")
 
     def initialize_datastorage(self):
         self.is_assembled = False

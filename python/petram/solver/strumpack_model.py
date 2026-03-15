@@ -37,10 +37,8 @@ else:
         print(x)
 
 from petram.helper.check_module_installed import module_file_exists
-if  module_file_exists("STRUMPACK"):
-    has_strumpack = True
-else:
-    has_strumpack = False
+has_strumpack = bool(module_file_exists("STRUMPACK"))
+
 
 attr_names = ['log_level',
               'ordering',

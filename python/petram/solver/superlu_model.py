@@ -285,8 +285,11 @@ def build_csr_local(A, dtype, is_complex):
     nrows = np.sum(local_size)
     ncols = np.sum(global_size)
 
-    elements = [None] * rows
-    elements = [elements.copy() for x in range(cols)]
+    # elements = [None] * rows
+    # elements = [elements.copy() for x in range(cols)]
+    # 2D None rows*cols
+    elements = [[None for _ in range(rows)] for _ in range(cols)]
+
     for i in range(rows):
         for j in range(cols):
             m = get_operator_block(A, i, j)
@@ -341,7 +344,7 @@ class SuperLUSolver(LinearSolver):
 
         self._superlu = None
         self.is_complex = False
-        self.use_single_precesion = False
+        self.use_single_precision = False
         self.superlu_params = {}
         self.dtype = None
         self._superlu = None
@@ -351,7 +354,7 @@ class SuperLUSolver(LinearSolver):
 
         # for SuperLU, allocation is done in SetOperator
         self.is_complex = is_complex
-        self.use_single_precesion = use_single_precision
+        self.use_single_precision = use_single_precision
         self.superlu_params = {"permc_spec": col_permute,
                                "diag_pivot_thresh": pivot_thr,
                                "relax": relax,
@@ -381,7 +384,6 @@ class SuperLUSolver(LinearSolver):
 
         from scipy.sparse.linalg import splu
 
-        
         if use_parallel:
             # in this case, we gather matrix to root node
             # and squash it.
@@ -391,12 +393,12 @@ class SuperLUSolver(LinearSolver):
             AA = scipy.sparse.vstack(AAs)
 
         dprint1("creating SuperLU object. matrix shape=", AA.shape)
-        self._superlu = splu(AA.tocsc())
+        self._superlu = splu(AA.tocsc(), **getattr(self, "superlu_params", {}))
 
     def Mult(self, b, x=None, case_base=0):
 
         if not self.gui.use_dist_sol:       
-            assert False, "SuperLU model returns distrubuted solution vector. Other mode is not implemented"
+            assert False, "SuperLU model returns distributed solution vector. Other mode is not implemented"
 
         sol = []
         row_offsets = self.row_offsets.ToList()
@@ -435,28 +437,29 @@ class SuperLUSolver(LinearSolver):
             if use_parallel:
                 nrow = len(bbv)
                 if myid == 0:
-                    bbv = gather_vector(bbv, parent=True)                          
+                    bbv = gather_vector(bbv, parent=True)
                 else:
                     gather_vector(bbv)
-                
+
             if myid == 0:
                 dprint1("calling solve", debug.format_memory_usage())
                 xxv = self._superlu.solve(bbv)
+            else:
+                xxv = None
 
             if use_parallel:
                 xxv = scatter_vector(xxv, rcounts=nrow)
-                
+
             barrier()
             sol.append(xxv)
-                
+
         sol = np.transpose(np.vstack(sol))
         return sol
 
 
 class SuperLUMFEMSolverModel(SuperLU):
     '''
-    This one is to use STRUMPACK in iterative solver
-    It creates MUMPSPreconditioner
+    This model creates SuperLU solver as a preconditioner in iterative solver
     '''
 
     def prepare_solver(self, opr, engine):
@@ -478,7 +481,7 @@ class SuperLUBlockPreconditioner(mfem.Solver):
         self.is_parallel = False
 
         self.solver = None
-        super(StrumpackBlockPreconditioner, self).__init__()
+        super(SuperLUBlockPreconditioner, self).__init__()
 
     def Mult(self, x, y):
         s = self.solver.Mult([x])
@@ -492,8 +495,7 @@ class SuperLUBlockPreconditioner(mfem.Solver):
         from petram.solver.solver_utils import check_block_operator
         is_complex, is_parallel = check_block_operator(opr)
 
-        solver = SuperLUSolver(self.gui, self.engine)
-        solver.AllocSolver(is_complex, self.gui.use_single_precision)
+        solver = self.gui.allocate_solver(is_complex=is_comples, engine=self.engine)
         solver.SetOperator(opr, is_parallel)
 
         self.is_complex_operator = is_complex
