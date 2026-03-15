@@ -869,6 +869,7 @@ class Model(RestorableOrderedDict):
         script = []
         script.append('import time, datetime')
         script.append('stime = time.time()')
+        script.append('')
         script.append('if mfem_config.use_parallel:')
         script.append('    from petram.engine import ParallelEngine as Eng')
         script.append('else:')
@@ -880,6 +881,7 @@ class Model(RestorableOrderedDict):
         script.append('model = make_model()')
         script.append('')
         script.append('eng = Eng(model = model)')
+        script.append('eng.show_environment()')
         script.append('')
 
         script.append('solvers = eng.run_build_ns()')
