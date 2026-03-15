@@ -480,7 +480,7 @@ class SuperLUBlockPreconditioner(mfem.Solver):
         self.is_parallel = False
 
         self.solver = None
-        super(StrumpackBlockPreconditioner, self).__init__()
+        super(SuperLUBlockPreconditioner, self).__init__()
 
     def Mult(self, x, y):
         s = self.solver.Mult([x])
@@ -494,8 +494,7 @@ class SuperLUBlockPreconditioner(mfem.Solver):
         from petram.solver.solver_utils import check_block_operator
         is_complex, is_parallel = check_block_operator(opr)
 
-        solver = SuperLUSolver(self.gui, self.engine)
-        solver.AllocSolver(is_complex, self.gui.use_single_precision)
+        solver = self.gui.allocate_solver(is_complex=is_comples, engine=self.engine)
         solver.SetOperator(opr, is_parallel)
 
         self.is_complex_operator = is_complex
