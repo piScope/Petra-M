@@ -1,7 +1,10 @@
 from collections import (OrderedDict,
                          defaultdict)
+
 def edit_msh_to_add_sequential_physicals(in_file,
                                          out_file,
+                                         skip_dimtags,
+                                         dimtag_map,
                                          gen_all_phys_entity=False,
                                          verbose=True):
     '''
@@ -47,6 +50,13 @@ def edit_msh_to_add_sequential_physicals(in_file,
         xx = l.split(' ')
         el_type = int(xx[1])
         el_num = int(xx[4])
+
+        edim = gmsh_element_dim[el_type]
+        if (edim, el_num) in skip_dimtags:
+            continue
+        if (edim, el_num) in dimtag_map:
+            el_num = dimtag_map[(edim, el_num)][1]
+
         xx[3] = str(el_num)
         dd = gmsh_element_dim[el_type]
         ndims[dd][el_num] = ndims[dd][el_num] + 1
