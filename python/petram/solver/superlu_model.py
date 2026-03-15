@@ -285,8 +285,11 @@ def build_csr_local(A, dtype, is_complex):
     nrows = np.sum(local_size)
     ncols = np.sum(global_size)
 
-    elements = [None] * rows
-    elements = [elements.copy() for x in range(cols)]
+    # elements = [None] * rows
+    # elements = [elements.copy() for x in range(cols)]
+    # 2D None rows*cols
+    elements = [[None for _ in range(rows)] for _ in range(cols)]
+
     for i in range(rows):
         for j in range(cols):
             m = get_operator_block(A, i, j)
@@ -381,7 +384,6 @@ class SuperLUSolver(LinearSolver):
 
         from scipy.sparse.linalg import splu
 
-        
         if use_parallel:
             # in this case, we gather matrix to root node
             # and squash it.
@@ -391,11 +393,11 @@ class SuperLUSolver(LinearSolver):
             AA = scipy.sparse.vstack(AAs)
 
         dprint1("creating SuperLU object. matrix shape=", AA.shape)
-        self._superlu = splu(AA.tocsc())
+        self._superlu = splu(AA.tocsc(), **getattr(self, "superlu_params", {}))
 
     def Mult(self, b, x=None, case_base=0):
 
-        if not self.gui.use_dist_sol:       
+        if not self.gui.use_dist_sol:
             assert False, "SuperLU model returns distrubuted solution vector. Other mode is not implemented"
 
         sol = []
@@ -435,20 +437,20 @@ class SuperLUSolver(LinearSolver):
             if use_parallel:
                 nrow = len(bbv)
                 if myid == 0:
-                    bbv = gather_vector(bbv, parent=True)                          
+                    bbv = gather_vector(bbv, parent=True)
                 else:
                     gather_vector(bbv)
-                
+
             if myid == 0:
                 dprint1("calling solve", debug.format_memory_usage())
                 xxv = self._superlu.solve(bbv)
 
             if use_parallel:
                 xxv = scatter_vector(xxv, rcounts=nrow)
-                
+
             barrier()
             sol.append(xxv)
-                
+
         sol = np.transpose(np.vstack(sol))
         return sol
 
