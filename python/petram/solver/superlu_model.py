@@ -344,7 +344,7 @@ class SuperLUSolver(LinearSolver):
 
         self._superlu = None
         self.is_complex = False
-        self.use_single_precesion = False
+        self.use_single_precision = False
         self.superlu_params = {}
         self.dtype = None
         self._superlu = None
@@ -354,7 +354,7 @@ class SuperLUSolver(LinearSolver):
 
         # for SuperLU, allocation is done in SetOperator
         self.is_complex = is_complex
-        self.use_single_precesion = use_single_precision
+        self.use_single_precision = use_single_precision
         self.superlu_params = {"permc_spec": col_permute,
                                "diag_pivot_thresh": pivot_thr,
                                "relax": relax,
