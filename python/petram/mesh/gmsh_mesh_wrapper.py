@@ -720,7 +720,7 @@ class GMSHMeshWrapper():
         edge_compound = [x for x in self._compound_dimtags if x[0] == 1]
         skip_dimtags.extend(edge_compound)
 
-        #  compound map is used to rename entitiy label
+        #  compound map is used to rename entity label
         dimtag_map = self._compound_map
 
         edit_msh_to_add_sequential_physicals(tmp_file,
