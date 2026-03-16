@@ -1,6 +1,7 @@
 from collections import (OrderedDict,
                          defaultdict)
 
+
 def edit_msh_to_add_sequential_physicals(in_file,
                                          out_file,
                                          skip_dimtags,
@@ -58,10 +59,9 @@ def edit_msh_to_add_sequential_physicals(in_file,
             el_num = dimtag_map[(edim, el_num)][1]
 
         xx[3] = str(el_num)
-        dd = gmsh_element_dim[el_type]
-        ndims[dd][el_num] = ndims[dd][el_num] + 1
 
-        elines[dd].append(' '.join(xx))
+        ndims[edim][el_num] = ndims[edim][el_num] + 1
+        elines[edim].append(' '.join(xx))
 
     if not gen_all_phys_entity and len(ndims[3]) != 0:
         elines2 = elines[2] + elines[3]
@@ -126,5 +126,3 @@ def edit_msh_to_add_sequential_physicals(in_file,
         write_section(fid, lines, sec)
 
     fid.close()
-    #from shutil import copyfile
-    #copyfile(filename, filename+'.bk')

@@ -713,7 +713,7 @@ class GMSHMeshWrapper():
         from petram.mesh.gmsh_helper import edit_msh_to_add_sequential_physicals
 
         # after compound operation, shared boundary dimtags are
-        # not be a part of final mesh. they need to removed.
+        # not a part of final mesh. they need to be removed.
 
         skip_dimtags = self._compound_shared_dimtags[:]
 
@@ -721,7 +721,7 @@ class GMSHMeshWrapper():
         edge_compound = [x for x in self._compound_dimtags if x[0] == 1]
         skip_dimtags.extend(edge_compound)
 
-        #  compound map is used to rename entitiy label
+        #  compound map is used to rename entity label
         dimtag_map = self._compound_map
 
         edit_msh_to_add_sequential_physicals(tmp_file,
@@ -912,10 +912,10 @@ class GMSHMeshWrapper():
 
     def _register_compound(self, dimtags):
         #  record compound operations
-        #    1) collect compounted dimtags to _compound_dimtags
-        #    2) create mapping of compounds id so that final mesh will have common
-        #       id among compouned elements
-        #    3) find shared enitity between compouned elements, which is be eliminated
+        #    1) collect compounded dimtags to _compound_dimtags
+        #    2) create mapping of compound ids so that final mesh will have common
+        #       id among compounded elements
+        #    3) find shared entity between compounded elements, which will be eliminated
         #       from the final mesh.
         self._compound_dimtags.extend(dimtags)
 
@@ -925,8 +925,8 @@ class GMSHMeshWrapper():
         dim = dimtags[0][0]
         items = []
         for dimtag in dimtags:
-           items.extend([x[1] for x in
-                         gmsh.model.getBoundary([dimtag,], oriented=False, combined=False)])
+            items.extend([x[1] for x in
+                          gmsh.model.getBoundary([dimtag,], oriented=False, combined=False)])
 
         from collections import Counter
         counts = Counter(items)
@@ -1023,9 +1023,9 @@ class GMSHMeshWrapper():
         gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
 
         if fix_numthread:
-           gmsh.option.setNumber("Mesh.MaxNumThreads1D", self.maxthreads[1])
-           gmsh.option.setNumber("Mesh.MaxNumThreads2D", self.maxthreads[2])
-           gmsh.option.setNumber("Mesh.MaxNumThreads3D", self.maxthreads[3])
+            gmsh.option.setNumber("Mesh.MaxNumThreads1D", self.maxthreads[1])
+            gmsh.option.setNumber("Mesh.MaxNumThreads2D", self.maxthreads[2])
+            gmsh.option.setNumber("Mesh.MaxNumThreads3D", self.maxthreads[3])
 
     # freevolume
     @set_restore_maxmin_cl
@@ -1318,7 +1318,7 @@ class GMSHMeshWrapper():
         gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 1)
         dimtags2 = [(dim, tag) for dim, tag in dimtags]
         self._generate_xd(1, dimtags2)
-        done[1].extend([x for dim, x in tags2])
+        done[1].extend([x for dim, x in dimtags2])
         return done, params
 
     @set_restore_maxmin_cl
