@@ -1022,9 +1022,9 @@ class GMSHMeshWrapper():
         gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
 
         if fix_numthread:
-           gmsh.option.setNumber("Mesh.MaxNumThreads1D", self.maxthreads[1])
-           gmsh.option.setNumber("Mesh.MaxNumThreads2D", self.maxthreads[2])
-           gmsh.option.setNumber("Mesh.MaxNumThreads3D", self.maxthreads[3])
+            gmsh.option.setNumber("Mesh.MaxNumThreads1D", self.maxthreads[1])
+            gmsh.option.setNumber("Mesh.MaxNumThreads2D", self.maxthreads[2])
+            gmsh.option.setNumber("Mesh.MaxNumThreads3D", self.maxthreads[3])
 
     # freevolume
     @set_restore_maxmin_cl
