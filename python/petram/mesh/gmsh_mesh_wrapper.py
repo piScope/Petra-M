@@ -924,8 +924,8 @@ class GMSHMeshWrapper():
         dim = dimtags[0][0]
         items = []
         for dimtag in dimtags:
-           items.extend([x[1] for x in
-                         gmsh.model.getBoundary([dimtag,], oriented=False, combined=False)])
+            items.extend([x[1] for x in
+                          gmsh.model.getBoundary([dimtag,], oriented=False, combined=False)])
 
         from collections import Counter
         counts = Counter(items)
