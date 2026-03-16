@@ -911,10 +911,10 @@ class GMSHMeshWrapper():
 
     def _register_compound(self, dimtags):
         #  record compound operations
-        #    1) collect compounted dimtags to _compound_dimtags
-        #    2) create mapping of compounds id so that final mesh will have common
-        #       id among compouned elements
-        #    3) find shared enitity between compouned elements, which is be eliminated
+        #    1) collect compounded dimtags to _compound_dimtags
+        #    2) create mapping of compound ids so that final mesh will have common
+        #       id among compounded elements
+        #    3) find shared entity between compounded elements, which will be eliminated
         #       from the final mesh.
         self._compound_dimtags.extend(dimtags)
 
