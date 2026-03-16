@@ -667,7 +667,6 @@ data = (('geom_id', VtableElement('geom_id', type='string',
                                   default="",
                                   tip="Entity number")),)
 
-
 class CompoundSurface(GmshMeshActionBase):
     dim = -1  # this element does not make mesh
     vt = Vtable(data)
@@ -676,16 +675,12 @@ class CompoundSurface(GmshMeshActionBase):
         gid = self.vt.make_value_or_expression(self)[0]
         gid = self.eval_entity_id(gid)
 
-        # generate something like... Compound Surface{1, 5, 10};
-        text = "Compound Surface{ " + gid + "};"
-        mesher.add('mergetxt', text=text, dim=[True, False, False, False])
-
+        mesher.add('compoundf', gid)
 
 data = (('geom_id', VtableElement('geom_id', type='string',
                                   guilabel='Curves',
                                   default="",
                                   tip="Entity number")),)
-
 
 class CompoundCurve(GmshMeshActionBase):
     dim = -1  # this element does not make mesh
@@ -695,20 +690,12 @@ class CompoundCurve(GmshMeshActionBase):
         gid = self.vt.make_value_or_expression(self)[0]
         gid = self.eval_entity_id(gid)
 
-        # generate something like... Compound Curve{1, 5, 10};
-        text = "Compound Curve{ " + gid + "};"
-        mesher.add('mergetxt', text=text, dim=[True, False, False, False])
-
+        mesher.add('compoundl', gid)
 
 rsdata = (('geom_id', VtableElement('geom_id', type='string',
                                     guilabel='Surfaces',
                                     default="",
                                     tip="surfacess to be recombined")), )
-#           ('max_angle', VtableElement('max_angle', type='float',
-#                                guilabel = 'Max size)',
-#                                default = 45,
-#                                tip = "Maximum differend of angle" )),)
-
 
 class RecombineSurface(GmshMeshActionBase):
     dim = -1  # this element does not make mesh
