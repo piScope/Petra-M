@@ -1304,7 +1304,7 @@ class GMSHMeshWrapper():
         gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 1)
         dimtags2 = [(dim, tag) for dim, tag in dimtags]
         self._generate_xd(1, dimtags2)
-        done[1].extend([x for dim, x in tags2])
+        done[1].extend([x for dim, x in dimtags2])
         return done, params
 
     @set_restore_maxmin_cl
