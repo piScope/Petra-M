@@ -712,7 +712,7 @@ class GMSHMeshWrapper():
         from petram.mesh.gmsh_helper import edit_msh_to_add_sequential_physicals
 
         # after compound operation, shared boundary dimtags are
-        # not be a part of final mesh. they need to removed.
+        # not a part of final mesh. they need to be removed.
 
         skip_dimtags = self._compound_shared_dimtags[:]
 
