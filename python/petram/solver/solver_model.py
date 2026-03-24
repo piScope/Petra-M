@@ -596,6 +596,14 @@ class SolveStep(SolverBase):
         dprint1("Exiting SolveStep " + self.name())
         return False
 
+    def check_finalstep(self, obj):
+        solvers = self.get_active_solvers()
+        return solvers[-1] == obj
+
+    def check_firststep(self, obj):
+        solvers = self.get_active_solvers()
+        return solvers[0] == obj
+
 
 class Solver(SolverBase):
     def attribute_set(self, v):

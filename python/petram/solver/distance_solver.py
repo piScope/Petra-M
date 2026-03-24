@@ -96,6 +96,18 @@ class DistanceSolver(Solver):
         init = CustomInitSetting(phys, value=[1.0, ])
         return [init, ]
 
+    def verify_setting(self):
+        #
+        # check if solver is given and it must be a single child
+        #
+        if not (self.get_solve_root().check_finalstep(self) and
+           self.get_solve_root().check_finalstep(self)):
+            isValid = False
+            txt = 'Distance solver is not standalone solver'
+            txt_long = 'SolveStep must contain one Distance solver and it must be an only solver. It can not be used ina  multistep solve'
+
+            return isvalid, txt, txt_long
+
     @debug.use_profiler
     def run(self, engine, is_first=True, return_instance=False):
         dprint1("Entering run (is_first=", is_first, ")", self.fullpath())
@@ -117,8 +129,10 @@ class DistanceSolver(Solver):
                                skip_mesh=False,
                                mesh_only=False,
                                save_parmesh=self.save_parmesh)
-        #engine.sol = instance.sol
+
+        # engine.sol = instance.sol
         # instance.save_probe()
+
         is_first = False
 
         dprint1(debug.format_memory_usage())

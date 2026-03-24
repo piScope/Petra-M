@@ -186,9 +186,17 @@ class EgnSolver(StdSolver):
         # return None
 
     def verify_setting(self):
-        '''
-        check if solver is given
-        '''
+        #
+        # check if solver is given and it must be a single child
+        #
+        if not (self.get_solve_root().check_finalstep(self) and
+           self.get_solve_root().check_finalstep(self)):
+            isValid = False
+            txt = 'EigenValue solver is not standalone solver'
+            txt_long = 'SolveStep must contain one EigenValue solver and it must be an only solver. It can not be used ina  multistep solve'
+
+            return isvalid, txt, txt_long
+
         for x in self.iter_enabled():
             if isinstance(x, EigenValueSolver):
                 isvalid = True
@@ -199,6 +207,7 @@ class EgnSolver(StdSolver):
             isValid = False
             txt = 'No EigenValue solver'
             txt_long = 'Model must define one active eigenvalue solver'
+
         return isvalid, txt, txt_long
 
     def get_matrix_weight(self, timestep_config):
@@ -249,6 +258,9 @@ class EgnSolver(StdSolver):
     @debug.use_profiler
     def run(self, engine, is_first=True, return_instance=False):
         dprint1("Entering EigenSolver: ", self.fullpath())
+
+
+
         if self.clear_wdir:
             engine.remove_solfiles()
 
@@ -438,12 +450,12 @@ class ARPACK(EigenValueSolver):
         v = super(ARPACK, self).attribute_set(v)
         v['solver_type'] = 'ARPACK'
         return v
-    
+
     def supported_linear_system_type(self):
         return ["blk_interleave",
                 "blk_merged_s",
                 "blk_merged", ]
-    
+
     def allocate_solver(self):
         return ARPACK_Solver()
 
@@ -453,7 +465,7 @@ class ARPACK_Solver:
 
     def solve():
         pass
-        
+
 class HypreAME(EigenValueSolver):
     @classmethod
     def fancy_menu_name(self):
@@ -476,7 +488,7 @@ class HypreAME(EigenValueSolver):
         solver.SetTol(self.abstol)
         solver.SetRelTol(self.reltol)
         solver.SetPrintLevel(self.log_level)
-        
+
     def supported_linear_system_type(self):
         return ["blk_interleave",
                 "blk_merged_s",
@@ -612,7 +624,7 @@ class EgnInstance(SolverInstance):
             from scipy.sparse.linalg import eigs, eigsh
             from scipy.sparse import coo_matrix
             Acoo = AA.get_global_coo()
-            Bcoo = BB.get_global_coo()            
+            Bcoo = BB.get_global_coo()
             #evals, evecs = eigs(Acoo,
             #                    k=self.gui.num_modes,
             #                    M=Bcoo,

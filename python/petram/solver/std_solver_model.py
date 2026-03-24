@@ -197,18 +197,23 @@ class StdSolver(Solver):
             if is_first:
                 instance.assemble()
                 is_first = False
-            else:
-                instance.assemble(update=True)
+            #else:
+            #    instance.assemble(update=True)
 
             update_operator = engine.check_block_matrix_changed(
                 instance.blk_mask)
             instance.solve(update_operator=update_operator)
 
-        instance.save_solution(ksol=0,
+        if self.get_solve_root().check_finalstep(self):
+            # we save the solution vector when all solve steps are done.
+            # this is because interpolation operator should be applied
+            # after all element of solution blocks are obtained.
+            instance.save_solution(ksol=0,
                                skip_mesh=False,
                                mesh_only=False,
                                save_parmesh=self.save_parmesh,
                                save_sersol=self.save_sersol)
+
         engine.sol = instance.sol
 
         instance.save_probe()
@@ -346,6 +351,7 @@ class StandardSolver(SolverInstance):
 
         self.reformat_mat(A2, self._AA, solall, 0, X2, mask2)
         self.expand_blks(X2, X[0])
+
         self.sol = X[0]
 
         # store probe signal (use t=0.0 in std_solver)

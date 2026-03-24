@@ -613,10 +613,15 @@ class MultiLvlStationarySolver(StdSolver):
                 is_first = False
             instance.solve()
 
-        instance.save_solution(ksol=0,
-                               skip_mesh=False,
-                               mesh_only=False,
-                               save_parmesh=self.save_parmesh)
+        if self.get_solve_root().check_finalstep(self):
+            # we save the solution vector when all solve steps are done.
+            # this is because interpolation operator should be applied
+            # after all element of solution blocks are obtained.
+            instance.save_solution(ksol=0,
+                                   skip_mesh=False,
+                                   mesh_only=False,
+                                   save_parmesh=self.save_parmesh)
+
         engine.sol = instance.sol
 
         instance.save_probe()
