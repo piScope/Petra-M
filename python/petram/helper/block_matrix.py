@@ -122,6 +122,7 @@ class ScipyCoo(coo_matrix):
         #ret[rows, :] = 0.0
         #ret.data[np.isin(ret.row in rows)] = 0.0
         ret = self.tocsr()
+
         ret[rows, :] = ret[rows, :] * 0.0
         ret = ret.tocoo()
 
@@ -171,7 +172,7 @@ class ScipyCoo(coo_matrix):
             np.conj(self.data, out=self.data)
             return self
         else:
-            return self.conj()
+            return convert_to_ScipyCoo(coo_matrix.conj(self))
 
     def elimination_matrix(self, nonzeros):
         '''

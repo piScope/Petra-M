@@ -2749,6 +2749,7 @@ class Engine(object):
                 shape = A.shape
                 A1 = A[idx1, idx2]
                 A1 = A1.rap(P.transpose())
+                A1.resetRow(zeros, inplace=True)
                 A1.setDiag(zeros, 1.0)
                 A[idx1, idx2] = A1
 
@@ -2767,6 +2768,7 @@ class Engine(object):
                         A[i, idx2] = A[i, idx2].dot(PP)
             if RHS is not None:
                 RHS[idx1] = P.conj(inplace=True).dot(RHS[idx1])
+                RHS[idx1].resetRow(zeros)
                 P.conj(inplace=True)
 
         if A is not None and RHS is not None:

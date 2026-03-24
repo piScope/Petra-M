@@ -102,14 +102,11 @@ class PyImagMatrixCoefficient(mfem.MatrixPyCoefficient):
         K.SetSize(M.shape[0], M.shape[1])
         return K.Assign(M.imag)
 
-
 '''
 
   Complex Coefficient.
 
 '''
-
-
 class RealImagCoefficientGen(ABC):
     # abstract
     def __init__(self, kind, vdim=None, width=None, height=None):
@@ -231,7 +228,7 @@ class RealImagCoefficientGen(ABC):
             return NotImplemented
 
     def __mul__(self, scale):
-        class PyComplexProductXCoefficient(CC_Scalar):
+        class PyComplexProductCoefficient(CC_Scalar):
             def __init__(self, coeff, scale=1.0):
                 self.scale = scale
                 self.coeff = coeff
@@ -244,9 +241,66 @@ class RealImagCoefficientGen(ABC):
                 else:
                     s = self.scale
                 v *= s
+
                 return v
-        obj = PyComplexProductXCoefficient(self, scale)
+        class PyComplexProductXVCoefficient(CC_Vector):
+            def __init__(self, coeff, scale):
+                self.scale = scale
+                self.coeff = coeff
+                CC_Vector.__init__(self, coeff.vdim)
+
+            def eval(self, T, ip):
+                v1 = self.coeff.eval(T, ip)
+                if isinstance(self.scale, RealImagCoefficientGen):
+                    s = self.scale.eval(T, ip)
+                else:
+                    s = self.scale
+
+                return v1*s
+
+        class PyComplexProductMCoefficient(CC_Matrix):
+            def __init__(self, coeff, scale):
+                self.scale = scale
+                self.coeff = coeff
+                CC_Matrix.__init__(self, coeff.height, coeff.width)
+
+            def eval(self, T, ip):
+                m = self.coeff.eval(T, ip)
+                if isinstance(self.scale, RealImagCoefficientGen):
+                    s = self.scale.eval(T, ip)
+                else:
+                    s = self.scale
+                return m*self.scale
+
+        if isinstance(scale, RealImagCoefficientGen):
+            assert scale.kind == 'scale', "scale must be scalar"
+
+        if self.kind == "scalar":
+            obj = PyComplexProductCoefficient(self, scale)
+        elif self.kind == "vector":
+            obj = PyComplexProductVCoefficient(self, scale)
+        elif self.kind == "matrix":
+            obj = PyComplexProductMCoefficient(self, scale)
+        else:
+            assert False, "should not come here"
+
         return obj
+
+    def dot(self, other):
+        class PyComplexDotCoefficient(CC_Matrix):
+            def __init__(self, coeff, other):
+                self.coeff = coeff
+                self.other = other
+                CC_Matrix.__init__(self, coeff.height, other.width)
+
+            def eval(self, T, ip):
+                m1 = self.coeff.eval(T, ip)
+                m2 = self.coeff.eval(T, ip)
+                return m1.dot(m2)
+
+        if self.kind == "matrix":
+            return PyComplexDotCoefficient(self, other)
+        assert False, "dot is supported for matrix"
 
     def conj(self):
         class PyComplexConjSCoefficient(CC_Scalar):
@@ -282,6 +336,34 @@ class RealImagCoefficientGen(ABC):
             return PyComplexConjVCoefficient(self)
         if self.kind == "matrix":
             return PyComplexConjMCoefficient(self)
+
+    def transpose(self):
+        class PyComplexTransVCoefficient(CC_Vector):
+            def __init__(self, coeff1):
+                CC_Vector.__init__(self, coeff1.vdim)
+                self.coeff = coeff1
+
+            def eval(self, T, ip):
+                v1 = self.coeff.eval(T, ip)
+                return v1.transpose()
+
+        class PyComplexTransMCoefficient(CC_Matrix):
+            def __init__(self, coeff1):
+                self.coeff = coeff1
+                CC_Matrix.__init__(self, coeff1.height, coeff1.width)
+
+            def eval(self, T, ip):
+                v1 = self.coeff.eval(T, ip)
+                return v1.transpose()
+
+        if self.kind == "scalar":
+            return self
+        elif self.kind == "vector":
+            return PyComplexTransVCoefficient(self)
+        elif self.kind == "matrix":
+            return PyComplexTransMCoefficient(self)
+        else:
+            assert False, "should not come here"
 
     def __getitem__(self, arg):
         '''
