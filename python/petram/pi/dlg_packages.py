@@ -52,6 +52,36 @@ def install_from_github(url, update=False):
         print(f"An unexpected error occurred: {e}")
 
 
+def pip_uninstall(package):
+    command = [sys.executable, "-m", "pip", "uninstall", "-y", package]
+    try:
+        # python -m pip install
+        sp.check_call(command,
+                      # stdout=sp.PIPE,
+                      # stderr=sp.STDOUT,
+                      )
+    except sp.CalledProcessError as e:
+        print(f"Uninstallation failed. Error: {e}")
+        print(f"Output: {e.output.decode()}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+
+def pip_install(url):
+    command = [sys.executable, "-m", "pip", "install", url]
+    try:
+        # python -m pip install
+        sp.check_call(command,
+                      # stdout=sp.PIPE,
+                      # stderr=sp.STDOUT,
+                      )
+    except sp.CalledProcessError as e:
+        print(f"Installation failed. Error: {e}")
+        print(f"Output: {e.output.decode()}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+
 class pkglist_popup(wx.Menu):
     def __init__(self, parent):
         super(pkglist_popup, self).__init__()
@@ -60,16 +90,20 @@ class pkglist_popup(wx.Menu):
 
         self.target_pkg = pkg
         if pkg["html_url"] == "?":
-            menus = [('Recheck Repos...', self.onRecheck, None),
+
+            menus = [('Uninstall', self.onUninstall, None),
+                     ('Recheck Repos...', self.onRecheck, None),
                      ('** can not update from here ** ', None, None),]
         elif pkg["latest"] == "?":
-            menus = [('Recheck Repos...', self.onRecheck, None),
+            menus = [('Uninstall', self.onUninstall, None),
+                     ('Recheck Repos...', self.onRecheck, None),
                      ('** can not update from here ** ', None, None),]
         elif pkg["installed"] == "no":
             menus = [('Install', self.onInstall, None),
                      ('Recheck Repos...', self.onRecheck, None),]
         else:
             menus = [('Update', self.onUpdate, None),
+                     ('Uninstall', self.onUninstall, None),
                      ('Recheck Repos...', self.onRecheck, None),]
 
         BuildPopUpMenu(self, menus)
@@ -82,6 +116,10 @@ class pkglist_popup(wx.Menu):
     def onUpdate(self, evt):
         install_from_github(self.target_pkg["html_url"])
         self.parent.update_done = True
+        self.parent.do_recheck()
+
+    def onUninstall(self, evt):
+        pip_uninstall(self.target_pkg["module"])
         self.parent.do_recheck()
 
     def onRecheck(self, evt):
@@ -288,7 +326,7 @@ class dlg_packages(wx.Dialog):
         self.SetSizer(sizer)
 
         self.grid = wx.grid.Grid(self)
-        self.grid.CreateGrid(10, 5)
+        self.grid.CreateGrid(10, 7)
         self.grid.HideRowLabels()
         self.grid.SetSelectionMode(wx.grid.Grid.SelectRows)
         self.grid.SetDefaultCellFont(font)
@@ -297,10 +335,12 @@ class dlg_packages(wx.Dialog):
         self.grid.SetDefaultRowSize(int(font_h), True)
         self.grid.EnableDragColSize(True)
         self.grid.SetColLabelValue(0, "package")
-        self.grid.SetColLabelValue(1, "version")
-        self.grid.SetColLabelValue(2, "description")
-        self.grid.SetColLabelValue(3, "url")
-        self.grid.SetColLabelValue(4, "lastest")
+        self.grid.SetColLabelValue(1, "installed")
+        self.grid.SetColLabelValue(2, "version")
+        self.grid.SetColLabelValue(3, "description")
+        self.grid.SetColLabelValue(4, "package url")
+        self.grid.SetColLabelValue(5, "lastest")
+        self.grid.SetColLabelValue(6, "public")
 
         self.grid.EnableEditing(False)
 
@@ -309,12 +349,15 @@ class dlg_packages(wx.Dialog):
         # buttons
         sizer0 = wx.BoxSizer(wx.HORIZONTAL)
         rpbutton = wx.Button(self, wx.ID_OK, "Repositories...")
+        ifbutton = wx.Button(self, wx.ID_OK, "Install from...")
         okbutton = wx.Button(self, wx.ID_OK, "OK")
         sizer0.Add(rpbutton, 0, wx.ALIGN_CENTER | wx.ALL, 1)
+        sizer0.Add(ifbutton, 0, wx.ALIGN_CENTER | wx.ALL, 1)
         sizer0.AddStretchSpacer()
         sizer0.Add(okbutton, 0, wx.ALIGN_CENTER | wx.ALL, 1)
         okbutton.Bind(wx.EVT_BUTTON, self.onOK)
         rpbutton.Bind(wx.EVT_BUTTON, self.onRepo)
+        ifbutton.Bind(wx.EVT_BUTTON, self.onInstallFrom)
 
         sizer.Add(sizer0, 0, wx.EXPAND | wx.ALL, 10)
 
@@ -354,10 +397,12 @@ class dlg_packages(wx.Dialog):
 
         for k, p in enumerate(self.packages):
             self.grid.SetCellValue(k, 0, p['module'])
-            self.grid.SetCellValue(k, 1, p['version'])
-            self.grid.SetCellValue(k, 2, p['description'])
-            self.grid.SetCellValue(k, 3, p['html_url'])
-            self.grid.SetCellValue(k, 4, p['latest'])
+            self.grid.SetCellValue(k, 1, "yes" if p['version'] != "" else "no")
+            self.grid.SetCellValue(k, 2, p['version'])
+            self.grid.SetCellValue(k, 3, p['description'])
+            self.grid.SetCellValue(k, 4, p['html_url'])
+            self.grid.SetCellValue(k, 5, p['latest'])
+            self.grid.SetCellValue(k, 6, p['public'])
         self.grid.AutoSizeColumns()
 
     def onCellSelected(self, evt):
@@ -375,6 +420,7 @@ class dlg_packages(wx.Dialog):
     def do_recheck(self):
         self.fill_grid()
         self.selected_row = -1
+        self.grid.ClearSelection()
         wx.CallAfter(self._myRefresh)
 
     def onOK(self, evt):
@@ -397,6 +443,24 @@ class dlg_packages(wx.Dialog):
             dlg.Destroy()
 
         dlg.Bind(wx.EVT_CLOSE, close_dlg)
+
+    def onInstallFrom(self, evt):
+        ll = (["url", "", 0],
+              [None, "example 1  (local) /home/user/venvs/src/Petra-M", 2],
+              [None, "example 2  (remote file) https://github.com/piScope/Petra-M--RF/archive/refs/tags/v_26_2_7.tar.gz", 2],
+              [None, "example 3  (github) git+https://github.com/piScope/Petra-M--RF", 2],)
+
+        from ifigure.utils.edit_list import DialogEditList
+        ret = DialogEditList(ll, modal=True, parent=self,
+                             title='Repository', size=(600, -1),
+                             style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        if not ret[0]:
+            return
+
+        url = ret[1][0]
+
+        pip_install(url)
+        self.do_recheck()
 
     def _myRefresh(self):
         self.Fit()

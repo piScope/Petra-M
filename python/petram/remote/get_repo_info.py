@@ -67,7 +67,7 @@ def get_petram_repos(local_packages, url, token="", verbose=False):
             mname = [x for x in mname if x != ""]
             mname = "_".join(mname)
             repo["module"] = mname
-            print(mname)
+
             if mname in local_packages:
                 repo["installed"] = "yes"
                 repo["version"] = local_packages[mname]
@@ -81,8 +81,10 @@ def get_petram_repos(local_packages, url, token="", verbose=False):
             if desc is None:
                 desc = 'No description available'
             repo['description'] = desc
+            repo['public'] = "yes"
 
         mnames = [repo["module"] for repo in repo_data]
+
         for mname in local_packages:
             if mname not in mnames:
                 # pakcage not found in public repos.
@@ -103,7 +105,7 @@ def get_petram_repos(local_packages, url, token="", verbose=False):
                         "latest": "?",
                         "html_url": url,
                         "description": desc,
-                        "private": "?", }
+                        "public": "no", }
                 repo_data.append(data)
 
         if verbose:
