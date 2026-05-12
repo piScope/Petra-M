@@ -67,6 +67,7 @@ def get_petram_repos(local_packages, url, token="", verbose=False):
             mname = [x for x in mname if x != ""]
             mname = "_".join(mname)
             repo["module"] = mname
+
             if mname in local_packages:
                 repo["installed"] = "yes"
                 repo["version"] = local_packages[mname]
@@ -80,8 +81,10 @@ def get_petram_repos(local_packages, url, token="", verbose=False):
             if desc is None:
                 desc = 'No description available'
             repo['description'] = desc
+            repo['public'] = "yes"
 
         mnames = [repo["module"] for repo in repo_data]
+
         for mname in local_packages:
             if mname not in mnames:
                 # pakcage not found in public repos.
@@ -102,7 +105,7 @@ def get_petram_repos(local_packages, url, token="", verbose=False):
                         "latest": "?",
                         "html_url": url,
                         "description": desc,
-                        "private": "?", }
+                        "public": "no", }
                 repo_data.append(data)
 
         if verbose:
@@ -131,7 +134,7 @@ def get_petram_repos(local_packages, url, token="", verbose=False):
 
 def get_local_packages():
     import importlib.metadata
-    
+
     res = {}
     for x in importlib.metadata.distributions():
         name = x.name
@@ -148,13 +151,25 @@ def get_repo_info(urls=None, verbose=False):
 
     local_packages = get_local_packages()
 
-    repo = []
+    repos = []
+    names = []
     for url in urls:
-        repo_data = get_petram_repos(local_packages, url, verbose=verbose)
-        repo.extend(repo_data)
+        if url.strip() == "":
+            continue
+        try:
+            repo_data = get_petram_repos(local_packages, url, verbose=verbose)
+        except AssertionError as e:
+            print("Failed with URL=", url)
+            print(e)
+            continue
 
-    repo = [y[1] for y in sorted([(x["module"], x) for x in repo])]
-    return repo
+        for r in repo_data:
+            if r["module"] not in names:
+                repos.append(r)
+                names.append(r["module"])
+
+    repos = [y[1] for y in sorted([(x["module"], x) for x in repos])]
+    return repos
 
 
 if __name__ == "__main__":

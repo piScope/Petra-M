@@ -2510,8 +2510,11 @@ class GMSHMeshWrapper():
         gmsh.model.mesh.field.setNumber(field_tag,
                                         "DistMax",
                                         size*scale)
-        # print("dimtags, Size", "Dist, Curves/Surfaces",
-        #      dimTags, maxsize, size*scale, bdrs)
+        gmsh.model.mesh.field.setNumber(field_tag,
+                                        "Power",
+                                        1.)
+        print("dimtags, Size", "Dist, Curves/Surfaces",
+               dimTags, maxsize, size*scale, bdrs)
         if dim == 2:
             gmsh.model.mesh.field.setNumbers(field_tag,
                                              "CurvesList",
