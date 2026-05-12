@@ -295,11 +295,11 @@ class Engine(object):
                           for k in range(n_mat)])
         self._r_at.append([FormBBlock(phys_target, phys_range,
                                       new=self.alloc_bf, mixed_new=self.alloc_mbf,
-                                      converter1=self.a2A, converter2=self.a2A)
+                                      converter1=self.a2A, converter2=self.a2Am)
                            for k in range(n_mat)])
         self._i_at.append([FormBBlock(phys_target, phys_range,
                                       new=self.alloc_bf, mixed_new=self.alloc_mbf,
-                                      converter1=self.a2A, converter2=self.a2A)
+                                      converter1=self.a2A, converter2=self.a2Am)
                            for k in range(n_mat)])
 
         self._r_x.append([FormBlock(n_rfes, new=self.alloc_gf)
@@ -1945,6 +1945,11 @@ class Engine(object):
         renewflag1 = {}
         renewflag2 = {}
         fillflag = {}
+
+        if not update:
+            self.skip_colreset = {}
+            self.skip_rowreset = {}
+
         phys_offset = self.phys_offsets(phys)[0]
         rphys_offset = self.r_phys_offsets(phys)[0]
 
@@ -1973,6 +1978,11 @@ class Engine(object):
 
                 if not update:
                     fillflag[(idx1, idx2)] = True
+                    if mm.no_colreset():
+                        self.skip_colreset[(idx1, idx2)] = True
+                    if mm.no_rowreset():
+                        self.skip_rowreset[(idx1, idx2)] = True
+
                 elif mm.update_flag:
                     if is_trans < 0:
                         renewflag2[(idx2, idx1)] = True
@@ -2518,7 +2528,9 @@ class Engine(object):
                     continue
                 if A[idx1, j] is None:
                     continue
-
+                if (idx1, j) in self.skip_rowreset:
+                    print("skipping (row) eliminating", idx1, j)
+                    continue
                 flag = False
                 ess = gl_ess_tdof1
 
@@ -2526,7 +2538,9 @@ class Engine(object):
                    if k1 == idx1 and k2 == j:
                         ess = np.setdiff1d(gl_ess_tdof1, gtdofs)
 
+                print("eliminating", idx1, j)
                 A[idx1, j] = A[idx1, j].resetRow(ess, inplace=inplace)
+
                 if not (idx1, j) in self._aux_essential and len(gl_ess_tdof2) > 0:
                     A[idx1, j] = A[idx1, j].resetRow(
                         gl_ess_tdof2, inplace=inplace)
@@ -2537,6 +2551,9 @@ class Engine(object):
                 if A[j, idx2] is None:
                     continue
                 if (j, idx2) in self.no_t2_elimination:
+                    continue
+                if (j, idx2) in self.skip_colreset:
+                    print("skipping (col) eliminating", idx1, j)
                     continue
 
                 SM = A.get_squaremat_from_right(j, idx2)

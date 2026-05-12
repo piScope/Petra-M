@@ -1060,6 +1060,13 @@ class Model(RestorableOrderedDict):
         # suppress col elimination t2 defined by the extra variable
         return False
 
+    def no_colreset(self):
+        # suppress col reset, during the ess. elimination
+        return False
+
+    def no_rowrest(self):
+        # suppress row reset, during the ess. elimination
+        return False
 
 class Bdry(Model):
     can_delete = True

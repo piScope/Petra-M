@@ -126,7 +126,7 @@ class WeakIntegration(Phys):
               panels[0],
               panels[1],
               p2, ]
-        #["use src proj.",  self.use_src_proj,   3, {"text":""}],
+        # ["use src proj.",  self.use_src_proj,   3, {"text":""}],
         # ["use dst proj.",  self.use_dst_proj,   3, {"text":""}],  ]
         return ll
 
@@ -139,8 +139,8 @@ class WeakIntegration(Phys):
         self.coeff_type = str(v[1])
         self.vt_coeff.import_panel_value(self, (v[2], v[3]))
         self.integrator = str(v[4])
-        #self.use_src_proj = v[4]
-        #self.use_dst_proj = v[5]
+        # self.use_src_proj = v[4]
+        # self.use_dst_proj = v[5]
 
     def preprocess_params(self, engine):
         self.vt_coeff.preprocess_params(self)
@@ -249,6 +249,8 @@ class WeakLinIntegration(WeakIntegration):
 class WeakBilinIntegration(WeakIntegration):
     def itg_choice(self):
         t = self.get_root_phys().get_fec_type(self.test_idx)
+        t = t[:-6] if t.endswith("Trace") else t
+
         if len(t) > 2 and t[2] == "v":
             t = t[:3]
         bb = [b for b in bilinintegs if t in b[2]]
@@ -272,7 +274,10 @@ class WeakBilinIntegration(WeakIntegration):
             from petram.helper.projection import find_fes_mapping
             t2, _order = find_fes_mapping(phys1, fes_idx1,
                                           self.get_root_phys(), self.test_idx)
-            #t2 = (self.get_root_phys().parent)[paired_name].get_fec_type(paired_idx)
+            # t2 = (self.get_root_phys().parent)[paired_name].get_fec_type(paired_idx)
+
+            t2 = t2[:-6] if t2.endswith("Trace") else t2
+
             if len(t2) > 2 and t2[2] == "v":
                 t2 = t2[:3]
             else:
@@ -296,7 +301,10 @@ class WeakBilinIntegration(WeakIntegration):
         v = super(WeakBilinIntegration, self).attribute_set(v)
         v['paired_var'] = None  # (phys_name, index)
         v['use_symmetric'] = False
+        v['use_transpose'] = False
         v['use_conj'] = False
+        v['skip_colreset'] = False
+        v['skip_rowreset'] = False
         return v
 
     def get_panel1_value(self):
@@ -322,7 +330,16 @@ class WeakBilinIntegration(WeakIntegration):
 
         v1 = [gui_value]
         v2 = super(WeakBilinIntegration, self).get_panel1_value()
-        v3 = [self.use_symmetric, self.use_conj]
+
+        if self.use_symmetric:
+            v3 = ["symmetric", self.use_conj,
+                  self.skip_rowreset, self.skip_colreset]
+        elif self.use_transpose:
+            v3 = ["transpose", self.use_conj,
+                  self.skip_rowreset, self.skip_colreset]
+        else:
+            v3 = ["none", self.use_conj, self.skip_rowreset, self.skip_colreset]
+
         return v1 + v2 + v3
 
     def panel1_tip(self):
@@ -348,9 +365,20 @@ class WeakBilinIntegration(WeakIntegration):
         from petram.utils import pv_from_gui_value
         self.paired_var = pv_from_gui_value(self, v[0])
 
-        super(WeakBilinIntegration, self).import_panel1_value(v[1:-2])
-        self.use_symmetric = v[-2]
-        self.use_conj = v[-1]
+        super(WeakBilinIntegration, self).import_panel1_value(v[1:-4])
+
+        if v[-4] == "symmetric":
+            self.use_symmetric = True
+            self.use_transpose = False
+        elif v[-4] == "transpose":
+            self.use_symmetric = False
+            self.use_transpose = True
+        else:
+            self.use_symmetric = False
+            self.use_transpose = False
+        self.use_conj = v[-3]
+        self.skip_rowreset = v[-2]
+        self.skip_colreset = v[-1]
 
     def panel1_param(self):
         '''
@@ -367,8 +395,11 @@ class WeakBilinIntegration(WeakIntegration):
         ll1 = [pv_panel_param(self, "paird var."), ]
 
         ll2 = super(WeakBilinIntegration, self).panel1_param()
-        ll3 = [["make symmetric",  self.use_symmetric,   3, {"text": ""}],
-               ["use  conjugate",  self.use_conj,   3, {"text": ""}], ]
+        ll3 = [["symmetry",  "none",   1,
+                {"values": ["none", "transpose", "symmetric"]}, ],
+               ["use  conjugate", self.use_conj,   3, {"text": ""}],
+               ["skip reset row", self.skip_rowreset,   3, {"text": ""}],
+               ["skip reset col", self.skip_colreset,   3, {"text": ""}], ]
         ll = ll1 + ll2 + ll3
 
         return ll
@@ -397,7 +428,12 @@ class WeakBilinIntegration(WeakIntegration):
 
         loc = []
         is_trans = 1
-        loc.append((testname, trialname, is_trans, 1))
+        if self.use_transpose and self.use_conj:
+            loc.append((testname, trialname, -1, 1))
+        elif self.use_transpose and not self.use_conj:
+            loc.append((testname, trialname, -1, 1))
+        else:
+            loc.append((testname, trialname, is_trans, 1))
 
         if self.use_symmetric and not self.use_conj:
             loc.append((testname, trialname, -1, -1))
@@ -408,6 +444,12 @@ class WeakBilinIntegration(WeakIntegration):
 
     def get_projection(self):
         return 1
+
+    def no_colreset(self):
+        return self.skip_colreset
+
+    def no_rowreset(self):
+        return self.skip_rowreset
 
 
 def add_delta_contribution(obj, engine, a, real=True, is_trans=False, is_conj=False):
