@@ -1064,7 +1064,7 @@ class Model(RestorableOrderedDict):
         # suppress col reset, during the ess. elimination
         return False
 
-    def no_rowrest(self):
+    def no_rowreset(self):
         # suppress row reset, during the ess. elimination
         return False
 
