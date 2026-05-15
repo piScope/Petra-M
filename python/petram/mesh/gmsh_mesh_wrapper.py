@@ -283,6 +283,9 @@ class GMSHMeshWrapper():
         self.maxthreads = MaxThreads    # general, 1D, 2D, 3D: defualt = 1,1,1,1
         self._new_brep = True
         self._name = "GMSH_Mesher"
+        self._compound_dimtags = []
+        self._compound_shared_dimtags = []
+        self._compound_map = {}
 
     def name(self):
         return self._name
@@ -315,13 +318,14 @@ class GMSHMeshWrapper():
         gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 1)
         gmsh.option.setNumber("General.ExpertMode",
                               1 if self.use_expert_mode else 0)
-        #self.maxthreads = (8, 8, 8, 8)
+        # self.maxthreads = (8, 8, 8, 8)
         gmsh.option.setNumber("General.NumThreads",   self.maxthreads[0])
         gmsh.option.setNumber("Mesh.MaxNumThreads1D", self.maxthreads[1])
         gmsh.option.setNumber("Mesh.MaxNumThreads2D", self.maxthreads[2])
         gmsh.option.setNumber("Mesh.MaxNumThreads3D", self.maxthreads[3])
         gmsh.option.setNumber("Mesh.Optimize", 0)
-        #gmsh.option.setNumber('Geometry.ReparamOnFaceRobust', 1)
+
+        # gmsh.option.setNumber('Geometry.ReparamOnFaceRobust', 1)
 
         # if self.use_ho:
         #    gmsh.option.setNumber("Mesh.ElementOrder", self.ho_order)
@@ -349,7 +353,7 @@ class GMSHMeshWrapper():
 
             self.setCL(((0, tag),), size)
             sizes.append(size)
-            #print("Default Point Size", (0, tag), size)
+            # print("Default Point Size", (0, tag), size)
         if len(sizes) > 0:
             print("Default Point Size Max/Min", max(sizes), min(sizes))
 
@@ -360,8 +364,8 @@ class GMSHMeshWrapper():
 
         maxdim = max([x for x, tag in gmsh.model.getEntities()])
         maxdim = min([maxdim, dim])
-        #adim, idx_dim = self.check_algorith_dim()
-        need_opt  = self.check_need_optimize()
+        # adim, idx_dim = self.check_algorith_dim()
+        need_opt = self.check_need_optimize()
 
         # make sure that element order is 1 before reaching  the last
         # meshing step
@@ -417,21 +421,23 @@ class GMSHMeshWrapper():
             gmsh.option.setNumber("Mesh.MeshOnlyVisible", 0)
             gmsh.option.setNumber("Mesh.MeshOnlyEmpty", 1)
             gmsh.option.setNumber("Mesh.Optimize", 0)
-            gmsh.model.mesh.generate(maxdim)
+            gmsh.model.mesh.setOrder(self.ho_order)
+            #print("this one?")
+            #gmsh.model.mesh.generate(maxdim)
 
             # it is not well-written but I have to include all
             # boundaries elastic seems to apply for everything
             # anyway (for now, this section is commented out) ???
             if maxdim == 3:
-                #dimTags1 = gmsh.model.getBoundary(dimTags)
-                #dimTags2 = gmsh.model.getBoundary(dimTags1)
-                #dimTags3 = gmsh.model.getBoundary(dimTags2)
-                #dimTags = list(set(dimTags + dimTags1 + dimTags2 + dimTags3))
+                # dimTags1 = gmsh.model.getBoundary(dimTags)
+                # dimTags2 = gmsh.model.getBoundary(dimTags1)
+                # dimTags3 = gmsh.model.getBoundary(dimTags2)
+                # dimTags = list(set(dimTags + dimTags1 + dimTags2 + dimTags3))
                 do_ho = True
             elif maxdim == 2:
-                #dimTags1 = gmsh.model.getBoundary(dimTags)
-                #dimTags2 = gmsh.model.getBoundary(dimTags1)
-                #dimTags = list(set(dimTags + dimTags1 + dimTags2))
+                # dimTags1 = gmsh.model.getBoundary(dimTags)
+                # dimTags2 = gmsh.model.getBoundary(dimTags1)
+                # dimTags = list(set(dimTags + dimTags1 + dimTags2))
                 do_ho = True
             else:
                 do_ho = False
@@ -440,8 +446,10 @@ class GMSHMeshWrapper():
                 # need this to control the domain to be optimzed
                 self.show_only(dimTags, recursive=True)
 
-                gmsh.option.setNumber("Mesh.HighOrderThresholdMax", self.optimize_lim[1])
-                gmsh.option.setNumber("Mesh.HighOrderThresholdMin", self.optimize_lim[0])
+                gmsh.option.setNumber(
+                    "Mesh.HighOrderThresholdMax", self.optimize_lim[1])
+                gmsh.option.setNumber(
+                    "Mesh.HighOrderThresholdMin", self.optimize_lim[0])
 
                 if HighOrderOptimize[self.optimize_ho] != 0:
                     if self.queue is not None:
@@ -463,7 +471,7 @@ class GMSHMeshWrapper():
                     for dt in dimTags:
                         self.show_only([dt], recursive=True)
                         gmsh.model.mesh.optimize("HighOrder", dimTags=[dt])
-                    #gmsh.model.mesh.optimize("HighOrder", dimTags=dimTags)
+                    # gmsh.model.mesh.optimize("HighOrder", dimTags=dimTags)
 
         print("calling removeDuplicateNodes")
         gmsh.model.mesh.removeDuplicateNodes()
@@ -489,7 +497,7 @@ class GMSHMeshWrapper():
                 print("generating final mesh file", msh_file)
                 self.edit_msh_to_add_sequential_physicals(tmp0, msh_file)
                 # this is to debug intermediate file
-                #self.edit_msh_to_add_sequential_physicals(tmp0, msh_file+'2.msh')
+                # self.edit_msh_to_add_sequential_physicals(tmp0, msh_file+'2.msh')
         else:
             print("creating temporary mesh file")
             tmp0 = os.path.join(self.trash, 'tmp0.msh')
@@ -516,7 +524,7 @@ class GMSHMeshWrapper():
         gmsh.model.mesh.generate(1)
         # gmsh.model.mesh.removeDuplicateNodes()
 
-        #ptx, p, l, s, v = read_loops2(gmsh)
+        # ptx, p, l, s, v = read_loops2(gmsh)
         return read_loops3(gmsh, dimtags)
 
     def add_model(self, name):
@@ -553,8 +561,8 @@ class GMSHMeshWrapper():
         # we hide the surfaces genrated from virtual operation always.
         if self.current == 'main1':
             vent = list(set(ent).difference(self.target_entities))
-            #vent = [x for x in ent if not x in self.target_entities]
-            #print("hiding virtual", vent)
+            # vent = [x for x in ent if not x in self.target_entities]
+            # print("hiding virtual", vent)
             if len(vent) > 0:
                 gmsh.model.setVisibility(vent, False, recursive=True)
 
@@ -696,15 +704,29 @@ class GMSHMeshWrapper():
     def list_entities(self):
         for x in gmsh.model.list():
             gmsh.model.setCurrent(x)
-            #print(x, gmsh.model.getEntities())
+            # print(x, gmsh.model.getEntities())
         gmsh.model.setCurrent(self.current)
 
     def edit_msh_to_add_sequential_physicals(self, tmp_file, filename, verbose=True):
 
         from petram.mesh.gmsh_helper import edit_msh_to_add_sequential_physicals
 
+        # after compound operation, shared boundary dimtags are
+        # not a part of final mesh. they need to be removed.
+
+        skip_dimtags = self._compound_shared_dimtags[:]
+
+        # add compound edge
+        edge_compound = [x for x in self._compound_dimtags if x[0] == 1]
+        skip_dimtags.extend(edge_compound)
+
+        #  compound map is used to rename entity label
+        dimtag_map = self._compound_map
+
         edit_msh_to_add_sequential_physicals(tmp_file,
                                              filename,
+                                             skip_dimtags,
+                                             dimtag_map,
                                              gen_all_phys_entity=self.gen_all_phys_entity,
                                              verbose=verbose)
 
@@ -771,7 +793,7 @@ class GMSHMeshWrapper():
     def merge_text(self, geo_text):
         handle, geo_filename = tempfile.mkstemp(suffix='.geo')
         text = geo_text.encode()
-        #print("writing this", text)
+        # print("writing this", text)
         os.write(handle, text)
         os.close(handle)
         gmsh.merge(geo_filename)
@@ -790,6 +812,9 @@ class GMSHMeshWrapper():
                 'extrude_face': 2,
                 'revolve_face': 2,
                 'mergetxt': 0,
+                'compoundv': 0,
+                'compoundf': 0,
+                'compoundl': 0,
                 }
         d = []
         for sq in self.mesh_sequence:
@@ -811,6 +836,9 @@ class GMSHMeshWrapper():
                 'extrude_face': 0,
                 'revolve_face': 0,
                 'mergetxt': 0,
+                'compoundv': 0,
+                'compoundf': 0,
+                'compoundl': 0,
                 }
         d = []
         for sq in self.mesh_sequence:
@@ -881,6 +909,123 @@ class GMSHMeshWrapper():
     def recombine_surface_3D(self, done, params, dimtags):
         return done, params
 
+    def _register_compound(self, dimtags):
+        #  record compound operations
+        #    1) collect compounded dimtags to _compound_dimtags
+        #    2) create mapping of compound ids so that final mesh will have common
+        #       id among compounded elements
+        #    3) find shared entity between compounded elements, which will be eliminated
+        #       from the final mesh.
+        self._compound_dimtags.extend(dimtags)
+
+        for x in dimtags[1:]:
+            self._compound_map[x] = dimtags[0]
+
+        dim = dimtags[0][0]
+        items = []
+        for dimtag in dimtags:
+            items.extend([x[1] for x in
+                          gmsh.model.getBoundary([dimtag,], oriented=False, combined=False)])
+
+        from collections import Counter
+        counts = Counter(items)
+        duplicates = [(dim-1, item) for item, count in counts.items() if count == 2]
+
+        self._compound_shared_dimtags.extend(duplicates)
+
+    #
+    #  Compound Volume
+    #
+    @process_text_tags(dim=3, check=False)
+    def compoundv_0D(self, done, params, dimtags):
+        self._register_compound(dimtags)
+
+        tags = [dimtag[1] for dimtag in dimtags]
+        gmsh.model.mesh.setCompound(3, tags)
+        return done, params
+
+    @process_text_tags(dim=3, check=False)
+    def compoundv_1D(self, done, params, dimtags):
+        return done, params
+
+    @process_text_tags(dim=3, check=False)
+    def compoundv_2D(self, done, params, dimtags):
+        return done, params
+
+    @process_text_tags(dim=3, check=False)
+    def compoundv_3D(self, done, params, dimtags):
+        return done, params
+
+    #
+    #  Compound Surfaces
+    #
+    @process_text_tags(dim=2, check=False)
+    def compoundf_0D(self, done, params, dimtags):
+        self._register_compound(dimtags)
+
+        tags = [dimtag[1] for dimtag in dimtags]
+        gmsh.model.mesh.setCompound(2, tags)
+        return done, params
+
+    @process_text_tags(dim=2, check=False)
+    def compoundf_1D(self, done, params, dimtags):
+        return done, params
+
+    @process_text_tags(dim=2, check=False)
+    def compoundf_2D(self, done, params, dimtags):
+        return done, params
+
+    @process_text_tags(dim=2, check=False)
+    def compoundf_3D(self, done, params, dimtags):
+        return done, params
+
+    #
+    #  Compound Curves
+    #
+    @process_text_tags(dim=1, check=False)
+    def compoundl_0D(self, done, params, dimtags):
+        self._register_compound(dimtags)
+
+        tags = [dimtag[1] for dimtag in dimtags]
+        gmsh.model.mesh.setCompound(1, tags)
+        return done, params
+
+    @process_text_tags(dim=1, check=False)
+    def compoundl_1D(self, done, params, dimtags):
+        return done, params
+
+    @process_text_tags(dim=1, check=False)
+    def compoundl_2D(self, done, params, dimtags):
+        return done, params
+
+    @process_text_tags(dim=1, check=False)
+    def compoundl_3D(self, done, params, dimtags):
+        return done, params
+
+    def _generate_xd(self, x, dimtags):
+        target = [tag for dim, tag in dimtags if dim == x]
+        cp = [tag for dim, tag in self._compound_dimtags if dim == x]
+
+        if np.any(np.in1d(target, cp)):
+            gmsh.option.setNumber("Mesh.MaxNumThreads1D", 1)
+            gmsh.option.setNumber("Mesh.MaxNumThreads2D", 1)
+            gmsh.option.setNumber("Mesh.MaxNumThreads3D", 1)
+            fix_numthread = True
+        else:
+            fix_numthread = False
+
+        self.show_only(dimtags)
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 1)
+        gmsh.option.setNumber("Mesh.MeshOnlyEmpty", 0)
+        gmsh.model.mesh.generate(x)
+        gmsh.option.setNumber("Mesh.MeshOnlyEmpty", 1)
+        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
+
+        if fix_numthread:
+            gmsh.option.setNumber("Mesh.MaxNumThreads1D", self.maxthreads[1])
+            gmsh.option.setNumber("Mesh.MaxNumThreads2D", self.maxthreads[2])
+            gmsh.option.setNumber("Mesh.MaxNumThreads3D", self.maxthreads[3])
+
     # freevolume
     @set_restore_maxmin_cl
     @process_text_tags(dim=3)
@@ -933,7 +1078,7 @@ class GMSHMeshWrapper():
             if size < minsize:
                 size = minsize
             self.setCL(((0, tag), ), size)
-            #print("Volume Set Point Size", (0, tag), size)
+            # print("Volume Set Point Size", (0, tag), size)
             done[0].append(tag)
         gmsh.model.mesh.generate(0)
         return done, params
@@ -959,10 +1104,9 @@ class GMSHMeshWrapper():
         dimtags = self.expand_dimtags(dimtags, return_dim=1)
 
         dimtags = [(dim, tag) for dim, tag in dimtags if tag not in done[1]]
-        #tags = [(dim, tag) for dim, tag in dimtags if not tag in done[1]]
+        # tags = [(dim, tag) for dim, tag in dimtags if not tag in done[1]]
 
-        self.show_only(dimtags)
-        gmsh.model.mesh.generate(1)
+        self._generate_xd(1, dimtags)
         done[1].extend([x for dim, x in dimtags])
         return done, params
 
@@ -981,24 +1125,23 @@ class GMSHMeshWrapper():
 
         dimtags = self.expand_dimtags(dimtags, return_dim=2)
 
-        tags = [(dim, tag) for dim, tag in dimtags if tag not in done[2]]
+        dimtags2 = [(dim, tag) for dim, tag in dimtags if tag not in done[2]]
         field = self.add_default_field(
-            tags, maxsize, scale=1/(growth-1.0+0.01))
-        self.show_only(tags)
+            dimtags2, maxsize, scale=1/(growth-1.0+0.01))
 
         alg2d = kwargs.get("alg2d", "default")
         if alg2d != 'default':
             gmsh.option.setNumber("Mesh.Algorithm",
                                   Algorithm2D[alg2d])
-            gmsh.model.mesh.generate(2)
+            self._generate_xd(2, dimtags2)
             gmsh.option.setNumber("Mesh.Algorithm",
                                   Algorithm2D[self.algorithm])
         else:
-            gmsh.model.mesh.generate(2)
+            self._generate_xd(2, dimtags2)
 
         if field is not None:
             field_tag = gmsh.model.mesh.field.remove(field)
-        done[2].extend([x for dim, x in tags])
+        done[2].extend([x for dim, x in dimtags2])
         return done, params
 
     @set_restore_maxmin_cl
@@ -1008,25 +1151,24 @@ class GMSHMeshWrapper():
         growth = kwargs.pop("sizegrowth", 1.0)
         gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 0)
 
-        tags = [(dim, tag) for dim, tag in dimtags if tag not in done[3]]
+        dimtags2 = [(dim, tag) for dim, tag in dimtags if tag not in done[3]]
         field = self.add_default_field(
-            tags, maxsize, scale=1/(growth-1.0+0.01))
-        self.show_only(tags)
+            dimtags2, maxsize, scale=1/(growth-1.0+0.01))
 
         alg3d = kwargs.get("alg3d", "default")
         if alg3d != 'default':
             gmsh.option.setNumber("Mesh.Algorithm3D",
                                   Algorithm3D[alg3d])
-            gmsh.model.mesh.generate(3)
+            self._generate_xd(3, dimtags2)
             gmsh.option.setNumber("Mesh.Algorithm3D",
                                   Algorithm3D[self.algorithm3d])
         else:
-            gmsh.model.mesh.generate(3)
+            self._generate_xd(3, dimtags2)
 
         if field is not None:
             field_tag = gmsh.model.mesh.field.remove(field)
 
-        done[3].extend([x for dim, x in tags])
+        done[3].extend([x for dim, x in dimtags2])
         return done, params
 
     # freeface
@@ -1056,6 +1198,7 @@ class GMSHMeshWrapper():
 
         dimtags.extend([(1, x) for x in embedl])
         dimtags.extend([(0, x) for x in embedp])
+
         dimtags = self.expand_dimtags(dimtags, return_dim=0)
 
         dimtags = [(dim, tag) for dim, tag in dimtags if tag not in done[0]]
@@ -1067,7 +1210,7 @@ class GMSHMeshWrapper():
             if size < minsize:
                 size = minsize
             self.setCL(((0, tag), ), size)
-            #print("Face Set Point Size", (0, tag), size)
+            # print("Face Set Point Size", (0, tag), size)
             done[0].append(tag)
         gmsh.model.mesh.generate(0)
 
@@ -1086,11 +1229,9 @@ class GMSHMeshWrapper():
         dimtags.extend(embedl)
 
         dimtags = [(dim, tag) for dim, tag in dimtags if tag not in done[1]]
-        self.show_only(dimtags)
 
-        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 1)
-        gmsh.model.mesh.generate(1)
-        gmsh.option.setNumber("Mesh.CharacteristicLengthFromCurvature", 0)
+        self._generate_xd(1, dimtags)
+
         done[1].extend([x for dim, x in dimtags])
 
         return done, params
@@ -1102,24 +1243,23 @@ class GMSHMeshWrapper():
         growth = kwargs.pop("sizegrowth", 1.0)
         gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 0)
 
-        tags = [(dim, tag) for dim, tag in dimtags if tag not in done[2]]
+        dimtags2 = [(dim, tag) for dim, tag in dimtags if tag not in done[2]]
         field = self.add_default_field(
-            tags, maxsize, scale=1/(growth-1.0+0.01))
-        self.show_only(tags)
+            dimtags2, maxsize, scale=1/(growth-1.0+0.01))
 
         alg2d = kwargs.get("alg2d", "default")
         if alg2d != 'default':
             gmsh.option.setNumber("Mesh.Algorithm",
                                   Algorithm2D[alg2d])
-            gmsh.model.mesh.generate(2)
+            self._generate_xd(2, dimtags2)
             gmsh.option.setNumber("Mesh.Algorithm",
                                   Algorithm2D[self.algorithm])
         else:
-            gmsh.model.mesh.generate(2)
+            self._generate_xd(2, dimtags2)
 
         if field is not None:
             field_tag = gmsh.model.mesh.field.remove(field)
-        done[2].extend([x for dim, x in tags])
+        done[2].extend([x for dim, x in dimtags2])
         return done, params
 
     @set_restore_maxmin_cl
@@ -1162,10 +1302,9 @@ class GMSHMeshWrapper():
     @process_text_tags(dim=1)
     def freeedge_1D(self, done, params, dimtags, *args, **kwargs):
         gmsh.option.setNumber("Mesh.CharacteristicLengthExtendFromBoundary", 1)
-        tags = [(dim, tag) for dim, tag in dimtags]
-        self.show_only(dimtags)
-        gmsh.model.mesh.generate(1)
-        done[1].extend([x for dim, x in tags])
+        dimtags2 = [(dim, tag) for dim, tag in dimtags]
+        self._generate_xd(1, dimtags2)
+        done[1].extend([x for dim, x in dimtags2])
         return done, params
 
     @set_restore_maxmin_cl
@@ -1378,7 +1517,7 @@ class GMSHMeshWrapper():
                         break
             while edges2[0] != edges2_mapped[0]:
                 edges2_mapped = [edges2_mapped[-1]]+edges2_mapped[:-1]
-            #print("  --- mapped_edges", edges1, edges2_mapped)
+            # print("  --- mapped_edges", edges1, edges2_mapped)
             return edges2_mapped[1] == edges2[1]
 
         face_done = {f: False for f in faces}
@@ -1597,7 +1736,7 @@ class GMSHMeshWrapper():
         revolve = kwargs.pop('revolve', False)
         volume_hint = kwargs.pop('volume_hint', None)
         copy_cl = kwargs.pop('copy_cl', True)
-        #geom_data = (ptx, l, s, v, mid_points)
+        # geom_data = (ptx, l, s, v, mid_points)
         tag1 = [x for dim, x in dimtags]
         tag2 = [x for dim, x in dimtags2]
 
@@ -1622,9 +1761,9 @@ class GMSHMeshWrapper():
             else:
                 # copy(revolve) face is perfomed in the preparation of revolve mesh
                 # in this case we use the volume being meshed as a hint
-                #print("using volume hint", volume_hint)
+                # print("using volume hint", volume_hint)
                 vtags = [int(x) for x in volume_hint.split(',')]
-                #print("mind_eps", geom_size*self.mapper_tol)
+                # print("mind_eps", geom_size*self.mapper_tol)
                 ax, an, px, d, affine, p_pairs, l_pairs, s_pairs = find_rotation_between_surface2(
                     tag1, tag2, vtags, self.edge_tss,
                     geom_data=self.geom_info,
@@ -1638,13 +1777,13 @@ class GMSHMeshWrapper():
 
         params = (ax, an, px, d, affine, p_pairs, l_pairs, s_pairs)
 
-        #print("p_pairs", p_pairs)
+        # print("p_pairs", p_pairs)
         for p0 in p_pairs:
             p1 = p_pairs[p0]
             if (0, p0) in self.cl_data:
                 self.setCL(((0, p1),), self.cl_data[(0, p0)])
-                #print("copying CL from ", p0, "to ", p1, self.cl_data[(0, p0)])
-        #print("transformation param", params)
+                # print("copying CL from ", p0, "to ", p1, self.cl_data[(0, p0)])
+        # print("transformation param", params)
         return done, params
 
     @process_text_tags_sd(dim=2)
@@ -1655,7 +1794,7 @@ class GMSHMeshWrapper():
         gmsh.model.mesh.rebuildNodeCache()
         ax, an, px, d, affine, p_pairs, l_pairs, s_pairs = params
 
-        #print("Entering CopyFace1D", l_pairs)
+        # print("Entering CopyFace1D", l_pairs)
 
         ents = list(set(gmsh.model.getBoundary(
             dimtags, combined=False, oriented=False)))
@@ -1695,12 +1834,12 @@ class GMSHMeshWrapper():
             if (node_map2[ndata[0][-2]] == nodes_org[1] and
                     node_map2[ndata[0][-1]] == nodes_org[0]):
                 do_flip = True
-                #print("flipping point order", tag)
+                # print("flipping point order", tag)
                 tmp = np.array(pos).reshape(-1, 3)
                 pos = np.vstack([tmp[:-2][::-1], tmp[-1], tmp[-2]]).flatten()
                 ntag = np.hstack([ntag[:-2][::-1], ntag[-1], ntag[-2]])
                 ppos = (1 - ppos)[::-1]
-                #etags = etags[::-1]
+                # etags = etags[::-1]
                 nodes = [np.hstack([x[-1], x[1:-1][::-1], x[0]])
                          for x in nodes]
             else:
@@ -1766,7 +1905,7 @@ class GMSHMeshWrapper():
     def copyface_2D(self,  done, params, dimtags, dimtags2, *args, **kwargs):
         ax, an, px, d, affine, p_pairs, l_pairs, s_pairs = params
 
-        #print("Entering CopyFace2D", s_pairs)
+        # print("Entering CopyFace2D", s_pairs)
 
         mdata = []
         for dim, tag in dimtags:
@@ -1774,8 +1913,8 @@ class GMSHMeshWrapper():
             edata = gmsh.model.mesh.getElements(dim, tag)
             mdata.append((dim, tag, ndata, edata))
 
-        #noffset = max(gmsh.model.mesh.getNodes()[0])+1
-        #eoffset = max(sum(gmsh.model.mesh.getElements()[1],[]))+1
+        # noffset = max(gmsh.model.mesh.getNodes()[0])+1
+        # eoffset = max(sum(gmsh.model.mesh.getElements()[1],[]))+1
         noffset = int(max(gmsh.model.mesh.getNodes()[0])+1)
         eoffset = int(max(np.hstack(gmsh.model.mesh.getElements()[1]))+1)
 
@@ -1801,7 +1940,7 @@ class GMSHMeshWrapper():
 
         tree = cKDTree(pos_d)
         void, idx = tree.query(pos_s)
-        #idx = [np.argmin(np.sum((pos_d-p)**2, 1)) for p in pos_s]
+        # idx = [np.argmin(np.sum((pos_d-p)**2, 1)) for p in pos_s]
         for i, nt in zip(idx, ntags_s):
             node_map2[nt] = ntags_d[i]
 
@@ -1826,7 +1965,7 @@ class GMSHMeshWrapper():
             pos = np.array(pos).reshape(-1, 3).transpose()
             pos = (np.dot(R, pos).transpose() + D).flatten()
 
-            #gmsh.model.mesh.setNodes(dim, tag, ntag2, pos, [])
+            # gmsh.model.mesh.setNodes(dim, tag, ntag2, pos, [])
 
             etypes, etags, nodes = edata
 
@@ -1872,7 +2011,7 @@ class GMSHMeshWrapper():
         geom_size = np.sqrt(
             np.sum((np.max(ptx[:, 0], 0) - np.min(ptx[:, 0], 0))**2))
 
-        #geom_data = (ptx, l, s, v, mid_points)
+        # geom_data = (ptx, l, s, v, mid_points)
         tag1 = [x for dim, x in dimtags]
         tag2 = [x for dim, x in dimtags2]
         vtags = [x for dim, x in vdimtags]
@@ -1919,9 +2058,9 @@ class GMSHMeshWrapper():
         ex_info = ([(2, x) for x in tag1], dst, laterals,  vol)
 
         # for debug the intermediate geometry
-        #gmsh.write('tmp_'+ws +  '.brep')
+        # gmsh.write('tmp_'+ws +  '.brep')
 
-        #info1 = self.geom_info
+        # info1 = self.geom_info
         info2 = self.read_geom_info(ret)
 
         pmap, pmap_r = map_points_in_geom_info(info1, info2,
@@ -1973,8 +2112,8 @@ class GMSHMeshWrapper():
         # gmsh.write("debug_1d.msh")
 
         node_map1 = {info1[1][k]+1: info2[1][pmap[k]]+1 for k in pmap}
-        #noffset = max(gmsh.model.mesh.getNodes()[0])+1
-        #eoffset = max(sum(gmsh.model.mesh.getElements()[1],[]))+1
+        # noffset = max(gmsh.model.mesh.getNodes()[0])+1
+        # eoffset = max(sum(gmsh.model.mesh.getElements()[1],[]))+1
         noffset = int(max(gmsh.model.mesh.getNodes()[0])+1)
         eoffset = int(max(np.hstack(gmsh.model.mesh.getElements()[1]))+1)
 
@@ -2021,8 +2160,8 @@ class GMSHMeshWrapper():
         self.switch_model('main1')
         noffset = int(max(gmsh.model.mesh.getNodes()[0])+1)
         eoffset = int(max(np.hstack(gmsh.model.mesh.getElements()[1]))+1)
-        #noffset = max(gmsh.model.mesh.getNodes()[0])+1
-        #eoffset = max(sum(gmsh.model.mesh.getElements()[1],[]))+1
+        # noffset = max(gmsh.model.mesh.getNodes()[0])+1
+        # eoffset = max(sum(gmsh.model.mesh.getElements()[1],[]))+1
 
         node_map3 = {info1[1][k]+1: info2[1][pmap[k]]+1 for k in pmap}
         node_map3 = {node_map3[x]: x for x in node_map3}
@@ -2033,7 +2172,7 @@ class GMSHMeshWrapper():
                 continue
 
             tag = abs(lmap_r[tag0])
-            #print("processing :", dim, tag0, " --> ", tag)
+            # print("processing :", dim, tag0, " --> ", tag)
             if tag in done[1]:
                 continue
 
@@ -2065,7 +2204,7 @@ class GMSHMeshWrapper():
                 print("fixing parametricCoords for tag :",
                       tag, p1_0, p1_1, p2_0, p2_1)
                 ppos = np.array([abs(1-x) for x in ppos])
-                #ntag2 = list(reversed(ntag2))
+                # ntag2 = list(reversed(ntag2))
 
             ppos = (tmp[1]-tmp[0])*ppos + tmp[0]
 
@@ -2099,7 +2238,7 @@ class GMSHMeshWrapper():
 
         # add edge mapping from main1
         ents_1D = self.expand_dimtags(vdimtags, return_dim=1)
-        #ents_1D = self.expand_dimtags(list(dimtags)+list(dimtags2), return_dim = 1)
+        # ents_1D = self.expand_dimtags(list(dimtags)+list(dimtags2), return_dim = 1)
         tmp = [gmsh.model.mesh.getNodes(dim, tag) for dim, tag in ents_1D]
         ntags_s = sum([list(x[0]) for x in tmp], [])
         pos_s = np.array(sum([list(x[1]) for x in tmp], [])).reshape(-1, 3)
@@ -2115,14 +2254,14 @@ class GMSHMeshWrapper():
         gmsh.model.mesh.generate(2)
 
         ents_1D = gmsh.model.getEntities(1)
-        #ents_1D = list(set(gmsh.model.getBoundary(src_dst, combined=False, oriented=False)))
+        # ents_1D = list(set(gmsh.model.getBoundary(src_dst, combined=False, oriented=False)))
         tmp = [gmsh.model.mesh.getNodes(dim, tag) for dim, tag in ents_1D]
         ntags_d = sum([list(x[0]) for x in tmp], [])
         pos_d = np.array(sum([list(x[1]) for x in tmp], [])).reshape(-1, 3)
 
         node_map1 = {info1[1][k]+1: info2[1][pmap[k]]+1 for k in pmap}
 
-        #idx = [np.argmin(np.sum((pos_d-p)**2, 1)) for p in pos_s]
+        # idx = [np.argmin(np.sum((pos_d-p)**2, 1)) for p in pos_s]
         tree = cKDTree(pos_d)
         void, idx = tree.query(pos_s)
 
@@ -2130,8 +2269,8 @@ class GMSHMeshWrapper():
             node_map1[nt] = ntags_d[i]
         noffset = int(max(gmsh.model.mesh.getNodes()[0])+1)
         eoffset = int(max(np.hstack(gmsh.model.mesh.getElements()[1]))+1)
-        #noffset = max(gmsh.model.mesh.getNodes()[0])+1
-        #eoffset = max(sum(gmsh.model.mesh.getElements()[1],[]))+1
+        # noffset = max(gmsh.model.mesh.getNodes()[0])+1
+        # eoffset = max(sum(gmsh.model.mesh.getElements()[1],[]))+1
 
         # copy 2D elements on the source/destination surface
         for d in mdata:
@@ -2174,7 +2313,7 @@ class GMSHMeshWrapper():
         # copy back lateral mesh on surfaces
         tmp = [(2, x) for x in list(smap_r)]
         tmp = [x for x in tmp if not x in src_dst]
-        #print("gather info from ", tmp)
+        # print("gather info from ", tmp)
         mdata = []
         for dim, tag in tmp:
             ndata = gmsh.model.mesh.getNodes(dim, tag)
@@ -2189,8 +2328,8 @@ class GMSHMeshWrapper():
         # gmsh.write("debug.msh")
         self.switch_model('main1')
 
-        #noffset = max(gmsh.model.mesh.getNodes()[0])+1
-        #eoffset = max(sum(gmsh.model.mesh.getElements()[1],[]))+1
+        # noffset = max(gmsh.model.mesh.getNodes()[0])+1
+        # eoffset = max(sum(gmsh.model.mesh.getElements()[1],[]))+1
         noffset = int(max(gmsh.model.mesh.getNodes()[0])+1)
         eoffset = int(max(np.hstack(gmsh.model.mesh.getElements()[1]))+1)
 
@@ -2202,7 +2341,7 @@ class GMSHMeshWrapper():
         node_map3 = {info1[1][k]+1: info2[1][pmap[k]]+1 for k in pmap}
         node_map3 = {node_map3[x]: x for x in node_map3}
 
-        #idx = [np.argmin(np.sum((pos_d-p)**2, 1)) for p in pos_s]
+        # idx = [np.argmin(np.sum((pos_d-p)**2, 1)) for p in pos_s]
         tree = cKDTree(pos_d)
         void, idx = tree.query(pos_s)
 
@@ -2254,8 +2393,8 @@ class GMSHMeshWrapper():
         pos_s = np.array(sum([list(x[1]) for x in tmp], [])).reshape(-1, 3)
 
         self.switch_model('main1')
-        #noffset = max(gmsh.model.mesh.getNodes()[0])+1
-        #eoffset = max(sum(gmsh.model.mesh.getElements()[1],[]))+1
+        # noffset = max(gmsh.model.mesh.getNodes()[0])+1
+        # eoffset = max(sum(gmsh.model.mesh.getElements()[1],[]))+1
         noffset = int(max(gmsh.model.mesh.getNodes()[0])+1)
         eoffset = int(max(np.hstack(gmsh.model.mesh.getElements()[1]))+1)
 
@@ -2268,7 +2407,7 @@ class GMSHMeshWrapper():
         node_map3 = {info1[1][k]+1: info2[1][pmap[k]]+1 for k in pmap}
         node_map3 = {node_map3[x]: x for x in node_map3}
 
-        #idx = [np.argmin(np.sum((pos_d-p)**2, 1)) for p in pos_s]
+        # idx = [np.argmin(np.sum((pos_d-p)**2, 1)) for p in pos_s]
         tree = cKDTree(pos_d)
         void, idx = tree.query(pos_s)
 

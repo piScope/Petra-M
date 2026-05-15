@@ -36,6 +36,9 @@ else:
     def nicePrint(*x):
         print(x)
 
+from petram.helper.check_module_installed import module_file_exists
+has_strumpack = bool(module_file_exists("STRUMPACK"))
+
 
 attr_names = ['log_level',
               'ordering',

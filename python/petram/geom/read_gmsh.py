@@ -39,7 +39,7 @@ gmsh_element_type = {
     95: 'hexahedron343',
     96: 'hexahedron512',
     97: 'hexahedron729',
-        98: 'hexahedron1000',
+    98: 'hexahedron1000',
     16: 'quad8',
     36: 'quad16',
     37: 'quad25',
