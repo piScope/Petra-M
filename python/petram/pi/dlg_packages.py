@@ -47,7 +47,8 @@ def install_from_github(url, update=False):
                       )
     except sp.CalledProcessError as e:
         print(f"Installation failed. Error: {e}")
-        print(f"Output: {e.output.decode()}")
+        if e.output is not None:
+            print(f"Output: {e.output.decode()}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
@@ -62,7 +63,8 @@ def pip_uninstall(package):
                       )
     except sp.CalledProcessError as e:
         print(f"Uninstallation failed. Error: {e}")
-        print(f"Output: {e.output.decode()}")
+        if e.output is not None:
+            print(f"Output: {e.output.decode()}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
@@ -77,7 +79,8 @@ def pip_install(url):
                       )
     except sp.CalledProcessError as e:
         print(f"Installation failed. Error: {e}")
-        print(f"Output: {e.output.decode()}")
+        if e.output is not None:
+            print(f"Output: {e.output.decode()}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
 
