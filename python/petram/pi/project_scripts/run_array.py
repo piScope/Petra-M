@@ -4,7 +4,9 @@ import os
 
 values = kwargs.pop("values")
 folder = kwargs.pop("folder")
-viewer = kwargs.pop("viewer")
+viewer = kwargs.pop("viewer", None)
+if viewer is None:
+    viewer = model.mfembook.find_bookviewer()
 
 odir = os.getcwd()
 
@@ -20,7 +22,7 @@ for kk, array_id in enumerate(values):
     run_parallel(model, *args, **kwargs)
     os.chdir(odir)
 
-if viewer.plotsoldlg is not None:
+if viewer is not None and viewer.plotsoldlg is not None:
     import wx
     wx.CallAfter(viewer.plotsoldlg.update_sollist_local1)
     wx.CallAfter(viewer.plotsoldlg.update_sollist_local2)
