@@ -1745,6 +1745,8 @@ class DlgPlotSol(SimpleFramePlus):
             do_integ = opts[0]
             if not average:
                 assert False, "integration can not done when data is averaged as nodal data"
+        else:
+            do_integ = False
 
         do_loop = opts[-1]
 
