@@ -1727,7 +1727,7 @@ class DlgPlotSol(SimpleFramePlus):
             xx, idx = np.unique(x, return_index=True)
 
             from scipy.integrate import simpson
-            data = {"integ": simpson(xx, cdata[idx])}
+            data = {"integ": simpson(cdata[idx], xxx)}
         return data
 
     def onExportEdge(self, evt):
@@ -1741,9 +1741,11 @@ class DlgPlotSol(SimpleFramePlus):
         if opts is None:
             return
 
-        do_integ = opts[0]
-        if average and do_integ:
-            assert False, "averaging and integration can not be used together"
+        if average:
+            do_integ = opts[0]
+            if not average:
+                assert False, "integration can not done when data is averaged as nodal data"
+
         do_loop = opts[-1]
 
         if do_loop:
