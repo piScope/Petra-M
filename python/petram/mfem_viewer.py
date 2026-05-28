@@ -68,7 +68,12 @@ def MFEM_menus(parent):
              ("!", None, None), ]
 
     import petram.utils
-    if petram.utils.check_cluster_access():
+    import petram.mfem_model as mm
+
+    if not mm.has_cluster_access:
+        mm.has_cluster_access = petram.utils.check_cluster_access()
+
+    if mm.has_cluster_access:
         menu2 = [("+Cluster", None, None),
                  ("Setting...", self.onServerSetting, None),
                  ("Solve...", self.onServerSolve, None),
