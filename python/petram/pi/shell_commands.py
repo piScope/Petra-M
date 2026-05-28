@@ -61,12 +61,16 @@ def petram(reload_scripts=True, addon="none", cluster=False):
                               check_addon_access)
     import petram.mfem_model as mm
 
-    mm.has_cluster_access = check_cluster_access()
-    mm.has_addon_access = check_addon_access()
     if cluster is True:
         mm.has_cluster_access = True
+    else:
+        mm.has_cluster_access = check_cluster_access()
+
     if addon is not "none":
         mm.has_addon_access = addon
+    else:
+        mm.has_addon_access = check_addon_access()
+
 
     import wx
     ifig_app = wx.GetApp().TopWindow

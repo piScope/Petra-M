@@ -12,7 +12,7 @@ dprint1, dprint2, dprint3 = debug.init_dprints('MFEMModel')
 
 # (TODO) these global variables is better to be moved somewhere else
 has_addon_access = "none"
-has_cluster_access = "no"
+has_cluster_access = False
 
 class MFEM_GeneralRoot(Model, NS_mixin):
     can_delete = False
