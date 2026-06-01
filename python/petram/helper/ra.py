@@ -168,7 +168,8 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
         flags[idx] = False
         idxarr.append(idx)
 
-        mat = np.zeros(((ll-len(zarr))*N, len(zarr)))
+        mat = np.zeros(((ll-len(zarr))*N, len(zarr)),
+                       dtype=f.dtype)
         ii = 0
 
         for kk in range(N):
