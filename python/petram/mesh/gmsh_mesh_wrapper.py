@@ -1006,7 +1006,7 @@ class GMSHMeshWrapper():
         target = [tag for dim, tag in dimtags if dim == x]
         cp = [tag for dim, tag in self._compound_dimtags if dim == x]
 
-        if np.any(np.in1d(target, cp)):
+        if np.any(np.isin(target, cp)):
             gmsh.option.setNumber("Mesh.MaxNumThreads1D", 1)
             gmsh.option.setNumber("Mesh.MaxNumThreads2D", 1)
             gmsh.option.setNumber("Mesh.MaxNumThreads3D", 1)

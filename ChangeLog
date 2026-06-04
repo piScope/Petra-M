@@ -1,24 +1,27 @@
 	<<< Change Log >>>
+06/04/2026
+        * fixed is1d issue in gmsh_mesh_wrapper
+
 08/28/2018
 	* Fixed partial_mesh for edge
 	* Fixed WF_essential (eliminate ProjectBdrCoefficient)
 	* Moved items in Docker to TwoPi/docker
-	
+
 04/15/2018
 	* Dockerfile folder is created and Dockefile.petram-base are Dockerfile.petram
 	  are added.
 02/19/2018
 	* ncface and nodal_refinement is added
 	* tested only using 3D RF waveguide.
-	
+
 02/12/2018
 	* std_solver_model supports saving ParMesh file
 	* new dof_map is added, which will replace old mappers.
-	
+
 02/08/2018
 	* extra contribution is assembled as matrix. Physics module must return t2
 	as vertical (transposed).This is due to Hypre
-	
+
 02/07/2018
 	* partial_mesh is added. This tool generate a new mesh object which contains
 	only a boundary with a given attributes.
@@ -39,22 +42,22 @@
 	* call to verify_setting is added in engine so that it checks setting before assembling
 	the matrix. In order to use this, each module shoud implement verify_setting method.
 	* _sel_index=-1 indicates not to restrict coefficient.
-	
+
 12/15/2017
         ** fixed sel_button to work with mixed triangle and quad surfaces.
-	
+
 11/14/2017
 	** fixed refine=1 when loading mesh file for visualization.
 	** fixed EM2Da_PEC, EM3D_PEC. These BC now apply Et=0 properly w/o relying
 	   on the initialization of solution vector by engine.
 	** various improvement of dialog link behaviors.
         ** EM2Da_ExtJ is added for volumetric current source.
-	** Dynamic loading of all installed physics modules 
+	** Dynamic loading of all installed physics modules
 11/07/2017
 	** gl_plot_sol and mfem_viewer is modefided to handle a geometry which
 	uses different types of elements.
 	** many updates made to support em2da is merged to master
-	
+
 09/20/2017
         ** merged scripts in project tree and remote coonections
 	Remote connection functionality is rewritten to be universal.
@@ -64,7 +67,7 @@
 	Toggle edge/point buttons are added
 	Selecting vertex shows the vertex coordinates on the status
 	bar.
-	
+
 09/04/2017
 
 	** Geometry building is reorganized to a list of geometry creation
@@ -88,16 +91,16 @@
 	segments and solves the problem using serial/parallel solvers.
 
 	** plotting panel is fixed to use a new indexed-vertex mode of solid
-	   function. 
-	
+	   function.
+
 08/01/2017
 
 	** Geometry building interface is added for testing an idea...
-	
+
 07/24/2017
 
 	** Initial value setting for TH3Ds was added.
-	
+
 07/22/2017
 
 	** Arrow plot resampling
@@ -106,7 +109,7 @@
 	- a user can specifiy the number of arrow
 	- keep face separated is eliminated since we want to make the
 	arrow length consistent among surfaces.
-	
+
 07/21/2017
 
 	** multiple selection in piScope is enabled
@@ -130,7 +133,7 @@
 	count and the same mesh). This is meant for a simple restart
 	capability. Features such as an interpolation from course mesh is not
 	supported.
-	
+
 07/20/2017
 
 	** initialization step was cleaned for future expansion
@@ -147,9 +150,9 @@
 	set domain/boundary specfic initial values.
 	- THIS CHANGES  are NOT important for RF-only modeling. It will be
 	useful for in a multiphysics case
-	
+
 07/19/2017
-	
+
 	** Significant reduction of GUI handling code length using
 	petram.phys.vtable
 
@@ -159,13 +162,13 @@
 	** When setting up mfem_eofe module using setupmodel command, a
 	newly created model now has server setting to eofe.
 	-  a user still need to make a new work directory.
-	
+
 
 07/15-07/18/2017
-	
+
 
 	** A problem of server side data processing is fixed.
-	
+
 	** Selecting multiple surface and adding them to domain/boundary
 	selection work now.
 
@@ -173,4 +176,3 @@
 	communication channel is closed is fixed.
 	- number of threads shown at the right bottom corner of
 	piScope window goes back to 1 after the connection is closed.
-
