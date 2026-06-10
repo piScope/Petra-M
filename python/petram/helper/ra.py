@@ -14,10 +14,11 @@
      find_decompositions(funcs, x, xp=None, viewer=None, mmin=2,  mmax=5, **kwargs)
 
        a version using set-valued AAA. funcs are approximated using the same roots.
- 
+
 
 '''
 import numpy as np
+from scipy.linalg import null_space
 #from baryrat import aaa
 
 '''
@@ -105,7 +106,7 @@ def aaa(x, f, tol=1e-10, mmax=-1, idx0=None):
     return r
 
 
-def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
+def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None, zeroc0=False):
     '''
     array-AAA (set-valued AAA))
 
@@ -113,6 +114,11 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
 
     P. Lietaert. "Automatic rational approximation and linearization of
     nonlinear eigenvalue problems", IMA Journal of Numerical Analysis (2022)
+
+
+       idx0:  predefined index used for constrainte
+       zeroc0: enforce c0 to zero, which forces the rational approximation goes to zero
+               at high z.
     '''
     # length
     ll = len(x)
@@ -150,8 +156,9 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
         idxarr = list(idx0)
 
     count = 0
+
     while len(idxarr) < mmax:
-        #print("count", count, maxcount)
+        #print("count", len(idxarr), mmax)
         r = [aaa_fit(zarr, weights, farr)
              for farr in farrs]
         err = np.array([[np.abs(f1[j, i] - r[j](x[i]))
@@ -180,10 +187,33 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
                     mat[ii, j] = (f1[kk][i] - farrs[kk, j])/(x[i] - zarr[j])
                 ii = ii + 1
 
+        # constraining c0 to zero
+        #    enforce f^t w = 0
+        #    we compute null-space of f^t, named as pmat.
+        #    for any vector y, f^t pmat * y = 0,,, w is pmat*y.
+        #    using svd for mat.dot.pmat w/o constaining and project
+        #    result, y,  using pmat*y is equivalaent to do svd for mat
+        #    with f^t w = 0 constraint
+
+        if len(zarr) - N > 0 and zeroc0:
+            fmat = np.zeros((N, len(zarr)), dtype=f.dtype)
+            for j in range(len(zarr)):
+               fmat[:, j] = farrs[:, j]
+
+            pmat = null_space(fmat)    # (N, size_of_nullspace)
+            mat = mat.dot(pmat)
+        else:
+            pmat = None
+
         u, s, vh = np.linalg.svd(mat, full_matrices=True)
 
         count = count + 1
         weights = vh[-1, :]
+
+        if pmat is not None:
+            weights = pmat.dot(weights)
+            # checking if constraint is working...
+            # print(fmat.dot(weights))
 
     #print("weight picked at ", idxarr)
     ret = [aaa_fit(zarr, weights, farr, scale=s)
