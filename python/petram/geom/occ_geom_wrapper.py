@@ -911,7 +911,7 @@ class Geometry():
         wire = wireMaker.Wire()
 
         # make wire constraints
-        ex1 = Breptools_WireExplorer(wire)
+        ex1 = BRepTools_WireExplorer(wire)
         while ex1.More():
             edge = ex1.Current()
             f.Add(edge, GeomAbs_C0)

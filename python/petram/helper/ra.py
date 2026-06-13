@@ -14,10 +14,11 @@
      find_decompositions(funcs, x, xp=None, viewer=None, mmin=2,  mmax=5, **kwargs)
 
        a version using set-valued AAA. funcs are approximated using the same roots.
- 
+
 
 '''
 import numpy as np
+from scipy.linalg import null_space
 #from baryrat import aaa
 
 '''
@@ -105,7 +106,8 @@ def aaa(x, f, tol=1e-10, mmax=-1, idx0=None):
     return r
 
 
-def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
+def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None, zeroc0=False,
+         sigma=None):
     '''
     array-AAA (set-valued AAA))
 
@@ -113,21 +115,36 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
 
     P. Lietaert. "Automatic rational approximation and linearization of
     nonlinear eigenvalue problems", IMA Journal of Numerical Analysis (2022)
+
+
+       idx0:  predefined index used for constrainte
+
+       zeroc0: enforce c0 to zero, which forces the rational approximation goes to zero
+               at high z.
+
+       sigma: stddev of input data. (used with Loewner matrix)
+              shape must be ( len(x), ) or (N, len(x))
     '''
     # length
     ll = len(x)
     N = f.shape[0]
     if mmax < 0:
         mmax = ll/10
+
+    if sigma is not None:
+       sigma = np.atleast_1d(sigma)
+       if len(sigma.shape) == 1:
+           assert sigma.shape[0]==ll, "sigma and x should have the same length"
+       if len(sigma.shape) == 2:
+           assert sigma.shape[0]==N and sigma.shape[1]==ll, "sigma and x should have the same length"
+
     # scale it to one:
     scales = np.array([np.max(ff) - np.min(ff) for ff in f])
 
     f1 = np.transpose(f.transpose()/scales)
 
-    flags = np.array([True]*ll)
-
     idx = np.argmax(f1) % ll if idx0 is None else idx0
-
+    flags = np.array([True]*ll)
     if idx0 is None:
         idx = np.argmax(f1) % ll
         flags[idx] = False
@@ -150,11 +167,23 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
         idxarr = list(idx0)
 
     count = 0
+
     while len(idxarr) < mmax:
-        #print("count", count, maxcount)
+        #print("count", len(idxarr), mmax)
         r = [aaa_fit(zarr, weights, farr)
              for farr in farrs]
-        err = np.array([[np.abs(f1[j, i] - r[j](x[i]))
+        if sigma is None:
+            err = np.array([[np.abs(f1[j, i] - r[j](x[i]))
+                         if flags[i] else 0 for i in range(ll)]
+                        for j in range(N)])
+
+        elif len(sigma.shape)==1:
+            err = np.array([[np.abs(f1[j, i] - r[j](x[i]))/sigma[i]
+                         if flags[i] else 0 for i in range(ll)]
+                        for j in range(N)])
+
+        elif len(sigma.shape)==2:
+            err = np.array([[np.abs(f1[j, i] - r[j](x[i]))/sigma[j, i]
                          if flags[i] else 0 for i in range(ll)]
                         for j in range(N)])
 
@@ -171,7 +200,6 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
         mat = np.zeros(((ll-len(zarr))*N, len(zarr)),
                        dtype=f.dtype)
         ii = 0
-
         for kk in range(N):
             for i in range(ll):
                 if not flags[i]:
@@ -180,10 +208,49 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None):
                     mat[ii, j] = (f1[kk][i] - farrs[kk, j])/(x[i] - zarr[j])
                 ii = ii + 1
 
+        # apply stddev to Leuwner matrix
+        if sigma is not None:
+            sig = np.zeros(((ll-len(zarr))*N), dtype=sigma.dtype)
+            ii = 0
+            for kk in range(N):
+                for i in range(ll):
+                    if not flags[i]:
+                        continue
+                    if len(sigma.shape) == 1:
+                        sig[ii] = sigma[i]
+                    else:
+                        sig[ii] = sigma[i, kk]
+                    ii = ii + 1
+
+            mat = mat/sig[:, np.newaxis]
+
+        # constraining c0 to zero
+        #    enforce f^t w = 0
+        #    we compute null-space of f^t, named as pmat.
+        #    for any vector y, f^t pmat * y = 0,,, w is pmat*y.
+        #    using svd for mat.dot.pmat w/o constaining and project
+        #    result, y,  using pmat*y is equivalaent to do svd for mat
+        #    with f^t w = 0 constraint
+
+        if len(zarr) - N > 0 and zeroc0:
+            fmat = np.zeros((N, len(zarr)), dtype=f.dtype)
+            for j in range(len(zarr)):
+               fmat[:, j] = farrs[:, j]
+
+            pmat = null_space(fmat)    # (N, size_of_nullspace)
+            mat = mat.dot(pmat)
+        else:
+            pmat = None
+
         u, s, vh = np.linalg.svd(mat, full_matrices=True)
 
         count = count + 1
         weights = vh[-1, :]
+
+        if pmat is not None:
+            weights = pmat.dot(weights)
+            # checking if constraint is working...
+            # print("check weight", fmat.dot(weights))
 
     #print("weight picked at ", idxarr)
     ret = [aaa_fit(zarr, weights, farr, scale=s)
