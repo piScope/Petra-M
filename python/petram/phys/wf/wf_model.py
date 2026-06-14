@@ -339,12 +339,12 @@ class WF(PhysModule):
             if name != dep_var:
                 continue
             if isVector:
-                add_components(v, dep_var, suffix, ind_vars, solr, soli)
+                add_components(v, dep_var, "", ind_vars, solr, soli)
             elif isNormal:
-                add_scalar(v, dep_var+"n", suffix, ind_vars, solr, soli)
+                add_scalar(v, dep_var+"n", "", ind_vars, solr, soli)
             else:
                 if self.vdim == 1:
-                    add_scalar(v, dep_var, suffix, ind_vars, solr, soli)
+                    add_scalar(v, dep_var, "", ind_vars, solr, soli)
                 else:
                     names = self.dep_vars_base_txt.split(',')
                     for k, n in enumerate(names):
