@@ -216,7 +216,7 @@ class WF_WeakPointBilinConstraint(WF_common, Point, WeakBilinDeltaIntegration):
         WeakBilinDeltaIntegration.attribute_set(self, v)
         v['sel_readonly'] = True
         v['sel_index'] = ['all']
-        v['sel_index_txt'] = '["all"]'        
+        v['sel_index_txt'] = "all"
         return v
      
 class WF_WeakPointLinConstraint(WF_common, Point, WeakLinDeltaIntegration):
@@ -231,7 +231,7 @@ class WF_WeakPointLinConstraint(WF_common, Point, WeakLinDeltaIntegration):
         WeakLinDeltaIntegration.attribute_set(self, v)
         v['sel_readonly'] = True
         v['sel_index'] = ['all']
-        v['sel_index_txt'] = '["all"]'                        
+        v['sel_index_txt'] = "all"
         return v
 
      

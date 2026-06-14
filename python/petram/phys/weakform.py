@@ -554,7 +554,7 @@ class WeakLinDeltaIntegration(WeakLinIntegration):
 
     def import_panel2_value(self, v):
         self.sel_index = ['all']
-        self.sel_index_txt = '["all"]'
+        self.sel_index_txt = "all"
         self.pos_txt = v[0]
         g = self._global_ns
         try:
@@ -596,7 +596,7 @@ class WeakBilinDeltaIntegration(WeakBilinIntegration):
 
     def import_panel2_value(self, v):
         self.sel_index = ['all']
-        self.sel_index_txt = '["all"]'
+        self.sel_index_txt = "all"
         self.pos_txt = v[0]
         g = self._global_ns
         try:
