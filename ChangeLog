@@ -1,4 +1,7 @@
 	<<< Change Log >>>
+06/16/2026
+	* changed default array_id t0 0.
+
 06/13/2026
 	* fixed typo in OCC_cbook, which causes surface filling option fails
 	* RA routine was extended to support fitting weight and C0=0 constrant.

@@ -25,7 +25,7 @@ def save_model(model, path, meshfile_relativepath=False, do_preprocess = False):
     model.variables.setvar('modelfile_path', path)
 
 
-def run_xxx(model, path='', debug=0, thread=True, array_id=1, array_len=1,
+def run_xxx(model, path='', debug=0, thread=True, array_id=0, array_len=1,
             run_command=None):
     '''
     debug keyword will overwrite debug level setting 
@@ -120,7 +120,7 @@ def run_xxx(model, path='', debug=0, thread=True, array_id=1, array_len=1,
 
 
 def run_parallel(model, path='', nproc=1, debug=0, thread=True,
-                 array_id=1, array_len=1):
+                 array_id=0, array_len=1):
     run_command = ['mpirun', '-n', str(nproc),
                    sys.executable, '-u',
                    'model.py', '-p', '-d',  str(debug)]
@@ -130,7 +130,7 @@ def run_parallel(model, path='', nproc=1, debug=0, thread=True,
     globals()['default_glvis_args'] = ['-np', nproc]
 
 
-def run_serial(model, path='', debug=0, thread=True, array_id=1,
+def run_serial(model, path='', debug=0, thread=True, array_id=0,
                array_len=1):
     run_command = [sys.executable, '-u',
                    'model.py', '-s', '-d',  str(debug)]
