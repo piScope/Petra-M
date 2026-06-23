@@ -1,84 +1,85 @@
-	<<< Change Log >>>
-06/16/2026
-	* changed default array_id t0 0.
+        <<< Change Log >>>
+06/23/2026
+        * fixed onOpenModelS importing deprecated imp module.
 
 06/13/2026
 	* fixed typo in OCC_cbook, which causes surface filling option fails
 	* RA routine was extended to support fitting weight and C0=0 constrant.
+        * fixed WeakDelta constraint selction bug
 
 06/04/2026
         * fixed is1d issue in gmsh_mesh_wrapper
 
 08/28/2018
-	* Fixed partial_mesh for edge
-	* Fixed WF_essential (eliminate ProjectBdrCoefficient)
-	* Moved items in Docker to TwoPi/docker
+        * Fixed partial_mesh for edge
+        * Fixed WF_essential (eliminate ProjectBdrCoefficient)
+        * Moved items in Docker to TwoPi/docker
 
 04/15/2018
-	* Dockerfile folder is created and Dockefile.petram-base are Dockerfile.petram
-	  are added.
+        * Dockerfile folder is created and Dockefile.petram-base are Dockerfile.petram
+          are added.
 02/19/2018
-	* ncface and nodal_refinement is added
-	* tested only using 3D RF waveguide.
+        * ncface and nodal_refinement is added
+        * tested only using 3D RF waveguide.
 
 02/12/2018
-	* std_solver_model supports saving ParMesh file
-	* new dof_map is added, which will replace old mappers.
+        * std_solver_model supports saving ParMesh file
+        * new dof_map is added, which will replace old mappers.
 
 02/08/2018
-	* extra contribution is assembled as matrix. Physics module must return t2
-	as vertical (transposed).This is due to Hypre
+        * extra contribution is assembled as matrix. Physics module must return t2
+        as vertical (transposed).This is due to Hypre
 
 02/07/2018
-	* partial_mesh is added. This tool generate a new mesh object which contains
-	only a boundary with a given attributes.
-   	 petram.mesh.partial_mesh.surface(mesh, index, filename = '', precision=8)
+        * partial_mesh is added. This tool generate a new mesh object which contains
+        only a boundary with a given attributes.
+         petram.mesh.partial_mesh.surface(mesh, index, filename = '', precision=8)
            mesh: input mesh
-	   index: surface attribute (bdr for 3Din3D, domain for 2Din3D and 2Din2D mesh)
+           index: surface attribute (bdr for 3Din3D, domain for 2Din3D and 2Din2D mesh)
 
 01/12/2018
-	* mfem_viewer is change to skip refinement steps
-	* (perhaps, I should add an option to look refined mesh, for
-	   adavptive meshing)
+        * mfem_viewer is change to skip refinement steps
+        * (perhaps, I should add an option to look refined mesh, for
+           adavptive meshing)
 01/02/2018
-	* Worked on Coeff2D. Diffusion term, Essential, Point source, Point Value, Natural
-	are written
-	* Coeff2D:PointValue is implemented using Lagrange multiplier and DeltaCoefficient
-	* engine is fixed to work with real value problem
-	* Lagrange multiplier can be array distributed among nodes.
-	* call to verify_setting is added in engine so that it checks setting before assembling
-	the matrix. In order to use this, each module shoud implement verify_setting method.
-	* _sel_index=-1 indicates not to restrict coefficient.
+        * Worked on Coeff2D. Diffusion term, Essential, Point source, Point Value, Natural
+        are written
+        * Coeff2D:PointValue is implemented using Lagrange multiplier and DeltaCoefficient
+        * engine is fixed to work with real value problem
+        * Lagrange multiplier can be array distributed among nodes.
+        * call to verify_setting is added in engine so that it checks setting before assembling
+        the matrix. In order to use this, each module shoud implement verify_setting method.
+        * _sel_index=-1 indicates not to restrict coefficient.
 
 12/15/2017
         ** fixed sel_button to work with mixed triangle and quad surfaces.
 
 11/14/2017
-	** fixed refine=1 when loading mesh file for visualization.
-	** fixed EM2Da_PEC, EM3D_PEC. These BC now apply Et=0 properly w/o relying
-	   on the initialization of solution vector by engine.
-	** various improvement of dialog link behaviors.
+        ** fixed refine=1 when loading mesh file for visualization.
+        ** fixed EM2Da_PEC, EM3D_PEC. These BC now apply Et=0 properly w/o relying
+           on the initialization of solution vector by engine.
+        ** various improvement of dialog link behaviors.
         ** EM2Da_ExtJ is added for volumetric current source.
-	** Dynamic loading of all installed physics modules
+        ** Dynamic loading of all installed physics modules
 11/07/2017
-	** gl_plot_sol and mfem_viewer is modefided to handle a geometry which
-	uses different types of elements.
-	** many updates made to support em2da is merged to master
+        ** gl_plot_sol and mfem_viewer is modefided to handle a geometry which
+        uses different types of elements.
+        ** many updates made to support em2da is merged to master
 
 09/20/2017
         ** merged scripts in project tree and remote coonections
-	Remote connection functionality is rewritten to be universal.
-	Server side scripts should absorb the difference between
-	remote servers.
+        Remote connection functionality is rewritten to be universal.
+        Server side scripts should absorb the difference between
+        remote servers.
 
-	Toggle edge/point buttons are added
-	Selecting vertex shows the vertex coordinates on the status
-	bar.
+        Toggle edge/point buttons are added
+        Selecting vertex shows the vertex coordinates on the status
+        bar.
 
 09/04/2017
 
-	** Geometry building is reorganized to a list of geometry creation
-	commads
+        ** Geometry building is reorganized to a list of geometry creation
+        commads
 
         object created from givn coordinates
            Point/Circle/Rect/Line/Polygon
@@ -89,97 +90,97 @@
            CreateSurface -> Lines to PlaneSurface
            SurfaceLoop -> Surfacess to SurfaceLoops
            CreateVolume ->  Surfacess to Volume
- 	object manipulation
+        object manipulation
            Extrude/Revolve
         boolean operation
            Union/Intersection/Difference/Fragments
 
-	** sample waveguide model is added which uses all Geometry/Mesh/Physics
-	segments and solves the problem using serial/parallel solvers.
+        ** sample waveguide model is added which uses all Geometry/Mesh/Physics
+        segments and solves the problem using serial/parallel solvers.
 
-	** plotting panel is fixed to use a new indexed-vertex mode of solid
-	   function.
+        ** plotting panel is fixed to use a new indexed-vertex mode of solid
+           function.
 
 08/01/2017
 
-	** Geometry building interface is added for testing an idea...
+        ** Geometry building interface is added for testing an idea...
 
 07/24/2017
 
-	** Initial value setting for TH3Ds was added.
+        ** Initial value setting for TH3Ds was added.
 
 07/22/2017
 
-	** Arrow plot resampling
+        ** Arrow plot resampling
         - resampling the data to reduce the number of arrows to a
-	practical (~300) level
-	- a user can specifiy the number of arrow
-	- keep face separated is eliminated since we want to make the
-	arrow length consistent among surfaces.
+        practical (~300) level
+        - a user can specifiy the number of arrow
+        - keep face separated is eliminated since we want to make the
+        arrow length consistent among surfaces.
 
 07/21/2017
 
-	** multiple selection in piScope is enabled
-	- a user can select domain and change the surface color at once.
-	- this makes a production of final graphics easier using the following
-	steps...
-	1) use "select Volume"
-	2) copy selected faces
-	3) open a new window (change 3D axes mode, set gl shading..)
-	4) paste the copied faces
-	5) open property panel and change color.
+        ** multiple selection in piScope is enabled
+        - a user can select domain and change the surface color at once.
+        - this makes a production of final graphics easier using the following
+        steps...
+        1) use "select Volume"
+        2) copy selected faces
+        3) open a new window (change 3D axes mode, set gl shading..)
+        4) paste the copied faces
+        5) open property panel and change color.
 
-	** Other piScope enhancement
-	- OIT (order independent transparency) renderer is enabled.
-	- Videoplayer button relocation.
+        ** Other piScope enhancement
+        - OIT (order independent transparency) renderer is enabled.
+        - Videoplayer button relocation.
 
-	** Initial value from file and inital value from init panel is added
-	- Initial value panel of EM3D module works now.
-	- Reading initial values from file works only when the file structure
-	is the same. (previous simulation should be run with the same CPU
-	count and the same mesh). This is meant for a simple restart
-	capability. Features such as an interpolation from course mesh is not
-	supported.
+        ** Initial value from file and inital value from init panel is added
+        - Initial value panel of EM3D module works now.
+        - Reading initial values from file works only when the file structure
+        is the same. (previous simulation should be run with the same CPU
+        count and the same mesh). This is meant for a simple restart
+        capability. Features such as an interpolation from course mesh is not
+        supported.
 
 07/20/2017
 
-	** initialization step was cleaned for future expansion
+        ** initialization step was cleaned for future expansion
 
-	- InitialValue branch is added in model tree
-	- InitialValue branch can hold multiple InitSetting
-	- StdSolver has a text box to selecto InitSetting
-	- comma separated names can be used to select multiple InitSetting
-	- If no InitSetting is specifid, StdSolver allocate all fespace/sol
-    	vector and initialize to zero. If this is not desired, one has to
-	use NoInitialization in InitSetting
-	- StdSolver saves solfiles when init_only mode is selected
-	- Physics setting panels has thrid Init/NL panel, where a user can
-	set domain/boundary specfic initial values.
-	- THIS CHANGES  are NOT important for RF-only modeling. It will be
-	useful for in a multiphysics case
+        - InitialValue branch is added in model tree
+        - InitialValue branch can hold multiple InitSetting
+        - StdSolver has a text box to selecto InitSetting
+        - comma separated names can be used to select multiple InitSetting
+        - If no InitSetting is specifid, StdSolver allocate all fespace/sol
+        vector and initialize to zero. If this is not desired, one has to
+        use NoInitialization in InitSetting
+        - StdSolver saves solfiles when init_only mode is selected
+        - Physics setting panels has thrid Init/NL panel, where a user can
+        set domain/boundary specfic initial values.
+        - THIS CHANGES  are NOT important for RF-only modeling. It will be
+        useful for in a multiphysics case
 
 07/19/2017
 
-	** Significant reduction of GUI handling code length using
-	petram.phys.vtable
+        ** Significant reduction of GUI handling code length using
+        petram.phys.vtable
 
-	** reset_model menu in mfem_viewer shows a confirmation dialog
-	to avoid deleting a model tree by mistake.
+        ** reset_model menu in mfem_viewer shows a confirmation dialog
+        to avoid deleting a model tree by mistake.
 
-	** When setting up mfem_eofe module using setupmodel command, a
-	newly created model now has server setting to eofe.
-	-  a user still need to make a new work directory.
+        ** When setting up mfem_eofe module using setupmodel command, a
+        newly created model now has server setting to eofe.
+        -  a user still need to make a new work directory.
 
 
 07/15-07/18/2017
 
 
-	** A problem of server side data processing is fixed.
+        ** A problem of server side data processing is fixed.
 
-	** Selecting multiple surface and adding them to domain/boundary
-	selection work now.
+        ** Selecting multiple surface and adding them to domain/boundary
+        selection work now.
 
-	** A problem of not closing threads and processing when a
-	communication channel is closed is fixed.
-	- number of threads shown at the right bottom corner of
-	piScope window goes back to 1 after the connection is closed.
+        ** A problem of not closing threads and processing when a
+        communication channel is closed is fixed.
+        - number of threads shown at the right bottom corner of
+        piScope window goes back to 1 after the connection is closed.
