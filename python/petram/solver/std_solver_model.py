@@ -135,15 +135,19 @@ class StdSolver(Solver):
         from petram.solver.superlu_model import SuperLU
 
         choice = [("Direct", SuperLU),]
+
+        import petram.mfem_model as mm
+        has_cluster_access = mm.has_cluster_access
+
         try:
             import petram.solver.mumps_model as MMPS
-            if MMPS.has_mumps:
+            if MMPS.has_mumps or has_cluster_access:
                 choice.append(("", MMPS.MUMPS))
         except ImportError:
             pass
         try:
             import petram.solver.strumpack_model as ST
-            if ST.has_strumpack:
+            if ST.has_strumpack or has_cluster_access:
                 choice.append(("", ST.Strumpack),)
         except ImportError:
             pass

@@ -464,7 +464,7 @@ class MFEMViewer(BookViewer):
         evt.Skip()
 
     def onOpenModelS(self, evt):
-        import imp
+        import importlib
         import shutil
         import ifigure.utils.pickle_wrapper as pickle
         from ifigure.mto.py_code import PyData
@@ -473,7 +473,11 @@ class MFEMViewer(BookViewer):
             message='Select model file to read', wildcard='*.py')
         try:
             print("loading", path)
-            m = imp.load_source('petram.user_model', path)
+            #m = imp.load_source('petram.user_model', path)
+            spec = importlib.util.spec_from_file_location(
+                 "petram.user_model", path)
+            m = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(m)
             model = m.make_model()
         except:
             print(path)
