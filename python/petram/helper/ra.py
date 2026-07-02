@@ -19,7 +19,7 @@
 '''
 import numpy as np
 from scipy.linalg import null_space
-#from baryrat import aaa
+# from baryrat import aaa
 
 '''
 AAA
@@ -74,7 +74,7 @@ def aaa(x, f, tol=1e-10, mmax=-1, idx0=None):
 
     count = 0
     while len(idxarr) < mmax:
-        #print("count", count, maxcount)
+        # print("count", count, maxcount)
         r = aaa_fit(zarr, weights, farr)
         err = [np.abs(f1[i] - r(x[i]))
                if flags[i] else 0 for i in range(ll)]
@@ -132,11 +132,11 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None, zeroc0=False,
         mmax = ll/10
 
     if sigma is not None:
-       sigma = np.atleast_1d(sigma)
-       if len(sigma.shape) == 1:
-           assert sigma.shape[0]==ll, "sigma and x should have the same length"
-       if len(sigma.shape) == 2:
-           assert sigma.shape[0]==N and sigma.shape[1]==ll, "sigma and x should have the same length"
+        sigma = np.atleast_1d(sigma)
+        if len(sigma.shape) == 1:
+            assert sigma.shape[0] == ll, "sigma and x should have the same length"
+        if len(sigma.shape) == 2:
+            assert sigma.shape[0] == N and sigma.shape[1] == ll, "sigma and x should have the same length"
 
     # scale it to one:
     scales = np.array([np.max(ff) - np.min(ff) for ff in f])
@@ -169,23 +169,23 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None, zeroc0=False,
     count = 0
 
     while len(idxarr) < mmax:
-        #print("count", len(idxarr), mmax)
+        # print("count", len(idxarr), mmax)
         r = [aaa_fit(zarr, weights, farr)
              for farr in farrs]
         if sigma is None:
             err = np.array([[np.abs(f1[j, i] - r[j](x[i]))
-                         if flags[i] else 0 for i in range(ll)]
-                        for j in range(N)])
+                             if flags[i] else 0 for i in range(ll)]
+                            for j in range(N)])
 
-        elif len(sigma.shape)==1:
+        elif len(sigma.shape) == 1:
             err = np.array([[np.abs(f1[j, i] - r[j](x[i]))/sigma[i]
-                         if flags[i] else 0 for i in range(ll)]
-                        for j in range(N)])
+                             if flags[i] else 0 for i in range(ll)]
+                            for j in range(N)])
 
-        elif len(sigma.shape)==2:
+        elif len(sigma.shape) == 2:
             err = np.array([[np.abs(f1[j, i] - r[j](x[i]))/sigma[j, i]
-                         if flags[i] else 0 for i in range(ll)]
-                        for j in range(N)])
+                             if flags[i] else 0 for i in range(ll)]
+                            for j in range(N)])
 
         if np.max(err) < tol:
             break
@@ -235,7 +235,7 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None, zeroc0=False,
         if len(zarr) - N > 0 and zeroc0:
             fmat = np.zeros((N, len(zarr)), dtype=f.dtype)
             for j in range(len(zarr)):
-               fmat[:, j] = farrs[:, j]
+                fmat[:, j] = farrs[:, j]
 
             pmat = null_space(fmat)    # (N, size_of_nullspace)
             mat = mat.dot(pmat)
@@ -252,7 +252,7 @@ def aaaa(x, f, tol=1e-10, mmax=-1, idx0=None, zeroc0=False,
             # checking if constraint is working...
             # print("check weight", fmat.dot(weights))
 
-    #print("weight picked at ", idxarr)
+    # print("weight picked at ", idxarr)
     ret = [aaa_fit(zarr, weights, farr, scale=s)
            for farr, s in zip(farrs, scales)]
 
@@ -312,6 +312,7 @@ class poly_fraction():
         self.d_arr = d_arr
 
     def __call__(self, x):
+        x = np.array(x)
         value = np.zeros(x.shape, dtype=np.complex128) + self.c0
         for c, d in zip(self.c_arr, self.d_arr):
             value = value + c / (x - d)
@@ -402,7 +403,7 @@ def calc_decomposition(func, x, mmax, xp=None, viewer=None, fp=False,
 
     if fp:  # correction to c0
         mm = np.min(fit.real)
-        #print("!!! Force positive is on: minimum of original fit ", mm)
+        # print("!!! Force positive is on: minimum of original fit ", mm)
         if mm < 0:
             c0 = c0 - mm
             f_sum = poly_fraction(c0, c_arr, d_arr)
@@ -433,7 +434,7 @@ def calc_decompositions(funcs, x, mmax, xp, viewer=None, idx0=None, **kwargs):
                 viewer.plot(np.sqrt(xp), fp.imag, 'b')
         viewer.xlabel("sqrt(x)")
 
-    #from baryrat import aaa
+    # from baryrat import aaa
     rall = aaaa(x, f, mmax=mmax, tol=0, idx0=idx0)
 
     f_sums = []
@@ -547,3 +548,58 @@ def find_decompositions(funcs, x, viewer=None, xp=None,
         mm = mm + 1
 
     return fit, success, max(errors)
+
+
+class cpd_func():
+    #
+    #  function defined as by a products of univriate functions and multivariate
+    #  function as follows ...
+    #     output =  sigma_i  f1_i(x1)*f2_i(x2)*f3_i(x3)*...* p_i(p1,p2,p3....)
+    #
+    #   output depends on x1, x2, x3... and p1, p2, p3....
+    #      f1, f2, ... are poly functions
+    #      p       ... tabluated data
+    def __init__(self, poly_funcs, param, paramx, method='cubic', complex=False):
+        #    poly_funcs : list. [f1, f2, f3...]
+        #    param : multi-dimensional array. p
+        #    paramx : axes of p. given as dictionary
+
+        self.complex = complex
+        self.idim = param.shape[0]
+
+        self.lx = len(poly_funcs)
+        self.poly_funcs = poly_funcs
+        self.method = method
+
+        self.param = param
+        self.paramx = tuple(paramx.values())
+        self.param_func = None
+
+    def set_method(self, method):
+        self.method = method
+        self.param_func = None
+
+    def __call__(self, *args):
+
+        # f1(x1)*f2(x2)*f3(x3)*...* p(p1,p2,p3....)
+        if self.param_func is None:
+            from scipy.interpolate import RegularGridInterpolator
+
+            self.param_func = [RegularGridInterpolator(self.paramx,
+                                                       self.param[i],
+                                                       method=self.method,
+                                                       bounds_error=True,)
+                               for i in range(self.idim)]
+
+        ans = 0j if self.complex else 0.0
+
+        for i in range(self.idim):
+            p = self.param_func[i](args[self.lx:])
+            ans = ans + p * \
+                np.prod([f[i](x)
+                        for f, x in zip(self.poly_funcs, args[:self.lx])])
+
+        return ans
+
+    def get_numba_func(self):
+        pass
