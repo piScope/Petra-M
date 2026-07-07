@@ -1,4 +1,8 @@
         <<< Change Log >>>
+07/07/2026
+	* addef from_array option to SCoeff (adjustment so that type='array' can be used in
+	  vtable definition.(needed for cold plasma array collision frequency)
+
 06/23/2026
         * fixed onOpenModelS importing deprecated imp module.
         * made MUMPS/STRUMPACK menu appear if cluster-access is on

@@ -423,7 +423,7 @@ def VCoeff(dim, exprs, ind_vars, l, g, return_complex=False,
 
 
 def SCoeff(exprs, ind_vars, l, g, return_complex=False,
-           return_mfem_constant=False, **kwargs):
+           return_mfem_constant=False, from_array=False, **kwargs):
     if isinstance(exprs, str):
         exprs = [exprs]
     if isinstance(exprs, NativeCoefficientGenBase):
@@ -540,6 +540,11 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False,
             # weakform10 didn't work with-> exprs[0][component]
             v = exprs[component]
 
+        if from_array:
+            # if GUI interface is type='array'
+            assert len(v) == 1, "for scalar variable, array data must be size=1"
+            v = v[0]
+
         if isinstance(v, NativeCoefficientGenBase):
             if return_complex:
                 c1 = call_nativegen(v, l, g, True, conj, scale)
@@ -568,7 +573,9 @@ def SCoeff(exprs, ind_vars, l, g, return_complex=False,
                 v = 0.0
             else:
                 pass
+
             v = float(v)
+
             if return_mfem_constant:
                 return mfem.ConstantCoefficient(v)
             else:
