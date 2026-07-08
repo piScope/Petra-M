@@ -1,7 +1,10 @@
         <<< Change Log >>>
 07/07/2026
 	* addef from_array option to SCoeff (adjustment so that type='array' can be used in
-	  vtable definition.(needed for cold plasma array collision frequency)
+ 	  vtable definition.(needed for cold plasma array collision frequency)
+	* addressed an issue when a use put "=[0, 0, 5]". Without "=", it creats VectorConstantCoefficeint.
+   	  However with "=", it triggers numba compilation and since the content of list is
+	  all integer, it causes np.array(<argment>) to fail w/o dtype=np.float64.
 
 06/23/2026
         * fixed onOpenModelS importing deprecated imp module.
