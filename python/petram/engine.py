@@ -3720,11 +3720,11 @@ class Engine(object):
                         self.meshes[idx] = o.run_serial()
                         target = self.meshes[idx]
                     else:
-                        if (o.isRefinement and
-                                skip_refine):
-                            continue
-                        if hasattr(o, 'run') and target is not None:
-                            self.meshes[idx] = o.run(target)
+                        #if (o.isRefinement and
+                        #        skip_refine):
+                        #                            continue
+                        if hasattr(o, 'run_serial') and target is not None:
+                            self.meshes[idx] = o.run_serial(target, skip_refine)
         self.max_bdrattr = -1
         self.max_attr = -1
 
@@ -4752,7 +4752,7 @@ class ParallelEngine(Engine):
                 target = None
 
                 srefines = [child[x]
-                            for x in child if child[x].isSerialRefinement and child[x].enabled]
+                            for x in child if child[x].isRefinement and child[x].enabled]
                 for k in child.keys():
                     o = child[k]
                     if not o.enabled:
@@ -4784,7 +4784,7 @@ class ParallelEngine(Engine):
                                 parts = None
 
                         for srefine in srefines:
-                            smesh = srefine.run(smesh)
+                            smesh = srefine.run_serial(smesh)
 
                         self.base_meshes[idx] = mfem.ParMesh(
                             MPI.COMM_WORLD, smesh, parts)
@@ -4794,8 +4794,6 @@ class ParallelEngine(Engine):
                         # self.base_meshes[idx] = self.meshes[idx]
                     else:
                         if hasattr(o, 'run') and target is not None:
-                            if o.isSerialRefinement:
-                                continue
                             target = self.new_mesh_from_mesh(target)
                             self.meshes[idx] = o.run(target)
                             target = self.meshes[idx]

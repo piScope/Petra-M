@@ -24,10 +24,60 @@ else:
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('MeshModel')
 
 
+def format_mesh_characteristic(mesh):
+    h_min = mfem.doublep()
+    h_max = mfem.doublep()
+    kappa_min = mfem.doublep()
+    kappa_max = mfem.doublep()
+    Vh = mfem.Vector()
+    Vk = mfem.Vector()
+    mesh.GetCharacteristics(h_min, h_max, kappa_min, kappa_max, Vh, Vk)
+    h_min = h_min.value()
+    h_max = h_max.value()
+    kappa_min = kappa_min.value()
+    kappa_max = kappa_max.value()
+
+    out = ["", "=== Mesh Statistics ==="]
+    out.append("Dimension          : " + str(mesh.Dimension()))
+    out.append("Space dimension    : " + str(mesh.SpaceDimension()))
+
+    if mesh.Dimension() == 0:
+        out.append("Number of vertices : " + str(mesh.GetNV()))
+        out.append("Number of elements : " + str(mesh.GetNE()))
+        out.append("Number of bdr elem : " + str(mesh.GetNBE()))
+    elif mesh.Dimension() == 1:
+        out.append("Number of vertices : " + str(mesh.GetNV()))
+        out.append("Number of elements : " + str(mesh.GetNE()))
+        out.append("Number of bdr elem : " + str(mesh.GetNBE()))
+        out.append("h_min              : " + str(h_min))
+        out.append("h_max              : " + str(h_max))
+    elif mesh.Dimension() == 2:
+        out.append("Number of vertices : " + str(mesh.GetNV()))
+        out.append("Number of edges    : " + str(mesh.GetNEdges()))
+        out.append("Number of elements : " + str(mesh.GetNE()))
+        out.append("Number of bdr elem : " + str(mesh.GetNBE()))
+        out.append("Euler Number       : " + str(mesh.EulerNumber2D()))
+        out.append("h_min              : " + str(h_min))
+        out.append("h_max              : " + str(h_max))
+        out.append("kappa_min              : " + str(kappa_min))
+        out.append("kappa_max              : " + str(kappa_max))
+    elif mesh.Dimension() == 3:
+        out.append("Number of vertices : " + str(mesh.GetNV()))
+        out.append("Number of edges    : " + str(mesh.GetNEdges()))
+        out.append("Number of faces    : " + str(mesh.GetNFaces()))
+        out.append("Number of elements : " + str(mesh.GetNE()))
+        out.append("Number of bdr elem : " + str(mesh.GetNBE()))
+        out.append("Euler Number       : " + str(mesh.EulerNumber()))
+        out.append("h_min              : " + str(h_min))
+        out.append("h_max              : " + str(h_max))
+        out.append("kappa_min              : " + str(kappa_min))
+        out.append("kappa_max              : " + str(kappa_max))
+    return '\n'.join(out)
+
+
 class Mesh(Model, NS_mixin):
     isMeshGenerator = False
     isRefinement = False         # refinement performed in either serial/parallel
-    isSerialRefinement = False   # refinement performed in serial
 
     def __init__(self, *args, **kwargs):
         super(Mesh, self).__init__(*args, **kwargs)
@@ -49,76 +99,6 @@ class Mesh(Model, NS_mixin):
             if isinstance(p, MFEM_MeshRoot):
                 return p
             p = p.parent
-
-
-class MeshGenerator(Mesh):
-    isMeshGenerator = True
-    isRefinement = False
-    isSerialRefinement = False   # refinement performed in serial
-
-    def attribute_set(self, v):
-        v = super(MeshGenerator, self).attribute_set(v)
-        v['enforce_ncmesh'] = False
-        return v
-
-    def panel1_param(self):
-        panels = super(MeshGenerator, self).panel1_param()
-
-        p1 = [None, False, 3, {"text": "EnforceNCMesh"}]
-
-        panels.append(p1)
-        return panels
-
-    def get_panel1_value(self):
-        values = super(MeshGenerator, self).get_panel1_value()
-        values.append(self.enforce_ncmesh)
-        return values
-
-    def import_panel1_value(self, v):
-        super(MeshGenerator, self).import_panel1_value(v[:-1])
-        self.enforce_ncmesh = v[-1]
-
-    def run_serial(self, mesh=None):
-        # By default this will call run. Sub-classes can re-implement this.
-        m = self.run(mesh=mesh)
-        return m
-
-    def check_xxx_array(self, txt, param, w, xxx=int):
-        g = self._global_ns.copy()
-
-        try:
-            xx = eval(txt, g, self._local_ns)
-            xx = np.atleast_1d(xx)
-            val = [xxx(x) for x in xx]
-            return True
-        except BaseException:
-            return False
-
-    def check_int_array(self, txt, param, w):
-        return self.check_xxx_array(txt, param, w, xxx=int)
-
-    def check_float_array(self, txt, param, w):
-        return self.check_xxx_array(txt, param, w, xxx=float)
-
-    def check_xxx(self, txt, param, w, xxx=int):
-        g = self._global_ns.copy()
-
-        try:
-            xx = eval(txt, g, self._local_ns)
-            val = xxx(xx)
-            return True
-        except BaseException:
-            return False
-
-    def check_float(self, txt, param, w):
-        return self.check_xxx(txt, param, w, xxx=float)
-
-    def check_int(self, txt, param, w):
-        return self.check_xxx(txt, param, w, xxx=int)
-
-    @abstractmethod
-    def run(self, mesh=None):
-        pass
 
 
 class MFEMMesh(Model):
@@ -387,56 +367,78 @@ class MFEMMesh(Model):
 
 MeshGroup = MFEMMesh
 
+#
+# Mesh generators
+#
 
-def format_mesh_characteristic(mesh):
-    h_min = mfem.doublep()
-    h_max = mfem.doublep()
-    kappa_min = mfem.doublep()
-    kappa_max = mfem.doublep()
-    Vh = mfem.Vector()
-    Vk = mfem.Vector()
-    mesh.GetCharacteristics(h_min, h_max, kappa_min, kappa_max, Vh, Vk)
-    h_min = h_min.value()
-    h_max = h_max.value()
-    kappa_min = kappa_min.value()
-    kappa_max = kappa_max.value()
 
-    out = ["", "=== Mesh Statistics ==="]
-    out.append("Dimension          : " + str(mesh.Dimension()))
-    out.append("Space dimension    : " + str(mesh.SpaceDimension()))
+class MeshGenerator(Mesh):
+    isMeshGenerator = True
+    isRefinement = False
 
-    if mesh.Dimension() == 0:
-        out.append("Number of vertices : " + str(mesh.GetNV()))
-        out.append("Number of elements : " + str(mesh.GetNE()))
-        out.append("Number of bdr elem : " + str(mesh.GetNBE()))
-    elif mesh.Dimension() == 1:
-        out.append("Number of vertices : " + str(mesh.GetNV()))
-        out.append("Number of elements : " + str(mesh.GetNE()))
-        out.append("Number of bdr elem : " + str(mesh.GetNBE()))
-        out.append("h_min              : " + str(h_min))
-        out.append("h_max              : " + str(h_max))
-    elif mesh.Dimension() == 2:
-        out.append("Number of vertices : " + str(mesh.GetNV()))
-        out.append("Number of edges    : " + str(mesh.GetNEdges()))
-        out.append("Number of elements : " + str(mesh.GetNE()))
-        out.append("Number of bdr elem : " + str(mesh.GetNBE()))
-        out.append("Euler Number       : " + str(mesh.EulerNumber2D()))
-        out.append("h_min              : " + str(h_min))
-        out.append("h_max              : " + str(h_max))
-        out.append("kappa_min              : " + str(kappa_min))
-        out.append("kappa_max              : " + str(kappa_max))
-    elif mesh.Dimension() == 3:
-        out.append("Number of vertices : " + str(mesh.GetNV()))
-        out.append("Number of edges    : " + str(mesh.GetNEdges()))
-        out.append("Number of faces    : " + str(mesh.GetNFaces()))
-        out.append("Number of elements : " + str(mesh.GetNE()))
-        out.append("Number of bdr elem : " + str(mesh.GetNBE()))
-        out.append("Euler Number       : " + str(mesh.EulerNumber()))
-        out.append("h_min              : " + str(h_min))
-        out.append("h_max              : " + str(h_max))
-        out.append("kappa_min              : " + str(kappa_min))
-        out.append("kappa_max              : " + str(kappa_max))
-    return '\n'.join(out)
+    def attribute_set(self, v):
+        v = super(MeshGenerator, self).attribute_set(v)
+        v['enforce_ncmesh'] = False
+        return v
+
+    def panel1_param(self):
+        panels = super(MeshGenerator, self).panel1_param()
+
+        p1 = [None, False, 3, {"text": "EnforceNCMesh"}]
+
+        panels.append(p1)
+        return panels
+
+    def get_panel1_value(self):
+        values = super(MeshGenerator, self).get_panel1_value()
+        values.append(self.enforce_ncmesh)
+        return values
+
+    def import_panel1_value(self, v):
+        super(MeshGenerator, self).import_panel1_value(v[:-1])
+        self.enforce_ncmesh = v[-1]
+
+    def check_xxx_array(self, txt, param, w, xxx=int):
+        g = self._global_ns.copy()
+
+        try:
+            xx = eval(txt, g, self._local_ns)
+            xx = np.atleast_1d(xx)
+            val = [xxx(x) for x in xx]
+            return True
+        except BaseException:
+            return False
+
+    def check_int_array(self, txt, param, w):
+        return self.check_xxx_array(txt, param, w, xxx=int)
+
+    def check_float_array(self, txt, param, w):
+        return self.check_xxx_array(txt, param, w, xxx=float)
+
+    def check_xxx(self, txt, param, w, xxx=int):
+        g = self._global_ns.copy()
+
+        try:
+            xx = eval(txt, g, self._local_ns)
+            val = xxx(xx)
+            return True
+        except BaseException:
+            return False
+
+    def check_float(self, txt, param, w):
+        return self.check_xxx(txt, param, w, xxx=float)
+
+    def check_int(self, txt, param, w):
+        return self.check_xxx(txt, param, w, xxx=int)
+
+    def run_serial(self):
+        # By default this will call run. Sub-classes can re-implement this.
+        m = self.run()
+        return m
+
+    @abstractmethod
+    def run(self):
+        pass
 
 
 class MeshFile(MeshGenerator):
@@ -547,7 +549,7 @@ class MeshFile(MeshGenerator):
 
         if not os.path.isabs(path):
             dprint2("meshfile relative path mode")
-            ## check three level up until real (not link) model.pmfm found
+            # check three level up until real (not link) model.pmfm found
             cwd = os.getcwd()
             for i in range(3):
                 path1 = os.path.join(cwd, path)
@@ -557,7 +559,7 @@ class MeshFile(MeshGenerator):
                 if os.path.exists(path1):
                     break
                 if (os.path.exists(path2) and
-                    not os.path.islink(path2)):
+                        not os.path.islink(path2)):
                     break
                 cwd = os.path.dirname(cwd)
 
@@ -577,7 +579,7 @@ class MeshFile(MeshGenerator):
             dprint1("meshfile relative path mode reads from " + path1)
         return path
 
-    def run(self, mesh=None):
+    def run(self):
         path = self.get_real_path()
         if not os.path.exists(path):
             print("mesh file does not exists : " + path + " in " + os.getcwd())
@@ -670,7 +672,7 @@ class Mesh1D(MeshGenerator):
 
         return False
 
-    def run(self, mesh=None):
+    def run(self):
 
         from petram.mesh.make_simplemesh import straight_line_mesh
 
@@ -774,7 +776,7 @@ class Mesh2D(MeshGenerator):
 
         return False
 
-    def run(self, mesh=None):
+    def run(self):
 
         from petram.mesh.make_simplemesh import quad_rectangle_mesh
 
@@ -892,7 +894,7 @@ class Mesh3D(MeshGenerator):
 
         return False
 
-    def run(self, mesh=None):
+    def run(self):
         from petram.mesh.make_simplemesh import hex_box_mesh
 
         success = self.eval_strings()
@@ -916,9 +918,49 @@ class Mesh3D(MeshGenerator):
         except BaseException:
             return None
 
+#
+#  Various Refinements
+#
 
-class UniformRefinement(Mesh):
+
+class Refinement(Mesh):
     isRefinement = True
+
+    def run_serial(self, smesh, skip_refine=False):
+        # skip refine has two meaning:
+        #    1) if called in serial mode...build mesh w/o refinement for visualization purpose
+        #    2) in parallel,
+        if use_parallel:
+            if not skip_refine:
+                return self._run_s_in_p(smesh)
+            else:
+                return smesh
+
+        if not skip_refine:
+            return self.run(smesh)
+        else:
+            # if something has to be done for visualization
+            return self._run_v(smesh)
+
+    def run(self, mesh):
+        if use_parallel:
+            return self._run_p(mesh)
+        return self._run_s(mesh)
+
+    def _run_s_in_p(self, smesh):
+        return smesh
+
+    def _run_s(self, mesh):
+        return mesh
+
+    def _run_p(self, mesh):
+        return mesh
+
+    def _run_v(self, mesh):
+        return mesh
+
+
+class UniformRefinement(Refinement):
     has_2nd_panel = False
 
     def __init__(self, parent=None, **kwargs):
@@ -934,18 +976,25 @@ class UniformRefinement(Mesh):
     def attribute_set(self, v):
         v = super(UniformRefinement, self).attribute_set(v)
         v['num_refine'] = '0'
+        v['num_srefine'] = '0'
         return v
 
     def panel1_param(self):
-        return [["Number", str(self.num_refine), 0, {}], ]
+        return [["Number of #ref.", str(self.num_refine), 0, {}],
+                ["Addional ref. in P", str(self.num_srefine), 0, {}], ]
 
     def import_panel1_value(self, v):
         self.num_refine = str(v[0])
+        self.num_srefine = str(v[1])
+
+    def panel1_tip(self):
+        return ("Number of mesh refinement",
+                "Addtional serial refinement in MPI run.")
 
     def get_panel1_value(self):
-        return (str(self.num_refine),)
+        return (str(self.num_refine), str(self.num_srefine),)
 
-    def run(self, mesh):
+    def _run(self, mesh, num_refine):
         gtype = np.unique([mesh.GetElementBaseGeometry(i)
                            for i in range(mesh.GetNE())])
         if use_parallel:
@@ -957,15 +1006,26 @@ class UniformRefinement(Mesh):
             dprint1(
                 "(Warning) Element Geometry Type is mixed. Cannot perform UniformRefinement")
             return mesh
-        for i in range(int(self.num_refine)):
+        for i in range(num_refine):
             mesh.UniformRefinement()  # this is parallel refinement
 
         mesh.Finalize(refine=True)
         return mesh
 
+    def _run_s(self, mesh):
+        dprint1("Serial refinement:" + self.num_refine)
+        return self._run(mesh, int(self.num_refine))
 
-class Scale(Mesh):
-    isRefinement = True
+    def _run_p(self, mesh):
+        dprint1("Paralle refinement:" + self.num_refine)
+        return self._run(mesh, int(self.num_refine))
+
+    def _run_s_in_p(self, mesh):
+        dprint1("Extra serial refinement :" + self.num_srefine)
+        return self._run(mesh, int(self.num_srefine))
+
+
+class Scale(Refinement):
     has_2nd_panel = False
 
     def attribute_set(self, v):
@@ -986,12 +1046,7 @@ class Scale(Mesh):
         return (str(self.scale),
                 str(self.scale_ns), )
 
-    def import_panel2_value(self, v):
-        return
-    def get_panel2_value(self):
-        return []
-
-    def run(self, mesh):
+    def _run_s(self, mesh):
         if self.scale != '':
             code = compile(self.scale, '<string>', 'eval')
             names = list(code.co_names)
@@ -1009,9 +1064,14 @@ class Scale(Mesh):
 
         return mesh
 
+    def _run_v(self, mesh):
+        return self._run_s(mesh)
 
-class DomainRefinement(Mesh):
-    isRefinement = True
+    def _run_s_in_p(self, mesh):
+        return self._run_s(mesh)
+
+
+class DomainRefinement(Refinement):
     has_2nd_panel = False
 
     def __init__(self, parent=None, **kwargs):
@@ -1055,7 +1115,9 @@ class DomainRefinement(Mesh):
                 str(self.expression),
                 str(self.expression_ns), )
 
-    def run(self, mesh):
+    def _run_s(self, mesh):
+        dprint1("Running domain refinement")
+        
         gtype = np.unique([mesh.GetElementBaseGeometry(i)
                            for i in range(mesh.GetNE())])
         if use_parallel:
@@ -1101,10 +1163,11 @@ class DomainRefinement(Mesh):
             mesh.GeneralRefinement(idx0)  # this is parallel refinement
         return mesh
 
+    def _run_p(self, mesh):
+        return self._run_s(mesh)
 
-class BoundaryRefinement(Mesh):
-    isRefinement = True
-    isSerialRefinement = True
+
+class BoundaryRefinement(Refinement):
     has_2nd_panel = False
 
     def __init__(self, parent=None, **kwargs):
@@ -1144,9 +1207,10 @@ class BoundaryRefinement(Mesh):
                 str(self.sel_index_txt),
                 str(self.num_layer),)
 
-    def run(self, mesh):
-
+    def _run_s(self, mesh):
         from petram.helper.boundary_refinement import apply_boundary_refinement
+        
+        dprint1("Running boundary refinement")
 
         nlayers = int(self.num_layer)
         sels = self.process_sel_index()
@@ -1161,3 +1225,6 @@ class BoundaryRefinement(Mesh):
         dprint1("Number of element before/after boundary refinementmesh: " +
                 str(ne0) + " -->> " + str(ne1))
         return mesh
+
+    def _run_s_in_p(self, mesh):
+        return self._run_s(mesh)

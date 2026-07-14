@@ -1002,11 +1002,17 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
                 func_txt.append("       _out_ = " + txt)
             if jitter == mfem.jit.vector:
                 func_txt.append("       if isinstance(_out_, list) or isinstance(_out_, tuple):")
-                func_txt.append("           _out_ = np.array(_out_)")
+                if return_complex:
+                    func_txt.append("           _out_ = np.array(_out_, dtype=np.complex128)")
+                else:
+                    func_txt.append("           _out_ = np.array(_out_, dtype=np.float64)")
                 func_txt.append("       _out_ = np.atleast_1d(_out_)")
             if jitter == mfem.jit.matrix:
                 func_txt.append("       if isinstance(_out_, list) or isinstance(_out_, tuple):")
-                func_txt.append("           _out_ = np.array(_out_)")
+                if return_complex:
+                    func_txt.append("           _out_ = np.array(_out_, dtype=np.complex128)")
+                else:
+                    func_txt.append("           _out_ = np.array(_out_, dtype=np.float64)")
                 func_txt.append("       _out_ = np.atleast_2d(_out_)")
         else:
             if diag_mode:
@@ -1017,7 +1023,10 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
             debug_extra = False
             if jitter == mfem.jit.vector:
                 func_txt.append("   if isinstance(_out_, list) or isinstance(_out_, tuple):")
-                func_txt.append("       _out_ = np.array(_out_)")
+                if return_complex:
+                    func_txt.append("       _out_ = np.array(_out_, dtype=np.complex128)")
+                else:
+                    func_txt.append("       _out_ = np.array(_out_, dtype=np.float64)")
                 func_txt.append("   _out_ = np.atleast_1d(_out_)")
 
                 if debug_extra:
@@ -1025,7 +1034,10 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
 
             elif jitter == mfem.jit.matrix:
                 func_txt.append("   if isinstance(_out_, list) or isinstance(_out_, tuple):")
-                func_txt.append("       _out_ = np.array(_out_)")
+                if return_complex:
+                    func_txt.append("       _out_ = np.array(_out_, dtype=np.complex128)")
+                else:
+                    func_txt.append("       _out_ = np.array(_out_, dtype=np.float64)")
                 func_txt.append("   _out_ = np.atleast_2d(_out_)")
             else:
                 if debug_extra:

@@ -172,7 +172,7 @@ class ScipyCoo(coo_matrix):
             np.conj(self.data, out=self.data)
             return self
         else:
-            return convert_to_ScipyCoo(coo_matrix.conj(self))
+            return convert_to_ScipyCoo(super(ScipyCoo, self).conj())
 
     def elimination_matrix(self, nonzeros):
         '''
