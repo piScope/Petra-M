@@ -981,7 +981,7 @@ class UniformRefinement(Refinement):
 
     def panel1_param(self):
         return [["Number of #ref.", str(self.num_refine), 0, {}],
-                ["Addional ref. in P", str(self.num_srefine), 0, {}], ]
+                ["Addional S-ref. in  P", str(self.num_srefine), 0, {}], ]
 
     def import_panel1_value(self, v):
         self.num_refine = str(v[0])
@@ -994,10 +994,13 @@ class UniformRefinement(Refinement):
     def get_panel1_value(self):
         return (str(self.num_refine), str(self.num_srefine),)
 
-    def _run(self, mesh, num_refine):
+    def _run(self, mesh, num_refine, parallel_mesh):
+        if num_refine == 0:
+            return mesh
+
         gtype = np.unique([mesh.GetElementBaseGeometry(i)
                            for i in range(mesh.GetNE())])
-        if use_parallel:
+        if parallel_mesh:
             from mpi4py import MPI
             gtype = gtype.astype(np.int32)
             gtype = np.unique(allgather_vector(gtype, MPI.INT))
@@ -1014,15 +1017,15 @@ class UniformRefinement(Refinement):
 
     def _run_s(self, mesh):
         dprint1("Serial refinement:" + self.num_refine)
-        return self._run(mesh, int(self.num_refine))
+        return self._run(mesh, int(self.num_refine), False)
 
     def _run_p(self, mesh):
         dprint1("Paralle refinement:" + self.num_refine)
-        return self._run(mesh, int(self.num_refine))
+        return self._run(mesh, int(self.num_refine), True)
 
     def _run_s_in_p(self, mesh):
         dprint1("Extra serial refinement :" + self.num_srefine)
-        return self._run(mesh, int(self.num_srefine))
+        return self._run(mesh, int(self.num_srefine), False)
 
 
 class Scale(Refinement):
@@ -1117,7 +1120,7 @@ class DomainRefinement(Refinement):
 
     def _run_s(self, mesh):
         dprint1("Running domain refinement")
-        
+
         gtype = np.unique([mesh.GetElementBaseGeometry(i)
                            for i in range(mesh.GetNE())])
         if use_parallel:
@@ -1209,7 +1212,7 @@ class BoundaryRefinement(Refinement):
 
     def _run_s(self, mesh):
         from petram.helper.boundary_refinement import apply_boundary_refinement
-        
+
         dprint1("Running boundary refinement")
 
         nlayers = int(self.num_layer)

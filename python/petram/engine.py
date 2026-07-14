@@ -4751,8 +4751,9 @@ class ParallelEngine(Engine):
                     continue
                 target = None
 
-                srefines = [child[x]
+                refines = [child[x]
                             for x in child if child[x].isRefinement and child[x].enabled]
+
                 for k in child.keys():
                     o = child[k]
                     if not o.enabled:
@@ -4766,6 +4767,9 @@ class ParallelEngine(Engine):
                         if len(smesh.GetAttributeArray()) > 0:
                             self.max_attr = np.max([self.max_attr,
                                                     max(smesh.GetAttributeArray())])
+
+                        for refine in refines:
+                            smesh = refine.run_serial(smesh)
 
                         p_method = self.get_partitiong_method()
 
@@ -4782,9 +4786,6 @@ class ParallelEngine(Engine):
                                     smesh.GetNE()//1000+1, 1)
                             else:
                                 parts = None
-
-                        for srefine in srefines:
-                            smesh = srefine.run_serial(smesh)
 
                         self.base_meshes[idx] = mfem.ParMesh(
                             MPI.COMM_WORLD, smesh, parts)
