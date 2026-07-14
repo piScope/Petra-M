@@ -1,4 +1,7 @@
         <<< Change Log >>>
+07/14/2026
+	* Added an option to perfome addtional UniformRefinement when mehs is still serial
+
 07/07/2026
 	* addef from_array option to SCoeff (adjustment so that type='array' can be used in
  	  vtable definition.(needed for cold plasma array collision frequency)
