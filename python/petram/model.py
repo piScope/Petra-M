@@ -233,6 +233,8 @@ class Model(RestorableOrderedDict):
 
     def __eq__(self, x):
         try:
+            if id(self.root()) != id(x.root()):
+                return False
             return x.fullpath() == self.fullpath()
         except:
             return False
