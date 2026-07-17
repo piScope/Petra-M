@@ -196,7 +196,7 @@ class MFEMViewer(BookViewer):
                                          mode='3D',
                                          refresh=refresh)
 
-        od = self.model.param.getvar('mfem_model')
+        od = self.mfem_model
         od.set_root_path(self.model.owndir())
         od.recored_pkg_versions()
 
@@ -247,6 +247,15 @@ class MFEMViewer(BookViewer):
     @property
     def dom_bdr_sel(self):
         return self._dom_bdr_sel
+
+    @property
+    def mfem_model(self):
+        return  self.model.param.getvar('mfem_model')
+
+    @mfem_model.setter
+    def mfem_model(self, model):
+        self.model.param.setvar('mfem_model', model)
+        self.engine.set_model(model)
 
     def set_view_mode(self, mode, mm=None):
         p = mm
@@ -376,7 +385,7 @@ class MFEMViewer(BookViewer):
                     folder = model.solutions.get_child(name=str(dir0))
                     param = model.param
                     param.setvar('sol', '='+folder.get_full_path())
-                    m = self.model.param.getvar('mfem_model')
+                    m = self.mfem_model
                     m.set_root_path(self.model.owndir())
                     evt.Skip()
 
@@ -417,7 +426,8 @@ class MFEMViewer(BookViewer):
             return
 
         od = pickle.load(open(path, 'rb'))
-        self.model.param.setvar('mfem_model', od)
+        print('od', od)
+        self.mfem_model = od
 
         # clean up namespaces/datasets
         for name, child in self.model.namespaces.get_children():
@@ -458,7 +468,7 @@ class MFEMViewer(BookViewer):
         self.load_mesh()
 
         if self.editdlg is not None:
-            od = self.model.param.getvar('mfem_model')
+            od = self.mfem_model
             self.editdlg.set_model(od)
         self.model.variables.setvar('modelfile_path', path)
         evt.Skip()
@@ -511,12 +521,13 @@ class MFEMViewer(BookViewer):
                     PyData, file[:-6]+'data')
                 obj.setvar(data)
 
-        self.model.param.setvar('mfem_model', model)
+        self.mfem_model = model
+
         self.cla()
         self.load_mesh()
 
         if self.editdlg is not None:
-            od = self.model.param.getvar('mfem_model')
+            od = self.mfem_model
             self.editdlg.set_model(od)
 
         evt.Skip()
@@ -712,7 +723,7 @@ class MFEMViewer(BookViewer):
                     wildcard='MFEM|*.mesh|Gmsh|*.msh')
         if path == '':
             return
-        od = self.model.param.getvar('mfem_model')
+        od = self.mfem_model
 
         mg = MFEMMesh()
         data = MeshFile(path=path)
@@ -743,7 +754,7 @@ class MFEMViewer(BookViewer):
     def load_mesh(self):
         if self.engine is None:
             self.start_engine()
-        od = self.model.param.getvar('mfem_model')
+        od = self.mfem_model
 
         import wx
         projfile = wx.GetApp().TopWindow.proj.getvar('filename')
@@ -1034,7 +1045,7 @@ class MFEMViewer(BookViewer):
             self.model.scripts.helpers.rebuild_ns()
             self.cla()
             if self.editdlg is not None:
-                od = self.model.param.getvar('mfem_model')
+                od = self.mfem_model
                 self.editdlg.set_model(od)
 
     def onEditModel(self, evt):
@@ -1045,7 +1056,7 @@ class MFEMViewer(BookViewer):
         except:
             traceback.print_exc()
 
-        model = self.model.param.getvar('mfem_model')
+        model = self.mfem_model
         if self.editdlg is None:
             self.model.scripts.helpers.rebuild_ns()
             self.editdlg = DlgEditModel(self, wx.ID_ANY, 'Model Tree',
@@ -1094,7 +1105,7 @@ class MFEMViewer(BookViewer):
         path = writedir(parent=self,
                         message='Directory to write')
 
-        m = self.model.param.getvar('mfem_model')
+        m = self.mfem_model
         m.recored_pkg_versions()
         try:
             m.generate_script(dir=path)
@@ -1157,7 +1168,7 @@ class MFEMViewer(BookViewer):
         return True
 
     def onSerDriver(self, evt):
-        m = self.model.param.getvar('mfem_model')
+        m = self.mfem_model
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
         odir = os.getcwd()
@@ -1173,7 +1184,7 @@ class MFEMViewer(BookViewer):
         os.chdir(odir)
 
     def onParDriver(self, evt):
-        m = self.model.param.getvar('mfem_model')
+        m = self.mfem_model
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
         odir = os.getcwd()
@@ -1223,7 +1234,7 @@ class MFEMViewer(BookViewer):
             folder = self.model.param.eval('sol')
             folder.clean_owndir()
 
-        m = self.model.param.getvar('mfem_model')
+        m = self.mfem_model
         m.set_root_path(self.model.owndir())
         debug_level = m['General'].debug_level
         odir = os.getcwd()
@@ -1350,7 +1361,7 @@ class MFEMViewer(BookViewer):
                 ("Selection palette...", self.onSelectionPanel, None),)
 
         if (self._view_mode == 'geom' and self.geom_info_palette is None):
-            mfem_model = self.model.param.getvar('mfem_model')
+            mfem_model = self.mfem_model
             gname = self._view_mode_group
             sequence = mfem_model['Geometry'][gname]
 
@@ -1551,7 +1562,7 @@ class MFEMViewer(BookViewer):
             traceback.print_exc()
             pass
 
-        choices = self.model.param.getvar('mfem_model')['Phys'].keys()
+        choices = self.mfem_model['Phys'].keys()
         if len(choices) == 0:
             ans = dialog.message(self,
                                  "No physics is defined",
@@ -1577,7 +1588,7 @@ class MFEMViewer(BookViewer):
         evt.Skip()
 
     def onDlgPlotSol(self, evt):
-        m = self.model.param.getvar('mfem_model')
+        m = self.mfem_model
         m.set_root_path(self.model.owndir())
 
         from petram.pi.dlg_plot_sol import DlgPlotSol
@@ -1796,7 +1807,7 @@ class MFEMViewer(BookViewer):
             self.model.param.setvar('host', '='+obj.get_full_path())
 
     def onServerSolve(self, evt):
-        m = self.model.param.getvar('mfem_model')
+        m = self.mfem_model
         m.set_root_path(self.model.owndir())
         odir = os.getcwd()
 
