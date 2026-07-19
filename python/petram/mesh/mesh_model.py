@@ -1018,7 +1018,7 @@ class UniformRefinement(Refinement):
         return self._run(mesh, int(self.num_refine), False)
 
     def _run_p(self, mesh):
-        dprint1("Paralle refinement:" + self.num_refine)
+        dprint1("Parallel refinement:" + self.num_refine)
         return self._run(mesh, int(self.num_refine), True)
 
     def _run_s_in_p(self, mesh):
