@@ -1,4 +1,7 @@
         <<< Change Log >>>
+07/19/2026
+	* Changed localtion of forget_jitted_ns in visualization.
+	
 07/14/2026
 	* Added an option to perfome addtional UniformRefinement when mehs is still serial
 

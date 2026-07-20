@@ -301,7 +301,7 @@ class EvaluatorCommon(Evaluator):
                         g[key].forget_jitted_coefficient()
                         checked.append(key)
 
-        #print("will recompile the following variables", checked)
+        print("will recompile the following variables", checked)
 
 
 def_config = {'use_mp': False,
