@@ -98,21 +98,27 @@ class PostProcess(PostProcessBase, NSRef_mixin):
         from petram.postprocess.discrt_v_integration import (LinearformIntegrator,
                                                              BilinearformIntegrator)
         from petram.postprocess.discrt_v_interpolator import Grad, Curl, Div
+        from petram.postprocess.slice_export import Slice
+        from petram.postprocess.pc_export import PointCloud
 
-        return [DerivedValue, LinearformIntegrator, BilinearformIntegrator, Grad, Curl, Div]
+        return [DerivedValue, LinearformIntegrator, BilinearformIntegrator, Grad, Curl, Div, Slice, PointCloud]
 
     def get_possible_child_menu(self):
         from petram.postprocess.project_solution import DerivedValue
         from petram.postprocess.discrt_v_integration import (LinearformIntegrator,
                                                              BilinearformIntegrator)
         from petram.postprocess.discrt_v_interpolator import Grad, Curl, Div
-
+        from petram.postprocess.slice_export import Slice
+        from petram.postprocess.pc_export import PointCloud
+        
         return [("", DerivedValue),
                 ("Integrator", LinearformIntegrator),
                 ("!", BilinearformIntegrator),
                 ("Derivative", Grad),
                 ("", Curl),
                 ("!", Div),
+                ("Export", Slice),
+                ("!", PointCloud),                
                 ]
 
     def run_postprocess(self, engine):

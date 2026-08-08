@@ -3,7 +3,7 @@ from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
 import traceback
 
 import petram.debug
-dprint1, dprint2, dprint3 = petram.debug.init_dprints('SliceExport')
+dprint1, dprint2, dprint3 = petram.debug.init_dprints('PointCloudExport')
 
 
 data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
@@ -12,7 +12,7 @@ data = [("coeff_lambda", VtableElement("coeff_lambda", type='array',
                                        tip="expression",))]
 
 
-class Slice(DataExportBase, Vtable_mixin):
+class PointCloud(DataExportBase, Vtable_mixin):
     has_2nd_panel = True
     vt_coeff = Vtable(data)
 
