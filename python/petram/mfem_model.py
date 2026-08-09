@@ -320,7 +320,8 @@ class MFEM_PostProcessRoot(Model):
 
     def get_possible_child(self):
         from petram.postprocess.pp_model import PostProcess
-        return [PostProcess]
+        from petram.postprocess.dxp_model import DataExport        
+        return [PostProcess, DataExport]
 
     def onItemSelChanged(self, evt):
         '''

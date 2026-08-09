@@ -34,7 +34,7 @@ class PointcloudEvaluator(EvaluatorAgent):
         self.pc_param = pc_param
 
     def preprocess_geometry(self, attrs, emesh_idx=0, pc_type=None,
-                            pc_param=None):
+                            pc_param=None, verbose=True):
 
         from petram.helper.geom import generate_pc_from_cpparam
 
@@ -145,13 +145,17 @@ class PointcloudEvaluator(EvaluatorAgent):
             counts = 0
             elem_ids = np.zeros(len(self.points), dtype=int)-1
             int_points = [None]*len(self.points)
-            print("skipping mesh")
+            if verbose:
+                print("skipping mesh")
         else:
-            print("Chekcing " + str(len(self.points)) + " points")
+            if verbose:
+                print("Chekcing " + str(len(self.points)) + " points")
             counts, elem_ids, int_points = mesh.FindPoints(
                 self.points, warn=False)
-            print("FindPoints found " + str(counts) + " points")
-        attrs = [mesh.GetAttribute(id) if id != -1 else -1 for id in elem_ids]
+            if verbose:
+                print("FindPoints found " + str(counts) + " points")
+
+        attrs = [mesh.GetAttribute(id) if id >= 0 else -1 for id in elem_ids]
         attrs = np.array([i if i in self.attrs else -1 for i in attrs])
 
         elem_ids = [-1 if a == -1 else eid for a, eid in zip(attrs, elem_ids)]
@@ -169,6 +173,7 @@ class PointcloudEvaluator(EvaluatorAgent):
         self.valid_idx = idx
         self.emesh_idx = emesh_idx
         self.knowns = WKD()
+
 
     def eval_at_points(self, expr, solvars, phys):
         from petram.helper.variables import (Variable,
@@ -235,7 +240,7 @@ class PointcloudEvaluator(EvaluatorAgent):
 
         return val
 
-    def eval(self, expr, solvars, phys):
+    def eval(self, expr, solvars, phys, verbose=True):
         from petram.sol.bdr_nodal_evaluator import get_emesh_idx
 
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
@@ -246,7 +251,8 @@ class PointcloudEvaluator(EvaluatorAgent):
             if self.emesh_idx != emesh_idx[0]:
                 self.preprocess_geometry(self.attrs, emesh_idx=emesh_idx[0],
                                          pc_type=self.pc_type,
-                                         pc_param=self.pc_param)
+                                         pc_param=self.pc_param,
+                                         verbose=verbose)
 
         if self.counts == 0:
             return None, None, None

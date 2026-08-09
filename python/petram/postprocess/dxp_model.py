@@ -6,8 +6,13 @@ from petram.namespace_mixin import NSRef_mixin
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('PP_Model')
 
-ll = var_g.copy()
-
+class MeshWrap():
+    def __init__(self, meshes):
+        self.meshes = meshes
+        
+    def __call__(self):
+        return self.meshes
+    
 
 class DataExportBase(Model):
     @property
@@ -23,7 +28,7 @@ class DataExportBase(Model):
                 return {}
         return p.find_ns_by_name()
 
-    def run_postprocess(self, engin):
+    def run_dataexport(self, engin):
         raise NotImplemented("Subclass must implement run_postprocess")
 
     def onItemSelChanged(self, evt):
@@ -34,29 +39,18 @@ class DataExportBase(Model):
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys')
 
-    def soldict_to_solvars(self, soldict, variables):
-        pass
+    def panel2_param(self):
+        from petram.model import validate_sel
+        return [["Selection",  'all',  0, {'changing_event': True,
+                                           'setfocus_event': True,
+                                           'validator': validate_sel,
+                                           'validator_param': self}]]
 
     def update_dom_selection(self, all_sel=None):
-        from petram.model import convert_sel_txt
-        try:
-            arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
-            self.sel_index = arr
-        except:
-            assert False, "failed to convert "+self.sel_index_txt
+        pass
 
-        if all_sel is None:
-            # clinet GUI panel operation ends here
-            return
-
-        allv, alls, alle = all_sel
-        if len(self.sel_index) != 0 and self.sel_index[0] == 'all':
-            if self.sdim == 3:
-                self.sel_index = allv
-            if self.sdim == 2:
-                self.sel_index = alls
-            if self.sdim == 1:
-                self.sel_index = alle
+    def soldict_to_solvars(self, soldict, variables):
+        pass
 
 
 class DataExport(DataExportBase, NSRef_mixin):
@@ -67,10 +61,10 @@ class DataExport(DataExportBase, NSRef_mixin):
         NSRef_mixin.__init__(self, *args, **kwargs)
 
     def attribute_set(self, v):
-        v = super(DataExporttProcess, self).attribute_set(v)
+        v = super(DataExport, self).attribute_set(v)
         v['use_scanner'] = 0
         v['scanner'] = 'Scan("a", [1,2,3])'
-        v['datafile'] = 'file.hdf'
+        v['datafile'] = 'file.npy'
         return v
 
     def panel1_param(self):
@@ -98,16 +92,19 @@ class DataExport(DataExportBase, NSRef_mixin):
 
     def get_possible_child(self):
         from petram.postprocess.slice_export import Slice
+        from petram.postprocess.pc_export import PointCloud
 
-        return [Slice, ]
+        return [Slice, PointCloud]
 
     def get_possible_child_menu(self):
         from petram.postprocess.slice_export import Slice
+        from petram.postprocess.pc_export import PointCloud
 
-        return [("Slice", Slice),
-                ]
+        return [("", Slice),
+                ("", PointCloud), ]
 
-    def run_postprocess(self, engine):
+
+    def run_dataexport(self, engine):
         dprint1("running data export:" + self.name())
 
     def get_scanner(self, nosave=False):
@@ -122,8 +119,9 @@ class DataExport(DataExportBase, NSRef_mixin):
         return scanner
 
     def run(self, engine):
-
         scanner = self.get_scanner() if self.use_scanner else None
+
+        datasets = []
         for mm in self.walk():
             if not mm.enabled:
                 continue
@@ -133,11 +131,23 @@ class DataExport(DataExportBase, NSRef_mixin):
                 engine.ppname_postfix = ''
                 for kcase, case in enumerate(scanner):
                     engine.ppname_postfix = '_'+str(kcase)
-                    mm.run_postprocess(engine)
+                    data = mm.run_dataexport(engine)
+                    datasets.append(data)
                 engine.ppname_postfix = ''
             else:
                 engine.ppname_postfix = ''
-                mm.run_postprocess(engine)
+                data = mm.run_dataexport(engine)
+                datasets.append(data)
+
+        from petram.helper.get_myrank import get_myrank
+        myid = get_myrank()
+        
+        if myid == 0:
+            import numpy as np
+            obj_array = np.array((len(datasets),), dtype=object)
+            for i, x in enumerate(datasets):
+               obj_array[i] = x
+            np.savez(self.datafile, obj_array, allow_pickle=True)
 
     # parameters with validator
     def check_param_expr(self, value, param, ctrl):
