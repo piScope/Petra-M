@@ -76,7 +76,7 @@ class Slice(DataExportBase, Vtable_mixin):
             attrs = list(range(1, engine.max_attr+1))
         else:
             attrs = self.sel_index[0]
-            
+
         expr = self.export_expr
         solvars = engine.model._variables
         phys = engine.current_solve_step.get_phys()
@@ -89,37 +89,37 @@ class Slice(DataExportBase, Vtable_mixin):
         if planes is None:
             dprint1("plane is not defined from given a, b, c, and d")
             return
-        planes = [x for x  in zip(*planes)]
+        planes = [x for x in zip(*planes)]
 
-        ## find boundinb box
+        # find boundinb box
         mesh = engine.emeshes[0]
         bbox1, bbox2 = mesh.GetBoundingBox()
         if len(bbox1) == 2:
-           bbx1= (( bbox1[0], bbox1[1], 0.0),
-                  ( bbox1[0], bbox2[1], 0.0),
-                  ( bbox2[0], bbox1[1], 0.0),
-                  ( bbox2[0], bbox2[1], 0.0),)
-           bbx1 = np.transpose(bbx1)
-           sdim = 2
+            bbx1 = ((bbox1[0], bbox1[1], 0.0),
+                    (bbox1[0], bbox2[1], 0.0),
+                    (bbox2[0], bbox1[1], 0.0),
+                    (bbox2[0], bbox2[1], 0.0),)
+            bbx1 = np.transpose(bbx1)
+            sdim = 2
         elif len(bbox1) == 3:
-           bbx1= (( bbox1[0], bbox1[1], bbox1[2]),
-                  ( bbox1[0], bbox1[1], bbox2[2]),
-                  ( bbox1[0], bbox2[1], bbox1[2]),
-                  ( bbox1[0], bbox2[1], bbox2[2]),
-                  ( bbox2[0], bbox1[1], bbox1[2]),
-                  ( bbox2[0], bbox1[1], bbox2[2]),
-                  ( bbox2[0], bbox2[1], bbox1[2]),
-                  ( bbox2[0], bbox2[1], bbox2[2]), )
-           bbx1 = np.transpose(bbx1)
-           sdim = 3
+            bbx1 = ((bbox1[0], bbox1[1], bbox1[2]),
+                    (bbox1[0], bbox1[1], bbox2[2]),
+                    (bbox1[0], bbox2[1], bbox1[2]),
+                    (bbox1[0], bbox2[1], bbox2[2]),
+                    (bbox2[0], bbox1[1], bbox1[2]),
+                    (bbox2[0], bbox1[1], bbox2[2]),
+                    (bbox2[0], bbox2[1], bbox1[2]),
+                    (bbox2[0], bbox2[1], bbox2[2]), )
+            bbx1 = np.transpose(bbx1)
+            sdim = 3
 
         # evaluate over each plane
         from petram.sol.pointcloud_evaluator import PointcloudEvaluator
         from petram.helper.mpi_recipes import gather_masked_array
-        
-        values = []
-        
-        for abcd in planes:
+
+        values = {}
+
+        for iplane, abcd in enumerate(planes):
             n1 = abcd[0:3]/np.linalg.norm(abcd[0:3])
 
             origin = -n1*abcd[3]
@@ -140,21 +140,29 @@ class Slice(DataExportBase, Vtable_mixin):
                         (xmin, xmax, res),
                         (ymin, ymax, res))
 
-            evltr= PointcloudEvaluator(attrs, "cutplane", pc_param)
+            evltr = PointcloudEvaluator(attrs, "cutplane", pc_param)
             evltr.mesh = MeshWrap(engine.emeshes)
-            ptx, vals, attrs = evltr.eval(expr, solvars, phys[0], verbose=False)
-            
+            ptx, vals, attrs = evltr.eval(
+                expr, solvars, phys[0], verbose=False)
+
             full_data = np.zeros(attrs.shape, dtype=vals.dtype)
             full_data[attrs >= 0] = vals
 
             if engine.isParallel:
-                result, valid = gather_masked_array(full_data, attrs)
-                attrs, valid = gather_masked_array(attrs, attrs)
+                result, _valid = gather_masked_array(full_data, attrs)
+                attrs, _valid = gather_masked_array(attrs, attrs)
             else:
                 result = full_data
-                
-            if result is not None:
-                values.append((ptx, result, attrs))
 
-        if len(values) > 0:
+            if result is not None:
+                key0 = "plane"+str(iplane+1)+"_"
+                values[key0 + "ptx"] = ptx
+                values[key0 + "data"] = result
+                values[key0 + "attr"] = attrs
+
+        from petram.helper.get_myrank import get_myrank
+        myid = get_myrank()
+
+        if myid == 0:
             return values
+        return {}

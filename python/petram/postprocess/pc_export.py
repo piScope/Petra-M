@@ -102,7 +102,9 @@ class PointCloud(DataExportBase, Vtable_mixin):
             result = full_data
                 
         if result is not None:
-            return (ptx, result, attrs)
+            return {"ptx":ptx, "data":result, "attr":attrs}
+        else:
+            return {}
 
 
 

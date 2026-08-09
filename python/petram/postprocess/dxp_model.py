@@ -6,13 +6,14 @@ from petram.namespace_mixin import NSRef_mixin
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('PP_Model')
 
+
 class MeshWrap():
     def __init__(self, meshes):
         self.meshes = meshes
-        
+
     def __call__(self):
         return self.meshes
-    
+
 
 class DataExportBase(Model):
     @property
@@ -29,6 +30,8 @@ class DataExportBase(Model):
         return p.find_ns_by_name()
 
     def run_dataexport(self, engin):
+        # should return dictionary containing data on rank=0
+        # on other ranks, return empty dict.
         raise NotImplemented("Subclass must implement run_postprocess")
 
     def onItemSelChanged(self, evt):
@@ -103,7 +106,6 @@ class DataExport(DataExportBase, NSRef_mixin):
         return [("", Slice),
                 ("", PointCloud), ]
 
-
     def run_dataexport(self, engine):
         dprint1("running data export:" + self.name())
 
@@ -121,7 +123,7 @@ class DataExport(DataExportBase, NSRef_mixin):
     def run(self, engine):
         scanner = self.get_scanner() if self.use_scanner else None
 
-        datasets = []
+        ddict = {}
         for mm in self.walk():
             if not mm.enabled:
                 continue
@@ -129,25 +131,29 @@ class DataExport(DataExportBase, NSRef_mixin):
                 continue
             if scanner is not None:
                 engine.ppname_postfix = ''
+                datasets = {}
                 for kcase, case in enumerate(scanner):
                     engine.ppname_postfix = '_'+str(kcase)
                     data = mm.run_dataexport(engine)
-                    datasets.append(data)
+                    for k in data:
+                        datasets["case"+str(kcase)+"_"+k] = data[k]
                 engine.ppname_postfix = ''
             else:
                 engine.ppname_postfix = ''
-                data = mm.run_dataexport(engine)
-                datasets.append(data)
+                datasets = mm.run_dataexport(engine)
+
+            for k in datasets:
+                ddict[mm.name()+"_"+k] = datasets[k]
 
         from petram.helper.get_myrank import get_myrank
         myid = get_myrank()
-        
+
         if myid == 0:
             import numpy as np
-            obj_array = np.array((len(datasets),), dtype=object)
-            for i, x in enumerate(datasets):
-               obj_array[i] = x
-            np.savez(self.datafile, obj_array, allow_pickle=True)
+            # obj_array = np.array((len(datasets),), dtype=object)
+            # for i, x in enumerate(datasets):
+            #   obj_array[i] = x
+            np.savez(self.datafile, **ddict)
 
     # parameters with validator
     def check_param_expr(self, value, param, ctrl):

@@ -2212,6 +2212,7 @@ class DlgPlotSol(SimpleFramePlus):
     def process_abcd(self, abcd_txt, phys_ns):
         from petram.helper.cutplane import process_abcd
         planes = process_abcd(abcd_txt, phys_ns, self)
+        return planes
 
 #    to time this routine, we turn on this decorator
 #    from petram.debug import use_profiler
