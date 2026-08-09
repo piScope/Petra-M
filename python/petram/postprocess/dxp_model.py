@@ -64,7 +64,7 @@ class DataExport(DataExportBase, NSRef_mixin):
         v = super(DataExport, self).attribute_set(v)
         v['use_scanner'] = 0
         v['scanner'] = 'Scan("a", [1,2,3])'
-        v['datafile'] = 'file.npy'
+        v['datafile'] = 'file.npz'
         return v
 
     def panel1_param(self):
