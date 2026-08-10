@@ -1,4 +1,12 @@
         <<< Change Log >>>
+07/19/2026
+	* added slice and pointcloud data export in DataExport under Postprocessing
+	** this feature allows to get pointcloud data from solution during the parallel run and
+           combine the data to one numpy data file
+
+07/19/2026
+	* Changed localtion of forget_jitted_ns in visualization.
+
 07/14/2026
 	* Added an option to perfome addtional UniformRefinement when mehs is still serial
 

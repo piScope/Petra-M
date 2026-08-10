@@ -108,7 +108,7 @@ class Engine(object):
         self._fmt_order = 1
 
         self._ppname_postfix = ''
-
+        self._current_solve_step = None
 
     def check_pkg_versions(self, model):
         import importlib.metadata
@@ -4401,7 +4401,13 @@ class Engine(object):
         target = os.path.relpath(target, start)
         os.symlink(target, link)
 
-
+    @property
+    def current_solve_step(self):
+        return self._current_solve_step
+    @current_solve_step.setter
+    def current_solve_step(self, value):
+        self._current_solve_step = value
+    
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(SerialEngine, self).__init__(modelfile=modelfile, model=model)
