@@ -267,9 +267,9 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         data = [list() for x in range(num_agents)]
         attrs = [x for x in six.iterkeys(self.agents)]
 
-        for iss, solvar in enumerate(solvars):  # scan over sol files
-            self.forget_jitted_ns(self.mfem_model())
+        self.forget_jitted_ns(self.mfem_model())
 
+        for iss, solvar in enumerate(solvars):  # scan over sol files
             for ikk, key in enumerate(self.agents):  # scan over battr
                 o = self.agents[key][iss]
                 try:
@@ -316,8 +316,9 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         attrs.append(key)
         evaluators = self.agents[key]
 
+        self.forget_jitted_ns(self.mfem_model())
+
         for o, solvar in zip(evaluators, solvars):  # scan over sol files
-            self.forget_jitted_ns(self.mfem_model())
             try:
                 v, c, a = o.eval(expr, solvar, phys, **kwargs)
             except:
@@ -372,9 +373,10 @@ class EvaluatorMPChild(EvaluatorCommon, mp.Process):
         num_agents = len(self.agents)
 
         data = None
-        for iss, solvar in enumerate(solvars):  # scan over sol files
-            self.forget_jitted_ns(self.mfem_model())
 
+        self.forget_jitted_ns(self.mfem_model())
+
+        for iss, solvar in enumerate(solvars):  # scan over sol files
             for ikk, key in enumerate(self.agents):  # scan over battr
                 o = self.agents[key][iss]
                 try:

@@ -1,3 +1,5 @@
+import numpy as np
+
 from petram.model import Model
 from petram.helper.variables import var_g
 import traceback
@@ -6,10 +8,53 @@ from petram.namespace_mixin import NSRef_mixin
 import petram.debug
 dprint1, dprint2, dprint3 = petram.debug.init_dprints('PP_Model')
 
-ll = var_g.copy()
+
+class MeshWrap():
+    def __init__(self, meshes):
+        self.meshes = meshes
+
+    def __call__(self):
+        return self.meshes
+
+def call_pointcloud_eval(evltr, expr, solvars, phys, engine):
+
+    _ptx, vals, attrs = evltr.eval(expr, solvars, phys[0], verbose=False)
+    ptx = evltr.ans_points
+
+    if engine.isParallel:
+        dtype = 0 if vals is None else vals.dtype
+        adtype = 0 if vals is None else attrs.dtype
+
+        from mpi4py import MPI
+        dtypes = np.array(MPI.COMM_WORLD.allgather(dtype))
+        dtype = (dtypes[dtypes != 0])[0]
+        adtypes = np.array(MPI.COMM_WORLD.allgather(adtype))
+        adtype = (adtypes[adtypes != 0])[0]
+
+        if vals is None:
+           attrs = np.zeros(ptx.shape[:-1], dtype=adtype) - 1
+
+    else:
+        if vals is None:
+            return None, None, None
+        dtype = vals.dtype
+
+    full_data = np.zeros(ptx.shape[:-1], dtype=dtype)
+    full_data[attrs >= 0] = vals
+
+    if engine.isParallel:
+        from petram.helper.mpi_recipes import gather_masked_array
+
+        result, valid = gather_masked_array(full_data, attrs)
+        attrs, valid = gather_masked_array(attrs, attrs)
+    else:
+        result = full_data
+        attrs[attrs < 0] = 0
+
+    return ptx, result, attrs
 
 
-class PostProcessBase(Model):
+class DataExportBase(Model):
     @property
     def _global_ns(self):
         # used for text box validator
@@ -23,7 +68,9 @@ class PostProcessBase(Model):
                 return {}
         return p.find_ns_by_name()
 
-    def run_postprocess(self, engin):
+    def run_dataexport(self, engin):
+        # should return dictionary containing data on rank=0
+        # on other ranks, return empty dict.
         raise NotImplemented("Subclass must implement run_postprocess")
 
     def onItemSelChanged(self, evt):
@@ -34,56 +81,48 @@ class PostProcessBase(Model):
         viewer = evt.GetEventObject().GetTopLevelParent().GetParent()
         viewer.set_view_mode('phys')
 
+    def panel2_param(self):
+        from petram.model import validate_sel
+        return [["Selection",  'all',  0, {'changing_event': True,
+                                           'setfocus_event': True,
+                                           'validator': validate_sel,
+                                           'validator_param': self}]]
+
+    def update_dom_selection(self, all_sel=None):
+        pass
+
     def soldict_to_solvars(self, soldict, variables):
         pass
 
-    def update_dom_selection(self, all_sel=None):
-        from petram.model import convert_sel_txt
-        try:
-            arr = convert_sel_txt(self.sel_index_txt, self._global_ns)
-            self.sel_index = arr
-        except:
-            assert False, "failed to convert "+self.sel_index_txt
 
-        if all_sel is None:
-            # clinet GUI panel operation ends here
-            return
-
-        allv, alls, alle = all_sel
-        if len(self.sel_index) != 0 and self.sel_index[0] == 'all':
-            if self.sdim == 3:
-                self.sel_index = allv
-            if self.sdim == 2:
-                self.sel_index = alls
-            if self.sdim == 1:
-                self.sel_index = alle
-
-
-class PostProcess(PostProcessBase, NSRef_mixin):
+class DataExport(DataExportBase, NSRef_mixin):
     has_2nd_panel = False
 
     def __init__(self, *args, **kwargs):
-        super(PostProcess, self).__init__(*args, **kwargs)
+        super(DataExport, self).__init__(*args, **kwargs)
         NSRef_mixin.__init__(self, *args, **kwargs)
 
     def attribute_set(self, v):
-        v = super(PostProcess, self).attribute_set(v)
+        v = super(DataExport, self).attribute_set(v)
         v['use_scanner'] = 0
         v['scanner'] = 'Scan("a", [1,2,3])'
+        v['datafile'] = 'exported_data.npz'
         return v
 
     def panel1_param(self):
         ret = [self.make_param_panel('scanner',  self.scanner), ]
         value = [self.scanner, ]
-        return [[None, [False, value], 27, [{'text': 'Use parametric scan'},
+        return [['file', '', 0, {}],
+                [None, [False, value], 27, [{'text': 'Use parametric scan'},
                                             {'elp': ret}]], ]
 
     def get_panel1_value(self):
         v1 = (self.use_scanner, [self.scanner, ])
-        return [v1, ]
+        return [self.datafile, v1, ]
 
     def import_panel1_value(self, v):
-        v1 = v[0]
+        self.datafile = v[0]
+        v1 = v[1]
         self.use_scanner = v1[0]
         self.scanner = v1[1][0]
 
@@ -94,30 +133,20 @@ class PostProcess(PostProcessBase, NSRef_mixin):
         return ",".join(txt)
 
     def get_possible_child(self):
-        from petram.postprocess.project_solution import DerivedValue
-        from petram.postprocess.discrt_v_integration import (LinearformIntegrator,
-                                                             BilinearformIntegrator)
-        from petram.postprocess.discrt_v_interpolator import Grad, Curl, Div
+        from petram.postprocess.slice_export import Slice
+        from petram.postprocess.pc_export import PointCloud
 
-        return [DerivedValue, LinearformIntegrator, BilinearformIntegrator, Grad, Curl, Div]
+        return [Slice, PointCloud]
 
     def get_possible_child_menu(self):
-        from petram.postprocess.project_solution import DerivedValue
-        from petram.postprocess.discrt_v_integration import (LinearformIntegrator,
-                                                             BilinearformIntegrator)
-        from petram.postprocess.discrt_v_interpolator import Grad, Curl, Div
-        
-        return [("", DerivedValue),
-                ("Integrator", LinearformIntegrator),
-                ("!", BilinearformIntegrator),
-                ("Derivative", Grad),
-                ("", Curl),
-                ("!", Div),
-        ]
+        from petram.postprocess.slice_export import Slice
+        from petram.postprocess.pc_export import PointCloud
 
+        return [("", Slice),
+                ("", PointCloud), ]
 
-    def run_postprocess(self, engine):
-        dprint1("running postprocess:" + self.name())
+    def run_dataexport(self, engine):
+        dprint1("running data export:" + self.name())
 
     def get_scanner(self, nosave=False):
         try:
@@ -131,8 +160,9 @@ class PostProcess(PostProcessBase, NSRef_mixin):
         return scanner
 
     def run(self, engine):
-
         scanner = self.get_scanner() if self.use_scanner else None
+
+        ddict = {}
         for mm in self.walk():
             if not mm.enabled:
                 continue
@@ -140,13 +170,29 @@ class PostProcess(PostProcessBase, NSRef_mixin):
                 continue
             if scanner is not None:
                 engine.ppname_postfix = ''
+                datasets = {}
                 for kcase, case in enumerate(scanner):
                     engine.ppname_postfix = '_'+str(kcase)
-                    mm.run_postprocess(engine)
+                    data = mm.run_dataexport(engine)
+                    for k in data:
+                        datasets["case"+str(kcase)+"_"+k] = data[k]
                 engine.ppname_postfix = ''
             else:
                 engine.ppname_postfix = ''
-                mm.run_postprocess(engine)
+                datasets = mm.run_dataexport(engine)
+
+            for k in datasets:
+                ddict[mm.name()+"_"+k] = datasets[k]
+
+        from petram.helper.get_myrank import get_myrank
+        myid = get_myrank()
+
+        if myid == 0:
+            import numpy as np
+            # obj_array = np.array((len(datasets),), dtype=object)
+            # for i, x in enumerate(datasets):
+            #   obj_array[i] = x
+            np.savez(self.datafile, **ddict)
 
     # parameters with validator
     def check_param_expr(self, value, param, ctrl):

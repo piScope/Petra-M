@@ -100,8 +100,9 @@ class EvaluatorSingle(EvaluatorCommon):
 
         attrs = [x for x in six.iterkeys(self.agents)]
 
+        self.forget_jitted_ns(self.mfem_model())
+
         for iss, solvar in enumerate(solvars):  # scan over sol files
-            self.forget_jitted_ns(self.mfem_model())
 
             for ikk, key in enumerate(self.agents):  # scan over battr
                 o = self.agents[key][iss]
@@ -146,12 +147,12 @@ class EvaluatorSingle(EvaluatorCommon):
             if merge_flag2: offset = 0
             vdata = [] # vertex
             cdata = [] # data
-            adata = [] # array idx     
+            adata = [] # array idx
             data.append([])
-            attrs.append(key)                                  
+            attrs.append(key)
             evaluators = self.agents[key]
             for o, solvar in zip(evaluators, solvars): # scan over sol files
-                self.forget_jitted_ns(self.mfem_model())                
+                self.forget_jitted_ns(self.mfem_model())
                 v, c, a = o.eval(expr, solvar, phys, **kwargs)
                 if v is None:
                     v = None; c = None; a = None
@@ -160,7 +161,7 @@ class EvaluatorSingle(EvaluatorCommon):
                     offset = offset + c.shape[0]
                     vdata.append(v)
                     cdata.append(c)
-                    adata.append(a)                
+                    adata.append(a)
                 data[-1].append((v, c, a))
             if merge_flag1:
                 if len(vdata) != 0:
@@ -238,9 +239,9 @@ class EvaluatorSingle(EvaluatorCommon):
         attrs.append(key)
         evaluators = self.agents[key]
 
-        for o, solvar in zip(evaluators, solvars):  # scan over sol files
-            self.forget_jitted_ns(self.mfem_model())
+        self.forget_jitted_ns(self.mfem_model())
 
+        for o, solvar in zip(evaluators, solvars):  # scan over sol files
             v, c, a = o.eval(expr, solvar, phys, **kwargs)
             if v is None:
                 v = None
@@ -291,8 +292,10 @@ class EvaluatorSingle(EvaluatorCommon):
 
         v = 0
         num = 0
+
+        self.forget_jitted_ns(self.mfem_model())
+
         for o, solvar in zip(evaluators, solvars):  # scan over sol files
-            self.forget_jitted_ns(self.mfem_model())
 
             kwargs['num'] = num
             vv = o.eval_integral(expr, solvar, phys, **kwargs)
