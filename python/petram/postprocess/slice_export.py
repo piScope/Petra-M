@@ -2,7 +2,8 @@ import numpy as np
 import traceback
 
 from petram.postprocess.dxp_model import (DataExportBase,
-                                          MeshWrap)
+                                          MeshWrap,
+                                          call_pointcloud_eval)
 from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
 import traceback
 
@@ -142,17 +143,9 @@ class Slice(DataExportBase, Vtable_mixin):
 
             evltr = PointcloudEvaluator(attrs, "cutplane", pc_param)
             evltr.mesh = MeshWrap(engine.emeshes)
-            ptx, vals, attrs = evltr.eval(
-                expr, solvars, phys[0], verbose=False)
 
-            full_data = np.zeros(attrs.shape, dtype=vals.dtype)
-            full_data[attrs >= 0] = vals
-
-            if engine.isParallel:
-                result, _valid = gather_masked_array(full_data, attrs)
-                attrs, _valid = gather_masked_array(attrs, attrs)
-            else:
-                result = full_data
+            ptx, result, attrs = call_pointcloud_eval(evltr, expr, solvars,
+                                                      phys, engine)
 
             if result is not None:
                 key0 = "plane"+str(iplane+1)+"_"

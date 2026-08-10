@@ -2,7 +2,8 @@ import numpy as np
 import traceback
 
 from petram.postprocess.dxp_model import (DataExportBase,
-                                          MeshWrap)
+                                          MeshWrap,
+                                          call_pointcloud_eval)
 from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
 
 
@@ -57,12 +58,12 @@ class PointCloud(DataExportBase, Vtable_mixin):
         self.vt_coeff.import_panel_value(self, v[1:])
 
     def import_panel2_value(self, v):
-        self.sel_index_txt = str(v[0])        
+        self.sel_index_txt = str(v[0])
         from petram.model import convert_sel_txt
         try:
-            g = self._global_ns            
+            g = self._global_ns
             arr = convert_sel_txt(self.sel_index_txt, g)
-            self.sel_index = arr            
+            self.sel_index = arr
         except:
             import traceback
             traceback.print_exc()
@@ -75,7 +76,7 @@ class PointCloud(DataExportBase, Vtable_mixin):
         xx, yy, zz = self.vt_coeff.make_value_or_expression(self)
 
         xyz_points = np.stack([xx, yy, zz], -1)
-        if self.sel_index[0] == 'all':        
+        if self.sel_index[0] == 'all':
             attrs = list(range(1, engine.max_attr+1))
         else:
             attrs = self.sel_index[0]
@@ -85,26 +86,13 @@ class PointCloud(DataExportBase, Vtable_mixin):
         phys = engine.current_solve_step.get_phys()
 
         from petram.sol.pointcloud_evaluator import PointcloudEvaluator
-        from petram.helper.mpi_recipes import gather_masked_array
 
         evltr= PointcloudEvaluator(attrs, "xyz", xyz_points)
         evltr.mesh = MeshWrap(engine.emeshes)
 
-        ptx, vals, attrs = evltr.eval(expr, solvars, phys[0], verbose=False)
+        ptx, result, attrs = call_pointcloud_eval(evltr, expr, solvars, phys, engine)
 
-        full_data = np.zeros(attrs.shape, dtype=vals.dtype)
-        full_data[attrs >= 0] = vals
-
-        if engine.isParallel:
-            result, valid = gather_masked_array(full_data, attrs)
-            attrs, valid = gather_masked_array(attrs, attrs)
-        else:
-            result = full_data
-                
         if result is not None:
             return {"ptx":ptx, "data":result, "attr":attrs}
         else:
             return {}
-
-
-

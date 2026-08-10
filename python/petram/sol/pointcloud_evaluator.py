@@ -141,7 +141,7 @@ class PointcloudEvaluator(EvaluatorAgent):
                 self.points = ptx.reshape(-1, self.ans_points.shape[-1])
                 self.subset = subset
 
-        if out_of_range:
+        if out_of_range and not use_parallel:
             counts = 0
             elem_ids = np.zeros(len(self.points), dtype=int)-1
             int_points = [None]*len(self.points)
@@ -173,7 +173,6 @@ class PointcloudEvaluator(EvaluatorAgent):
         self.valid_idx = idx
         self.emesh_idx = emesh_idx
         self.knowns = WKD()
-
 
     def eval_at_points(self, expr, solvars, phys):
         from petram.helper.variables import (Variable,

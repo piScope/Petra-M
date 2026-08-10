@@ -1,3 +1,5 @@
+import numpy as np
+
 from petram.model import Model
 from petram.helper.variables import var_g
 import traceback
@@ -13,6 +15,43 @@ class MeshWrap():
 
     def __call__(self):
         return self.meshes
+
+def call_pointcloud_eval(evltr, expr, solvars, phys, engine):
+
+    _ptx, vals, attrs = evltr.eval(expr, solvars, phys[0], verbose=False)
+    ptx = evltr.ans_points
+
+    if engine.isParallel:
+        dtype = 0 if vals is None else vals.dtype
+        adtype = 0 if vals is None else attrs.dtype
+
+        from mpi4py import MPI
+        dtypes = np.array(MPI.COMM_WORLD.allgather(dtype))
+        dtype = (dtypes[dtypes != 0])[0]
+        adtypes = np.array(MPI.COMM_WORLD.allgather(adtype))
+        adtype = (adtypes[adtypes != 0])[0]
+
+        if vals is None:
+           attrs = np.zeros(ptx.shape[:-1], dtype=adtype) - 1
+
+    else:
+        if vals is None:
+            return None, None, None
+        dtype = vals.dtype
+
+    full_data = np.zeros(ptx.shape[:-1], dtype=dtype)
+    full_data[attrs >= 0] = vals
+
+    if engine.isParallel:
+        from petram.helper.mpi_recipes import gather_masked_array
+
+        result, valid = gather_masked_array(full_data, attrs)
+        attrs, valid = gather_masked_array(attrs, attrs)
+    else:
+        result = full_data
+        attrs[attrs < 0] = 0
+
+    return ptx, result, attrs
 
 
 class DataExportBase(Model):
@@ -67,7 +106,7 @@ class DataExport(DataExportBase, NSRef_mixin):
         v = super(DataExport, self).attribute_set(v)
         v['use_scanner'] = 0
         v['scanner'] = 'Scan("a", [1,2,3])'
-        v['datafile'] = 'file.npz'
+        v['datafile'] = 'exported_data.npz'
         return v
 
     def panel1_param(self):
