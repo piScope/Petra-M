@@ -18,7 +18,7 @@ class MeshWrap():
 
 def call_pointcloud_eval(evltr, expr, solvars, phys, engine):
 
-    _ptx, vals, attrs = evltr.eval(expr, solvars, phys[0], verbose=False):
+    _ptx, vals, attrs = evltr.eval(expr, solvars, phys[0], verbose=False)
     ptx = evltr.ans_points
 
     if engine.isParallel:
