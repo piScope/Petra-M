@@ -68,7 +68,7 @@ class Slice(DataExportBase, Vtable_mixin):
 
     def run_dataexport(self, engine):
         dprint1("running dataexport: " + self.name())
-        engine.show_variables()
+
         self.vt_coeff.preprocess_params(self)
         abcd, ax1, res = self.vt_coeff.make_value_or_expression(self)
         ax1 = ax1/np.linalg.norm(ax1)

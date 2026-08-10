@@ -96,7 +96,7 @@ class PointcloudEvaluator(EvaluatorAgent):
 
         self.subset = None
 
-        if pc_type == "cutplane" and sdim == 3:
+        if pc_type == "cutplane" and sdim == 3 and not use_parallel:
             # in 3D, we try to cut down the number of point query to FindPoints
             param = vv[0, :]*cp_abc[0] + vv[1, :] * \
                 cp_abc[1] + vv[2, :]*cp_abc[2] + cp_d
@@ -152,8 +152,6 @@ class PointcloudEvaluator(EvaluatorAgent):
                 print("Chekcing " + str(len(self.points)) + " points")
             counts, elem_ids, int_points = mesh.FindPoints(
                 self.points, warn=False)
-            if verbose:
-                print("FindPoints found " + str(counts) + " points")
 
         attrs = [mesh.GetAttribute(id) if id >= 0 else -1 for id in elem_ids]
         attrs = np.array([i if i in self.attrs else -1 for i in attrs])
@@ -161,6 +159,9 @@ class PointcloudEvaluator(EvaluatorAgent):
         elem_ids = [-1 if a == -1 else eid for a, eid in zip(attrs, elem_ids)]
         counts = np.sum(np.array(elem_ids) != -1)
 
+        if verbose:
+             print("FindPoints found " + str(counts) + " points")
+        
         self.elem_ids = elem_ids
         self.masked_attrs = attrs
 
@@ -253,7 +254,7 @@ class PointcloudEvaluator(EvaluatorAgent):
                                          pc_param=self.pc_param,
                                          verbose=verbose)
 
-        if self.counts == 0:
+        if self.counts == 0 and not use_parallel:
             return None, None, None
 
         val = self.eval_at_points(expr, solvars, phys)
