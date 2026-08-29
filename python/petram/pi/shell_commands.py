@@ -95,6 +95,10 @@ def petram(reload_scripts=True, addon="none", cluster=False):
         scripts.clean_owndir()
         import_project_scripts(scripts)
 
+    # Upgrade legacy namespace scripts loaded from old projects.
+    from petram.pi.petram_py_script import migrate_namespace_scripts
+    migrate_namespace_scripts(model)
+
     if model is not None:
         if not model.has_child('mfembook'):
             book = model.add_book('mfembook')

@@ -7,7 +7,7 @@ maintainers = [ { name = "S. Shiraiwa", email = "shiraiwa@princeton.edu" } ]
 keywords = ["scientific computing", "python visualization", "finite element method", "MFEM"]
 readme = "README.md"
 requires-python = ">=3.10"
-version = "26.8.9"
+version = "26.8.29"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-"gui" = ["piScope >= 25.5.24",]
+"gui" = ["piScope >= 26.8.29",]
 
 [project.urls]
 "Homepage" = "https://github.com/piScope/Petra-M"
@@ -38,4 +38,4 @@ requires = [
 package-dir = {"" = "python"}
 
 [tool.setuptools.package-data]
-"petram" =  ['data/icon/*.png', 'data/*Ops']
+"petram" =  ['data/icon/*.png', 'data/icon/*/*.png', 'data/*Ops']
