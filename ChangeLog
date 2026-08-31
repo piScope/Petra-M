@@ -1,4 +1,12 @@
         <<< Change Log >>>
+08/29/2026
+        * interface improvement to work with piScope's new syntax highlighting/checking
+	** added PetraMPyScript for namespace scripts. This object is subclass of PyScript
+	** and is responsible for collecting namespace information for script editor.
+        ** Petra-M migrate PyScript in old project to PetraMPyScript, when it is opend.
+	** However, user need to reopen after saving the migrated project file, so that
+	** piScope uses correct icon resources for PetraMPyScript.
+
 07/19/2026
 	* added slice and pointcloud data export in DataExport under Postprocessing
 	** this feature allows to get pointcloud data from solution during the parallel run and

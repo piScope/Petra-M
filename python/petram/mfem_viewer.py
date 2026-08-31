@@ -167,6 +167,7 @@ class MFEMViewer(BookViewer):
         self._is_mfem_geom_fig = False
         self._dom_bdr_sel = ([], [], [], [])
         self._palette_focus = ''
+        self._model = None
         self.model = self.book.get_parent()
         self.editdlg = None
         self.selection_palette = None
@@ -249,8 +250,27 @@ class MFEMViewer(BookViewer):
         return self._dom_bdr_sel
 
     @property
+    def model(self):
+        return self._model
+
+    @model.setter
+    def model(self, model):
+        self._model = model
+        if model is None:
+            return
+
+        from petram.pi.petram_py_script import migrate_namespace_scripts
+        migrated = migrate_namespace_scripts(model)
+
+        if migrated:
+            top = self.GetTopLevelParent()
+            if hasattr(top, 'script_editor') and hasattr(top.script_editor, 'refresh_namespace_provider'):
+                print("calling refresh_namespace_provider")
+                top.script_editor.refresh_namespace_provider()
+
+    @property
     def mfem_model(self):
-        return  self.model.param.getvar('mfem_model')
+        return self.model.param.getvar('mfem_model')
 
     @mfem_model.setter
     def mfem_model(self, model):
@@ -417,7 +437,7 @@ class MFEMViewer(BookViewer):
     def onOpenPMFEM(self, evt):
         import petram.helper.pickle_wrapper as pickle
         from ifigure.mto.py_code import PyData
-        from ifigure.mto.py_script import PyScript
+        from petram.pi.petram_py_script import PetraMPyScript
 
         from petram.mesh.mesh_model import MeshFile
         path = dialog.read(
@@ -453,7 +473,8 @@ class MFEMViewer(BookViewer):
                 continue
             if file.endswith('.py'):
                 # shutil.copy(os.path.join(dir, file), self.model.namespaces.owndir())
-                sc = self.model.namespaces.add_childobject(PyScript, file[:-3])
+                sc = self.model.namespaces.add_childobject(
+                    PetraMPyScript, file[:-3])
                 sc.load_script(os.path.join(
                     self.model.namespaces.owndir(), file))
             if file.endswith('.dat'):
@@ -478,14 +499,14 @@ class MFEMViewer(BookViewer):
         import shutil
         import ifigure.utils.pickle_wrapper as pickle
         from ifigure.mto.py_code import PyData
-        from ifigure.mto.py_script import PyScript
+        from petram.pi.petram_py_script import PetraMPyScript
         path = dialog.read(
             message='Select model file to read', wildcard='*.py')
         try:
             print("loading", path)
-            #m = imp.load_source('petram.user_model', path)
+            # m = imp.load_source('petram.user_model', path)
             spec = importlib.util.spec_from_file_location(
-                 "petram.user_model", path)
+                "petram.user_model", path)
             m = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(m)
             model = m.make_model()
@@ -510,7 +531,8 @@ class MFEMViewer(BookViewer):
             if file.endswith('.py'):
                 shutil.copy(os.path.join(dir, file),
                             self.model.namespaces.owndir())
-                sc = self.model.namespaces.add_childobject(PyScript, file[:-3])
+                sc = self.model.namespaces.add_childobject(
+                    PetraMPyScript, file[:-3])
                 sc.load_script(os.path.join(
                     self.model.namespaces.owndir(), file))
             if file.endswith('.dat'):
@@ -1904,7 +1926,7 @@ class MFEMViewer(BookViewer):
 
         from petram.pi.run_petram import save_model
         save_model(self.model,
-                   os.path.join(sol.owndir(),'model.pmfm'),
+                   os.path.join(sol.owndir(), 'model.pmfm'),
                    meshfile_relativepath=True)
 
         dlg.Update(2, newmsg="Sending file")
