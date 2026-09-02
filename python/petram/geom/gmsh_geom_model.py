@@ -1,4 +1,3 @@
-from __future__ import print_function
 from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
 from petram.namespace_mixin import NS_mixin
 from petram.geom.geom_model import GeomBase, GeomTopBase

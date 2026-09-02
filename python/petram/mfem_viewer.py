@@ -1,4 +1,3 @@
-from __future__ import print_function
 from ifigure.widgets.canvas.ifigure_canvas import ifigure_canvas
 '''
    Viewer/Editor of Petra-M model

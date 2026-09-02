@@ -1,4 +1,3 @@
-from __future__ import print_function
 
 from petram.geom.geom_id import (GeomIDBase, VertexID, LineID, SurfaceID, VolumeID,
                                  LineLoopID, SurfaceLoopID)

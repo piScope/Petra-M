@@ -1,4 +1,3 @@
-from __future__ import print_function
 import petram.geom.occ_inspect
 from threading import Thread
 from queue import Queue

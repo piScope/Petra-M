@@ -1,4 +1,3 @@
-from __future__ import print_function
 import petram.helper.pickle_wrapper as pickle
 
 from itertools import product

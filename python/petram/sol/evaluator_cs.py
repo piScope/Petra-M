@@ -1,4 +1,3 @@
-from __future__ import print_function
 from petram.sol.evaluator_mp import EvaluatorMP
 
 import os

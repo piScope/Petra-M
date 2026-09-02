@@ -1,4 +1,3 @@
-from __future__ import print_function
 from petram.phys.weakform import get_integrators
 #
 #  a script to produce icon images

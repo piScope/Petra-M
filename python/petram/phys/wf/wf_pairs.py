@@ -1,4 +1,3 @@
-from __future__ import print_function
 from petram.mfem_config import use_parallel
 
 import traceback

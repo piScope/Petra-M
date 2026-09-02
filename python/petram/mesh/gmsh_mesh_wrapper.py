@@ -1,4 +1,3 @@
-from __future__ import print_function
 import petram.debug
 from threading import Thread
 from queue import Queue

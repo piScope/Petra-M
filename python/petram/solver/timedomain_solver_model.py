@@ -1,4 +1,3 @@
-from __future__ import print_function
 from petram.solver.solver_model import TimeDependentSolverInstance
 from petram.solver.std_solver_model import StdSolver
 

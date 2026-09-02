@@ -1,4 +1,3 @@
-from __future__ import print_function
 from petram.debug import handle_allow_python_function_coefficient
 from petram.phys.vtable import VtableElement, Vtable
 from petram.helper.variables import Variable, eval_code
