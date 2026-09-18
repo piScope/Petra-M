@@ -1,4 +1,3 @@
-from __future__ import print_function
 from petram.helper.matrix_file import write_matrix, write_vector, write_coo_matrix
 from petram.mfem_config import use_parallel
 from .solver_model import LinearSolverModel, LinearSolver

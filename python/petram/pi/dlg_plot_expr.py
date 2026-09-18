@@ -1,4 +1,3 @@
-from __future__ import print_function
 import wx
 import traceback
 import numpy as np

@@ -1,4 +1,3 @@
-from __future__ import print_function
 from petram.mfem_viewer import MFEM_menus
 from functools import wraps
 import threading
