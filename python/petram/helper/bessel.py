@@ -335,9 +335,11 @@ def _iv_righthalf(n, z):
     else:
         ival = _iv_middlez(abs(n), z)
 
-    if n < 0:
+    if n < 0 and n != np.floor(n):
+        # negative, non-integer n.
+        # for innteger orders, I_{-n}(z) = I_n(z) exactly.
         kval = _kv_righthalf(n, z)
-        ival = ival + 2./pi*sin(-n*pi)*kval
+        ival += 2./pi*sin(-n*pi)*kval
 
     return ival
 
@@ -351,9 +353,11 @@ def _ive_righthalf(n, z):
     else:
         ival = _iv_middlez_scaled(abs(n), z)
 
-    if n < 0:
-        kval = _kve_righthalf(n, z)
-        ival = ival + 2./pi*sin(-n*pi)*kval
+    if n < 0 and n != np.floor(n):
+        # negative, non-integer n.
+        # for innteger orders, I_{-n}(z) = I_n(z) exactly.
+        kval = exp(-z) * _kv_righthalf(n, z)
+        ival += 2./pi*sin(-n*pi)*kval
 
     return ival
 
