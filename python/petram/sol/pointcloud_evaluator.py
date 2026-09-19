@@ -211,7 +211,7 @@ class PointcloudEvaluator(EvaluatorAgent):
             if (n in g and isinstance(g[n], Variable)):
                 all_names.extend(g[n].prep_names(ind_vars, g))
 
-        print(names, all_names)
+        #print(names, all_names)
         for n in names:            
             if (n in g and isinstance(g[n], Variable)):
                 if not g[n] in self.knowns:
@@ -229,7 +229,7 @@ class PointcloudEvaluator(EvaluatorAgent):
                 ll_value.append(self.knowns[g[n]])
             elif (n in g):
                 var_g2[n] = g[n]
-        print(self.locs, ll_value)
+
         from collections.abc import Iterable
 
         if len(ll_value) > 0:
