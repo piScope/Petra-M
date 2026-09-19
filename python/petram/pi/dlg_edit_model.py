@@ -1,4 +1,3 @@
-from __future__ import print_function
 from petram.pi.simple_frame_plus import SimpleFramePlus
 
 import os

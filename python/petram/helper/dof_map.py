@@ -1,4 +1,3 @@
-from __future__ import print_function
 from petram.mfem_config import use_parallel
 from petram.helper.matrix_file import write_matrix, write_vector
 '''

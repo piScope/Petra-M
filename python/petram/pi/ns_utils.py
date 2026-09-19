@@ -4,7 +4,7 @@ import ifigure.widgets.dialog as dialog
 
 def import_ns(model, path = None):
     from ifigure.mto.py_code import PyData
-    from ifigure.mto.py_script import PyScript        
+    from petram.pi.petram_py_script import PetraMPyScript
 
     proj = model.get_root_parent()
     if path is None:
@@ -36,7 +36,7 @@ def import_ns(model, path = None):
 
         shutil.copy(os.path.join(path), model.namespaces.owndir())
         name = os.path.basename(path)
-        sc = model.namespaces.add_childobject(PyScript, name[:-3])
+        sc = model.namespaces.add_childobject(PetraMPyScript, name[:-3])
         sc.load_script(os.path.join(model.namespaces.owndir(), name))
         obj =model.datasets.add_data(name[:-6]+'_data')
     else:

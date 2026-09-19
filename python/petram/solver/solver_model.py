@@ -527,7 +527,8 @@ class SolveStep(SolverBase):
     @debug.use_profiler
     def run(self, engine, is_first=True):
         dprint1("!!!!! Entering SolveStep " + self.name() + " !!!!!")
-
+        engine.current_solve_step = self
+        
         wc = self.root()["General"].warning_control
         warnings.simplefilter(wc)
         dprint1("Settiing warning mode :", wc)

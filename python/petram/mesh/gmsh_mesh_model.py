@@ -1,4 +1,3 @@
-from __future__ import print_function
 from petram.mfem_config import use_parallel
 from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
 from petram.mesh.mesh_model import Mesh

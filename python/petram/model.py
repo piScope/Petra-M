@@ -944,7 +944,7 @@ class Model(RestorableOrderedDict):
             dir = os.getcwd()
 
         script = []
-        script.extend(['from __future__ import print_function',
+        script.extend(['import os',
                        'import os',
                        '',
                        'if __name__=="__main__":',

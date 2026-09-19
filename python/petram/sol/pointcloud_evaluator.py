@@ -34,7 +34,7 @@ class PointcloudEvaluator(EvaluatorAgent):
         self.pc_param = pc_param
 
     def preprocess_geometry(self, attrs, emesh_idx=0, pc_type=None,
-                            pc_param=None):
+                            pc_param=None, verbose=True):
 
         from petram.helper.geom import generate_pc_from_cpparam
 
@@ -96,7 +96,7 @@ class PointcloudEvaluator(EvaluatorAgent):
 
         self.subset = None
 
-        if pc_type == "cutplane" and sdim == 3:
+        if pc_type == "cutplane" and sdim == 3 and not use_parallel:
             # in 3D, we try to cut down the number of point query to FindPoints
             param = vv[0, :]*cp_abc[0] + vv[1, :] * \
                 cp_abc[1] + vv[2, :]*cp_abc[2] + cp_d
@@ -141,22 +141,27 @@ class PointcloudEvaluator(EvaluatorAgent):
                 self.points = ptx.reshape(-1, self.ans_points.shape[-1])
                 self.subset = subset
 
-        if out_of_range:
+        if out_of_range and not use_parallel:
             counts = 0
             elem_ids = np.zeros(len(self.points), dtype=int)-1
             int_points = [None]*len(self.points)
-            print("skipping mesh")
+            if verbose:
+                print("skipping mesh")
         else:
-            print("Chekcing " + str(len(self.points)) + " points")
+            if verbose:
+                print("Chekcing " + str(len(self.points)) + " points")
             counts, elem_ids, int_points = mesh.FindPoints(
                 self.points, warn=False)
-            print("FindPoints found " + str(counts) + " points")
-        attrs = [mesh.GetAttribute(id) if id != -1 else -1 for id in elem_ids]
+
+        attrs = [mesh.GetAttribute(id) if id >= 0 else -1 for id in elem_ids]
         attrs = np.array([i if i in self.attrs else -1 for i in attrs])
 
         elem_ids = [-1 if a == -1 else eid for a, eid in zip(attrs, elem_ids)]
         counts = np.sum(np.array(elem_ids) != -1)
 
+        if verbose:
+             print("FindPoints found " + str(counts) + " points")
+        
         self.elem_ids = elem_ids
         self.masked_attrs = attrs
 
@@ -235,7 +240,7 @@ class PointcloudEvaluator(EvaluatorAgent):
 
         return val
 
-    def eval(self, expr, solvars, phys):
+    def eval(self, expr, solvars, phys, verbose=True):
         from petram.sol.bdr_nodal_evaluator import get_emesh_idx
 
         emesh_idx = get_emesh_idx(self, expr, solvars, phys)
@@ -246,9 +251,10 @@ class PointcloudEvaluator(EvaluatorAgent):
             if self.emesh_idx != emesh_idx[0]:
                 self.preprocess_geometry(self.attrs, emesh_idx=emesh_idx[0],
                                          pc_type=self.pc_type,
-                                         pc_param=self.pc_param)
+                                         pc_param=self.pc_param,
+                                         verbose=verbose)
 
-        if self.counts == 0:
+        if self.counts == 0 and not use_parallel:
             return None, None, None
 
         val = self.eval_at_points(expr, solvars, phys)

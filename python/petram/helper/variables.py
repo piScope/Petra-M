@@ -1905,7 +1905,7 @@ class NumbaCoefficientVariable(CoefficientVariable):
     def get_jitted_coefficient(self, ind_vars, locals):
 
         if self._jitted is not None:
-            dprint1("(Note) this numba coefficient is already compiled", self.func)
+            #dprint1("(Note) this numba coefficient is already compiled", self.func)
             return self._jitted
 
         from petram.phys.numba_coefficient import NumbaCoefficient

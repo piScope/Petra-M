@@ -1,4 +1,3 @@
-from __future__ import print_function
 from functools import reduce
 '''
 Utility class to handle BlockMatrix made from scipy-sparse and

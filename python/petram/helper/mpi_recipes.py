@@ -196,6 +196,43 @@ def gather_vector(data, mpi_data_type=None, parent=False,
         world.Barrier()
         return None
 
+def gather_masked_array(array: np.ndarray,
+                        mask: np.ndarray,
+                        comm: MPI.Comm = MPI.COMM_WORLD,
+                        root: int = 0,
+                        allow_missing: bool = True)-> np.ndarray | None:
+
+    """
+    Combine equal-shaped array on root.
+    mask is >=0 only on one node.
+    Returns the complete ndarray on `root` and None on other ranks.
+    """
+    rank = comm.Get_rank()
+    array = np.ma.asarray(array)
+
+    valid = np.ascontiguousarray(mask >= 0).astype(np.int32)
+    values = np.ascontiguousarray(array)*valid
+
+    result = np.empty_like(values) if rank == root else None
+    ownership = np.empty_like(valid) if rank == root else None
+
+    comm.Reduce(values, result, op=MPI.SUM, root=root)
+    comm.Reduce(valid, ownership, op=MPI.SUM, root=root)
+
+    if allow_missing:
+        error = rank == root and np.any(ownership > 1)
+    else:
+        error = rank == root and np.any(ownership != 1)
+
+    if error:
+        n_missing = np.count_nonzero(ownership == 0)
+        n_overlapping = np.count_nonzero(ownership > 1)
+        raise ValueError(
+            "Masks are not an exclusive partition: "
+            f"{n_missing} missing and {n_overlapping} overlapping elements"
+        )
+
+    return result, ownership
 
 def scatter_vector(vector, mpi_data_type=None, rcounts=None, root=0):
     # scatter data
