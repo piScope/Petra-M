@@ -1,6 +1,7 @@
 import numpy as np
 import ifigure.utils.geom
 from ifigure.interactive import figure, solid
+import matplotlib
 import matplotlib.cm as cm
 
 from .mesh_viewer import open_meshviewer
@@ -29,7 +30,7 @@ def get_cmap(name):
     '''
     adjust cmap behavior difference between 1.5 and 2.0
     '''
-    m = cm.get_cmap(name)
+    m = matplotlib.colormaps.get_cmap(name)
     data = cm.datad[name]
     m.N = len(data[data.keys()[0]])
     try:
