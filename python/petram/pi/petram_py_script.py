@@ -24,9 +24,8 @@ class PetraMPyScript(PyScript):
         from petram.utils import get_pkg_datafile
 
         path = get_pkg_datafile(petram.pi, 'icon')
-        print(path)
         idx = cbook.LoadImageFile(path, 'petram_script.png')
-        print(idx)
+
         return [idx, idx]
 
     def _get_ns_name_for_editor(self):
