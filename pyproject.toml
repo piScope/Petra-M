@@ -7,7 +7,7 @@ maintainers = [ { name = "S. Shiraiwa", email = "shiraiwa@princeton.edu" } ]
 keywords = ["scientific computing", "python visualization", "finite element method", "MFEM"]
 readme = "README.md"
 requires-python = ">=3.10"
-version = "26.8.29"
+version = "26.9.21"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",

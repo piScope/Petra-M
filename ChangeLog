@@ -1,4 +1,12 @@
         <<< Change Log >>>
+09/21/2026
+        * Fixed 1D point-cloud exports to return zeros for locations absent from the mesh.
+        * Added Numba-compatible Bessel functions for real orders and complex arguments.
+	** Based on bessel.py in PyMFEM, with minor fix/corrections.
+        * Minor updates
+	** Colormap lookup for the current Matplotlib API.
+        ** Removed obsolete Python 2 print-function imports and stray script-editor debug output.
+
 08/29/2026
         * interface improvement to work with piScope's new syntax highlighting/checking
 	** added PetraMPyScript for namespace scripts. This object is subclass of PyScript
