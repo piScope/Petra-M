@@ -114,6 +114,10 @@ class Engine(object):
         import importlib.metadata
         from packaging import version
 
+        flag = os.environ.get("PETRAM_CHECK_VERSIONS", "Yes")
+        if flag != "Yes":
+            return ""
+
         message = []
         lver = importlib.metadata.version("petram")
         if (not hasattr(model, "pkg_versions") or
