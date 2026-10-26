@@ -27,7 +27,7 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
 
 
     (SolverInstance)
-n
+    
     SolverInstance: an actual solver logic comes here
        SolverInstance : base class for standard solver
        TimeDependentSolverInstance : an actual solver logic comes here

@@ -121,9 +121,9 @@ class Engine(object):
         message = []
         lver = importlib.metadata.version("petram")
         if (not hasattr(model, "pkg_versions") or
-            len(model.pkg_versions) == 0):
-            message.append("   moduel: petram      " +  "used: (not recored). " +
-                           " current" + lver +".")
+                len(model.pkg_versions) == 0):
+            message.append("   moduel: petram      " + "used: (not recored). " +
+                           " current" + lver + ".")
 
         for k in model.pkg_versions:
             try:
@@ -133,7 +133,7 @@ class Engine(object):
 
             if version.parse(lver) > version.parse(model.pkg_versions[k]):
                 message.append("   moduel: " + k + "      used: " + model.pkg_versions[k] +
-                               ". current " + lver +".")
+                               ". current " + lver + ".")
 
         if len(message) > 0:
             message = ["",
@@ -545,6 +545,7 @@ class Engine(object):
     @property
     def no_t1_elimination(self):
         return self._no_t1_elimination[self._level_idx]
+
     @no_t1_elimination.setter
     def no_t1_elimination(self, v):
         self._no_t1_elimination[self._level_idx] = v
@@ -552,6 +553,7 @@ class Engine(object):
     @property
     def no_t2_elimination(self):
         return self._no_t2_elimination[self._level_idx]
+
     @no_t1_elimination.setter
     def no_t2_elimination(self, v):
         self._no_t2_elimination[self._level_idx] = v
@@ -1480,7 +1482,7 @@ class Engine(object):
             self.eliminateBC_vec(MM)
             RHS = compute_rhs(MM, B, X)
 
-        RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
+        RHS = self.eliminateBC(A, Ae, X[0], RHS)  # modify RHS and
         # A and RHS is modifedy by global DoF coupling P
         A, RHS = self.apply_interp(A, RHS)
 
@@ -2128,8 +2130,10 @@ class Engine(object):
                     if mm.no_t1_elimination() and len(mm.get_essential_idx(kfes)) > 0:
                         idx1 = self.dep_var_offset(dep_var)
                         idx2 = self.r_dep_var_offset(extra_name)
-                        tdofs, gtdofs = self.get_essential_tdof_for_node(mm, dep_var)
-                        self.no_t1_elimination.append((idx1, idx2, tdofs, gtdofs))
+                        tdofs, gtdofs = self.get_essential_tdof_for_node(
+                            mm, dep_var)
+                        self.no_t1_elimination.append(
+                            (idx1, idx2, tdofs, gtdofs))
 
                     if mm.no_t2_elimination():
                         idx1 = self.dep_var_offset(extra_name)
@@ -2499,16 +2503,14 @@ class Engine(object):
                 # locally number or rows is zero.
                 if self.get_autofill_diag():
                     self.fill_empty_diag(A[idx1, idx2])
-                Aee, A[idx1, idx2], Bnew = A[idx1, idx2].eliminate_RowsCols(B[idx1], ess_tdof1,
-                                                                            inplace=inplace,
-                                                                            diagpolicy=diagpolicy)
+                Aee, A[idx1, idx2] = A[idx1, idx2].eliminate_RowsCols(B[idx1], ess_tdof1,
+                                                                      inplace=inplace,
+                                                                      diagpolicy=diagpolicy)
                 A[idx1, idx2] = A[idx1, idx2].resetRow(
                     gl_ess_tdof2, inplace=inplace)
                 A[idx1, idx2].setDiag(gl_ess_tdof2)
 
                 Ae[idx1, idx2] = Aee
-
-                B[idx1] = Bnew
 
             '''
             note: minor differece between serial/parallel
@@ -2528,7 +2530,7 @@ class Engine(object):
                 ess = gl_ess_tdof1
 
                 for k1, k2, tdofs, gtdofs in self.no_t1_elimination:
-                   if k1 == idx1 and k2 == j:
+                    if k1 == idx1 and k2 == j:
                         ess = np.setdiff1d(gl_ess_tdof1, gtdofs)
 
                 A[idx1, j] = A[idx1, j].resetRow(ess, inplace=inplace)
@@ -2550,7 +2552,6 @@ class Engine(object):
                 Ae[j, idx2] = A[j, idx2].dot(SM)
                 A[j, idx2] = A[j, idx2].resetCol(gl_ess_tdof1, inplace=inplace)
 
-
         return A, Ae
 
     def eliminateJac(self, Jac):
@@ -2570,7 +2571,7 @@ class Engine(object):
                 Jac[idx1, idx2].resetRow(gl_ess_tdof1)
                 Jac[idx1, idx2].resetCol(gl_ess_tdof1)
 
-    def eliminateBC(self, Ae, X, RHS):
+    def eliminateBC(self, A, Ae, X, RHS):
         try:
             AeX = Ae.dot(X)
             for name in self.gl_ess_tdofs:
@@ -2605,8 +2606,18 @@ class Engine(object):
             gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
             ess_tdof1, ess_tdof2 = self.ess_tdofs[name]
 
-            x1 = X[ridx].get_elements(gl_ess_tdof1)
-            x2 = RHS[idx].get_elements(gl_ess_tdof1)
+            indices = np.asarray(gl_ess_tdof1, dtype=int)
+
+            if use_parallel:
+                diagonal = A[idx, ridx].getDiag(indices)
+                if A[idx, ridx][1] is None:  # Real matrix
+                    diagonal = diagonal.real
+            else:
+                diagonal = A[idx, ridx].diagonal()[indices]
+
+            x1 = X[ridx].get_elements(indices)
+            x2 = np.asarray(diagonal).reshape(x1.shape)
+
             RHS[idx].set_elements(gl_ess_tdof1, x1*x2)
 
         return RHS
@@ -2964,11 +2975,10 @@ class Engine(object):
         for physname in self.form_info:
             phys, ifess, rifess, depvars = self.form_info[physname]
 
-
             a = self.r_a[ifess[0], rifess[0]]
             x = self.gf_alloc[(self.access_idx, physname)].blockvector
 
-            ### X is not allocated when init-only is used.
+            # X is not allocated when init-only is used.
             if (self.access_idx, physname) not in self.X_alloc:
                 pass
             else:
@@ -3308,7 +3318,6 @@ class Engine(object):
                 if ((ignore_secondary and not node.is_secondary_condition)
                         or not ignore_secondary):
                     return node
-
 
     def gather_essential_tdof(self, phys):
         flags = self.get_essential_bdr_pnt_flag(phys)
@@ -3705,11 +3714,12 @@ class Engine(object):
                         self.meshes[idx] = o.run_serial()
                         target = self.meshes[idx]
                     else:
-                        #if (o.isRefinement and
+                        # if (o.isRefinement and
                         #        skip_refine):
                         #                            continue
                         if hasattr(o, 'run_serial') and target is not None:
-                            self.meshes[idx] = o.run_serial(target, skip_refine)
+                            self.meshes[idx] = o.run_serial(
+                                target, skip_refine)
         self.max_bdrattr = -1
         self.max_attr = -1
 
@@ -4429,9 +4439,11 @@ class Engine(object):
     @property
     def current_solve_step(self):
         return self._current_solve_step
+
     @current_solve_step.setter
     def current_solve_step(self, value):
         self._current_solve_step = value
+
 
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
@@ -4744,7 +4756,7 @@ class ParallelEngine(Engine):
                 target = None
 
                 refines = [child[x]
-                            for x in child if child[x].isRefinement and child[x].enabled]
+                           for x in child if child[x].isRefinement and child[x].enabled]
 
                 for k in child.keys():
                     o = child[k]

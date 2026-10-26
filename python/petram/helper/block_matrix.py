@@ -117,9 +117,9 @@ class ScipyCoo(coo_matrix):
 
     def resetRow(self, rows, inplace=True):
         rows = np.asarray(rows, dtype=int)
-        #ret = self.tolil()
-        #ret[rows, :] = 0.0
-        #ret.data[np.isin(ret.row in rows)] = 0.0
+        # ret = self.tolil()
+        # ret[rows, :] = 0.0
+        # ret.data[np.isin(ret.row in rows)] = 0.0
         ret = self.tocsr()
         ret[rows, :] = ret[rows, :] * 0.0
         ret = ret.tocoo()
@@ -134,8 +134,8 @@ class ScipyCoo(coo_matrix):
 
     def resetCol(self, cols, inplace=True):
         cols = np.asarray(cols, dtype=int)
-        #ret.data[np.isin(ret.col in cols)] = 0.0
-        #ret = self.tolil()
+        # ret.data[np.isin(ret.col in cols)] = 0.0
+        # ret = self.tolil()
         ret = self.tocsc()
         ret[:, cols] = ret[:, cols] * 0.0
         ret = ret.tocoo()
@@ -270,7 +270,7 @@ class ScipyCoo(coo_matrix):
             diagA = self.diagonal()[tdof]
 
         aidx = np.logical_or(idx, idx2)
-        #aidx = []
+        # aidx = []
         AeCol = self.col[aidx]
         AeRow = self.row[aidx]
         AeData = self.data[aidx]
@@ -295,16 +295,15 @@ class ScipyCoo(coo_matrix):
 
         # if diagpolicy == 1:
         # target_b[tdof, 0] = target_b[tdof, 0].toarray().flatten() * diagA
-        target_b[tdof, 0] = diagA
+        # target_b[tdof, 0] = diagA
+        # coo_b = convert_to_ScipyCoo(target_b)
 
         coo = lil2.tocoo()
         target.data = coo.data
         target.row = coo.row
         target.col = coo.col
 
-        coo_b = convert_to_ScipyCoo(target_b)
-
-        return Ae2, target, coo_b
+        return Ae2, target
 
     def get_elements(self, tdof):
         slil = self.tolil()
@@ -721,7 +720,7 @@ class BlockMatrix(object):
         for j in range(self.shape[1]):
             if np.all([self[i, j] is None for i in range(self.shape[0])]):
                 empty_col.append(j)
-        shape = (self.shape[0]-len(empty_row),self.shape[1]-len(empty_col))
+        shape = (self.shape[0]-len(empty_row), self.shape[1]-len(empty_col))
 
         if shape[0] != 0 and shape[0] != 1:
             dprint1("eliminating empty...", self)
@@ -733,10 +732,10 @@ class BlockMatrix(object):
         for i in range(self.shape[0]):
             jj = 0
             for j in range(self.shape[1]):
-               if i not in empty_row and j not in empty_col:
-                   ret[ii, jj] = self[i, j]
-                   cols.append(j)
-                   jj = jj + 1
+                if i not in empty_row and j not in empty_col:
+                    ret[ii, jj] = self[i, j]
+                    cols.append(j)
+                    jj = jj + 1
             if jj != 0:
                 rows.append(i)
                 ii = ii + 1
@@ -745,7 +744,6 @@ class BlockMatrix(object):
         cols = np.unique(cols)
 
         return ret, rows, cols
-
 
     def eliminate_empty_rowcol(self):
         '''
@@ -939,7 +937,7 @@ class BlockMatrix(object):
         of ref
         '''
         if self.kind == 'scipy':
-            #print("here", type(self[i,j]))
+            # print("here", type(self[i,j]))
             # if isinstance(self[i,j], ScipyCoo):
             #   print("here", self[i,j].shape, self[i,j])
             if alpha == 1 and beta == 0:
@@ -1041,7 +1039,7 @@ class BlockMatrix(object):
               means form has zero col/row blocks. This happens when time-dependent
               solver fills the matrix (row corresponding to d/dt)
         '''
-        #dprint1("adding empty block ", r, c)
+        # dprint1("adding empty block ", r, c)
         if self[r, c] is not None:
             assert False, "block is already filled"
         roffset = []
@@ -1092,7 +1090,7 @@ class BlockMatrix(object):
                 if self[i, j] is not None:
                     coffset.append(self[i, j].shape[1])
                     break
-        #coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
+        # coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
         if self.complex and convert_real:
             if interleave:
                 roffset = np.vstack((roffset, roffset)).flatten()
@@ -1164,7 +1162,7 @@ class BlockMatrix(object):
                         if myid != 0:
                             coffset[i] = 0
 
-        #coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
+        # coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
         if self.complex and convert_real:
             if merge_realimag:
                 roffset = roffset * 2
@@ -1207,7 +1205,7 @@ class BlockMatrix(object):
                                 assert False, 'row partitioning is not consistent'
                             roffset[i] = rp[1] - rp[0]
 
-        #coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
+        # coffset = [self[0, j].shape[1] for j in range(self.shape[1])]
         if self.complex and convert_real:
             if interleave:
                 roffset = np.repeat(roffset, 2)
@@ -1454,7 +1452,7 @@ class BlockMatrix(object):
                 if gcsa is None and gcsb is None:
                     continue
 
-                #Hermitian = False if symmetric else True
+                # Hermitian = False if symmetric else True
                 Hermitian = True if symmetric else False
                 if use_parallel:
                     gcsr = mfem.ComplexHypreParMatrix(
@@ -1588,7 +1586,7 @@ class BlockMatrix(object):
                     else:
                         arr_r[i, j] = self[ir, ic][0]
 
-                    #mat = arr_r[i, j]
+                    # mat = arr_r[i, j]
                     # if mat is not None:
                     #    cp = mat.GetColPartArray()
                     #    rp = mat.GetRowPartArray()

@@ -40,6 +40,7 @@ class TimeDomain(Solver):
         v['time_step'] = 0.01
         v['time_step_cnk'] = 0.01
         v['time_step_fe'] = 0.01
+        v['time_step_midpoint'] = 0.01
         v['ts_method'] = "Backward Euler"
         v['abe_minstep'] = 0.01
         v['abe_maxstep'] = 1.0
@@ -71,7 +72,10 @@ class TimeDomain(Solver):
             [None, None, 34, ({'text': 'method', 'choices': ["Backward Euler",
                                                              "CrankNicolson",
                                                              "Forward Euler",
-                                                             "Adaptive BE"], 'call_fit':False},
+                                                             "Implicit midpoint",
+                                                             "Adaptive BE"], 'call_fit': False},
+
+                              {'elp': elp_be},
                               {'elp': elp_be},
                               {'elp': elp_be},
                               {'elp': elp_be},
@@ -101,6 +105,7 @@ class TimeDomain(Solver):
              [str(self.time_step), ],
              [str(self.time_step_cnk), ],
              [str(self.time_step_fe), ],
+             [str(self.time_step_midpoint), ],
              [str(self.abe_minstep), str(self.abe_maxstep), ],
              ],
             [self.use_dwc_cp, [self.dwc_cp_name, self.dwc_cp_arg, ]],
@@ -112,7 +117,7 @@ class TimeDomain(Solver):
             self.use_profiler,)
 
     def import_panel1_value(self, v):
-        #self.init_setting = str(v[0])
+        # self.init_setting = str(v[0])
         self.phys_model = str(v[0])
         tmp = str(v[1]).split(',')
         st_et_nt = [tmp[0], tmp[1], ",".join(tmp[2:])]
@@ -128,8 +133,9 @@ class TimeDomain(Solver):
         self.time_step = str(v[3][1][0])
         self.time_step_cnk = str(v[3][2][0])
         self.time_step_fe = str(v[3][3][0])
-        self.abe_minstep = float(v[3][4][0])
-        self.abe_maxstep = float(v[3][4][1])
+        self.time_step_midpoint = str(v[3][4][0])
+        self.abe_minstep = float(v[3][5][0])
+        self.abe_maxstep = float(v[3][5][1])
         self.use_dwc_cp = v[4][0]
         self.dwc_cp_name = v[4][1][0]
         self.dwc_cp_arg = v[4][1][1]
@@ -161,9 +167,9 @@ class TimeDomain(Solver):
 
     def get_matrix_weight(self, timestep_config):
         # timestep_weight):
-        #dt = float(self.time_step)
-        #lns = self.root()['General']._global_ns.copy()
-        #lns['dt'] = dt
+        # dt = float(self.time_step)
+        # lns = self.root()['General']._global_ns.copy()
+        # lns['dt'] = dt
         wt = [1 if x else 0 for x in timestep_config]
         return wt
 
@@ -180,7 +186,7 @@ class TimeDomain(Solver):
             engine.remove_solfiles()
 
         fid = engine.open_file(
-            'cp.'+ self.name()+'.txt', 'w')
+            'cp.' + self.name()+'.txt', 'w')
         st, et, nt = self.st_et_nt
 
         if self.ts_method == 'Backward Euler' or self.ts_method == 'Backward Eular':
@@ -195,6 +201,13 @@ class TimeDomain(Solver):
             time_step = self.eval_text_in_global(self.time_step_cnk)
             dprint1("time step configuration: " +
                     str(self.time_step_cnk) + ':' + str(time_step))
+            instance.set_timestep(TimeStep(time_step))
+
+        elif self.ts_method == "Implicit midpoint":
+            instance = ImplicitMidpoint(self, engine)
+            time_step = self.eval_text_in_global(self.time_step_midpoint)
+            dprint1("time step configuration: " +
+                    str(self.time_step_midpoint) + ':' + str(time_step))
             instance.set_timestep(TimeStep(time_step))
 
         elif self.ts_method == "Forward Euler":
@@ -224,14 +237,14 @@ class TimeDomain(Solver):
             instance.write_checkpoint_solution()
 
         else:
-            if is_first:
+            if is_first and not instance._assemble_at_step_end:
                 instance.pre_assemble()
                 instance.assemble()
 
             # instance.solve()
             # if is_first:
             # self.prepare_form_sol_variables(engine)
-            #finished = instance.init(self.init_only)
+            # finished = instance.init(self.init_only)
 
             instance.set_blk_mask()
             instance.configure_probes(self.probe)
@@ -280,7 +293,7 @@ class TimeDomain(Solver):
         return is_first
 
 
-class FirstOrderBackwardEuler(TimeDependentSolverInstance):
+class FixedStepSolver(TimeDependentSolverInstance):
     '''
     Fixed time step solver
     '''
@@ -297,7 +310,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         return self._time_step(self.counter)
 
     def set_blk_mask(self):
-        super(FirstOrderBackwardEuler, self).set_blk_mask()
+        super(FixedStepSolver, self).set_blk_mask()
         phys_target = self.get_target_phys()
         time_deriv_vars = []
         for phys in phys_target:
@@ -308,7 +321,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
                     time_deriv_vars.append(x)
         self.time_deriv_vars = time_deriv_vars
 
-        #self.fes_dt_mask = [False]*len(self.fes_mask)
+        # self.fes_dt_mask = [False]*len(self.fes_mask)
         # for name in time_deriv_vars:
         #     offset = self.engine.dep_var_offset(name)
         #     self.fes_dt_mask[offset] = True
@@ -330,24 +343,6 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
 
         return M_Updated, B_Updated
 
-    def compute_A(self, M, B, X, mask_M, mask_B):
-        '''
-        M/dt u_1 + K u_1 = M/dt u_0 + b
-        '''
-        one_dt = 1./float(self.time_step)
-        A = M[0] + M[1]*one_dt
-        dprint1("A", A)
-        return A, np.any(mask_M)
-
-    def compute_rhs0(self, M, B, X):
-        one_dt = 1./float(self.time_step)
-        MM = M[1]*one_dt
-        return MM.dot(self.engine.sol)
-
-    def compute_rhs(self, MM, B, X, helper=None):
-        RHS = MM + B
-        return RHS
-
     def assemble(self, update=False):
         blocks, M_changed = self.engine.run_assemble_blocks(self.compute_A,
                                                             self.compute_rhs,
@@ -355,20 +350,61 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
                                                             update=update,
                                                             compute_rhs0=self.compute_rhs0)
 
-        #A, X, RHS, Ae, B, M, depvars = blocks
+        # A, X, RHS, Ae, B, M, depvars = blocks
         self.assembled = True
         self._dt_used_in_assemble = self.time_step
         return M_changed
+
+    def initialize_history(self, is_first):
+        """
+        Initialize integration history at the accepted starting time.
+        """
+        pass
+
+    def update_history(self, solution):
+        """
+        Retain integration history from the newly computed solution.
+        """
+        pass
 
     def step(self, is_first):
         engine = self.engine
         mask = self.blk_mask
         engine.copy_block_mask(mask)
 
+        step_size = self.time_step
+        next_time = self.time + step_size
+        if self._assemble_at_step_end:
+            if self.counter == 0:
+                self.sol = engine.sol
+                self.write_checkpoint_solution()
+                self.icheckpoint += 1
+
+            # save the current solution in engine.sol as a duplicate copy.
+            # engine.sol is X[0] or X[-1] depending on the context.
+            # We update X in time stepping. This ensures engine.sol is always
+            # old solution.
+            engine.sol = engine.sol * 1.0
+            if self.counter == 0:
+                self.initialize_history(is_first)
+            self.time = next_time
+
+        previous_sol = engine.sol
+
         # if not self.pre_assembled:
         #    assert False, "pre_assmeble must have been called"
 
-        if (self.counter == 0 and is_first):
+        if self.counter == 0 and is_first and self._assemble_at_step_end:
+            engine.run_apply_essential(self.get_phys(), self.get_phys_range())
+            engine.run_fill_X_block(update=True)
+            if self.pre_assembled:
+                engine.set_update_flag('UpdateAll')
+                self.pre_assemble(update=True)
+                M_changed = self.assemble(update=True)
+            else:
+                self.pre_assemble()
+                M_changed = self.assemble()
+        elif (self.counter == 0 and is_first):
             M_changed = True
         else:
             if self._dt_used_in_assemble != self.time_step:
@@ -390,7 +426,7 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         BB = engine.finalize_rhs([RHS], A, X[-1], mask,
                                  not self.phys_real, format=self.ls_type,
                                  verbose=False)
-        if self.counter == 0:
+        if self.counter == 0 and not self._assemble_at_step_end:
             self.sol = engine.sol
             self.write_checkpoint_solution()
             self.icheckpoint += 1
@@ -418,22 +454,26 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
             assert False, "this has to be debugged (convertion from real to complex)"
             solall = self.linearsolver_model.real_to_complex(solell, A)
 
-        #A.reformat_central_mat(solall, 0, X[0], mask)
+        # A.reformat_central_mat(solall, 0, X[0], mask)
         self.reformat_mat(A, self._AA, solall, 0, X[0], mask)
         # this apply interpolation operator
         sol, sol_extra = engine.split_sol_array(X[0])
 
+        if not self._assemble_at_step_end:
+            previous_sol = X[-1]
         for name in self.time_deriv_vars:
             offset1 = engine.dep_var_offset(name)       # vt
             offset2 = engine.dep_var_offset(name[:-1])  # v
-            X[0][offset1, 0] = (X[0][offset2, 0]-X[-1]
-                                [offset2, 0])*(1./self.time_step)
+            X[0][offset1, 0] = (X[0][offset2, 0]-previous_sol
+                                [offset2, 0])*(1./step_size)
+
+        self.update_history(X[0])
 
         for child in self.child_instance:
             # for now update_operator is True only for the first run.
             child.solve(update_operator=(self.counter == 0))
 
-        self.time = self.time + self.time_step
+        self.time = next_time
 
         self.counter += 1
         for p in self.probe:
@@ -475,20 +515,21 @@ class FirstOrderBackwardEuler(TimeDependentSolverInstance):
         os.chdir(od)
 
 
-class CrankNicolson(FirstOrderBackwardEuler):
+class FirstOrderBackwardEuler(FixedStepSolver):
+    _assemble_at_step_end = True
+
     def compute_A(self, M, B, X, mask_M, mask_B):
         '''
-        M/dt u_1 + K/2 u_1 = M/dt u_0 - K/2 u_0 + b
+        M/dt u_1 + K u_1 = M/dt u_0 + b
         '''
         one_dt = 1./float(self.time_step)
-        #MM = M[1]*one_dt
-        A = M[0]*0.5 + M[1]*one_dt
+        A = M[0] + M[1]*one_dt
         dprint1("A", A)
         return A, np.any(mask_M)
 
     def compute_rhs0(self, M, B, X):
         one_dt = 1./float(self.time_step)
-        MM = (-M[0]*0.5 + M[1]*one_dt)
+        MM = M[1]*one_dt
         return MM.dot(self.engine.sol)
 
     def compute_rhs(self, MM, B, X, helper=None):
@@ -496,13 +537,86 @@ class CrankNicolson(FirstOrderBackwardEuler):
         return RHS
 
 
-class FirstOrderForwardEuler(FirstOrderBackwardEuler):
+class CrankNicolson(FixedStepSolver):
+    _assemble_at_step_end = True
+
+    def initialize_history(self, is_first):
+        """
+        Assemble the initial endpoint and retain q = b - K u.
+        """
+        if not is_first:
+            self.engine.set_update_flag('UpdateAll')
+        self.pre_assemble(update=not is_first)
+        M, B = self.engine.prepare_M_B_blocks()
+        M, B, _ = self.engine.fill_M_B_blocks(M, B)
+        self._q = (B - M[0].dot(self.engine.sol)) * 1.0
+        # Keep static auxiliary blocks when updating the first endpoint.
+        self.engine.assembled_blocks[4] = B
+        self.engine.assembled_blocks[5] = M
+
+    def update_history(self, solution):
+        """
+        Cache q from the raw endpoint blocks and the accepted solution.
+        """
+        _, _, _, _, B, M, _ = self.blocks
+        self._q = (B - M[0].dot(solution)) * 1.0
+
+    def compute_A(self, M, B, X, mask_M, mask_B):
+        """
+        Form M/dt + K_new/2 for endpoint CN with constant mass.
+        """
+        one_dt = 1./float(self.time_step)
+        A = M[0]*0.5 + M[1]*one_dt
+        dprint1("A", A)
+        return A, np.any(mask_M)
+
+    def compute_rhs0(self, M, B, X):
+        one_dt = 1./float(self.time_step)
+        return (M[1]*one_dt).dot(self.engine.sol) + self._q*0.5
+
+    def compute_rhs(self, MM, B, X, helper=None):
+        RHS = MM + B*0.5
+        return RHS
+
+
+class ImplicitMidpoint(FixedStepSolver):
+    _assemble_at_step_end = True
+
+    def pre_assemble(self, update=False):
+        """
+        Assemble at midpoint time, preserving endpoint time for BCs and output.
+        """
+        endpoint = self.time
+        self.time = endpoint - self.time_step*0.5
+        try:
+            return super().pre_assemble(update=update)
+        finally:
+            self.time = endpoint
+
+    def compute_A(self, M, B, X, mask_M, mask_B):
+        """
+        Form M/dt + K_mid/2 for implicit midpoint with constant mass.
+        """
+        A = M[1]*(1./float(self.time_step)) + M[0]*0.5
+        return A, np.any(mask_M)
+
+    def compute_rhs0(self, M, B, X):
+        operator = M[1]*(1./float(self.time_step)) - M[0]*0.5
+        return operator.dot(self.engine.sol)
+
+    def compute_rhs(self, MM, B, X, helper=None):
+        return MM + B
+
+
+class FirstOrderForwardEuler(FixedStepSolver):
+    _assemble_at_step_end = False
+
     def compute_A(self, M, B, X, mask_M, mask_B):
         '''
         M/dt u_1  = M/dt u_0 - K u_0 + b
         '''
         one_dt = 1./float(self.time_step)
-        #MM = M[1]*one_dt
+        # MM = M[1]*one_dt
         A = M[1]*one_dt
         dprint1("A", A)
         return A, np.any(mask_M)
@@ -518,6 +632,8 @@ class FirstOrderForwardEuler(FirstOrderBackwardEuler):
 
 
 class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
+    _assemble_at_step_end = False
+
     def __init__(self, gui, engine):
         FirstOrderBackwardEuler.__init__(self, gui, engine)
         self.linearsolver = {}
@@ -586,7 +702,7 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
                 if self.counter != 0 or recompute_rhs:
                     # recompute RHS
                     RHS = self.compute_rhs(M, B, [sol])
-                    RHS = engine.eliminateBC(Ae, X[1], RHS)
+                    RHS = engine.eliminateBC(A, Ae, X[1], RHS)
                     RHS = engine.apply_interp(RHS=RHS)
                 BB = engine.finalize_rhs([RHS], A, X[-1], mask,
                                          not self.phys_real,
@@ -620,21 +736,21 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
 
         self.reformat_mat(A, self._AA, solall, 0, X[0], mask)
         sol1 = X[0]
-        #sol1 = A.reformat_central_mat(solall, 0)
+        # sol1 = A.reformat_central_mat(solall, 0)
         print("check sample1 (0)", [p.current_value(sol1) for p in self.probe])
 
         A, BB, X = get_A_BB(1, self.sol2)
         solall2 = self.linearsolver[self._time_step2].Mult(BB)
         self.reformat_mat(A, self._AA, solall2, 0, X[0], mask)
         sol2 = X[0]
-        #sol2 = A.reformat_central_mat(solall2, 0)
+        # sol2 = A.reformat_central_mat(solall2, 0)
         print("check sample2 (1)", [p.current_value(sol2) for p in self.probe])
 
         A, BB, X = get_A_BB(1, sol2, recompute_rhs=True)
         solall2 = self.linearsolver[self._time_step2].Mult(BB)
         self.reformat_mat(A, self._AA, solall, 0, X[0], mask)
         sol2 = X[0]
-        #sol2 = A.reformat_central_mat(solall2, 0)
+        # sol2 = A.reformat_central_mat(solall2, 0)
         print("check sample2 (1)", [p.current_value(sol2) for p in self.probe])
 
         sample1 = np.hstack([p.current_value(sol1)
@@ -671,7 +787,7 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
         self.counter += 1
 
         self.reformat_mat(A, self._AA, solall, 0, X[0], mask)
-        #self.sol = A.reformat_central_mat(solall, 0)
+        # self.sol = A.reformat_central_mat(solall, 0)
         self.sol = X[0]
         self.sol1 = self.sol
         self.sol2 = self.sol
