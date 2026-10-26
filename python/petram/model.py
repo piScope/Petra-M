@@ -10,6 +10,9 @@ from abc import ABC
 from collections import OrderedDict
 import traceback
 from collections.abc import MutableMapping
+import importlib
+import importlib.util
+import json
 import six
 import os
 import numpy as np
@@ -827,6 +830,60 @@ class Model(RestorableOrderedDict):
                 ans.append(attr)
         return ans
 
+    #
+    #  Scirpt generation routines. generate_script calls several helper routines
+    #
+    def _generate_script_json(self, skip_def_check=False, dir=None,
+                             filename='model.json'):
+        """
+        Write this model tree as a JSON model description. JSON file is loaded
+        using load_model_json.
+        """
+        if dir is None:
+            dir = os.getcwd()
+
+        def node_to_dict(node, name):
+            attributes = OrderedDict()
+            for attr in sorted(node.save_attribute_set(skip_def_check)):
+                attributes[attr] = repr(node.attribute(attr))
+
+            # The script exporter writes namespace names independently of the
+            # normal attribute selection, so keep that behavior here too.
+            if ((node.has_ns() or node.has_nsref()) and
+                    node.get_ns_name() is not None):
+                attributes['ns_name'] = repr(node.ns_name)
+
+            children = []
+            ns_names = []
+            for child_name in node.keys():
+                child = node[child_name]
+                children.append(node_to_dict(child, child_name))
+                if child.has_ns():
+                    if child.get_ns_name() is None:
+                        continue
+                    if child.ns_name not in ns_names:
+                        ns_names.append(child.ns_name)
+                        child.write_ns_script_data(dir=dir)
+
+            result = OrderedDict((
+                ('name', name),
+                ('class', node.__class__.__module__ + '.' +
+                 node.__class__.__name__),
+            ))
+            if attributes:
+                result['attributes'] = attributes
+            if children:
+                result['children'] = children
+            return result
+
+        model_dict = OrderedDict((
+            ('format_version', 1),
+            ('model', node_to_dict(self, 'Root')),
+        ))
+        with open(os.path.join(dir, filename), 'w') as fid:
+            json.dump(model_dict, fid, indent=2)
+        return model_dict
+
     def _generate_model_script(self, script=None,
                                skip_def_check=False,
                                dir=None):
@@ -866,7 +923,7 @@ class Model(RestorableOrderedDict):
 
         return script
 
-    def generate_main_script(self):
+    def _generate_main_script(self):
 
         script = []
         script.append('import time, datetime')
@@ -906,7 +963,7 @@ class Model(RestorableOrderedDict):
 
         return script
 
-    def generate_import_section(self, script):
+    def _generate_import_section(self, script):
         from petram.helper.variables import var_g
         from collections import OrderedDict
 
@@ -940,6 +997,14 @@ class Model(RestorableOrderedDict):
     def generate_script(self, skip_def_check=False, dir=None, nofile=False,
                         parallel=False, filename='model.py',
                         petram_array_id=0, petram_array_len=1):
+        """
+        generate script create model.py and model.json
+
+        two files contains essentially the same infomation to conctruct model.
+        model.py is used as a python script to run a simulaiton.
+        modeo.json is use as a record of model.
+
+        """
         if dir is None:
             dir = os.getcwd()
 
@@ -991,7 +1056,7 @@ class Model(RestorableOrderedDict):
                        '    num_proc = 1', ])
 
         script.append('')
-        self.generate_import_section(script)
+        self._generate_import_section(script)
         script.append('')
 
         script2 = self._generate_model_script(
@@ -1009,7 +1074,7 @@ class Model(RestorableOrderedDict):
                        '', ])
 
         script.append('')
-        main_script = self.generate_main_script()
+        main_script = self._generate_main_script()
         for x in main_script:
             script.append(' '*4 + x)
 
@@ -1018,7 +1083,10 @@ class Model(RestorableOrderedDict):
         fid.write('\n'.join(script))
         fid.close()
 
+        self._generate_script_json(skip_def_check=skip_def_check, dir=dir)
+
         return script
+
 
     def load_gui_figure_data(self, viewer):
         '''
@@ -1262,3 +1330,127 @@ class Point(Model):
                                              'setfocus_event': True,
                                              'validator': validate_sel,
                                              'validator_param': self}], ]
+
+
+def load_model_script(path):
+    """
+    Import a Python model script and return its make_model() result.
+    """
+    spec = importlib.util.spec_from_file_location("petram.user_model", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.make_model()
+
+
+def load_model_json(path):
+    """Load a model tree from a trusted JSON model description.
+
+    This restores the model object and its represented attributes only. 
+    """
+    filename = path
+
+    def fail(where, message):
+        raise ValueError("{}: {}: {}".format(filename, where, message))
+
+    try:
+        with open(filename, 'r') as fid:
+            document = json.load(fid)
+    except Exception as exc:
+        raise ValueError("{}: failed to read JSON: {}".format(filename, exc)) from exc
+
+    if not isinstance(document, dict):
+        fail('document', 'expected an object')
+        
+    unknown = set(document) - {'format_version', 'model'}
+    if unknown:
+        fail('document', 'unknown fields: {}'.format(', '.join(sorted(unknown))))
+    if type(document.get('format_version')) is not int or \
+            document['format_version'] != 1:
+        fail('format_version', 'unsupported format version {!r}'.format(
+            document.get('format_version')))
+    if 'model' not in document or not isinstance(document['model'], dict):
+        fail('model', 'expected a model object')
+
+    # Keep this import lazy: the selected MFEM backend depends on the caller's
+    # execution mode, which must be configured before values are restored.
+    from petram.helper.variables import var_g
+    value_namespace = dict(var_g)
+    value_namespace['OrderedDict'] = OrderedDict
+
+    def resolve_class(class_path, node_path):
+        if not isinstance(class_path, str) or '.' not in class_path:
+            fail(node_path, "invalid class path {!r}".format(class_path))
+        module_name, class_name = class_path.rsplit('.', 1)
+        try:
+            module = importlib.import_module(module_name)
+            cls = getattr(module, class_name)
+        except Exception as exc:
+            raise ValueError("{}: {}: failed to import class {}: {}".format(
+                filename, node_path, class_path, exc)) from exc
+        if not isinstance(cls, type) or not issubclass(cls, Model):
+            fail(node_path, "class path {!r} does not identify a Model subclass".format(
+                class_path))
+        return cls
+
+    def validate_node(data, node_path):
+        if not isinstance(data, dict):
+            fail(node_path, 'expected a node object')
+        unknown = set(data) - {'name', 'class', 'attributes', 'children'}
+        if unknown:
+            fail(node_path, 'unknown fields: {}'.format(', '.join(sorted(unknown))))
+        for field in ('name', 'class'):
+            if field not in data:
+                fail(node_path, "missing {!r}".format(field))
+        if not isinstance(data['name'], str):
+            fail(node_path, "'name' must be a string")
+        if not isinstance(data.get('attributes', {}), dict):
+            fail(node_path, "'attributes' must be an object")
+        if not isinstance(data.get('children', []), list):
+            fail(node_path, "'children' must be a list")
+        child_names = set()
+        for child in data.get('children', []):
+            if not isinstance(child, dict) or not isinstance(child.get('name'), str):
+                fail(node_path, "each child must be an object with a string name")
+            if child['name'] in child_names:
+                fail(node_path, "duplicate child name {!r}".format(child['name']))
+            child_names.add(child['name'])
+        for attr, expression in data.get('attributes', {}).items():
+            if not isinstance(attr, str) or not isinstance(expression, str):
+                fail(node_path, "attribute names and values must be strings")
+        return data
+
+    def restore_node(data, node, node_path):
+        for attr, expression in data.get('attributes', {}).items():
+            try:
+                value = eval(expression, value_namespace)
+                setattr(node, attr, value)
+            except Exception as exc:
+                raise ValueError(
+                    "{}: {} attribute {!r}: failed to restore {!r}: {}".format(
+                        filename, node_path, attr, expression, exc)) from exc
+
+        for child_data in data.get('children', []):
+            child_name = child_data['name']
+            child_path = node_path + '/' + child_name
+            validate_node(child_data, child_path)
+            child_class = resolve_class(child_data['class'], child_path)
+            try:
+                child = node.add_node(name=child_name, cls=child_class)
+            except Exception as exc:
+                raise ValueError("{}: {}: failed to construct child: {}".format(
+                    filename, child_path, exc)) from exc
+            if not isinstance(child, child_class):
+                fail(child_path, 'existing constructor child has class {}, expected {}'.format(
+                    child.__class__.__module__ + '.' + child.__class__.__name__,
+                    child_class.__module__ + '.' + child_class.__name__))
+            restore_node(child_data, child, child_path)
+
+    root_data = validate_node(document['model'], 'model')
+    root_class = resolve_class(root_data['class'], 'model')
+    try:
+        model = root_class()
+    except Exception as exc:
+        raise ValueError("{}: model: failed to construct root class {}: {}".format(
+            filename, root_data['class'], exc)) from exc
+    restore_node(root_data, model, root_data['name'])
+    return model

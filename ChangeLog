@@ -1,4 +1,11 @@
         <<< Change Log >>>
+
+10/25/2026
+        * Script export now saves model.json alongside model.py.
+          model.py retains make_model() and runs independently of model.json.
+          GUI model opening selects a folder and loads model.json when present,
+          otherwise loading model.py through make_model().
+
 09/21/2026
         * Fixed 1D point-cloud exports to return zeros for locations absent from the mesh.
         * Added Numba-compatible Bessel functions for real orders and complex arguments.
