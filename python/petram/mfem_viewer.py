@@ -39,7 +39,7 @@ def MFEM_menus(parent):
     self = parent
     menu1 = [("+Open Model...", None, None),
              ("Binary...", self.onOpenPMFEM, None, None),
-             ("Script/Data Files...", self.onOpenModelS, None),
+             ("Script/JSON/Data Files...", self.onOpenModelS, None),
              ("!", None, None),
              # ("+Mesh", None, None),
              # ("New Mesh File...",  self.onNewMesh, None),
@@ -90,7 +90,7 @@ def MFEM_menus(parent):
 
     menu4 = [("+Export Model...", self.onSaveModel, None),
              ("Binary...", self.onSaveModel, None),
-             ("Script/Data Files...", self.onSaveModelS, None),
+             ("Script/JSON/Data Files...", self.onSaveModelS, None),
              ("!", None, None),
              ("---", None, None),
              ("Reset Model", self.onResetModel, None),
@@ -434,15 +434,13 @@ class MFEMViewer(BookViewer):
         # self.model.variables.setvar('engine', self.engine)
 
     def onOpenPMFEM(self, evt):
-        import petram.helper.pickle_wrapper as pickle
-        from ifigure.mto.py_code import PyData
-        from petram.pi.petram_py_script import PetraMPyScript
-
-        from petram.mesh.mesh_model import MeshFile
         path = dialog.read(
             message='Select model file to read', wildcard='*.pmfm')
         if path == '':
             return
+        import petram.helper.pickle_wrapper as pickle
+        from ifigure.mto.py_code import PyData
+        from petram.pi.petram_py_script import PetraMPyScript
 
         od = pickle.load(open(path, 'rb'))
         print('od', od)
@@ -494,21 +492,35 @@ class MFEMViewer(BookViewer):
         evt.Skip()
 
     def onOpenModelS(self, evt):
-        import importlib
+        directory = dialog.readdir(parent=self,
+                                   message='Select model directory to read')
+        if not directory:
+            return
+        json_path = os.path.join(directory, 'model.json')
+        script_path = os.path.join(directory, 'model.py')
+        if os.path.isfile(json_path):
+            self._open_model_entry(json_path, json_model=True, evt=evt)
+        elif os.path.isfile(script_path):
+            self._open_model_entry(script_path, json_model=False, evt=evt)
+        else:
+            wx.MessageBox(
+                'The selected folder contains neither model.json nor model.py.',
+                'Model file not found', wx.OK | wx.ICON_ERROR, self)
+
+    def _open_model_entry(self, path, json_model, evt):
+        directory = os.path.dirname(os.path.realpath(path))
         import shutil
         import ifigure.utils.pickle_wrapper as pickle
         from ifigure.mto.py_code import PyData
         from petram.pi.petram_py_script import PetraMPyScript
-        path = dialog.read(
-            message='Select model file to read', wildcard='*.py')
         try:
             print("loading", path)
-            # m = imp.load_source('petram.user_model', path)
-            spec = importlib.util.spec_from_file_location(
-                "petram.user_model", path)
-            m = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(m)
-            model = m.make_model()
+            if json_model:
+                from petram.model import load_model_json
+                model = load_model_json(path)
+            else:
+                from petram.model import load_model_script
+                model = load_model_script(path)
         except:
             print(path)
             dialog.showtraceback(parent=self,
@@ -516,7 +528,7 @@ class MFEMViewer(BookViewer):
                                  title='Error',
                                  traceback=traceback.format_exc())
             return
-        dir = os.path.dirname(path)
+        dir = directory
         c = [child for name, child in self.model.datasets.get_children()]
         for child in c:
             child.destroy()
@@ -525,7 +537,7 @@ class MFEMViewer(BookViewer):
             child.destroy()
 
         for file in os.listdir(dir):
-            if file == os.path.basename(path):
+            if file in (os.path.basename(path), 'model.py'):
                 continue
             if file.endswith('.py'):
                 shutil.copy(os.path.join(dir, file),
@@ -543,6 +555,17 @@ class MFEMViewer(BookViewer):
                 obj.setvar(data)
 
         self.mfem_model = model
+
+        # Fresh script/JSON models have no evaluated runtime namespaces yet.
+        # Mesh generators evaluate their parameters in those namespaces.
+        try:
+            self.rebuild_ns()
+        except Exception:
+            dialog.showtraceback(parent=self,
+                                 txt='Failed to build model namespaces',
+                                 title='Error',
+                                 traceback=traceback.format_exc())
+            return
 
         self.cla()
         self.load_mesh()
@@ -1125,7 +1148,8 @@ class MFEMViewer(BookViewer):
         from ifigure.widgets.dialog import writedir
         path = writedir(parent=self,
                         message='Directory to write')
-
+        if not path:
+            return
         m = self.mfem_model
         m.recored_pkg_versions()
         try:
