@@ -4,6 +4,7 @@
 
 '''
 from petram.namespace_mixin import NS_mixin
+import keyword
 import numpy as np
 from petram.model import Model
 
@@ -40,6 +41,7 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         v['debug_numba_jit'] = 'off'
         v['trim_debug_print'] = 'on'
         v['warning_control'] = 'once'
+        v['time_variable'] = 't'
         super(MFEM_GeneralRoot, self).attribute_set(v)
         return v
 
@@ -52,20 +54,53 @@ class MFEM_GeneralRoot(Model, NS_mixin):
         txt2 = "DWC (direct wrapper call) is for low level API access"
         return [["debug level", self.debug_level, 400, {}],
                 ["", "\n".join(txt), 2, None],
+                ["time variable", self.time_variable, 0, {}],
                 ["geom generator", self.geom_gen, 0, {}],
                 ["mesh generator", self.mesh_gen, 0, {}],
-                ["DWC object", "", 0, {}],
-                ["", txt2, 2, None], ]
+                ["DWC object", "", 0, {}],]
+
 
     def get_panel1_value(self):
-        return (self.debug_level, None,
-                self.geom_gen, self.mesh_gen, self.dwc_object_name, None)
+        return (self.debug_level, None, self.time_variable,
+                self.geom_gen, self.mesh_gen, self.dwc_object_name,)
+
 
     def import_panel1_value(self, v):
+
+        def validate_time_variable(name=None):
+           # Validate the reserved time name against coordinates and Variables.
+
+            from petram.helper.variables import Variable
+
+            if name is None:
+               name = self.time_variable
+            if not isinstance(name, str) or not name.isidentifier() or keyword.iskeyword(name):
+                raise ValueError("The time variable must be a valid Python identifier: " + repr(name))
+
+            root = self.root()
+            if 'Phys' in root:
+                for phys in root['Phys'].values():
+                    if phys.is_enabled() and name in [x.strip() for x in phys.ind_vars.split(',')]:
+                        raise ValueError("The time variable conflicts with a spatial coordinate: " + name)
+
+            variables = getattr(root, '_variables', {})
+            if isinstance(variables.get(name), Variable):
+                raise ValueError("The time variable conflicts with a Variable: " + name)
+            for node in root.walk():
+                namespace = getattr(node, '_global_ns', None)
+                if namespace is not None and isinstance(namespace.get(name), Variable):
+                    raise ValueError("The time variable conflicts with a Variable: " + name)
+            return name
+
         self.debug_level = v[0]
-        self.geom_gen = v[2]
-        self.mesh_gen = v[3]
-        self.dwc_object_name = str(v[4])
+
+        tmp = str(v[2]).strip()
+        tname = validate_time_variable(tmp)
+        self.time_variable = tname
+
+        self.geom_gen = v[3]
+        self.mesh_gen = v[4]
+        self.dwc_object_name = str(v[5])
         import petram.debug
         petram.debug.debug_default_level = int(self.debug_level)
 
@@ -320,7 +355,7 @@ class MFEM_PostProcessRoot(Model):
 
     def get_possible_child(self):
         from petram.postprocess.pp_model import PostProcess
-        from petram.postprocess.dxp_model import DataExport        
+        from petram.postprocess.dxp_model import DataExport
         return [PostProcess, DataExport]
 
     def onItemSelChanged(self, evt):

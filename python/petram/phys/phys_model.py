@@ -1,6 +1,7 @@
 from petram.debug import handle_allow_python_function_coefficient
 from petram.phys.vtable import VtableElement, Vtable
 from petram.helper.variables import Variable, eval_code
+from petram.helper.time_context import get_time_context
 from petram.phys.vtable import VtableElement, Vtable, Vtable_mixin
 from petram.helper.variables import NativeCoefficientGenBase, CoefficientVariable
 from petram.mfem_config import use_parallel
@@ -66,6 +67,13 @@ def try_eval(exprs, l, g):
     if not evaluate w/o knowing any Variables
     '''
     try:
+        if isinstance(exprs, str):
+            names = compile(exprs, "<coefficient>", "eval").co_names
+            if (get_time_context().time_name in names
+                    or any(isinstance(l.get(name, g.get(name)),
+                                      (Variable, NativeCoefficientGenBase))
+                           for name in names)):
+                return False, exprs
         value = eval(exprs, g, l)
         if isinstance(value, list):
             return True, [value]
@@ -156,15 +164,30 @@ class Coefficient_Evaluator(object):
         self.exprs = exprs
         self.flags = [isinstance(co, types.CodeType) for co in self.co]
         self.variables_dd = dict(self.variables)
+        self._time_name = get_time_context().time_name
+        self._evaluation_time = get_time_context().time
+        self.time_dependent = any(
+            self._time_name in getattr(code, "co_names", ()) for code in self.co
+        ) or any(getattr(v, "time_dependent", False) for _, v in self.variables)
+
+    def set_time(self, value):
+        """
+        Update evaluator time and its Variable graph outside spatial preparation.
+        """
+        self._eval_time = float(value)
+        for _, variable in self.variables:
+            variable.set_time(value)
 
     def EvalValue(self, x):
+        self.l[self._time_name] = self._eval_time
         for k, name in enumerate(self.ind_vars):
             self.l[name] = x[k]
 
         for n, v in self.variables:
             kwargs = {}
             for nn in v.dependency:
-                kwargs[nn] = self.variables_dd[nn]()
+                keyword = getattr(v, 'dep2kw', {}).get(nn, nn)
+                kwargs[keyword] = self.variables_dd[nn]()
             for nn in v.grad:
                 kwargs['grad'+nn] = self.variables_dd[nn].eval_grad()
             for nn in v.curl:
@@ -185,9 +208,17 @@ class PhysCoefficient(mfem.PyCoefficient, Coefficient_Evaluator):
         #    exprs = [exprs]
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)
         mfem.PyCoefficient.__init__(self)
+        get_time_context().register_coefficient(self)
 
         handle_allow_python_function_coefficient(
             "Python function coefficient is created")
+
+    def SetTime(self, value):
+        mfem.PyCoefficient.SetTime(self, value)
+        self.set_time(value)
+
+    def _EvalPyT(self, x, time):
+        return self.EvalValue(x.GetDataArray())
 
     def __repr__(self):
         return self.__class__.__name__ + "(PhysCoefficeint)"
@@ -198,13 +229,6 @@ class PhysCoefficient(mfem.PyCoefficient, Coefficient_Evaluator):
         return super(PhysCoefficient, self).Eval(T, ip)
 
     def EvalValue(self, x):
-        # set x, y, z to local variable so that we can use in
-        # the expression.
-
-        # note that this class could return array, since
-        # a user may want to define multiple variables
-        # as an array. In such case, subclass should pick
-        # one element.
         val = Coefficient_Evaluator.EvalValue(self, x)
         if len(self.co) == 1 and len(val) == 1:
             return val[0]
@@ -215,10 +239,18 @@ class VectorPhysCoefficient(mfem.VectorPyCoefficient, Coefficient_Evaluator):
     def __init__(self, sdim, exprs, ind_vars, l, g, real=True):
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)
         mfem.VectorPyCoefficient.__init__(self, sdim)
+        get_time_context().register_coefficient(self)
         self.sdim = sdim
 
         handle_allow_python_function_coefficient(
             "Python function coefficient is created")
+
+    def SetTime(self, value):
+        mfem.VectorPyCoefficient.SetTime(self, value)
+        self.set_time(value)
+
+    def _EvalPyT(self, x, time, result):
+        result.Assign(self.EvalValue(x.GetDataArray()))
 
     def __repr__(self):
         return self.__class__.__name__ + "(VectorPhysCoefficeint)"
@@ -251,9 +283,17 @@ class MatrixPhysCoefficient(mfem.MatrixPyCoefficient, Coefficient_Evaluator):
         self.sdim = sdim
         Coefficient_Evaluator.__init__(self, exprs, ind_vars, l, g, real=real)
         mfem.MatrixPyCoefficient.__init__(self, sdim)
+        get_time_context().register_coefficient(self)
 
         handle_allow_python_function_coefficient(
             "Python function coefficient is created")
+
+    def SetTime(self, value):
+        mfem.MatrixPyCoefficient.SetTime(self, value)
+        self.set_time(value)
+
+    def _EvalPyT(self, x, time, result):
+        result.Assign(self.EvalValue(x.GetDataArray()))
 
     def __repr__(self):
         return self.__class__.__name__ + "(MatrixPhysCoefficeint)"
@@ -398,6 +438,7 @@ class Phys(Model, Vtable_mixin, NS_mixin):
                     ret.append(mfem.MatrixRestrictedCoefficient(c, arr))
                 else:
                     ret.append(mfem.RestrictedCoefficient(c, arr))
+                get_time_context().register_coefficient(ret[-1])
             else:
                 ret.append(c)
 

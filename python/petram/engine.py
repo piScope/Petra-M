@@ -145,9 +145,9 @@ class Engine(object):
         return ""
 
     def show_variables(self, show_hidden=True):
-        try:
+        if use_parallel:
             from mpi4py import MPI
-        except:
+        else:
             from petram.helper.dummy_mpi import MPI
         myid = MPI.COMM_WORLD.rank
 
@@ -583,14 +583,31 @@ class Engine(object):
             self._r_x_old[name] = self._r_x[0][0][k]
             self._i_x_old[name] = self._i_x[0][0][k]
 
+    @property
+    def time(self):
+        from petram.helper.time_context import get_time_context
+        return get_time_context().time
+
+    def set_time(self, value):
+        """
+        Set the physical time shared by active namespaces and coefficients.
+        """
+        from petram.helper.time_context import get_time_context
+        get_time_context().set_time(value)
+
     def set_model(self, model):
         if hasattr(self, 'model') and self.model == model:
             return
 
-        self.model = model
         self.initialize_datastorage()
+
         if model is None:
             return
+        self.model = model
+
+        from petram.helper.time_context import get_time_context
+        tname = model['General'].time_variable
+        get_time_context().reset(time=0.0, time_name=tname)
 
         self.alloc_flag = {}
         # below is to support old version
@@ -3596,6 +3613,10 @@ class Engine(object):
             return self.new_mixed_bf(fes2, fes1), proj
 
     def build_ns(self):
+        from petram.helper.time_context import get_time_context
+        general = self.model['General']
+
+        get_time_context().configure(general.time_variable)
 
         errors = []
         for node in self.model.walk():
@@ -3800,9 +3821,9 @@ class Engine(object):
                 shutil.rmtree(os.path.join(d, file))
 
     def clear_solmesh_files(self, header):
-        try:
+        if use_parallel:
             from mpi4py import MPI
-        except:
+        else:
             from petram.helper.dummy_mpi import MPI
         myid = MPI.COMM_WORLD.rank
         nproc = MPI.COMM_WORLD.size
@@ -4411,7 +4432,7 @@ class Engine(object):
     @current_solve_step.setter
     def current_solve_step(self, value):
         self._current_solve_step = value
-    
+
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(SerialEngine, self).__init__(modelfile=modelfile, model=model)

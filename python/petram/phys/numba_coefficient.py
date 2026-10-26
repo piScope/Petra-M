@@ -41,6 +41,9 @@ class NumbaCoefficient():
     def __init__(self, coeff):
         self.is_complex = coeff.IsOutComplex()
         self.mfem_numba_coeff = coeff
+        from petram.helper.time_context import get_time_context
+        context = get_time_context()
+        context.register_coefficient(coeff)
 
         if self.is_complex:
             self.real = coeff.real
@@ -48,6 +51,10 @@ class NumbaCoefficient():
         else:
             self.real = coeff
             self.imag = None
+
+        for component in (self.real, self.imag):
+            if component is not None:
+                context.register_coefficient(component)
 
         if self.ndim == 1:
             self._V = mfem.Vector(self.shape[0])
@@ -905,6 +912,9 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
     ind_vars = [xx.strip() for xx in ind_vars.split(',')]
     code = compile(txt.strip(), '<string>', 'eval')
     names = code.co_names
+    from petram.helper.time_context import get_time_context
+    time_name = get_time_context().time_name
+    accepts_time = time_name in names
 
     dependency = []
     dep_names = []
@@ -918,7 +928,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
                 assert False, "name conflict: " + n + " is defined in local namespace"
 
     for n in names:
-        if n in ind_vars:
+        if n in ind_vars or n == time_name:
             continue
 
         dep = None
@@ -959,6 +969,8 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
 
     def create_func(objmode=False):
         f0 = 'def _func_(ptx, '
+        if accepts_time:
+            f0 += time_name + ', '
         for n in dep_names:
             f0 += n + ', '
         f0 += '):'
@@ -1044,7 +1056,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
     try:
         import traceback
         coeff = jitter(sdim=len(ind_vars), complex=return_complex, debug=numba_debug,
-                       dependency=dependency, **kwargs)(l["_func_"])
+                       dependency=dependency, td=accepts_time, **kwargs)(l["_func_"])
         del l["_func_"]
     except AssertionError:
         if get_allow_python_function_coefficient() == "error":
@@ -1099,7 +1111,7 @@ def _expr_to_numba_coeff(txt, jitter, ind_vars, conj, scale, g, l,
     try:
         from numba import objmode
         coeff = jitter(sdim=len(ind_vars), complex=return_complex, debug=numba_debug,
-                       dependency=dependency, params={"objmode": objmode},
+                       dependency=dependency, td=accepts_time, params={"objmode": objmode},
                        **kwargs)(l["_func_"])
         del l["_func_"]
     except AssertionError:

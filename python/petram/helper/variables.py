@@ -49,6 +49,7 @@ import numpy as np
 import weakref
 import types
 import traceback
+import inspect
 from weakref import WeakKeyDictionary as WKD
 from weakref import WeakValueDictionary as WVD
 
@@ -79,7 +80,7 @@ class _decorator(object):
                                          grad=grad,
                                          curl=curl,
                                          div=div,
-                                         params=params)
+                                         params=params, td=td)
                 return obj
             return dec(func)
         if func:
@@ -103,7 +104,7 @@ class _decorator(object):
                                          grad=grad,
                                          curl=curl,
                                          div=div,
-                                         params=params)
+                                         params=params, td=td)
                 return obj
             return dec(func)
         if func:
@@ -122,7 +123,7 @@ class _decorator(object):
                                      grad=grad,
                                      curl=curl,
                                      div=div,
-                                     params=params)
+                                     params=params, td=td)
             return obj
         return dec
 
@@ -329,6 +330,72 @@ class Variable():
         self.curl = [] if curl is None else curl
         self.grad = [] if grad is None else grad
 
+    def prepare_time(self, namespace, seen=None):
+        """
+        Register Variable to TimeContext
+        Resolve time inputs and dependencies after model settings are available.        
+        """
+        from petram.helper.time_context import get_time_context
+        context = get_time_context()
+        if seen is None:
+            seen = set()
+        if id(self) in seen:
+            return
+        seen.add(id(self))
+        self._time_name = context.time_name
+        if isinstance(self, ExpressionVariable):
+            merged = self.gns.copy()
+            merged.update(namespace)
+            namespace = merged
+
+        self.global_context = namespace
+
+        self.accepts_time = bool(getattr(self, 'td', False))
+
+        if hasattr(self, 'func') and callable(self.func):
+            self.accepts_time |= self._time_name in inspect.signature(self.func).parameters
+
+        if isinstance(self, ExpressionVariable):
+            self.accepts_time = self._time_name in self.names
+
+        if isinstance(self, PyFunctionVariable):
+            self._prepare_dependency_keywords()
+
+        children = []
+        for name in self.get_names():
+            child = getattr(self, 'gns', {}).get(name, namespace.get(name))
+            if isinstance(child, Variable):
+                children.append(child)
+        if isinstance(self, SumVariable):
+            children.extend(self.variables)
+        if isinstance(self, DomainVariable):
+            children.extend(self.domains.values())
+        self._time_dependencies = children
+        for child in children:
+            child.prepare_time(namespace, seen)
+        self.time_dependent = self.accepts_time or any(
+            getattr(child, 'time_dependent', False) for child in children)
+        if self.time_dependent:
+            context.register_variable(self)
+
+    def set_time(self, value):
+        """
+        Prepare temporal state
+        """
+        value = float(value)
+        if getattr(self, 't', None) == value:
+            return
+        self.t = value
+        self._valid_nodes = None
+        for child in getattr(self, '_time_dependencies', ()):
+            child.set_time(value)
+        for coeff in getattr(self, 'coeff', ()):
+            if coeff is not None:
+                coeff.SetTime(value)
+        jitted = getattr(self, '_jitted', None)
+        if jitted is not None:
+            jitted.SetTime(value)
+
     def __call__(self):
         raise NotImplementedError("Subclass need to implement")
 
@@ -463,7 +530,7 @@ class Variable():
         pass
 
     def set_context(self, ll):
-        self.global_context = ll
+        self.prepare_time(ll)
 
     def check_valid_nodes(self, idx):
         if self._valid_nodes is None:
@@ -596,7 +663,7 @@ class SumVariable(Variable):
     def set_point(self, T, ip, g, l, t=None):
         # for v, g in zip(self.variables, self.gvariables):
         for v in self.variables:
-            v.set_point(T, ip, g, l, t=t)
+            v.set_point(T, ip, g, l)
 
     def __call__(self, **kwargs):
         g = kwargs.pop("g", {}).copy()
@@ -657,7 +724,7 @@ class SumVariable(Variable):
             v.set_coeff(ind_vars, ll)
 
     def set_context(self, ll):
-        self.global_context = ll
+        self.prepare_time(ll)
         for v in self.variables:
             v.set_context(ll)
 
@@ -772,6 +839,7 @@ class ExpressionVariable(Variable):
         self.x = T.Transform(ip)
         #print("setting x", self, self.x, self.names, list(self.global_context), list(g))
         for n in self.names:
+            var = None
             if n in self.gns:
                 var = self.gns[n]
             elif n in self.global_context:
@@ -779,7 +847,7 @@ class ExpressionVariable(Variable):
             elif n in g:
                 var = g[n]
             if isinstance(var, Variable):
-                var.set_point(T, ip, g, l, t=t)
+                var.set_point(T, ip, g, l)
                 self.variables[n] = var
 
     def __call__(self, **kwargs):
@@ -790,6 +858,8 @@ class ExpressionVariable(Variable):
         for k in keys:
             l[k] = self.variables[k]()
 
+        if getattr(self, "time_dependent", False):
+            l[self._time_name] = self.t
         return (eval_code(self.co, self.global_context, l))
         # return (eval_code(self.co, var_g, l))
 
@@ -942,30 +1012,16 @@ class ExpressionVariable(Variable):
     def set_coeff(self, ind_vars, ll):
         #print('set coeff', self, self.names)
         for n in self.names:
+            var = None
             if n in self.global_context:
                 var = self.global_context[n]
             elif n in ll:
-                var = self.ll[n]
+                var = ll[n]
             if isinstance(var, Variable):
                 var.set_coeff(ind_vars, ll)
 
     def set_context(self, ll):
-        #print('set context', self, self.names)
-        #if self.gns is not None: print("gns", list(self.gns))
-        #print("context", list(ll))
-
-        if self.gns is not None:
-            self.global_context = self.gns.copy()
-        else:
-            self.global_context = {}
-        self.global_context.update(ll)
-
-        for n in self.names:
-            if self.gns is not None and n in self.gns:
-                continue
-            if (n in ll and isinstance(ll[n], Variable)):
-                ll[n].set_context(ll)
-                self.global_context[n] = ll[n]
+        self.prepare_time(ll)
 
 
 class DomainVariable(Variable):
@@ -1061,7 +1117,7 @@ class DomainVariable(Variable):
         for domains in self.domains.keys():
             for a in attrs:
                 if a in domains:
-                    self.domains[domains].set_point(T, ip, g, l, t=t)
+                    self.domains[domains].set_point(T, ip, g, l)
                     self.domain_target.append(domains)
 
     def __call__(self, **kwargs):
@@ -1313,7 +1369,7 @@ class DomainVariable(Variable):
             self.domains[n].set_coeff(ind_vars, ll)
 
     def set_context(self, ll):
-        self.global_context = ll
+        self.prepare_time(ll)
         for n in self.domains:
             #print("domain variable", n, self.domains[n])
             self.domains[n].set_context(ll)
@@ -1348,7 +1404,7 @@ def _get_kwargs(func):
 
 class PyFunctionVariable(Variable):
     def __init__(self, func, complex=False, shape=tuple(), dependency=None,
-                 grad=None, curl=None, div=None, params=None):
+                 grad=None, curl=None, div=None, params=None, td=False):
         super(
             PyFunctionVariable,
             self).__init__(complex=complex,
@@ -1359,6 +1415,7 @@ class PyFunctionVariable(Variable):
         if params is not None:
             func = _copy_func_and_apply_params(func, params)
         self.func = func
+        self.td = td
         self.t = None
         self.x = (0, 0, 0)
         self.shape = shape
@@ -1366,10 +1423,32 @@ class PyFunctionVariable(Variable):
         kwnames = _get_kwargs(self.func)
         self.dep2kw = dep2kw = dict(zip(self.dependency, kwnames))
 
+    def _prepare_dependency_keywords(self, spatial_dimension=None):
+        """
+        Exclude position and time arguments already supplied positionally.
+        """
+        if spatial_dimension is not None:
+            self._spatial_dimension = spatial_dimension
+        dimension = getattr(self, '_spatial_dimension', None)
+        bound_names = set()
+        if dimension is not None:
+            positional = [parameter.name for parameter in
+                          inspect.signature(self.func).parameters.values()
+                          if parameter.kind in (parameter.POSITIONAL_ONLY,
+                                                parameter.POSITIONAL_OR_KEYWORD)]
+            count = dimension + int(getattr(self, 'accepts_time', False))
+            bound_names.update(positional[:count])
+        elif getattr(self, 'accepts_time', False):
+            bound_names.add(self._time_name)
+        keywords = [name for name in _get_kwargs(self.func)
+                    if name not in bound_names]
+        self.dep2kw = dict(zip(self.dependency, keywords))
+
     def __repr__(self):
         return "PyFunction("+self.func.__name__+")"
 
     def prep_names(self, ind_vars, g):
+        self._prepare_dependency_keywords(len(ind_vars))
         ret = []
         for n in self.dependency:
             if (n in g and isinstance(g[n], Variable)):
@@ -1396,14 +1475,15 @@ class PyFunctionVariable(Variable):
 
     def set_point(self, T, ip, g, l, t=None):
         self.x = T.Transform(ip)
-        self.t = t
+        if getattr(self, '_spatial_dimension', None) != len(self.x):
+            self._prepare_dependency_keywords(len(self.x))
         for n in self.dependency:
             if (n in g and isinstance(g[n], Variable)):
-                g[n].set_point(T, ip, g, l, t=t)
+                g[n].set_point(T, ip, g, l)
 
     def __call__(self, **kwargs):
-        if self.t is not None:
-            args = tuple(np.hstack((self.x, t)))
+        if getattr(self, "accepts_time", False):
+            args = tuple(np.hstack((self.x, self.t)))
         else:
             args = tuple(self.x)
 
@@ -1589,12 +1669,13 @@ class PyFunctionVariable(Variable):
         return ret
 
     def set_coeff(self, ind_vars, ll):
+        self._prepare_dependency_keywords(len(ind_vars))
         for n in self.dependency:
             if (n in ll and isinstance(ll[n], Variable)):
                 ll[n].set_coeff(ind_vars, ll)
 
     def set_context(self, ll):
-        self.global_context = ll
+        self.prepare_time(ll)
         for n in self.dependency:
             if (n in ll and isinstance(ll[n], Variable)):
                 ll[n].set_context(ll)
@@ -1607,6 +1688,10 @@ class CoefficientVariable(Variable):
 
         complex = not (self.coeff[1] is None)
         super(CoefficientVariable, self).__init__(complex=complex)
+        from petram.helper.time_context import get_time_context
+        for component in self.coeff:
+            if component is not None:
+                get_time_context().register_coefficient(component)
 
     @property
     def local_value(self):
@@ -1622,7 +1707,6 @@ class CoefficientVariable(Variable):
     def set_point(self, T, ip, g, l, t=None):
         self.T = T
         self.ip = ip
-        self.t = t
         self.set_local_from_T_ip()
 
     def set_local_from_T_ip(self):
@@ -1903,6 +1987,7 @@ class NumbaCoefficientVariable(CoefficientVariable):
         self._jitted = None
 
     def get_jitted_coefficient(self, ind_vars, locals):
+        self.prepare_time(locals)
 
         if self._jitted is not None:
             #dprint1("(Note) this numba coefficient is already compiled", self.func)
@@ -1987,13 +2072,15 @@ class NumbaCoefficientVariable(CoefficientVariable):
 
         wrapper = jitter(sdim=sdim,
                          complex=self.complex,
-                         td=self.td,
+                         td=self.accepts_time,
                          params=self.params,
                          dependency=dep,
                          interface=(gen_caller, gen_sig),
                          debug=numba_debug,
                          **kwargs)
         self._jitted = wrapper(self.func)
+        from petram.helper.time_context import get_time_context
+        get_time_context().register_coefficient(self._jitted)
         return self._jitted
 
     def set_coeff(self, ind_vars, locals):
@@ -2004,6 +2091,10 @@ class NumbaCoefficientVariable(CoefficientVariable):
             self.coeff = (coeff.real, coeff.imag)
         else:
             self.coeff = (coeff, None)
+        from petram.helper.time_context import get_time_context
+        for component in self.coeff:
+            if component is not None:
+                get_time_context().register_coefficient(component)
 
 
 class GridFunctionVariable(Variable):
@@ -3290,6 +3381,10 @@ class NativeCoefficientGenBase(object):
 
         '''
         if self._generated is not None:
+            from petram.helper.time_context import get_time_context
+            for component in self._generated:
+                if component is not None:
+                    get_time_context().register_coefficient(component)
             return self._generated
         m = getattr(self, 'fgen')
         if not self.jit:
@@ -3305,9 +3400,15 @@ class NativeCoefficientGenBase(object):
                 if len(rc) != 2:
                     assert False, "generator must return real/imag parts"
                 self._generated = rc
+                from petram.helper.time_context import get_time_context
+                for component in rc:
+                    if component is not None:
+                        get_time_context().register_coefficient(component)
                 return self._generated
             else:
                 self._generated = rc, None
+                from petram.helper.time_context import get_time_context
+                get_time_context().register_coefficient(rc)
                 return self._generated
         else:
             assert False, "coefficient(jit=True) is not valid anymore. jit is supported by @variable"
@@ -3318,18 +3419,24 @@ class NativeCoefficientGenBase(object):
             ret = mfem.ProductCoefficient(coeff, c2)
             ret._c2 = c2
             ret._coeff = coeff
+            from petram.helper.time_context import get_time_context
+            get_time_context().register_coefficient(ret)
             return ret
         elif len(self.shape) == 1:  # Vector
             c2 = mfem.ConstantCoefficient(scale)
             ret = mfem.ScalarVectorProductCoefficient(c2, coeff)
             ret._c2 = c2
             ret._coeff = coeff
+            from petram.helper.time_context import get_time_context
+            get_time_context().register_coefficient(ret)
             return ret
         elif len(self.shape) == 2:  # Matrix
             c2 = mfem.ConstantCoefficient(scale)
             ret = mfem.ScalarMatrixProductCoefficient(c2, coeff)
             ret._c2 = c2
             ret._coeff = coeff
+            from petram.helper.time_context import get_time_context
+            get_time_context().register_coefficient(ret)
             return ret
         else:
             assert False, "dim >= 3 is not supported"
@@ -3386,3 +3493,5 @@ class MatrixComplexNativeCoefficientGen(NativeCoefficientGenBase):
     def __init__(self, func, dependency=None, shape=None, td=False, jit=False):
         NativeCoefficientGenBase.__init__(
             self, func, complex=True, dependency=dependency, shape=shape, td=td, jit=jit)
+
+

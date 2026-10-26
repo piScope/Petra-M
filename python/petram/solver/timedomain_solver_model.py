@@ -215,6 +215,7 @@ class TimeDomain(Solver):
         instance.set_end(et)
         instance.set_checkpoint(np.linspace(st, et, nt))
 
+        engine.run_fill_X_block()
         engine.sol = engine.assembled_blocks[1][0]
         instance.sol = engine.sol
         instance.time = st
