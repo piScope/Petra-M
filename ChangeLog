@@ -1,5 +1,18 @@
         <<< Change Log >>>
 
+10/26/2026
+        * Added shared TimeContext to synchronize time-dependent Variables,
+          expressions, and MFEM coefficients. The time-variable name is
+          configurable in General settings (default: t).
+        * Corrected fixed-step Forward Euler, Backward Euler, and
+          Crank-Nicolson time evaluation; added implicit midpoint integration.
+          Algebraic constraints and essential boundary conditions are enforced
+          at the new endpoint while differential terms retain each method's
+          evaluation times.
+        * Fixed repeated updates of auxiliary matrix blocks accumulating
+          previous contributions. Validated fixed-step solvers in serial
+          and parallel.
+
 10/25/2026
         * Script export now saves model.json alongside model.py.
           model.py retains make_model() and runs independently of model.json.
