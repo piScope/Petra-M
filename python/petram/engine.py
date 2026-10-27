@@ -1225,7 +1225,11 @@ class Engine(object):
             for extra_name, dep_name, kfes in updated_extra:
                 r = self.dep_var_offset(extra_name)
                 c = self.r_dep_var_offset(dep_name)
+                c1 = self.dep_var_offset(extra_name)
+                r1 = self.dep_var_offset(dep_name)                
                 self.mask_M[j, r, c] = True
+                self.mask_M[j, r, c1] = True
+                self.mask_M[j, r1, c1] = True
 
             self.aux_ops = {}
             updated_extra = []
@@ -2609,10 +2613,12 @@ class Engine(object):
             indices = np.asarray(gl_ess_tdof1, dtype=int)
 
             if use_parallel:
+                if np.sum(MPI.COMM_WORLD.allgather(len(indices))) == 0: continue
                 diagonal = A[idx, ridx].getDiag(indices)
                 if A[idx, ridx][1] is None:  # Real matrix
                     diagonal = diagonal.real
             else:
+                if len(indices) == 0: continue
                 diagonal = A[idx, ridx].diagonal()[indices]
 
             x1 = X[ridx].get_elements(indices)

@@ -304,6 +304,7 @@ class FixedStepSolver(TimeDependentSolverInstance):
         self.assembled = False
         self.counter = 0
         self._dt_used_in_assemble = 0.0
+        self._algebraic_eq = None
 
     @property
     def time_step(self):
@@ -514,6 +515,42 @@ class FixedStepSolver(TimeDependentSolverInstance):
         self.engine.symlink('../model.pmfm', 'model.pmfm')
         os.chdir(od)
 
+    def check_algebraic_eq(self, M):
+        if self._algebraic_eq is None:
+            mass = M[1]
+            self._algebraic_eq = [
+                i for i in range(mass.shape[0])
+                if all(mass[i, j] is None for j in range(mass.shape[1]))]
+
+        return self._algebraic_eq
+
+    def _assemble_endpoint_constraints(self, M, B, mask_M):
+        """
+        Preserve staged differential blocks and replace endpoint algebraic rows.
+        """
+        changed = np.any(mask_M)
+        algebraic = [i for i in self.check_algebraic_eq(M)
+                     if self.blk_mask[0][i]]
+        if algebraic:
+            # Endpoint form assembly can overwrite the native storage backing
+            # the differential matrices and loads from the earlier stage.
+            M[:] = [matrix*1.0 for matrix in M]
+            for i in range(B.shape[0]):
+                if B[i] is not None:
+                    B[i] = B[i]*1.0
+
+            engine = self.engine
+            engine.set_update_flag('TimeDependent')
+            FixedStepSolver.pre_assemble(self, update=True)
+            endpoint_M, endpoint_B, endpoint_changed = engine.fill_M_B_blocks(
+                [matrix*1.0 for matrix in M], B*1.0, update=True)
+            changed = changed or endpoint_changed
+            for i in algebraic:
+                for j in range(M[0].shape[1]):
+                    M[0][i, j] = endpoint_M[0][i, j]
+                B[i] = endpoint_B[i]
+        return algebraic, changed
+
 
 class FirstOrderBackwardEuler(FixedStepSolver):
     _assemble_at_step_end = True
@@ -572,7 +609,10 @@ class CrankNicolson(FixedStepSolver):
 
     def compute_rhs0(self, M, B, X):
         one_dt = 1./float(self.time_step)
-        return (M[1]*one_dt).dot(self.engine.sol) + self._q*0.5
+        history = (M[1]*one_dt).dot(self.engine.sol) + self._q*0.5
+        for i in self.check_algebraic_eq(M):
+            history[i] = None
+        return history
 
     def compute_rhs(self, MM, B, X, helper=None):
         RHS = MM + B*0.5
@@ -595,13 +635,20 @@ class ImplicitMidpoint(FixedStepSolver):
 
     def compute_A(self, M, B, X, mask_M, mask_B):
         """
-        Form M/dt + K_mid/2 for implicit midpoint with constant mass.
+        Use midpoint differential rows and endpoint algebraic constraints.
         """
+        algebraic, changed = self._assemble_endpoint_constraints(M, B, mask_M)
         A = M[1]*(1./float(self.time_step)) + M[0]*0.5
-        return A, np.any(mask_M)
+        for i in algebraic:
+            for j in range(A.shape[1]):
+                A[i, j] = M[0][i, j]
+        return A, changed
 
     def compute_rhs0(self, M, B, X):
         operator = M[1]*(1./float(self.time_step)) - M[0]*0.5
+        for i in self.check_algebraic_eq(M):
+            for j in range(operator.shape[1]):
+                operator[i, j] = None
         return operator.dot(self.engine.sol)
 
     def compute_rhs(self, MM, B, X, helper=None):
@@ -609,21 +656,40 @@ class ImplicitMidpoint(FixedStepSolver):
 
 
 class FirstOrderForwardEuler(FixedStepSolver):
-    _assemble_at_step_end = False
+    _assemble_at_step_end = True
+
+    def pre_assemble(self, update=False):
+        """
+        Assemble at old time, preserving endpoint time for BCs and output.
+        """
+        endpoint = self.time
+        self.time = endpoint - self.time_step
+        try:
+            return super().pre_assemble(update=update)
+        finally:
+            self.time = endpoint
 
     def compute_A(self, M, B, X, mask_M, mask_B):
-        '''
-        M/dt u_1  = M/dt u_0 - K u_0 + b
-        '''
+        """
+        Use old-time differential terms and endpoint algebraic constraints.
+        """
+        _, changed = self._assemble_endpoint_constraints(M, B, mask_M)
         one_dt = 1./float(self.time_step)
-        # MM = M[1]*one_dt
         A = M[1]*one_dt
-        dprint1("A", A)
-        return A, np.any(mask_M)
+        # Child derived-value solvers also use the inactive algebraic rows.
+        for i in self.check_algebraic_eq(M):
+            for j in range(A.shape[1]):
+                A[i, j] = M[0][i, j]
+        return A, changed
 
     def compute_rhs0(self, M, B, X):
         one_dt = 1./float(self.time_step)
         MM = (-M[0] + M[1]*one_dt)
+
+        for i in self.check_algebraic_eq(M):
+            for j in range(MM.shape[1]):
+                MM[i, j] = None
+
         return MM.dot(self.engine.sol)
 
     def compute_rhs(self, MM, B, X, helper=None):
