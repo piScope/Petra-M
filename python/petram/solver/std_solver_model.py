@@ -306,7 +306,8 @@ class StandardSolver(SolverInstance):
             self._AA = AA
         BB = engine.finalize_rhs([RHS2], A2, X2, mask2, not self.phys_real,
                                  format=self.ls_type,
-                                 blk_format=self.gui.get_blk_structure())
+                                 blk_format=self.gui.get_blk_structure(),
+                                 distributed=self.linearsolver_model.distributed_rhs)
 
         if self.linearsolver is None:
             linearsolver = self.allocate_linearsolver(

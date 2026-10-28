@@ -372,7 +372,8 @@ class NonlinearBaseSolver(SolverInstance):
 
         BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
                                  format=self.ls_type,
-                                 use_residual=True)
+                                 use_residual=True,
+                                 distributed=self.linearsolver_model.distributed_rhs)
 
         if self.linearsolver is None:
             linearsolver = self.allocate_linearsolver(

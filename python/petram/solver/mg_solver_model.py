@@ -285,7 +285,8 @@ class MGInstance(SolverInstance):
         AA = engine.finalize_matrix(A, mask, not self.phys_real,
                                     format=self.ls_type)
         BB = engine.finalize_rhs([RHS], A, X[0], mask, not self.phys_real,
-                                 format=self.ls_type)
+                                 format=self.ls_type,
+                                 distributed=solver_model.distributed_rhs)
 
         linearsolver = self.allocate_linearsolver(self.gui.is_complex(),
                                                   self.engine,

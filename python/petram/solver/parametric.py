@@ -344,7 +344,8 @@ class Parametric(SolveStep, NS_mixin):
                 if kcase == l_scan-1:
                     BB = engine.finalize_rhs(RHS_ALL, A, X[0], mask,
                                              not phys_real,
-                                             format=ls_type)
+                                             format=ls_type,
+                                 distributed=instance.linearsolver_model.distributed_rhs)
 
                     if linearsolver is None:
                         linearsolver = instance.allocate_linearsolver(s.is_complex(),

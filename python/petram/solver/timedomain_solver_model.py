@@ -426,7 +426,8 @@ class FixedStepSolver(TimeDependentSolverInstance):
             self._AA = AA
         BB = engine.finalize_rhs([RHS], A, X[-1], mask,
                                  not self.phys_real, format=self.ls_type,
-                                 verbose=False)
+                                 verbose=False,
+                                 distributed=self.linearsolver_model.distributed_rhs)
         if self.counter == 0 and not self._assemble_at_step_end:
             self.sol = engine.sol
             self.write_checkpoint_solution()
@@ -762,7 +763,8 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
                 A, X, RHS, Ae, B, M, depvars = self.blocks1[idt]
                 BB = engine.finalize_rhs([RHS], A, X[-1], mask,
                                          not self.phys_real,
-                                         format=self.ls_type, verbose=False)
+                                         format=self.ls_type, verbose=False,
+                                 distributed=self.linearsolver_model.distributed_rhs)
             else:
                 A, X, RHS, Ae, B, M, depvars = self.blocks1[idt]
                 if self.counter != 0 or recompute_rhs:
@@ -772,7 +774,8 @@ class FirstOrderBackwardEulerAT(FirstOrderBackwardEuler):
                     RHS = engine.apply_interp(RHS=RHS)
                 BB = engine.finalize_rhs([RHS], A, X[-1], mask,
                                          not self.phys_real,
-                                         format=self.ls_type, verbose=False)
+                                         format=self.ls_type, verbose=False,
+                                 distributed=self.linearsolver_model.distributed_rhs)
             if not idt in self.linearsolver:
                 AA = engine.finalize_matrix(A, mask,
                                             not self.phys_real,

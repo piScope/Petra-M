@@ -184,6 +184,41 @@ class MUMPSBase(LinearSolverModel):
 
 
 class MUMPS(MUMPSBase):
+    def attribute_set(self, v):
+        v = super().attribute_set(v)
+        v['solver_mpi_ranks'] = -1
+        return v
+
+    def panel1_param(self):
+        return super().panel1_param() + [["Solver MPI ranks", self.solver_mpi_ranks, 400, {}]]
+
+    def get_panel1_value(self):
+        return tuple(super().get_panel1_value()) + (self.solver_mpi_ranks,)
+
+    def import_panel1_value(self, values):
+        super().import_panel1_value(values[:-1])
+        self.solver_mpi_ranks = int(values[-1])
+
+    @property
+    def distributed_rhs(self):
+        return bool(self.use_dist_rhs and use_parallel)
+
+    def allocate_solver(self, is_complex=False, engine=None):
+        ls_type = self.get_solve_root().get_linearsystem_type_from_modeltree()
+        if not use_parallel or ls_type.startswith('blk'):
+            return super().allocate_solver(is_complex, engine)
+        from mpi4py import MPI
+        from petram.solver.solver_mpi import ReducedLinearSolver, resolve_solver_size
+        size, source = resolve_solver_size(MPI.COMM_WORLD, self.solver_mpi_ranks)
+        dprint1(f'MUMPS MPI ranks: application={MPI.COMM_WORLD.size}, solver={size} ({source})')
+
+        def factory(comm):
+            solver = MUMPSSolver(self, engine, comm=comm)
+            solver.AllocSolver(is_complex, self.use_single_precision)
+            return solver
+
+        return ReducedLinearSolver(self, engine, MPI.COMM_WORLD, size, factory)
+
     def does_linearsolver_choose_linearsystem_type(self):
         from petram.solver.solver_model import Solver
 
@@ -276,20 +311,47 @@ class MUMPSPreconditionerModel(MUMPSBase):
 class MUMPSSolver(LinearSolver):
     is_iterative = False
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, comm=None, **kwargs):
         super(MUMPSSolver, self).__init__(*args, **kwargs)
+        if comm is None:
+            if use_parallel:
+                from mpi4py import MPI
+            else:
+                from petram.helper.dummy_mpi import MPI
+            comm = MPI.COMM_WORLD
+        self.comm = comm
+        self.s = None
         self.silent = False
         self.keep_sol_distributed = False
+        self._solution_transfer = None
 
-    @staticmethod
-    def split_dir_prefix(txt):
+    def close(self):
+        """
+        Finish the native solver collectively on its own communicator.
+        """
+        if self.s is not None:
+            self.s.finish()
+            self.s = None
+
+    def _run_job(self, job):
+        """
+        Run a native collective and check the global MUMPS status.
+        """
+        self.s.set_job(job)
+        self.s.run()
+        status = self.s.get_infog(1)
+        if status < 0:
+            raise RuntimeError(f'MUMPS job {job}: INFOG(1)={status}, INFOG(2)={self.s.get_infog(2)}')
+        return status
+
+    def split_dir_prefix(self, txt):
         txt = os.path.abspath(os.path.expanduser(txt))
         txt = txt.strip().split('*')[0]
         path = os.path.dirname(txt)
         prefix = os.path.basename(txt)
         try:
             from mpi4py import MPI
-            myid = MPI.COMM_WORLD.rank
+            myid = self.comm.rank
         except BaseException:
             myid = 0
             from petram.helper.dummy_mpi import MPI
@@ -376,8 +438,8 @@ class MUMPSSolver(LinearSolver):
     def AllocSolver(self, is_complex, use_single_precision):
         if use_parallel:
             from mpi4py import MPI
-            myid = MPI.COMM_WORLD.rank
-            args = (1, 0, MPI.COMM_WORLD)
+            myid = self.comm.rank
+            args = (1, 0, self.comm)
         else:
             myid = 0
             args = (1, 0)
@@ -479,9 +541,9 @@ class MUMPSSolver(LinearSolver):
 
         if use_parallel:
             from mpi4py import MPI
-            MPI.COMM_WORLD.Barrier()
+            self.comm.Barrier()
 
-            myid = MPI.COMM_WORLD.rank
+            myid = self.comm.rank
         else:
             myid = 0
 
@@ -535,52 +597,15 @@ class MUMPSSolver(LinearSolver):
         s.run()
         return irhs_loc
 
-    def redistributed_array(self, sol, isol_loc, irhs_loc, nrhs):
-        '''
-        sol[isol_loc] is distributed so that the local sol index
-        is irhs_loc
-        '''
-        from petram.mfem_config import use_parallel
-        if not use_parallel:
-            assert False, "should not come here in serial"
-
-        from mpi4py import MPI
-        from petram.helper.mpi_recipes import alltoall_vector
-
-        nprc = MPI.COMM_WORLD.size
-        myid = MPI.COMM_WORLD.rank
-
-        solsend = []
-        irhshit = []
-
-        sol = sol.reshape(nrhs, -1)
-
-        for i in range(nprc):
-            if i == myid:
-                irhs_tmp = MPI.COMM_WORLD.bcast(irhs_loc, root=i)
-            else:
-                irhs_tmp = MPI.COMM_WORLD.bcast(None, root=i)
-            mask = np.isin(isol_loc, irhs_tmp, assume_unique=True)
-
-            solsend.append(np.array(sol[:, mask].flatten()))
-            irhshit.append(np.array(isol_loc[mask]))
-
-        irhs = alltoall_vector(irhshit, int)
-        irhs = [] if len(irhs) == 0 else np.hstack(irhs)
-        irhs_loc = [] if len(irhs_loc) == 0 else np.hstack(irhs_loc)
-
-        _hoge1, idx1 = np.unique(irhs, return_index=True)
-        _hoge2, idx2 = np.unique(irhs_loc, return_inverse=True)
-
-        assert np.all(_hoge1 == _hoge2), "fail here"
-
-        sol2 = alltoall_vector(solsend, sol.dtype)
-        sol2 = [s.reshape(nrhs, -1) for s in sol2]
-        sol2 = np.hstack(sol2)
-
-        sol2 = np.vstack([sol2[i][idx1][idx2] for i in range(nrhs)])
-
-        return sol2
+    def redistributed_array(self, sol, isol_loc, requested_ids, nrhs):
+        """
+        Return solution values in the requested global-index order.
+        """
+        from petram.solver.solver_mpi import IndexedTransfer
+        if self._solution_transfer is None:
+            self._solution_transfer = IndexedTransfer(self.comm, isol_loc, requested_ids)
+        values = sol.reshape(nrhs, -1).T
+        return self._solution_transfer.apply(values).T
 
     def SetOperator(self, A, dist, name=None, ifactor=0):
         try:
@@ -588,8 +613,8 @@ class MUMPSSolver(LinearSolver):
         except BaseException:
             from petram.helper.dummy_mpi import MPI
 
-        myid = MPI.COMM_WORLD.rank
-        nproc = MPI.COMM_WORLD.size
+        myid = self.comm.rank
+        nproc = self.comm.size
 
         from petram.ext.mumps.mumps_solve import i_array
         gui = self.gui
@@ -599,7 +624,7 @@ class MUMPSSolver(LinearSolver):
             dprint1("SetOperator distributed matrix")
             A.eliminate_zeros()
             if gui.write_mat:
-                write_coo_matrix('matrix', A)
+                write_coo_matrix('matrix', A, comm=self.comm)
             if gui.write_inv:
                 smyid = '{:0>6d}'.format(myid)
                 np.savez("matrix." + smyid, A=A)
@@ -614,7 +639,7 @@ class MUMPSSolver(LinearSolver):
             s.set_icntl(18, 3)
 
             dprint1("NNZ local: ", A.nnz)
-            nnz_array = np.array(MPI.COMM_WORLD.allgather(A.nnz))
+            nnz_array = np.array(self.comm.allgather(A.nnz))
             if myid == 0:
                 s.set_n(A.shape[1])
             dprint1("NNZ total: ", np.sum(nnz_array))
@@ -636,11 +661,10 @@ class MUMPSSolver(LinearSolver):
             s.set_jcn_loc(i_array(col))
             s.set_a_loc(self.data_array(AA))
 
-            self.dataset = (A.data, row, col)
+            self.dataset = (AA, row, col)
 
             self.irhs_loc = np.unique(row)
-            self.N_global = np.sum(
-                MPI.COMM_WORLD.allgather(len(self.irhs_loc)))
+            self.N_global = A.shape[0]
 
         else:
             A = A.tocoo(False)  # .astype('complex')
@@ -652,7 +676,7 @@ class MUMPSSolver(LinearSolver):
 
             if gui.write_mat:
                 # tocsr().tocoo() forces the output is row sorted.
-                write_coo_matrix('matrix', A.tocsr().tocoo())
+                write_coo_matrix('matrix', A.tocsr().tocoo(), comm=self.comm)
             # No outputs
             if myid == 0:
                 row = A.row
@@ -670,15 +694,21 @@ class MUMPSSolver(LinearSolver):
                 s.set_irn(i_array(row))
                 s.set_jcn(i_array(col))
                 s.set_a(self.data_array(AA))
-                self.dataset = (A.data, row, col)
+                self.dataset = (AA, row, col)
                 self.irhs_loc = np.unique(row)
                 self.N_global = len(self.irhs_loc)
             else:
                 self.irhs_loc = None
                 self.N_global = None
 
+        layout = getattr(A, 'solver_layout', None)
+        self.N_global = A.shape[0]
+        self.solution_ids = self.irhs_loc
+        if layout is not None:
+            self.irhs_loc = np.asarray(layout.equation_ids, dtype=self._int_type()) + 1
+            self.solution_ids = np.asarray(layout.solution_ids, dtype=self._int_type()) + 1
+        self._solution_transfer = None
         if self.skip_solve:
-            print("skip solve is on.... returning")
             return
 
         # blr
@@ -718,12 +748,11 @@ class MUMPSSolver(LinearSolver):
         s.set_icntl(24, 0)  # No Null detection
         self.set_ordering_flag(s)
 
-        MPI.COMM_WORLD.Barrier()
+        self.comm.Barrier()
         if not gui.restore_fac:
             if not self.silent:
                 dprint1("job1", debug.format_memory_usage())
-            s.set_job(1)
-            s.run()
+            self._run_job(1)
             info1 = s.get_info(1)
 
             if info1 < 0:
@@ -735,8 +764,7 @@ class MUMPSSolver(LinearSolver):
             s.set_icntl(13, 0)
             s.set_icntl(5, 0)
 
-            s.set_job(2)
-            s.run()
+            self._run_job(2)
             info1 = s.get_info(1)
             if info1 < 0:
                 assert False, "MUMPS call (job2) failed. Check error log"
@@ -750,10 +778,9 @@ class MUMPSSolver(LinearSolver):
                 s.set_oocparam("ooc_", path)
 
                 # wait here to make sure path is created.
-                MPI.COMM_WORLD.Barrier()
+                self.comm.Barrier()
 
-                s.set_job(7)
-                s.run()
+                self._run_job(7)
                 info1 = s.get_info(1)
                 if info1 != 0:
                     assert False, "MUMPS call (job7) failed. Check error log"
@@ -767,207 +794,131 @@ class MUMPSSolver(LinearSolver):
             s.set_saveparam(prefix, path)
             s.set_oocparam("ooc_", path)
 
-            MPI.COMM_WORLD.Barrier()  # wait here to make sure path is created.
+            self.comm.Barrier()  # wait here to make sure path is created.
             # s.set_job(-1)
             # s.run()
-            s.set_job(8)
-            s.run()
+            self._run_job(8)
             info1 = s.get_info(1)
             if info1 != 0:
                 assert False, "MUMPS call (job8) failed. Check error log"
 
-    def write_inverse(self, s, b):
+    def write_inverse(self, s, b=None):
+        """
+        Write inverse entries using the global matrix size on solver ranks.
+        """
+        n = self.N_global
+        controls = {i: s.get_icntl(i) for i in (11, 20, 21)}
+        s.set_icntl(20, 0)
+        s.set_lrhs_nrhs(n, n)
+        identity = np.eye(n, dtype=self._data_type()).reshape(-1) if self.comm.rank == 0 else None
+        if self.comm.rank == 0:
+            s.set_rhs(self.data_array(identity))
+        lsol, indices, values = self.set_distributed_sol(s, n)
+        s.set_icntl(11, 0)
+        self._run_job(3)
+        suffix = f'{self.comm.rank:06d}'
+        from petram.solver.solver_mpi import collective_call
+
+        def save():
+            np.savez('matrix_inv_idx.' + suffix, A_inv_idx=indices)
+            np.savez('matrix_inv.' + suffix, A_inv=values.reshape(n, lsol).T)
+
         if use_parallel:
-            from mpi4py import MPI
+            collective_call(self.comm, save)
         else:
-            from petram.helper.dummy_mpi import MPI
-
-        myid = MPI.COMM_WORLD.rank
-        smyid = '{:0>6d}'.format(myid)
-        mpi_size = MPI.COMM_WORLD.size
-
-        datatype = self._data_type()
-
-        nrhs = b.shape[0] if myid == 0 else 0
-        if mpi_size > 1:
-            nrhs = MPI.COMM_WORLD.bcast(nrhs)
-
-        if myid == 0:
-            dprint1("nrhs", nrhs)
-            s.set_lrhs_nrhs(b.shape[0], nrhs)
-            bb = np.zeros((b.shape[0], nrhs), dtype=datatype)
-            for i in range(nrhs):
-                bb[i, i] = 1.0
-            bstack = np.hstack(np.transpose(bb))
-            bstack = self.make_vector_entries(bstack)
-            s.set_rhs(self.data_array(bstack))
-
-        lsol_loc, isol_loc, sol_loc = self.set_distributed_sol(s, nrhs)
-        self.set_error_analysis(s)
-
-        # set to distributed sol mode
-        use_distributed_save = True
-
-        s.set_job(3)
-        s.run()
-        info1 = s.get_info(1)
-        if info1 != 0:
-            assert False, "MUMPS call (job3) failed. Check error log"
-
-        # sol = s.get_sol_loc()
-        # if use_distributed_save:
-        sol = np.transpose(sol_loc.reshape(-1, lsol_loc))
-        np.savez("matrix_inv_idx." + smyid, A_inv_idx=isol_loc)
-        np.savez("matrix_inv." + smyid, A_inv=sol)
-
-        s.set_icntl(21, 0)
+            save()
+        for i, value in controls.items():
+            s.set_icntl(i, value)
 
     def Mult(self, b, x=None, case_base=0):
-        if use_parallel:
-            from mpi4py import MPI
-        else:
-            from petram.helper.dummy_mpi import MPI
-
         from petram.ext.mumps.mumps_solve import i_array
+        from petram.solver.solver_mpi import collective_call
+        s, gui, comm = self.s, self.gui, self.comm
+        rank = comm.rank
+        distributed_rhs = bool(gui.use_dist_rhs and use_parallel)
+        distributed_sol = bool(use_parallel and (self.keep_sol_distributed or gui.use_dist_sol))
+        nrhs = comm.bcast(b.shape[1] if rank == 0 else None, root=0)
+        n = self.N_global
 
-        myid = MPI.COMM_WORLD.rank
-        nproc = MPI.COMM_WORLD.size
-
-        gui = self.gui
-        s = self.s
-        if gui.write_mat:
-            if myid == 0:
-                for ib in range(b.shape[1]):
-                    write_vector('rhs_' + str(ib + case_base), b[:, ib])
-                case_base = case_base + b.shape[1]
+        def prepare():
+            if distributed_rhs:
+                rows = len(self.irhs_loc)
+                if np.shape(b) != (rows, nrhs):
+                    raise ValueError('Distributed RHS does not match equation IDs')
+                # MUMPS stores RHS columns consecutively; the leading dimension
+                # remains at least one when this rank has no equations.
+                ld = max(1, rows)
+                rhs = np.zeros((nrhs, ld), dtype=self._data_type())
+                rhs[:, :rows] = np.asarray(b).T
+                ids = np.asarray(self.irhs_loc, dtype=self._int_type())
             else:
-                case_base = None
-            case_base = MPI.COMM_WORLD.bcast(case_base, root=0)
+                rows, ld, ids = 0, 0, None
+                rhs = None
+            central = None
+            if rank == 0:
+                central = (np.zeros(n * nrhs, dtype=self._data_type()) if distributed_rhs
+                           else np.asarray(b, dtype=self._data_type()).T.copy().reshape(-1))
+                if central.size != n * nrhs:
+                    raise ValueError('Central RHS does not match global matrix dimensions')
+            return rows, ld, ids, rhs, central
 
-        if self.gui.write_inv:
-            self.write_inverse(s, b)
+        buffers = collective_call(comm, prepare) if use_parallel else prepare()
+        rows, ld, ids, rhs, central = buffers
+        self.rhs_dataset = buffers
 
-        nrhs = b.shape[1] if b is not None else 0
-        if nproc > 1:
-            nrhs = MPI.COMM_WORLD.bcast(nrhs)
-
-        distributed_rhs = (self.gui.use_dist_rhs and
-                           use_parallel and
-                           nproc > 1)
+        if gui.write_mat:
+            def write_rhs():
+                if distributed_rhs:
+                    for i in range(nrhs):
+                        coo = scipy.sparse.coo_matrix((np.asarray(b)[:, i],
+                            (self.irhs_loc - 1, np.zeros(rows, dtype=int))), shape=(n, 1))
+                        write_coo_matrix('rhs_' + str(case_base + i), coo, comm=comm)
+                elif rank == 0:
+                    for i in range(nrhs):
+                        write_vector('rhs_' + str(case_base + i), np.asarray(b)[:, i], comm=comm)
+            if use_parallel:
+                collective_call(comm, write_rhs)
+            else:
+                write_rhs()
 
         if self.skip_solve:
-            assert not distributed_rhs, "distributed RHS is not supported for skip solve"
-            print("skip solve is on, returning zero")
-            return b*0.
+            if distributed_sol:
+                result = np.zeros((len(self.solution_ids), nrhs), dtype=self._data_type())
+                return result if gui.use_dist_sol else result.T
+            return np.zeros((n, nrhs), dtype=self._data_type()) if rank == 0 else None
 
-        # this one keep it from crashing if a user choose
-        # distributed RHS with std_solver.
-        # For now, we don't do this but add a note in GUI panel.
-        # distributed_rhs = (self.gui.use_dist_rhs and
-        #                   use_parallel and
-        #                   nproc > 1 and
-        #                   self.keep_sol_distributed )
+        if gui.write_inv:
+            self.write_inverse(s)
+
+        s.set_lrhs_nrhs(n, nrhs)
+        s.set_icntl(20, 10 if distributed_rhs else 0)
+        s.set_icntl(21, 1 if distributed_sol else 0)
         if distributed_rhs:
-            s.set_icntl(20, 10)
-
-            rhs_loc = b.flatten()
-            rhs_loc = rhs_loc.astype(self._data_type(), copy=False)
-            irhs_loc_read = self.irhs_loc.astype(dtype=self._int_type())
-
-            '''
-            if myid == 0:
-                irhs_loc_read = irhs_loc_read.astype(dtype=self._int_type())
-            else:
-                irhs_loc_read = irhs_loc_read.astype(dtype=self._int_type())
-            '''
-            # print("irhc_loc from mfem", irhs_loc)
-            rhs_locc = self.data_array(rhs_loc)
-            irhs_locc = i_array(irhs_loc_read)
-
-            lrhs_loc = len(rhs_loc)
-            nloc_rhs = lrhs_loc * nrhs
-
-            s.set_nrhs_lrhs_irhs_rhs_loc(
-                nloc_rhs, lrhs_loc, irhs_locc, rhs_locc)
-
-        else:
-            s.set_icntl(20, 0)
-            if myid == 0:
-                s.set_lrhs_nrhs(b.shape[0], b.shape[1])
-                bstack = np.hstack(np.transpose(b))
-                bstack = self.make_vector_entries(bstack)
-                s.set_rhs(self.data_array(bstack))
-
-        distributed_sol = (use_parallel and
-                           nproc > 1 and
-                           (self.keep_sol_distributed or self.gui.use_dist_sol))
-
+            s.set_nrhs_lrhs_irhs_rhs_loc(rows, ld, i_array(ids), self.data_array(rhs.reshape(-1)))
+        if rank == 0:
+            s.set_rhs(self.data_array(central))
         if distributed_sol:
-            lsol_loc, isol_loc, sol_loc = self.set_distributed_sol(s, nrhs)
+            lsol, isol, sol = self.set_distributed_sol(s, nrhs)
 
-        else:
-            if distributed_rhs and myid == 0:
-                rhs = np.empty(self.N_global, dtype=self._data_type())
-                s.set_rhs(self.data_array(rhs))
-
-        if self.gui.icntl10.lower() != 'default':       # iterative refinement
-            s.set_icntl(10, convert2int(self.gui.icntl10))
-
-        if self.gui.cntl2.lower() != 'default':
-            # stopping criterion for iterative refinement
-            s.set_cntl(2, convert2float(self.gui.cntl2))
-
-        if self.gui.log_level >= 10 or self.gui.log_level <= 0:
-            s.set_icntl(1, -1)
-            s.set_icntl(2, -1)
-            s.set_icntl(3, -1)
-            s.set_icntl(4, 0)
-        else:
-            if not self.silent:
-                dprint1("job3", debug.format_memory_usage())
-
+        if gui.icntl10.lower() != 'default':
+            s.set_icntl(10, convert2int(gui.icntl10))
+        if gui.cntl2.lower() != 'default':
+            s.set_cntl(2, convert2float(gui.cntl2))
         if not distributed_rhs and not distributed_sol:
             self.set_error_analysis(s)
-
-        s.set_job(3)
-        s.run()
-
-        info1 = s.get_info(1)
-        info2 = s.get_info(2)
-        if info1 < 0:
-            assert False, "MUMPS call (job3) failed. Check error log (info1/info2)" + str(
-                info1) + " " + str(info2)
-        if info1 > 0:
-            dprint1("MUMPS call (job3) return warning Check error log (info1/info2)" + str(
-                    info1) + " " + str(info2))
-
-        rsol = None
-        isol = None
-        sol_extra = None
+        else:
+            s.set_icntl(11, 0)
+        self._run_job(3)
 
         if distributed_sol:
-            sol = self.redistributed_array(
-                sol_loc.flatten(), isol_loc, self.irhs_loc, nrhs)
-
-            if self.gui.use_dist_sol:
-                sol = np.transpose(sol.reshape(nrhs, -1))
-            else:
-                # preconditioner mode. keep sol as it is
-                pass
-        else:
-            if myid == 0:
-                if self.is_complex:
-                    sol = s.get_real_rhs() + 1j * s.get_imag_rhs()
-                else:
-                    sol = s.get_real_rhs()
-
-                sol = np.transpose(sol.reshape(-1, len(b)))
-            else:
-                sol = None
-
-        # nicePrint('doen with dist_RHS, dist_sol', distributed_rhs, distributed_sol)
-
-        return sol
+            result = self.redistributed_array(sol, isol, self.solution_ids, nrhs)
+            return result.T if gui.use_dist_sol else result
+        if rank == 0:
+            result = s.get_real_rhs()
+            if self.is_complex:
+                result = result + 1j * s.get_imag_rhs()
+            return np.array(result).reshape(nrhs, n).T
+        return None
 
 
 if use_parallel:

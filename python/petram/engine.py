@@ -2833,7 +2833,7 @@ class Engine(object):
     def finalize_rhs(self,  B_blocks, M_block, X_block,
                      mask, is_complex, format='coo', verbose=True,
                      blk_format=None,
-                     use_residual=False):
+                     use_residual=False, distributed=False):
         #
         #  RHS = B - A[not solved]*X[not solved]
         #
@@ -2851,12 +2851,12 @@ class Engine(object):
 
         if format == 'coo':  # coo either real or complex
             BB = [self.finalize_coo_rhs(
-                b, is_complex, verbose=verbose) for b in B_blocks]
+                b, is_complex, verbose=verbose, distributed=distributed) for b in B_blocks]
             BB = np.hstack(BB)
 
         elif format == 'coo_real':  # real coo converted from complex
             BB = [self.finalize_coo_rhs(b, is_complex,
-                                        convert_real=True, verbose=verbose)
+                                        convert_real=True, verbose=verbose, distributed=distributed)
                   for b in B_blocks]
             BB = np.hstack(BB)
 
@@ -2913,14 +2913,15 @@ class Engine(object):
             # (this one make matrix symmetric, for now it is off to do the samething
             #  as GMRES case)
             # M = scipy.sparse.bmat([[M.real, -M.imag], [-M.imag, -M.real]], format='coo')
+        M.solver_layout = M_block.get_solver_layout(convert_real=convert_real)
         return M
 
     def finalize_coo_rhs(self, b, is_complex,
                          convert_real=False,
-                         verbose=True):
+                         verbose=True, distributed=False):
         if verbose:
             dprint1("b (in finalizie_coo_rhs) \n",  b, notrim=True)
-        B = b.gather_densevec()
+        B = b.get_local_densevec() if distributed else b.gather_densevec()
         if convert_real:
             B = np.vstack((B.real, B.imag))
             # (this one make matrix symmetric)

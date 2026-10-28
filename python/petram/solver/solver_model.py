@@ -633,6 +633,8 @@ class Solver(SolverBase):
         self._instance = value
 
     def free_instance(self):
+        if self.instance is not None:
+            self.instance.close()
         self._instance = None
 
     def get_phys(self):
@@ -795,6 +797,18 @@ class SolverInstance(ABC):
 
         if not gui.init_only:
             self.set_linearsolver_model()
+
+    def close(self):
+        """
+        Release linear solvers collectively before discarding this instance.
+        """
+        solvers = self.linearsolver.values() if isinstance(self.linearsolver, dict) else [self.linearsolver]
+        for solver in solvers:
+            if solver is not None and hasattr(solver, 'close'):
+                solver.close()
+        for child in getattr(self, 'child_instance', []):
+            child.close()
+        self.linearsolver = None
 
     @property
     def ls_type(self):
@@ -1066,6 +1080,13 @@ class LinearSolverModel(SolverBase):
         v = super(LinearSolverModel, self).attribute_set(v)
         v['use_dist_sol'] = True
         return v
+
+    @property
+    def distributed_rhs(self):
+        """
+        Whether standalone RHS finalization should return locally owned values.
+        """
+        return False
 
     def get_phys(self):
         return self.parent.get_phys()
