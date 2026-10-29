@@ -73,9 +73,9 @@ class MUMPSBase(LinearSolverModel):
                 ["scaling strategy (ICNTL8)", self.icntl8, 0, {}],
                 ["write inverse", self.write_inv, 3, {"text": ""}],
                 ["use float32", self.use_single_precision, 3, {"text": ""}],
-                ["use dist, RHS (dev.)",
+                ["use dist, RHS",
                  self.use_dist_rhs, 3, {"text": ""}],
-                ["use dist, SOL (dev.)", self.use_dist_sol, 3, {"text": ""}], ]
+                ["use dist, SOL", self.use_dist_sol, 3, {"text": ""}], ]
 
     def get_panel1_value(self):
         return (int(self.log_level), self.ordering, self.out_of_core,
