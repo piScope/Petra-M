@@ -116,12 +116,13 @@ def write_matrix(file, m):
         raise NotImplemented("write matrix not implemented for" + m.__repr__())
 
 
-def write_vector(file, bb):
+def write_vector(file, bb, comm=None):
     from petram.mfem_config import use_parallel
     if use_parallel:
         from mpi4py import MPI
-        num_proc = MPI.COMM_WORLD.size
-        myid = MPI.COMM_WORLD.rank
+        comm = MPI.COMM_WORLD if comm is None else comm
+        num_proc = comm.size
+        myid = comm.rank
         smyid = '.'+'{:0>6d}'.format(myid)
     else:
         smyid = ''
@@ -140,12 +141,13 @@ def write_vector(file, bb):
         fid.close()
 
 
-def write_coo_matrix(file, A):
+def write_coo_matrix(file, A, comm=None):
     from petram.mfem_config import use_parallel
     if use_parallel:
         from mpi4py import MPI
-        num_proc = MPI.COMM_WORLD.size
-        myid = MPI.COMM_WORLD.rank
+        comm = MPI.COMM_WORLD if comm is None else comm
+        num_proc = comm.size
+        myid = comm.rank
         smyid = '.'+'{:0>6d}'.format(myid)
     else:
         smyid = ''

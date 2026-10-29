@@ -2913,6 +2913,7 @@ class Engine(object):
             # (this one make matrix symmetric, for now it is off to do the samething
             #  as GMRES case)
             # M = scipy.sparse.bmat([[M.real, -M.imag], [-M.imag, -M.real]], format='coo')
+        M.solver_layout = M_block.get_solver_layout(convert_real=convert_real)
         return M
 
     def finalize_coo_rhs(self, b, is_complex,
@@ -2920,7 +2921,7 @@ class Engine(object):
                          verbose=True):
         if verbose:
             dprint1("b (in finalizie_coo_rhs) \n",  b, notrim=True)
-        B = b.gather_densevec()
+        B = b.get_local_densevec()
         if convert_real:
             B = np.vstack((B.real, B.imag))
             # (this one make matrix symmetric)
