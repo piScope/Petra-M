@@ -3,6 +3,7 @@ Helpers for running linear solvers on a reduced number of MPI processes,
 including data layouts, rank grouping, and subcommunicator management.
 """
 from dataclasses import dataclass
+import time
 import numpy as np
 
 
@@ -77,6 +78,28 @@ class SolverRankLayout:
         self.is_leader = app_comm.rank == leader
         self.solver_comm = app_comm.Split(0 if self.is_leader else MPI.UNDEFINED,
                                           key=app_comm.rank)
+
+    def call_solver(self, operation):
+        """
+        Run on solver ranks while inactive ranks sleep, then propagate errors.
+        """
+        from petram.helper.mpi_recipes import collective_call
+
+        if not self.reduced:
+            return collective_call(self.app_comm, operation)
+
+        def run():
+            try:
+                if self.is_leader:
+                    return operation()
+            finally:
+                # Do not enter the blocking error exchange while leaders work.
+                # Test periodically to make MPI progress without busy polling.
+                request = self.app_comm.Ibarrier()
+                while not request.Test():
+                    time.sleep(0.01)
+
+        return collective_call(self.app_comm, run)
 
     def close(self):
         if self.reduced:

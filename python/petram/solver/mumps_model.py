@@ -1054,8 +1054,7 @@ class ReducedMUMPSSolver(LinearSolver):
         self.closed = False
 
     def _call_backend(self, operation):
-        from petram.helper.mpi_recipes import collective_call
-        return collective_call(self.comm, lambda: operation() if self.ranks.is_leader else None)
+        return self.ranks.call_solver(operation)
 
     def SetOperator(self, A, dist=False, name=None, ifactor=0):
         from petram.helper.mpi_recipes import collective_call, gather_vector
