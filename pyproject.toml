@@ -7,7 +7,7 @@ maintainers = [ { name = "S. Shiraiwa", email = "shiraiwa@princeton.edu" } ]
 keywords = ["scientific computing", "python visualization", "finite element method", "MFEM"]
 readme = "README.md"
 requires-python = ">=3.10"
-version = "26.10.25"
+version = "26.10.26"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
@@ -18,7 +18,7 @@ classifiers = [
 ]
 dependencies = [
     "packaging",
-    "mfem >= 4.9",
+    "mfem >= 4.10.0.1",
 ]
 
 [project.optional-dependencies]

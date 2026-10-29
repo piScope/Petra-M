@@ -123,9 +123,9 @@ class Engine(object):
         message = []
         lver = importlib.metadata.version("petram")
         if (not hasattr(model, "pkg_versions") or
-            len(model.pkg_versions) == 0):
-            message.append("   moduel: petram      " +  "used: (not recored). " +
-                           " current" + lver +".")
+                len(model.pkg_versions) == 0):
+            message.append("   moduel: petram      " + "used: (not recored). " +
+                           " current" + lver + ".")
 
         for k in model.pkg_versions:
             try:
@@ -135,7 +135,7 @@ class Engine(object):
 
             if version.parse(lver) > version.parse(model.pkg_versions[k]):
                 message.append("   moduel: " + k + "      used: " + model.pkg_versions[k] +
-                               ". current " + lver +".")
+                               ". current " + lver + ".")
 
         if len(message) > 0:
             message = ["",
@@ -147,9 +147,9 @@ class Engine(object):
         return ""
 
     def show_variables(self, show_hidden=True):
-        try:
+        if use_parallel:
             from mpi4py import MPI
-        except:
+        else:
             from petram.helper.dummy_mpi import MPI
         myid = MPI.COMM_WORLD.rank
 
@@ -547,6 +547,7 @@ class Engine(object):
     @property
     def no_t1_elimination(self):
         return self._no_t1_elimination[self._level_idx]
+
     @no_t1_elimination.setter
     def no_t1_elimination(self, v):
         self._no_t1_elimination[self._level_idx] = v
@@ -554,6 +555,7 @@ class Engine(object):
     @property
     def no_t2_elimination(self):
         return self._no_t2_elimination[self._level_idx]
+
     @no_t1_elimination.setter
     def no_t2_elimination(self, v):
         self._no_t2_elimination[self._level_idx] = v
@@ -592,15 +594,31 @@ class Engine(object):
                 self._gf_alloc_old[i] = alloc
             else:
                 self._gf_alloc_old[i].update(alloc)
+    @property
+    def time(self):
+        from petram.helper.time_context import get_time_context
+        return get_time_context().time
+
+    def set_time(self, value):
+        """
+        Set the physical time shared by active namespaces and coefficients.
+        """
+        from petram.helper.time_context import get_time_context
+        get_time_context().set_time(value)
 
     def set_model(self, model):
         if hasattr(self, 'model') and self.model == model:
             return
 
-        self.model = model
         self.initialize_datastorage()
+
         if model is None:
             return
+        self.model = model
+
+        from petram.helper.time_context import get_time_context
+        tname = model['General'].time_variable
+        get_time_context().reset(time=0.0, time_name=tname)
 
         self.alloc_flag = {}
         # below is to support old version
@@ -1219,7 +1237,11 @@ class Engine(object):
             for extra_name, dep_name, kfes in updated_extra:
                 r = self.dep_var_offset(extra_name)
                 c = self.r_dep_var_offset(dep_name)
+                c1 = self.dep_var_offset(extra_name)
+                r1 = self.dep_var_offset(dep_name)                
                 self.mask_M[j, r, c] = True
+                self.mask_M[j, r, c1] = True
+                self.mask_M[j, r1, c1] = True
 
             self.aux_ops = {}
             updated_extra = []
@@ -1479,7 +1501,7 @@ class Engine(object):
             self.eliminateBC_vec(MM)
             RHS = compute_rhs(MM, B, X)
 
-        RHS = self.eliminateBC(Ae, X[0], RHS)  # modify RHS and
+        RHS = self.eliminateBC(A, Ae, X[0], RHS)  # modify RHS and
         # A and RHS is modifedy by global DoF coupling P
         A, RHS = self.apply_interp(A, RHS)
 
@@ -2137,8 +2159,10 @@ class Engine(object):
                     if mm.no_t1_elimination() and len(mm.get_essential_idx(kfes)) > 0:
                         idx1 = self.dep_var_offset(dep_var)
                         idx2 = self.r_dep_var_offset(extra_name)
-                        tdofs, gtdofs = self.get_essential_tdof_for_node(mm, dep_var)
-                        self.no_t1_elimination.append((idx1, idx2, tdofs, gtdofs))
+                        tdofs, gtdofs = self.get_essential_tdof_for_node(
+                            mm, dep_var)
+                        self.no_t1_elimination.append(
+                            (idx1, idx2, tdofs, gtdofs))
 
                     if mm.no_t2_elimination():
                         idx1 = self.dep_var_offset(extra_name)
@@ -2508,16 +2532,14 @@ class Engine(object):
                 # locally number or rows is zero.
                 if self.get_autofill_diag():
                     self.fill_empty_diag(A[idx1, idx2])
-                Aee, A[idx1, idx2], Bnew = A[idx1, idx2].eliminate_RowsCols(B[idx1], ess_tdof1,
-                                                                            inplace=inplace,
-                                                                            diagpolicy=diagpolicy)
+                Aee, A[idx1, idx2] = A[idx1, idx2].eliminate_RowsCols(B[idx1], ess_tdof1,
+                                                                      inplace=inplace,
+                                                                      diagpolicy=diagpolicy)
                 A[idx1, idx2] = A[idx1, idx2].resetRow(
                     gl_ess_tdof2, inplace=inplace)
                 A[idx1, idx2].setDiag(gl_ess_tdof2)
 
                 Ae[idx1, idx2] = Aee
-
-                B[idx1] = Bnew
 
             '''
             note: minor differece between serial/parallel
@@ -2539,7 +2561,7 @@ class Engine(object):
                 ess = gl_ess_tdof1
 
                 for k1, k2, tdofs, gtdofs in self.no_t1_elimination:
-                   if k1 == idx1 and k2 == j:
+                    if k1 == idx1 and k2 == j:
                         ess = np.setdiff1d(gl_ess_tdof1, gtdofs)
 
                 #print("eliminating", idx1, j)
@@ -2566,7 +2588,6 @@ class Engine(object):
                 Ae[j, idx2] = A[j, idx2].dot(SM)
                 A[j, idx2] = A[j, idx2].resetCol(gl_ess_tdof1, inplace=inplace)
 
-
         return A, Ae
 
     def eliminateJac(self, Jac):
@@ -2586,7 +2607,7 @@ class Engine(object):
                 Jac[idx1, idx2].resetRow(gl_ess_tdof1)
                 Jac[idx1, idx2].resetCol(gl_ess_tdof1)
 
-    def eliminateBC(self, Ae, X, RHS):
+    def eliminateBC(self, A, Ae, X, RHS):
         try:
             AeX = Ae.dot(X)
             for name in self.gl_ess_tdofs:
@@ -2621,8 +2642,20 @@ class Engine(object):
             gl_ess_tdof1, gl_ess_tdof2 = self.gl_ess_tdofs[name]
             ess_tdof1, ess_tdof2 = self.ess_tdofs[name]
 
-            x1 = X[ridx].get_elements(gl_ess_tdof1)
-            x2 = RHS[idx].get_elements(gl_ess_tdof1)
+            indices = np.asarray(gl_ess_tdof1, dtype=int)
+
+            if use_parallel:
+                if np.sum(MPI.COMM_WORLD.allgather(len(indices))) == 0: continue
+                diagonal = A[idx, ridx].getDiag(indices)
+                if A[idx, ridx][1] is None:  # Real matrix
+                    diagonal = diagonal.real
+            else:
+                if len(indices) == 0: continue
+                diagonal = A[idx, ridx].diagonal()[indices]
+
+            x1 = X[ridx].get_elements(indices)
+            x2 = np.asarray(diagonal).reshape(x1.shape)
+
             RHS[idx].set_elements(gl_ess_tdof1, x1*x2)
 
         return RHS
@@ -2919,6 +2952,7 @@ class Engine(object):
             # (this one make matrix symmetric, for now it is off to do the samething
             #  as GMRES case)
             # M = scipy.sparse.bmat([[M.real, -M.imag], [-M.imag, -M.real]], format='coo')
+        M.solver_layout = M_block.get_solver_layout(convert_real=convert_real)
         return M
 
     def finalize_coo_rhs(self, b, is_complex,
@@ -2926,7 +2960,7 @@ class Engine(object):
                          verbose=True):
         if verbose:
             dprint1("b (in finalizie_coo_rhs) \n",  b, notrim=True)
-        B = b.gather_densevec()
+        B = b.get_local_densevec()
         if convert_real:
             B = np.vstack((B.real, B.imag))
             # (this one make matrix symmetric)
@@ -2987,11 +3021,10 @@ class Engine(object):
         for physname in self.form_info:
             phys, ifess, rifess, depvars = self.form_info[physname]
 
-
             a = self.r_a[ifess[0], rifess[0]]
             x = self.gf_alloc[(self.access_idx, physname)].blockvector
 
-            ### X is not allocated when init-only is used.
+            # X is not allocated when init-only is used.
             if (self.access_idx, physname) not in self.X_alloc:
                 pass
             else:
@@ -3332,7 +3365,6 @@ class Engine(object):
                         or not ignore_secondary):
                     return node
 
-
     def gather_essential_tdof(self, phys):
         flags = self.get_essential_bdr_pnt_flag(phys)
         self.get_essential_bdr_pnt_tdofs(phys, flags)
@@ -3636,6 +3668,10 @@ class Engine(object):
             return self.new_mixed_bf(fes2, fes1), proj
 
     def build_ns(self):
+        from petram.helper.time_context import get_time_context
+        general = self.model['General']
+
+        get_time_context().configure(general.time_variable)
 
         errors = []
         for node in self.model.walk():
@@ -3724,11 +3760,12 @@ class Engine(object):
                         self.meshes[idx] = o.run_serial()
                         target = self.meshes[idx]
                     else:
-                        #if (o.isRefinement and
+                        # if (o.isRefinement and
                         #        skip_refine):
                         #                            continue
                         if hasattr(o, 'run_serial') and target is not None:
-                            self.meshes[idx] = o.run_serial(target, skip_refine)
+                            self.meshes[idx] = o.run_serial(
+                                target, skip_refine)
         self.max_bdrattr = -1
         self.max_attr = -1
 
@@ -3840,9 +3877,9 @@ class Engine(object):
                 shutil.rmtree(os.path.join(d, file))
 
     def clear_solmesh_files(self, header):
-        try:
+        if use_parallel:
             from mpi4py import MPI
-        except:
+        else:
             from petram.helper.dummy_mpi import MPI
         myid = MPI.COMM_WORLD.rank
         nproc = MPI.COMM_WORLD.size
@@ -4447,10 +4484,12 @@ class Engine(object):
     @property
     def current_solve_step(self):
         return self._current_solve_step
+
     @current_solve_step.setter
     def current_solve_step(self, value):
         self._current_solve_step = value
-    
+
+
 class SerialEngine(Engine):
     def __init__(self, modelfile='', model=None):
         super(SerialEngine, self).__init__(modelfile=modelfile, model=model)
@@ -4762,7 +4801,7 @@ class ParallelEngine(Engine):
                 target = None
 
                 refines = [child[x]
-                            for x in child if child[x].isRefinement and child[x].enabled]
+                           for x in child if child[x].isRefinement and child[x].enabled]
 
                 for k in child.keys():
                     o = child[k]

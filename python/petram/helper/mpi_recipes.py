@@ -75,6 +75,30 @@ def mpi_type_to_dtype(mpi_dtype):
     assert False, "MPI data type is unknown for " + mpi_dtype
 
 
+
+def collective_call(comm, operation):
+    """
+    Execute local work and report failures coherently before the next collective.
+    """
+    result = None
+    error = None
+    local_traceback = None
+    try:
+        result = operation()
+    except Exception as exc:
+        import traceback
+        local_traceback = traceback.format_exc()
+        error = f'{type(exc).__name__}: {exc}'
+
+    errors = comm.allgather(error)
+    if local_traceback is not None:
+        raise RuntimeError(f'MPI rank {comm.rank}:\n{local_traceback}')
+    for rank, message in enumerate(errors):
+        if message is not None:
+            raise RuntimeError(f'MPI rank {rank}: {message}')
+    return result
+
+
 def allgather(data):
     comm = MPI.COMM_WORLD
     num_proc = MPI.COMM_WORLD.size
@@ -84,14 +108,20 @@ def allgather(data):
     return data
 
 
-def allgather_vector(data, mpi_data_type=None):
+def allgather_vector(data, mpi_data_type=None, comm=MPI.COMM_WORLD,
+                     rcounts=None):
+    """
+    Gather vector rows onto every rank in comm.
+
+    Optional rcounts gives the precomputed row count for each rank.
+    """
     from mfem.common.mpi_dtype import get_mpi_datatype
     if mpi_data_type is None:
         mpi_data_type = get_mpi_datatype(data)
 
-    myid = MPI.COMM_WORLD.rank
-    rcounts = data.shape[0]
-    rcounts = np.array(MPI.COMM_WORLD.allgather(rcounts))
+    if rcounts is None:
+        rcounts = comm.allgather(data.shape[0])
+    rcounts = np.array(rcounts, copy=True)
 
     for x in data.shape[1:]:
         rcounts = rcounts * x
@@ -101,42 +131,8 @@ def allgather_vector(data, mpi_data_type=None):
     recvbuf = np.empty([length], dtype=data.dtype)
     recvdata = [recvbuf, rcounts, disps, mpi_data_type]
     senddata = [data.flatten(), data.flatten().shape[0]]
-    MPI.COMM_WORLD.Allgatherv(senddata, recvdata)
+    comm.Allgatherv(senddata, recvdata)
     return recvbuf.reshape(-1, *data.shape[1:])
-
-
-def gather_vector(data, mpi_data_type=None, root=0):
-    '''
-    gather vector to root node.
-    B: Vector to be collected
-    '''
-    from mfem.common.mpi_dtype import get_mpi_datatype
-    if mpi_data_type is None:
-        mpi_data_type = get_mpi_datatype(data)
-
-    myid = MPI.COMM_WORLD.rank
-    rcounts = data.shape[0]
-    rcounts = MPI.COMM_WORLD.gather(rcounts, root=root)
-    cm = np.hstack((0, np.cumsum(rcounts)))
-    disps = list(cm[:-1])
-    recvdata = None
-    senddata = [data, data.shape[0]]
-
-    if myid == root:
-        length = cm[-1]
-        recvbuf = np.empty([length], dtype=data.dtype)
-        recvdata = [recvbuf, rcounts, disps, mpi_data_type]
-    else:
-        recvdata = [None, rcounts, disps, mpi_data_type]
-        recvbuf = None
-    MPI.COMM_WORLD.Barrier()
-    MPI.COMM_WORLD.Gatherv(senddata, recvdata, root=root)
-    if myid == root:
-        # print 'collected'
-        MPI.COMM_WORLD.Barrier()
-        return np.array(recvbuf)
-    MPI.COMM_WORLD.Barrier()
-    return None
 
 
 def gather_vector(data, mpi_data_type=None, parent=False,
@@ -234,7 +230,11 @@ def gather_masked_array(array: np.ndarray,
 
     return result, ownership
 
-def scatter_vector(vector, mpi_data_type=None, rcounts=None, root=0):
+def scatter_vector(vector, mpi_data_type=None, rcounts=None, root=0,
+                   comm=MPI.COMM_WORLD):
+    """
+    Scatter a flat vector from root, receiving rcounts entries on this rank.
+    """
     # scatter data
     #
     # rcounts indicats the amount of data which each process
@@ -243,26 +243,25 @@ def scatter_vector(vector, mpi_data_type=None, rcounts=None, root=0):
     # for example:     rcounts = fespace.GetTrueVSize()
     if mpi_data_type is None:
         from mfem.common.mpi_dtype import get_mpi_datatype
-        if MPI.COMM_WORLD.rank == root:
+        if comm.rank == root:
             mpi_data_type = get_mpi_datatype(vector)
             flag = mpi_type_flag(mpi_data_type)
         else:
             flag = None
-        flag = MPI.COMM_WORLD.bcast(flag)
+        flag = comm.bcast(flag, root=root)
         mpi_data_type = mpi_type_from_flag(flag)
 
-    rcountss = MPI.COMM_WORLD.gather(rcounts, root=root)
-    # dprint1(rcountss)
-    disps = list(np.hstack((0, np.cumsum(rcountss)))[:-1])
+    rcountss = comm.gather(rcounts, root=root)
     recvdata = np.empty([rcounts], dtype=mpi_type_to_dtype(mpi_data_type))
 
-    if vector is not None:
+    if comm.rank == root:
+        disps = list(np.hstack((0, np.cumsum(rcountss)))[:-1])
         senddata = [vector, rcountss, disps, mpi_data_type]
     else:
         senddata = None
 
-    MPI.COMM_WORLD.Scatterv(senddata, recvdata, root=root)
-    # MPI.COMM_WORLD.Barrier()
+    comm.Scatterv(senddata, recvdata, root=root)
+    # comm.Barrier()
     return recvdata
 
 
@@ -299,19 +298,17 @@ def scatter_vector2(vector, mpi_data_type=None, rcounts=None):
 '''
 
 
-def alltoall_vector(data, datatype):
-    '''
-    data = list of np.array.
-        each array goes to different MPI proc.
-        length of data must be equal to MPI size
-    '''
+def alltoall_vector(data, datatype, comm=MPI.COMM_WORLD):
+    """
+    Exchange one array per destination in comm, returning arrays by source rank.
+    """
     from mfem.common.mpi_dtype import get_mpi_datatype
 
-    num_proc = MPI.COMM_WORLD.size
+    num_proc = comm.size
 
     senddata = np.hstack(data).astype(datatype, copy=False)
     senddtype = get_mpi_datatype(senddata)
-    senddtypes = MPI.COMM_WORLD.allgather(mpi_type_flag(senddtype))
+    senddtypes = comm.allgather(mpi_type_flag(senddtype))
     if len(np.unique(senddtypes)) != 1:
         assert False, "data type is not unique"
 
@@ -327,7 +324,7 @@ def alltoall_vector(data, datatype):
     dtype = get_mpi_datatype(recvsize)
     s1 = [sendsize, counts, disp, dtype]
     r1 = [recvsize, counts, disp, dtype]
-    MPI.COMM_WORLD.Alltoallv(s1, r1)
+    comm.Alltoallv(s1, r1)
 
     # (step 2) communicate the data
     recvsize = list(recvsize)
@@ -336,7 +333,7 @@ def alltoall_vector(data, datatype):
 
     s1 = [senddata, sendsize, senddisp, senddtype]
     r1 = [recvdata, recvsize, recvdisp[:-1], senddtype]
-    MPI.COMM_WORLD.Alltoallv(s1, r1)
+    comm.Alltoallv(s1, r1)
 
     data = [recvdata[recvdisp[i]:recvdisp[i + 1]] for i in range(num_proc)]
     return data
@@ -553,3 +550,52 @@ def distribute_global_coo(A):
     A = coo_matrix((d, (r, c)), shape=(rsize, A.shape[1]),
                    dtype=d.dtype)
     return A
+
+class IndexedTransfer:
+    """
+    Transfer facility for distributing values.
+
+       Each process owns values identified by owned_ids and receives values
+       for requested_ids, in the requested order. Each global ID must have
+       exactly one owner, but multiple processes may request it.
+
+       __init__ caches mapping
+        apply performs the actual data transfer.
+    """
+    def __init__(self, comm, owned_ids, requested_ids):
+        self.comm = comm
+        owned = np.asarray(owned_ids, dtype=np.int64)
+        requested = np.asarray(requested_ids, dtype=np.int64)
+        counts = comm.allgather(owned.size)
+        offsets = np.r_[0, np.cumsum(counts)]
+        ids = allgather_vector(owned, comm=comm, rcounts=counts)
+
+        def make_requests():
+            order = np.argsort(ids)
+            sorted_ids = ids[order]
+            if np.any(np.diff(sorted_ids) == 0):
+                raise ValueError('Duplicate owned global IDs')
+            pos = np.searchsorted(sorted_ids, requested)
+            if np.any(pos >= ids.size) or not np.array_equal(sorted_ids[pos], requested):
+                raise ValueError('Missing requested global IDs')
+            source = order[pos]
+            owners = np.searchsorted(offsets[1:], source, side='right')
+            positions = [np.flatnonzero(owners == r) for r in range(comm.size)]
+            requests = [source[p] - offsets[r] for r, p in enumerate(positions)]
+            return positions, requests
+
+        self.positions, requests = collective_call(comm, make_requests)
+        self.send_indices = alltoall_vector(requests, np.int64, comm=comm)
+        self.size = requested.size
+
+    def apply(self, values):
+        values = np.asarray(values)
+        nvalues = values.shape[1]
+        sends = [np.ascontiguousarray(values[idx]).reshape(-1)
+                 for idx in self.send_indices]
+        received = alltoall_vector(sends, values.dtype, comm=self.comm)
+        result = np.empty((self.size, nvalues), dtype=values.dtype)
+        for positions, data in zip(self.positions, received):
+            result[positions] = data.reshape(-1, nvalues)
+        return result
+

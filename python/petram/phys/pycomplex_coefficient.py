@@ -7,6 +7,7 @@
 
 '''
 import abc
+from petram.helper.time_context import get_time_context
 from abc import ABC, abstractmethod
 
 from numpy.linalg import inv, det
@@ -35,32 +36,52 @@ dprint1, dprint2, dprint3 = petram.debug.init_dprints('PyComplexCoefficient')
   Real/Imag Coefficient (mfem coefficients)
 
 '''
-
-
 class PyRealCoefficient(mfem.PyCoefficient):
     def __init__(self, coeff):
         self.coeff = coeff
         mfem.PyCoefficient.__init__(self)
+        get_time_context().register_coefficient(self)
+
+    def SetTime(self, value):
+        mfem.PyCoefficient.SetTime(self, value)
+        if hasattr(self.coeff, 'set_time'):
+            self.coeff.set_time(value)
+        elif hasattr(self.coeff, 'SetTime'):
+            self.coeff.SetTime(value)
 
     def Eval(self, T, ip):
         v = self.coeff.eval(T, ip)
         return v.real
 
-
 class PyImagCoefficient(mfem.PyCoefficient):
     def __init__(self, coeff):
         self.coeff = coeff
         mfem.PyCoefficient.__init__(self)
+        get_time_context().register_coefficient(self)
+
+    def SetTime(self, value):
+        mfem.PyCoefficient.SetTime(self, value)
+        if hasattr(self.coeff, 'set_time'):
+            self.coeff.set_time(value)
+        elif hasattr(self.coeff, 'SetTime'):
+            self.coeff.SetTime(value)
 
     def Eval(self, T, ip):
         v = self.coeff.eval(T, ip)
         return v.imag
 
-
 class PyRealVectorCoefficient(mfem.VectorPyCoefficient):
     def __init__(self, coeff):
         self.coeff = coeff
         mfem.VectorPyCoefficient.__init__(self, coeff.vdim)
+        get_time_context().register_coefficient(self)
+
+    def SetTime(self, value):
+        mfem.VectorPyCoefficient.SetTime(self, value)
+        if hasattr(self.coeff, 'set_time'):
+            self.coeff.set_time(value)
+        elif hasattr(self.coeff, 'SetTime'):
+            self.coeff.SetTime(value)
 
     def Eval(self, K, T, ip):
         M = self.coeff.eval(T, ip)
@@ -72,30 +93,52 @@ class PyImagVectorCoefficient(mfem.VectorPyCoefficient):
     def __init__(self, coeff):
         self.coeff = coeff
         mfem.VectorPyCoefficient.__init__(self, coeff.vdim)
+        get_time_context().register_coefficient(self)
+
+    def SetTime(self, value):
+        mfem.VectorPyCoefficient.SetTime(self, value)
+        if hasattr(self.coeff, 'set_time'):
+            self.coeff.set_time(value)
+        elif hasattr(self.coeff, 'SetTime'):
+            self.coeff.SetTime(value)
 
     def Eval(self, K, T, ip):
         M = self.coeff.eval(T, ip)
         K.SetSize(M.shape[0])
         return K.Assign(M.imag)
 
-
 class PyRealMatrixCoefficient(mfem.MatrixPyCoefficient):
     def __init__(self, coeff):
         self.coeff = coeff
         assert coeff.height == coeff.width, "not supported"
         mfem.MatrixPyCoefficient.__init__(self, coeff.height)
+        get_time_context().register_coefficient(self)
+
+    def SetTime(self, value):
+        mfem.MatrixPyCoefficient.SetTime(self, value)
+        if hasattr(self.coeff, 'set_time'):
+            self.coeff.set_time(value)
+        elif hasattr(self.coeff, 'SetTime'):
+            self.coeff.SetTime(value)
 
     def Eval(self, K, T, ip):
         M = self.coeff.eval(T, ip)
         K.SetSize(M.shape[0], M.shape[1])
         return K.Assign(M.real)
 
-
 class PyImagMatrixCoefficient(mfem.MatrixPyCoefficient):
     def __init__(self, coeff):
         self.coeff = coeff
         assert coeff.height == coeff.width, "not supported"
         mfem.MatrixPyCoefficient.__init__(self, coeff.height)
+        get_time_context().register_coefficient(self)
+
+    def SetTime(self, value):
+        mfem.MatrixPyCoefficient.SetTime(self, value)
+        if hasattr(self.coeff, 'set_time'):
+            self.coeff.set_time(value)
+        elif hasattr(self.coeff, 'SetTime'):
+            self.coeff.SetTime(value)
 
     def Eval(self, K, T, ip):
         M = self.coeff.eval(T, ip)

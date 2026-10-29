@@ -27,7 +27,7 @@ dprint1, dprint2, dprint3 = debug.init_dprints('Solver')
 
 
     (SolverInstance)
-n
+    
     SolverInstance: an actual solver logic comes here
        SolverInstance : base class for standard solver
        TimeDependentSolverInstance : an actual solver logic comes here
@@ -641,6 +641,8 @@ class Solver(SolverBase):
         self._instance = value
 
     def free_instance(self):
+        if self.instance is not None:
+            self.instance.close()
         self._instance = None
 
     def get_phys(self):
@@ -793,6 +795,7 @@ class SolverInstance(ABC):
         self.sol = None
         self.linearsolver_model = None  # LinearSolverModel
         self.linearsolver = None      # Actual LinearSolver
+        self._owned_linearsolvers = []
         self.probe = []
         self.linearsolver_model = None
 
@@ -803,6 +806,21 @@ class SolverInstance(ABC):
 
         if not gui.init_only:
             self.set_linearsolver_model()
+
+    def close(self):
+        """
+        Release linear solvers collectively before discarding this instance.
+        """
+        solvers = self.linearsolver.values() if isinstance(self.linearsolver, dict) else [self.linearsolver]
+        seen = set()
+        for solver in list(solvers) + self._owned_linearsolvers:
+            if solver is not None and id(solver) not in seen:
+                solver.close()
+                seen.add(id(solver))
+        for child in getattr(self, 'child_instance', []):
+            child.close()
+        self.linearsolver = None
+        self._owned_linearsolvers.clear()
 
     @property
     def ls_type(self):
@@ -930,6 +948,7 @@ class SolverInstance(ABC):
             linearsolver = solver_model.allocate_solver(
                 False, engine)
 
+        self._owned_linearsolvers.append(linearsolver)
         return linearsolver
 
     def assemble_rhs(self):
@@ -1010,18 +1029,16 @@ class TimeDependentSolverInstance(SolverInstance):
         self.et = 1.0
         self.checkpoint = [0, 0.5, 1.0]
         self._icheckpoint = 0
-        self._time = 0.0
         self.child_instance = []
         SolverInstance.__init__(self, gui, engine)
 
     @property
     def time(self):
-        return self._time
+        return self.engine.time
 
     @time.setter
     def time(self, value):
-        self._time = value
-        self.engine.model['General']._global_ns['t'] = value
+        self.engine.set_time(value)
 
     @property
     def icheckpoint(self):
@@ -1189,6 +1206,8 @@ class LinearSolver(ABC):
     def skip_solve(self, val):
         self._skip_solve = val
 
+    def close(self):
+        pass
 
 def convert_realblocks_to_complex(solall, M, merge_real_imag):
     if merge_real_imag:

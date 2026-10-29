@@ -141,11 +141,15 @@ def restrict_coeff(coeff, isDomain, sel_index, engine, emesh_idx,
     arr = mfem.intArray(arr)
 
     if vec:
-        return mfem.VectorRestrictedCoefficient(coeff, arr)
+        restricted = mfem.VectorRestrictedCoefficient(coeff, arr)
     elif matrix:
-        return mfem.MatrixRestrictedCoefficient(coeff, arr)
+        restricted = mfem.MatrixRestrictedCoefficient(coeff, arr)
     else:
-        return mfem.RestrictedCoefficient(coeff, arr)
+        restricted = mfem.RestrictedCoefficient(coeff, arr)
+    # MFEM restrictions can copy their own time into the child during Eval.
+    from petram.helper.time_context import get_time_context
+    get_time_context().register_coefficient(restricted)
+    return restricted
 
 
 def restricted_integrator(engine, integrator, sel_index,

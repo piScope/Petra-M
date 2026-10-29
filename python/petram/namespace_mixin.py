@@ -290,7 +290,10 @@ class NS_mixin(object):
         weak_l = self.get_default_weak_ns()
 
         from petram.helper.variables import var_g
-        g = var_g.copy()
+        from petram.helper.time_context import get_time_context, TimeNamespace
+        context = get_time_context()
+        context.configure(getattr(self.root()['General'], 'time_variable', 't'))
+        g = TimeNamespace(var_g)
 
         import mfem
         if mfem.mfem_mode == 'serial':
@@ -410,6 +413,16 @@ class NS_mixin(object):
             import traceback
             assert False, traceback.format_exc()
 
+
+        #
+        #  register namespace variables to TimeContext
+        #
+        from petram.helper.variables import Variable
+        seen = set()
+        for value in list(g.values()):
+            if isinstance(value, Variable):
+                value.prepare_time(g, seen)
+                
         # 2021.08.25. passing g only above allows for list comprehension to work.
         # for k in l:
         #     g[k] = l[k]
