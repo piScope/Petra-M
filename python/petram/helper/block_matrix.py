@@ -24,10 +24,12 @@ else:
 
 from petram.solver.solver_utils import make_numpy_coo_matrix
 from petram.helper.matrix_file import write_coo_matrix, write_vector
+from petram.helper.solver_mpi import SolverLayout
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('BlockMatrix')
 format_memory_usage = debug.format_memory_usage
+
 
 
 class One(object):
@@ -870,9 +872,6 @@ class BlockMatrix(object):
             else:
                 self[i, j] = self[i, j]*beta + alpha * v.reshape(-1, 1)
         else:
-            from mpi4py import MPI
-            comm = MPI.COMM_WORLD
-
             if ref.isHypre:
                 v = np.ascontiguousarray(v)
                 if np.iscomplexobj(v):
@@ -895,7 +894,8 @@ class BlockMatrix(object):
                         realpart = self[i, j][0].GetDataArray()
                         realpart += v*alpha
             else:
-                assert False, "bug. this mode is not supported"
+                values = v.reshape(-1, 1)
+                self[i, j] = values if alpha == 1 and beta == 0 else self[i, j]*beta + alpha*values
 
     def reformat_central_mat(self, mat, ksol, ret, mask, alpha=1, beta=0):
         '''
@@ -997,10 +997,60 @@ class BlockMatrix(object):
     #  methods for coo format
     #
 
+    def get_solver_layout(self, convert_real=False):
+        """
+        Return explicit equation ownership and solution requests in block order.
+        """
+        rank = MPI.COMM_WORLD.rank if use_parallel else 0
+        roff, coff = self.get_global_offsets()
+
+        def indices(axis, offsets, owned):
+            parts = []
+            for k in range(self.shape[axis]):
+                candidates = (self[k, j] for j in range(self.shape[1])) if axis == 0 else (
+                    self[i, k] for i in range(self.shape[0]))
+                ref = next(m for m in candidates if m is not None)
+                if getattr(ref, 'isHypre', False):
+                    part = ref.GetRowPartArray() if axis == 0 else ref.GetColPartArray()
+                    start, end = map(int, part[:2])
+                else:
+                    start, end = 0, int(offsets[k + 1] - offsets[k])
+                    if owned and rank != 0:
+                        end = 0
+                parts.append(np.arange(start, end, dtype=np.int64) + offsets[k])
+            result = np.concatenate(parts) if parts else np.empty(0, dtype=np.int64)
+            if convert_real:
+                result = np.r_[result, result + offsets[-1]]
+            return result
+
+        return SolverLayout(indices(0, roff, True), indices(1, coff, False))
+
+    def get_local_densevec(self):
+        """
+        Extract locally owned RHS values, with replicated auxiliary rows on root.
+        """
+        rank = MPI.COMM_WORLD.rank if use_parallel else 0
+        data = []
+        for i in range(self.shape[0]):
+            item = self[i, 0]
+            if isinstance(item, chypre.CHypreVec):
+                values = np.asarray(item.toarray()).reshape(-1)
+            elif isinstance(item, np.ndarray):
+                values = item.reshape(-1) if rank == 0 else np.empty(0, dtype=item.dtype)
+            elif isinstance(item, ScipyCoo):
+                values = item.toarray().reshape(-1) if rank == 0 else np.empty(0, dtype=item.dtype)
+            else:
+                raise ValueError(f'Unsupported local RHS block {i}: {type(item)}')
+            data.append(values)
+        return np.concatenate(data).reshape(-1, 1)
+    
+    '''
     def gather_densevec(self):
-        '''
-        gather vector data to head node as dense data (for rhs)
-        '''
+        #
+        # 2026 10. MUMPS solver COO mode does not gather matrix to
+        #          root node from engine.
+        # gather vector data to head node as dense data (for rhs)
+        #
         if self.kind == 'scipy':
             if self.complex:
                 M = scipy.sparse.bmat(self.block, format='coo',
@@ -1022,6 +1072,7 @@ class BlockMatrix(object):
                     raise ValueError("Unsupported element" + str((i, 0)) +
                                      ":" + str(type(self[i, 0])))
             return np.hstack(data).reshape(-1, 1)
+    '''
 
     def add_empty_square_block(self, r, c):
         '''

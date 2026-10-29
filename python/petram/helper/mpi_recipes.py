@@ -75,6 +75,30 @@ def mpi_type_to_dtype(mpi_dtype):
     assert False, "MPI data type is unknown for " + mpi_dtype
 
 
+
+def collective_call(comm, operation):
+    """
+    Execute local work and report failures coherently before the next collective.
+    """
+    result = None
+    error = None
+    local_traceback = None
+    try:
+        result = operation()
+    except Exception as exc:
+        import traceback
+        local_traceback = traceback.format_exc()
+        error = f'{type(exc).__name__}: {exc}'
+
+    errors = comm.allgather(error)
+    if local_traceback is not None:
+        raise RuntimeError(f'MPI rank {comm.rank}:\n{local_traceback}')
+    for rank, message in enumerate(errors):
+        if message is not None:
+            raise RuntimeError(f'MPI rank {rank}: {message}')
+    return result
+
+
 def allgather(data):
     comm = MPI.COMM_WORLD
     num_proc = MPI.COMM_WORLD.size
@@ -526,3 +550,52 @@ def distribute_global_coo(A):
     A = coo_matrix((d, (r, c)), shape=(rsize, A.shape[1]),
                    dtype=d.dtype)
     return A
+
+class IndexedTransfer:
+    """
+    Transfer facility for distributing values.
+
+       Each process owns values identified by owned_ids and receives values
+       for requested_ids, in the requested order. Each global ID must have
+       exactly one owner, but multiple processes may request it.
+
+       __init__ caches mapping
+        apply performs the actual data transfer.
+    """
+    def __init__(self, comm, owned_ids, requested_ids):
+        self.comm = comm
+        owned = np.asarray(owned_ids, dtype=np.int64)
+        requested = np.asarray(requested_ids, dtype=np.int64)
+        counts = comm.allgather(owned.size)
+        offsets = np.r_[0, np.cumsum(counts)]
+        ids = allgather_vector(owned, comm=comm, rcounts=counts)
+
+        def make_requests():
+            order = np.argsort(ids)
+            sorted_ids = ids[order]
+            if np.any(np.diff(sorted_ids) == 0):
+                raise ValueError('Duplicate owned global IDs')
+            pos = np.searchsorted(sorted_ids, requested)
+            if np.any(pos >= ids.size) or not np.array_equal(sorted_ids[pos], requested):
+                raise ValueError('Missing requested global IDs')
+            source = order[pos]
+            owners = np.searchsorted(offsets[1:], source, side='right')
+            positions = [np.flatnonzero(owners == r) for r in range(comm.size)]
+            requests = [source[p] - offsets[r] for r, p in enumerate(positions)]
+            return positions, requests
+
+        self.positions, requests = collective_call(comm, make_requests)
+        self.send_indices = alltoall_vector(requests, np.int64, comm=comm)
+        self.size = requested.size
+
+    def apply(self, values):
+        values = np.asarray(values)
+        nvalues = values.shape[1]
+        sends = [np.ascontiguousarray(values[idx]).reshape(-1)
+                 for idx in self.send_indices]
+        received = alltoall_vector(sends, values.dtype, comm=self.comm)
+        result = np.empty((self.size, nvalues), dtype=values.dtype)
+        for positions, data in zip(self.positions, received):
+            result[positions] = data.reshape(-1, nvalues)
+        return result
+
