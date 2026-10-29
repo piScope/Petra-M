@@ -75,7 +75,8 @@ class MUMPSBase(LinearSolverModel):
                 ["use float32", self.use_single_precision, 3, {"text": ""}],
                 ["use dist, RHS",
                  self.use_dist_rhs, 3, {"text": ""}],
-                ["use dist, SOL", self.use_dist_sol, 3, {"text": ""}], ]
+                ["use dist, SOL", self.use_dist_sol, 3, {"text": ""}],
+                ["GPUs per rank", self.gpus_per_rank, 400, {}], ]
 
     def get_panel1_value(self):
         return (int(self.log_level), self.ordering, self.out_of_core,
@@ -85,7 +86,8 @@ class MUMPSBase(LinearSolverModel):
                 str(self.icntl23),
                 self.cntl1, self.cntl4, self.icntl10, self.cntl2,
                 self.icntl6, self.icntl8, self.write_inv,
-                self.use_single_precision, self.use_dist_rhs, self.use_dist_sol)
+                self.use_single_precision, self.use_dist_rhs, self.use_dist_sol,
+                self.gpus_per_rank)
 
     def import_panel1_value(self, v):
         self.log_level = int(v[0])
@@ -110,6 +112,32 @@ class MUMPSBase(LinearSolverModel):
         self.use_single_precision = v[19]
         self.use_dist_rhs = v[20]
         self.use_dist_sol = v[21]
+        self.gpus_per_rank = int(v[22])
+
+    def panel1_tip(self):
+        return ["MUMPS output level: 0 suppresses output; 1 uses the default; 2 enables verbose output.",
+                "Ordering algorithm used to reduce fill-in during factorization.",
+                "Store factors on disk to reduce memory usage.",
+                "Error statistics to compute after solving.",
+                "Write the matrix supplied to MUMPS to disk.",
+                "Save the factorized matrix for later reuse.",
+                "Load saved factors instead of analyzing and factorizing the matrix.",
+                "Directory and filename prefix for saving or restoring factors.",
+                "Enable block low-rank (BLR) factorization.",
+                "BLR approximation tolerance (CNTL(7)).",
+                "Percentage increase in estimated workspace (ICNTL(14)); 'default' uses the MUMPS default.",
+                "Maximum working memory per solver rank in MB (ICNTL(23)); 0 means no user limit.",
+                "Relative threshold for numerical pivoting (CNTL(1)); 'default' uses the MUMPS default.",
+                "Threshold for static pivoting (CNTL(4)); 'default' uses the MUMPS default.",
+                "Iterative refinement control (ICNTL(10)); 'default' uses the MUMPS default.",
+                "Stopping tolerance for iterative refinement (CNTL(2)); 'default' uses the MUMPS default.",
+                "Permutation and scaling control (ICNTL(6)); 'default' uses the MUMPS default.",
+                "Matrix scaling strategy (ICNTL(8)); 'default' uses the MUMPS default.",
+                "Compute and write the matrix inverse to disk.",
+                "Use single precision for the MUMPS factorization and solve.",
+                "Supply the right-hand side distributed across solver ranks.",
+                "Return the solution distributed across ranks.",
+                "Number of GPUs per solver MPI rank (ICNTL(51)): 0 uses CPUs; 1 requests one GPU per rank. Requires a GPU-enabled MUMPS build."]
 
     def attribute_set(self, v):
         v = super(MUMPSBase, self).attribute_set(v)
@@ -141,6 +169,7 @@ class MUMPSBase(LinearSolverModel):
         v['icntl6'] = 'default'
         v['icntl8'] = 'default'
         v['use_single_precision'] = False
+        v['gpus_per_rank'] = 0
         v['write_inv'] = False
         v['use_dist_rhs'] = False
 
@@ -203,6 +232,10 @@ class MUMPS(MUMPSBase):
 
     def panel1_param(self):
         return super().panel1_param() + [["Solver MPI ranks", self.solver_mpi_ranks, 400, {}]]
+
+    def panel1_tip(self):
+        return super().panel1_tip() + [
+            "Number of MPI ranks used by MUMPS. -1 uses PETRAM_MUMPS_MPI_SIZE if set, otherwise all application ranks. A positive value overrides the environment setting."]
 
     def get_panel1_value(self):
         return tuple(super().get_panel1_value()) + (self.solver_mpi_ranks,)
@@ -745,6 +778,9 @@ class MUMPSSolver(LinearSolver):
         self._solution_transfer = None
         if self.skip_solve:
             return
+
+        # Configure GPU-aware analysis as well as numerical factorization.
+        s.set_icntl(51, int(gui.gpus_per_rank))
 
         # blr
         if gui.use_blr:
