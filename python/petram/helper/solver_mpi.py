@@ -100,7 +100,7 @@ class SolverRankLayout:
                 # Test periodically to make MPI progress without busy polling.
                 request = self.app_comm.Ibarrier()
                 while not request.Test():
-                    time.sleep(0.01)
+                    time.sleep(0.2)
 
         return collective_call(self.app_comm, run)
 
