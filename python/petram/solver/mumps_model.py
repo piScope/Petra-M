@@ -116,23 +116,23 @@ class MUMPSBase(LinearSolverModel):
     def panel2_param(self):
         import wx
 
-        blr_params = [["BLR drop parameter", self.blr_drop, 300, {}],
-                      ["ICNTL(36) BLR variant", ICNTL36_OPTIONS[self.icntl36], 1,
+        blr_params = [["BLR drop parameter (CNTL7)", self.blr_drop, 300, {}],
+                      ["BLR variant (ICNTL36)", ICNTL36_OPTIONS[self.icntl36], 1,
                        {"values": ICNTL36_OPTIONS}],
-                      ["ICNTL(37) CB compression", ICNTL37_OPTIONS[self.icntl37], 1,
+                      ["CB compression (ICNTL37)", ICNTL37_OPTIONS[self.icntl37], 1,
                        {"values": ICNTL37_OPTIONS}],
-                      ["ICNTL(38) factor storage estimate", ICNTL_PERCENT_OPTIONS[self.icntl38 // 100], 4,
+                      ["factor storage estimate (ICNTL38)", ICNTL_PERCENT_OPTIONS[self.icntl38 // 100], 4,
                        {"style": wx.CB_READONLY, "choices": ICNTL_PERCENT_OPTIONS}],
-                      ["ICNTL(39) CB storage estimate", ICNTL_PERCENT_OPTIONS[self.icntl39 // 100], 4,
+                      ["CB storage estimate (ICNTL39)", ICNTL_PERCENT_OPTIONS[self.icntl39 // 100], 4,
                        {"style": wx.CB_READONLY, "choices": ICNTL_PERCENT_OPTIONS}],
-                      ["ICNTL(40) adaptive precision", ICNTL40_OPTIONS[self.icntl40], 1,
+                      ["adaptive precision (ICNTL40)", ICNTL40_OPTIONS[self.icntl40], 1,
                        {"values": ICNTL40_OPTIONS}], ]
-        blr_tips = ["BLR approximation tolerance (CNTL(7)).",
-                    "BLR variant: 0 is Standard UFSC; 1 is UCFS. Initial value is 1 per the MUMPS 5.9.1 manual.",
-                    "Contribution-block compression: 0 disables it; 1 enables it. Initial value is 0 per the MUMPS 5.9.1 manual.",
-                    "Estimated compressed factor size as a percent of full-rank storage. Choices are in 10% increments; initial value is 60% per the MUMPS 5.9.1 manual.",
-                    "Estimated compressed contribution-block size as a percent of full-rank storage. Choices are in 10% increments; initial value is 50% per the MUMPS 5.9.1 manual.",
-                    "Adaptive-precision BLR: 0 is off; 1 is on. Initial value is 0 per the MUMPS 5.9.1 manual."]
+        blr_tips = ["BLR approximation drop tolerance.",
+                    "BLR variant: Standard UFSC or UCFS. Default value is UCFS.",
+                    "Contribution-block compression reducing the memory consumption at the cost of some additional operations.",
+                    "Estimated compressed factor size as a percent of full-rank storage. ",
+                    "Estimated compressed contribution-block size as a percent of full-rank storage. ",
+                    "Adaptive-precision BLR to reduce the memory footprint of the BLR LU factors."]
 
         return [[None, (self.use_blr,
                         [self.blr_drop,
@@ -143,7 +143,7 @@ class MUMPSBase(LinearSolverModel):
                          ICNTL40_OPTIONS[self.icntl40]]), 27,
                  ({"text": "use BLR"},
                   {"elp": blr_params, "tip": blr_tips})],
-                ["ICNTL(48) tree parallelism", ICNTL48_OPTIONS[self.icntl48], 1,
+                ["tree parallelism (ICNTL48)", ICNTL48_OPTIONS[self.icntl48], 1,
                  {"values": ICNTL48_OPTIONS}],
                 ["use dist, RHS", self.use_dist_rhs, 3, {"text": ""}],
                 ["use dist, SOL", self.use_dist_sol, 3, {"text": ""}], ]
@@ -181,21 +181,21 @@ class MUMPSBase(LinearSolverModel):
                 "Save the factorized matrix for later reuse.",
                 "Load saved factors instead of analyzing and factorizing the matrix.",
                 "Directory and filename prefix for saving or restoring factors.",
-                "Percentage increase in estimated workspace (ICNTL(14)); 'default' uses the MUMPS default.",
-                "Maximum working memory per solver rank in MB (ICNTL(23)); 0 means no user limit.",
-                "Relative threshold for numerical pivoting (CNTL(1)); 'default' uses the MUMPS default.",
-                "Threshold for static pivoting (CNTL(4)); 'default' uses the MUMPS default.",
-                "Iterative refinement control (ICNTL(10)); 'default' uses the MUMPS default.",
-                "Stopping tolerance for iterative refinement (CNTL(2)); 'default' uses the MUMPS default.",
-                "Permutation and scaling control (ICNTL(6)); 'default' uses the MUMPS default.",
-                "Matrix scaling strategy (ICNTL(8)); 'default' uses the MUMPS default.",
+                "Percentage increase in estimated workspace (ICNTL(14))",
+                "Maximum working memory per solver rank in MB (ICNTL(23)).",
+                "Relative threshold for numerical pivoting (CNTL(1)).",
+                "Threshold for static pivoting (CNTL(4)).",
+                "Iterative refinement control (ICNTL(10)).",
+                "Stopping tolerance for iterative refinement (CNTL(2)).",
+                "Permutation and scaling control (ICNTL(6)).",
+                "Matrix scaling strategy (ICNTL(8)).",
                 "Compute and write the matrix inverse to disk.",
                 "Use single precision for the MUMPS factorization and solve.",
-                "Number of GPUs per solver MPI rank (ICNTL(51)): 0 uses CPUs; 1 requests one GPU per rank. Requires a GPU-enabled MUMPS build."]
+                "Number of GPUs per solver MPI rank (ICNTL(51)): 0 uses CPUs; 1 requests one GPU per rank."]
 
     def panel2_tip(self):
         return ["Enable BLR factorization and configure its related options.",
-                "Tree-parallel multithreading: 0 is off; 1 is on. Initial value is 1 per the MUMPS 5.9.1 manual. Enabling it requires at least two threads per MPI rank.",
+                "Tree-parallel multithreading. Default value is 1.",
                 "Supply the right-hand side distributed across solver ranks.",
                 "Return the solution distributed across ranks."]
 
