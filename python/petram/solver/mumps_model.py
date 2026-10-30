@@ -14,6 +14,12 @@ dprint1, dprint2, dprint3 = debug.init_dprints('MUMPSModel')
 from petram.helper.check_module_installed import module_file_exists
 has_mumps = bool(module_file_exists("petram.ext.mumps.mumps_solve"))
 
+ICNTL36_OPTIONS = ["Standard UFSC", "UCFS"]
+ICNTL37_OPTIONS = ["Do not compress CB", "Compress CB"]
+ICNTL_PERCENT_OPTIONS = [f"{percent}%" for percent in range(0, 101, 10)]
+ICNTL40_OPTIONS = ["Off", "On"]
+ICNTL48_OPTIONS = ["Off", "On"]
+
 
 if use_parallel:
     import mfem.par as mfem
@@ -38,7 +44,7 @@ def convert2int(txt):
 
 
 class MUMPSBase(LinearSolverModel):
-    has_2nd_panel = False
+    has_2nd_panel = True
     accept_complex = True
     is_iterative = False
 
@@ -62,8 +68,6 @@ class MUMPSBase(LinearSolverModel):
                 ["write factor", self.write_fac, 3, {"text": ""}],
                 ["restore factor", self.restore_fac, 3, {"text": ""}],
                 ["factor path/prefix", self.factor_path, 0, {}],
-                ["use BLR", self.use_blr, 3, {"text": ""}],
-                ["BLR drop parameter", self.blr_drop, 300, {}],
                 ["WS Inc. (ICNTL14)", self.icntl14, 0, {}],
                 ["WS Size (ICNTL23)", self.icntl23, 0, {}],
                 ["numerical pivot thr. (CNTL1)", self.cntl1, 0, {}],
@@ -74,21 +78,16 @@ class MUMPSBase(LinearSolverModel):
                 ["scaling strategy (ICNTL8)", self.icntl8, 0, {}],
                 ["write inverse", self.write_inv, 3, {"text": ""}],
                 ["use float32", self.use_single_precision, 3, {"text": ""}],
-                ["use dist, RHS",
-                 self.use_dist_rhs, 3, {"text": ""}],
-                ["use dist, SOL", self.use_dist_sol, 3, {"text": ""}],
                 ["GPUs per rank", self.gpus_per_rank, 400, {}], ]
 
     def get_panel1_value(self):
         return (int(self.log_level), self.ordering, self.out_of_core,
                 self.error_ana, self.write_mat, self.write_fac,
                 self.restore_fac, self.factor_path,
-                self.use_blr, self.blr_drop, str(self.icntl14),
-                str(self.icntl23),
+                str(self.icntl14), str(self.icntl23),
                 self.cntl1, self.cntl4, self.icntl10, self.cntl2,
                 self.icntl6, self.icntl8, self.write_inv,
-                self.use_single_precision, self.use_dist_rhs, self.use_dist_sol,
-                self.gpus_per_rank)
+                self.use_single_precision, self.gpus_per_rank)
 
     def import_panel1_value(self, v):
         self.log_level = int(v[0])
@@ -99,21 +98,79 @@ class MUMPSBase(LinearSolverModel):
         self.write_fac = v[5]
         self.restore_fac = v[6]
         self.factor_path = v[7]
-        self.use_blr = v[8]
-        self.blr_drop = v[9]
-        self.icntl14 = v[10]
-        self.icntl23 = v[11]
-        self.cntl1 = v[12]
-        self.cntl4 = v[13]
-        self.icntl10 = v[14]
-        self.cntl2 = v[15]
-        self.icntl6 = v[16]
-        self.icntl8 = v[17]
-        self.write_inv = v[18]
-        self.use_single_precision = v[19]
-        self.use_dist_rhs = v[20]
-        self.use_dist_sol = v[21]
-        self.gpus_per_rank = int(v[22])
+        self.icntl14 = v[8]
+        self.icntl23 = v[9]
+        self.cntl1 = v[10]
+        self.cntl4 = v[11]
+        self.icntl10 = v[12]
+        self.cntl2 = v[13]
+        self.icntl6 = v[14]
+        self.icntl8 = v[15]
+        self.write_inv = v[16]
+        self.use_single_precision = v[17]
+        self.gpus_per_rank = int(v[18])
+
+    def panel2_tabname(self):
+        return "Advanced"
+    
+    def panel2_param(self):
+        import wx
+
+        blr_params = [["BLR drop parameter", self.blr_drop, 300, {}],
+                      ["ICNTL(36) BLR variant", ICNTL36_OPTIONS[self.icntl36], 1,
+                       {"values": ICNTL36_OPTIONS}],
+                      ["ICNTL(37) CB compression", ICNTL37_OPTIONS[self.icntl37], 1,
+                       {"values": ICNTL37_OPTIONS}],
+                      ["ICNTL(38) factor storage estimate", ICNTL_PERCENT_OPTIONS[self.icntl38 // 100], 4,
+                       {"style": wx.CB_READONLY, "choices": ICNTL_PERCENT_OPTIONS}],
+                      ["ICNTL(39) CB storage estimate", ICNTL_PERCENT_OPTIONS[self.icntl39 // 100], 4,
+                       {"style": wx.CB_READONLY, "choices": ICNTL_PERCENT_OPTIONS}],
+                      ["ICNTL(40) adaptive precision", ICNTL40_OPTIONS[self.icntl40], 1,
+                       {"values": ICNTL40_OPTIONS}], ]
+        blr_tips = ["BLR approximation tolerance (CNTL(7)).",
+                    "BLR variant: 0 is Standard UFSC; 1 is UCFS. Initial value is 1 per the MUMPS 5.9.1 manual.",
+                    "Contribution-block compression: 0 disables it; 1 enables it. Initial value is 0 per the MUMPS 5.9.1 manual.",
+                    "Estimated compressed factor size as a percent of full-rank storage. Choices are in 10% increments; initial value is 60% per the MUMPS 5.9.1 manual.",
+                    "Estimated compressed contribution-block size as a percent of full-rank storage. Choices are in 10% increments; initial value is 50% per the MUMPS 5.9.1 manual.",
+                    "Adaptive-precision BLR: 0 is off; 1 is on. Initial value is 0 per the MUMPS 5.9.1 manual."]
+
+        return [[None, (self.use_blr,
+                        [self.blr_drop,
+                         ICNTL36_OPTIONS[self.icntl36],
+                         ICNTL37_OPTIONS[self.icntl37],
+                         ICNTL_PERCENT_OPTIONS[self.icntl38 // 100],
+                         ICNTL_PERCENT_OPTIONS[self.icntl39 // 100],
+                         ICNTL40_OPTIONS[self.icntl40]]), 27,
+                 ({"text": "use BLR"},
+                  {"elp": blr_params, "tip": blr_tips})],
+                ["ICNTL(48) tree parallelism", ICNTL48_OPTIONS[self.icntl48], 1,
+                 {"values": ICNTL48_OPTIONS}],
+                ["use dist, RHS", self.use_dist_rhs, 3, {"text": ""}],
+                ["use dist, SOL", self.use_dist_sol, 3, {"text": ""}], ]
+
+    def get_panel2_value(self):
+        blr_value = (self.use_blr,
+                     [self.blr_drop,
+                      ICNTL36_OPTIONS[self.icntl36],
+                      ICNTL37_OPTIONS[self.icntl37],
+                      ICNTL_PERCENT_OPTIONS[self.icntl38 // 100],
+                      ICNTL_PERCENT_OPTIONS[self.icntl39 // 100],
+                      ICNTL40_OPTIONS[self.icntl40]])
+        return (blr_value, ICNTL48_OPTIONS[self.icntl48],
+                self.use_dist_rhs, self.use_dist_sol)
+
+    def import_panel2_value(self, v):
+        self.use_blr = v[0][0]
+        blr_values = v[0][1]
+        self.blr_drop = blr_values[0]
+        self.icntl36 = ICNTL36_OPTIONS.index(str(blr_values[1]))
+        self.icntl37 = ICNTL37_OPTIONS.index(str(blr_values[2]))
+        self.icntl38 = ICNTL_PERCENT_OPTIONS.index(str(blr_values[3])) * 100
+        self.icntl39 = ICNTL_PERCENT_OPTIONS.index(str(blr_values[4])) * 100
+        self.icntl40 = ICNTL40_OPTIONS.index(str(blr_values[5]))
+        self.icntl48 = ICNTL48_OPTIONS.index(str(v[1]))
+        self.use_dist_rhs = v[2]
+        self.use_dist_sol = v[3]
 
     def panel1_tip(self):
         return ["MUMPS output level: 0 suppresses output; 1 uses the default; 2 enables verbose output.",
@@ -124,8 +181,6 @@ class MUMPSBase(LinearSolverModel):
                 "Save the factorized matrix for later reuse.",
                 "Load saved factors instead of analyzing and factorizing the matrix.",
                 "Directory and filename prefix for saving or restoring factors.",
-                "Enable block low-rank (BLR) factorization.",
-                "BLR approximation tolerance (CNTL(7)).",
                 "Percentage increase in estimated workspace (ICNTL(14)); 'default' uses the MUMPS default.",
                 "Maximum working memory per solver rank in MB (ICNTL(23)); 0 means no user limit.",
                 "Relative threshold for numerical pivoting (CNTL(1)); 'default' uses the MUMPS default.",
@@ -136,9 +191,13 @@ class MUMPSBase(LinearSolverModel):
                 "Matrix scaling strategy (ICNTL(8)); 'default' uses the MUMPS default.",
                 "Compute and write the matrix inverse to disk.",
                 "Use single precision for the MUMPS factorization and solve.",
-                "Supply the right-hand side distributed across solver ranks.",
-                "Return the solution distributed across ranks.",
                 "Number of GPUs per solver MPI rank (ICNTL(51)): 0 uses CPUs; 1 requests one GPU per rank. Requires a GPU-enabled MUMPS build."]
+
+    def panel2_tip(self):
+        return ["Enable BLR factorization and configure its related options.",
+                "Tree-parallel multithreading: 0 is off; 1 is on. Initial value is 1 per the MUMPS 5.9.1 manual. Enabling it requires at least two threads per MPI rank.",
+                "Supply the right-hand side distributed across solver ranks.",
+                "Return the solution distributed across ranks."]
 
     def attribute_set(self, v):
         v = super(MUMPSBase, self).attribute_set(v)
@@ -161,6 +220,12 @@ class MUMPSBase(LinearSolverModel):
         v['error_ana'] = 'none'
         v['use_blr'] = False
         v['blr_drop'] = 0.0
+        v["icntl36"] = 1
+        v["icntl37"] = 0
+        v["icntl38"] = 600
+        v["icntl39"] = 500
+        v["icntl40"] = 0
+        v["icntl48"] = 1
         v['icntl14'] = '20'
         v['icntl23'] = '0'
         v['cntl1'] = 'default'
@@ -180,7 +245,6 @@ class MUMPSBase(LinearSolverModel):
             self.icntl14 = str(self.icntl14)
         if hasattr(self, "icntl23"):
             self.icntl23 = str(self.icntl23)
-
         # this flag needs to be set, so that destcuctor works when
         # model tree is loaded from pickled file
         v['s'] = None
@@ -821,6 +885,10 @@ class MUMPSSolver(LinearSolver):
         if gui.use_blr:
             s.set_icntl(35, 1)
             s.set_cntl(7, float(gui.blr_drop))
+            for icntl in (36, 37, 38, 39, 40):
+                s.set_icntl(icntl, int(getattr(gui, f"icntl{icntl}")))
+
+        s.set_icntl(48, int(gui.icntl48))
 
         # out-of-core
         if gui.out_of_core:
