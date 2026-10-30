@@ -6,6 +6,7 @@ import os
 import numpy as np
 from scipy.sparse import coo_matrix
 import weakref
+from contextlib import contextmanager
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('MUMPSModel')
@@ -227,22 +228,28 @@ class MUMPS(MUMPSBase):
     def attribute_set(self, v):
         v = super().attribute_set(v)
         v['solver_mpi_ranks'] = -1
+        v['maximize_omp_threads'] = False
         v['use_dist_rhs'] = True
         return v
 
     def panel1_param(self):
-        return super().panel1_param() + [["Solver MPI ranks", self.solver_mpi_ranks, 400, {}]]
+        return super().panel1_param() + [
+            ["Solver MPI size", self.solver_mpi_ranks, 400, {}],
+            ["Maximize OpenMP threads", self.maximize_omp_threads, 3, {"text": ""}]]
 
     def panel1_tip(self):
         return super().panel1_tip() + [
-            "Number of MPI ranks used by MUMPS. -1 uses PETRAM_MUMPS_MPI_SIZE if set, otherwise all application ranks. A positive value overrides the environment setting."]
+            "Number of MPI ranks used by MUMPS. -1 uses PETRAM_MUMPS_MPI_SIZE if set, otherwise all application ranks. A positive value overrides the environment setting.",
+            "Use all available  OpenMP threads for MUMPS."]
 
     def get_panel1_value(self):
-        return tuple(super().get_panel1_value()) + (self.solver_mpi_ranks,)
+        return tuple(super().get_panel1_value()) + (self.solver_mpi_ranks,
+                                                   self.maximize_omp_threads)
 
     def import_panel1_value(self, values):
-        super().import_panel1_value(values[:-1])
-        self.solver_mpi_ranks = int(values[-1])
+        super().import_panel1_value(values[:-2])
+        self.solver_mpi_ranks = int(values[-2])
+        self.maximize_omp_threads = bool(values[-1])
 
     def resolve_solver_size(self, comm, environ=None):
         """
@@ -262,18 +269,21 @@ class MUMPS(MUMPSBase):
 
     def allocate_solver(self, is_complex=False, engine=None):
         ls_type = self.get_solve_root().get_linearsystem_type_from_modeltree()
-        if not use_parallel or ls_type.startswith('blk'):
+        if ls_type.startswith('blk'):
             return super().allocate_solver(is_complex, engine)
 
-        from mpi4py import MPI
-
-        size, source = self.resolve_solver_size(MPI.COMM_WORLD)
+        if use_parallel:
+            from mpi4py import MPI
+            size, source = self.resolve_solver_size(MPI.COMM_WORLD)
+        else:
+            from petram.helper.dummy_mpi import MPI
+            size, source = 1, 'serial'
         dprint1(f'MUMPS MPI ranks: application={MPI.COMM_WORLD.size}, solver={size} ({source})')
         
 
         if size == MPI.COMM_WORLD.size:
             solver = MUMPSSolver(self, engine, comm=MPI.COMM_WORLD, 
-                                 rhs_is_local=True)
+                                 rhs_is_local=use_parallel)
             solver.AllocSolver(is_complex, self.use_single_precision)
             return solver
 
@@ -371,7 +381,8 @@ class MUMPSPreconditionerModel(MUMPSBase):
 class MUMPSSolver(LinearSolver):
     is_iterative = False
 
-    def __init__(self, *args, comm=None, rhs_is_local=False, **kwargs):
+    def __init__(self, *args, comm=None, rhs_is_local=False,
+                 rank_layout=None, **kwargs):
         super(MUMPSSolver, self).__init__(*args, **kwargs)
         if comm is None:
             if use_parallel:
@@ -380,6 +391,13 @@ class MUMPSSolver(LinearSolver):
                 from petram.helper.dummy_mpi import MPI
             comm = MPI.COMM_WORLD
         self.comm = comm
+        self.omp_threads = None
+        if rank_layout is not None and self.gui.maximize_omp_threads:
+            from petram.ext.mumps.mumps_solve import get_omp_max_threads
+            # Only reduced solves increase the uniform initial thread count.
+            self.omp_threads = (get_omp_max_threads() * rank_layout.node_app_size
+                                // rank_layout.node_solver_size)
+            dprint1(f'MUMPS OpenMP threads per solver rank: {self.omp_threads}')
         self.s = None
         self.silent = False
         self.keep_sol_distributed = False
@@ -389,20 +407,40 @@ class MUMPSSolver(LinearSolver):
         self._rhs_transfer = None
         self._solution_transfer = None
 
+    @contextmanager
+    def _omp_scope(self):
+        """
+        Temporarily apply this solver's OpenMP limit on the calling thread.
+        """
+        if self.omp_threads is None:
+            yield
+            return
+        from petram.ext.mumps.mumps_solve import (get_omp_max_threads,
+                                                  set_omp_num_threads)
+
+        previous = get_omp_max_threads()
+        try:
+            set_omp_num_threads(self.omp_threads)
+            yield
+        finally:
+            set_omp_num_threads(previous)
+
     def close(self):
         """
         Finish the native solver collectively on its own communicator.
         """
         if self.s is not None:
-            self.s.finish()
+            with self._omp_scope():
+                self.s.finish()
             self.s = None
 
     def _run_job(self, job):
         """
         Run a native collective and check the global MUMPS status.
         """
-        self.s.set_job(job)
-        self.s.run()
+        with self._omp_scope():
+            self.s.set_job(job)
+            self.s.run()
         status = self.s.get_infog(1)
         if status < 0:
             raise RuntimeError(f'MUMPS job {job}: INFOG(1)={status}, INFOG(2)={self.s.get_infog(2)}')
@@ -516,22 +554,20 @@ class MUMPSSolver(LinearSolver):
         if is_complex:
             if use_single_precision:
                 from petram.ext.mumps.mumps_solve import c_array as data_array
-                from petram.ext.mumps.mumps_solve import CMUMPS
-                s = CMUMPS(*args)
+                from petram.ext.mumps.mumps_solve import CMUMPS as native_solver
             else:
                 from petram.ext.mumps.mumps_solve import z_array as data_array
-                from petram.ext.mumps.mumps_solve import ZMUMPS
-                s = ZMUMPS(*args)
+                from petram.ext.mumps.mumps_solve import ZMUMPS as native_solver
         else:
             if use_single_precision:
                 from petram.ext.mumps.mumps_solve import s_array as data_array
-                from petram.ext.mumps.mumps_solve import SMUMPS
-                s = SMUMPS(*args)
+                from petram.ext.mumps.mumps_solve import SMUMPS as native_solver
             else:
                 from petram.ext.mumps.mumps_solve import d_array as data_array
-                from petram.ext.mumps.mumps_solve import DMUMPS
-                s = DMUMPS(*args)
+                from petram.ext.mumps.mumps_solve import DMUMPS as native_solver
 
+        with self._omp_scope():
+            s = native_solver(*args)
         self.s = s
         self.is_complex = is_complex
         self.data_array = data_array
@@ -662,8 +698,7 @@ class MUMPSSolver(LinearSolver):
 
         if not self.silent:
             dprint1("job9")
-        s.set_job(9)
-        s.run()
+        self._run_job(9)
         return irhs_loc
 
     def redistributed_array(self, sol, isol_loc, requested_ids, nrhs):
@@ -1097,7 +1132,8 @@ class ReducedMUMPSSolver(LinearSolver):
             if self.backend is None:
                 solver = MUMPSSolver(self.gui, self.engine, 
                                      comm=self.ranks.solver_comm,
-                                     rhs_is_local=True)
+                                     rhs_is_local=True,
+                                     rank_layout=self.ranks)
                 solver.AllocSolver(self.is_complex, self.gui.use_single_precision)
                 self.backend = solver
 
