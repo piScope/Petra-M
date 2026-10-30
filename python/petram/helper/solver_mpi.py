@@ -73,6 +73,9 @@ class SolverRankLayout:
         node_ids = app_comm.allgather(node_id)
         node.Free()
         leaders = find_solver_group_leader(node_ids, size)
+        self.node_app_size = node_ids.count(node_id)
+        self.node_solver_size = sum(node_ids[rank] == node_id
+                                    for rank in set(leaders))
         leader = int(leaders[app_comm.rank])
         self.group_comm = app_comm.Split(leader, key=0 if app_comm.rank == leader else app_comm.rank + 1)
         self.is_leader = app_comm.rank == leader
