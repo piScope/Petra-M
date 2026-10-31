@@ -36,7 +36,7 @@ else:
         print(x)
 
 from petram.helper.check_module_installed import module_file_exists
-has_strumpack = bool(module_file_exists("STRUMPACK"))
+has_strumpack = bool(module_file_exists("petram.ext.strumpack.strumpack_solve"))
 
 
 attr_names = ['log_level',
@@ -83,7 +83,7 @@ krylov_modes = {"Auto": "STRUMPACK_AUTO",
                 "PGMRES": "STRUMPACK_PREC_GMRES",
                 "GMRES": "STRUMPACK_GMRES",
                 "PBICGSTAB": "STRUMPACK_PREC_BICGSTAB",
-                "BICGSTAB": "BICGSTAB", }
+                "BICGSTAB": "STRUMPACK_BICGSTAB", }
 
 compression_modes = {"None": "STRUMPACK_NONE",
                      "HSS": "STRUMPACK_HSS",
@@ -424,7 +424,7 @@ class StrumpackSolver(LinearSolver):
 
     def spss_set_options(self):
         try:
-            import STRUMPACK as ST
+            from petram.ext.strumpack import strumpack_solve as ST
         except BaseException:
             assert False, "Can not load STRUMPACK"
 
@@ -489,8 +489,8 @@ class StrumpackSolver(LinearSolver):
 #               "--sp_enable_METIS_NodeND"]
         if self.gui.lossy_precision.find('default') == -1:
             tol = int(self.gui.lossy_precision.split('(')[0])
-            if tol != 16:
-                opts.extend(["--sp_lossy_precision", str(tol)])
+            opts.extend(["--sp_lossy_accuracy", "-1",
+                         "--sp_lossy_precision", str(tol)])
 
         if self.gui.use_gpu:
             if self.gui.cuda_cutoff.find('default') == -1:
@@ -533,7 +533,7 @@ class StrumpackSolver(LinearSolver):
 
     def AllocSolver(self, is_complex, use_single_precision):
         try:
-            import STRUMPACK as ST
+            from petram.ext.strumpack import strumpack_solve as ST
         except BaseException:
             assert False, "Can not load STRUMPACK"
         dprint1("AllocSolver", is_complex, use_single_precision)
@@ -614,7 +614,7 @@ class StrumpackSolver(LinearSolver):
         myid = MPI.COMM_WORLD.rank
         nproc = MPI.COMM_WORLD.size
         try:
-            import STRUMPACK as ST
+            from petram.ext.strumpack import strumpack_solve as ST
         except BaseException:
             assert False, "Can not load STRUMPACK"
 
@@ -677,6 +677,9 @@ class StrumpackSolver(LinearSolver):
                 bbv = bb.GetDataArray()
                 xxv = xx.GetDataArray()
 
+            bbv = np.ascontiguousarray(bbv, dtype=self.dtype)
+            xxv = np.ascontiguousarray(xxv, dtype=self.dtype)
+
             if self.gui.write_mat:
                 write_vector('rhs_' + str(kk), bbv)
                 write_vector('x_' + str(kk), xxv)
@@ -692,6 +695,12 @@ class StrumpackSolver(LinearSolver):
                 int(ret != ST.STRUMPACK_SUCCESS)))
             if ret > 0:
                 assert False, "error during solve phase (Strumpack)"
+
+            # MFEM stores solution vectors in double precision.
+            dtype = np.complex128 if self.is_complex else np.float64
+            xxv = xxv.astype(dtype, copy=False)
+            if not self.is_complex:
+                xx.GetDataArray()[:] = xxv
 
             if return_distributed:
                 sol.append(xxv)
