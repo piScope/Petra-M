@@ -1,3 +1,23 @@
 # dev_experiment folder
 
-This folder contains short test routines prepared for testing MFEM/PyMFEM.
+This folder contains exploratory checks that are run manually and are not part
+of the regular unit-test or simulation-test suites.
+
+The `mpi_mumps_reduction.py` and `mpi_mumps_threads.py` scripts were created
+during reduced-rank MUMPS solver development. They exercise native MUMPS and MPI
+behavior; the thread checks require eight ranks on one node and
+`OMP_NUM_THREADS=2`. The `mpi_recipes_subcomm.py` script checks MPI vector
+recipes and subcommunicators. These scripts require a working MPI environment
+and the relevant Petra-M native dependencies.
+
+Example commands from the Petra-M repository root:
+
+```sh
+PYTHONPATH=python OMP_NUM_THREADS=1 mpiexec -n 4 python test/dev_experiment/mpi_mumps_reduction.py
+PYTHONPATH=python OMP_NUM_THREADS=2 mpiexec -n 8 python test/dev_experiment/mpi_mumps_threads.py
+PYTHONPATH=python mpiexec -n 4 python test/dev_experiment/mpi_recipes_subcomm.py
+```
+
+The reduced-rank scripts predate the current opt-in `reduce_mpi_proc` GUI
+setting. Their reduced-rank cases need updating before they can serve as
+regression checks for the current interface.

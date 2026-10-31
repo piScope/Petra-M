@@ -19,7 +19,34 @@ ICNTL37_OPTIONS = ["Do not compress CB", "Compress CB"]
 ICNTL_PERCENT_OPTIONS = [f"{percent}%" for percent in range(0, 101, 10)]
 ICNTL40_OPTIONS = ["Off", "On"]
 ICNTL48_OPTIONS = ["Off", "On"]
-
+MUMPS_DEFAULT_CONTROLS = {
+    "cntl1": "-1",
+    "cntl4": "-1",
+    "icntl10": "0",
+    "cntl2": "sqrt(eps)",
+    "icntl6": "7",
+    "icntl8": "77",
+}
+ICNTL6_OPTIONS = {
+    "0": "0: No column permutation",
+    "1": "1: ",
+    "2": "2: ",
+    "3": "3: ",
+    "4": "4: ",
+    "5": "5: ",
+    "6": "6: ",
+    "7": "7: Automatic",
+}
+ICNTL8_OPTIONS = {
+    "-2": "-2: scaling done during analysis",
+    "0": "0: disables scaling",
+    "1": "1: diagonal scaling",
+    "3": "3: column scaling",
+    "4": "4: row/column scaling",
+    "7": "7: iterative scaling",
+    "8": "8: iterative scaling (more expensive)",
+    "77": "77: automatic scaling",
+}
 
 if use_parallel:
     import mfem.par as mfem
@@ -43,6 +70,13 @@ def convert2int(txt):
         assert False, "can not convert to float. Input text is " + txt
 
 
+def convert_cntl2(txt, use_single_precision):
+    if str(txt).strip().lower() in ("sqrt(eps)", "sqrt(epsilon)"):
+        dtype = np.float32 if use_single_precision else np.float64
+        return float(np.sqrt(np.finfo(dtype).eps))
+    return convert2float(txt)
+
+
 class MUMPSBase(LinearSolverModel):
     has_2nd_panel = True
     accept_complex = True
@@ -56,6 +90,9 @@ class MUMPSBase(LinearSolverModel):
         pass
 
     def panel1_param(self):
+        gpu_params = [["GPUs per rank", self.gpus_per_rank, 400, {}]]
+        gpu_tips = ["Number of GPUs requested per solver MPI rank (ICNTL(51))."]
+
         return [["log_level(0-2)", self.log_level, 400, {}],
                 ["ordering", self.ordering, 4, {"readonly": True,
                                                 "choices": ["auto", "AMF", "PORD", "QAMD",
@@ -64,51 +101,27 @@ class MUMPSBase(LinearSolverModel):
                 ["out-of-core", self.out_of_core, 3, {"text": ""}],
                 ["error analysis", self.error_ana, 4, {"readonly": True,
                                                        "choices": ["none", "full stat.", "main stat."]}],
-                ["write matrix", self.write_mat, 3, {"text": ""}],
-                ["write factor", self.write_fac, 3, {"text": ""}],
-                ["restore factor", self.restore_fac, 3, {"text": ""}],
-                ["factor path/prefix", self.factor_path, 0, {}],
-                ["WS Inc. (ICNTL14)", self.icntl14, 0, {}],
-                ["WS Size (ICNTL23)", self.icntl23, 0, {}],
-                ["numerical pivot thr. (CNTL1)", self.cntl1, 0, {}],
-                ["static pivot thr. (CNTL4)", self.cntl4, 0, {}],
-                ["Itr. refinement (ICNTL10)", self.icntl10, 0, {}],
-                ["refinement stop Cond. (CNTL2)", self.cntl2, 0, {}],
-                ["permutation/scaling Opt.(ICNTL6)", self.icntl6, 0, {}],
-                ["scaling strategy (ICNTL8)", self.icntl8, 0, {}],
-                ["write inverse", self.write_inv, 3, {"text": ""}],
-                ["use float32", self.use_single_precision, 3, {"text": ""}],
-                ["GPUs per rank", self.gpus_per_rank, 400, {}], ]
+                ["WS Inc.", self.icntl14, 0, {}],
+                ["WS Size", self.icntl23, 0, {}],
+                [None, (self.use_gpu_offlading, [int(self.gpus_per_rank)]), 27,
+                 ({"text": "Use GPU offloading"},
+                  {"elp": gpu_params, "tip": gpu_tips})], ]
 
     def get_panel1_value(self):
         return (int(self.log_level), self.ordering, self.out_of_core,
-                self.error_ana, self.write_mat, self.write_fac,
-                self.restore_fac, self.factor_path,
+                self.error_ana,
                 str(self.icntl14), str(self.icntl23),
-                self.cntl1, self.cntl4, self.icntl10, self.cntl2,
-                self.icntl6, self.icntl8, self.write_inv,
-                self.use_single_precision, self.gpus_per_rank)
+                (self.use_gpu_offlading, [int(self.gpus_per_rank)]))
 
     def import_panel1_value(self, v):
         self.log_level = int(v[0])
         self.ordering = str(v[1])
         self.out_of_core = v[2]
         self.error_ana = v[3]
-        self.write_mat = v[4]
-        self.write_fac = v[5]
-        self.restore_fac = v[6]
-        self.factor_path = v[7]
-        self.icntl14 = v[8]
-        self.icntl23 = v[9]
-        self.cntl1 = v[10]
-        self.cntl4 = v[11]
-        self.icntl10 = v[12]
-        self.cntl2 = v[13]
-        self.icntl6 = v[14]
-        self.icntl8 = v[15]
-        self.write_inv = v[16]
-        self.use_single_precision = v[17]
-        self.gpus_per_rank = int(v[18])
+        self.icntl14 = v[4]
+        self.icntl23 = v[5]
+        self.use_gpu_offlading, gpu_values = v[6]
+        self.gpus_per_rank = int(gpu_values[0])
 
     def panel2_tabname(self):
         return "Advanced"
@@ -116,24 +129,25 @@ class MUMPSBase(LinearSolverModel):
     def panel2_param(self):
         import wx
 
-        blr_params = [["BLR drop parameter (CNTL7)", self.blr_drop, 300, {}],
-                      ["BLR variant (ICNTL36)", ICNTL36_OPTIONS[self.icntl36], 1,
+        blr_params = [["BLR drop parameter", self.blr_drop, 300, {}],
+                      ["BLR variant", ICNTL36_OPTIONS[self.icntl36], 1,
                        {"values": ICNTL36_OPTIONS}],
-                      ["CB compression (ICNTL37)", ICNTL37_OPTIONS[self.icntl37], 1,
+                      ["CB compression", ICNTL37_OPTIONS[self.icntl37], 1,
                        {"values": ICNTL37_OPTIONS}],
-                      ["factor storage estimate (ICNTL38)", ICNTL_PERCENT_OPTIONS[self.icntl38 // 100], 4,
+                      ["factor storage estimate", ICNTL_PERCENT_OPTIONS[self.icntl38 // 100], 4,
                        {"style": wx.CB_READONLY, "choices": ICNTL_PERCENT_OPTIONS}],
-                      ["CB storage estimate (ICNTL39)", ICNTL_PERCENT_OPTIONS[self.icntl39 // 100], 4,
+                      ["CB storage estimate", ICNTL_PERCENT_OPTIONS[self.icntl39 // 100], 4,
                        {"style": wx.CB_READONLY, "choices": ICNTL_PERCENT_OPTIONS}],
-                      ["adaptive precision (ICNTL40)", ICNTL40_OPTIONS[self.icntl40], 1,
+                      ["adaptive precision", ICNTL40_OPTIONS[self.icntl40], 1,
                        {"values": ICNTL40_OPTIONS}], ]
-        blr_tips = ["BLR approximation drop tolerance.",
-                    "BLR variant: Standard UFSC or UCFS. Default value is UCFS.",
-                    "Contribution-block compression reducing the memory consumption at the cost of some additional operations.",
-                    "Estimated compressed factor size as a percent of full-rank storage. ",
-                    "Estimated compressed contribution-block size as a percent of full-rank storage. ",
-                    "Adaptive-precision BLR to reduce the memory footprint of the BLR LU factors."]
-
+        blr_tips = ["BLR approximation drop tolerance (CNTL(7)).",
+                    "BLR variant: Standard UFSC or UCFS. Default value is UCFS (ICNTL(36)).",
+                    "Contribution-block compression reduces memory consumption at the cost of additional operations (ICNTL(37)).",
+                    "Estimated compressed factor size as a percentage of full-rank storage (ICNTL(38)).",
+                    "Estimated compressed contribution-block size as a percentage of full-rank storage (ICNTL(39)).",
+                    "Adaptive-precision BLR reduces the memory footprint of the BLR LU factors (ICNTL(40))."]
+        cntl1 = str(self.cntl1)
+        cntl4 = str(self.cntl4)
         return [[None, (self.use_blr,
                         [self.blr_drop,
                          ICNTL36_OPTIONS[self.icntl36],
@@ -143,12 +157,42 @@ class MUMPSBase(LinearSolverModel):
                          ICNTL40_OPTIONS[self.icntl40]]), 27,
                  ({"text": "use BLR"},
                   {"elp": blr_params, "tip": blr_tips})],
-                ["tree parallelism (ICNTL48)", ICNTL48_OPTIONS[self.icntl48], 1,
+                [None, None, 27,
+                 ({"text": "Use numerical refinement"},
+                  {"elp": [["Number of refinements", None, 0, {}],
+                           ["Stop condition", None, 0, {}]],
+                   "tip": ["Maximum number of refinement steps (ICNTL(10)).",
+                           "Stop when the backward error meets this criterion. Type sqrt(eps) or a numeric value (CNTL(2))."]})],
+                [None, (self.custom_n_pivoting_thrs, [cntl1]), 27,
+                 ({"text": "Custom numerical pivot threshold"},
+                  {"elp": [["Threshold (CNTL(1))", cntl1, 0, {}]],
+                   "tip": ["Relative threshold for numerical pivoting. When CNTL(1) is negative, MUMPS selects the threshold automatically."]})],
+                [None, (self.use_static_pivoting, [cntl4]), 27,
+                 ({"text": "Use static pivoting"},
+                  {"elp": [["Threshold (CNTL(4))", cntl4, 0, {}]],
+                   "tip": ["Threshold for static pivoting. Pivots smaller than this value in absolute magnitude are replaced by the threshold."]})],
+                ["column permutation", ICNTL6_OPTIONS["0"], 4,
+                 {"style": wx.CB_READONLY,
+                  "choices": list(ICNTL6_OPTIONS.values())}],
+                ["scaling strategy", ICNTL8_OPTIONS["-2"], 4,
+                 {"style": wx.CB_READONLY,
+                  "choices": list(ICNTL8_OPTIONS.values())}],
+                ["use float32", self.use_single_precision, 3, {"text": ""}],
+                ["write factor", self.write_fac, 3, {"text": ""}],
+                ["restore factor", self.restore_fac, 3, {"text": ""}],
+                ["factor path/prefix", self.factor_path, 0, {}],
+                ["tree parallelism", ICNTL48_OPTIONS[self.icntl48], 1,
                  {"values": ICNTL48_OPTIONS}],
                 ["use dist, RHS", self.use_dist_rhs, 3, {"text": ""}],
-                ["use dist, SOL", self.use_dist_sol, 3, {"text": ""}], ]
+                ["use dist, SOL", self.use_dist_sol, 3, {"text": ""}],
+                ["write matrix", self.write_mat, 3, {"text": ""}],
+                ["write inverse", self.write_inv, 3, {"text": ""}], ]
 
     def get_panel2_value(self):
+        icntl10 = self.icntl10
+        cntl2 = self.cntl2
+        icntl10_default = icntl10 == "default"
+        cntl2_default = cntl2 == "default"
         blr_value = (self.use_blr,
                      [self.blr_drop,
                       ICNTL36_OPTIONS[self.icntl36],
@@ -156,8 +200,26 @@ class MUMPSBase(LinearSolverModel):
                       ICNTL_PERCENT_OPTIONS[self.icntl38 // 100],
                       ICNTL_PERCENT_OPTIONS[self.icntl39 // 100],
                       ICNTL40_OPTIONS[self.icntl40]])
-        return (blr_value, ICNTL48_OPTIONS[self.icntl48],
-                self.use_dist_rhs, self.use_dist_sol)
+        cntl1 = str(self.cntl1)
+        cntl4 = str(self.cntl4)
+        icntl6 = str(self.icntl6)
+        icntl8 = str(self.icntl8)
+        if icntl6 == "default":
+            icntl6 = MUMPS_DEFAULT_CONTROLS["icntl6"]
+        if icntl8 == "default":
+            icntl8 = MUMPS_DEFAULT_CONTROLS["icntl8"]
+        return (blr_value,
+                (not icntl10_default or not cntl2_default,
+                 [MUMPS_DEFAULT_CONTROLS["icntl10"] if icntl10_default else icntl10,
+                  MUMPS_DEFAULT_CONTROLS["cntl2"] if cntl2_default else cntl2]),
+                (self.custom_n_pivoting_thrs, [cntl1]),
+                (self.use_static_pivoting, [cntl4]),
+                ICNTL6_OPTIONS[icntl6], ICNTL8_OPTIONS[icntl8],
+                self.use_single_precision,
+                self.write_fac, self.restore_fac,
+                self.factor_path, ICNTL48_OPTIONS[self.icntl48],
+                self.use_dist_rhs, self.use_dist_sol,
+                self.write_mat, self.write_inv)
 
     def import_panel2_value(self, v):
         self.use_blr = v[0][0]
@@ -168,36 +230,54 @@ class MUMPSBase(LinearSolverModel):
         self.icntl38 = ICNTL_PERCENT_OPTIONS.index(str(blr_values[3])) * 100
         self.icntl39 = ICNTL_PERCENT_OPTIONS.index(str(blr_values[4])) * 100
         self.icntl40 = ICNTL40_OPTIONS.index(str(blr_values[5]))
-        self.icntl48 = ICNTL48_OPTIONS.index(str(v[1]))
-        self.use_dist_rhs = v[2]
-        self.use_dist_sol = v[3]
+        refinement_enabled, refinement_values = v[1]
+        self.icntl10 = str(refinement_values[0]) if refinement_enabled else "default"
+        self.cntl2 = str(refinement_values[1]) if refinement_enabled else "default"
+        self.custom_n_pivoting_thrs, values = v[2]
+        self.cntl1 = str(values[0])
+        self.use_static_pivoting, values = v[3]
+        self.cntl4 = str(values[0])
+        icntl6 = str(int(str(v[4]).split(":", 1)[0].strip()))
+        icntl8 = str(int(str(v[5]).split(":", 1)[0].strip()))
+        self.icntl6 = ("default" if icntl6 == MUMPS_DEFAULT_CONTROLS["icntl6"]
+                       else icntl6)
+        self.icntl8 = ("default" if icntl8 == MUMPS_DEFAULT_CONTROLS["icntl8"]
+                       else icntl8)
+        self.use_single_precision = v[6]
+        self.write_fac = v[7]
+        self.restore_fac = v[8]
+        self.factor_path = v[9]
+        self.icntl48 = ICNTL48_OPTIONS.index(str(v[10]))
+        self.use_dist_rhs = v[11]
+        self.use_dist_sol = v[12]
+        self.write_mat = v[13]
+        self.write_inv = v[14]
 
     def panel1_tip(self):
         return ["MUMPS output level: 0 suppresses output; 1 uses the default; 2 enables verbose output.",
                 "Ordering algorithm used to reduce fill-in during factorization.",
                 "Store factors on disk to reduce memory usage.",
                 "Error statistics to compute after solving.",
-                "Write the matrix supplied to MUMPS to disk.",
-                "Save the factorized matrix for later reuse.",
-                "Load saved factors instead of analyzing and factorizing the matrix.",
-                "Directory and filename prefix for saving or restoring factors.",
-                "Percentage increase in estimated workspace (ICNTL(14))",
+                "Percentage increase in estimated workspace (ICNTL(14)).",
                 "Maximum working memory per solver rank in MB (ICNTL(23)).",
-                "Relative threshold for numerical pivoting (CNTL(1)).",
-                "Threshold for static pivoting (CNTL(4)).",
-                "Iterative refinement control (ICNTL(10)).",
-                "Stopping tolerance for iterative refinement (CNTL(2)).",
-                "Permutation and scaling control (ICNTL(6)).",
-                "Matrix scaling strategy (ICNTL(8)).",
-                "Compute and write the matrix inverse to disk.",
-                "Use single precision for the MUMPS factorization and solve.",
-                "Number of GPUs per solver MPI rank (ICNTL(51)): 0 uses CPUs; 1 requests one GPU per rank."]
+                "Enable GPU offloading and set the number of GPUs per solver MPI rank (ICNTL(51))."]
 
     def panel2_tip(self):
         return ["Enable BLR factorization and configure its related options.",
-                "Tree-parallel multithreading. Default value is 1.",
+                "Numerical refinement is recommended in some configurations. Set the iterative refinement's maximum step count and stop condition.",
+                "Relative threshold for numerical pivoting (CNTL(1)). When it is negative, MUMPS selects the threshold automatically.",
+                "Threshold for static pivoting (CNTL(4)). Pivots smaller than this value in absolute magnitude are replaced by the threshold.",
+                "Column permutation (ICNTL(6)). See the MUMPS manual for details.",
+                "Scaling strategy for the matrix (ICNTL(8)). See the MUMPS manual for details.",
+                "Use single precision for the MUMPS factorization and solve.",
+                "Save the factorized matrix for later reuse.",
+                "Load saved factors instead of analyzing and factorizing the matrix.",
+                "Directory and filename prefix for saving or restoring factors.",
+                "Tree-parallel multithreading. Default value is 1.(ICNTL48)",
                 "Supply the right-hand side distributed across solver ranks.",
-                "Return the solution distributed across ranks."]
+                "Return the solution distributed across ranks.",
+                "Write the matrix supplied to MUMPS to disk.",
+                "Compute and write the matrix inverse to disk."]
 
     def attribute_set(self, v):
         v = super(MUMPSBase, self).attribute_set(v)
@@ -228,14 +308,21 @@ class MUMPSBase(LinearSolverModel):
         v["icntl48"] = 1
         v['icntl14'] = '20'
         v['icntl23'] = '0'
-        v['cntl1'] = 'default'
-        v['cntl4'] = 'default'
+        v['cntl1'] = MUMPS_DEFAULT_CONTROLS["cntl1"]
+        v['cntl4'] = MUMPS_DEFAULT_CONTROLS["cntl4"]
+        v['custom_n_pivoting_thrs'] = False
+        v['use_static_pivoting'] = False
+        if getattr(self, 'cntl1', None) == 'default':
+            self.cntl1 = MUMPS_DEFAULT_CONTROLS["cntl1"]
+        if getattr(self, 'cntl4', None) == 'default':
+            self.cntl4 = MUMPS_DEFAULT_CONTROLS["cntl4"]
         v['icntl10'] = 'default'
         v['cntl2'] = 'default'
         v['icntl6'] = 'default'
         v['icntl8'] = 'default'
         v['use_single_precision'] = False
         v['gpus_per_rank'] = 0
+        v['use_gpu_offlading'] = False
         v['write_inv'] = False
         v['use_dist_rhs'] = False
 
@@ -293,27 +380,35 @@ class MUMPS(MUMPSBase):
         v = super().attribute_set(v)
         v['solver_mpi_ranks'] = -1
         v['maximize_omp_threads'] = False
+        v['reduce_mpi_proc'] = False
         v['use_dist_rhs'] = True
         return v
 
     def panel1_param(self):
         return super().panel1_param() + [
-            ["Solver MPI size", self.solver_mpi_ranks, 400, {}],
-            ["Maximize OpenMP threads", self.maximize_omp_threads, 3, {"text": ""}]]
+            [None, (self.reduce_mpi_proc,
+                    [int(self.solver_mpi_ranks), self.maximize_omp_threads]), 27,
+             ({"text": "Reduce number of process for solver"},
+              {"elp": [["Solver MPI size", int(self.solver_mpi_ranks), 400, {}],
+                       ["Maximize OMP threads", self.maximize_omp_threads, 3,
+                        {"text": ""}]],
+               "tip": ["Number of MPI ranks used by MUMPS. -1 uses PETRAM_MUMPS_MPI_SIZE if set, otherwise all application ranks. A positive value overrides the environment setting.",
+                       "Use all available OpenMP threads (= number of MPI ranks x OpenMP threads per rank) for MPI ranks participating in MUMPS."]})]]
 
     def panel1_tip(self):
         return super().panel1_tip() + [
-            "Number of MPI ranks used by MUMPS. -1 uses PETRAM_MUMPS_MPI_SIZE if set, otherwise all application ranks. A positive value overrides the environment setting.",
-            "Use all available  OpenMP threads for MUMPS."]
+            "Configure a separate MUMPS solver rank count and optionally maximize its OpenMP threads."]
 
     def get_panel1_value(self):
-        return tuple(super().get_panel1_value()) + (self.solver_mpi_ranks,
-                                                   self.maximize_omp_threads)
+        return tuple(super().get_panel1_value()) + (
+            (self.reduce_mpi_proc,
+             [int(self.solver_mpi_ranks), self.maximize_omp_threads]),)
 
     def import_panel1_value(self, values):
-        super().import_panel1_value(values[:-2])
-        self.solver_mpi_ranks = int(values[-2])
-        self.maximize_omp_threads = bool(values[-1])
+        super().import_panel1_value(values[:-1])
+        self.reduce_mpi_proc, reduce_values = values[-1]
+        self.solver_mpi_ranks = int(reduce_values[0])
+        self.maximize_omp_threads = bool(reduce_values[1])
 
     def resolve_solver_size(self, comm, environ=None):
         """
@@ -338,10 +433,12 @@ class MUMPS(MUMPSBase):
 
         if use_parallel:
             from mpi4py import MPI
-            size, source = self.resolve_solver_size(MPI.COMM_WORLD)
         else:
             from petram.helper.dummy_mpi import MPI
-            size, source = 1, 'serial'
+        if self.reduce_mpi_proc and use_parallel:
+            size, source = self.resolve_solver_size(MPI.COMM_WORLD)
+        else:
+            size, source = MPI.COMM_WORLD.size, 'disabled' if not self.reduce_mpi_proc else 'serial'
         dprint1(f'MUMPS MPI ranks: application={MPI.COMM_WORLD.size}, solver={size} ({source})')
         
 
@@ -879,7 +976,7 @@ class MUMPSSolver(LinearSolver):
             return
 
         # Configure GPU-aware analysis as well as numerical factorization.
-        s.set_icntl(51, int(gui.gpus_per_rank))
+        s.set_icntl(51, int(gui.gpus_per_rank) if gui.use_gpu_offlading else -1)
 
         # blr
         if gui.use_blr:
@@ -911,13 +1008,9 @@ class MUMPSSolver(LinearSolver):
             # scale the matrix
             s.set_icntl(6, convert2int(gui.icntl6))
 
-        if gui.cntl1.lower() != 'default':
-            # relative threshold for numerical pivoting
-            s.set_cntl(1, convert2float(gui.cntl1))
-
-        if gui.cntl4.lower() != 'default':
-            # threshold for static pivoting
-            s.set_cntl(4, convert2float(gui.cntl4))
+        # -1 is MUMPS's default for both controls.
+        s.set_cntl(1, convert2float(gui.cntl1) if gui.custom_n_pivoting_thrs else -1.0)
+        s.set_cntl(4, convert2float(gui.cntl4) if gui.use_static_pivoting else -1.0)
 
         s.set_icntl(24, 0)  # No Null detection
         self.set_ordering_flag(s)
@@ -1095,7 +1188,8 @@ class MUMPSSolver(LinearSolver):
 
         if self.gui.cntl2.lower() != 'default':
             # stopping criterion for iterative refinement
-            s.set_cntl(2, convert2float(self.gui.cntl2))
+            s.set_cntl(2, convert_cntl2(self.gui.cntl2,
+                                        self.gui.use_single_precision))
 
         if self.gui.log_level >= 10 or self.gui.log_level <= 0:
             s.set_icntl(1, -1)
