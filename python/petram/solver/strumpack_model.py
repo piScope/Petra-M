@@ -5,7 +5,9 @@ from .solver_model import Solver
 from petram.namespace_mixin import NS_mixin
 
 
+import os
 import sys
+from contextlib import contextmanager
 import numpy as np
 import scipy
 from scipy.sparse import coo_matrix, csr_matrix
@@ -53,7 +55,6 @@ attr_names = ['log_level',
               'gstype',
               'maxiter',
               'use_gpu',
-              'cuda_cutoff',
               'cuda_streams',
               'MUMPS_SYMQAMD',
               'agg_amalg',
@@ -111,6 +112,7 @@ class Strumpack(LinearSolverModel):
     has_2nd_panel = False
     accept_complex = True
     always_new_panel = False
+    supports_rank_reduction = True
 
     def __init__(self, *args, **kwargs):
         LinearSolverModel.__init__(self, *args, **kwargs)
@@ -119,7 +121,7 @@ class Strumpack(LinearSolverModel):
         pass
 
     def panel1_param(self):
-        return [
+        panel = [
             ["log_level", self.log_level, 400, {}],
             ["ordering", self.ordering, 4, {"readonly": True,
                                             "choices": list(ordering_modes), }],
@@ -139,8 +141,7 @@ class Strumpack(LinearSolverModel):
                                                   "choices": list(GramSchmidt_types), }],
             ["max iter.", self.maxiter, 0, {}],
             ["GPU", self.use_gpu, 3, {"text": ""}],
-            ["CUDA cutoff", self.cuda_cutoff, 0, {}],
-            ["CUDA streams", self.cuda_streams, 0, {}],
+            ["GPU streams", self.cuda_streams, 0, {}],
             ["MUMPS_SYMQAMD", self.MUMPS_SYMQAMD, 3, {"text": ""}],
             ["agg_amalg", self.agg_amalg, 3, {"text": ""}],
             ["indirect_sampling", self.indirect_sampling, 3, {"text": ""}],
@@ -155,25 +156,43 @@ class Strumpack(LinearSolverModel):
             ["write matrix", self.write_mat, 3, {"text": ""}],
             ["extra options", self.extra_options, 2235, {'nlines': 3}, ],
             ["use dist, SOL (dev.)", self.use_dist_sol, 3, {"text": ""}], ]
+        if self.supports_rank_reduction:
+            panel.append(
+                [None, (self.reduce_mpi_proc,
+                        [int(self.solver_mpi_ranks), self.maximize_omp_threads]), 27,
+                 ({"text": "Reduce MPI processes for solver"},
+                  {"elp": [["Solver MPI size", int(self.solver_mpi_ranks), 400, {}],
+                           ["Maximize OMP threads", self.maximize_omp_threads, 3,
+                            {"text": ""}]],
+                   "tip": ["-1 uses PETRAM_STRUMPACK_MPI_SIZE if set, otherwise all application ranks. A positive value overrides the environment.",
+                           "Use the node-local application OpenMP thread budget on the ranks participating in STRUMPACK."]})])
+        return panel
 
     def get_panel1_value(self):
         ans = []
         for n, p in zip(attr_names, self.panel1_param()):
             value = getattr(self, n)
-            if p[3] == 3:
+            if p[2] == 3:
                 value = bool(value)
-            elif p[3] == 400:
+            elif p[2] == 400:
                 value = int(value)
             ans.append(value)
+        if self.supports_rank_reduction:
+            ans.append((self.reduce_mpi_proc,
+                        [int(self.solver_mpi_ranks), self.maximize_omp_threads]))
         return ans
 
     def import_panel1_value(self, v):
         for value, n, p in zip(v, attr_names, self.panel1_param()):
-            if p[3] == 3:
+            if p[2] == 3:
                 value = bool(value)
-            if p[3] == 400:
+            if p[2] == 400:
                 value = int(value)
             setattr(self, n, value)
+        if self.supports_rank_reduction:
+            self.reduce_mpi_proc, values = v[-1]
+            self.solver_mpi_ranks = int(values[0])
+            self.maximize_omp_threads = bool(values[1])
 
     def attribute_set(self, v):
         v = super(Strumpack, self).attribute_set(v)
@@ -190,8 +209,7 @@ class Strumpack(LinearSolverModel):
         v['ordering'] = "Metis"
         v['compression'] = "None"
         v['use_single_precision'] = False
-        v["cuda_cutoff"] = "500 (default)"
-        v["cuda_streams"] = "10 (default)"
+        v["cuda_streams"] = "4 (default)"
         v["MUMPS_SYMQAMD"] = False
         v["agg_amalg"] = False
         v["indirect_sampling"] = False
@@ -206,6 +224,9 @@ class Strumpack(LinearSolverModel):
         v["lossy_precision"] = "16 (default)"
         v["extra_options"] = ""
         v["use_64_int"] = False
+        v['reduce_mpi_proc'] = False
+        v['solver_mpi_ranks'] = -1
+        v['maximize_omp_threads'] = False
 
         return v
 
@@ -256,9 +277,40 @@ class Strumpack(LinearSolverModel):
             pt = pt + w
         return result
 
+    def resolve_solver_size(self, comm, environ=None):
+        """
+        Resolve the model/environment rank count without changing the model.
+        """
+        environ = os.environ if environ is None else environ
+        size = int(str(self.solver_mpi_ranks).strip())
+        source = 'model'
+        if size == -1:
+            value = environ.get('PETRAM_STRUMPACK_MPI_SIZE')
+            source = 'default' if value is None else 'environment'
+            size = comm.size if value is None else int(value.strip())
+        if not 1 <= size <= comm.size:
+            raise ValueError(f'Solver MPI ranks must be in 1..{comm.size}, got {size}')
+        return size, source
+
     def allocate_solver(self, is_complex=False, engine=None):
+        size = num_proc
+        if use_parallel and self.supports_rank_reduction and self.reduce_mpi_proc:
+            from petram.helper.mpi_recipes import collective_call
+            size, source = collective_call(
+                MPI.COMM_WORLD, lambda: self.resolve_solver_size(MPI.COMM_WORLD))
+            sizes = MPI.COMM_WORLD.allgather(size)
+            if len(set(sizes)) != 1:
+                raise ValueError('STRUMPACK solver size differs between application ranks')
+            dprint1(f'STRUMPACK MPI ranks: application={num_proc}, solver={size} ({source})')
+        if size < num_proc:
+            return ReducedStrumpackSolver(self, engine, MPI.COMM_WORLD, size, is_complex)
+
         solver = StrumpackSolver(self, engine)
-        solver.AllocSolver(is_complex, self.use_single_precision)
+        try:
+            solver.AllocSolver(is_complex, self.use_single_precision)
+        except Exception:
+            solver.close()
+            raise
         return solver
 
 
@@ -419,8 +471,49 @@ def build_csr_local(A, dtype, is_complex):
 
 
 class StrumpackSolver(LinearSolver):
-    def __init__(self, gui, engine):
+    def __init__(self, gui, engine, comm=None, rank_layout=None):
         LinearSolver.__init__(self, gui, engine)
+        if comm is None:
+            try:
+                from mpi4py import MPI
+            except BaseException:
+                from petram.helper.dummy_mpi import MPI
+            comm = MPI.COMM_WORLD
+        self.comm = comm
+        self.omp_threads = None
+        if rank_layout is not None and self.gui.maximize_omp_threads:
+            from petram.ext.strumpack.strumpack_solve import get_omp_max_threads
+            self.omp_threads = (get_omp_max_threads() * rank_layout.node_app_size
+                                // rank_layout.node_solver_size)
+            dprint1(f'STRUMPACK OpenMP threads per solver rank: {self.omp_threads}')
+        self.spss = None
+        self.closed = False
+
+    @contextmanager
+    def _omp_scope(self):
+        """
+        Temporarily apply this solver's OpenMP limit and cached thread settings.
+        """
+        if self.omp_threads is None:
+            yield
+            return
+        from petram.ext.strumpack.strumpack_solve import (get_omp_max_threads,
+                                                         set_omp_num_threads)
+
+        previous = get_omp_max_threads()
+        try:
+            set_omp_num_threads(self.omp_threads)
+            yield
+        finally:
+            set_omp_num_threads(previous)
+
+    def close(self):
+        if not self.closed:
+            if self.spss is not None:
+                with self._omp_scope():
+                    self.spss.close()
+            self.spss = None
+            self.closed = True
 
     def spss_set_options(self):
         try:
@@ -477,12 +570,6 @@ class StrumpackSolver(LinearSolver):
             it = int(self.gui.maxiter.split('(')[0])
             self.spss.set_maxit(it)
 
-        # gpu
-        if self.gui.use_gpu:
-            self.spss.enable_gpu()
-        else:
-            self.spss.disable_gpu()
-
     def spss_options_args(self):
         opts = ["--sp_enable_METIS_NodeND", ]
 #        opts = ["--sp_enable_METIS_NodeNDP", ]
@@ -493,12 +580,9 @@ class StrumpackSolver(LinearSolver):
                          "--sp_lossy_precision", str(tol)])
 
         if self.gui.use_gpu:
-            if self.gui.cuda_cutoff.find('default') == -1:
-                cutoff = int(self.gui.cuda_cutoff.split('(')[0])
-                opts.extend(["--sp_cuda_cutoff", str(cutoff)])
             if self.gui.cuda_streams.find('default') == -1:
                 streams = int(self.gui.cuda_streams.split('(')[0])
-                opts.extend(["--sp_cuda_streams", str(streams)])
+                opts.extend(["--sp_gpu_streams", str(streams)])
 
         if self.gui.MUMPS_SYMQAMD:
             opts.extend(["--sp_enable_MUMPS_SYMQAMD", ])
@@ -528,10 +612,16 @@ class StrumpackSolver(LinearSolver):
             opts.extend([x.strip()
                          for x in x.split(" ") if len(x.strip()) > 0])
 
-        # opts.append("")
+        # The checkbox controls GPU initialization, including extra options.
+        opts.append('--sp_enable_gpu' if self.gui.use_gpu else '--sp_disable_gpu')
         return opts
 
     def AllocSolver(self, is_complex, use_single_precision):
+        self.is_complex = is_complex
+        if is_complex:
+            self.dtype = np.complex64 if use_single_precision else np.complex128
+        else:
+            self.dtype = np.float32 if use_single_precision else np.float64
         try:
             from petram.ext.strumpack import strumpack_solve as ST
         except BaseException:
@@ -542,225 +632,314 @@ class StrumpackSolver(LinearSolver):
         dprint1("options", opts, notrim=True)
         verbose = self.gui.log_level > 0
         if use_parallel:
-            args = (MPI.COMM_WORLD, opts, verbose)
+            args = (self.comm, opts, verbose)
         else:
             args = (opts, verbose)
 
-        if is_complex:
-            if use_single_precision:
-                dtype = np.complex64
-                if self.gui.use_64_int:
-                    spss = ST.C64StrumpackSolver(*args)
+        with self._omp_scope():
+            if is_complex:
+                if use_single_precision:
+                    if self.gui.use_64_int:
+                        spss = ST.C64StrumpackSolver(*args)
+                    else:
+                        spss = ST.CStrumpackSolver(*args)
                 else:
-                    spss = ST.CStrumpackSolver(*args)
+                    if self.gui.use_64_int:
+                        spss = ST.Z64StrumpackSolver(*args)
+                    else:
+                        spss = ST.ZStrumpackSolver(*args)
             else:
-                dtype = np.complex128
-                if self.gui.use_64_int:
-                    spss = ST.Z64StrumpackSolver(*args)
+                if use_single_precision:
+                    if self.gui.use_64_int:
+                        spss = ST.S64StrumpackSolver(*args)
+                    else:
+                        spss = ST.SStrumpackSolver(*args)
                 else:
-                    spss = ST.ZStrumpackSolver(*args)
-        else:
-            if use_single_precision:
-                dtype = np.float32
-                if self.gui.use_64_int:
-                    spss = ST.S64StrumpackSolver(*args)
-                else:
-                    spss = ST.SStrumpackSolver(*args)
-            else:
-                dtype = np.float64
-                if self.gui.use_64_int:
-                    spss = ST.D64StrumpackSolver(*args)
-                else:
-                    spss = ST.DStrumpackSolver(*args)
+                    if self.gui.use_64_int:
+                        spss = ST.D64StrumpackSolver(*args)
+                    else:
+                        spss = ST.DStrumpackSolver(*args)
 
-        dprint1("StrumpackSolvar created: " + str(spss.__class__))
-        assert spss.isValid(), "Failed to create STRUMPACK solver object"
+            dprint1("StrumpackSolvar created: " + str(spss.__class__))
+            assert spss.isValid(), "Failed to create STRUMPACK solver object"
 
-        spss.set_from_options()
-
-        self.dtype = dtype
-        self.spss = spss
-        self.is_complex = is_complex
-        self.spss_set_options()
+            self.spss = spss
+            spss.set_from_options()
+            self.spss_set_options()
 
     def SetOperator(self, A, dist, name=None):
-        try:
-            from mpi4py import MPI
-        except BaseException:
-            from petram.helper.dummy_mpi import MPI
-        myid = MPI.COMM_WORLD.rank
-        nproc = MPI.COMM_WORLD.size
-
         self.row_offsets = A.RowOffsets()
-        #nicePrint("row offsets in SetOperator", self.row_offsets.ToList())
-
         self.op_type = check_operator_type(self.is_complex, A)
         AA = build_csr_local(A, self.dtype, self.is_complex)
 
         if self.gui.write_mat:
             write_coo_matrix('matrix', AA.tocoo())
+        self.SetCSROperator(AA, dist)
 
-        if dist:
-            self.spss.set_distributed_csr_matrix(AA)
-        else:
-            self.spss.set_csr_matrix(AA)
-        self._matrix = AA
+    def SetCSROperator(self, A, dist):
+        """
+        Install CSR rows already numbered for this solver's communicator.
+        """
+        with self._omp_scope():
+            if dist:
+                self.spss.set_distributed_csr_matrix(A)
+            else:
+                self.spss.set_csr_matrix(A)
+        self._matrix = A
 
-    def Mult(self, b, x=None, case_base=0):
-        try:
-            from mpi4py import MPI
-        except BaseException:
-            from petram.helper.dummy_mpi import MPI
-        myid = MPI.COMM_WORLD.rank
-        nproc = MPI.COMM_WORLD.size
-        try:
-            from petram.ext.strumpack import strumpack_solve as ST
-        except BaseException:
-            assert False, "Can not load STRUMPACK"
+    def Factor(self):
+        from petram.ext.strumpack import strumpack_solve as ST
 
-        sol = []
-        row_offsets = self.row_offsets.ToList()
-
-        MPI.COMM_WORLD.Barrier()
+        self.comm.Barrier()
 
         dprint1("calling reorder", debug.format_memory_usage())
-        ret = self.spss.reorder()
+        with self._omp_scope():
+            ret = self.spss.reorder()
 
-        ret = np.sum(MPI.COMM_WORLD.allgather(
+        ret = np.sum(self.comm.allgather(
             int(ret != ST.STRUMPACK_SUCCESS)))
         if ret > 0:
             assert False, "error during recordering (Strumpack)"
 
-        MPI.COMM_WORLD.Barrier()
+        self.comm.Barrier()
 
         dprint1("calling factor", debug.format_memory_usage())
-        ret = self.spss.factor()
+        with self._omp_scope():
+            ret = self.spss.factor()
 
-        zero_pivot = np.sum(MPI.COMM_WORLD.allgather(
+        zero_pivot = np.sum(self.comm.allgather(
             int(ret == ST.STRUMPACK_ZERO_PIVOT)))
         if zero_pivot != 0:
             dprint1("!!!! Zero pivots are detected on " +
                     str(zero_pivot) + " processes")
             dprint1("!!!! continuing ....")
 
-        ret = np.sum(MPI.COMM_WORLD.allgather(int(ret != ST.STRUMPACK_SUCCESS and
-                                                  ret != ST.STRUMPACK_ZERO_PIVOT)))
+        ret = np.sum(self.comm.allgather(
+            int(ret != ST.STRUMPACK_SUCCESS and ret != ST.STRUMPACK_ZERO_PIVOT)))
         if ret > 0:
             assert False, "error during factor (Strumpack)"
 
-        return_distributed = self.gui.use_dist_sol
+    def Solve(self, b, x):
+        from petram.ext.strumpack import strumpack_solve as ST
 
-        for kk, bb in enumerate(b):
-            rows = MPI.COMM_WORLD.allgather(np.int32(bb.Size()))
-            rowstarts = np.hstack((0, np.cumsum(rows)))
-            # nicePrint("rowstarts/offser",rowstarts, row_offsets)
-            if x is None:
-                xx = mfem.BlockVector(self.row_offsets)
-                xx.Assign(0.0)
-            else:
-                xx = x
+        self.comm.Barrier()
+        dprint1("calling solve", debug.format_memory_usage())
+        with self._omp_scope():
+            ret = self.spss.solve(b, x, False)
+        ret = np.sum(self.comm.allgather(int(ret != ST.STRUMPACK_SUCCESS)))
+        if ret > 0:
+            assert False, "error during solve phase (Strumpack)"
 
-            if self.is_complex:
-                tmp1 = []
-                tmp2 = []
-                for i in range(len(row_offsets) - 1):
-                    bbv = bb.GetBlock(i).GetDataArray()
-                    xxv = xx.GetBlock(i).GetDataArray()
-                    ll = bbv.size
-                    bbv = bbv[:ll // 2] + 1j * bbv[ll // 2:]
-                    xxv = xxv[:ll // 2] + 1j * xxv[ll // 2:]
-                    tmp1.append(bbv)
-                    tmp2.append(xxv)
-                bbv = np.hstack(tmp1)
-                xxv = np.hstack(tmp2)
-            else:
-                bbv = bb.GetDataArray()
-                xxv = xx.GetDataArray()
+    def Mult(self, b, x=None, case_base=0):
+        return _strumpack_mult(self, b, x)
 
-            bbv = np.ascontiguousarray(bbv, dtype=self.dtype)
-            xxv = np.ascontiguousarray(xxv, dtype=self.dtype)
 
-            if self.gui.write_mat:
-                write_vector('rhs_' + str(kk), bbv)
-                write_vector('x_' + str(kk), xxv)
+class ReducedStrumpackSolver(LinearSolver):
+    """
+    Aggregate application CSR rows and return solutions to their owners.
+    """
+    def __init__(self, gui, engine, app_comm, size, is_complex):
+        from petram.helper.solver_mpi import SolverRankLayout
 
-            sys.stdout.flush()
-            sys.stderr.flush()
+        super().__init__(gui, engine)
+        self.comm = app_comm
+        self.ranks = SolverRankLayout(app_comm, size)
+        self.is_complex = is_complex
+        if is_complex:
+            self.dtype = np.complex64 if gui.use_single_precision else np.complex128
+        else:
+            self.dtype = np.float32 if gui.use_single_precision else np.float64
+        self.backend = None
+        self.closed = False
 
-            MPI.COMM_WORLD.Barrier()
-            dprint1("calling solve", debug.format_memory_usage())
-            ret = self.spss.solve(bbv, xxv, False)
+        def allocate():
+            self.backend = StrumpackSolver(gui, engine, comm=self.ranks.solver_comm,
+                                           rank_layout=self.ranks)
+            self.backend.AllocSolver(is_complex, gui.use_single_precision)
 
-            ret = np.sum(MPI.COMM_WORLD.allgather(
-                int(ret != ST.STRUMPACK_SUCCESS)))
-            if ret > 0:
-                assert False, "error during solve phase (Strumpack)"
+        try:
+            self._call_backend(allocate)
+        except Exception:
+            self.close()
+            raise
 
-            # MFEM stores solution vectors in double precision.
-            dtype = np.complex128 if self.is_complex else np.float64
-            xxv = xxv.astype(dtype, copy=False)
-            if not self.is_complex:
-                xx.GetDataArray()[:] = xxv
+    def _call_backend(self, operation):
+        if self.closed:
+            raise RuntimeError('STRUMPACK solver is closed')
+        return self.ranks.call_solver(operation)
 
-            if return_distributed:
-                sol.append(xxv)
-            else:
-                s = []
-                for i in range(len(row_offsets) - 1):
-                    r1 = row_offsets[i]
-                    r2 = row_offsets[i + 1]
+    def SetOperator(self, A, dist, name=None):
+        from petram.helper.mpi_recipes import gather_vector
 
-                    if self.op_type == "real":
-                        xxvv = xxv[r1:r2]
-                        if use_parallel:
-                            vv = gather_vector(xxvv)
-                        else:
-                            vv = xxvv.copy()
+        self.row_offsets = A.RowOffsets()
+        self.op_type = check_operator_type(self.is_complex, A)
+        AA = build_csr_local(A, self.dtype, self.is_complex)
+        if self.gui.write_mat:
+            write_coo_matrix('matrix', AA.tocoo())
 
-                    elif self.op_type == "complex":
-                        r1 = r1 // 2
-                        r2 = r2 // 2
-                        xxvv = xxv[r1:r2]
-                        if use_parallel:
-                            vv = gather_vector(xxvv)
-                        else:
-                            vv = xxvv.copy()
+        group = self.ranks.group_comm
+        counts = np.asarray(self.comm.allgather(AA.shape[0]), dtype=np.int64)
+        starts = np.hstack(([0], np.cumsum(counts)))
+        leader = group.bcast(self.comm.rank if self.ranks.is_leader else None)
+        members = self.comm.allgather((leader, group.rank))
+        order = sorted(range(self.comm.size), key=lambda rank: members[rank])
+    
+        # Gathered rows follow leader/group order. Apply the same
+        # permutation to columns, using rank offsets instead of a global map.
+        new_starts = np.empty(self.comm.size, dtype=np.int64)
+        new_starts[order] = np.hstack(([0], np.cumsum(counts[order])))[:-1]
+        owners = np.searchsorted(starts[1:], AA.indices, side='right')
+        columns = new_starts[owners] + AA.indices - starts[owners]
+        
+        lengths = gather_vector(np.asarray(np.diff(AA.indptr), dtype=np.int64), world=group)
+        columns = gather_vector(np.ascontiguousarray(columns), world=group)
+        values = gather_vector(AA.data, world=group)
 
-                    elif self.op_type == "complexreal":
-                        r1 = r1
-                        width = (r2-r1)//2
-                        xxvv = xxv[r1:r1+width]
-                        if use_parallel:
-                            vv1 = gather_vector(xxvv)
-                        else:
-                            vv1 = xxvv.copy()
-                        xxvv2 = xxv[r1+width:r1+width+width]
-                        if use_parallel:
-                            vv2 = gather_vector(xxvv2)
-                        else:
-                            vv2 = xxvv2.copy()
-                        vv = np.hstack((vv1, vv2))
-                    else:
-                        assert False, "unknonw operator type"
+        def set_matrix():
+            indptr = np.hstack(([0], np.cumsum(lengths)))
+            matrix = csr_matrix((values, columns, indptr),
+                                shape=(len(lengths), int(starts[-1])))
+            self.backend.SetCSROperator(matrix, True)
 
-                    #nicePrint("xxvv", xxvv.shape)
+        self._call_backend(set_matrix)
 
-                    if myid == 0:
-                        s.append(vv)
-                    else:
-                        pass
-                if myid == 0:
-                    sol.append(np.hstack(s))
+    def Factor(self):
+        self._call_backend(lambda: self.backend.Factor())
+
+    def Solve(self, b, x):
+        from petram.helper.mpi_recipes import gather_vector, scatter_vector
+
+        group = self.ranks.group_comm
+        rhs = gather_vector(b, world=group)
+        sol = gather_vector(x, world=group)
+        self._call_backend(lambda: self.backend.Solve(rhs, sol))
+        x[:] = scatter_vector(sol, rcounts=x.size, comm=group)
+
+    def Mult(self, b, x=None, case_base=0):
+        # _strumpack_mult calls Solve, where theRHS is gathered
+        return _strumpack_mult(self, b, x)
+
+    def close(self):
+        if not self.closed:
+            self._call_backend(lambda: self.backend.close() if self.backend is not None else None)
+            self.backend = None
+            self.ranks.close()
+            self.closed = True
+
+
+def _strumpack_mult(solver, b, x):
+    """
+    Pack MFEM block vectors and format full-rank or reduced-rank solutions.
+    """
+    myid = solver.comm.rank
+    sol = []
+    row_offsets = solver.row_offsets.ToList()
+    solver.Factor()
+
+    return_distributed = solver.gui.use_dist_sol
+
+    for kk, bb in enumerate(b):
+        if x is None:
+            xx = mfem.BlockVector(solver.row_offsets)
+            xx.Assign(0.0)
+        else:
+            xx = x
+
+        if solver.is_complex:
+            tmp1 = []
+            tmp2 = []
+            for i in range(len(row_offsets) - 1):
+                bbv = bb.GetBlock(i).GetDataArray()
+                xxv = xx.GetBlock(i).GetDataArray()
+                ll = bbv.size
+                bbv = bbv[:ll // 2] + 1j * bbv[ll // 2:]
+                xxv = xxv[:ll // 2] + 1j * xxv[ll // 2:]
+                tmp1.append(bbv)
+                tmp2.append(xxv)
+            bbv = np.hstack(tmp1)
+            xxv = np.hstack(tmp2)
+        else:
+            bbv = bb.GetDataArray()
+            xxv = xx.GetDataArray()
+
+        bbv = np.ascontiguousarray(bbv, dtype=solver.dtype)
+        xxv = np.ascontiguousarray(xxv, dtype=solver.dtype)
+
+        if solver.gui.write_mat:
+            write_vector('rhs_' + str(kk), bbv)
+            write_vector('x_' + str(kk), xxv)
+
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+        solver.Solve(bbv, xxv)
+
+        # MFEM stores solution vectors in double precision.
+        dtype = np.complex128 if solver.is_complex else np.float64
+        xxv = xxv.astype(dtype, copy=False)
+        if not solver.is_complex:
+            xx.GetDataArray()[:] = xxv
 
         if return_distributed:
+            # A supplied x is reused for the next RHS; retain this result.
+            sol.append(xxv.copy())
+        else:
+            s = []
+            for i in range(len(row_offsets) - 1):
+                r1 = row_offsets[i]
+                r2 = row_offsets[i + 1]
+
+                if solver.op_type == "real":
+                    xxvv = xxv[r1:r2]
+                    if use_parallel:
+                        vv = gather_vector(xxvv, world=solver.comm)
+                    else:
+                        vv = xxvv.copy()
+
+                elif solver.op_type == "complex":
+                    r1 = r1 // 2
+                    r2 = r2 // 2
+                    xxvv = xxv[r1:r2]
+                    if use_parallel:
+                        vv = gather_vector(xxvv, world=solver.comm)
+                    else:
+                        vv = xxvv.copy()
+
+                elif solver.op_type == "complexreal":
+                    r1 = r1
+                    width = (r2-r1)//2
+                    xxvv = xxv[r1:r1+width]
+                    if use_parallel:
+                        vv1 = gather_vector(xxvv, world=solver.comm)
+                    else:
+                        vv1 = xxvv.copy()
+                    xxvv2 = xxv[r1+width:r1+width+width]
+                    if use_parallel:
+                        vv2 = gather_vector(xxvv2, world=solver.comm)
+                    else:
+                        vv2 = xxvv2.copy()
+                    vv = np.hstack((vv1, vv2))
+                else:
+                    assert False, "unknonw operator type"
+
+                #nicePrint("xxvv", xxvv.shape)
+
+                if myid == 0:
+                    s.append(vv)
+                else:
+                    pass
+            if myid == 0:
+                sol.append(np.hstack(s))
+
+    if return_distributed:
+        sol = np.transpose(np.vstack(sol))
+        return sol
+    else:
+        if myid == 0:
             sol = np.transpose(np.vstack(sol))
             return sol
         else:
-            if myid == 0:
-                sol = np.transpose(np.vstack(sol))
-                return sol
-            else:
-                return None
+            return None
 
 
 class StrumpackMFEMSolverModel(Strumpack):
@@ -768,6 +947,7 @@ class StrumpackMFEMSolverModel(Strumpack):
     This one is to use STRUMPACK in iterative solver
     It creates MUMPSPreconditioner
     '''
+    supports_rank_reduction = False
 
     def prepare_solver(self, opr, engine):
         solver = StrumpackBlockPreconditioner(opr,
