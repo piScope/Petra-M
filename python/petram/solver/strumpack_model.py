@@ -55,8 +55,9 @@ attr_names = ['log_level',
               'gstype',
               'maxiter',
               'use_gpu',
-              'cuda_streams',
-              'MUMPS_SYMQAMD',
+              'cuda_streams', ]
+
+attr_names2 = ['MUMPS_SYMQAMD',
               'agg_amalg',
               'indirect_sampling',
               'replace_tiny_pivots',
@@ -109,7 +110,7 @@ help_txt = ("0: no reordering for stability, this disables MC64/matching",
 
 class Strumpack(LinearSolverModel):
     hide_ns_menu = True
-    has_2nd_panel = False
+    has_2nd_panel = True
     accept_complex = True
     always_new_panel = False
     supports_rank_reduction = True
@@ -141,21 +142,7 @@ class Strumpack(LinearSolverModel):
                                                   "choices": list(GramSchmidt_types), }],
             ["max iter.", self.maxiter, 0, {}],
             ["GPU", self.use_gpu, 3, {"text": ""}],
-            ["GPU streams", self.cuda_streams, 0, {}],
-            ["MUMPS_SYMQAMD", self.MUMPS_SYMQAMD, 3, {"text": ""}],
-            ["agg_amalg", self.agg_amalg, 3, {"text": ""}],
-            ["indirect_sampling", self.indirect_sampling, 3, {"text": ""}],
-            ["replace_tiny_pivots", self.replace_tiny_pivots, 3, {"text": ""}],
-            ["compression min sep", self.compression_min_sep_size, 0, {}],
-            ["compression min front", self.compression_min_front_size, 0, {}],
-            ["compression leaf size", self.compression_leaf_size, 0, {}],
-            ["separator ordering level", self.separator_ordering_level, 0, {}],
-            ["hodlr butterfly levels", self.hodlr_butterfly_levels, 0, {}],
-            ["single preceision", self.use_single_precision, 3, {"text": ""}],
-            ["use 64bit integer", self.use_64_int, 3, {"text": ""}],
-            ["write matrix", self.write_mat, 3, {"text": ""}],
-            ["extra options", self.extra_options, 2235, {'nlines': 3}, ],
-            ["use dist, SOL (dev.)", self.use_dist_sol, 3, {"text": ""}], ]
+            ["GPU streams", self.cuda_streams, 0, {}], ]
         if self.supports_rank_reduction:
             panel.append(
                 [None, (self.reduce_mpi_proc,
@@ -193,6 +180,45 @@ class Strumpack(LinearSolverModel):
             self.reduce_mpi_proc, values = v[-1]
             self.solver_mpi_ranks = int(values[0])
             self.maximize_omp_threads = bool(values[1])
+
+    def panel2_tabname(self):
+        return "Advanced"
+
+    def panel2_param(self):
+        return [
+            ["MUMPS_SYMQAMD", self.MUMPS_SYMQAMD, 3, {"text": ""}],
+            ["agg_amalg", self.agg_amalg, 3, {"text": ""}],
+            ["indirect_sampling", self.indirect_sampling, 3, {"text": ""}],
+            ["replace_tiny_pivots", self.replace_tiny_pivots, 3, {"text": ""}],
+            ["compression min sep", self.compression_min_sep_size, 0, {}],
+            ["compression min front", self.compression_min_front_size, 0, {}],
+            ["compression leaf size", self.compression_leaf_size, 0, {}],
+            ["separator ordering level", self.separator_ordering_level, 0, {}],
+            ["hodlr butterfly levels", self.hodlr_butterfly_levels, 0, {}],
+            ["single preceision", self.use_single_precision, 3, {"text": ""}],
+            ["use 64bit integer", self.use_64_int, 3, {"text": ""}],
+            ["write matrix", self.write_mat, 3, {"text": ""}],
+            ["extra options", self.extra_options, 2235, {'nlines': 3}, ],
+            ["use dist. Sol", self.use_dist_sol, 3, {"text": ""}], ]
+
+    def get_panel2_value(self):
+        ans = []
+        for n, p in zip(attr_names2, self.panel2_param()):
+            value = getattr(self, n)
+            if p[2] == 3:
+                value = bool(value)
+            elif p[2] == 400:
+                value = int(value)
+            ans.append(value)
+        return ans
+
+    def import_panel2_value(self, v):
+        for value, n, p in zip(v, attr_names2, self.panel2_param()):
+            if p[2] == 3:
+                value = bool(value)
+            if p[2] == 400:
+                value = int(value)
+            setattr(self, n, value)
 
     def attribute_set(self, v):
         v = super(Strumpack, self).attribute_set(v)
@@ -790,7 +816,7 @@ class ReducedStrumpackSolver(LinearSolver):
         new_starts[order] = np.hstack(([0], np.cumsum(counts[order])))[:-1]
         owners = np.searchsorted(starts[1:], AA.indices, side='right')
         columns = new_starts[owners] + AA.indices - starts[owners]
-        
+
         lengths = gather_vector(np.asarray(np.diff(AA.indptr), dtype=np.int64), world=group)
         columns = gather_vector(np.ascontiguousarray(columns), world=group)
         values = gather_vector(AA.data, world=group)

@@ -5,7 +5,7 @@ import wx
 from collections import OrderedDict
 import traceback
 from ifigure.utils.cbook import BuildPopUpMenu
-from ifigure.utils.edit_list import EditListPanel, ScrolledEditListPanel
+from ifigure.utils.edit_list import ScrolledEditListPanel
 from ifigure.utils.edit_list import EDITLIST_CHANGED,  EDITLIST_CHANGING
 from ifigure.utils.edit_list import EDITLIST_SETFOCUS
 from ifigure.widgets.miniframe_with_windowlist import MiniFrameWithWindowList
@@ -676,14 +676,17 @@ class DlgEditModel(SimpleFramePlus):
             self.update_panel_label(mm)
         else:
             self.panels[mm.fullname()] = (ScrolledEditListPanel(self.p1,
-                                                                list=mm.panel1_param(),
-                                                                tip=mm.panel1_tip()),
-                                          EditListPanel(self.p2, list=mm.panel2_param(),
-                                                        tip=mm.panel2_tip()),
-                                          EditListPanel(self.p3, list=mm.panel3_param(),
-                                                        tip=mm.panel3_tip()),
-                                          EditListPanel(self.p4, list=mm.panel4_param(),
-                                                        tip=mm.panel4_tip()),)
+                                                              list=mm.panel1_param(),
+                                                              tip=mm.panel1_tip()),
+                                         ScrolledEditListPanel(self.p2,
+                                                               list=mm.panel2_param(),
+                                                               tip=mm.panel2_tip()),
+                                         ScrolledEditListPanel(self.p3,
+                                                               list=mm.panel3_param(),
+                                                               tip=mm.panel3_tip()),
+                                         ScrolledEditListPanel(self.p4,
+                                                               list=mm.panel4_param(),
+                                                               tip=mm.panel4_tip()),)
 
     def update_panel_label(self, mm):
         self.panels[mm.fullname()][0].update_label(mm.panel1_param())
