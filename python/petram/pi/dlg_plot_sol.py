@@ -177,6 +177,31 @@ def run_in_piScope_thread(func):
                                                 useProcessEvent=True)
     return func2
 
+def validate_compile(txt, param, ctrl):
+    # for expression.. make sure that it makes sense as Python
+    # code
+    try:
+        code = compile(txt, "<test>", "eval")
+        return True
+    except:
+        return False
+
+def validate_count(tab, count):
+    def func(txt, param, ctrl):
+        dlg = ctrl.GetTopLevelParent()
+        if not hasattr(dlg, "evaluators"):
+            return True
+        m = getattr(dlg, "_on"+tab+"GetNS")
+        ns = m()
+        ll = {}
+        try:
+            value = np.atleast_1d(eval(txt, ll, ns))
+            if len(value) == count:
+                return True
+        except:
+            pass
+        return False
+    return func
 
 # class DlgPlotSol(MiniFrameWithWindowList):
 # class DlgPlotSol(DialogWithWindowList):
@@ -285,9 +310,9 @@ class DlgPlotSol(SimpleFramePlus):
 
             if len(choices) == 0:
                 choices = ['no physics in model']
-            ll = [['x', 'x', 500, {}],
-                  ['y', 'y', 500, {}],
-                  ['z', 'z', 500, {}],
+            ll = [['x', 'x', 500, {"validator":validate_compile}],
+                  ['y', 'y', 500, {"validator":validate_compile}],
+                  ['z', 'z', 500, {"validator":validate_compile}],
                   ['Boundary Index', text, 0, {}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
                                                 'choices': choices}],
@@ -321,17 +346,17 @@ class DlgPlotSol(SimpleFramePlus):
             if len(choices) == 0:
                 choices = ['no physics in model']
 
-            elp1 = [['x:', '0', 500, {}],
-                    ['y:', '0', 500, {}],
-                    ['z:', '0', 500, {}], ]
+            elp1 = [['x:', '0', 500, {"validator":validate_compile}],
+                    ['y:', '0', 500, {"validator":validate_compile}],
+                    ['z:', '0', 500, {"validator":validate_compile}], ]
 
             tip1 = ('x coordinates of points',
                     'y coordinates of points',
                     'z coordinates of points',)
 
-            elp2 = [['start point:', '0., 0., 0.', 0, {}],
-                    ['end point:', '1., 0., 0.', 0, {}],
-                    ['resolution:', '30', 0, {}], ]
+            elp2 = [['start point:', '0., 0., 0.', 0, {"validator":validate_compile}],
+                    ['end point:', '1., 0., 0.', 0, {"validator":validate_compile}],
+                    ['resolution:', '30', 0, {"validator":validate_count("Slice", 1)}],]
 
             tip2 = ('initial point of line',
                     'final point of the line',
@@ -346,7 +371,7 @@ class DlgPlotSol(SimpleFramePlus):
 
             ll = [
                 [
-                    'Expression', '', 500, {}], ss, [
+                    'Expression', '', 500, {"validator":validate_compile}], ss, [
                     'Domains', 'all', 4, {
                         'style': wx.CB_DROPDOWN, 'choices': [
                             'all', 'visible', 'hidden']}], [
@@ -392,10 +417,10 @@ class DlgPlotSol(SimpleFramePlus):
             s4 = {"style": wx.TE_PROCESS_ENTER,
                   "choices": [str(x + 1) for x in range(10)]}
 
-            ll = [['Expression', '', 500, {}],
+            ll = [['Expression', '', 500, {"validator":validate_compile}],
                   ["-> more...", None, None,
                       {"tlb_resize_samewidth": True, "colour": pane_colour2}, ],
-                  ['Expression(x)', '', 500, {}],
+                  ['Expression(x)', '', 500, {"validator":validate_compile}],
                   ["<-"],
                   ['Edges', 'all', 4, {'style': wx.CB_DROPDOWN,
                                        'choices': ['all', 'visible', 'hidden']}],
@@ -449,12 +474,12 @@ class DlgPlotSol(SimpleFramePlus):
 
             s4 = {"style": wx.TE_PROCESS_ENTER,
                   "choices": [str(x + 1) for x in range(10)]}
-            ll = [['Expression', '', 500, {}],
+            ll = [['Expression', '', 500, {"validator":validate_compile}],
                   ["-> more...", None, None,
                       {"tlb_resize_samewidth": True, "colour": pane_colour2}, ],
-                  ['Offset X', '0', 500, {}],
-                  ['Offset Y', '0', 500, {}],
-                  ['Offset Z', '0', 500, {}],
+                  ['Offset X', '0', 500, {"validator":validate_compile}],
+                  ['Offset Y', '0', 500, {"validator":validate_compile}],
+                  ['Offset Z', '0', 500, {"validator":validate_compile}],
                   ['Scale', '1.0', 500, {}],
                   ["<-"],
                   ['Boundaries', 'all', 4, {'style': wx.CB_DROPDOWN,
@@ -511,9 +536,9 @@ class DlgPlotSol(SimpleFramePlus):
 
             if len(choices) == 0:
                 choices = ['no physics in model']
-            ll = [['Expression(u)', '', 500, {}],
-                  ['Expression(v)', '', 500, {}],
-                  ['Expression(w)', '', 500, {}],
+            ll = [['Expression(u)', '', 500, {"validator":validate_compile}],
+                  ['Expression(v)', '', 500, {"validator":validate_compile}],
+                  ['Expression(w)', '', 500, {"validator":validate_compile}],
                   ['Boundaries', 'all', 4, {'style': wx.CB_DROPDOWN,
                                             'choices': ['all', 'visible', 'hidden']}],
                   ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
@@ -555,11 +580,15 @@ class DlgPlotSol(SimpleFramePlus):
             choices = list(mfem_model['Phys'])
             choices = [mfem_model['Phys'][c].fullpath() for c in choices]
 
-            elp1 = [['plane (a,b,c,d):', '0, 0, 1, 0', 500, {}], ]
+            elp1 = [['plane (a,b,c,d):', '0, 0, 1, 0', 500,
+                     {"validator":validate_count("Slice", 4)}],]
 
-            elp2 = [['plane (a,b,c,d):', '0, 0, 1, 0', 500, {}],
-                    ['first axis:', '1., 0., 0.', 500, {}],
-                    ['resolution', '0.01', 500, {}], ]
+            elp2 = [['plane (a,b,c,d):', '0, 0, 1, 0', 500,
+                     {"validator":validate_count("Slice", 4)}],
+                    ['first axis:', '1., 0., 0.', 500,
+                     {"validator":validate_count("Slice", 3)}],
+                    ['resolution', '0.01', 500,
+                     {"validator":validate_count("Slice", 1)}],]
 
             txt1 = "\n".join(("ax + by + cz + d = 0, The parameters (a, b, c and/or d) can be 1D array",
                               "with the same length to define multiple plane."))
@@ -573,7 +602,7 @@ class DlgPlotSol(SimpleFramePlus):
 
             if len(choices) == 0:
                 choices = ['no physics in model']
-            ll = [['Expression', '', 500, {}],
+            ll = [['Expression', '', 500, {"validator":validate_compile}],
                   ss,
                   ['Domains', 'all', 4, {'style': wx.CB_DROPDOWN,
                                          'choices': ['all', 'visible', 'hidden']}],
@@ -621,7 +650,7 @@ class DlgPlotSol(SimpleFramePlus):
                 choices = ['no physics in model']
 
             dom_bdr = ['Domain', 'Boundary']
-            ll = [['Expression', '', 500, {}],
+            ll = [['Expression', '', 500, {"validator":validate_compile}],
                   ['Kind', dom_bdr[0], 4, {'style': wx.CB_READONLY,
                                            'choices': dom_bdr}],
                   ['Index', text, 500, {}],
@@ -652,8 +681,8 @@ class DlgPlotSol(SimpleFramePlus):
             if len(choices) == 0:
                 choices = ['no physics in model']
 
-            ll = [['Expression', '', 500, {}],
-                  ['Expression(x)', '', 500, {}],]
+            ll = [['Expression', '', 500, {"validator":validate_compile}],
+                  ['Expression(x)', '', 500, {"validator":validate_compile}],]
             # ['NameSpace', choices[0], 4, {'style': wx.CB_READONLY,
             #                              'choices': choices}], ]
             tip = ("Expression to evaluate",
@@ -1811,6 +1840,9 @@ class DlgPlotSol(SimpleFramePlus):
             data_x = None
         return data, data_x, battrs
 
+    def _onEdgeGetNS(self):
+        return {}
+
     #
     #   Boundary value ('Bdr' tab)
     #
@@ -2059,6 +2091,9 @@ class DlgPlotSol(SimpleFramePlus):
                         datasets[0][:, kk] += u[k][1]
 
         return data, battrs
+
+    def _onBdrGetNS(self):
+        return {}
 
     #
     #   PointCloud ('Points' tab)
@@ -2319,7 +2354,7 @@ class DlgPlotSol(SimpleFramePlus):
                              tuple(param["x"]),
                              tuple(param["y"]),)
 
-                params.append(param)
+                    params.append(param)
 
             if len(params) == 0:
                 wx.CallAfter(
@@ -2337,6 +2372,7 @@ class DlgPlotSol(SimpleFramePlus):
             pc_param_list = []
 
             for param in params:
+                print("param", param)
                 pc_param = {'pc_type': 'cutplane', 'pc_param': param}
                 ptx, data, attrs_out = self.evaluate_pointcloud(
                     expr, attrs, phys_path, **pc_param)
@@ -2354,6 +2390,9 @@ class DlgPlotSol(SimpleFramePlus):
 
     def get_attrs_field_Points(self):
         return 2
+
+    def _onPointsGetNS(self):
+        return {}
 
     #
     #   Geometry Boundary ('GeomBdr' tab)
@@ -2454,6 +2493,9 @@ class DlgPlotSol(SimpleFramePlus):
         if z is None:
             z = zerodata
         return x, y, z
+
+    def _onGeomBdrGetNS(self):
+        return {}
 
     #
     #   Arrow on Boundary ('Bdr(arrow)' tab)
@@ -2612,6 +2654,10 @@ class DlgPlotSol(SimpleFramePlus):
         if w is None:
             w = zerodata
         return u, v, w, battrs
+
+    def _onBdrarrowGetNS(self):
+        return {}
+
     #
     #   Slice plane ('Slice' tab)
     #
@@ -2658,6 +2704,16 @@ class DlgPlotSol(SimpleFramePlus):
             title='Error',
             traceback='Exporing all time slice for frequency \ndomain analysis is not available')
         wx.CallAfter(self.set_title_no_status)
+
+    def _onSliceGetNS(self):
+        value = self.elps['Slice'].GetValue()
+        phys_path = value[3]
+
+        model = self.GetParent().model
+        mfem_model = model.param.getvar('mfem_model')
+
+        phys_ns = mfem_model[str(phys_path)]._global_ns.copy()
+        return phys_ns
 
     @run_in_piScope_thread
     def _onSliceCommon(self, value, mode='plot'):
@@ -2883,6 +2939,10 @@ class DlgPlotSol(SimpleFramePlus):
 
         value = self.evaluate_sol_integral(expr, kind, attrs, order, phys_path)
         return expr, value, kind, attrs, order
+
+    def _onIntegralGetNS(self):
+        return {}
+
     '''
     probe
     '''
@@ -2998,6 +3058,9 @@ class DlgPlotSol(SimpleFramePlus):
         # phys_path = value[2]
         xdata, data = self.evaluate_sol_probe(expr, xexpr)
         return xdata, data
+
+    def _onProbeGetNS(self):
+        return {}
 
     #
     #   common routines
