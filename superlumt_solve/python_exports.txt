@@ -1,0 +1,4 @@
+{
+  global: PyInit__superlumt_solve;
+  local: *;
+};

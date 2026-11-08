@@ -29,6 +29,8 @@ dependencies = [
 "Download" = "https://github.com/piScope/Petra-M"
 
 [build-system]
+build-backend = "backend"
+backend-path = ["_build_system"]
 requires = [
         "setuptools>=80.0.1",
         "pip>=25.1.0", 
