@@ -60,6 +60,9 @@ class Engine(object):
     max_levels = 10
 
     def __init__(self, modelfile='', model=None):
+        from petram.helper.verification_policy import RuntimeVerification
+        self.check_policy = RuntimeVerification()
+
         if modelfile != '':
             import petram.helper.pickle_wrapper as pickle
             model = pickle.load(open(modelfile, 'rb'))
@@ -862,27 +865,20 @@ class Engine(object):
             init = self.model['InitialValue'][k]
             init.preprocess_params(self)
 
-    def run_verify_setting(self, phys_target=None, solver=None):
+    def run_verify_setting(self, phys_target=None, solver=None,
+                           check_policy=None):
+        policy = self.check_policy if check_policy is None else check_policy
         if phys_target is None and solver is None:
-            top = self.model
-            for mm in top.walk_enabled():
-                if hasattr(mm, 'verify_setting'):
-                    error, txt, long_txt = mm.verify_setting()
-                assert error, mm.fullname() + ":" + long_txt
-            return
+            targets = [self.model]
+        else:
+            targets = list(phys_target or [])
+            if solver is not None:
+                targets.append(solver)
 
-        for phys in phys_target:
-            for mm in phys.walk():
-                if not mm.enabled:
-                    continue
-                error, txt, long_txt = mm.verify_setting()
-                assert error, mm.fullname() + ":" + long_txt
-
-        for mm in solver.walk():
-            if not mm.enabled:
-                continue
-            error, txt, long_txt = mm.verify_setting()
-            assert error, mm.fullname() + ":" + long_txt
+        for target in targets:
+            for mm in target.walk_enabled():
+                success, txt, long_txt = policy.check(mm)
+                assert success, mm.fullname() + ':' + (long_txt or txt)
 
     #
     #  mesh manipulation

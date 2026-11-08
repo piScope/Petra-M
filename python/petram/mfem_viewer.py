@@ -1852,12 +1852,14 @@ class MFEMViewer(BookViewer):
             self.model.param.setvar('host', '='+obj.get_full_path())
 
     def onServerSolve(self, evt):
+        from petram.helper.verification_policy import ClusterSubmission
+
         m = self.mfem_model
         m.set_root_path(self.model.owndir())
         odir = os.getcwd()
 
         try:
-            self.engine.run_verify_setting()
+            self.engine.run_verify_setting(check_policy=ClusterSubmission())
         except:
             os.chdir(odir)
             dialog.showtraceback(parent=self,
