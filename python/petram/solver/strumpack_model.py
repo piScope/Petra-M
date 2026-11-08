@@ -1,3 +1,4 @@
+from petram.helper.check_module_installed import module_file_exists
 from petram.helper.matrix_file import write_matrix, write_vector, write_coo_matrix
 from petram.mfem_config import use_parallel
 from .solver_model import LinearSolverModel, LinearSolver
@@ -37,8 +38,8 @@ else:
     def nicePrint(*x):
         print(x)
 
-from petram.helper.check_module_installed import module_file_exists
-has_strumpack = bool(module_file_exists("petram.ext.strumpack.strumpack_solve"))
+has_strumpack = bool(module_file_exists(
+    "petram.ext.strumpack.strumpack_solve"))
 
 
 attr_names = ['log_level',
@@ -58,19 +59,19 @@ attr_names = ['log_level',
               'cuda_streams', ]
 
 attr_names2 = ['MUMPS_SYMQAMD',
-              'agg_amalg',
-              'indirect_sampling',
-              'replace_tiny_pivots',
-              'compression_min_sep_size',
-              'compression_min_front_size',
-              'compression_leaf_size',
-              'separator_ordering_level',
-              'hodlr_butterfly_levels',
-              'use_single_precision',
-              'use_64_int',
-              'write_mat',
-              'extra_options',
-              'use_dist_sol', ]
+               'agg_amalg',
+               'indirect_sampling',
+               'replace_tiny_pivots',
+               'compression_min_sep_size',
+               'compression_min_front_size',
+               'compression_leaf_size',
+               'separator_ordering_level',
+               'hodlr_butterfly_levels',
+               'use_single_precision',
+               'use_64_int',
+               'write_mat',
+               'extra_options',
+               'use_dist_sol', ]
 
 ordering_modes = {"Natural": "STRUMPACK_NATURAL",
                   "Metis": "STRUMPACK_METIS",
@@ -102,9 +103,11 @@ GramSchmidt_types = {"Classical": "STRUMPACK_CLASSICAL",
 help_txt = ("0: no reordering for stability, this disables MC64/matching",
             "1: MC64(1): currently not supported",
             "2: MC64(2): maximize the smallest diagonal value",
-            "3: MC64(3): maximize the smallest diagonal value, different strategy",
+            '3: MC64(3): maximize the smallest diagonal value, different\n'
+            'strategy',
             "4: MC64(4): maximize sum of diagonal values",
-            "5: MC64(5): maximize product of diagonal values and apply row and column scaling",
+            '5: MC64(5): maximize product of diagonal values and apply\n'
+            'row and column scaling',
             "6: Combinatorial BLAS: approximate weight perfect matching",)
 
 
@@ -121,13 +124,25 @@ class Strumpack(LinearSolverModel):
     def init_solver(self):
         pass
 
+    def _clean_properties_with_default(self):
+        names = ("rctol", "actol", "maxiter", "gmres_restart", "mc64job", "cuda_streams",
+                 "compression_min_sep_size", "compression_min_front_size", "compression_leaf_size",
+                 "separator_ordering_level", "hodlr_butterfly_levels", "compression_rel_tol",
+                 "compression_abs_tol", "lossy_precision")
+        for name in names:
+            if hasattr(self, name):
+                value = getattr(self, name)
+                if str(value).find("default") != -1:
+                    setattr(self, name, "(default)")
+
     def panel1_param(self):
+        self._clean_properties_with_default()
         panel = [
             ["log_level", self.log_level, 400, {}],
             ["ordering", self.ordering, 4, {"readonly": True,
                                             "choices": list(ordering_modes), }],
             ["mc64 matching", self.mc64job, 4, {"readonly": True,
-                                                "choices": ["0 (default)", "2", "3", "4", "5", "6"], }],
+                                                "choices": ["(default)", "0", "2", "3", "4", "5", "6"], }],
             ["compression", self.compression, 4, {"readonly": True,
                                                   "choices": list(compression_modes)}, ],
             ["compression rel. tol.", self.compression_rel_tol, 0, {}],
@@ -154,6 +169,39 @@ class Strumpack(LinearSolverModel):
                    "tip": ["-1 uses PETRAM_STRUMPACK_MPI_SIZE if set, otherwise all application ranks. A positive value overrides the environment.",
                            "Use the node-local application OpenMP thread budget on the ranks participating in STRUMPACK."]})])
         return panel
+
+    def panel1_tip(self):
+        tips = [
+            'STRUMPACK output level: 0 suppresses solver output',
+            'Ordering algorithm used to reduce fill-in during factorization.',
+            ('Matching improves diagonal entries before factorization.\n'
+             'Petra-M defaults to 0 (disabled)\n' + "\n".join(help_txt)),
+            'Compression method for the factors. (default: none)',
+            (
+                'Relative tolerance for low-rank compression.\n'
+                '(default[D/S]: HSS 0.01/0.1, BLR 1e-4/1e-2, HODLR 1e-4/1e-2)'
+            ),
+            (
+                'Absolute tolerance for low-rank compression.\n'
+                '(default[D/S]: HSS 1e-8/1e-5, BLR 1e-12/1e-6, HODLR 1e-10/1e-5)'
+            ),
+            'Bit precision for LOSSY compression.',
+            'Linear solution method. (default: auto)',
+            'Relative convergence tolerance for iterative solves.(default[D/S]: 1e-6/1e-4)',
+            'Absolute convergence tolerance for iterative solves.(default[D/S]: 1e-10/1e-6)',
+            'Number of GMRES iterations before restarting.(default: 30)',
+            'Orthogonalization method used by GMRES. (default: Modified)',
+            'Maximum number of iterative solver iterations. (default: 5000)\n',
+            'Enable GPU acceleration.',
+            'Number of GPU streams when GPU acceleration is enabled.(default: 4)',
+        ]
+        if self.supports_rank_reduction:
+            tips.append((
+                'Use fewer MPI ranks for this standalone solver. Set the\n'
+                'solver MPI size and optionally maximize OpenMP threads on\n'
+                'participating ranks.'
+            ))
+        return tips
 
     def get_panel1_value(self):
         ans = []
@@ -185,6 +233,7 @@ class Strumpack(LinearSolverModel):
         return "Advanced"
 
     def panel2_param(self):
+        self._clean_properties_with_default()
         return [
             ["MUMPS_SYMQAMD", self.MUMPS_SYMQAMD, 3, {"text": ""}],
             ["agg_amalg", self.agg_amalg, 3, {"text": ""}],
@@ -200,6 +249,32 @@ class Strumpack(LinearSolverModel):
             ["write matrix", self.write_mat, 3, {"text": ""}],
             ["extra options", self.extra_options, 2235, {'nlines': 3}, ],
             ["use dist. Sol", self.use_dist_sol, 3, {"text": ""}], ]
+
+    def panel2_tip(self):
+        return ['Use the MUMPS symmetric approximate minimum-degree ordering (MPI only)',
+                'Enable aggressive amalgamation of supernodes.(default off)',
+                'Enable indirect sampling for HSS compression.(default off)',
+                'Replace tiny pivots during factorization to improve robustness.(default off)',
+                ('Minimum separator size for compression.\n'
+                 '(default: HSS 1000, BLR 512, HODLR 5000, Lossy/Lossless 8)'
+                 ),
+                'Minimum front size for compression. (default: 100000)',
+                (
+                    'Leaf size for hierarchical compression.\n'
+                    '(default: HSS 512, BLR/HODLR 256, Lossy/Lossless 4)'
+                ),
+                'Level at which separator reordering starts for compression.(default: 1)'
+                'Number of butterfly levels, applied only for HOLBF.(default: 0)',
+                'Use single precision for factorization and solution.(default off)',
+                'Use 64-bit matrix indices. (default off)',
+                'Write the matrix and right-hand side to disk.',
+                (
+                    'Additional STRUMPACK command-line options.\n'
+                    'Separate by spaces or newlines. Panel settings may override\n'
+                    'these options; the GPU checkbox controls GPU enablement.'
+                ),
+                'Return the solution distributed across MPI ranks.',
+                ]
 
     def get_panel2_value(self):
         ans = []
@@ -224,30 +299,30 @@ class Strumpack(LinearSolverModel):
         v = super(Strumpack, self).attribute_set(v)
         v['log_level'] = 0
         v['write_mat'] = False
-        v['gstype'] = 'Classical'
-        v['rctol'] = "1e-6 (default)"
-        v['actol'] = "1e-10 (default)"
-        v['maxiter'] = "5000 (default)"
-        v['gmres_restart'] = "30 (default)"
-        v['mc64job'] = "0 (default)"
+        v['gstype'] = 'Modified'
+        v['rctol'] = "(default)"
+        v['actol'] = "(default)"
+        v['maxiter'] = "(default)"
+        v['gmres_restart'] = "(default)"
+        v['mc64job'] = "0"
         v['krylov'] = 'Auto'
         v['use_gpu'] = False
         v['ordering'] = "Metis"
         v['compression'] = "None"
         v['use_single_precision'] = False
-        v["cuda_streams"] = "4 (default)"
+        v["cuda_streams"] = "(default)"
         v["MUMPS_SYMQAMD"] = False
         v["agg_amalg"] = False
         v["indirect_sampling"] = False
         v["replace_tiny_pivots"] = False
-        v["compression_min_sep_size"] = "2147483647 (default)"
-        v["compression_min_front_size"] = "2147483647 (default)"
-        v["compression_leaf_size"] = "2147483647 (default)"
-        v["separator_ordering_level"] = "1 (default)"
-        v["hodlr_butterfly_levels"] = "100 (default)"
-        v["compression_rel_tol"] = "1e-4 (default)"
-        v["compression_abs_tol"] = "1e-8 (default)"
-        v["lossy_precision"] = "16 (default)"
+        v["compression_min_sep_size"] = "(default)"
+        v["compression_min_front_size"] = "(default)"
+        v["compression_leaf_size"] = "(default)"
+        v["separator_ordering_level"] = "(default)"
+        v["hodlr_butterfly_levels"] = "(default)"
+        v["compression_rel_tol"] = "(default)"
+        v["compression_abs_tol"] = "(default)"
+        v["lossy_precision"] = "(default)"
         v["extra_options"] = ""
         v["use_64_int"] = False
         v['reduce_mpi_proc'] = False
@@ -287,7 +362,7 @@ class Strumpack(LinearSolverModel):
         else:
             of = M.RowOffsets().ToList()
 
-        #dprint1("merged block size", of)
+        # dprint1("merged block size", of)
 
         rows = M.NumRowBlocks()
         s = solall.shape
@@ -315,7 +390,8 @@ class Strumpack(LinearSolverModel):
             source = 'default' if value is None else 'environment'
             size = comm.size if value is None else int(value.strip())
         if not 1 <= size <= comm.size:
-            raise ValueError(f'Solver MPI ranks must be in 1..{comm.size}, got {size}')
+            raise ValueError(
+                f'Solver MPI ranks must be in 1..{comm.size}, got {size}')
         return size, source
 
     def allocate_solver(self, is_complex=False, engine=None):
@@ -326,8 +402,10 @@ class Strumpack(LinearSolverModel):
                 MPI.COMM_WORLD, lambda: self.resolve_solver_size(MPI.COMM_WORLD))
             sizes = MPI.COMM_WORLD.allgather(size)
             if len(set(sizes)) != 1:
-                raise ValueError('STRUMPACK solver size differs between application ranks')
-            dprint1(f'STRUMPACK MPI ranks: application={num_proc}, solver={size} ({source})')
+                raise ValueError(
+                    'STRUMPACK solver size differs between application ranks')
+            dprint1(
+                f'STRUMPACK MPI ranks: application={num_proc}, solver={size} ({source})')
         if size < num_proc:
             return ReducedStrumpackSolver(self, engine, MPI.COMM_WORLD, size, is_complex)
 
@@ -439,7 +517,7 @@ def build_csr_local(A, dtype, is_complex):
     else:
         map = [blk_stm_idx_map(i) for i in range(rows)]
 
-    #nicePrint("map", map)
+    # nicePrint("map", map)
     newi = []
     newj = []
     newd = []
@@ -511,7 +589,8 @@ class StrumpackSolver(LinearSolver):
             from petram.ext.strumpack.strumpack_solve import get_omp_max_threads
             self.omp_threads = (get_omp_max_threads() * rank_layout.node_app_size
                                 // rank_layout.node_solver_size)
-            dprint1(f'STRUMPACK OpenMP threads per solver rank: {self.omp_threads}')
+            dprint1(
+                f'STRUMPACK OpenMP threads per solver rank: {self.omp_threads}')
         self.spss = None
         self.closed = False
 
@@ -524,7 +603,7 @@ class StrumpackSolver(LinearSolver):
             yield
             return
         from petram.ext.strumpack.strumpack_solve import (get_omp_max_threads,
-                                                         set_omp_num_threads)
+                                                          set_omp_num_threads)
 
         previous = get_omp_max_threads()
         try:
@@ -566,8 +645,9 @@ class StrumpackSolver(LinearSolver):
             tol = float(self.gui.compression_abs_tol.split('(')[0])
             self.spss.set_compression_abs_tol(tol)
         if self.gui.compression == "HOLBF":
-            l = int(self.gui.hodlr_butterfly_levels.split('(')[0])
-            self.spss.set_compression_butterfly_levels(l)
+            if self.gui.hodlr_butterfly_levels.find('default') == -1:
+                l = int(self.gui.hodlr_butterfly_levels.split('(')[0])
+                self.spss.set_compression_butterfly_levels(l)
         if self.gui.compression_min_sep_size.find('default') == -1:
             l = int(self.gui.compression_min_sep_size.split('(')[0])
             self.spss.set_compression_min_sep_size(l)
@@ -639,7 +719,8 @@ class StrumpackSolver(LinearSolver):
                          for x in x.split(" ") if len(x.strip()) > 0])
 
         # The checkbox controls GPU initialization, including extra options.
-        opts.append('--sp_enable_gpu' if self.gui.use_gpu else '--sp_disable_gpu')
+        opts.append(
+            '--sp_enable_gpu' if self.gui.use_gpu else '--sp_disable_gpu')
         return opts
 
     def AllocSolver(self, is_complex, use_single_precision):
@@ -764,6 +845,7 @@ class ReducedStrumpackSolver(LinearSolver):
     """
     Aggregate application CSR rows and return solutions to their owners.
     """
+
     def __init__(self, gui, engine, app_comm, size, is_complex):
         from petram.helper.solver_mpi import SolverRankLayout
 
@@ -809,7 +891,7 @@ class ReducedStrumpackSolver(LinearSolver):
         leader = group.bcast(self.comm.rank if self.ranks.is_leader else None)
         members = self.comm.allgather((leader, group.rank))
         order = sorted(range(self.comm.size), key=lambda rank: members[rank])
-    
+
         # Gathered rows follow leader/group order. Apply the same
         # permutation to columns, using rank offsets instead of a global map.
         new_starts = np.empty(self.comm.size, dtype=np.int64)
@@ -817,7 +899,8 @@ class ReducedStrumpackSolver(LinearSolver):
         owners = np.searchsorted(starts[1:], AA.indices, side='right')
         columns = new_starts[owners] + AA.indices - starts[owners]
 
-        lengths = gather_vector(np.asarray(np.diff(AA.indptr), dtype=np.int64), world=group)
+        lengths = gather_vector(np.asarray(
+            np.diff(AA.indptr), dtype=np.int64), world=group)
         columns = gather_vector(np.ascontiguousarray(columns), world=group)
         values = gather_vector(AA.data, world=group)
 
@@ -847,7 +930,8 @@ class ReducedStrumpackSolver(LinearSolver):
 
     def close(self):
         if not self.closed:
-            self._call_backend(lambda: self.backend.close() if self.backend is not None else None)
+            self._call_backend(lambda: self.backend.close()
+                               if self.backend is not None else None)
             self.backend = None
             self.ranks.close()
             self.closed = True
@@ -948,7 +1032,7 @@ def _strumpack_mult(solver, b, x):
                 else:
                     assert False, "unknonw operator type"
 
-                #nicePrint("xxvv", xxvv.shape)
+                # nicePrint("xxvv", xxvv.shape)
 
                 if myid == 0:
                     s.append(vv)
@@ -1000,7 +1084,7 @@ class StrumpackBlockPreconditioner(mfem.Solver):
         s = self.solver.Mult([x])
         if self.is_complex_operator:
             assert False, "StrumpackMFEM for Complex is not yet implemented"
-            #s = self.complex_to_real(s)
+            # s = self.complex_to_real(s)
 
         y.Assign(s.flatten().astype(float, copy=False))
 
