@@ -1,0 +1,4 @@
+{
+  global: *libsuperlu_solve*;
+  local: *;
+};

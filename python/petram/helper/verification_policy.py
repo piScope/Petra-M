@@ -2,7 +2,7 @@
 Policies for model verification in the executing environment.
 """
 import ast
-from importlib import import_module
+from petram.helper.check_module_installed import module_file_exists
 
 from petram.mfem_config import get_use_parallel
 
@@ -31,7 +31,7 @@ class ClusterSubmission(BasePolicy):
 
 class RuntimeVerification(BasePolicy):
     """
-    Extend model validation with native solver import checks.
+    Extend model validation with native solver module availability checks.
     """
 
     def _check_solver(self, obj, solver):
@@ -40,13 +40,10 @@ class RuntimeVerification(BasePolicy):
             return result
 
         module = 'petram.ext.' + solver + '.' + solver + '_solve'
-        try:
-            import_module(module)
-        except (ImportError, OSError) as err:
-            text = 'Cannot load ' + solver.upper()
+        if not module_file_exists(module):
+            text = 'Cannot find ' + solver.upper()
             detail = ('Required package: Petra-M--DS\n'
-                      'Module: ' + module + '\n' +
-                      type(err).__name__ + ': ' + str(err))
+                      'Module: ' + module)
             return False, text, detail
         return result
 
@@ -55,6 +52,17 @@ class RuntimeVerification(BasePolicy):
 
     def check_Strumpack(self, obj):
         return self._check_solver(obj, 'strumpack')
+
+    def check_SuperLU(self, obj):
+        result = obj.verify_setting()
+        if not result[0] or obj.superlu_backend == 'SciPy':
+            return result
+
+        if not module_file_exists('petram.ext.superlu.superlu_solve'):
+            return (False, 'Cannot find SuperLU_DIST',
+                    'Distributed version of SuperLU is needed to use MPI.')
+
+        return result
 
     def _uses_mumps(self, obj):
         if (getattr(obj, 'solver_type', '').startswith('Nested')
@@ -90,3 +98,4 @@ class RuntimeVerification(BasePolicy):
 
     check_GMRES = check_Iterative
     check_DiagonalPreconditioner = check_Iterative
+

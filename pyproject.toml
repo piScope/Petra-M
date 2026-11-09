@@ -1,6 +1,7 @@
 [project]
 name = "petram"
 license = "GPL-3.0-or-later"
+license-files = ["LICENSE", "LICENSES/*.txt"]
 description='Petra-M finite element analysis framework base package'
 authors = [ { name = "S. Shiraiwa" } ]
 maintainers = [ { name = "S. Shiraiwa", email = "shiraiwa@princeton.edu" } ]
@@ -22,6 +23,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+MPI = ["mpi4py>=4.0"]
 "gui" = ["piScope >= 26.8.29",]
 
 [project.urls]

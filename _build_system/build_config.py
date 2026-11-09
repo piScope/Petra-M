@@ -5,12 +5,14 @@ import os
 from shutil import which as find_command
 
 __all__ = ["print_config", "initialize_cmd_opts", "configure_build",
-           "superlu_mt_enabled"]
+           "superlu_enabled"]
 
 cmd_opts = [
-    ('with-superlu-mt=', 'YES', 'build the SuperLU_MT native backend'),
+    ('with-superlu_dist=', 'YES', 'build the SuperLU_DIST native backend'),
     ('CC=', find_command('cc'), 'C compiler'),
     ('CXX=', find_command('c++'), 'C++ compiler'),
+    ('MPICC=', find_command('mpicc'), 'MPI C compiler wrapper'),
+    ('MPICXX=', find_command('mpicxx'), 'MPI C++ compiler wrapper'),
     ('SWIG=', find_command('swig'), 'SWIG wrapper generator'),
 ]
 
@@ -47,13 +49,13 @@ def configure_build(bglb):
     """
     initialize_cmd_opts(bglb)
     _process_cmd_opts(bglb, bglb.cfs)
-    value = str(bglb.with_superlu_mt).lower()
+    value = str(bglb.with_superlu_dist).lower()
     if value not in ("yes", "true", "1", "no", "false", "0"):
-        raise ValueError("with-superlu-mt must be Yes or No")
-    bglb.with_superlu_mt = value in ("yes", "true", "1")
+        raise ValueError("with-superlu_dist must be Yes or No")
+    bglb.with_superlu_dist = value in ("yes", "true", "1")
 
 
-def superlu_mt_enabled(config_settings=None):
+def superlu_enabled(config_settings=None):
     """
     Read the native-build switch using the shared option-processing flow.
     """
@@ -62,7 +64,7 @@ def superlu_mt_enabled(config_settings=None):
 
     config = replace(bglb, cfs=bglb.cfs if config_settings is None else config_settings)
     configure_build(config)
-    return config.with_superlu_mt
+    return config.with_superlu_dist
 
 
 def print_config(bglb):
@@ -70,7 +72,9 @@ def print_config(bglb):
     Display the selected native backend and build tools.
     """
     print("----configuration----")
-    print(" build SuperLU_MT : " + ("Yes" if bglb.with_superlu_mt else "No"))
+    print(" build SuperLU_DIST : " + ("Yes" if bglb.with_superlu_dist else "No"))
     print(" C compiler : " + str(bglb.cc))
     print(" C++ compiler : " + str(bglb.cxx))
+    print(" MPI C compiler : " + str(bglb.mpicc))
+    print(" MPI C++ compiler : " + str(bglb.mpicxx))
     print(" SWIG : " + str(bglb.swig))

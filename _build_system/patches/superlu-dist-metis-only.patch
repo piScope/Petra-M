@@ -1,0 +1,107 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -30,6 +30,11 @@
+ #-- BLAS
+ option(TPL_ENABLE_INTERNAL_BLASLIB  "Build the CBLAS library" ${enable_blaslib_DEFAULT})
+ option(TPL_BLAS_LIBRARIES "List of absolute paths to blas libraries [].")
++#-- Standalone METIS (Petra-M: no ParMETIS dependency)
++option(TPL_ENABLE_METISLIB "Enable the standalone METIS library" OFF)
++set(TPL_METIS_LIBRARIES "" CACHE STRING "Standalone METIS link libraries")
++set(TPL_METIS_INCLUDE_DIRS "" CACHE STRING "Standalone METIS include directories")
++
+ #-- ParMETIS
+ option(TPL_ENABLE_PARMETISLIB   "Enable the ParMETIS library" ON)
+ option(TPL_PARMETIS_LIBRARIES "List of absolute paths to ParMETIS link libraries [].")
+@@ -462,6 +467,16 @@
+     message("-- Will not link with MAGMA.")
+ endif()
+ 
++#--------------------- Standalone METIS ---------------------
++if(TPL_ENABLE_METISLIB)
++  if(NOT TPL_METIS_LIBRARIES OR NOT TPL_METIS_INCLUDE_DIRS)
++    message(FATAL_ERROR "Standalone METIS requires TPL_METIS_LIBRARIES and TPL_METIS_INCLUDE_DIRS.")
++  endif()
++  set(METIS_LIB ${TPL_METIS_LIBRARIES})
++  include_directories(${TPL_METIS_INCLUDE_DIRS})
++  set(HAVE_METIS TRUE)
++endif()
++
+ #--------------------- ParMETIS ---------------------
+ if (TPL_ENABLE_PARMETISLIB)   ## want to use parmetis
+   if (NOT TPL_PARMETIS_LIBRARIES)
+--- a/SRC/CMakeLists.txt
++++ b/SRC/CMakeLists.txt
+@@ -420,10 +420,10 @@
+ 
+ if (TPL_ENABLE_NVSHMEM)
+ set(superlu_dist_libs ${MPI_C_LIBRARIES} ${MPI_CXX_LIBRARIES} ${BLAS_LIB} ${LAPACK_LIB}
+-    ${PARMETIS_LIB} ${COLAMD_LIB} ${COMBBLAS_LIB} ${MAGMA_LIB} ${CUDA_LIB} ${HIP_LIB} ${NVSHMEM_LIB}) 
++    ${PARMETIS_LIB} ${METIS_LIB} ${COLAMD_LIB} ${COMBBLAS_LIB} ${MAGMA_LIB} ${CUDA_LIB} ${HIP_LIB} ${NVSHMEM_LIB}) 
+ else()
+ set(superlu_dist_libs ${MPI_C_LIBRARIES} ${MPI_CXX_LIBRARIES} ${BLAS_LIB} ${LAPACK_LIB}
+-    ${PARMETIS_LIB} ${COLAMD_LIB} ${COMBBLAS_LIB} ${MAGMA_LIB} ${CUDA_LIB} ${HIP_LIB})
++    ${PARMETIS_LIB} ${METIS_LIB} ${COLAMD_LIB} ${COMBBLAS_LIB} ${MAGMA_LIB} ${CUDA_LIB} ${HIP_LIB})
+ endif()
+ 
+ if (NOT MSVC)
+--- a/SRC/superlu_dist_config.h.in
++++ b/SRC/superlu_dist_config.h.in
+@@ -8,6 +8,9 @@
+ 
+ /* Enable HIP */
+ #cmakedefine HAVE_HIP @HAVE_HIP@
++
++/* Enable standalone METIS */
++#cmakedefine HAVE_METIS @HAVE_METIS@
+ 
+ /* Enable parmetis */
+ #cmakedefine HAVE_PARMETIS @HAVE_PARMETIS@
+--- a/SRC/prec-independent/get_perm_c.c
++++ b/SRC/prec-independent/get_perm_c.c
+@@ -38,7 +38,7 @@
+ 	  int *perm_c    /* out - the column permutation vector. */
+ 	  )
+ {
+-#ifdef HAVE_PARMETIS
++#if defined(HAVE_METIS) || defined(HAVE_PARMETIS)
+     int_t i, nm;
+     int_t *perm, *iperm;
+ 
+@@ -113,7 +113,7 @@
+ #if ( DEBUGlevel>=1 )
+     CHECK_MALLOC(0, "Exit get_metis_dist()");
+ #endif
+-#endif /* HAVE_PARMETIS */
++#endif /* HAVE_METIS || HAVE_PARMETIS */
+     return;
+ } /* end get_metis_dist */
+ 
+@@ -532,7 +532,7 @@
+ 	      printf(".. Use approximate minimum degree column ordering.\n");
+ #endif
+ 	      return;
+-#ifdef HAVE_PARMETIS
++#if defined(HAVE_METIS) || defined(HAVE_PARMETIS)
+         case METIS_AT_PLUS_A: /* METIS ordering on A'+A */
+ 	      if ( m != n ) ABORT("Matrix is not square");
+ 	      at_plus_a_dist(n, Astore->nnz, Astore->colptr, Astore->rowind,
+@@ -550,7 +550,7 @@
+ 	      if ( !pnum ) printf(".. Use METIS ordering on A'+A\n");
+ #endif
+ 	      return;
+-#endif /* matching ifdef HAVE_PARMETIS */
++#endif /* HAVE_METIS || HAVE_PARMETIS */
+ 
+         default:
+ 	      ABORT("Invalid ISPEC");
+--- a/SRC/prec-independent/util.c
++++ b/SRC/prec-independent/util.c
+@@ -212,7 +212,7 @@
+     options->Fact = DOFACT;
+     options->Equil = YES;
+     options->ParSymbFact = NO;
+-#ifdef HAVE_PARMETIS
++#if defined(HAVE_METIS) || defined(HAVE_PARMETIS)
+     options->ColPerm = METIS_AT_PLUS_A;
+ #else
+     options->ColPerm = MMD_AT_PLUS_A;

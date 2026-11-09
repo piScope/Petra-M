@@ -1,4 +1,0 @@
-{
-  global: *libsuperlumt_solve*;
-  local: *;
-};

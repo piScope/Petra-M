@@ -1,0 +1,5 @@
+recursive-include _build_system *.py
+recursive-include _build_system/patches *.patch
+recursive-include superlu_solve *.cpp *.hpp *.i *.txt
+include INSTALL.md
+recursive-include LICENSES *.txt

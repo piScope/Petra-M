@@ -4,15 +4,22 @@ from petram.mfem_config import use_parallel
 from petram.solver.solver_model import LinearSolverModel, LinearSolver
 from petram.solver.solver_model import Solver
 from petram.namespace_mixin import NS_mixin
+from petram.solver.solver_utils import build_csr_local, check_operator_type
 
 
 import sys
 import numpy as np
 import scipy
-from scipy.sparse import coo_matrix, csr_matrix
 
 import petram.debug as debug
 dprint1, dprint2, dprint3 = debug.init_dprints('SuperLU')
+
+DIST_ORDERINGS = {"METIS": "metis", "NATURAL": "natural",
+                  "MMD_ATA": "mmd_ata", "MMD_AT_PLUS_A": "mmd_at_plus_a"}
+DIST_OPTIONS = ('dist_equil',
+                'dist_replace_tiny_pivot', 'dist_refinement', 'dist_log_statistics')
+SCIPY_OPTIONS = ('pivot_thr_txt', 'relax_txt', 'panel_size_txt',
+                 'superlu_options_txt', 'use_single_precision')
 
 
 if use_parallel:
@@ -55,6 +62,7 @@ class SuperLU(LinearSolverModel):
 
     def attribute_set(self, v):
         v = super(SuperLU, self).attribute_set(v)
+        v["superlu_backend"] = "SciPy"
         v["col_permute_txt"] = "COLAMD"
         v["pivot_thr_txt"] = ""
         v["relax_txt"] = ""
@@ -62,7 +70,30 @@ class SuperLU(LinearSolverModel):
         v["superlu_options_txt"] = ""
         v["use_single_precision"] = False
         v["write_mat"] = False
+        v["dist_equil"] = True
+        v["dist_replace_tiny_pivot"] = False
+        v["dist_refinement"] = False
+        v["dist_log_statistics"] = False
         return v
+
+    def verify_setting(self):
+        result = super().verify_setting()
+        if not result[0]:
+            return result
+
+        backend = self.superlu_backend
+        if backend not in ('SciPy', 'SuperLU_DIST'):
+            return False, 'Unknown SuperLU backend', str(backend)
+
+        orderings = (('COLAMD', 'NATURAL', 'MMD_ATA', 'MMD_AT_PLUS_A')
+                     if backend == 'SciPy' else tuple(DIST_ORDERINGS))
+        if self.col_permute_txt not in orderings:
+            return (False, 'Unsupported SuperLU ordering',
+                    f'{backend} supports: {", ".join(orderings)}. '
+                    'METIS is available only with SuperLU_DIST; '
+                    'COLAMD is available only with SciPy.')
+
+        return result
 
     def eval_options(self, input):
         if len(input.strip()) == 0:
@@ -81,37 +112,60 @@ class SuperLU(LinearSolverModel):
             return True
 
         import wx
-        ll = [["col. permute", "COLAMD", 4,
-               {"choices": ["COLAMD", "NATURAL", "MMD_ATA", "MMD_AT_PLUS_A"],
-                "style": wx.CB_READONLY}],
-              ["pivot thr.", "None", 0, {}],
-              ["relax.", "None", 0, {}],
-              ["panel size", "None", 0, {}],
-              ["options(=)", "None", 0, {"validator": validator,
-                                         "validator_param": None}],
-              ["use float32", False, 3, {"text": ""}],
-              ["write matrix", False, 3, {"text": ""}],]
-        return ll
+        scipy_panel = [
+            ["pivot thr.", "None", 0, {}],
+            ["relax.", "None", 0, {}],
+            ["panel size", "None", 0, {}],
+            ["options(=)", "None", 0, {"validator": validator,
+                                      "validator_param": None}],
+            ["use float32", False, 3, {"text": ""}]]
+        dist_panel = [
+            ["equilibration", True, 3, {"text": ""}],
+            ["replace tiny pivots", False, 3, {"text": ""}],
+            ["iterative refinement", False, 3, {"text": ""}],
+            ["log statistics", False, 3, {"text": ""}]]
+        scipy_tips = [
+            'Threshold for accepting a diagonal entry as a pivot. (Leave blank for default)',
+            'Relaxation parameter for grouping columns into supernodes. (Leave blank for default)',
+            'Number of columns in a factorization panel. (Leave blank for default)',
+            'Python dictionary of additional options passed to scipy.sparse.linalg.splu.',
+            'Use single precision for factorization and solves.']
+        dist_tips = [
+            'Scale matrix rows and columns to improve numerical conditioning. (default: on)',
+            'Replace tiny pivots with a small nonzero value. This modifies the factorization. (default: off)',
+            'Apply double-precision iterative refinement after solving. (default: off)',
+            'Print SuperLU_DIST memory usage, timing, and flop statistics to the run output.']
+
+        return [
+            [None, None, 27, ({"text": "Use MPI"},
+                             {"elp": dist_panel, "tip": dist_tips},
+                             {"elp": scipy_panel, "tip": scipy_tips})],
+            ["col. permute", "COLAMD", 4,
+             {"choices": ["COLAMD", "NATURAL", "MMD_ATA", "MMD_AT_PLUS_A", "METIS"],
+              "style": wx.CB_READONLY}],
+            ["write matrix", False, 3, {"text": ""}]]
+
+    def panel1_tip(self):
+        return [
+            'Use MPI calls SuperLU_DIST. Otherwise the sequential SuperLU in SciPy is used.',
+            'Column ordering used to reduce fill-in during factorization.\nMETIS requires MPI; COLAMD requires Sequential version.',
+            'Write the assembled matrix and right-hand side to files for inspection.']
 
     def get_panel1_value(self):
-        val = [self.col_permute_txt,
-               self.pivot_thr_txt,
-               self.relax_txt,
-               self.panel_size_txt,
-               self.superlu_options_txt,
-               self.use_single_precision,
-               self.write_mat]
-        return val
+        switch = (self.superlu_backend == 'SuperLU_DIST',
+                  [getattr(self, name) for name in DIST_OPTIONS],
+                  [getattr(self, name) for name in SCIPY_OPTIONS])
+        return [switch, self.col_permute_txt, self.write_mat]
 
     def import_panel1_value(self, v):
-
-        self.col_permute_txt = v[0]
-        self.pivot_thr_txt = v[1]
-        self.relax_txt = v[2]
-        self.panel_size_txt = v[3]
-        self.superlu_options_txt = v[4]
-        self.use_single_precision = v[5]
-        self.write_mat = v[6]
+        use_mpi, dist_values, scipy_values = v[0]
+        self.superlu_backend = 'SuperLU_DIST' if use_mpi else 'SciPy'
+        for name, value in zip(DIST_OPTIONS, dist_values):
+            setattr(self, name, value)
+        for name, value in zip(SCIPY_OPTIONS, scipy_values):
+            setattr(self, name, value)
+        self.col_permute_txt = v[1]
+        self.write_mat = v[2]
 
     def does_linearsolver_choose_linearsystem_type(self):
         return True
@@ -158,221 +212,32 @@ class SuperLU(LinearSolverModel):
         return result
 
     def allocate_solver(self, is_complex=False, engine=None):
-        solver = SuperLUSolver(self, engine)
+        success, text, detail = self.verify_setting()
+        if not success:
+            raise ValueError(text + ': ' + detail)
 
-        pivot_thr = float(self.pivot_thr_txt) if len(
-            self.pivot_thr_txt.strip()) > 0 else None
-        relax = int(self.relax_txt) if len(
-            self.relax_txt.strip()) > 0 else None
-        panel_size = int(self.panel_size_txt) if len(
-            self.panel_size_txt.strip()) > 0 else None
-        options = self.eval_options(self.superlu_options_txt)
+        if self.superlu_backend == 'SuperLU_DIST':
+            solver = SuperLUDistSolver(self, engine)
+        else:
+            solver = SuperLUSolver(self, engine)
 
-        solver.AllocSolver(is_complex,
-                           self.use_single_precision,
-                           self.col_permute_txt,
-                           pivot_thr,
-                           relax,
-                           panel_size,
-                           options)
-
+        solver.AllocSolver(is_complex)
         return solver
 
 
-def check_operator_type(is_complex, A):
-    from petram.solver.solver_utils import get_operator_block
+class SuperLUSolverBase(LinearSolver):
+    """
+    Shared MFEM conversion and local vector handling for SuperLU backends.
+    """
 
-    rows = A.NumRowBlocks()
-    cols = A.NumColBlocks()
-
-    complexreal = False
-    for i in range(rows):
-        for j in range(cols):
-            m = get_operator_block(A, i, j)
-            if isinstance(m, mfem.ComplexOperator) and not is_complex:
-                complexreal = True
-                break
-
-    if complexreal:
-        return "complexreal"
-    if is_complex:
-        return "complex"
-    return "real"
-
-
-def build_csr_local(A, dtype, is_complex):
-    '''
-    build CSR form of A as a single
-    matrix
-    '''
-    # print("build_csr_local", dtype, is_complex)
-    offset = np.array(A.RowOffsets().ToList(), dtype=int)
-    coffset = np.array(A.ColOffsets().ToList(), dtype=int)
-    if is_complex:
-        offset = offset // 2
-    # nicePrint("offets", offset, coffset)
-    rows = A.NumRowBlocks()
-    cols = A.NumColBlocks()
-
-    local_size = np.diff(offset)
-    # nicePrint("local_size",local_size)
-
-    if use_parallel:
-        x = allgather_vector(local_size)
-        global_size = np.sum(x.reshape(num_proc, -1), 0)
-        global_offset = np.hstack(([0], np.cumsum(global_size)))
-        # global_roffset = global_offset + offset
-        # nicePrint("global offset/roffset", global_offset)
-        new_offset = np.hstack(([0], np.cumsum(x)))[:-1]
-        new_size = x.reshape(num_proc, -1)
-        new_offset = new_offset.reshape(num_proc, -1)
-        # nicePrint(new_size)
-        # nicePrint(new_offset)
-    else:
-        global_size = local_size
-        new_size = local_size.reshape(1, -1)
-        new_offset = offset.reshape(1, -1)
-
-    # index_mapping
-    def blk_stm_idx_map(i):
-        stm_idx = [new_offset[kk, i] +
-                   np.arange(new_size[kk, i], dtype=int)
-                   for kk in range(len(new_offset))]
-        return np.hstack(stm_idx)
-
-    def blk_stm_idx_map_complexreal(i):
-        stm_idx = ([new_offset[kk, i] +
-                   np.arange(new_size[kk, i]//2, dtype=int)
-                   for kk in range(len(new_offset))] +
-                   [new_offset[kk, i] + new_size[kk, i]//2 +
-                   np.arange(new_size[kk, i]//2, dtype=int)
-                   for kk in range(len(new_offset))])
-        return np.hstack(stm_idx)
-
-    def sparsemat2csr(m):
-        w, h = m.Width(), m.Height()
-        I = m.GetIArray()
-        J = m.GetJArray()
-        data = m.GetDataArray()
-        m = csr_matrix((data, J, I), shape=(h, w),
-                       dtype=data.dtype)
-        return m
-
-    def ToScipyCoo(mat):
-        '''
-        convert HypreParCSR to Scipy Coo Matrix
-        '''
-        num_rows, ilower, iupper, jlower, jupper, irn, jcn, data = mat.GetCooDataArray()
-        m = iupper - ilower + 1
-        n = mat.N()
-
-        return coo_matrix((data, (irn - ilower, jcn)),
-                          shape=(num_rows, n)), ilower
-
-    from scipy.sparse import bmat
-    from petram.solver.solver_utils import get_operator_block
-
-    op_type = check_operator_type(is_complex, A)
-    if op_type == 'complexreal':
-        map = [blk_stm_idx_map_complexreal(i) for i in range(rows)]
-    else:
-        map = [blk_stm_idx_map(i) for i in range(rows)]
-
-    # nicePrint("map", map)
-    newi = []
-    newj = []
-    newd = []
-    nrows = np.sum(local_size)
-    ncols = np.sum(global_size)
-
-    # elements = [None] * rows
-    # elements = [elements.copy() for x in range(cols)]
-    # 2D None rows*cols
-    elements = [[None for _ in range(rows)] for _ in range(cols)]
-
-    for i in range(rows):
-        for j in range(cols):
-            m = get_operator_block(A, i, j)
-            if m is None:
-                continue
-            if use_parallel:
-                if isinstance(m, mfem.ComplexOperator):
-                    if not is_complex:
-                        mr, ilower = ToScipyCoo(m._real_operator)
-                        mi, ilower = ToScipyCoo(m._imag_operator)
-                        m = bmat([[mr, -mi], [mi, mr]])
-                    else:
-                        mr, ilower = ToScipyCoo(m._real_operator)
-                        mi, ilower = ToScipyCoo(m._imag_operator)
-                        m = (mr + 1j * mi).tocoo()
-                else:
-                    m, ilower = ToScipyCoo(m)
-            else:
-                # this is not efficient but for now let's do this...
-                if isinstance(m, mfem.ComplexOperator):
-                    if not is_complex:
-                        mr = m._real_operator
-                        mi = m._imag_operator
-                        mr = sparsemat2csr(mr)
-                        mi = sparsemat2csr(mi)
-                        m = bmat([[mr, -mi], [mi, mr]]).tocoo()
-                    else:
-                        mr = m._real_operator
-                        mi = m._imag_operator
-                        mr = sparsemat2csr(mr)
-                        mi = sparsemat2csr(mi)
-                        m = (mr + 1j * mi).tocoo()
-                else:
-                    m = sparsemat2csr(m).tocoo()
-
-            elements[i][j] = m
-
-    csr = bmat(elements, dtype=dtype).tocsr()
-
-    # when block is squashed in vertical direction
-    # we need to swap columns in order to match the order of x, rhs
-    # elements
-
-    csr2 = csr[:, np.argsort(np.hstack(map))]
-
-    return csr2
-
-
-class SuperLUSolver(LinearSolver):
     def __init__(self, gui, engine):
-        LinearSolver.__init__(self, gui, engine)
-
+        super().__init__(gui, engine)
         self._superlu = None
         self.is_complex = False
-        self.use_single_precision = False
-        self.superlu_params = {}
         self.dtype = None
-        self._superlu = None
-
-    def AllocSolver(self, is_complex, use_single_precision, col_permute,
-                    pivot_thr, relax, panel_size, options):
-
-        # for SuperLU, allocation is done in SetOperator
-        self.is_complex = is_complex
-        self.use_single_precision = use_single_precision
-        self.superlu_params = {"permc_spec": col_permute,
-                               "diag_pivot_thresh": pivot_thr,
-                               "relax": relax,
-                               "panel_size": panel_size,
-                               "options": options}
-        if is_complex:
-            if use_single_precision:
-                dtype = np.complex64
-            else:
-                dtype = np.complex128
-        else:
-            if use_single_precision:
-                dtype = np.float32
-            else:
-                dtype = np.float64
-        self.dtype = dtype
 
     def SetOperator(self, A, dist, name=None):
+        self.close()
         self.row_offsets = A.RowOffsets()
         # nicePrint("row offsets in SetOperator", self.row_offsets.ToList())
 
@@ -382,22 +247,11 @@ class SuperLUSolver(LinearSolver):
         if self.gui.write_mat:
             write_coo_matrix('matrix', AA.tocoo())
 
-        from scipy.sparse.linalg import splu
-
-        if use_parallel:
-            # in this case, we gather matrix to root node
-            # and squash it.
-            AAs = MPI.COMM_WORLD.gather(AA, root=0)
-            if myid != 0:
-                return
-            AA = scipy.sparse.vstack(AAs)
-
-        dprint1("creating SuperLU object. matrix shape=", AA.shape)
-        self._superlu = splu(AA.tocsc(), **getattr(self, "superlu_params", {}))
+        self._factor_matrix(AA)
 
     def Mult(self, b, x=None, case_base=0):
 
-        if not self.gui.use_dist_sol:       
+        if not self.gui.use_dist_sol:
             assert False, "SuperLU model returns distributed solution vector. Other mode is not implemented"
 
         sol = []
@@ -434,21 +288,7 @@ class SuperLUSolver(LinearSolver):
             sys.stdout.flush()
             sys.stderr.flush()
 
-            if use_parallel:
-                nrow = len(bbv)
-                if myid == 0:
-                    bbv = gather_vector(bbv, parent=True)
-                else:
-                    gather_vector(bbv)
-
-            if myid == 0:
-                dprint1("calling solve", debug.format_memory_usage())
-                xxv = self._superlu.solve(bbv)
-            else:
-                xxv = None
-
-            if use_parallel:
-                xxv = scatter_vector(xxv, rcounts=nrow)
+            xxv = self._solve_rhs(bbv)
 
             barrier()
             sol.append(xxv)
@@ -457,10 +297,134 @@ class SuperLUSolver(LinearSolver):
         return sol
 
 
+class SuperLUSolver(SuperLUSolverBase):
+    def __init__(self, gui, engine):
+        super().__init__(gui, engine)
+        self.use_single_precision = False
+        self.superlu_params = {}
+
+    def AllocSolver(self, is_complex):
+        gui = self.gui
+        pivot_thr = float(gui.pivot_thr_txt) if len(
+            gui.pivot_thr_txt.strip()) > 0 else None
+        relax = int(gui.relax_txt) if len(
+            gui.relax_txt.strip()) > 0 else None
+        panel_size = int(gui.panel_size_txt) if len(
+            gui.panel_size_txt.strip()) > 0 else None
+        options = gui.eval_options(gui.superlu_options_txt)
+
+        # for SuperLU, allocation is done in SetOperator
+        self.is_complex = is_complex
+        self.use_single_precision = gui.use_single_precision
+        self.superlu_params = {"permc_spec": gui.col_permute_txt,
+                               "diag_pivot_thresh": pivot_thr,
+                               "relax": relax,
+                               "panel_size": panel_size,
+                               "options": options}
+        if is_complex:
+            if self.use_single_precision:
+                dtype = np.complex64
+            else:
+                dtype = np.complex128
+        else:
+            if self.use_single_precision:
+                dtype = np.float32
+            else:
+                dtype = np.float64
+        self.dtype = dtype
+
+    def _factor_matrix(self, matrix):
+        from scipy.sparse.linalg import splu
+
+        if use_parallel:
+            parts = MPI.COMM_WORLD.gather(matrix, root=0)
+            if myid == 0:
+                matrix = scipy.sparse.vstack(parts, format='csr')
+
+        if myid == 0:
+            dprint1("creating SciPy SuperLU object. matrix shape=", matrix.shape)
+            self._superlu = splu(matrix.tocsc(), **self.superlu_params)
+
+    def _solve_rhs(self, rhs):
+        if use_parallel:
+            nrow = len(rhs)
+            rhs = gather_vector(rhs, parent=(myid == 0))
+
+        solution = None
+        if myid == 0:
+            dprint1("calling SciPy solve", debug.format_memory_usage())
+            solution = self._superlu.solve(rhs)
+
+        if use_parallel:
+            solution = scatter_vector(solution, rcounts=nrow)
+        return solution
+
+    def close(self):
+        self._superlu = None
+
+
+class SuperLUDistSolver(SuperLUSolverBase):
+    """
+    Pass Petra-M's local CSR rows and vectors directly to SuperLU_DIST.
+    """
+
+    def __init__(self, gui, engine):
+        from mpi4py import MPI
+
+        super().__init__(gui, engine)
+        self.comm = MPI.COMM_WORLD if use_parallel else MPI.COMM_SELF
+        self.backward_error = None
+
+    def AllocSolver(self, is_complex):
+        self.is_complex = is_complex
+        self.dtype = np.complex128 if is_complex else np.float64
+
+    def _factor_matrix(self, matrix):
+        import time
+        from petram.ext.superlu.factor import factor
+        from petram.helper.mpi_recipes import collective_call
+
+        def canonicalize():
+            matrix.sum_duplicates()
+            matrix.sort_indices()
+
+        collective_call(self.comm, canonicalize)
+        counts = self.comm.allgather(matrix.shape[0])
+        first = sum(counts[:self.comm.rank])
+
+        start = time.perf_counter()
+        self._superlu = factor(
+            matrix, comm=self.comm, first_row=first,
+            ordering=DIST_ORDERINGS[self.gui.col_permute_txt],
+            equil=self.gui.dist_equil,
+            replace_tiny_pivot=self.gui.dist_replace_tiny_pivot,
+            refinement=self.gui.dist_refinement,
+            log_statistics=self.gui.dist_log_statistics)
+        dprint1('SuperLU_DIST factorization:', time.perf_counter()-start,
+                's; MPI ranks:', self.comm.size, 'grid:', self._superlu.process_grid,
+                debug.format_memory_usage())
+
+    def _solve_rhs(self, rhs):
+        local_solution = self._superlu.solve(rhs)
+        self.backward_error = self._superlu.backward_error.copy()
+        return local_solution
+
+    def close(self):
+        if self._superlu is not None:
+            self._superlu.close()
+            self._superlu = None
+
+
 class SuperLUMFEMSolverModel(SuperLU):
     '''
     This model creates SuperLU solver as a preconditioner in iterative solver
     '''
+
+    def verify_setting(self):
+        if self.superlu_backend != 'SciPy':
+            return (False, 'SuperLU preconditioner requires SciPy',
+                    'SuperLU_DIST is supported only as a standalone solver.')
+        return super().verify_setting()
 
     def prepare_solver(self, opr, engine):
         solver = SuperLUBlockPreconditioner(opr,
