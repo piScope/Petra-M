@@ -15,7 +15,7 @@ class BuildGlobal:
 
     # Frontend configuration and resolved native-build selection.
     cfs: dict = field(default_factory=dict)
-    with_superlu_dist: bool = True
+    with_superlu_dist: bool = False
 
     # Tool defaults; configure_build() applies frontend selections.
     cc: str | None = os.getenv("CC", "cc")

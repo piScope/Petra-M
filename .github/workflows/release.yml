@@ -29,6 +29,6 @@ jobs:
           pip3 install wheel six auditwheel build
 
           rm -rf dist/*
-          python3 -m build --sdist --wheel --outdir dist/ .
+          python3 -m build --sdist --outdir dist/ .
           ls -l
           python3 -m twine upload --password ${{ secrets.PYPI_UPLOAD }} --username __token__ --verbose dist/*

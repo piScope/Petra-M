@@ -17,9 +17,26 @@ Petra-M includes
 
 
 ### Install
+
+The default installation is pure Python:
+
 ```shell
   pip install petram
 ```
+
+#### Optional SuperLU_DIST backend
+
+To build the optional parallel direct solver locally:
+
+```shell
+  python -m pip install --no-cache-dir --no-binary=petram -Cwith-superlu_dist=Yes petram
+```
+
+This downloads and builds SuperLU_DIST, OpenBLAS, METIS, and GKlib, applying 
+the bundled patches to SuperLU_DIST. These native solver libraries are not bundled 
+in the PyPI release. Third-party license notices are included in `LICENSES/`.
+A C/C++ build toolchain, Git, and MPI compiler are required. MPI must be compatible 
+with the runtime used by mpi4py and parallel PyMFEM.
 
 ### Licence
 Petra-M project is released under the GPL v3 license.

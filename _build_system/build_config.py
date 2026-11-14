@@ -8,7 +8,7 @@ __all__ = ["print_config", "initialize_cmd_opts", "configure_build",
            "superlu_enabled"]
 
 cmd_opts = [
-    ('with-superlu_dist=', 'YES', 'build the SuperLU_DIST native backend'),
+    ('with-superlu_dist=', 'NO', 'build the SuperLU_DIST native backend'),
     ('CC=', find_command('cc'), 'C compiler'),
     ('CXX=', find_command('c++'), 'C++ compiler'),
     ('MPICC=', find_command('mpicc'), 'MPI C compiler wrapper'),

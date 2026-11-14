@@ -8,11 +8,11 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "_build_system"))
 from build_config import configure_build, print_config
 from build_globals import bglb
-from build_mpi import configure_mpi
 from build_openblas import clone_build_openblas
 from build_superlu import clone_build_superlu
 from build_superlu_solve import (cmake_superlu_solve,
-                                generate_superlu_solve_wrapper)
+                                 generate_superlu_solve_wrapper)
+from build_utils import configure_mpi
 
 
 class BuildExt(build_ext):
@@ -34,7 +34,9 @@ class BuildExt(build_ext):
         bglb.build_temp.mkdir(parents=True, exist_ok=True)
         try:
             source = bglb.rootdir / "superlu_solve"
-            configure_mpi(bglb)
+
+            mpi = configure_mpi(bglb)
+
             clone_build_openblas(bglb)
             clone_build_superlu(bglb)
             cmake_superlu_solve(bglb)
@@ -42,7 +44,8 @@ class BuildExt(build_ext):
             extension = self.extensions[0]
             extension.sources = [os.path.relpath(wrapper, bglb.rootdir)]
             extension.include_dirs = [numpy.get_include(), mpi4py.get_include(), str(source)]
-            extension.library_dirs = [str(package)]
+            # Precede Python's system directories with the selected MPI's paths.
+            extension.library_dirs = [str(package), *mpi['library_dirs']]
             extension.libraries = ["superlu_solve"]
             extension.extra_compile_args = ["-std=c++17", "-fvisibility=hidden"]
             extension.runtime_library_dirs = ["@loader_path" if sys.platform == "darwin"
@@ -71,11 +74,16 @@ def run_setup():
     configure_build(bglb)
     print_config(bglb)
     extensions = []
+
+    dependencies = ["packaging", "mfem >= 4.10.0.1"]
     if bglb.with_superlu_dist:
+        dependencies.append("mpi4py>=4.0")
         extensions.append(Extension(
             "petram.ext.superlu._superlu_solve",
             ["superlu_solve/superlu_solve.i"], language="c++"))
+        
     setup(
+       install_requires = dependencies,
        ext_modules = extensions,
        cmdclass = {"build_ext": BuildExt},
        long_description = long_description(),

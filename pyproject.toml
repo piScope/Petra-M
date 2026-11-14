@@ -8,7 +8,7 @@ maintainers = [ { name = "S. Shiraiwa", email = "shiraiwa@princeton.edu" } ]
 keywords = ["scientific computing", "python visualization", "finite element method", "MFEM"]
 readme = "README.md"
 requires-python = ">=3.10"
-version = "26.10.26"
+version = "26.11.14"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
@@ -17,10 +17,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
 ]
-dependencies = [
-    "packaging",
-    "mfem >= 4.10.0.1",
-]
+dynamic = ["dependencies"]
 
 [project.optional-dependencies]
 MPI = ["mpi4py>=4.0"]

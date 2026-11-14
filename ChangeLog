@@ -1,4 +1,7 @@
         <<< Change Log >>>
+11/14/2026
+        * Direct solver interface, MUMPS, SuperLU, and STRUMPACK, is improved.
+        * MPI solve using SuperLU-DIST is added -C"with_superlu_dist=Yes" option
 
 10/26/2026
         * Added shared TimeContext to synchronize time-dependent Variables,
