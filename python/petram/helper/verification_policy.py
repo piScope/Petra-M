@@ -2,7 +2,13 @@
 Policies for model verification in the executing environment.
 """
 import ast
-from importlib import import_module
+from importlib.machinery import PathFinder
+from importlib.util import find_spec
+import os
+from pathlib import Path
+from shutil import which
+
+from petram.helper.check_module_installed import module_file_exists
 
 from petram.mfem_config import get_use_parallel
 
@@ -31,7 +37,7 @@ class ClusterSubmission(BasePolicy):
 
 class RuntimeVerification(BasePolicy):
     """
-    Extend model validation with native solver import checks.
+    Extend model validation with native solver module availability checks.
     """
 
     def _check_solver(self, obj, solver):
@@ -40,13 +46,10 @@ class RuntimeVerification(BasePolicy):
             return result
 
         module = 'petram.ext.' + solver + '.' + solver + '_solve'
-        try:
-            import_module(module)
-        except (ImportError, OSError) as err:
-            text = 'Cannot load ' + solver.upper()
+        if not module_file_exists(module):
+            text = 'Cannot find ' + solver.upper()
             detail = ('Required package: Petra-M--DS\n'
-                      'Module: ' + module + '\n' +
-                      type(err).__name__ + ': ' + str(err))
+                      'Module: ' + module)
             return False, text, detail
         return result
 
@@ -55,6 +58,29 @@ class RuntimeVerification(BasePolicy):
 
     def check_Strumpack(self, obj):
         return self._check_solver(obj, 'strumpack')
+
+    def check_SuperLU(self, obj):
+        result = obj.verify_setting()
+        if not result[0] or obj.superlu_backend == 'SciPy':
+            return result
+
+        if module_file_exists('petram.ext.superlu.superlu_solve'):
+            return result
+
+        # Resolving mfem._par through find_spec would execute its MPI initializer.
+        spec = find_spec('mfem')
+        paths = spec.submodule_search_locations if spec is not None else ()
+        parallel_mfem = any(
+            PathFinder.find_spec('mfem._par._pmesh', [str(Path(path) / '_par')])
+            for path in (paths or ()))
+        if (not parallel_mfem or not module_file_exists('mpi4py') or
+                not which(os.environ.get('MPICC', 'mpicc')) or
+                not which(os.environ.get('MPICXX', 'mpicxx'))):
+            return (False, 'Cannot find SuperLU_DIST',
+                    'SuperLU_DIST is available only with MPI.')
+
+        return (False, 'Cannot find SuperLU_DIST',
+                'Install Petra-M--Extra (petram_extra) via the Packages menu.')
 
     def _uses_mumps(self, obj):
         if (getattr(obj, 'solver_type', '').startswith('Nested')

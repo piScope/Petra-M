@@ -200,3 +200,176 @@ def check_block_operator(A):
                 is_parallel = True
 
     return is_complex, is_parallel
+
+
+def check_operator_type(is_complex, A):
+    """
+    Identify real, complex, or complex-as-real block operators.
+    """
+    from petram.mfem_config import use_parallel
+    if use_parallel:
+        import mfem.par as mfem
+    else:
+        import mfem.ser as mfem
+
+    rows = A.NumRowBlocks()
+    cols = A.NumColBlocks()
+
+    complexreal = False
+    for i in range(rows):
+        for j in range(cols):
+            m = get_operator_block(A, i, j)
+            if isinstance(m, mfem.ComplexOperator) and not is_complex:
+                complexreal = True
+                break
+
+    if complexreal:
+        return "complexreal"
+    if is_complex:
+        return "complex"
+    return "real"
+
+
+def build_csr_local(A, dtype, is_complex):
+    """
+    Build local CSR rows with rank-major global column numbering.
+
+    Local rows retain their field-block order. Global numbering groups all
+    fields on each rank, rather than grouping each field across all ranks.
+    """
+    from scipy.sparse import bmat, coo_matrix, csr_matrix
+    from petram.mfem_config import use_parallel
+
+    if use_parallel:
+        from mpi4py import MPI
+        from petram.helper.mpi_recipes import allgather_vector
+        import mfem.par as mfem
+        num_proc = MPI.COMM_WORLD.size
+    else:
+        import mfem.ser as mfem
+
+    # print("build_csr_local", dtype, is_complex)
+    offset = np.array(A.RowOffsets().ToList(), dtype=int)
+    coffset = np.array(A.ColOffsets().ToList(), dtype=int)
+    if is_complex:
+        offset = offset // 2
+    # nicePrint("offets", offset, coffset)
+    rows = A.NumRowBlocks()
+    cols = A.NumColBlocks()
+
+    local_size = np.diff(offset)
+    # nicePrint("local_size",local_size)
+
+    if use_parallel:
+        x = allgather_vector(local_size)
+        global_size = np.sum(x.reshape(num_proc, -1), 0)
+        global_offset = np.hstack(([0], np.cumsum(global_size)))
+        # global_roffset = global_offset + offset
+        # nicePrint("global offset/roffset", global_offset)
+        new_offset = np.hstack(([0], np.cumsum(x)))[:-1]
+        new_size = x.reshape(num_proc, -1)
+        new_offset = new_offset.reshape(num_proc, -1)
+        # nicePrint(new_size)
+        # nicePrint(new_offset)
+    else:
+        global_size = local_size
+        new_size = local_size.reshape(1, -1)
+        new_offset = offset.reshape(1, -1)
+
+    # index_mapping
+    def blk_stm_idx_map(i):
+        stm_idx = [new_offset[kk, i] +
+                   np.arange(new_size[kk, i], dtype=int)
+                   for kk in range(len(new_offset))]
+        return np.hstack(stm_idx)
+
+    def blk_stm_idx_map_complexreal(i):
+        stm_idx = ([new_offset[kk, i] +
+                   np.arange(new_size[kk, i]//2, dtype=int)
+                   for kk in range(len(new_offset))] +
+                   [new_offset[kk, i] + new_size[kk, i]//2 +
+                   np.arange(new_size[kk, i]//2, dtype=int)
+                   for kk in range(len(new_offset))])
+        return np.hstack(stm_idx)
+
+    def sparsemat2csr(m):
+        w, h = m.Width(), m.Height()
+        I = m.GetIArray()
+        J = m.GetJArray()
+        data = m.GetDataArray()
+        m = csr_matrix((data, J, I), shape=(h, w),
+                       dtype=data.dtype)
+        return m
+
+    def ToScipyCoo(mat):
+        """
+        Convert HypreParCSR to a local SciPy COO matrix.
+        """
+        num_rows, ilower, iupper, jlower, jupper, irn, jcn, data = mat.GetCooDataArray()
+        m = iupper - ilower + 1
+        n = mat.N()
+
+        return coo_matrix((data, (irn - ilower, jcn)),
+                          shape=(num_rows, n)), ilower
+
+    op_type = check_operator_type(is_complex, A)
+    if op_type == 'complexreal':
+        map = [blk_stm_idx_map_complexreal(i) for i in range(rows)]
+    else:
+        map = [blk_stm_idx_map(i) for i in range(rows)]
+
+    # nicePrint("map", map)
+    newi = []
+    newj = []
+    newd = []
+    nrows = np.sum(local_size)
+    ncols = np.sum(global_size)
+
+    elements = [[None] * cols for _ in range(rows)]
+
+    for i in range(rows):
+        for j in range(cols):
+            m = get_operator_block(A, i, j)
+            if m is None:
+                continue
+            if use_parallel:
+                if isinstance(m, mfem.ComplexOperator):
+                    if not is_complex:
+                        mr, ilower = ToScipyCoo(m._real_operator)
+                        mi, ilower = ToScipyCoo(m._imag_operator)
+                        m = bmat([[mr, -mi], [mi, mr]])
+                    else:
+                        mr, ilower = ToScipyCoo(m._real_operator)
+                        mi, ilower = ToScipyCoo(m._imag_operator)
+                        m = (mr + 1j * mi).tocoo()
+                else:
+                    m, ilower = ToScipyCoo(m)
+            else:
+                # this is not efficient but for now let's do this...
+                if isinstance(m, mfem.ComplexOperator):
+                    if not is_complex:
+                        mr = m._real_operator
+                        mi = m._imag_operator
+                        mr = sparsemat2csr(mr)
+                        mi = sparsemat2csr(mi)
+                        m = bmat([[mr, -mi], [mi, mr]]).tocoo()
+                    else:
+                        mr = m._real_operator
+                        mi = m._imag_operator
+                        mr = sparsemat2csr(mr)
+                        mi = sparsemat2csr(mi)
+                        m = (mr + 1j * mi).tocoo()
+                else:
+                    m = sparsemat2csr(m).tocoo()
+
+            elements[i][j] = m
+
+    csr = bmat(elements, dtype=dtype).tocsr()
+
+    # when block is squashed in vertical direction
+    # we need to swap columns in order to match the order of x, rhs
+    # elements
+
+    csr2 = csr[:, np.argsort(np.hstack(map))]
+
+    return csr2

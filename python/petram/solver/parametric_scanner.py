@@ -215,9 +215,11 @@ class SimpleScanner(DefaultParametricScanner):
             general.dataset[name] = data[k]
 
     def save_namedparam_probes(self):
-        try:
+        from petram.mfem_config import use_parallel
+
+        if use_parallel:
             from mpi4py import MPI
-        except ImportError:
+        else:
             from petram.helper.dummy_mpi import MPI
         myid = MPI.COMM_WORLD.rank
 

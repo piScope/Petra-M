@@ -1587,8 +1587,7 @@ class MUMPSBlockPreconditioner(mfem.Solver):
         # self._opr = weakref.ref(opr)
 
         opr = self._opr()
-        from petram.solver.strumpack_model import build_csr_local
-        from petram.solver.solver_utils import check_block_operator
+        from petram.solver.solver_utils import build_csr_local, check_block_operator
         is_complex, is_parallel = check_block_operator(opr)
 
         if is_complex:
