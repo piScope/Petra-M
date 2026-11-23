@@ -1,4 +1,8 @@
         <<< Change Log >>>
+11/14/2026
+        * Direct solver interface, MUMPS, SuperLU, and STRUMPACK, are improved.
+        ** Using distributed linear direct solvers requires to install additional 
+           packages.
 
 10/26/2026
         * Added shared TimeContext to synchronize time-dependent Variables,
