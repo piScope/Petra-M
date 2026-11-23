@@ -3,6 +3,8 @@
         * Direct solver interface, MUMPS, SuperLU, and STRUMPACK, are improved.
         ** Using distributed linear direct solvers requires to install additional 
            packages.
+        ** package installation runs scripts/install_env_check.py, if it is available.
+           this check is skipped if source is specified as compressed file.
 
 10/26/2026
         * Added shared TimeContext to synchronize time-dependent Variables,
