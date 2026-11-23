@@ -28,29 +28,14 @@ def set_default_font():
     globals()['font'] = font
 
 
-def install_from_github(url, update=False):
+def install_from_github(url, update=False, parent=None):
     """
     Installs a Python library from a GitHub repo.
 
     """
     if not url.startswith("git+"):
         url = "git+" + url
-    command = [sys.executable, "-m", "pip", "install"]
-    if update:
-        command.append("-U")
-    command.append(url)
-    try:
-        # python -m pip install
-        sp.check_call(command,
-                      # stdout=sp.PIPE,
-                      # stderr=sp.STDOUT,
-                      )
-    except sp.CalledProcessError as e:
-        print(f"Installation failed. Error: {e}")
-        if e.output is not None:
-            print(f"Output: {e.output.decode()}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+    return pip_install(url, update=update, parent=parent)
 
 
 def pip_uninstall(package):
@@ -69,20 +54,29 @@ def pip_uninstall(package):
         print(f"An unexpected error occurred: {e}")
 
 
-def pip_install(url):
-    command = [sys.executable, "-m", "pip", "install", url]
+def pip_install(url, update=False, parent=None):
+    pip_args = run_package_env_checker(url, parent=parent)
+    if pip_args is None:
+        return False
+    command = [sys.executable, "-m", "pip", "install"]
+    if update:
+        command.append("-U")
+    command.extend(pip_args)
+    command.append(url)
     try:
         # python -m pip install
         sp.check_call(command,
                       # stdout=sp.PIPE,
                       # stderr=sp.STDOUT,
                       )
+        return True
     except sp.CalledProcessError as e:
         print(f"Installation failed. Error: {e}")
         if e.output is not None:
             print(f"Output: {e.output.decode()}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+    return False
 
 
 class pkglist_popup(wx.Menu):
@@ -112,14 +106,14 @@ class pkglist_popup(wx.Menu):
         BuildPopUpMenu(self, menus)
 
     def onInstall(self, evt):
-        install_from_github(self.target_pkg["html_url"])
-        self.parent.update_done = True
-        self.parent.do_recheck()
+        if install_from_github(self.target_pkg["html_url"], parent=self.parent):
+            self.parent.update_done = True
+            self.parent.do_recheck()
 
     def onUpdate(self, evt):
-        install_from_github(self.target_pkg["html_url"])
-        self.parent.update_done = True
-        self.parent.do_recheck()
+        if install_from_github(self.target_pkg["html_url"], update=True, parent=self.parent):
+            self.parent.update_done = True
+            self.parent.do_recheck()
 
     def onUninstall(self, evt):
         pip_uninstall(self.target_pkg["module"])
@@ -247,7 +241,7 @@ class dlg_repos(wx.Dialog):
 
         from ifigure.utils.edit_list import DialogEditList
         ret = DialogEditList(ll, modal=True, parent=self,
-                             title='Repository', size=(600, -1),
+                             title='Repository', size=(-1, -1),
                              style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         if not ret[0]:
             return
@@ -449,9 +443,15 @@ class dlg_packages(wx.Dialog):
 
     def onInstallFrom(self, evt):
         ll = (["url", "", 0],
-              [None, "example 1  (local) /home/user/venvs/src/Petra-M", 2],
-              [None, "example 2  (remote file) https://github.com/piScope/Petra-M--RF/archive/refs/tags/v_26_2_7.tar.gz", 2],
-              [None, "example 3  (github) git+https://github.com/piScope/Petra-M--RF", 2],)
+              ["example 1 (local)", "/home/user/venvs/src/Petra-M", 0,
+               {"style": wx.TE_READONLY | wx.BORDER_NONE}],
+              ["example 2 (remote file)", "https://github.com/piScope/Petra-M--RF/archive/refs/tags/v_26_2_7.tar.gz", 0,
+               {"style": wx.TE_READONLY | wx.BORDER_NONE}],
+              ["example 3 (github)", "git+https://github.com/piScope/Petra-M--RF", 0,
+               {"style": wx.TE_READONLY | wx.BORDER_NONE}],
+              ["example 4 (github)", "git+ssh://git@github.com/piScope/Petra-M--RF.git", 0,
+               {"style": wx.TE_READONLY | wx.BORDER_NONE}],
+              [None, " ", 2, {}])
 
         from ifigure.utils.edit_list import DialogEditList
         ret = DialogEditList(ll, modal=True, parent=self,
@@ -462,8 +462,9 @@ class dlg_packages(wx.Dialog):
 
         url = ret[1][0]
 
-        pip_install(url)
-        self.do_recheck()
+        if pip_install(url, parent=self):
+            self.update_done = True
+            self.do_recheck()
 
     def _myRefresh(self):
         self.Fit()
@@ -484,3 +485,121 @@ def check_packages(parent):
         dlg.Destroy()
     dlg.Bind(wx.EVT_CLOSE, close_dlg)
     return dlg
+
+
+def run_package_env_checker(package_loc, parent=None):
+    """
+    Run an optional package environment check and ask whether to install.
+
+    Return pip arguments after confirmation, [] when no checker exists, or
+    None when the user cancels or checking fails. Supports local directories
+    and GitHub HTTPS/SSH repository URLs, optionally prefixed with git+ and
+    followed by @revision. GitHub's git@github.com: form is also accepted.
+    HTTP(S) source archive URLs skip the check.
+    """
+    import json
+    from pathlib import Path
+    import tempfile
+    from urllib.error import HTTPError
+    from urllib.parse import quote, urlsplit
+    from urllib.request import urlopen
+    from ifigure.utils.edit_list import DialogEditListWithWindowList
+
+    dialog_style = wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER | wx.STAY_ON_TOP
+
+    try:
+        with tempfile.TemporaryDirectory(prefix="petram-install-check-") as directory:
+            source = Path(package_loc).expanduser()
+            if source.is_dir():
+                script = source.resolve() / "scripts" / "install_env_check.py"
+                if not script.is_file():
+                    return []
+            else:
+                address = package_loc[4:] if package_loc.startswith(
+                    "git+") else package_loc
+                if address.startswith("git@github.com:"):
+                    address = "ssh://git@github.com/" + address[len("git@github.com:"):]
+                parsed = urlsplit(address)
+
+                if (not package_loc.startswith("git+") and
+                        parsed.scheme in ("http", "https") and
+                        parsed.path.lower().endswith((".tar.gz", ".tar.bz2", ".tar.xz", ".tgz", ".zip"))):
+                    # if package is source archive, skip the environment check
+                    return []
+
+                ssh = parsed.scheme == "ssh" and parsed.netloc == "git@github.com"
+                if not ssh and (parsed.scheme != "https" or parsed.netloc != "github.com"):
+                    raise ValueError(
+                        "Use a local source directory or a GitHub HTTPS/SSH repository URL.")
+
+                repository, separator, revision = parsed.path.strip(
+                    "/").partition("@")
+                parts = repository.removesuffix(".git").split("/")
+                if len(parts) != 2 or not all(parts) or (separator and not revision):
+                    raise ValueError(
+                        "Invalid GitHub repository URL: " + package_loc)
+                revision = revision if separator else "HEAD"
+                script = Path(directory) / "install_env_check.py"
+                if ssh:
+                    repository_dir = Path(directory) / "repository"
+                    remote = "ssh://git@github.com/" + repository
+                    sp.run(["git", "clone", "--filter=blob:none", "--no-checkout", "--depth=1",
+                            remote, str(repository_dir)], capture_output=True, text=True,
+                           timeout=60, check=True)
+                    git = ["git", "-C", str(repository_dir)]
+                    tree = "HEAD"
+                    if separator:
+                        sp.run(git + ["fetch", "--depth=1", "--filter=blob:none", "origin", revision],
+                               capture_output=True, text=True, timeout=60, check=True)
+                        tree = "FETCH_HEAD"
+                    listing = sp.run(git + ["ls-tree", "--name-only", tree, "--",
+                                            "scripts/install_env_check.py"],
+                                     capture_output=True, text=True, timeout=60, check=True)
+                    if not listing.stdout.strip():
+                        return []
+                    contents = sp.run(git + ["show", tree + ":scripts/install_env_check.py"],
+                                      capture_output=True, text=True, timeout=60, check=True)
+                    script.write_text(contents.stdout)
+                else:
+                    script_url = ("https://raw.githubusercontent.com/" + "/".join(parts) +
+                                  "/" + quote(revision, safe="/") + "/scripts/install_env_check.py")
+                    try:
+                        with urlopen(script_url, timeout=30) as response:
+                            script.write_bytes(response.read())
+                    except HTTPError as error:
+                        if error.code == 404:
+                            return []
+                        raise
+
+            result = sp.run([sys.executable, "-B", str(script)], cwd=directory,
+                            capture_output=True, text=True, timeout=60, check=True)
+            response = json.loads(result.stdout)
+
+            if (not isinstance(response, dict) or
+                    not isinstance(response.get("good"), bool) or
+                    not isinstance(response.get("message"), str) or
+                    not isinstance(response.get("pip_args"), list) or
+                    not all(isinstance(arg, str) for arg in response["pip_args"])):
+                raise ValueError(
+                    "The package environment checker returned an invalid result.")
+
+            if not response["good"]:
+                DialogEditListWithWindowList(
+                    [[None, response["message"], 2]], modal=True, parent=parent,
+                    title="Cannot install package", style=dialog_style)
+                return None
+            choice = DialogEditListWithWindowList(
+                [[None, response["message"], 2]], modal=True, parent=parent,
+                title="Install package?", style=dialog_style)
+            return response["pip_args"] if choice[0] else None
+
+    except (OSError, ValueError, sp.SubprocessError) as error:
+        detail = str(error)
+        if isinstance(error, sp.CalledProcessError) and error.stderr:
+            detail += "\n" + error.stderr.strip()
+        DialogEditListWithWindowList(
+            [[None, "Package environment check failed:\n" + detail, 2]],
+            modal=True, parent=parent, title="Cannot install package",
+            style=dialog_style)
+
+        return None
